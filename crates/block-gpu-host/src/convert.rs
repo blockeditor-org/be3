@@ -284,23 +284,71 @@ pub(crate) fn limits(value: &wgpu::Limits) -> abi::SupportedLimits {
 }
 
 pub(crate) const FEATURES: [(wgpu::Features, abi::FeatureName); 17] = [
-    (wgpu::Features::DEPTH_CLIP_CONTROL, abi::FeatureName::DepthClipControl),
-    (wgpu::Features::DEPTH32FLOAT_STENCIL8, abi::FeatureName::Depth32floatStencil8),
-    (wgpu::Features::TEXTURE_COMPRESSION_BC, abi::FeatureName::TextureCompressionBc),
-    (wgpu::Features::TEXTURE_COMPRESSION_BC_SLICED_3D, abi::FeatureName::TextureCompressionBcSliced3d),
-    (wgpu::Features::TEXTURE_COMPRESSION_ETC2, abi::FeatureName::TextureCompressionEtc2),
-    (wgpu::Features::TEXTURE_COMPRESSION_ASTC, abi::FeatureName::TextureCompressionAstc),
-    (wgpu::Features::TEXTURE_COMPRESSION_ASTC_SLICED_3D, abi::FeatureName::TextureCompressionAstcSliced3d),
-    (wgpu::Features::TIMESTAMP_QUERY, abi::FeatureName::TimestampQuery),
-    (wgpu::Features::INDIRECT_FIRST_INSTANCE, abi::FeatureName::IndirectFirstInstance),
+    (
+        wgpu::Features::DEPTH_CLIP_CONTROL,
+        abi::FeatureName::DepthClipControl,
+    ),
+    (
+        wgpu::Features::DEPTH32FLOAT_STENCIL8,
+        abi::FeatureName::Depth32floatStencil8,
+    ),
+    (
+        wgpu::Features::TEXTURE_COMPRESSION_BC,
+        abi::FeatureName::TextureCompressionBc,
+    ),
+    (
+        wgpu::Features::TEXTURE_COMPRESSION_BC_SLICED_3D,
+        abi::FeatureName::TextureCompressionBcSliced3d,
+    ),
+    (
+        wgpu::Features::TEXTURE_COMPRESSION_ETC2,
+        abi::FeatureName::TextureCompressionEtc2,
+    ),
+    (
+        wgpu::Features::TEXTURE_COMPRESSION_ASTC,
+        abi::FeatureName::TextureCompressionAstc,
+    ),
+    (
+        wgpu::Features::TEXTURE_COMPRESSION_ASTC_SLICED_3D,
+        abi::FeatureName::TextureCompressionAstcSliced3d,
+    ),
+    (
+        wgpu::Features::TIMESTAMP_QUERY,
+        abi::FeatureName::TimestampQuery,
+    ),
+    (
+        wgpu::Features::INDIRECT_FIRST_INSTANCE,
+        abi::FeatureName::IndirectFirstInstance,
+    ),
     (wgpu::Features::SHADER_F16, abi::FeatureName::ShaderF16),
-    (wgpu::Features::RG11B10UFLOAT_RENDERABLE, abi::FeatureName::Rg11b10ufloatRenderable),
-    (wgpu::Features::BGRA8UNORM_STORAGE, abi::FeatureName::Bgra8unormStorage),
-    (wgpu::Features::FLOAT32_FILTERABLE, abi::FeatureName::Float32Filterable),
-    (wgpu::Features::FLOAT32_BLENDABLE, abi::FeatureName::Float32Blendable),
-    (wgpu::Features::DUAL_SOURCE_BLENDING, abi::FeatureName::DualSourceBlending),
-    (wgpu::Features::CLIP_DISTANCES, abi::FeatureName::ClipDistances),
-    (wgpu::Features::PRIMITIVE_INDEX, abi::FeatureName::PrimitiveIndex),
+    (
+        wgpu::Features::RG11B10UFLOAT_RENDERABLE,
+        abi::FeatureName::Rg11b10ufloatRenderable,
+    ),
+    (
+        wgpu::Features::BGRA8UNORM_STORAGE,
+        abi::FeatureName::Bgra8unormStorage,
+    ),
+    (
+        wgpu::Features::FLOAT32_FILTERABLE,
+        abi::FeatureName::Float32Filterable,
+    ),
+    (
+        wgpu::Features::FLOAT32_BLENDABLE,
+        abi::FeatureName::Float32Blendable,
+    ),
+    (
+        wgpu::Features::DUAL_SOURCE_BLENDING,
+        abi::FeatureName::DualSourceBlending,
+    ),
+    (
+        wgpu::Features::CLIP_DISTANCES,
+        abi::FeatureName::ClipDistances,
+    ),
+    (
+        wgpu::Features::PRIMITIVE_INDEX,
+        abi::FeatureName::PrimitiveIndex,
+    ),
 ];
 
 pub(crate) fn features(value: wgpu::Features) -> Vec<abi::FeatureName> {

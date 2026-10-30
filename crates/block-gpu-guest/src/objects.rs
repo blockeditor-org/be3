@@ -146,7 +146,11 @@ pub(crate) struct Device {
 pub(crate) struct Queue;
 
 impl Device {
-    pub(crate) fn new(features: wgpu::Features, offered: wgpu::Features, limits: wgpu::Limits) -> Self {
+    pub(crate) fn new(
+        features: wgpu::Features,
+        offered: wgpu::Features,
+        limits: wgpu::Limits,
+    ) -> Self {
         Self {
             allowed: Allowed {
                 requested: features,
@@ -208,7 +212,9 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::ShaderModuleDescriptorPassthrough<'_>,
     ) -> DispatchShaderModule {
-        unimplemented!("passthrough shaders are refused: plugins are untrusted, and wgpu cannot validate them")
+        unimplemented!(
+            "passthrough shaders are refused: plugins are untrusted, and wgpu cannot validate them"
+        )
     }
 
     fn create_bind_group_layout(
@@ -376,7 +382,9 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::PipelineCacheDescriptor<'_>,
     ) -> DispatchPipelineCache {
-        unimplemented!("pipeline caches are refused: plugins are untrusted, and wgpu cannot validate a cache")
+        unimplemented!(
+            "pipeline caches are refused: plugins are untrusted, and wgpu cannot validate a cache"
+        )
     }
 
     fn create_buffer(&self, desc: &wgpu::BufferDescriptor<'_>) -> DispatchBuffer {

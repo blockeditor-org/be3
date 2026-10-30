@@ -6,7 +6,11 @@ fn a_format_that_needs_a_feature_is_refused_until_it_is_requested() {
         wgpu::TextureFormat::Bc1RgbaUnorm,
         wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
     );
-    assert!(allowed(wgpu::Features::empty()).texture(&compressed).is_err());
+    assert!(
+        allowed(wgpu::Features::empty())
+            .texture(&compressed)
+            .is_err()
+    );
     assert_eq!(
         allowed(wgpu::Features::TEXTURE_COMPRESSION_BC).texture(&compressed),
         Ok(())

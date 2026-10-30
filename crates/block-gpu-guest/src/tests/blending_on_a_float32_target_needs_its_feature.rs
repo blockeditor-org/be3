@@ -7,8 +7,15 @@ fn blending_on_a_float32_target_needs_its_feature() {
         blend: Some(blend),
         write_mask: wgpu::ColorWrites::ALL,
     };
-    let float = target(wgpu::TextureFormat::R32Float, wgpu::BlendState::ALPHA_BLENDING);
-    assert!(allowed(wgpu::Features::empty()).color_target(&float).is_err());
+    let float = target(
+        wgpu::TextureFormat::R32Float,
+        wgpu::BlendState::ALPHA_BLENDING,
+    );
+    assert!(
+        allowed(wgpu::Features::empty())
+            .color_target(&float)
+            .is_err()
+    );
     assert_eq!(
         allowed(wgpu::Features::FLOAT32_BLENDABLE).color_target(&float),
         Ok(())
@@ -25,7 +32,9 @@ fn blending_on_a_float32_target_needs_its_feature() {
         },
     );
     assert!(
-        allowed(wgpu::Features::empty()).color_target(&dual).is_err(),
+        allowed(wgpu::Features::empty())
+            .color_target(&dual)
+            .is_err(),
         "a factor naming the second blend source needs dual-source blending"
     );
 }

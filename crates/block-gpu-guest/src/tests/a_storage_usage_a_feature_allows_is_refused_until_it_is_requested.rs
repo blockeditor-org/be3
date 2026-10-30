@@ -34,7 +34,11 @@ fn a_storage_usage_a_feature_allows_is_refused_until_it_is_requested() {
         label: None,
         entries: &entries,
     };
-    assert!(allowed(wgpu::Features::empty()).group_layout(&layout).is_err());
+    assert!(
+        allowed(wgpu::Features::empty())
+            .group_layout(&layout)
+            .is_err()
+    );
     assert_eq!(
         allowed(wgpu::Features::BGRA8UNORM_STORAGE).group_layout(&layout),
         Ok(())

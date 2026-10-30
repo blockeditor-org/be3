@@ -10,7 +10,10 @@ fn allowed(requested: wgpu::Features) -> Allowed {
     }
 }
 
-fn texture(format: wgpu::TextureFormat, usage: wgpu::TextureUsages) -> wgpu::TextureDescriptor<'static> {
+fn texture(
+    format: wgpu::TextureFormat,
+    usage: wgpu::TextureUsages,
+) -> wgpu::TextureDescriptor<'static> {
     wgpu::TextureDescriptor {
         label: None,
         size: wgpu::Extent3d {

@@ -84,13 +84,15 @@ pub(crate) fn requested(
         ));
     }
     let mut exceeded = None;
-    descriptor
-        .required_limits
-        .check_limits_with_fail_fn(limits, true, |name, requested, allowed| {
+    descriptor.required_limits.check_limits_with_fail_fn(
+        limits,
+        true,
+        |name, requested, allowed| {
             exceeded = Some(format!(
                 "Limit '{name}' value {requested} is better than allowed {allowed}"
             ));
-        });
+        },
+    );
     exceeded.map_or(Ok(()), Err)
 }
 
@@ -184,7 +186,10 @@ impl Allowed {
             blend.alpha.src_factor,
             blend.alpha.dst_factor,
         ];
-        if factors.iter().any(wgpu::BlendFactor::ref_second_blend_source) {
+        if factors
+            .iter()
+            .any(wgpu::BlendFactor::ref_second_blend_source)
+        {
             self.needs(wgpu::Features::DUAL_SOURCE_BLENDING)?;
         }
         let [requested, offered] = self.format_features(target.format);
