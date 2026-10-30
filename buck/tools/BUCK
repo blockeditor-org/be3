@@ -420,8 +420,8 @@ command_alias(
 
 # Every wasm link: rust-lld, through crates/wasm-link, which drops the
 # -fuse-ld=lld prelude//os_lookup adds (it has no case for WebAssembly and falls
-# back to linux) and makes the plugin SDK's and the plugins' links
-# (guides/plugin_sdk.md).
+# back to linux) and makes the links of the libraries plugins share and of the
+# plugins linked against them (guides/plugin_sdk.md).
 command_alias(
     name = "wasm-ld",
     args = [

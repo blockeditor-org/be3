@@ -135,8 +135,8 @@ wasi_app_flags = plugin_exports + [
 ]
 
 # The libraries every editor is linked against unless it names its own
-# (guides/plugin_sdk.md): today one, the plugin SDK, the root that holds std,
-# wasi-libc, beui and the rest.
+# (guides/plugin_sdk.md): today one, crates/block-plugin-sdk, the root that holds
+# std, wasi-libc, beui and the rest.
 DEFAULT_LIBRARIES = ["root//crates/block-plugin-sdk:module"]
 
 # What makes a module the root of every closure: wasi-libc's crt1-reactor.o,

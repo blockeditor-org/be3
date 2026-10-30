@@ -202,8 +202,10 @@ and plugin tests use the test rules; editors also include `manifest.json`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
-plugin SDK (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm
-`:test`. The app picks up every editor by itself.
+libraries `DEFAULT_LIBRARIES` names unless `libraries` says otherwise
+(guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm `:test`. A
+library is one `wasm_library(module, libraries)` call, which names every
+library under it. The app picks up every editor by itself.
 
 **A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
@@ -343,7 +345,8 @@ A native target depends on a wasm one through a transition in
 
 - `:native` stages the executable as `block-app` and every editor's
   manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, and
-  the plugin SDK as `sdk-<SHA-256>.wasm` with its `.cwasm`, precompiled in an action
+  every library in the editors' closures as `lib-<SHA-256>.wasm` with its `.cwasm`
+  (each module's `WasmLibrariesInfo`), precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run. `plugins.json` lists the manifests: every
