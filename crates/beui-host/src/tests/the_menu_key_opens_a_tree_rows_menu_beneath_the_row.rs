@@ -35,7 +35,10 @@ fn the_menu_key_opens_a_tree_rows_menu_beneath_the_row() {
     harness.settle();
     let row = harness.rect(harness.find("tree.1.row"));
 
-    for (key, modifiers) in [(Key::ContextMenu, Modifiers::NONE), (Key::F10, Modifiers::SHIFT)] {
+    for (key, modifiers) in [
+        (Key::ContextMenu, Modifiers::NONE),
+        (Key::F10, Modifiers::SHIFT),
+    ] {
         harness.key(key, modifiers);
         harness.settle();
         let rename = harness
@@ -49,6 +52,11 @@ fn the_menu_key_opens_a_tree_rows_menu_beneath_the_row() {
         );
         harness.key(Key::Escape, Modifiers::NONE);
         harness.settle();
-        assert!(harness.document().find_test_id("tree.menu.rename").is_none());
+        assert!(
+            harness
+                .document()
+                .find_test_id("tree.menu.rename")
+                .is_none()
+        );
     }
 }

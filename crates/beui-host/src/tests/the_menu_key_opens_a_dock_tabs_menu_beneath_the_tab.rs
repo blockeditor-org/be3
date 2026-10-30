@@ -18,7 +18,10 @@ fn the_menu_key_opens_a_dock_tabs_menu_beneath_the_tab() {
     assert!(holds_tab(&harness), "Tab reaches the second tab");
     let tab = harness.rect(harness.find("dock.tab.2"));
 
-    for (key, modifiers) in [(Key::ContextMenu, Modifiers::NONE), (Key::F10, Modifiers::SHIFT)] {
+    for (key, modifiers) in [
+        (Key::ContextMenu, Modifiers::NONE),
+        (Key::F10, Modifiers::SHIFT),
+    ] {
         harness.key(key, modifiers);
         harness.frame(Vec::new());
         let row = text_within(harness.document(), dock, "Pop out into a window")
