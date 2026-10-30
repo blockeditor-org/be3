@@ -100,20 +100,21 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
-    #[prop(default = None)] max_length: Option<Size>,
+    #[prop(default = None)] max_length: Prop<Option<Size>>,
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
     let theme = use_theme();
+    let bounded = !matches!(max_length, Prop::Static(None));
     let scroll = view! {
         <unstyled::Scroll
             api
             offset
             reveal
             direction
-            fit={fit || max_length.is_some()}
+            fit={fit || bounded}
             follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
             focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px())))}
@@ -126,13 +127,16 @@ pub fn Scroll(
             {children}
         </unstyled::Scroll>
     };
-    let Some(max_length) = max_length else {
+    if !bounded {
         return scroll;
-    };
-    let max_length = use_size(max_length);
-    let bounded = create_memo(move || ItemSize::Intrinsic.max(max_length.get()));
+    }
+    let length = use_size(max_length.map(|length| length.unwrap_or(Size::Custom(0.0))));
+    let bound = create_memo(move || match max_length.get() {
+        Some(_) => ItemSize::Intrinsic.max(length.get()),
+        None => ItemSize::Intrinsic.into(),
+    });
     view! {
-        <List direction={direction} spacing=Space::None>{scroll} @sizing={bounded}</List>
+        <List direction={direction} spacing=Space::None>{scroll} @sizing={bound}</List>
     }
 }
 

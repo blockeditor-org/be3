@@ -1473,6 +1473,8 @@ Content shorter than the scroll is laid out as long as the scroll, as a browser'
 whether or not the content overflows.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
+`max_length` (a `Prop<Option<Size>>`, so a signal or memo can move it) makes it fit
+and bounds it: as long as its content up to that length, then scrolling.
 With `max_length` the scroll is as long as what it holds, up to that length, and
 scrolls from there on, which is what a popup listing a few rows or many wants.
 With `follow_end` (a log, a terminal) the scroll starts at its end and stays

@@ -70,15 +70,13 @@ fn NotificationRows(
     height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let bounded = create_memo(move || ItemSize::Intrinsic.max(height.get()));
+    let max_length = create_memo(move || Size::Custom(height.get()));
     view! {
-        <List spacing=Space::None>
-            <Scroll @sizing={bounded} fit=true>
-                <ForEach keys={listed}>|shown: Listed|
-                    <NotificationRow notifications={notifications} shown popover={popover} />
-                </ForEach>
-            </Scroll>
-        </List>
+        <Scroll max_length>
+            <ForEach keys={listed}>|shown: Listed|
+                <NotificationRow notifications={notifications} shown popover={popover} />
+            </ForEach>
+        </Scroll>
     }
 }
 
