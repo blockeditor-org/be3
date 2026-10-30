@@ -156,11 +156,8 @@ where
             splitter={move |handle: DockSplitterHandle| view! {
                 <DockSplitterFace handle />
             }}
-            strip={move |handle: DockStripHandle| {
-                let DockStripHandle { direction, tabs } = handle;
-                view! {
-                    <Scroll direction>{tabs}</Scroll>
-                }
+            strip={move |handle: DockStripHandle| view! {
+                <DockStrip handle />
             }}
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
@@ -745,12 +742,27 @@ fn DockTitleBar(
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
     let rule = bar_rule(vacant);
+    let trailing = create_memo(move || {
+        let actions = closable.get() || menu.with(|menu| !menu.is_empty());
+        Padding::new(
+            match actions && titled {
+                true => BAR_SPACING,
+                false => Space::None,
+            },
+            Space::None,
+            match actions || titled {
+                true => BAR_PADDING,
+                false => Space::None,
+            },
+            Space::None,
+        )
+    });
     view! {
         <List spacing=Space::None>
             <Frame
                 fill={fill}
                 height={Size::Custom(BAR_HEIGHT)}
-                padding={Padding::horizontal(BAR_PADDING)}
+                padding={Padding::new(BAR_PADDING, Space::None, Space::None, Space::None)}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
                 <Container>|size: ReadSignal<Vec2>| {
@@ -766,7 +778,7 @@ fn DockTitleBar(
                             spacing=BAR_SPACING
                         >
                             {grip}
-                            {tabs} @sizing=ItemSize::Percent(100.0)
+                            {tabs} @sizing={ItemSize::Percent(100.0).gap(0.0)}
                             <Show condition={titled}>|| {
                                 let title = title.clone(); view! {
                                     <Text
@@ -777,10 +789,22 @@ fn DockTitleBar(
                                     </Text>
                                 }
                             }</Show>
-                            <Dynamic value={room}>|room: BarRoom|
-                                <DockMenu menu room test_prefix={menu_prefix.clone()} />
-                            </Dynamic>
-                            <DockClose closable close={close} test_prefix={test_prefix.clone()} />
+                            <Frame padding={trailing} @sizing={ItemSize::Intrinsic.gap(0.0)}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=BAR_SPACING
+                                >
+                                    <Dynamic value={room}>|room: BarRoom|
+                                        <DockMenu menu room test_prefix={menu_prefix.clone()} />
+                                    </Dynamic>
+                                    <DockClose
+                                        closable
+                                        close={close}
+                                        test_prefix={test_prefix.clone()}
+                                    />
+                                </List>
+                            </Frame>
                         </List>
                     }
                 }</Container>
@@ -811,55 +835,93 @@ fn DockSideBar(
     });
     let narrow = test_prefix.clone();
     let column = test_prefix;
+    let trailing = create_memo(move || match titled || icons_only.get() {
+        true => Padding::horizontal(BAR_PADDING).bottom(BAR_PADDING),
+        false => Padding::horizontal(BAR_PADDING),
+    });
+    let after_tabs = match titled {
+        true => ItemSize::Intrinsic.into(),
+        false => ItemSize::Intrinsic.gap(0.0),
+    };
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame fill={fill} padding=BAR_PADDING @sizing=ItemSize::Percent(100.0)>
+            <Frame fill={fill} @sizing=ItemSize::Percent(100.0)>
                 <List spacing=BAR_SPACING>
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        justify={header}
-                        spacing=BAR_SPACING
-                    >
-                        {grip}
-                        <Show condition={titles}>|| {
-                            let test_prefix = narrow.clone(); view! {
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=BAR_SPACING
-                                >
-                                    <DockMenu
-                                        menu
-                                        room=BarRoom::Narrow
-                                        test_prefix={test_prefix.clone()}
-                                    />
-                                    <DockClose closable close={close} test_prefix />
-                                </List>
-                            }
-                        }</Show>
-                    </List>
-                    {tabs} @sizing=ItemSize::Percent(100.0)
-                    <Show condition={titled}>|| {
-                        let title = title.clone(); view! {
-                            <Text overflow=Overflow::Ellipsis>{title}</Text>
-                        }
-                    }</Show>
-                    <Show condition={icons_only}>|| {
-                        let test_prefix = column.clone(); view! {
-                            <List align=Align::Center spacing=BAR_SPACING>
-                                <DockMenu
-                                    menu
-                                    room=BarRoom::Column
-                                    test_prefix={test_prefix.clone()}
-                                />
-                                <DockClose closable close={close} test_prefix />
-                            </List>
-                        }
-                    }</Show>
+                    <Frame padding={Padding::all(BAR_PADDING).bottom(Space::None)}>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            justify={header}
+                            spacing=BAR_SPACING
+                        >
+                            {grip}
+                            <Show condition={titles}>|| {
+                                let test_prefix = narrow.clone(); view! {
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=BAR_SPACING
+                                    >
+                                        <DockMenu
+                                            menu
+                                            room=BarRoom::Narrow
+                                            test_prefix={test_prefix.clone()}
+                                        />
+                                        <DockClose closable close={close} test_prefix />
+                                    </List>
+                                }
+                            }</Show>
+                        </List>
+                    </Frame>
+                    {tabs} @sizing={ItemSize::Percent(100.0).gap(0.0)}
+                    <Frame padding={trailing} @sizing={after_tabs}>
+                        <List spacing=BAR_SPACING>
+                            <Show condition={titled}>|| {
+                                let title = title.clone(); view! {
+                                    <Text overflow=Overflow::Ellipsis>{title}</Text>
+                                }
+                            }</Show>
+                            <Show condition={icons_only}>|| {
+                                let test_prefix = column.clone(); view! {
+                                    <List align=Align::Center spacing=BAR_SPACING>
+                                        <DockMenu
+                                            menu
+                                            room=BarRoom::Column
+                                            test_prefix={test_prefix.clone()}
+                                        />
+                                        <DockClose closable close={close} test_prefix />
+                                    </List>
+                                }
+                            }</Show>
+                        </List>
+                    </Frame>
                 </List>
             </Frame>
         </List>
+    }
+}
+
+#[component]
+fn DockStrip(handle: DockStripHandle) -> NodeId {
+    let DockStripHandle { direction, tabs } = handle;
+    let strip = match direction {
+        Direction::Horizontal => view! {
+            <Frame
+                height={Size::Custom(BAR_HEIGHT)}
+                padding={Padding::new(BAR_SPACING, Space::None, BAR_PADDING, Space::None)}
+                align={Align2::new(Align::Start, Align::Center)}
+            >
+                {tabs}
+            </Frame>
+        },
+        Direction::Vertical => view! {
+            <Frame padding={Padding::new(BAR_PADDING, BAR_SPACING, BAR_PADDING, BAR_PADDING)}>
+                {tabs}
+            </Frame>
+        },
+    };
+    view! {
+        <Scroll direction>{strip}</Scroll>
     }
 }
 
