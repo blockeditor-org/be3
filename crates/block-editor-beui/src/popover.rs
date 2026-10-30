@@ -35,10 +35,12 @@ pub(crate) fn ChildPopover(
     shown: Shown,
     face: Memo<Face>,
     size: Memo<Vec2>,
+    sized: Memo<bool>,
     testing: &'static str,
     on_state: Callback<ChildState>,
     on_dismiss: ClickCallback,
 ) -> NodeId {
+    let ready = create_memo(move || shown == Shown::Sheet || sized.get());
     let window = match anchor {
         PickAnchor::Node(node) => node.try_get().map(window_of),
         PickAnchor::Centre | PickAnchor::Rect(_) => None,
@@ -50,13 +52,17 @@ pub(crate) fn ChildPopover(
             placed={Some(content)}
             mode=ChildMode::Live
             layer=ChildLayer::Below
+            opacity={create_memo(move || match ready.get() {
+                true => 1.0,
+                false => 0.0,
+            })}
             @test_id={testing}
             on_state={move |state: ChildState| on_state.call(state)}
         />
     };
     let inner = match shown {
         Shown::Anchored => view! {
-            <AnchoredPopover window anchor face child size on_dismiss />
+            <AnchoredPopover window anchor face child size ready on_dismiss />
         },
         Shown::Sheet => view! {
             <Overlay
@@ -97,6 +103,7 @@ fn AnchoredPopover(
     face: Memo<Face>,
     child: NodeId,
     size: Memo<Vec2>,
+    ready: Memo<bool>,
     on_dismiss: ClickCallback,
 ) -> NodeId {
     let viewport = create_memo(move || {
@@ -133,6 +140,7 @@ fn AnchoredPopover(
     let width = create_memo(move || Size::Custom(shown.get().x));
     let height = create_memo(move || Size::Custom(shown.get().y));
     let carded = create_memo(move || face.get() == Face::Card);
+    let drawn = create_memo(move || carded.get() && ready.get());
     let placed = create_memo(move || {
         let placement = match carded.get() {
             true => Placement::Popover {
@@ -153,15 +161,15 @@ fn AnchoredPopover(
     });
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
-    let beak = create_memo(move || match placed.get().2 {
+    let beak = create_memo(move || match placed.get().2 && ready.get() {
         true => POINTER_REACH,
         false => 0.0,
     });
-    let fill = create_memo(move || match carded.get() {
+    let fill = create_memo(move || match drawn.get() {
         true => ColorRole::SurfaceRaised,
         false => ColorRole::None,
     });
-    let border = create_memo(move || carded.get().then_some(Border::DEFAULT));
+    let border = create_memo(move || drawn.get().then_some(Border::DEFAULT));
     let padding = create_memo(move || match carded.get() {
         true => Padding::all(INSET),
         false => Padding::ZERO,
@@ -281,6 +289,7 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
             }}
             face={create_memo(move || face)}
             size={create_memo(move || size.get())}
+            sized={create_memo(|| true)}
             testing
             on_state
             on_dismiss={move || editor.close_popped(serial)}

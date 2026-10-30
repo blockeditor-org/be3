@@ -132,7 +132,9 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
         filter: picking.0.filter.clone(),
         parent: picking.0.parent,
     };
-    let size = create_signal(LAST_SIZE.with(Cell::get));
+    let remembered = LAST_SIZE.with(Cell::get);
+    let size = create_signal(remembered.unwrap_or(UNSIZED));
+    let sized = create_signal(remembered.is_some());
     let card = create_signal(false);
     let face = create_memo(move || match card.get() {
         true => Face::Card,
@@ -146,8 +148,11 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
         if let Some(wanted) = wanted
             && size.get_untracked() != wanted
         {
-            LAST_SIZE.with(|last| last.set(wanted));
+            LAST_SIZE.with(|last| last.set(Some(wanted)));
             size.set(wanted);
+        }
+        if wanted.is_some() && !sized.get_untracked() {
+            sized.set(true);
         }
         let carded = state.card && !sheet;
         if card.get_untracked() != carded {
@@ -171,6 +176,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             }}
             face
             size={shown}
+            sized={create_memo(move || sized.get())}
             testing="picker.child"
             on_state
             on_dismiss={move || editor.finish_pick(serial, Ok(None))}
@@ -179,5 +185,5 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
 }
 
 thread_local! {
-    static LAST_SIZE: Cell<Vec2> = const { Cell::new(UNSIZED) };
+    static LAST_SIZE: Cell<Option<Vec2>> = const { Cell::new(None) };
 }
