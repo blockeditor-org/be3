@@ -28,8 +28,7 @@ use block_app_desktop::host_item::HostItem;
 use block_app_desktop::host_item::HostItemFace;
 use block_app_desktop::occlusion::{Occlusion, occlusion};
 use block_app_plugin_host::{
-    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, ViewPlace, ViewSlot,
-    PlacedView,
+    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -309,9 +308,7 @@ pub(crate) fn PluginView(
             frame.get_untracked(),
             view.get_untracked(),
         ),
-        None => {
-            block_app_plugin_host::unplace_view(&plugin_id.value(), instance, region.id, mount)
-        }
+        None => block_app_plugin_host::unplace_view(&plugin_id.value(), instance, region.id, mount),
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
@@ -732,13 +729,7 @@ pub(crate) fn PluginView(
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
-        block_app_plugin_host::drag_over_view(
-            &plugin_id.value(),
-            instance,
-            region.id,
-            over,
-            false,
-        );
+        block_app_plugin_host::drag_over_view(&plugin_id.value(), instance, region.id, over, false);
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {

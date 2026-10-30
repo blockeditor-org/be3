@@ -58,7 +58,7 @@ pub use block_plugin_api::{
     WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use block_plugin_api::{
-    AnchoredPlacement, HostTransform, HostView, AnchorSpace, ParentView, Scrim, View, ViewAnchor,
+    AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
     ViewEdge, ViewId, ViewPlacement, ViewRef,
 };
 pub use block_plugin_api::{
@@ -73,11 +73,12 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed, RenameRequest, SavedFile,
-    SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
+    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
+    RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
+    Waker,
 };
 pub use module::Module;
-pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, ShownView, ViewHandler, SettingsDraft};
+pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

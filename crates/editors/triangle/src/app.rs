@@ -2,8 +2,8 @@ use block_editor_plugin::wgpu;
 use std::collections::HashMap;
 
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, ShownView, ViewHandler, SurfaceRect,
-    TimedInput, View, ViewRef,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, ShownView, SurfaceRect,
+    TimedInput, View, ViewHandler, ViewRef,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -44,8 +44,7 @@ impl Instance for Triangle {
 
     fn open_view(&mut self, _view: View) {
         if !self.host.handles_views() {
-            self.host
-                .handle_views(Box::new(TriangleViews::default()));
+            self.host.handle_views(Box::new(TriangleViews::default()));
         }
     }
 }

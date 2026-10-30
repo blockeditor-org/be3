@@ -8,7 +8,7 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use crate::compositor::{ChildView, PluginView, ViewEditor, ShellSurface};
+use crate::compositor::{ChildView, PluginView, ShellSurface, ViewEditor};
 use beui::{Align2, Direction};
 
 mod notices;

@@ -1,6 +1,6 @@
+mod escaped;
 mod fonts;
 mod input;
-mod escaped;
 mod platform;
 mod surface;
 
@@ -21,15 +21,15 @@ use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
-    Claim, DescribedAction, Description, EditorHost, Frame, HostView, Input, ShownView, ViewHandler,
-    TimedInput, ViewId, ViewPlacement, ViewRef,
+    Claim, DescribedAction, Description, EditorHost, Frame, HostView, Input, ShownView, TimedInput,
+    ViewHandler, ViewId, ViewPlacement, ViewRef,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
 use beui_host::styled::Root;
 use beui_platform_plugin_api::{
-    PluginRuntime, ViewRunner, View, Views, anchored_layer, anchored_view, window_view,
+    PluginRuntime, View, ViewRunner, Views, anchored_layer, anchored_view, window_view,
 };
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};
@@ -325,7 +325,12 @@ impl ModuleRunner {
                 }
                 .or(self.active)
                 .filter(|id| regions.iter().any(|region| region.id() == *id))
-                .or_else(|| regions.iter().find(|region| region.windows).map(ShownView::id));
+                .or_else(|| {
+                    regions
+                        .iter()
+                        .find(|region| region.windows)
+                        .map(ShownView::id)
+                });
                 let Some(opener) = opener else {
                     return;
                 };
@@ -701,7 +706,9 @@ impl ViewHandler for ModuleRunner {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
         } else if region.view.is_anchored() {
-            if let (Some(space), Some(layer)) = (region.anchor_space, anchored_layer(region.view.id)) {
+            if let (Some(space), Some(layer)) =
+                (region.anchor_space, anchored_layer(region.view.id))
+            {
                 let input = escaped::to_host(event.input.clone(), space.to_host);
                 self.runner.push(Incoming::layer(layer, input));
             }

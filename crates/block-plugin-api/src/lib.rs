@@ -71,12 +71,12 @@ pub use shell_types::{
     PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
-    AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
-    DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
-    FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
-    AnchorSpace, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame,
-    PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim,
-    Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
+    AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
+    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit,
+    FrameReport, FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch,
+    Insets, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame, PressClaim,
+    ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size,
+    SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
     ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};

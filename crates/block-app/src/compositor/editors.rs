@@ -23,7 +23,7 @@ use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::surfaces::{ConflictNotice, HostedView, HostedSurface, StaleBlock, SurfaceId};
+use crate::surfaces::{ConflictNotice, HostedSurface, HostedView, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
 use block_app_desktop::host_item::{HostItem, HostItemFace};
@@ -1489,7 +1489,8 @@ fn HostedChild(
         child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
     })));
     let content = create_memo(move || child.get().map(|child| child.content));
-    let sheet = create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.sheet)));
+    let sheet =
+        create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.sheet)));
     let panel = PanelReport {
         done: create_signal(false),
         size: create_signal(None),

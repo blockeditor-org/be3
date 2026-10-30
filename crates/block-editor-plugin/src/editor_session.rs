@@ -4,11 +4,11 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
-    AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId, ChildPlacement,
-    ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
-    FrameCommit, FrameReport, HostView, AnchorSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
-    Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
-    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
+    ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
+    Failure, FrameChrome, FrameCommit, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    MenuEntry, Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size,
+    TimedInput, View, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};

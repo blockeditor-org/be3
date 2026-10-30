@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use beui_core::accesskit::{Node, NodeId as AccessId, Role};
-use block_editor_plugin::{HostTransform, AnchorSpace, ViewAnchor};
+use block_editor_plugin::{AnchorSpace, HostTransform, ViewAnchor};
 
 use super::*;
 

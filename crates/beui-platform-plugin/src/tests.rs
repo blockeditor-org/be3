@@ -15,6 +15,8 @@ use super::*;
 use beui_host::native::build;
 
 mod a_copy_in_a_view_reaches_the_host;
+mod a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view;
+mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
 mod a_view_describes_itself_and_does_what_a_screen_reader_asks;
 mod a_view_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out;
 mod a_view_lays_out_over_its_whole_rect_not_just_what_shows;
@@ -22,8 +24,6 @@ mod a_view_tells_the_host_it_locks_the_pointer_and_when_it_stops;
 mod a_view_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_views_keyboard_reaches_the_host_with_its_asks;
 mod a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
-mod a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view;
-mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
 mod a_window_opened_where_the_host_places_windows_is_the_hosts_own;
 mod a_window_the_app_floats_inside_a_view_stays_in_that_view;
 mod a_window_the_app_opens_is_painted_in_the_frame_that_opens_it;
@@ -70,13 +70,15 @@ fn anchored_shown(owner: &ShownView, anchored: &block_editor_plugin::Anchored) -
         rect: Rect::from_min_size(Pos2::ZERO, rect.size()),
         visible: Vec2::ZERO,
         pixels: [rect.width().ceil() as u32, rect.height().ceil() as u32],
-        anchor_space: owner.anchor_space.map(|space| block_editor_plugin::AnchorSpace {
-            to_host: block_editor_plugin::HostTransform {
-                origin: rect.min,
-                scale: Vec2::splat(1.0),
-            },
-            bounds: space.bounds,
-        }),
+        anchor_space: owner
+            .anchor_space
+            .map(|space| block_editor_plugin::AnchorSpace {
+                to_host: block_editor_plugin::HostTransform {
+                    origin: rect.min,
+                    scale: Vec2::splat(1.0),
+                },
+                bounds: space.bounds,
+            }),
         ..owner.clone()
     }
 }

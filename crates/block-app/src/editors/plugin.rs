@@ -215,12 +215,8 @@ impl PendingCreation for PluginCreation {
 
     fn height(&self) -> Option<f32> {
         self.target.dialog.then(|| {
-            block_app_plugin_host::view_size(
-                &self.plugin.identity.id,
-                self.instance,
-                ViewId::MAIN,
-            )
-            .map_or(CREATION_DIALOG_HEIGHT, |size| size.y.max(1.0))
+            block_app_plugin_host::view_size(&self.plugin.identity.id, self.instance, ViewId::MAIN)
+                .map_or(CREATION_DIALOG_HEIGHT, |size| size.y.max(1.0))
         })
     }
 

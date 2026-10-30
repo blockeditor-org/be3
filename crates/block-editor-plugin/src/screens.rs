@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit, HostTransform,
-    HostView, AnchorSpace, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit,
+    HostTransform, HostView, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
     ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
@@ -187,7 +187,10 @@ impl Screens {
     }
 
     fn anchor(&mut self, region: &ShownView, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
-        let Some(space) = region.anchor_space.filter(|_| region.view.placement.reports()) else {
+        let Some(space) = region
+            .anchor_space
+            .filter(|_| region.view.placement.reports())
+        else {
             return;
         };
         let instance = region.instance;

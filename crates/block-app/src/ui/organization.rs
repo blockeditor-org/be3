@@ -284,8 +284,6 @@ fn AppMenu(
     }
 }
 
-
-
 fn panel_icon(panel: HostPanel) -> Glyph {
     match panel {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,

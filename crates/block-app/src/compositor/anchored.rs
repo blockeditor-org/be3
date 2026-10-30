@@ -7,7 +7,7 @@ use beui::native::{Region, draw_gpu, try_with_document};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, WindowId};
-use block_app_plugin_host::{HostChild, HostAnchored, AnchoredBlits, PlacedView};
+use block_app_plugin_host::{AnchoredBlits, HostAnchored, HostChild, PlacedView};
 use block_plugin_api::{ChildId, EditorInstanceId, ViewId};
 
 use super::plugin_view::ChildView;

@@ -3,7 +3,7 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, AnchorSpace, TimedInput, View,
+    AnchorSpace, AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, TimedInput, View,
     ViewId, ViewRef, WindowRequests,
 };
 use geometry::{Rect, Vec2};

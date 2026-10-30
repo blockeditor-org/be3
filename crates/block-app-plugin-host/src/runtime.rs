@@ -9,8 +9,8 @@ use std::{
 use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, FrameCommit,
-    FrameSpec, HostPanel, HostTransform, AnchorSpace, Opening, PresentedFrame, PreviewImage,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
+    FrameCommit, FrameSpec, HostPanel, HostTransform, Opening, PresentedFrame, PreviewImage,
     ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
     SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
 };
@@ -20,15 +20,15 @@ use uuid::Uuid;
 use block_app_base::host;
 
 use super::{
-    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostChild, HostChildStatus,
-    HostAnchored, InstanceRole, RuntimeStatus, SurfaceStatus,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
+    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
-        self, Blit, AnchoredBlits, AnchoredSource, AnchoredDrawing, Piece, PresenterState, PresenterStatus,
-        Quad, ViewDrawing, Shared,
+        self, AnchoredBlits, AnchoredDrawing, AnchoredSource, Blit, Piece, PresenterState,
+        PresenterStatus, Quad, Shared, ViewDrawing,
     },
     preview_scale, previews,
     session::{Session, SessionFailure, SessionState},
@@ -2645,10 +2645,7 @@ pub fn take_focus_request(plugin_id: &str, instance: EditorInstanceId, region: V
     .unwrap_or(false)
 }
 
-pub fn take_view_actions(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<crate::EditorAction> {
+pub fn take_view_actions(plugin_id: &str, instance: EditorInstanceId) -> Vec<crate::EditorAction> {
     use crate::EditorAction;
     with(plugin_id, |runtime| {
         let mut actions = Vec::new();

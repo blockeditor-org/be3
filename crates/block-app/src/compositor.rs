@@ -1,7 +1,7 @@
+pub(crate) mod anchored;
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
-pub(crate) mod anchored;
 pub(crate) mod plugin_view;
 
 use std::{
@@ -13,11 +13,11 @@ use beui::reactive::*;
 
 use block_app_plugin_host::EditorAction;
 
+pub(crate) use anchored::AnchoredViews;
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use anchored::AnchoredViews;
 pub(crate) use plugin_view::{ChildView, PluginView, ViewEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;

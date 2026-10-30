@@ -1,9 +1,9 @@
 use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    AccessLevel, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand, BlockPick,
-    ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
-    EditorInstanceId, FrameReport, FrameSpec, AnchorSpace, MenuEntry, Occluder, OpenArtifact,
+    AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
+    BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
+    DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
     ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewAnchor,
     ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
@@ -20,7 +20,7 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostChild, HostChildStatus, HostAnchored, InstanceRole,
+    ChildCommit, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
@@ -1123,7 +1123,11 @@ impl Instances {
             })
     }
 
-    pub(super) fn refresh_anchor_space(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
+    pub(super) fn refresh_anchor_space(
+        &mut self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> bool {
         let Some(screen) = self.screen_mut(instance, region) else {
             return false;
         };
@@ -1331,7 +1335,11 @@ impl Instances {
         (messages, revoked)
     }
 
-    pub(super) fn shown_anchored(&self, instance: EditorInstanceId, region: ViewId) -> Vec<HostAnchored> {
+    pub(super) fn shown_anchored(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> Vec<HostAnchored> {
         self.entries
             .get(&instance)
             .and_then(|entry| {

@@ -2,9 +2,9 @@ use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
 mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
-mod a_view_without_an_anchor_space_anchors_no_views;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
+mod a_view_without_an_anchor_space_anchors_no_views;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
 mod an_anchored_views_surface_is_kept_while_it_is_open_and_released_once_it_closes;
@@ -14,8 +14,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_plugin_api::{
-    AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId, FrameCommit,
-    HelloAccepted, HostTransform, AnchorSpace, OpenBlock, Opening, ParentView, ScreenId,
+    AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
+    FrameCommit, HelloAccepted, HostTransform, OpenBlock, Opening, ParentView, ScreenId,
     ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics,
 };
