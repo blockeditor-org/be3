@@ -60,8 +60,12 @@ pub fn ContextMenu(
             return false;
         };
         let held = press.modifiers;
-        let menu_key = press.key == Key::F10 && held.shift && !held.ctrl && !held.alt;
-        if !menu_key || disabled.get_untracked() {
+        let menu_key = match press.key {
+            Key::F10 => held.shift && !held.ctrl && !held.alt,
+            Key::ContextMenu => !held.ctrl && !held.alt,
+            _ => false,
+        };
+        if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
             return false;
         }
         let Some(rect) = holder

@@ -172,6 +172,7 @@ fn key_label(key: Key) -> String {
         Key::PageDown => "Page Down",
         Key::PageUp => "Page Up",
         Key::BrowserBack => "Back",
+        Key::ContextMenu => "Menu",
         Key::VolumeUp => "Volume Up",
         Key::VolumeDown => "Volume Down",
         Key::VolumeMute => "Mute",

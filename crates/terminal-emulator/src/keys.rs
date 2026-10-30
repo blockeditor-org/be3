@@ -110,6 +110,7 @@ fn code(key: Key) -> (Code, Option<char>) {
         Key::Ctrl => (Code::CONTROL_LEFT, None),
         Key::Alt => (Code::ALT_LEFT, None),
         Key::Logo => (Code::META_LEFT, None),
+        Key::ContextMenu => (Code::CONTEXT_MENU, None),
         _ => (Code::UNIDENTIFIED, None),
     }
 }

@@ -21,7 +21,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Date and time fields | Each segment is a Tab stop and a spin button. Up/Down step it and wrap; Page Up/Down step by a larger amount; Home/End reach its first/last value. Left/Right move between segments and stop at the first and last. Alt+Down opens the calendar over the field with the focus kept in the segment. Digits type into the segment and move on once it is full or no further digit could fit; `-`, `/`, `:` and space move on too, and `a`/`p` set AM/PM. Backspace or Delete clears a segment, and Backspace on an empty one goes back a segment. The button beside the segments opens the calendar and time list; Escape closes them and returns the focus to it. |
 | Time lists | One Tab stop, at the selected time. Up/Down move a time, Page Up/Down an hour, Home/End the first/last. Laid out as a grid, Left/Right move a time, Up/Down a row and Page Up/Down four rows. Space or Enter picks the time. |
 | Color area | Tab focuses the area. Left/Right change the saturation and Up/Down the brightness by 1%, or 10% with Shift; Page Up/Down change the brightness by 10%; Home/End reach no saturation and full saturation. Hue and opacity are sliders. |
-| Context menu | Secondary click opens the menu at the pointer and focuses its first item, which is shown with a highlighted background; Tab is trapped on the menu's single roving Tab stop while it is open. Up/Down move between items and update the highlight; Home/End jump to the first/last item. Right Arrow (or hovering an item) opens its submenu and focuses its first item; Left Arrow closes a submenu and refocuses the item that opened it. Only one submenu per level stays open. Enter or clicking a leaf item selects it and closes the entire menu stack; Escape closes one level at a time; an outside click closes the whole stack. |
+| Context menu | Secondary click opens the menu at the pointer and focuses its first item, which is shown with a highlighted background. Shift+F10 or the Menu key (Ctrl and Alt make other chords of either), with the focus inside the `ContextMenu`, opens it beneath the focused control; an app inside it, such as a Wayland program, takes the key itself. Tab is trapped on the menu's single roving Tab stop while it is open. Up/Down move between items and update the highlight; Home/End jump to the first/last item. Right Arrow (or hovering an item) opens its submenu and focuses its first item; Left Arrow closes a submenu and refocuses the item that opened it. Only one submenu per level stays open. Enter or clicking a leaf item selects it and closes the entire menu stack; Escape closes one level at a time; an outside click closes the whole stack. |
 | Dialogs | Enter that the focused control does not take runs the dialog's confirm action, unless that is disabled or destructive. A focused button still answers Enter itself. |
 | Keep changes prompt | Opens with the focus on Keep, so Enter keeps; Escape reverts, as running out its countdown does. |
 
@@ -136,7 +136,10 @@ while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
 `Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
 report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media
-transport keys, mapped wherever the platform reports them. `Key`, `Modifiers`,
+transport keys, mapped wherever the platform reports them, and the Menu key
+(`Key::ContextMenu`: the W3C `ContextMenu` value that the web and winit report,
+Windows' VK_APPS included, the xkb keysym `Menu` on drm, Android's
+`KEYCODE_MENU`, and evdev `KEY_COMPOSE` or `KEY_MENU`). `Key`, `Modifiers`,
 `KeyChord` and the rest of the input vocabulary (pointer buttons, touch, pen and
 back phases, IME events, `CursorIcon`, pastes and picked files, and the raw
 `Input` a platform produces) live in the framework-free `ui-types` crate (the keys

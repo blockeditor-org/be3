@@ -9,7 +9,7 @@ mod names;
 pub use crate::types::{Key, KeyChord, KeyPress, Modifiers};
 
 impl Key {
-    pub const ALL: [Self; 102] = [
+    pub const ALL: [Self; 103] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -73,6 +73,7 @@ impl Key {
         Self::Semicolon,
         Self::Quote,
         Self::BrowserBack,
+        Self::ContextMenu,
         Self::F1,
         Self::F2,
         Self::F3,
