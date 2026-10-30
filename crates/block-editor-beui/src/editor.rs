@@ -453,6 +453,7 @@ impl OwnedEditor {
             picking,
             popped,
             next_pick: Cell::new(0),
+            picker_size: Cell::new(None),
             fitted: Cell::new(None),
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
@@ -520,6 +521,7 @@ struct EditorState {
     picking: Signal<Option<crate::picking::Picking>>,
     popped: Signal<Option<crate::popover::Popped>>,
     next_pick: Cell<u64>,
+    picker_size: Cell<Option<Vec2>>,
     fitted: Cell<Option<NodeRef>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
@@ -1035,6 +1037,14 @@ impl Editor {
                     .0
                     .get_untracked()
             })
+    }
+
+    pub(crate) fn picker_size(&self) -> Option<Vec2> {
+        self.state().picker_size.get()
+    }
+
+    pub(crate) fn remember_picker_size(&self, size: Vec2) {
+        self.state().picker_size.set(Some(size));
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {

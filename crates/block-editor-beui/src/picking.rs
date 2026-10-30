@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::reactive::*;
@@ -132,7 +132,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
         filter: picking.0.filter.clone(),
         parent: picking.0.parent,
     };
-    let remembered = LAST_SIZE.with(Cell::get);
+    let remembered = editor.picker_size();
     let size = create_signal(remembered.unwrap_or(UNSIZED));
     let sized = create_signal(remembered.is_some());
     let card = create_signal(false);
@@ -148,7 +148,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
         if let Some(wanted) = wanted
             && size.get_untracked() != wanted
         {
-            LAST_SIZE.with(|last| last.set(Some(wanted)));
+            editor.remember_picker_size(wanted);
             size.set(wanted);
         }
         if wanted.is_some() && !sized.get_untracked() {
@@ -182,8 +182,4 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             on_dismiss={move || editor.finish_pick(serial, Ok(None))}
         />
     }
-}
-
-thread_local! {
-    static LAST_SIZE: Cell<Option<Vec2>> = const { Cell::new(None) };
 }
