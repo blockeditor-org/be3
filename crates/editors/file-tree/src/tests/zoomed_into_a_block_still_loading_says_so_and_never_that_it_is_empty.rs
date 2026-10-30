@@ -30,9 +30,7 @@ fn zoomed_into_a_block_still_loading_says_so_and_never_that_it_is_empty() {
         fixture.says("Loading…") && !fixture.says("Nothing here yet"),
         "a block still unlisted after a moment says it is loading, not that it holds nothing"
     );
-    fixture
-        .test
-        .snapshot("zoomed_into_a_block_still_loading");
+    fixture.test.snapshot("zoomed_into_a_block_still_loading");
 
     fixture
         .host
