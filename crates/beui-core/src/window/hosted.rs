@@ -216,6 +216,11 @@ impl Document {
         if let Some(node) = self.window_node(window) {
             self.arena.invalidate_node(node);
         }
+        for overlay in self.open_overlays() {
+            if self.window_of(overlay.id()) == window {
+                self.arena.invalidate_node(overlay);
+            }
+        }
     }
 
     pub fn open_windows(&self) -> Vec<WindowId> {
@@ -277,9 +282,7 @@ impl Document {
                     self.windows.focus_resized |= self
                         .focused
                         .is_some_and(|focused| self.window_of(focused) == *window);
-                    if let Some(node) = node {
-                        self.arena.invalidate_node(node);
-                    }
+                    self.relayout_window(*window);
                 }
                 WindowReport::Rastered { .. } => {
                     rastered = true;
