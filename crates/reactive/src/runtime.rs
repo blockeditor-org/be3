@@ -344,7 +344,11 @@ pub fn flush() {
             let next = runtime.queue.borrow_mut().pop_front();
             match next {
                 Some(next) => Some((next, true)),
-                None => runtime.late.borrow_mut().pop_front().map(|late| (late, false)),
+                None => runtime
+                    .late
+                    .borrow_mut()
+                    .pop_front()
+                    .map(|late| (late, false)),
             }
         });
         let Some((next, may_defer)) = next else { break };
