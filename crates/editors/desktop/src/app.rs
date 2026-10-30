@@ -222,6 +222,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
+                    <DockPane id={"desktop".to_owned()} bare=true></DockPane>
                     <ForEach keys={block_windows}>|tab: TabId|
                         <BlockWindow workspace tab />
                     </ForEach>

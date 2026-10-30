@@ -1217,7 +1217,7 @@ impl<K: DockKey> DockingLayout<K> {
                     vertical: *vertical,
                     icons_only: *icons_only,
                     sidebar: *sidebar,
-                    keep: empty.is_some(),
+                    keep: empty.is_some() || *bare,
                     locked: *locked,
                     bare: *bare,
                 }))
