@@ -124,7 +124,7 @@ _wasi_flags = [
     "-w",
 ] + select({
     # A plugin's C and C++ is linked into position-independent modules
-    # (guides/plugin_sdk.md), and cc-rs leaves -fPIC out on wasm, so the
+    # (guides/plugin_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
     # build scripts' FreeType and HarfBuzz ask for it here.
     "DEFAULT": [],
     "root//buck/constraints:guest": ["-fPIC"],

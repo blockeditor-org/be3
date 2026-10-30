@@ -203,7 +203,7 @@ and plugin tests use the test rules; editors also include `manifest.json`.
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
 libraries `DEFAULT_LIBRARIES` names (base and beui) unless `libraries` says
-otherwise (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm `:test`. A
+otherwise (guides/plugin_libraries.md), its `:module`, its `:manifest` and its wasm `:test`. A
 library is one `wasm_library(module, libraries)` call, which names every
 library under it. The app picks up every editor by itself.
 

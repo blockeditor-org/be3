@@ -22,7 +22,7 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
 ## Operations and WIT
 
 WIT is the schema, but there is no component model underneath: everything rides the
-pure-guest ABI (guides/plugin_sdk.md, "The raw plugin interface"). The WIT decides how
+pure-guest ABI (guides/plugin_libraries.md, "The raw plugin interface"). The WIT decides how
 each function travels. A plain `func` is a direct call: a wasm import (guest to host)
 or export (host to guest) of its own, run to completion on the guest's thread before
 the caller goes on. An `async func`, a `stream<T>` and a resource's lifetime are

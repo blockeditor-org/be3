@@ -41,7 +41,7 @@ that build on it. VISION.md says why each part exists.
   `be-drive`, `app-tests`, `beui-shared-tests` (beui's two cores driven alike),
   `paint-snapshot` and the rest.
 - `tls-diamond`: four tiny modules linked as libraries, the test of how one
-  module reaches another's thread-locals (guides/plugin_sdk.md, "Thread-locals").
+  module reaches another's thread-locals (guides/plugin_libraries.md, "Thread-locals").
 - `beui-html-spike` and `beui-demo-html`: beui's HTML core running block-app's
   account picker and beui's demo pages, for trying that core (guides/running/web.md).
 

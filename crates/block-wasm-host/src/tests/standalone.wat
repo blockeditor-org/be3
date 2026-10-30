@@ -1,4 +1,4 @@
-;; A standalone plugin (guides/plugin_sdk.md, "The raw plugin interface"): one
+;; A standalone plugin (guides/plugin_libraries.md, "The raw plugin interface"): one
 ;; module with no dylink.0, no SDK, no WASI, no threads and no thread-local
 ;; storage, which owns a memory that is not shared and paints through be3:gpu.
 ;; block-wasm-host's tests run it on wasmtime, and :standalone-web-test

@@ -5,7 +5,7 @@
 // WASI and wasi-threads if it uses them, and, when it was linked against
 // libraries, the libraries, which are fetched from beside it and linked to it
 // here (dylink.js). A standalone plugin is instantiated as it is, with the memory it
-// imports, shared or not, or the one it exports (guides/plugin_sdk.md, "The
+// imports, shared or not, or the one it exports (guides/plugin_libraries.md, "The
 // raw plugin interface"). In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
 // and a real wgpu device in the worker, which draws what the plugin shows into

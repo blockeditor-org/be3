@@ -135,7 +135,7 @@ wasi_app_flags = plugin_exports + [
 ]
 
 # The libraries every editor is linked against unless it names its own
-# (guides/plugin_sdk.md): base, the root that holds std, wasi-libc, wgpu and
+# (guides/plugin_libraries.md): base, the root that holds std, wasi-libc, wgpu and
 # block-editor-plugin, and beui above it.
 BASE_LIBRARY = "root//crates/plugin-library-base:module"
 
@@ -153,7 +153,7 @@ _reactor = [
 def _needs(libraries):
     return ["--be3-needs=$(location {})".format(library) for library in libraries]
 
-# A library plugins are linked against (guides/plugin_sdk.md): the package's
+# A library plugins are linked against (guides/plugin_libraries.md): the package's
 # crate linked whole into a module of its own that exports everything, which
 # the host links each plugin that names it to when it loads. libraries names
 # every library under it, the whole closure; with none it is the root, linked
@@ -237,7 +237,7 @@ def linked_plugin(module, libraries, rustc_flags = []):
 # editor() makes :module with, and a second build of the same editor linked
 # another way, such as triangle's :standalone. libraries = None links it
 # against DEFAULT_LIBRARIES; a list names every library in its closure; [] links
-# every crate it uses into it, a standalone plugin (guides/plugin_sdk.md, "The
+# every crate it uses into it, a standalone plugin (guides/plugin_libraries.md, "The
 # raw plugin interface"), a WASI reactor the host instantiates as it is.
 def editor_module(name, module, libraries = None, extra_deps = [], visibility = ["PUBLIC"]):
     facts = cargo_wasm_facts()

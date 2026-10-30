@@ -761,6 +761,7 @@ pub fn busy() -> bool {
             || shared.typing
             || shared.draining
             || shared.uploading > 0
+            || shared.listing_revisions > 0
             || shared.owing > 0
             || shared.graph.fetching()
     })

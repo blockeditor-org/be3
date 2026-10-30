@@ -1,6 +1,6 @@
 load("@root//buck/wasm:defs.bzl", "wasm_library")
 
-# One side of the thread-local diamond (guides/plugin_sdk.md, "Thread-locals").
+# One side of the thread-local diamond (guides/plugin_libraries.md, "Thread-locals").
 wasm_library(
     libraries = ["//crates/tls-diamond/base:module"],
     module = "left",

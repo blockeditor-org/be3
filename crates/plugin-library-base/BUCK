@@ -1,6 +1,6 @@
 load("@root//buck/wasm:defs.bzl", "wasm_library")
 
-# The root of every Rust plugin's closure (guides/plugin_sdk.md): std,
+# The root of every Rust plugin's closure (guides/plugin_libraries.md): std,
 # wasi-libc, wgpu and the framework-neutral editor crates. It holds the C++
 # runtime and setjmp too, though nothing in it uses them, so that every C and
 # C++ library above it (beui's FreeType and HarfBuzz, a plugin's PDFium) shares

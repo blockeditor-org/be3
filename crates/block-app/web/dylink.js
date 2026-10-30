@@ -1,6 +1,6 @@
 // Linking a plugin to the libraries it needs, in a browser.
 //
-// A linked plugin (guides/plugin_sdk.md) names the libraries in its closure,
+// A linked plugin (guides/plugin_libraries.md) names the libraries in its closure,
 // in dependency order, by the SHA-256 of each module: the first is the root,
 // linked at fixed addresses with std and wasi-libc, and each one after it, the
 // plugin last, is a position-independent module that imports what the modules

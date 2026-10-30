@@ -4,7 +4,7 @@
 # it as it is, and each plugin's manifest renamed <id>.plugin.json with
 # the module it names and its .cwasm, and --data, the plugin's read-only data
 # (plugin_data), under data/<id>/. Each --library is a library the modules
-# are linked against (guides/plugin_sdk.md), staged as lib-<its SHA-256>.wasm,
+# are linked against (guides/plugin_libraries.md), staged as lib-<its SHA-256>.wasm,
 # which is the name a module finds it by, with --library-artifact, its .cwasm.
 # --index writes plugins.json,
 # the list of manifests the app finds its plugins through. For the web bundle,

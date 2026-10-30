@@ -1,10 +1,10 @@
 # Plugins linked against any set of libraries
 
-Today every plugin is linked against exactly one shared module, the plugin SDK
-(`crates/block-plugin-sdk`, guides/plugin_sdk.md), and that SDK holds beui. A
-plugin that does not use beui, such as `crates/editors/triangle`, still loads
-all of it, a plugin cannot share a library of its own with other plugins, and
-a plugin written in another language still has to take Rust's conventions.
+Before this plan every plugin was linked against exactly one shared module, the
+plugin SDK (`crates/block-plugin-sdk`), and that SDK held beui. A
+plugin that did not use beui, such as `crates/editors/triangle`, still loaded
+all of it, a plugin could not share a library of its own with other plugins, and
+a plugin written in another language still had to take Rust's conventions.
 This plan has three parts:
 
 1. Dynamic linking of any set of shared libraries, none of them special: a
@@ -25,10 +25,51 @@ Also not in this plan: third-party plugins, and publishing libraries for them
 to build against. That comes after the plugin APIs stabilize, the interface is
 hardened and permission prompts exist.
 
-Not implemented yet. Items marked **(ask)** need a decision from the user during
-the work.
+Implemented (October 2026); guides/plugin_libraries.md describes the result.
+Base is `//crates/plugin-library-base:module` (the crate that was
+block-plugin-sdk) and beui `//crates/plugin-library-beui:module`. Left for
+later, as above: the egui adapter, moving docks and overlays (see "Wait for
+docking and overlays"), third-party libraries, and external textures, which
+wait on the **(ask)** in part 2.
 
-## What exists
+What changed from the plan:
+- **Base is a fixed-address root, not a library like any other.** Rust's
+  prebuilt std for wasm32-wasip1-threads and both threaded wasi-libc builds use
+  absolute data relocations, which rust-lld refuses in a `-shared` link, so the
+  module holding them cannot be position-independent. The user chose to keep
+  it as the root: base keeps its own static data, `__stack_pointer`, heap,
+  table and main-thread thread-local block; the loader creates the memory and
+  places everything above it, and a plan is the list [root, libraries...,
+  plugin] (a standalone plugin is a list of one). Removing the root needs
+  `-Zbuild-std` and a threaded wasi-libc built with `-fPIC`.
+- **Thread-locals** take the second route: LLVM forces local-exec on wasm, so
+  `wasm-link` rewrites each TLS relocation against a symbol nothing in the link
+  defines into a read of an imported mutable global `GOT.tls.<symbol>`. Only the
+  constant is swapped and the code still adds its own `__tls_base`, so the slot
+  holds the symbol's address on that thread minus the importing module's
+  `__tls_base`, set per thread after `__wasm_init_tls`.
+- **`libraries` lists the whole closure**, not just the direct needs, in any
+  order; `wasm-link` fails on a needed library the link does not name.
+- **C code is compiled `-fPIC` for every guest**, since FreeType and HarfBuzz now
+  sit above the root. Base carries libc++, libc++abi and setjmp whole for the
+  C++ above it, and a C library above base that calls a libc function base does
+  not force in fails the link until it is added to `LIBC` in wasm-link.
+- **The GPU**: buffer mapping and read-back were a gap too, and were filled with
+  the rest; wgpu is overlaid for custom render bundles and the browser's
+  occlusion query sets. Render bundle encoders have no debug markers, since
+  wgpu 29 has no API for them.
+- **Part 3** landed as modules, not crates: the editor state in
+  block-editor-plugin's `editor_state`, the region driver as
+  `block_editor_plugin::driver`. `related_content.rs` and the memo-based walks
+  in `editor/settings.rs` and `editor/tags.rs` stayed in block-editor-beui, and
+  anchored views, floated windows and scrims stay in beui-platform-plugin with
+  the overlays.
+- **Performance**: app-bench measured base and beui within noise of the one
+  SDK. Its one regression, saves sometimes 60 ms slower, was a race in the
+  block store, not the split: a revision listing ran inline in the worker and
+  held a seal behind two round trips. Listings now run beside the worker.
+
+## What existed before
 
 - **One SDK per plugin.** `--be3-sdk` (`crates/wasm-link`) links the SDK whole
   with `--export-all` and writes a `be3.sdk` custom section listing the archives
@@ -287,7 +328,7 @@ PR.
 
 ### Guides
 
-Rewrite guides/plugin_sdk.md around libraries (its title, "What is in it",
+Rewrite guides/plugin_libraries.md around libraries (its title, "What is in it",
 "Identity", "How the links are made", "Thread-locals", "Loading"). Its "Guests
 without the SDK" section becomes the raw plugin interface: everything a
 standalone plugin in any language imports and exports, and which of it is
@@ -298,7 +339,7 @@ guides/adding_a_plugin_editor.md and guides/buck2.md.
 
 ### Policy
 
-Add to the "The gpu" section of guides/plugin_sdk.md:
+Add to the "The gpu" section of guides/plugin_libraries.md:
 
 > The plugin GPU API is all of wgpu that browser WebGPU exposes, core and
 > optional features, with the optional features and limits the host's device

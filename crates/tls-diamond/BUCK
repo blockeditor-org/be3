@@ -1,7 +1,7 @@
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/app:drive.bzl", "page_test")
 
-# The thread-local diamond in Chromium (guides/plugin_sdk.md, "Thread-locals"):
+# The thread-local diamond in Chromium (guides/plugin_libraries.md, "Thread-locals"):
 # the plugin booted by block-app's plugin.js against block-gpu-shim, as a
 # plugin's worker boots one, with base, left and right staged beside it as
 # libraries. block-wasm-host's tests run it on wasmtime.

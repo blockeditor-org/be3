@@ -1,6 +1,6 @@
 load("@root//buck/wasm:defs.bzl", "wasm_library")
 
-# The library at the bottom of the thread-local diamond (guides/plugin_sdk.md,
+# The library at the bottom of the thread-local diamond (guides/plugin_libraries.md,
 # "Thread-locals"), which left and right both need. At opt-level 2 so that
 # the generics above it reach its thread-local directly.
 wasm_library(
