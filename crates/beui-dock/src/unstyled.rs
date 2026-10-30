@@ -577,6 +577,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_outset: Vec2,
+    window_border: f32,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -1578,8 +1579,8 @@ impl Grip {
         }
     }
 
-    fn rect(self, upright: bool, size: Vec2) -> Rect {
-        let (reach, corner) = (HANDLE_REACH, GRIP_CORNER);
+    fn rect(self, upright: bool, size: Vec2, border: f32) -> Rect {
+        let (reach, corner) = (HANDLE_REACH + border, GRIP_CORNER);
         let far = pos2(size.x - reach, size.y - reach);
         let along = vec2(size.x - corner * 2.0, reach);
         let down = vec2(reach, size.y - corner * 2.0);
@@ -1681,6 +1682,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_outset: Vec2,
+    pub(crate) window_border: f32,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
@@ -1733,6 +1735,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome,
         dialog_outset,
+        window_border,
         bar_margin,
         bar_target,
         bar_band,
@@ -1788,6 +1791,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
         dialog_outset,
+        window_border,
         dialog_frames: store(RefCell::default()),
         dialog_bodies: store(RefCell::default()),
         dialog_focus,
@@ -3728,7 +3732,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                 </CanvasItem>
                                 <ForEach keys={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
                                     let dock = dock;
-                                    let handle_rect = create_memo(move || grip.rect(upright, size.get()));
+                                    let handle_rect = create_memo(move || grip.rect(upright, size.get(), dock.window_border));
                                     let x = create_memo(move || handle_rect.get().min.x);
                                     let y = create_memo(move || handle_rect.get().min.y);
                                     let width = create_memo(move || handle_rect.get().width());

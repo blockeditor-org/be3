@@ -1,7 +1,9 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 
+use beui::animation::{create_animation, motion};
 use beui::reactive::*;
+use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, WindowEdge,
@@ -14,6 +16,8 @@ const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const SMALLEST: Vec2 = vec2(96.0, 64.0);
 const PLACEMENT: &str = "desktop";
 const SHRINK_TO: f32 = 160.0;
+const GRAB_MARGIN: f32 = 24.0;
+const KEEP_VISIBLE: f32 = 96.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DesktopPlace {
@@ -43,6 +47,7 @@ pub(crate) struct Floated {
     pub(crate) panel: Option<Panel>,
     pub(crate) anchor: View,
     pub(crate) parent: Option<ViewId>,
+    pub(crate) grab: Option<Vec2>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -317,6 +322,7 @@ pub(crate) fn apply() {
                     panel,
                     anchor,
                     parent: opener.map(|opener| opener.key.window),
+                    grab: None,
                 };
                 match held {
                     Some(index) => windows[index] = window,
@@ -447,6 +453,147 @@ pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
         false => ((viewport.y - size.y).max(0.0), size.y),
     };
     Rect::from_min_size(pos2(x, y), vec2(size.x, height))
+}
+
+pub(crate) fn reachable(rect: Rect, grab: Vec2, viewport: Vec2) -> Pos2 {
+    let keep = vec2(KEEP_VISIBLE, grab.y + GRAB_MARGIN).min(rect.size());
+    let room = (viewport - keep).max(Vec2::ZERO);
+    pos2(
+        rect.min.x.clamp(0.0, room.x),
+        rect.min.y.clamp(0.0, room.y),
+    )
+}
+
+pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
+    let floated = floated();
+    let gesture = gesture_signal();
+    let held = {
+        let key = key.clone();
+        create_memo(move || {
+            floated.with(|held| {
+                held.iter()
+                    .find(|window| window.key == key)
+                    .map(|window| (window.rect, window.grab))
+            })
+        })
+    };
+    let moving = {
+        let key = key.clone();
+        create_memo(move || {
+            gesture.with(|gesture| {
+                gesture
+                    .as_ref()
+                    .is_some_and(|gesture| gesture.key == key && gesture.kind == Kind::Move)
+            })
+        })
+    };
+    let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+    let overshoot = create_signal(Vec2::ZERO);
+    let key = store(key);
+    let place = move |origin: Pos2| {
+        floated_signal().update(|held| {
+            if let Some(window) = held.iter_mut().find(|window| key.with(|key| window.key == *key)) {
+                window.rect = Rect::from_min_size(origin, window.rect.size());
+            }
+        });
+    };
+    let bounce = create_animation(
+        move |frame| {
+            let Some((rect, Some(grab))) = held.get_untracked() else {
+                return false;
+            };
+            let viewport = viewport.get_untracked();
+            let limit = |origin: Pos2| reachable(Rect::from_min_size(origin, rect.size()), grab, viewport);
+            let band = band.value();
+            let mut band = band.borrow_mut();
+            let mut origin = rect.min;
+            if !band.step(frame.now, &mut origin, limit, motion().animates()) {
+                return false;
+            }
+            if origin != rect.min {
+                place(origin);
+            }
+            overshoot.set(band.offset);
+            band.moving()
+        },
+        move || {
+            band.value().borrow_mut().settle();
+            overshoot.set(Vec2::ZERO);
+        },
+    );
+    let was_moving = Cell::new(false);
+    create_effect(move || {
+        let now_moving = moving.get();
+        if now_moving == was_moving.replace(now_moving) {
+            return;
+        }
+        untrack(|| {
+            let viewport = viewport.get_untracked();
+            match now_moving {
+                true => {
+                    bounce.stop();
+                    let stretched = band.value().borrow_mut().grab(viewport);
+                    if stretched != Vec2::ZERO {
+                        key.with(|key| carry_from(key, stretched));
+                    }
+                }
+                false => {
+                    if let Some((rect, Some(grab))) = held.get_untracked() {
+                        let origin = reachable(rect, grab, viewport);
+                        if origin != rect.min {
+                            place(origin);
+                        }
+                    }
+                    band.value().borrow_mut().release(now());
+                    bounce.start();
+                }
+            }
+        });
+    });
+    create_effect(move || {
+        if !moving.get() {
+            return;
+        }
+        let Some((rect, Some(grab))) = held.get() else {
+            return;
+        };
+        let viewport = viewport.get();
+        untrack(|| {
+            let origin = reachable(rect, grab, viewport);
+            let band = band.value();
+            let mut band = band.borrow_mut();
+            band.stretch(origin, rect.min - origin, viewport, motion().animates(), now());
+            overshoot.set(band.offset);
+        });
+    });
+    create_memo(move || {
+        let Some((rect, grab)) = held.get() else {
+            return Rect::ZERO;
+        };
+        let viewport = viewport.get();
+        match grab {
+            Some(grab) => Rect::from_min_size(reachable(rect, grab, viewport), rect.size())
+                .translate(overshoot.get()),
+            None => clamped(rect, viewport),
+        }
+    })
+}
+
+fn carry_from(key: &FloatedKey, by: Vec2) {
+    floated_signal().update(|held| {
+        if let Some(window) = held.iter_mut().find(|window| window.key == *key) {
+            window.rect = window.rect.translate(by);
+        }
+    });
+    gesture_signal().update(|gesture| {
+        if let Some((_, rect)) = gesture
+            .as_mut()
+            .filter(|gesture| gesture.key == *key)
+            .and_then(|gesture| gesture.start.as_mut())
+        {
+            *rect = rect.translate(by);
+        }
+    });
 }
 
 pub(crate) fn overlaid(
@@ -659,6 +806,9 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
         floated.update(|windows| {
             if let Some(window) = windows.iter_mut().find(|window| window.key == *key) {
                 window.rect = rect;
+                if held.kind == Kind::Move {
+                    window.grab = Some(start - start_rect.min);
+                }
             }
         });
         match event.phase {

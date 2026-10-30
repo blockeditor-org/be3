@@ -1007,12 +1007,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
                     instance: editor.instance,
                     window,
                 };
-                let asked = super::desktop::rect_of(key);
-                let shown = create_memo(move || {
-                    asked
-                        .get()
-                        .map_or(Rect::ZERO, |asked| super::desktop::clamped(asked, viewport.get()))
-                });
+                let shown = super::desktop::carried(key, viewport);
                 let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
                 let width = create_memo(move || Size::Custom(shown.get().width()));
                 let height = create_memo(move || Size::Custom(shown.get().height()));

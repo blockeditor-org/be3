@@ -110,7 +110,7 @@ at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers 
 placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
 hand the press to the host: the window follows the pointer from where it was pressed (the
 press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
-no moves meanwhile, and the release ends it and gives the new placement. While one moves it is
+no moves meanwhile, and the release ends it and gives the new placement. In the app's own window (`OverlaidWindows`, no desktop) a window the user has moved is kept where its top-left corner, its left 96 points and the point it was held by stay in view (`desktop::reachable`), pulled past that it stretches like a rubber band and springs back when let go (`desktop::carried`), and one never moved is kept inside the app, shrinking rather than covering what opened it (`desktop::clamped`). While one moves it is
 drawn on every display it overlaps and on the one the move began on, which holds the press;
 once let go it is drawn only on the display holding most of it. Each view is laid out at the
 document's scale and rendered at the raster of the display that shows most of it (each mount's

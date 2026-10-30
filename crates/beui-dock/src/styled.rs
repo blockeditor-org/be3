@@ -142,6 +142,7 @@ where
                 <DockWindowFace handle />
             }}
             dialog_outset=DIALOG_CHROME
+            window_border=CHROME_BORDER
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
