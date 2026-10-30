@@ -83,8 +83,12 @@ impl HeadlessPlugin {
         self.receive(Delivery::Input(batch))
     }
 
-    pub fn draw_frame(&mut self, now_micros: u64, seen: bool) -> Result<(), String> {
-        self.receive(Delivery::Draw { now_micros, seen })
+    pub fn draw_frame(&mut self, now_micros: u64, wall_micros: u64, seen: bool) -> Result<(), String> {
+        self.receive(Delivery::Draw {
+            now_micros,
+            wall_micros,
+            seen,
+        })
     }
 
     pub fn open(&mut self, opening: Opening) -> Result<(), String> {

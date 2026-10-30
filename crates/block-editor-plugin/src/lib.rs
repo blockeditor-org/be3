@@ -66,7 +66,7 @@ pub use block_plugin_api::{
 };
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
-pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
+pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
 pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};

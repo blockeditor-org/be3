@@ -49,9 +49,7 @@ pub(crate) fn local_minutes(unix: Duration) -> u32 {
 }
 
 fn wall_clock() -> ReadSignal<String> {
-    let started = block_editor_beui::wall_clock();
-    let anchor = now();
-    let unix = move || started + now().saturating_duration_since(anchor);
+    let unix = block_editor_beui::wall_clock;
     let shown = move || Time::from_minutes(local_minutes(unix())).format(HourCycle::H24);
     let until_next_minute = move || {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;

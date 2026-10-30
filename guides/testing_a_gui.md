@@ -145,11 +145,14 @@ race with a wider margin, which is how one of these hid.
 
 The date and the time of day come from the harness too: an editor reads them from
 `block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
-`SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
+`SystemTime::now()`. That clock is the host's: each draw carries the host's wall clock beside
+its frame time (`wall-micros`), and the harness hands one fixed moment plus its frame clock, so
 a clock or a calendar paints the same on every run. beui's own date and time components (a
 calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
 pins to that clock each frame; a beui test without a plugin pins it with
-`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`.
+`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`, and the headless platform
+pins it as it starts, so block-app under `drive` (and the app tests) hands every plugin that
+fixed moment too; `drive` also starts the app with `TZ=UTC`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
@@ -390,6 +393,8 @@ which close() checks, so a test that ends without calling it fails too.
 
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
+  The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
+  clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
   click() first waits for its target, and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
 - Target nodes by test id or by a line of the tree, never by fixed coordinates: where a gesture needs a point, take it from `place(target)`, and send it with `run`, since `click` waits for its target first. Block ids are random,

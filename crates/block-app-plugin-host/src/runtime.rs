@@ -610,6 +610,7 @@ impl Runtime {
             self.pacing.unseen = !seen;
             self.send(vec![PluginCall::Draw {
                 now_micros: self.now().as_micros() as u64,
+                wall_micros: host::wall_clock().as_micros() as u64,
                 seen,
             }]);
         }

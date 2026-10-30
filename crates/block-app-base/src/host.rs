@@ -80,6 +80,7 @@ pub struct Output {
 struct Host {
     started: Option<Instant>,
     now: Duration,
+    wall: Duration,
     pass: u64,
     seen: bool,
     clock_stopped: bool,
@@ -97,6 +98,7 @@ impl Default for Host {
         Self {
             started: None,
             now: Duration::ZERO,
+            wall: Duration::ZERO,
             pass: 0,
             seen: true,
             clock_stopped: false,
@@ -117,6 +119,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 pub struct Frame {
     pub now: Option<Instant>,
+    pub wall: Option<Duration>,
     pub seen: bool,
     pub clock_stopped: bool,
     pub preferences: block_plugin_api::Preferences,
@@ -129,6 +132,7 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
+            wall: None,
             seen: true,
             clock_stopped: false,
             preferences: block_plugin_api::Preferences::default(),
@@ -148,6 +152,9 @@ pub fn start(frame: Frame) {
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
+        }
+        if let Some(wall) = frame.wall {
+            host.wall = wall;
         }
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
@@ -187,6 +194,10 @@ pub fn clock_stopped() -> bool {
 
 pub fn now() -> Duration {
     with(|host| host.now)
+}
+
+pub fn wall_clock() -> Duration {
+    with(|host| host.wall)
 }
 
 pub fn micros_at(at: Instant) -> u64 {

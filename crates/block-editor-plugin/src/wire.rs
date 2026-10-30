@@ -31,7 +31,11 @@ pub(crate) enum Delivery {
     Screens(Vec<ScreenRequest>),
     Configure(u64),
     Input(InputBatch),
-    Draw { now_micros: u64, seen: bool },
+    Draw {
+        now_micros: u64,
+        wall_micros: u64,
+        seen: bool,
+    },
     Shutdown,
     Open(Opening),
     Close(EditorInstanceId),
@@ -221,10 +225,19 @@ impl Guest for Exports {
         self.0.push(Delivery::Configure(serial));
     }
 
-    fn draw(&self, now_micros: u64, seen: bool) -> impl Future<Output = FrameCommit> + 'static {
+    fn draw(
+        &self,
+        now_micros: u64,
+        wall_micros: u64,
+        seen: bool,
+    ) -> impl Future<Output = FrameCommit> + 'static {
         let (sender, drawn) = oneshot();
         self.0.0.borrow_mut().draws.push_back(sender);
-        self.0.push(Delivery::Draw { now_micros, seen });
+        self.0.push(Delivery::Draw {
+            now_micros,
+            wall_micros,
+            seen,
+        });
         async move {
             match drawn.await {
                 Some(commit) => commit,

@@ -25,6 +25,7 @@ pub(super) enum PluginCall {
     Input(InputBatch),
     Draw {
         now_micros: u64,
+        wall_micros: u64,
         seen: bool,
     },
     BlockTypes(Catalog),

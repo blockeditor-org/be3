@@ -176,8 +176,12 @@ impl Wire {
             }),
             PluginCall::Screens(screens) => plugin::screens(connection, screens),
             PluginCall::Configure(serial) => plugin::configure(connection, serial),
-            PluginCall::Draw { now_micros, seen } => {
-                let drawn = plugin::draw(connection, now_micros, seen);
+            PluginCall::Draw {
+                now_micros,
+                wall_micros,
+                seen,
+            } => {
+                let drawn = plugin::draw(connection, now_micros, wall_micros, seen);
                 self.draws.insert(drawn.op(), Awaited::Draw);
             }
             PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),

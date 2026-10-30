@@ -136,6 +136,7 @@ impl Launch {
             )
             .env(environment::DRIVE_SOCKET, &socket)
             .env(environment::DRIVE_LISTENER, listening.to_string())
+            .env("TZ", "UTC")
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())

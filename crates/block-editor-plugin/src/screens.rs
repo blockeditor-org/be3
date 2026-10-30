@@ -442,8 +442,15 @@ impl Screens {
                 self.serial = serial;
                 return false;
             }
-            Delivery::Draw { now_micros, seen } => {
-                crate::clock::set_frame_time(std::time::Duration::from_micros(now_micros));
+            Delivery::Draw {
+                now_micros,
+                wall_micros,
+                seen,
+            } => {
+                crate::clock::set_frame_time(
+                    std::time::Duration::from_micros(now_micros),
+                    std::time::Duration::from_micros(wall_micros),
+                );
                 SEEN.store(seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }

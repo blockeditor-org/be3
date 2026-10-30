@@ -28,7 +28,7 @@ pub(crate) struct AnchorOwner {
     pub(crate) plugin: String,
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
-    pub(crate) window: WindowId,
+    pub(crate) window: Memo<WindowId>,
     pub(crate) host: Option<AnchorHost>,
     pub(crate) state: Memo<PlacedView>,
     pub(crate) revision: ReadSignal<u64>,
@@ -84,17 +84,20 @@ fn owners_in(window: WindowId, host: Option<AnchorHost>) -> Vec<AnchorOwner> {
         owners
             .borrow()
             .iter()
-            .filter(|owner| owner.window == window && owner.host == host)
-            .filter(|owner| owner.state.is_alive())
+            .filter(|owner| owner.state.is_alive() && owner.window.is_alive())
+            .filter(|owner| owner.window.get() == window && owner.host == host)
             .cloned()
             .collect()
     })
 }
 
-pub(crate) fn host_window() -> WindowId {
-    use_window()
-        .and_then(|window| window.real().get_untracked())
-        .unwrap_or(WindowId::MAIN)
+pub(crate) fn host_window() -> Memo<WindowId> {
+    let real = use_window().map(|window| window.real());
+    create_memo(move || {
+        real.filter(Memo::is_alive)
+            .and_then(|real| real.get())
+            .unwrap_or(WindowId::MAIN)
+    })
 }
 
 pub(crate) fn bounds_within(parent: Rect, own: Rect, confined: bool) -> Rect {
@@ -270,7 +273,7 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
     let window = host_window();
     let owners = create_memo(move || {
         watch_owners();
-        owners_in(window, host)
+        owners_in(window.get(), host)
             .into_iter()
             .map(|owner| owner.mount)
             .collect::<Vec<u64>>()
@@ -331,7 +334,7 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
                     <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0>
                         <Interactive
                             hit_area={beui::Area::Nowhere}
-                            on_press_outside={move |pos: Pos2| dismiss_outside(window, host, pos)}
+                            on_press_outside={move |pos: Pos2| dismiss_outside(window.get_untracked(), host, pos)}
                         />
                     </CanvasItem>
                 </Canvas>

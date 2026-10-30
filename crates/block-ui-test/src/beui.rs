@@ -247,7 +247,6 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::native::verify_paint(true);
         beui::native::fail_unsettled_layout(true);
-        block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
             Adopted::Creation(creation) => creation.host().clone(),
@@ -1090,8 +1089,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
         let now_micros = self.clock.as_micros() as u64;
+        let wall_micros = (WALL_CLOCK + self.clock).as_micros() as u64;
         inbox.push(Inbound::pushed(move |plugin| {
-            plugin.draw_frame(now_micros, true)
+            plugin.draw_frame(now_micros, wall_micros, true)
         }));
         for message in inbox {
             self.deliver(message);
