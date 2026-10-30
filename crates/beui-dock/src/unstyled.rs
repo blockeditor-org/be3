@@ -1070,8 +1070,16 @@ impl State {
 
     fn home(&self) -> WindowId {
         self.home
-            .and_then(|window| window.real_window())
+            .and_then(|window| window.real().get_untracked())
             .unwrap_or(WindowId::MAIN)
+    }
+
+    fn watch_home(&self) -> Memo<WindowId> {
+        let home = self.home;
+        create_memo(move || {
+            home.and_then(|window| window.real().get())
+                .unwrap_or(WindowId::MAIN)
+        })
     }
 
     fn float_origin(&self) -> Pos2 {
@@ -3551,7 +3559,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             })
             .and_then(|tab| dock.notice(tab))
     });
-    let parent = create_memo(move || dock.home());
+    let parent = dock.watch_home();
     let placement = create_memo(move || dock.placement(surface, parent.get()));
     let shown_at = StoredCell::new(None::<Pos2>);
     let area_was = StoredCell::new(None::<Pos2>);

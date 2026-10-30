@@ -25,8 +25,8 @@ impl WindowHandle {
         self.hosted.get()
     }
 
-    pub fn real_window(self) -> Option<WindowId> {
-        self.real.get()
+    pub fn real(self) -> Memo<Option<WindowId>> {
+        self.real
     }
 
     pub fn following(

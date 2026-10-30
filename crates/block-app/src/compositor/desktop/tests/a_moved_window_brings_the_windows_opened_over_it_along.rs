@@ -123,7 +123,11 @@ fn a_moved_window_brings_the_windows_opened_over_it_along() {
     block_app_plugin_host::request_windows(PLUGIN, vec![WindowRequest::BeginMove(ViewId(1))]);
     apply();
     let dragged = vec2(-50.0, 30.0);
-    follow(&key(1), mouse(PointerPhase::Move, pressed + dragged), Vec2::ZERO);
+    follow(
+        &key(1),
+        mouse(PointerPhase::Move, pressed + dragged),
+        Vec2::ZERO,
+    );
     follow(
         &key(1),
         mouse(PointerPhase::Up(PointerButton::Primary), pressed + dragged),

@@ -1,7 +1,7 @@
 use super::*;
 use beui::dock::styled::{
-    DockAlign, DockBar, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockTab, DockWindow, Docking,
-    DockingLayout,
+    DockAlign, DockBar, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockTab, DockWindow,
+    Docking, DockingLayout,
 };
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
