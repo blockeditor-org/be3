@@ -93,8 +93,8 @@ fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
     }
     let window = test.rect_of("banded.window");
     assert!(
-        window.top() < bar.center().y,
-        "a window placed past the band is moved up so its own bar stays above the band, its body drawn over it: {window:?}, {bar:?}"
+        window.bottom() <= bar.top() + 0.5,
+        "a window placed past the band is moved up whole above it: {window:?}, {bar:?}"
     );
     test.snapshot("a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows");
 

@@ -70,8 +70,8 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
     }
     let floating = harness.rect(harness.find("content.4"));
     assert!(
-        floating.top() < bar.center().y,
-        "a window placed past the band is moved up so its bar stays above the band: {floating:?}, {bar:?}"
+        floating.bottom() <= bar.top() + 0.5,
+        "a window placed past the band is moved up whole above it: {floating:?}, {bar:?}"
     );
 
     layout.show(&3);
