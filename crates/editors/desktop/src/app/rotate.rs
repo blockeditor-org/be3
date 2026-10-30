@@ -12,6 +12,33 @@ const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -> NodeId {
+    view! {
+        <BarPopup
+            label="Rotate the screen"
+            glyph=ICON_ROTATE_CW_SQUARE
+            icon_only=true
+            @test_id={"desktop.rotate"}
+        >|handle: PopoverHandle| {
+            let picked = Callback::new(move |()| handle.close.call(()));
+            view! {
+                <ScreenRotation
+                    editor={editor}
+                    display={display}
+                    test_id={"desktop.rotate".to_owned()}
+                    on_picked={picked}
+                />
+            }
+        }</BarPopup>
+    }
+}
+
+#[component]
+pub(crate) fn ScreenRotation(
+    editor: Editor,
+    display: Memo<Option<HostDisplay>>,
+    test_id: String,
+    on_picked: Callback<()>,
+) -> NodeId {
     let settings = LayeredSettings::<DisplaySettings>::this_device(editor);
     let effective = settings.effective();
     let ready = settings.ready();
@@ -23,36 +50,24 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
             })
         })
     });
-    let write = move |rotation: Rotation| {
+    let pick = Callback::new(move |rotation: Rotation| {
         let Some(id) = display.with_untracked(|display| display.as_ref().map(|d| d.id.clone()))
         else {
             return;
         };
         settings.set(&DisplaySettings::rotation_setting(&id), Some(rotation));
-    };
+        on_picked.call(());
+    });
     view! {
-        <BarPopup
-            label="Rotate the screen"
-            glyph=ICON_ROTATE_CW_SQUARE
-            icon_only=true
-            @test_id={"desktop.rotate"}
-        >|handle: PopoverHandle| {
-            let pick = Callback::new(move |rotation: Rotation| {
-                write(rotation);
-                handle.close.call(());
-            });
-            view! {
-                <List spacing=SPACING>
-                    <Text>"Tap the one that's right side up"</Text>
-                    <RotationPicker
-                        test_id={"desktop.rotate".to_owned()}
-                        display={display}
-                        chosen={chosen}
-                        read_only={waiting}
-                        on_pick={pick}
-                    />
-                </List>
-            }
-        }</BarPopup>
+        <List spacing=SPACING>
+            <Text>"Tap the one that's right side up"</Text>
+            <RotationPicker
+                test_id={test_id}
+                display={display}
+                chosen={chosen}
+                read_only={waiting}
+                on_pick={pick}
+            />
+        </List>
     }
 }

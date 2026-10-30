@@ -7,7 +7,7 @@ fn the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output() {
     let mut fixture = Fixture::new();
     fixture.settle();
     fixture.hear(0.45, false, SPEAKERS);
-    fixture.test.click("desktop.volume");
+    fixture.test.click("desktop.status");
     fixture.settle();
     fixture
         .test

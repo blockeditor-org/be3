@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn the_power_menu_asks_before_ending_the_session() {
+fn the_power_row_asks_before_ending_the_session() {
     let mut fixture = Fixture::new();
     fixture.allow_power(EVERYTHING);
 
@@ -10,7 +10,7 @@ fn the_power_menu_asks_before_ending_the_session() {
         ("desktop.power.power-off", PowerAction::PowerOff),
         ("desktop.power.log-out", PowerAction::LogOut),
     ] {
-        fixture.test.click("desktop.power");
+        fixture.test.click("desktop.status");
         fixture.settle();
         fixture.test.click(item);
         fixture.settle();
@@ -41,7 +41,7 @@ fn the_power_menu_asks_before_ending_the_session() {
             "cancelling does nothing"
         );
 
-        fixture.test.click("desktop.power");
+        fixture.test.click("desktop.status");
         fixture.settle();
         fixture.test.click(item);
         fixture.settle();

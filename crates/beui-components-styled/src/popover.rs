@@ -27,6 +27,7 @@ pub fn Popover(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
+    leading: Option<Child>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     let max_width = create_memo(move || Some(max_width.get()));
@@ -40,7 +41,7 @@ pub fn Popover(
             open
             surface
             trigger={move |handle: PopupTriggerHandle| view! {
-                <PopupButtonFace handle variant size />
+                <PopupButtonFace handle variant size leading />
             }}
         >|handle: PopoverHandle| {
             content.call(handle)

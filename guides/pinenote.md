@@ -49,7 +49,7 @@ Fast waveforms leave ghosts. The platform provides `beui_platform_drm::Epaper`, 
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the
 `Epaper` host value (`true`) when the platform provides one and turns each `EpaperRequest::Refresh`
 into a refresh (`display/linux.rs`); the desktop plugin shows a refresh button (`desktop.refresh`)
-beside the keyboard button while the value is true.
+on the bar, and a Refresh tile in Quick settings, while the value is true.
 
 ## Input
 

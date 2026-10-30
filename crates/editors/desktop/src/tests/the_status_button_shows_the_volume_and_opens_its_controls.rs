@@ -5,20 +5,26 @@ use block_editor_beui::beui::styled::ToggleApi;
 use super::*;
 
 #[test]
-fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
+fn the_status_button_shows_the_volume_and_opens_its_controls() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        !fixture.test.shown("desktop.volume"),
+        !fixture.test.shown("desktop.status.volume"),
         "there is no volume to show before the host reports one"
     );
 
     fixture.hear(0.45, false, SPEAKERS);
-    assert!(fixture.test.shown("desktop.volume"));
-    assert!(fixture.test.label("desktop.volume").contains("45%"));
-    fixture.test.snapshot("the_volume_in_the_bar");
+    fixture.wifi(nearby());
+    fixture.allow_power(EVERYTHING);
+    assert!(fixture.test.shown("desktop.status.volume"));
+    assert!(
+        fixture.status_label().contains("45%"),
+        "the status button names the volume: {}",
+        fixture.status_label()
+    );
+    fixture.test.snapshot("the_status_in_the_bar");
 
-    fixture.test.click("desktop.volume");
+    fixture.test.click("desktop.status");
     fixture.settle();
     assert!(fixture.test.shown("desktop.volume.panel"));
     assert!(
@@ -28,11 +34,10 @@ fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
             .contains("Speakers"),
         "the output in use is chosen"
     );
-    fixture.test.snapshot("the_volume_popup");
 
     fixture.hear(0.7, true, HEADPHONES);
     assert!(
-        fixture.test.label("desktop.volume").contains("70%"),
+        fixture.status_label().contains("70%"),
         "a change made by the volume keys or another program shows in the bar"
     );
     let document = fixture.test.document();
@@ -57,7 +62,7 @@ fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
         .set_watched::<MediaWatch>(&MediaLevels::default());
     fixture.settle();
     assert!(
-        !fixture.test.shown("desktop.volume"),
-        "the item goes when the sound server does"
+        !fixture.test.shown("desktop.status.volume") && !fixture.test.shown("desktop.volume.panel"),
+        "the volume goes when the sound server does"
     );
 }

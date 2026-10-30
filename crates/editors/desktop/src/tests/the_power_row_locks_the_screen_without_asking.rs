@@ -1,13 +1,13 @@
 use super::*;
 
 #[test]
-fn the_power_menu_locks_the_screen_without_asking() {
+fn the_power_row_locks_the_screen_without_asking() {
     let mut fixture = Fixture::new();
     fixture.allow_power(PowerAvailability {
         lock: false,
         ..EVERYTHING
     });
-    fixture.test.click("desktop.power");
+    fixture.test.click("desktop.status");
     fixture.settle();
     fixture.test.click("desktop.power.lock");
     fixture.settle();
@@ -21,7 +21,7 @@ fn the_power_menu_locks_the_screen_without_asking() {
 
     fixture.allow_power(EVERYTHING);
     if !fixture.test.shown("desktop.power.lock") {
-        fixture.test.click("desktop.power");
+        fixture.test.click("desktop.status");
         fixture.settle();
     }
     fixture.test.click("desktop.power.lock");

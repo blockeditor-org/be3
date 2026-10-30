@@ -56,6 +56,7 @@ mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
 mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
+mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
@@ -63,18 +64,18 @@ mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
-mod the_notifications_button_lists_what_arrived_and_answers_it;
-mod the_power_menu_asks_before_ending_the_session;
-mod the_power_menu_locks_the_screen_without_asking;
-mod the_power_menu_offers_only_what_the_host_allows;
+mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
+mod the_power_row_asks_before_ending_the_session;
+mod the_power_row_locks_the_screen_without_asking;
+mod the_power_row_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
-mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
+mod the_status_button_shows_the_volume_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
-mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
+mod the_wifi_tile_lists_the_networks_the_host_reports;
 mod the_wifi_popup_asks_the_host_to_connect;
 mod the_window_picker_lists_displays_then_windows_and_shows_or_hides_them;
 mod windows_that_close_as_the_session_ends_are_kept;
@@ -325,6 +326,14 @@ impl Fixture {
             .into_iter()
             .flat_map(|report| report.signals)
             .collect()
+    }
+
+    fn status_label(&self) -> String {
+        let document = self.test.document();
+        document
+            .find_test_id("desktop.status")
+            .and_then(|status| accessible_under(&document, status))
+            .unwrap_or_default()
     }
 
     fn says(&self, words: &str) -> bool {
@@ -601,6 +610,16 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
         .children(id)
         .into_iter()
         .find_map(|child| text_under(&document, child))
+}
+
+fn accessible_under(document: &Document, id: NodeId) -> Option<String> {
+    if let Some(label) = document.accessibility.get(&id).and_then(|node| node.label()) {
+        return Some(label.to_owned());
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| accessible_under(document, child))
 }
 
 fn toast(id: u32) -> String {

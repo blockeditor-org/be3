@@ -1,36 +1,27 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_VOLUME_X;
+use block_editor_beui::beui::icons::{Glyph, ICON_VOLUME_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
-use super::popup::BarPopup;
 use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Lg;
 const LABEL_SPACING: Space = Space::Xs;
 const PERCENT_WIDTH: f32 = 44.0;
 
-fn percent(level: MediaLevel) -> String {
+pub(crate) fn percent(level: MediaLevel) -> String {
     format!("{}%", (level.level * 100.0).round())
 }
 
-#[component]
-pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
-    let output = create_memo(move || levels.with(|levels| levels.output));
-    let glyph = create_memo(move || output.get().map_or(ICON_VOLUME_X, volume_glyph).to_owned());
-    let label = create_memo(move || output.get().map(percent).unwrap_or_default());
-    view! {
-        <BarPopup label glyph @test_id={"desktop.volume"}>|_: PopoverHandle|
-            <VolumePanel editor={editor} levels={levels} />
-        </BarPopup>
-    }
+pub(crate) fn glyph(output: Option<MediaLevel>) -> Glyph {
+    output.map_or(ICON_VOLUME_X, volume_glyph)
 }
 
 #[component]
-fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
+pub(crate) fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     let output = create_memo(move || levels.with(|levels| levels.output));
     let volume = create_memo(move || output.get().map_or(0.0, |output| output.level));
     let shown = create_memo(move || output.get().map(percent).unwrap_or_default());

@@ -1,5 +1,6 @@
 mod bar;
 mod calendar;
+mod clock;
 mod fullscreen;
 pub(crate) mod launcher;
 pub(crate) mod media;
@@ -10,6 +11,7 @@ mod popup;
 mod power;
 mod rotate;
 mod sessions;
+mod status;
 mod switcher;
 mod tray;
 mod volume;

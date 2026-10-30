@@ -11,10 +11,16 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
         "desktop.menu",
         "desktop.sessions",
         "desktop.clock",
+        "desktop.status",
     ] {
         assert!(fixture.test.shown(shown), "the bar still shows {shown}");
     }
-    for hidden in ["desktop.launcher", "desktop.notifications", "desktop.power"] {
+    for hidden in [
+        "desktop.launcher",
+        "desktop.status.wifi",
+        "desktop.status.volume",
+        "desktop.status.power",
+    ] {
         assert!(
             !fixture.test.shown(hidden),
             "a host with nothing to back {hidden} gets no control for it"
@@ -50,7 +56,7 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
     fixture.test.set_watched::<PowerWatch>(&EVERYTHING);
     fixture.settle();
     assert!(
-        fixture.test.shown("desktop.launcher") && fixture.test.shown("desktop.power"),
+        fixture.test.shown("desktop.launcher") && fixture.test.shown("desktop.status.power"),
         "what the host offers later shows up"
     );
 }

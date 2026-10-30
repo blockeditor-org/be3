@@ -4639,7 +4639,7 @@ until it is closed; otherwise the platform answers the change in
 `Platform::show_window`: Android shows or hides its keyboard, the web focuses
 or blurs its hidden textarea, and a plugin passes it to its host as
 `WindowRequests::keyboard_toggles`, where block-app toggles its own. The
-desktop bar's keyboard button, the inspector's Sim tab button and the mouse
+desktop's Quick settings Keyboard tile, the inspector's Sim tab button and the mouse
 simulation's keyboard button all call it. While the platform reports that no keyboard is attached
 (`WindowReports::keyboard_attached`, which only `beui-platform-drm` sends, from
 libinput devices that have an A key; every other platform counts as attached,

@@ -3,10 +3,14 @@ use block_editor_beui::{HostNotificationAction, NotificationCloseReason, Notific
 use super::*;
 
 #[test]
-fn the_notifications_button_lists_what_arrived_and_answers_it() {
+fn the_clock_lists_the_notifications_that_arrived_and_answers_them() {
     let mut fixture = Fixture::new();
+    fixture
+        .test
+        .set_size(block_editor_beui::beui::Vec2::new(1280.0, 800.0));
     fixture.settle();
-    fixture.test.click("desktop.notifications");
+    assert!(!fixture.test.shown("desktop.clock.unread"));
+    fixture.test.click("desktop.clock");
     fixture.settle();
     assert!(fixture.says("Nothing new."), "the list starts empty");
 
@@ -36,6 +40,11 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
             .map(|report| (report.received, report.kept.clone())),
         Some((Some(2), vec![1, 2])),
         "the desktop tells the host what it took and what it holds: {reports:?}"
+    );
+    assert_eq!(
+        fixture.test.label("desktop.clock.unread"),
+        "2",
+        "the clock counts what is listed"
     );
     fixture.test.snapshot("the_notification_history");
 
@@ -77,7 +86,7 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     fixture
         .test
         .take_host_calls(block_ui_test::requested::notification_report);
-    fixture.test.click("desktop.notifications");
+    fixture.test.click("desktop.clock");
     fixture.settle();
     fixture.test.click("desktop.notifications.3");
     fixture.settle();

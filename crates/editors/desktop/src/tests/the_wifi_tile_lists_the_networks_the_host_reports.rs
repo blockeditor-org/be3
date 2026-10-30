@@ -3,24 +3,30 @@ use block_editor_beui::beui::icons::{ICON_WIFI, ICON_WIFI_OFF};
 use super::*;
 
 #[test]
-fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
+fn the_wifi_tile_lists_the_networks_the_host_reports() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        !fixture.test.shown("desktop.wifi"),
+        !fixture.test.shown("desktop.status.wifi"),
         "there is no Wi-Fi to show before the host reports a device"
     );
 
     fixture.wifi(nearby());
-    assert!(fixture.test.shown("desktop.wifi"));
+    assert!(fixture.test.shown("desktop.status.wifi"));
     assert_eq!(
-        fixture.test.label("desktop.wifi"),
+        fixture.test.label("desktop.status.wifi"),
         ICON_WIFI.as_str(),
         "the bar shows the strength of the network joined"
     );
-    fixture.test.snapshot("the_wifi_in_the_bar");
 
-    fixture.test.click("desktop.wifi");
+    fixture.test.click("desktop.status");
+    fixture.settle();
+    assert!(fixture.test.shown("desktop.quick.wifi"));
+    assert!(
+        fixture.test.take_host_calls(block_ui_test::requested::wifi).is_empty(),
+        "quick settings alone does not look for networks"
+    );
+    fixture.test.click("desktop.quick.wifi");
     fixture.settle();
     assert!(fixture.test.shown("desktop.wifi.panel"));
     assert_eq!(
@@ -31,7 +37,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     assert!(fixture.test.shown("desktop.wifi.network.Home.disconnect"));
     assert!(fixture.says("Connected"));
     assert!(fixture.says("Needs a sign-in this desktop cannot do"));
-    fixture.test.snapshot("the_wifi_popup");
+    fixture.test.snapshot("the_wifi_networks");
 
     fixture.wifi(WifiStatus {
         link: WifiLink::Connecting("Cafe".to_owned()),
@@ -50,13 +56,17 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     assert!(
         fixture
             .test
-            .label("desktop.wifi")
+            .label("desktop.status.wifi")
             .starts_with(ICON_WIFI_OFF.as_str())
     );
 
+    fixture.test.click("desktop.quick.back");
+    fixture.settle();
+    assert!(fixture.test.shown("desktop.quick.wifi"), "back leads to the tiles");
+
     fixture.wifi(WifiStatus::default());
     assert!(
-        !fixture.test.shown("desktop.wifi"),
-        "the item goes when the Wi-Fi device does"
+        !fixture.test.shown("desktop.status.wifi") && !fixture.test.shown("desktop.quick.wifi"),
+        "the icon and the tile go when the Wi-Fi device does"
     );
 }

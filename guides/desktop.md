@@ -28,9 +28,21 @@ in another language, can implement it from the WIT alone. A plugin uses it only 
 windows, and settings for displays, input devices and remaps); the host denies a watch or a call
 from any other. The desktop plugin shows a control only while the host offers what backs it
 (`editor.offered::<W>()`, true once the host answered the watch): the Programs button, the
-Super tap and placeholders' Open need `ProgramsWatch`, the bell `NotificationsWatch`, the power
-menu `PowerWatch`, the media keys `MediaWatch` (the volume item, its `output`), the Wi-Fi item
-`WifiWatch` (its `available`), and the tray its items. block-app publishes each as soon as the
+Super tap and placeholders' Open need `ProgramsWatch`, the clock's notification count and
+history `NotificationsWatch`, the power row `PowerWatch`, the media keys `MediaWatch` (the
+volume icon and controls, its `output`), the Wi-Fi icon and tile `WifiWatch` (its `available`),
+and the tray its items.
+
+The status side of the bar is the tray, the device buttons (refresh on e-paper, rotate), then
+one status button (`desktop.status`, `app/status.rs`) and the clock (`desktop.clock`,
+`app/clock.rs`). The status button's face is the Wi-Fi, volume and power icons that apply
+(`desktop.status.{wifi,volume,power}`), and it opens Quick settings (`desktop.quick`): tiles
+for Wi-Fi (`desktop.quick.wifi`, which turns the panel to its network list, `app/wifi.rs`), the
+on-screen keyboard, rotate where the display is reported and refresh on e-paper; the volume
+slider, mute and output (`app/volume.rs`); and the power row (`app/power.rs`), which asks before
+restarting, powering off or logging out. The clock carries the count of listed notifications
+(`desktop.clock.unread`) and opens the desktop's calendar beside the notification history
+(`app/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. block-app publishes each as soon as the
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
 `windows`, `programs` and `power` (`block-app-plugin-host/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop

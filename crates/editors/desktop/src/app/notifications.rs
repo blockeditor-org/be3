@@ -16,7 +16,7 @@ use block_editor_beui::{
 
 use center::{Center, DEFAULT_ACTION, Incoming, Notification};
 
-pub(crate) use history::NotificationsButton;
+pub(crate) use history::{LIST_HEIGHT, NotificationList};
 pub(crate) use toasts::DesktopToasts;
 
 pub(crate) const TOAST_IDS: u64 = 1 << 32;

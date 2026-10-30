@@ -7,8 +7,8 @@ whose shell is the desktop plugin. Two ways to run it are Linux's alone:
   devices themselves through `beui-platform-drm` instead of in a window, from a virtual terminal
   with no other display server on it. block-app accepts `drm` in `BEUI_PLATFORM` beside `winit`
   (`beui_host::native::run_with_platforms`), and refuses it without `--desktop` (the workspace
-  shell does not run on the displays) and on other systems (`src/arguments.rs`). The bar's power
-  menu logs out (see below), Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
+  shell does not run on the displays) and on other systems (`src/arguments.rs`). Quick settings'
+  Log out (see below) logs out, Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
   every display's scale.
@@ -16,7 +16,7 @@ whose shell is the desktop plugin. Two ways to run it are Linux's alone:
 
 Under `--desktop` on Linux programs open as windows inside the shell, as they do in any windowed
 run. What needs the displays and input devices themselves, such as display modes, pointer
-settings and the power menu's actions other than Lock, is absent, since `beui-platform-drm` is
+settings and the power row's actions other than Lock, is absent, since `beui-platform-drm` is
 not running: the power actions start only when the DRM seat provides its `DisplayControl`.
 
 ## Program windows
@@ -135,7 +135,7 @@ modifiers over. A frame that cannot be shown sets its output up again once; if t
 the output stops drawing and the problem is reported once through `Problems`, until the seat
 comes back or a display is plugged in or out.
 
-The desktop bar's power button locks, suspends, restarts, powers off or logs out. The desktop
+The power row in the bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
 plugin watches `PowerWatch` for what it may offer and sends `power::request(PowerAction)`;
 `src/login_session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
@@ -173,7 +173,7 @@ is taken or its program closes it, which is the `persistence` capability, except
 one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
 action buttons; clicking the body is the `default` action) anchored to the first display with
 its bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
-They make way while the bell's list of notifications is open.
+They make way while the clock's panel, with the list of notifications, is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
 prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
@@ -232,8 +232,8 @@ intercepting actions, so the host hands them to the shell even while a program h
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
 a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
-(`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
-the same output level while the host reports one, and its popup sets the volume, the mute and
+(`editor.watch::<MediaWatch>()`). The bar's status button shows
+the output's volume icon while the host reports one, and Quick settings (`app/volume.rs`) sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
 
@@ -258,10 +258,11 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 
 ## Wi-Fi
 
-The bar's Wi-Fi item (the desktop plugin's `app/wifi.rs`) shows while the host reports a Wi-Fi
-device (`WifiStatus::available` in `WifiWatch`'s value): its glyph is the joined network's
-strength, and its popup turns Wi-Fi on and off, lists the networks in range and joins or leaves
-one with `WifiRequest`s. Opening the popup asks for a scan. A saved or open network is joined at
+The bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi tile, while the host
+reports a Wi-Fi device (`WifiStatus::available` in `WifiWatch`'s value): the icon is the joined
+network's strength, and the tile opens the network list (the desktop plugin's `app/wifi.rs`),
+which turns Wi-Fi on and off, lists the networks in range and joins or leaves one with
+`WifiRequest`s. Opening the list asks for a scan. A saved or open network is joined at
 once; a protected one asks for its password first, and asks again when the host reports that
 joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
 from a connection saved elsewhere.
@@ -277,12 +278,12 @@ security from the access point's flags, the list (hidden networks left out, each
 strongest), how a network is joined, and when an attempt has connected or failed. The test
 `wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private bus.
 
-The VM has no Wi-Fi device, so under `:dev -- --desktop` the item does not show.
+The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows.
 
 ## The on-screen keyboard
 
 beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. In a login session it opens by itself when a field is tapped and no libinput device with letter keys is
-plugged in; the keyboard button beside the bar's clock (`desktop.keyboard`, which calls
+plugged in; the Keyboard tile in the bar's Quick settings (`desktop.quick.keyboard`, which calls
 `toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
 it whatever is plugged in. It is drawn by the host along the bottom of the window the focused field
 is in (in a login session, a display's window), and that window is laid out above it.

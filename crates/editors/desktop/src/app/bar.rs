@@ -5,7 +5,7 @@ use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS, ICON_REFRESH_CW,
+    ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS, ICON_REFRESH_CW,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -14,20 +14,16 @@ use block_editor_beui::{
 };
 use block_shell::Workspace;
 
-use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
+use super::clock::ClockButton;
 use super::launcher::ProgramLauncher;
-use super::notifications::{DesktopNotifications, NotificationsButton};
+use super::notifications::DesktopNotifications;
 use super::placeholders::{OpenAllButton, Placeholders};
-use super::popup::BarPopup;
-use super::power::PowerMenu;
 use super::rotate::RotateButton;
 use super::sessions::Sessions;
+use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
-use super::volume::VolumeButton;
-use super::wifi::WifiButton;
 use super::windows::WindowPicker;
 use beui::{Align, Direction, ItemSize};
-use block_editor_beui::beui::reactive::toggle_keyboard;
 
 const BAR_PADDING: Space = Space::Sm;
 const BAR_SPACING: Space = Space::Md;
@@ -77,7 +73,6 @@ pub(crate) fn DesktopBar(
     let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
     let launchable = launcher.offered;
     let launcher = move || launcher.show(true);
-    let notified = notifications.offered;
     let powered = editor.offered::<PowerWatch>();
     let windowed = editor.offered::<WindowsWatch>();
     let epaper = editor.watch::<EpaperWatch>();
@@ -89,6 +84,16 @@ pub(crate) fn DesktopBar(
     let rotatable = create_memo(move || {
         display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
     });
+    let status = Status {
+        editor,
+        wifi,
+        wireless,
+        levels,
+        audible,
+        powered,
+        epaper,
+        screen,
+    };
     let menu_button = NodeRef::new();
     let menu = move || editor.show_app_menu(menu_button);
     let sessions = Sessions::new(workspace);
@@ -172,15 +177,6 @@ pub(crate) fn DesktopBar(
                         <OpenAllButton placeholders />
                     </Show>
                     <TrayItems editor={editor} />
-                    <Show condition={wireless}>
-                        <WifiButton editor={editor} status={wifi} />
-                    </Show>
-                    <Show condition={audible}>
-                        <VolumeButton editor={editor} levels={levels} />
-                    </Show>
-                    <Show condition={notified}>
-                        <NotificationsButton notifications />
-                    </Show>
                     <Show condition={epaper}>
                         <Button
                             icon_only=true
@@ -194,24 +190,8 @@ pub(crate) fn DesktopBar(
                     <Show condition={rotatable}>
                         <RotateButton editor={editor} display={screen} />
                     </Show>
-                    <Button
-                        icon_only=true
-                        glyph=ICON_KEYBOARD
-                        label="On-screen keyboard"
-                        @test_id={"desktop.keyboard"}
-                        press_focus=false
-                        on_click={toggle_keyboard}
-                    />
-                    <BarPopup
-                        label={clock}
-                        width={Size::Custom(CALENDAR_WIDTH)}
-                        @test_id={"desktop.clock"}
-                    >|_: PopoverHandle|
-                        <DesktopCalendar editor={editor} />
-                    </BarPopup>
-                    <Show condition={powered}>
-                        <PowerMenu editor={editor} />
-                    </Show>
+                    <StatusButton status />
+                    <ClockButton editor={editor} notifications clock />
                 </List>
             </Frame>
         </List>

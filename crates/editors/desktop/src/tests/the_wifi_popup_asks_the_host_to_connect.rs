@@ -5,7 +5,9 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     let mut fixture = Fixture::new();
     fixture.settle();
     fixture.wifi(nearby());
-    fixture.test.click("desktop.wifi");
+    fixture.test.click("desktop.status");
+    fixture.settle();
+    fixture.test.click("desktop.quick.wifi");
     fixture.settle();
     fixture.test.take_host_calls(block_ui_test::requested::wifi);
 
