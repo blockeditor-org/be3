@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 
 use tls_diamond_base::bump_base;
@@ -27,33 +28,38 @@ fn sequence() -> [u32; 6] {
 }
 
 static SPAWNED: Mutex<Option<JoinHandle<[u32; 6]>>> = Mutex::new(None);
+static ENDED: AtomicBool = AtomicBool::new(false);
+
+// unsafe(ffi)
+#[link(wasm_import_module = "be3_host")]
+unsafe extern "C" {
+    fn host_send(pointer: *const u8, length: usize);
+    fn host_wake();
+}
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-pub extern "C" fn diamond_start() {
+pub extern "C" fn plugin_start() {
     assert_eq!(sequence(), EXPECTED, "on the main thread");
-    let spawned = std::thread::spawn(sequence);
+    let spawned = std::thread::spawn(|| {
+        let seen = sequence();
+        ENDED.store(true, Ordering::Release);
+        // unsafe(ffi)
+        unsafe { host_wake() };
+        seen
+    });
     *SPAWNED.lock().unwrap() = Some(spawned);
 }
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-pub extern "C" fn diamond_spawned_ended() -> bool {
-    SPAWNED
-        .lock()
-        .unwrap()
-        .as_ref()
-        .is_none_or(JoinHandle::is_finished)
-}
-
-// unsafe(ffi)
-#[unsafe(no_mangle)]
-pub extern "C" fn diamond_finish() -> u32 {
-    let spawned = SPAWNED
-        .lock()
-        .unwrap()
-        .take()
-        .expect("the thread was spawned");
+pub extern "C" fn plugin_step() {
+    if !ENDED.load(Ordering::Acquire) {
+        return;
+    }
+    let Some(spawned) = SPAWNED.lock().unwrap().take() else {
+        return;
+    };
     assert_eq!(spawned.join().unwrap(), EXPECTED, "on a spawned thread");
     let after = [bump_left(Step(0)), bump_right(Step(0)), bump_base(Step(0))];
     assert_eq!(
@@ -61,5 +67,9 @@ pub extern "C" fn diamond_finish() -> u32 {
         [1001, 2002, 112],
         "on the main thread after the spawned one"
     );
-    1
+    // unsafe(ffi)
+    unsafe { host_send([1].as_ptr(), 1) };
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn plugin_shutdown() {}

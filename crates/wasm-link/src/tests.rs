@@ -4,18 +4,15 @@ fn arguments(text: &str) -> Vec<String> {
     text.split_whitespace().map(str::to_owned).collect()
 }
 
-fn sdk(linked: &[&str]) -> Sdk {
-    Sdk {
-        identity: "cafe".to_owned(),
-        linked: linked.iter().map(|name| (*name).to_owned()).collect(),
-        importable: HashSet::from(["sdk_function".to_owned()]),
-        exports: HashSet::from(["sdk_function".to_owned(), "SDK_DATA".to_owned()]),
-        thread_locals: vec![ThreadLocal {
-            name: "SDK_LOCAL".to_owned(),
-            offset: 8,
-            size: 4,
-        }],
-        reserve: (16, 32),
+fn library(name: &str, needs: &[&str], linked: &[&str], functions: &[&str]) -> Library {
+    Library {
+        name: name.to_owned(),
+        identity: name.repeat(64 / name.len()),
+        needs: needs.iter().map(|need| need.repeat(64 / need.len())).collect(),
+        linked: linked.iter().map(|archive| (*archive).to_owned()).collect(),
+        thread_locals: HashSet::from([format!("{}_LOCAL", name.to_uppercase())]),
+        functions: functions.iter().map(|function| (*function).to_owned()).collect(),
+        globals: HashSet::from([format!("{}_DATA", name.to_uppercase())]),
     }
 }
 
@@ -114,18 +111,36 @@ fn archive(members: &[(&str, &[u8])], symbol: &str) -> Vec<u8> {
     out
 }
 
-mod a_plugin_link_has_the_sdk_thread_locals_first;
-mod a_plugin_link_leaves_out_what_the_sdk_links;
-mod a_plugin_thread_local_among_the_sdks_is_refused;
+mod a_crate_in_two_modules_of_a_closure_is_refused;
+mod a_library_the_link_does_not_name_is_refused;
+mod a_missing_symbol_names_it_and_its_importer;
+mod a_plugin_link_leaves_out_what_its_libraries_link;
 mod a_response_file_is_split_as_lld_splits_it;
+mod a_root_link_takes_every_rust_object_whole;
+mod a_root_link_takes_libcxx_whole_once;
+mod a_symbol_two_libraries_define_is_refused;
 mod a_thread_local_another_module_defines_is_read_through_got_tls;
 mod a_thread_local_defined_in_the_link_stays_local;
 mod an_archive_is_rewritten_with_its_symbol_table_moved;
-mod an_import_the_sdk_does_not_export_is_reported;
 mod an_offset_into_another_modules_thread_local_is_refused;
-mod an_sdk_link_takes_every_rust_object_whole;
-mod an_sdk_link_takes_libcxx_whole_once;
 mod exported_globals_are_added_to_a_module;
+mod libraries_are_ordered_below_what_needs_them;
+mod the_library_listing_is_read_back;
 mod the_link_map_gives_the_thread_locals_in_order;
-mod the_plugins_reserve_must_be_the_sdks_last_thread_local;
-mod the_sdk_listing_is_read_back;
+
+fn importing(imports: &[(&str, &str, u8)]) -> Vec<u8> {
+    let mut entries = leb(imports.len() as u64);
+    for (module, name, kind) in imports {
+        entries.extend(named(module));
+        entries.extend(named(name));
+        entries.push(*kind);
+        match *kind {
+            module::FUNCTION => entries.push(0),
+            _ => entries.extend([0x7f, 1]),
+        }
+    }
+    let mut bytes = b"\0asm\x01\0\0\0".to_vec();
+    bytes.extend(section(1, &[1, 0x60, 0, 0]));
+    bytes.extend(section(2, &entries));
+    bytes
+}

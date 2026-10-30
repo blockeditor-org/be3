@@ -28,7 +28,6 @@ be-ops = { path = "../be-ops" }
 block-guest-echo = { path = "../block-guest-echo" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-api = { path = "../block-type-api" }
-sha2 = "0.10"
 uuid = "1"
 wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

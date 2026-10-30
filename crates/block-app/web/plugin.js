@@ -2,9 +2,9 @@
 //
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
 // platform: its only imports are be3_host, its world's and the be3 gpu abi,
-// WASI and wasi-threads if it uses them, and, when it was linked against the
-// plugin SDK, the SDK, which is fetched from beside it and linked to it here
-// (dylink.js). A standalone plugin is instantiated as it is, with the memory it
+// WASI and wasi-threads if it uses them, and, when it was linked against
+// libraries, the libraries, which are fetched from beside it and linked to it
+// here (dylink.js). A standalone plugin is instantiated as it is, with the memory it
 // imports, shared or not, or the one it exports (guides/plugin_sdk.md, "The
 // raw plugin interface"). In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
@@ -215,8 +215,9 @@ function importedMemory(bytes) {
     return null;
 }
 
-// What a standalone plugin runs before anything else: the WASI reactor's
-// _initialize when it has one, else the constructors LLVM collected.
+// What a standalone plugin, or the root library under a linked one, runs
+// before anything else: the WASI reactor's _initialize when it has one, else
+// the constructors LLVM collected.
 function initialize(exports) {
     if (typeof exports._initialize === "function") {
         exports._initialize();
@@ -239,16 +240,15 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
     await shimModule.start();
     const bytes = await fetched(moduleUrl);
     const plugin = await WebAssembly.compile(bytes);
-    const identity = dylink.sdkIdentity(shimModule, plugin);
-    const sdkBytes =
-        identity === null ? null : await fetched(new URL(shimModule.sdk_file_name(identity), moduleUrl));
-    if (sdkBytes !== null) {
-        shimModule.check_sdk(new Uint8Array(sdkBytes), identity);
-    }
-    const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
-    const imported = importedMemory(sdkBytes ?? bytes);
-    if (sdkBytes !== null && !imported?.shared) {
-        throw new Error("the plugin SDK does not import a shared memory");
+    const identities = dylink.libraries(shimModule, plugin);
+    const libraries = await Promise.all(
+        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, moduleUrl)),
+    );
+    const modules = [...libraries.map(({ module }) => module), plugin];
+    const first = modules[0];
+    const imported = importedMemory(libraries[0]?.bytes ?? bytes);
+    if (libraries.length > 0 && !imported?.shared) {
+        throw new Error("the root library does not import a shared memory");
     }
     let memory = imported === null ? null : new WebAssembly.Memory(imported);
     const current = () => memory;
@@ -264,18 +264,17 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
     const runtime = new WebAssembly.Instance(first, resolve(first, current, shim, frames));
     let exports = runtime.exports;
     if (first !== plugin) {
-        runtime.exports.__wasm_call_ctors?.();
-        const layout = dylink.plan(shimModule, runtime, plugin, memory);
-        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, current, shim, frames));
-        dylink.relocate(instance, layout);
-        instance.exports.plugin_initialize_tls(
-            runtime.exports.__tls_size.value,
-            runtime.exports.__tls_align.value,
-        );
-        dylink.placeThreadLocals(instance, memory, layout, runtime.exports.__tls_base.value);
-        threads.bindPlugin(plugin, layout);
-        instance.exports.__wasm_call_ctors?.();
-        exports = instance.exports;
+        initialize(runtime.exports);
+        const plan = dylink.plan(shimModule, modules, identities, runtime, memory);
+        threads.bindLinked(modules, plan);
+        const thread = {
+            blocks: dylink.takeBlocks(memory, plan),
+            rootBlock: runtime.exports.__tls_base.value >>> 0,
+            main: true,
+        };
+        exports = dylink.link(modules, plan, runtime, thread, (module) =>
+            resolve(module, current, shim, frames),
+        ).exports;
     } else {
         if (memory === null && exports.memory instanceof WebAssembly.Memory) {
             memory = exports.memory;

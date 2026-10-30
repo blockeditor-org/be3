@@ -24,4 +24,7 @@ fn exported_globals_are_added_to_a_module() {
     );
     let again = module::with_exported_globals(&described, &[("third".to_owned(), 1)]).unwrap();
     assert_eq!(module::exports(&again).unwrap().len(), 3);
+    assert_eq!(module::exported_constant(&again, "second"), Ok(Some(-1)));
+    assert_eq!(module::exported_constant(&again, "third"), Ok(Some(1)));
+    assert_eq!(module::exported_constant(&again, "fourth"), Ok(None));
 }

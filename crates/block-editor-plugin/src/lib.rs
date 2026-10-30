@@ -121,11 +121,6 @@ pub mod __private {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn initialize_tls(size: usize, align: usize) {
-        crate::wasm::initialize_storage(size, align);
-    }
-
-    #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(
         manifest: &str,
         apps: Vec<App>,
@@ -177,11 +172,6 @@ pub mod __private {
 #[macro_export]
 macro_rules! platform_entry {
     ($manifest:ident, $apps:expr) => {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
-            $crate::__private::initialize_tls(size as usize, align as usize);
-        }
-
         struct PluginGuest($crate::__private::Editor);
 
         impl $crate::__private::Guest for PluginGuest {

@@ -10,9 +10,3 @@ pub fn bump_base<T: Into<u32>>(by: T) -> u32 {
         cell.get()
     })
 }
-
-// unsafe(ffi)
-#[unsafe(no_mangle)]
-pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
-    wasi_threads::initialize_main_thread_storage(size as usize, align as usize);
-}

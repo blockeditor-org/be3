@@ -2091,7 +2091,6 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "uuid",
- "wasi-threads",
  "wgpu",
 ]
 
@@ -2318,7 +2317,6 @@ dependencies = [
  "block-type-api",
  "bytes",
  "rustc-demangle",
- "sha2 0.10.9",
  "tokio",
  "uuid",
  "wasm-dylink",
@@ -8421,9 +8419,6 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "tls-diamond-base"
 version = "0.1.0"
-dependencies = [
- "wasi-threads",
-]
 
 [[package]]
 name = "tls-diamond-left"
@@ -9172,7 +9167,6 @@ dependencies = [
 name = "wasm-link"
 version = "0.1.0"
 dependencies = [
- "sha2 0.10.9",
  "wasm-dylink",
 ]
 

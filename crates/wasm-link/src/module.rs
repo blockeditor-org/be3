@@ -372,3 +372,76 @@ pub fn with_exported_globals(bytes: &[u8], globals: &[(String, i32)]) -> Result<
     }
     Ok(out)
 }
+
+fn constant(reader: &mut Reader<'_>) -> Result<Option<i64>, String> {
+    let mut value = None;
+    loop {
+        match reader.byte()? {
+            0x0b => return Ok(value),
+            0x41 | 0x42 => value = Some(reader.signed()?),
+            0x23 | 0xd2 => {
+                reader.u32()?;
+                value = None;
+            }
+            0xd0 => {
+                reader.byte()?;
+                value = None;
+            }
+            0x43 => {
+                reader.take(4)?;
+                value = None;
+            }
+            0x44 => {
+                reader.take(8)?;
+                value = None;
+            }
+            0x6a | 0x6b | 0x6c | 0x7c | 0x7d | 0x7e => value = None,
+            other => return Err(format!("a global's initializer has the opcode {other:#x}")),
+        }
+    }
+}
+
+pub fn exported_constant(bytes: &[u8], wanted: &str) -> Result<Option<i64>, String> {
+    let sections = sections(bytes)?;
+    let Some(index) = exported_index(&sections, wanted, GLOBAL_KIND)? else {
+        return Ok(None);
+    };
+    let imported = imports(bytes)?
+        .iter()
+        .filter(|import| import.kind == GLOBAL_KIND)
+        .count() as u32;
+    let Some(defined) = index.checked_sub(imported) else {
+        return Ok(None);
+    };
+    let Some(section) = sections.iter().find(|section| section.id == GLOBAL) else {
+        return Ok(None);
+    };
+    let mut reader = Reader::new(section.contents);
+    let count = reader.u32()?;
+    for at in 0..count {
+        reader.byte()?;
+        reader.byte()?;
+        let value = constant(&mut reader)?;
+        if at == defined {
+            return Ok(value);
+        }
+    }
+    Ok(None)
+}
+
+fn exported_index(sections: &[Section<'_>], wanted: &str, kind: u8) -> Result<Option<u32>, String> {
+    let Some(section) = sections.iter().find(|section| section.id == EXPORT) else {
+        return Ok(None);
+    };
+    let mut reader = Reader::new(section.contents);
+    let count = reader.u32()?;
+    for _ in 0..count {
+        let name = reader.name()?;
+        let exported = reader.byte()?;
+        let index = reader.u32()?;
+        if name == wanted && exported == kind {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
+}

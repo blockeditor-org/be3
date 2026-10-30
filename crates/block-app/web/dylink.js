@@ -1,18 +1,21 @@
-// Linking a plugin to the plugin SDK, in a browser.
+// Linking a plugin to the libraries it needs, in a browser.
 //
-// A plugin built against the plugin SDK (guides/plugin_sdk.md) is a
-// position-independent module that imports everything the SDK has: its
-// functions by name from "env", the addresses of its data through "GOT.mem"
-// and the table slots of its functions through "GOT.func". This instantiates
-// one against an SDK instance that shares its memory. Where everything goes is
-// planned by crates/wasm-dylink, the same plan crates/block-wasm-host follows
-// under wasmtime, which the plugin worker reaches through block-gpu-shim; this
-// only carries the plan out. The plugin worker links once (plan, instantiate,
-// relocate) and every thread it spawns links again from the same plan, which
-// is plain data.
+// A linked plugin (guides/plugin_sdk.md) names the libraries in its closure,
+// in dependency order, by the SHA-256 of each module: the first is the root,
+// linked at fixed addresses with std and wasi-libc, and each one after it, the
+// plugin last, is a position-independent module that imports what the modules
+// below it have: their functions by name from "env", the addresses of their
+// data through "GOT.mem", the table slots of their functions through
+// "GOT.func" and their thread-locals through "GOT.tls". Where everything goes
+// is planned by crates/wasm-dylink, the same plan crates/block-wasm-host
+// follows under wasmtime, which the plugin worker reaches through
+// block-gpu-shim; this only carries the plan out. The plugin worker plans
+// once, and every thread links the whole list again from the same plan, which
+// is plain data, each with thread-local blocks of its own.
 
 const TABLE = "__indirect_function_table";
 const STACK_POINTER = "__stack_pointer";
+const PAGE_SIZE = 65536;
 
 // wasi-libc's start_args, which a spawned thread is handed: the stack, then
 // the thread's thread-local block (START_ARGUMENT_TLS in crates/wasm-dylink).
@@ -22,150 +25,210 @@ function names(entries) {
     return entries.map(({ name }) => name);
 }
 
-/** The SDK a module was linked against, or null for a module that has none. */
-export function sdkIdentity(shim, module) {
-    return shim.sdk_identity(names(WebAssembly.Module.exports(module))) ?? null;
+/** The libraries a module needs, root first; none for a standalone module. */
+export function libraries(shim, module) {
+    return shim.libraries(names(WebAssembly.Module.exports(module)));
 }
 
-const PAGE_SIZE = 65536;
-
 /**
- * Lays the plugin out beside the SDK: its data in pages the memory grows by
- * for it before any of its code runs, its functions in the SDK's table after
- * the SDK's own, and a slot for every function it takes the address of.
+ * Fetches and compiles the library named identity from beside near, refusing
+ * one whose bytes do not hash to its name. The compile streams, which lets the
+ * browser keep the compiled code for the next worker that fetches the same
+ * library.
  */
-export function plan(shim, sdk, plugin, memory) {
-    const exports = names(WebAssembly.Module.exports(plugin));
-    const placed = memory.grow(shim.link_pages(exports)) * PAGE_SIZE;
-    const imports = WebAssembly.Module.imports(plugin);
+export async function fetchLibrary(shim, identity, near) {
+    const url = new URL(shim.library_file_name(identity), near);
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`the library ${url} could not be fetched: ${response.status}`);
+    }
+    const [bytes, compiled] = await Promise.all([
+        response.clone().arrayBuffer(),
+        WebAssembly.compileStreaming(response).catch(() => null),
+    ]);
+    shim.check_library(new Uint8Array(bytes), identity);
+    return { bytes, module: compiled ?? (await WebAssembly.compile(bytes)) };
+}
+
+function describe(module, name) {
     const functions = [];
     const globals = [];
-    const addresses = [];
-    for (const [name, value] of Object.entries(sdk.exports)) {
-        if (typeof value === "function") {
-            functions.push(name);
-        } else if (value instanceof WebAssembly.Global && Number.isInteger(value.value)) {
-            globals.push(name);
-            addresses.push(value.value);
+    const exports = WebAssembly.Module.exports(module);
+    for (const { name: exported, kind } of exports) {
+        if (kind === "function" || kind === "tag") {
+            functions.push(exported);
+        } else if (kind === "global") {
+            globals.push(exported);
         }
     }
-    const layout = JSON.parse(
-        shim.link_plan(
-            exports,
-            imports.map(({ module }) => module),
-            names(imports),
-            functions,
-            globals,
-            Int32Array.from(addresses),
-            placed,
-            sdk.exports[TABLE].length,
+    return {
+        name,
+        imports: WebAssembly.Module.imports(module).map(({ module: from, name: imported }) => [from, imported]),
+        functions,
+        globals,
+        exports: names(exports),
+    };
+}
+
+/**
+ * Lays out every module above the root: its data in pages the memory grows by
+ * before any of its code runs, its functions in the root's table after the
+ * root's own, a slot for every function an address is taken of, and where its
+ * thread-local block lies among a thread's.
+ */
+export function plan(shim, modules, identities, root, memory) {
+    const described = JSON.stringify(
+        modules.map((module, index) =>
+            describe(module, index === modules.length - 1 ? "the plugin" : `the library ${identities[index]}`),
         ),
     );
-    return layout;
+    const placed = memory.grow(shim.link_pages(described)) * PAGE_SIZE;
+    return JSON.parse(shim.link_plan(described, placed, root.exports[TABLE].length));
 }
 
 function constant(value, mutable) {
     return new WebAssembly.Global({ value: "i32", mutable }, value);
 }
 
-/**
- * Instantiates the plugin against the SDK by the plan. host answers what
- * neither the SDK nor the plan does: WASI, the be3 abi and the memory.
- */
-export function instantiate(sdk, plugin, layout, host) {
-    const table = sdk.exports[TABLE];
-    table.grow(layout.tableGrow);
-    for (const [slot, name] of layout.sdkSlots) {
-        table.set(slot, sdk.exports[name]);
+function exported(instance, name) {
+    const value = instance.exports[name];
+    if (value === undefined) {
+        throw new Error(`${name} is imported, and the module the plan names does not export it`);
     }
-    const imports = { __proto__: null };
-    const own = [];
-    WebAssembly.Module.imports(plugin).forEach(({ module, name, kind: type }, index) => {
-        const group = (imports[module] ??= { __proto__: null });
-        const { kind, value } = layout.imports[index];
-        if (kind === "table") {
-            group[name] = table;
-        } else if (kind === "stackpointer") {
-            group[name] = sdk.exports[STACK_POINTER];
-        } else if (kind === "constant") {
-            group[name] = constant(value, false);
-        } else if (kind === "slot" || kind === "address") {
-            group[name] = constant(value, true);
-        } else if (kind === "own") {
-            group[name] = constant(0, true);
-            own.push([module, name]);
-        } else if (module !== "env" || type === "memory") {
-            group[name] = host[module]?.[name];
-        } else if (typeof sdk.exports[name] === "function" || sdk.exports[name] instanceof WebAssembly.Tag) {
-            group[name] = sdk.exports[name];
-        } else {
-            throw new Error(`the plugin imports ${name}, which the plugin SDK does not export`);
+    return value;
+}
+
+function fillSlots(plan, table, instance, module) {
+    for (const { slot, module: definer, name } of plan.slots) {
+        if (definer === module) {
+            table.set(slot, exported(instance, name));
         }
+    }
+}
+
+/**
+ * Links every module above the root, by the plan, on this thread. thread is
+ * { blocks, rootBlock, main }: where this thread's blocks for those modules
+ * start (takeBlocks), the root's block on this thread, and whether this is the
+ * thread that relocates the data and runs the constructors. host(module) gives
+ * the imports neither the plan nor the other modules answer: WASI, the be3
+ * abi and the memory. Returns the plugin's instance.
+ */
+export function link(modules, plan, root, thread, host) {
+    const table = root.exports[TABLE];
+    table.grow(plan.tableGrow);
+    fillSlots(plan, table, root, 0);
+    const instances = [root];
+    modules.slice(1).forEach((module, at) => {
+        const index = at + 1;
+        const placed = plan.modules[index];
+        const imports = host(module);
+        const own = [];
+        const threadLocals = [];
+        WebAssembly.Module.imports(module).forEach(({ module: from, name }, position) => {
+            const group = (imports[from] ??= { __proto__: null });
+            const { kind, value } = placed.imports[position];
+            if (kind === "table") {
+                group[name] = table;
+            } else if (kind === "stackPointer") {
+                group[name] = root.exports[STACK_POINTER];
+            } else if (kind === "constant") {
+                group[name] = constant(value, false);
+            } else if (kind === "functionSlot") {
+                group[name] = constant(value, true);
+            } else if (kind === "function") {
+                group[name] = exported(instances[value], name);
+            } else if (kind === "address") {
+                group[name] = constant(0, true);
+                if (value < index) {
+                    group[name].value = plan.modules[value].memoryBase + exported(instances[value], name).value;
+                } else {
+                    own.push([name, group[name]]);
+                }
+            } else if (kind === "threadLocal") {
+                group[name] = constant(0, true);
+                threadLocals.push([name, value, group[name]]);
+            }
+        });
+        const instance = new WebAssembly.Instance(module, imports);
+        for (const [name, global] of own) {
+            global.value = placed.memoryBase + exported(instance, name).value;
+        }
+        fillSlots(plan, table, instance, index);
+        if (thread.main) {
+            instance.exports.__wasm_apply_data_relocs?.();
+        }
+        instance.exports.__wasm_init_tls?.(thread.blocks + placed.block);
+        const ownBase = instance.exports.__tls_base?.value ?? 0;
+        for (const [name, definer, global] of threadLocals) {
+            const base = definer === 0 ? thread.rootBlock : (instances[definer].exports.__tls_base?.value ?? 0);
+            global.value = (base + exported(instances[definer], name).value - ownBase) | 0;
+        }
+        if (thread.main) {
+            instance.exports.__wasm_call_ctors?.();
+        }
+        instances.push(instance);
     });
-    const instance = new WebAssembly.Instance(plugin, imports);
-    for (const [module, name] of own) {
-        imports[module][name].value = layout.memoryBase + instance.exports[name].value;
-    }
-    for (const [slot, name] of layout.pluginSlots) {
-        table.set(slot, instance.exports[name]);
-    }
-    return instance;
+    return instances[instances.length - 1];
 }
 
-/**
- * What only the first instance does: notes where the plugin's own
- * thread-locals start out, and fixes the addresses in its data.
- */
-export function relocate(instance, layout) {
-    layout.image = instance.exports.__tls_base.value;
-    layout.tlsSize = instance.exports.__tls_size.value;
-    instance.exports.__wasm_apply_data_relocs();
-}
-
-/**
- * Points the plugin's thread-locals at the SDK's block for this thread, whose
- * tail the SDK reserves for the plugin's own, and copies their first values in.
- */
-export function placeThreadLocals(instance, memory, layout, base) {
-    if (layout.tlsSize > layout.reserve) {
-        const bytes = new Uint8Array(memory.buffer);
-        bytes.copyWithin(base + layout.reserve, layout.image + layout.reserve, layout.image + layout.tlsSize);
+// A thread's blocks for the modules above the root come from pages the memory
+// grows by for them, carved into blocks of the plan's size. The free ones are a
+// list kept in the memory itself, under a lock at plan.region, so that any
+// thread can take blocks for a thread it spawns and give back its own when it
+// ends.
+function locked(memory, plan, body) {
+    const words = new Int32Array(memory.buffer);
+    const lock = plan.region >>> 2;
+    while (Atomics.compareExchange(words, lock, 0, 1) !== 0) {
+        Atomics.wait(words, lock, 1, 1);
     }
-    instance.exports.__tls_base.value = base;
+    try {
+        return body(lock + 1);
+    } finally {
+        Atomics.store(words, lock, 0);
+        Atomics.notify(words, lock, 1);
+    }
 }
 
-/** The thread-local block wasi-libc laid out for the thread being spawned. */
+/** A thread's blocks, zeroed: where its thread-local blocks for every module above the root lie. */
+export function takeBlocks(memory, plan) {
+    const { size, align, pages } = plan.blocks;
+    if (size === 0) {
+        return 0;
+    }
+    const block = locked(memory, plan, (head) => {
+        if (new Int32Array(memory.buffer)[head] === 0) {
+            const start = memory.grow(pages) * PAGE_SIZE;
+            const end = start + pages * PAGE_SIZE;
+            const words = new Int32Array(memory.buffer);
+            for (let at = Math.ceil(start / align) * align; at + size <= end; at += size) {
+                words[at >>> 2] = words[head];
+                words[head] = at;
+            }
+        }
+        const words = new Int32Array(memory.buffer);
+        const taken = words[head] >>> 0;
+        words[head] = words[taken >>> 2];
+        return taken;
+    });
+    new Uint8Array(memory.buffer, block, size).fill(0);
+    return block;
+}
+
+/** Gives back the blocks takeBlocks gave a thread that has ended. */
+export function freeBlocks(memory, plan, blocks) {
+    if (plan.blocks.size === 0) {
+        return;
+    }
+    locked(memory, plan, (head) => {
+        const words = new Int32Array(memory.buffer);
+        words[blocks >>> 2] = words[head];
+        words[head] = blocks;
+    });
+}
+
+/** The thread-local block wasi-libc laid out for the root on the thread being spawned. */
 export function spawnedThreadLocals(memory, startArgument) {
     return new DataView(memory.buffer).getUint32(startArgument + START_ARGUMENT_TLS, true);
-}
-
-// A thread-local another module defines is reached through an imported
-// global, GOT.tls.<symbol>, which wasm-link puts where the code had the
-// symbol's offset from its own __tls_base (guides/plugin_sdk.md,
-// "Thread-locals"). Every thread instantiates every module again, so the
-// global is per thread: it holds where the symbol lies in this thread's block
-// of the module that defines it, less this thread's block of the module that
-// imports it, since the code still adds its own __tls_base.
-const GOT_THREAD_LOCAL = "GOT.tls";
-
-/** A mutable global for each GOT.tls import of a module, to put in its imports. */
-export function threadLocalImports(module) {
-    const globals = { __proto__: null };
-    for (const { module: from, name } of WebAssembly.Module.imports(module)) {
-        if (from === GOT_THREAD_LOCAL) {
-            globals[name] = new WebAssembly.Global({ value: "i32", mutable: true }, 0);
-        }
-    }
-    return globals;
-}
-
-/**
- * Points a module's GOT.tls globals at this thread's copies. own is this
- * thread's block of the module, and address(name) where the symbol lies in this
- * thread's block of the module that defines it.
- */
-export function placeOtherThreadLocals(globals, own, address) {
-    for (const [name, global] of Object.entries(globals)) {
-        global.value = (address(name) - own) | 0;
-    }
 }

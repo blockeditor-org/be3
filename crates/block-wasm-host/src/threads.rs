@@ -8,10 +8,10 @@ use std::{
 
 use block_gpu_abi::embed::device as gpu;
 use block_guest_abi as guest;
-use wasmtime::{Caller, Engine, Error, Instance, Linker, SharedMemory, Store, TypedFunc};
+use wasmtime::{Caller, Engine, Error, Linker, SharedMemory, Store, TypedFunc};
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
-use crate::dylink::{self, Layout, Program};
+use crate::dylink::{self, Linked, Program};
 use crate::interrupt::{self, Interrupt};
 use crate::state::Threaded;
 use crate::wake::Wake;
@@ -31,7 +31,7 @@ pub(crate) trait Spawns {
 pub(crate) struct Spawner {
     engine: Engine,
     program: Program,
-    layout: OnceLock<Layout>,
+    linked: OnceLock<Arc<Linked>>,
     memory: Option<SharedMemory>,
     wake: Arc<Wake>,
     interrupt: Arc<Interrupt>,
@@ -55,7 +55,7 @@ impl Spawner {
         let spawner = Arc::new(Self {
             engine,
             program,
-            layout: OnceLock::new(),
+            linked: OnceLock::new(),
             memory,
             wake,
             interrupt,
@@ -71,8 +71,8 @@ impl Spawner {
         spawner
     }
 
-    pub(crate) fn linked(&self, layout: Layout) {
-        let _ = self.layout.set(layout);
+    pub(crate) fn linked(&self, linked: Arc<Linked>) {
+        let _ = self.linked.set(linked);
     }
 
     pub(crate) fn stop(&self) {
@@ -168,14 +168,15 @@ impl Spawner {
         };
         let thread_locals = match &self.program {
             Program::Whole(_) => None,
-            Program::Linked { .. } => match dylink::spawned_thread_locals(memory, argument) {
-                Ok(base) => Some(base),
+            Program::Linked(_) => match self.blocks(memory, argument) {
+                Ok(thread) => Some(thread),
                 Err(failure) => {
                     self.fail(failure);
                     return REFUSED;
                 }
             },
         };
+        let blocks = thread_locals.as_ref().map(|thread| thread.blocks);
         let thread = self.next.fetch_add(1, Ordering::Relaxed);
         let spawner = Arc::clone(self);
         self.begin();
@@ -188,11 +189,13 @@ impl Spawner {
                 {
                     spawner.fail(failure);
                 }
+                spawner.free(blocks);
                 spawner.end();
             });
         match spawned {
             Ok(_) => thread,
             Err(error) => {
+                self.free(blocks);
                 self.end();
                 self.fail(format!("a plugin thread could not start: {error}"));
                 REFUSED
@@ -204,7 +207,7 @@ impl Spawner {
         self: &Arc<Self>,
         thread: i32,
         argument: i32,
-        thread_locals: Option<u32>,
+        thread_locals: Option<dylink::Thread>,
     ) -> Result<(), String> {
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let state = Threaded {
@@ -235,7 +238,13 @@ impl Spawner {
         let instance = linker
             .instantiate(&mut store, self.program.first())
             .map_err(|error| format!("a plugin thread could not be instantiated: {error}"))?;
-        self.link_plugin(&mut store, &linker, &instance, thread_locals)?;
+        if let (Program::Linked(modules), Some(thread)) = (&self.program, &thread_locals) {
+            let linked = self
+                .linked
+                .get()
+                .ok_or("a plugin thread started before its plugin was linked")?;
+            dylink::link(&mut store, &linker, modules, linked, instance, thread)?;
+        }
         let start: TypedFunc<(i32, i32), ()> = instance
             .get_typed_func(&mut store, START)
             .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
@@ -245,23 +254,22 @@ impl Spawner {
         })
     }
 
-    fn link_plugin(
-        &self,
-        store: &mut Store<Threaded>,
-        linker: &Linker<Threaded>,
-        sdk: &Instance,
-        thread_locals: Option<u32>,
-    ) -> Result<(), String> {
-        let (Program::Linked { plugin, .. }, Some(base)) = (&self.program, thread_locals) else {
-            return Ok(());
-        };
-        let layout = self
-            .layout
+    fn blocks(&self, memory: &SharedMemory, argument: i32) -> Result<dylink::Thread, String> {
+        let linked = self
+            .linked
             .get()
-            .ok_or("a plugin thread started before its plugin was linked")?;
-        let memory = self.memory.as_ref().ok_or(UNSHARED)?;
-        let instance = dylink::instantiate(store, linker, sdk, plugin, layout)?;
-        dylink::place_thread_locals(store, &instance, memory, layout, base)
+            .ok_or("a plugin thread was spawned before its plugin was linked")?;
+        Ok(dylink::Thread {
+            blocks: linked.take(memory)?,
+            root_block: dylink::spawned_thread_locals(memory, argument)?,
+            main: false,
+        })
+    }
+
+    fn free(&self, blocks: Option<u32>) {
+        if let (Some(blocks), Some(linked)) = (blocks, self.linked.get()) {
+            linked.give(blocks);
+        }
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
@@ -269,7 +277,7 @@ impl Spawner {
         for import in self
             .program
             .modules()
-            .into_iter()
+            .iter()
             .flat_map(|module| module.imports())
         {
             if !matches!(import.module(), gpu::MODULE | guest::HOST_MODULE) {

@@ -15054,7 +15054,6 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/lucide:lucide",
                     "//crates/paint-format:paint-format",
-                    "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:serde_bytes-0.11.19",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
@@ -17453,7 +17452,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17475,7 +17473,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17491,7 +17488,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17539,7 +17535,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17561,7 +17556,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17577,7 +17571,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17625,7 +17618,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17647,7 +17639,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17663,7 +17654,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17711,7 +17701,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17733,7 +17722,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17749,7 +17737,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17797,7 +17784,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17819,7 +17805,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17835,7 +17820,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17883,7 +17867,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17905,7 +17888,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17921,7 +17903,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -17969,7 +17950,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -17991,7 +17971,6 @@ crates = {
                             "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
-                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
                             "//third-party/rust:wasmtime-48.0.1",
@@ -18007,7 +17986,6 @@ crates = {
                     "//crates/block-guest-echo:block-guest-echo",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-type-api:block-type-api",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "test_features": [],
@@ -28618,9 +28596,7 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28628,9 +28604,7 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28638,9 +28612,7 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28648,9 +28620,7 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28658,9 +28628,7 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28668,9 +28636,7 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -28678,9 +28644,7 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [
-                    "//crates/wasi-threads:wasi-threads",
-                ],
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -29610,14 +29574,6 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
             "wasi-html": {
                 "binaries": {},
                 "deps": [],
@@ -29769,12 +29725,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29785,12 +29739,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29801,12 +29753,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29817,12 +29767,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29833,12 +29781,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29849,12 +29795,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],
@@ -29865,12 +29809,10 @@ crates = {
                 "binaries": {
                     "wasm-link": [
                         "//crates/wasm-dylink:wasm-dylink",
-                        "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
                     "//crates/wasm-dylink:wasm-dylink",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
                 "features": [],

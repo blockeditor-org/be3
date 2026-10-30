@@ -1,3 +1,5 @@
-load("@root//buck/wasm:defs.bzl", "plugin_sdk")
+load("@root//buck/wasm:defs.bzl", "wasm_library")
 
-plugin_sdk()
+# The one library every editor is linked against today, and the root of its
+# closure (guides/plugin_sdk.md).
+wasm_library(module = "sdk")

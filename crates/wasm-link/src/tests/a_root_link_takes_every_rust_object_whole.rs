@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn an_sdk_link_takes_every_rust_object_whole() {
-    let (rewritten, linked) = sdk_arguments(arguments(
+fn a_root_link_takes_every_rust_object_whole() {
+    let (rewritten, linked) = root_arguments(arguments(
         "-flavor wasm sdk.o deps/libbeui-1.rlib -l c sysroot/libsetjmp.a -o sdk.wasm",
     ));
     assert_eq!(

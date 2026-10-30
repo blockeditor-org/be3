@@ -9,7 +9,7 @@ use block_plugin_api::{
 };
 use block_wasm_host::{Host, Plugin};
 
-mod a_standalone_triangle_paints_what_the_triangle_linked_against_the_sdk_paints;
+mod a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints;
 
 const SURFACE: u32 = 1;
 const WIDTH: u32 = 320;

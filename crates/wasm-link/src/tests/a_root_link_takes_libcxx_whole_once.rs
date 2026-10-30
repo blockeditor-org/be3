@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn an_sdk_link_takes_libcxx_whole_once() {
-    let (rewritten, linked) = sdk_arguments(arguments("-flavor wasm -lc++ -l c++abi -lc -lc++"));
+fn a_root_link_takes_libcxx_whole_once() {
+    let (rewritten, linked) = root_arguments(arguments("-flavor wasm -lc++ -l c++abi -lc -lc++"));
     assert_eq!(
         &rewritten[..11],
         arguments(

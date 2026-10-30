@@ -3,14 +3,10 @@
 <title>Thread-local diamond</title>
 <link rel="icon" href="data:,">
 <script type="module">
-    const report = new BroadcastChannel("tls-diamond");
+    const worker = new Worker("diamond.js", { type: "module" });
     globalThis.outcome = new Promise((resolve) => {
-        report.onmessage = ({ data }) =>
-            resolve(
-                data.result === 1
-                    ? { passed: true, message: "the thread-local diamond ran in Chromium" }
-                    : { error: data.error ?? JSON.stringify(data) },
-            );
+        worker.onmessage = ({ data }) => resolve(data);
+        worker.onerror = (event) => resolve({ error: String(event.message ?? event) });
     });
-    new Worker("diamond.js", { type: "module" }).postMessage({ kind: "start" });
+    worker.postMessage({ kind: "start" });
 </script>
