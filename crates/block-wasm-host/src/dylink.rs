@@ -1,5 +1,5 @@
 use wasm_dylink::{
-    APPLY_DATA_RELOCS, Declared, ENV, GOT_THREAD_LOCAL, Import, MALLOC, STACK_POINTER, Sdk, TABLE,
+    APPLY_DATA_RELOCS, Declared, ENV, GOT_THREAD_LOCAL, Import, PAGE_SIZE, STACK_POINTER, Sdk, TABLE,
     TLS_BASE, TLS_SIZE,
 };
 use wasmtime::{
@@ -103,28 +103,21 @@ pub(crate) fn plan<T>(
     memory: &SharedMemory,
 ) -> Result<Layout, String> {
     let declared = Declared::of(plugin.exports().map(|export| export.name()))?;
-    let malloc: TypedFunc<u32, u32> = sdk
-        .get_typed_func(&mut *store, MALLOC)
-        .map_err(|error| format!("the plugin SDK has no usable {MALLOC}: {error}"))?;
-    let allocated = malloc
-        .call(&mut *store, declared.allocation()?)
-        .map_err(|error| format!("the plugin's memory could not be allocated: {error}"))?;
+    let placed = memory
+        .grow(u64::from(declared.pages()))
+        .map_err(|error| format!("the memory could not grow to hold the plugin: {error}"))?;
+    let placed = u32::try_from(placed * u64::from(PAGE_SIZE))
+        .map_err(|_| "the plugin lies past a 32-bit address space".to_owned())?;
     let size = table(sdk, store)?.size(&mut *store);
-    let layout = wasm_dylink::plan(
+    wasm_dylink::plan(
         declared,
-        allocated,
+        placed,
         size,
         plugin
             .imports()
             .map(|import| (import.module(), import.name())),
         &exports(sdk, store),
-    )?;
-    write(
-        memory,
-        layout.memory_base,
-        &vec![0; layout.memory_size as usize],
-    )?;
-    Ok(layout)
+    )
 }
 
 pub(crate) fn instantiate<T>(

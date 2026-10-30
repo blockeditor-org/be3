@@ -27,9 +27,9 @@ pub fn check_sdk(bytes: &[u8], identity: &str) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn link_allocation(exports: Vec<String>) -> Result<u32, JsValue> {
+pub fn link_pages(exports: Vec<String>) -> Result<u32, JsValue> {
     Declared::of(exports.iter().map(String::as_str))
-        .and_then(|declared| declared.allocation())
+        .map(|declared| declared.pages())
         .map_err(refused)
 }
 
@@ -41,7 +41,7 @@ pub fn link_plan(
     sdk_functions: Vec<String>,
     sdk_globals: Vec<String>,
     sdk_addresses: Vec<i32>,
-    allocated: u32,
+    placed: u32,
     table_size: u32,
 ) -> Result<String, JsValue> {
     let declared = Declared::of(exports.iter().map(String::as_str)).map_err(refused)?;
@@ -53,7 +53,7 @@ pub fn link_plan(
         .iter()
         .map(String::as_str)
         .zip(import_names.iter().map(String::as_str));
-    let layout = wasm_dylink::plan(declared, allocated, u64::from(table_size), imports, &sdk)
+    let layout = wasm_dylink::plan(declared, placed, u64::from(table_size), imports, &sdk)
         .map_err(refused)?;
     serde_json::to_string(&layout).map_err(|error| refused(error.to_string()))
 }

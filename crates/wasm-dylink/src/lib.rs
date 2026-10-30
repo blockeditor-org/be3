@@ -17,7 +17,7 @@ pub const MEMORY_BASE: &str = "__memory_base";
 pub const TABLE_BASE: &str = "__table_base";
 pub const TLS_BASE: &str = "__tls_base";
 pub const TLS_SIZE: &str = "__tls_size";
-pub const MALLOC: &str = "malloc";
+pub const PAGE_SIZE: u32 = 65536;
 pub const APPLY_DATA_RELOCS: &str = "__wasm_apply_data_relocs";
 pub const ENV: &str = "env";
 pub const GOT_MEMORY: &str = "GOT.mem";
@@ -93,10 +93,8 @@ impl Declared {
         })
     }
 
-    pub fn allocation(&self) -> Result<u32, String> {
-        self.memory_size
-            .checked_add(1 << self.memory_align)
-            .ok_or_else(too_big)
+    pub fn pages(&self) -> u32 {
+        self.memory_size.div_ceil(PAGE_SIZE)
     }
 }
 
@@ -152,16 +150,13 @@ fn aligned(value: u32, align_log2: u32) -> Option<u32> {
 
 pub fn plan<'a>(
     declared: Declared,
-    allocated: u32,
+    placed: u32,
     table_size: u64,
     imports: impl IntoIterator<Item = (&'a str, &'a str)>,
     sdk: &Sdk,
 ) -> Result<Layout, String> {
     let reserve = sdk.reserve()?;
-    if allocated == 0 {
-        return Err("the plugin SDK could not allocate the plugin's memory".to_owned());
-    }
-    let memory_base = aligned(allocated, declared.memory_align).ok_or_else(too_big)?;
+    let memory_base = aligned(placed, declared.memory_align).ok_or_else(too_big)?;
     let table_base = u32::try_from(table_size)
         .ok()
         .and_then(|size| aligned(size, declared.table_align))

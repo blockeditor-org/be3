@@ -12,7 +12,7 @@ fn the_declared_layout_is_read_from_an_export() {
             table_align: 2,
         }
     );
-    assert_eq!(declared.allocation(), Ok(100 + 65536));
+    assert_eq!(declared.pages(), 1);
     assert!(Declared::of(["__be3_dylink_1_2_3"]).is_err());
     assert!(Declared::of(["memory"]).is_err());
 }

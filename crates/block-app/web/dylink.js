@@ -27,14 +27,16 @@ export function sdkIdentity(shim, module) {
     return shim.sdk_identity(names(WebAssembly.Module.exports(module))) ?? null;
 }
 
+const PAGE_SIZE = 65536;
+
 /**
- * Lays the plugin out beside the SDK: its data in memory the SDK allocates,
- * its functions in the SDK's table after the SDK's own, and a slot for every
- * function it takes the address of.
+ * Lays the plugin out beside the SDK: its data in pages the memory grows by
+ * for it before any of its code runs, its functions in the SDK's table after
+ * the SDK's own, and a slot for every function it takes the address of.
  */
 export function plan(shim, sdk, plugin, memory) {
     const exports = names(WebAssembly.Module.exports(plugin));
-    const allocated = sdk.exports.malloc(shim.link_allocation(exports)) >>> 0;
+    const placed = memory.grow(shim.link_pages(exports)) * PAGE_SIZE;
     const imports = WebAssembly.Module.imports(plugin);
     const functions = [];
     const globals = [];
@@ -55,11 +57,10 @@ export function plan(shim, sdk, plugin, memory) {
             functions,
             globals,
             Int32Array.from(addresses),
-            allocated,
+            placed,
             sdk.exports[TABLE].length,
         ),
     );
-    new Uint8Array(memory.buffer, layout.memoryBase, layout.memorySize).fill(0);
     return layout;
 }
 
