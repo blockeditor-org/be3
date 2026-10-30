@@ -290,11 +290,17 @@ impl OwnedEditor {
         let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
         let popped = create_signal(None::<crate::popover::Popped>);
-        let pushed = Mirror::new(&host);
+        let pushed = Rc::new(Mirror::new(&host));
+        let mirrored = Rc::downgrade(&pushed);
+        let syncing = core.on_pumped(move || {
+            if let Some(mirror) = mirrored.upgrade() {
+                mirror.sync();
+            }
+        });
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
             core,
-            _showing: showing,
+            _showing: [showing, syncing],
             shown,
             roots: RefCell::new(None),
             settings: RefCell::default(),
@@ -336,7 +342,7 @@ impl std::ops::Deref for OwnedEditor {
 struct EditorState {
     _scope: Scope,
     core: EditorCore,
-    _showing: Subscription,
+    _showing: [Subscription; 2],
     shown: ShownSignals,
     roots: RefCell<Option<BlockList>>,
     settings: RefCell<settings::SettingsCache>,
@@ -349,7 +355,7 @@ struct EditorState {
     next_pick: Cell<u64>,
     picker_size: Cell<Option<Vec2>>,
     fitted: Cell<Option<NodeRef>>,
-    pushed: Mirror,
+    pushed: Rc<Mirror>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
 }
 
@@ -1046,7 +1052,6 @@ impl Editor {
 
     pub fn begin_frame(&self) {
         let state = self.state();
-        state.pushed.sync();
         state.core.begin_frame();
     }
 

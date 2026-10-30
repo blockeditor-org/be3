@@ -227,6 +227,7 @@ struct Inner {
     shown_rect: Cell<Option<Rect>>,
     shown: RefCell<ShownEditor>,
     on_shown: Callbacks<(), dyn Fn(&ShownEditor)>,
+    on_pumped: Callbacks<(), dyn Fn()>,
     children: children::Children,
     wakes: Rc<RefCell<Vec<Wake>>>,
     next_wake: Cell<u64>,
@@ -258,6 +259,7 @@ impl EditorCore {
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
             on_shown: Callbacks::default(),
+            on_pumped: Callbacks::default(),
             children: children::Children::default(),
             wakes: Rc::default(),
             next_wake: Cell::new(0),
@@ -290,6 +292,10 @@ impl EditorCore {
 
     pub fn shown(&self) -> ShownEditor {
         self.0.shown.borrow().clone()
+    }
+
+    pub fn on_pumped(&self, run: impl Fn() + 'static) -> Subscription {
+        self.0.on_pumped.add((), Rc::new(run))
     }
 
     pub fn on_shown(&self, run: impl Fn(&ShownEditor) + 'static) -> Subscription {
@@ -557,6 +563,9 @@ impl EditorCore {
         let wakes = inner.wakes.borrow().clone();
         for (_, count, run) in wakes {
             run(count.load(Ordering::Acquire));
+        }
+        for run in inner.on_pumped.all() {
+            run();
         }
         let mut shown = inner.shown.borrow().clone();
         let host = &inner.host;
