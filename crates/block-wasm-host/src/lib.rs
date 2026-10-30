@@ -24,13 +24,14 @@ use std::{
 
 use block_gpu_host::Gpu;
 use wasmtime::{
-    Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
+    Cache, CacheConfig, Config, Engine, Instance, Linker, MemoryType, Module, SharedMemory, Store,
+    TypedFunc,
 };
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
 use interrupt::Interrupt;
-use state::Device;
+use state::{Device, Memory};
 use threads::Spawner;
 use wake::Wake;
 
@@ -46,6 +47,10 @@ pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 const INTERRUPTED: &str = "the plugin was stopped while it ran";
 
 const CONSTRUCTORS: &str = "__wasm_call_ctors";
+
+const INITIALIZE: &str = "_initialize";
+
+const MEMORY: &str = "memory";
 
 const BACKTRACE_FRAMES: usize = 100;
 
@@ -241,19 +246,29 @@ impl Plugin {
             return Err(INTERRUPTED.to_owned());
         }
         let engine = host.engine.clone();
-        let memory = shared_memory(&engine, program.first())?;
+        let imported = memory_import(program.first());
+        let shared = match (&program, &imported) {
+            (_, Some((_, _, declared))) if declared.is_shared() => Some(
+                SharedMemory::new(&engine, declared.clone())
+                    .map_err(|error| format!("the plugin memory could not be created: {error}"))?,
+            ),
+            (Program::Linked { .. }, _) => {
+                return Err("the plugin SDK does not import a shared memory".to_owned());
+            }
+            _ => None,
+        };
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let wake: Arc<Wake> = Arc::default();
         let threads = Spawner::new(
             engine.clone(),
             program.clone(),
-            memory.clone(),
+            shared.clone(),
             Arc::clone(&wake),
             Arc::clone(&host.interrupt),
         );
         let state = State {
             wasi,
-            memory: memory.clone(),
+            memory: shared.clone().map_or(Memory::Own(None), Memory::Shared),
             device: host.devices.open(&host.imports),
             imports: Arc::clone(&host.imports),
             error: None,
@@ -270,9 +285,19 @@ impl Plugin {
         let mut linker: Linker<State> = Linker::new(&engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked: {error}"))?;
-        linker
-            .define(&store, "env", "memory", memory.clone())
-            .map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
+        if let Some((module, name, declared)) = imported {
+            let defined = match &shared {
+                Some(shared) => linker.define(&store, &module, &name, shared.clone()),
+                None => {
+                    let own = wasmtime::Memory::new(&mut store, declared).map_err(|error| {
+                        format!("the plugin memory could not be created: {error}")
+                    })?;
+                    store.data_mut().memory = Memory::Own(Some(own));
+                    linker.define(&store, &module, &name, own)
+                }
+            };
+            defined.map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
+        }
         gpu::link(&mut linker)?;
         panic::link(&mut linker)?;
         threads::link(&mut linker)?;
@@ -284,22 +309,28 @@ impl Plugin {
         let first = linker
             .instantiate(&mut store, program.first())
             .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
-        call_constructors(&first, &mut store)?;
-        let instance = match &program {
-            Program::Whole(_) => {
-                initialize_storage(&first, &first, &mut store)?;
+        let instance = match (&program, &shared) {
+            (Program::Whole(_), _) => {
+                if let Memory::Own(None) = store.data().memory {
+                    store.data_mut().memory = Memory::Own(first.get_memory(&mut store, MEMORY));
+                }
+                initialize(&first, &mut store)?;
                 first
             }
-            Program::Linked { plugin, .. } => {
-                let mut layout = dylink::plan(&mut store, &first, plugin, &memory)?;
+            (Program::Linked { plugin, .. }, Some(memory)) => {
+                call_constructors(&first, &mut store)?;
+                let mut layout = dylink::plan(&mut store, &first, plugin, memory)?;
                 let instance = dylink::instantiate(&mut store, &linker, &first, plugin, &layout)?;
                 dylink::relocate(&mut store, &instance, &mut layout)?;
                 initialize_storage(&first, &instance, &mut store)?;
                 let base = dylink::main_thread_locals(&mut store, &first)?;
-                dylink::place_thread_locals(&mut store, &instance, &memory, &layout, base)?;
+                dylink::place_thread_locals(&mut store, &instance, memory, &layout, base)?;
                 threads.linked(layout);
                 call_constructors(&instance, &mut store)?;
                 instance
+            }
+            (Program::Linked { .. }, None) => {
+                return Err("the plugin SDK does not import a shared memory".to_owned());
             }
         };
         let plugin = Self {
@@ -461,6 +492,22 @@ fn call_constructors<T: 'static>(instance: &Instance, store: &mut Store<T>) -> R
     constructors
         .call(store, ())
         .map_err(|error| format!("the plugin could not run its constructors: {error}"))
+}
+
+fn initialize(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
+    let Ok(initialize) = instance.get_typed_func::<(), ()>(&mut *store, INITIALIZE) else {
+        return call_constructors(instance, store);
+    };
+    initialize
+        .call(store, ())
+        .map_err(|error| format!("the plugin could not initialize itself: {error}"))
+}
+
+fn memory_import(module: &Module) -> Option<(String, String, MemoryType)> {
+    module.imports().find_map(|import| {
+        let declared = import.ty().memory()?.clone();
+        Some((import.module().to_owned(), import.name().to_owned(), declared))
+    })
 }
 
 fn initialize_storage(

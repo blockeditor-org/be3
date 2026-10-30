@@ -31,9 +31,6 @@ fn guest(body: &str) -> String {
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
             (data (i32.const 0) "{descriptor}")
             (global $length i32 (i32.const {length}))
-            (global (export "__tls_size") i32 (i32.const 0))
-            (global (export "__tls_align") i32 (i32.const 1))
-            (func (export "plugin_initialize_tls") (param i32 i32))
             (func (export "plugin_start"))
             (func (export "plugin_shutdown"))
             (func (export "plugin_step") {body})
@@ -51,9 +48,6 @@ fn threaded_guest(body: &str) -> String {
             (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_wake" (func $host_wake))
-            (global (export "__tls_size") i32 (i32.const 0))
-            (global (export "__tls_align") i32 (i32.const 1))
-            (func (export "plugin_initialize_tls") (param i32 i32))
             (func (export "plugin_start") (drop (call $spawn (i32.const 0))))
             (func (export "plugin_shutdown"))
             (func (export "plugin_step")
@@ -220,6 +214,7 @@ mod a_pure_guest_may_not_outgrow_its_memory_limit;
 mod a_pure_guest_that_hangs_is_interrupted;
 mod a_pure_guest_that_panics_reports_its_panic_message;
 mod a_spawned_guest_thread_may_not_reach_the_gpu;
+mod a_standalone_plugin_with_a_memory_of_its_own_paints_through_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
 mod a_spawned_guest_thread_wakes_the_host;
 mod a_thread_that_trapped_wakes_the_host_to_be_told;

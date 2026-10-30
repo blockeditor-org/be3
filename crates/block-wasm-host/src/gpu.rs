@@ -1,7 +1,7 @@
 use block_gpu_host::transport;
 use wasmtime::{Caller, Linker};
 
-use crate::State;
+use crate::state::{Guest, State};
 
 type Returns<T = ()> = T;
 
@@ -14,8 +14,9 @@ macro_rules! link_gpu {
                         $module,
                         $name,
                         |mut caller: Caller<'_, State>, $($argument: $kind),*| -> wasmtime::Result<Returns<$($result)?>> {
-                            let state = caller.data_mut();
-                            let result = $glue(state, $($argument),*);
+                            let mut guest = Guest::calling(&mut caller);
+                            let result = $glue(&mut guest, $($argument),*);
+                            let state = guest.state();
                             match state.fatal.is_some() {
                                 false => Ok(result),
                                 true => Err(crate::panic::stopped(state.fatal.take().unwrap_or_default())),
@@ -38,7 +39,7 @@ macro_rules! link_transport {
                         block_guest_abi::HOST_MODULE,
                         stringify!($name),
                         |mut caller: Caller<'_, State>, $($argument: $kind),*| $(-> $result)? {
-                            transport::$name(caller.data_mut(), $($argument),*)
+                            transport::$name(&mut Guest::calling(&mut caller), $($argument),*)
                         },
                     )
                     .map_err(|error| format!("{} could not be linked: {error}", stringify!($name)))?;

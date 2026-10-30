@@ -20,6 +20,7 @@ const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
 const START: &str = "wasi_thread_start";
 const REFUSED: i32 = -1;
+const UNSHARED: &str = "the plugin spawned a thread, which needs a shared memory it imports";
 const REAPING_PASSES: u32 = 8;
 const REAPING_WAIT: Duration = Duration::from_millis(50);
 
@@ -31,7 +32,7 @@ pub(crate) struct Spawner {
     engine: Engine,
     program: Program,
     layout: OnceLock<Layout>,
-    memory: SharedMemory,
+    memory: Option<SharedMemory>,
     wake: Arc<Wake>,
     interrupt: Arc<Interrupt>,
     next: AtomicI32,
@@ -47,7 +48,7 @@ impl Spawner {
     pub(crate) fn new(
         engine: Engine,
         program: Program,
-        memory: SharedMemory,
+        memory: Option<SharedMemory>,
         wake: Arc<Wake>,
         interrupt: Arc<Interrupt>,
     ) -> Arc<Self> {
@@ -112,9 +113,12 @@ impl Spawner {
     }
 
     fn notify_every_waiter(&self) {
-        let size = self.memory.data_size() as u64;
+        let Some(memory) = &self.memory else {
+            return;
+        };
+        let size = memory.data_size() as u64;
         for address in (0..size).step_by(4) {
-            let _ = self.memory.atomic_notify(address, u32::MAX);
+            let _ = memory.atomic_notify(address, u32::MAX);
         }
     }
 
@@ -158,9 +162,13 @@ impl Spawner {
         if self.stopped.load(Ordering::Acquire) || self.halts(false) {
             return REFUSED;
         }
+        let Some(memory) = &self.memory else {
+            self.fail(UNSHARED.to_owned());
+            return REFUSED;
+        };
         let thread_locals = match &self.program {
             Program::Whole(_) => None,
-            Program::Linked { .. } => match dylink::spawned_thread_locals(&self.memory, argument) {
+            Program::Linked { .. } => match dylink::spawned_thread_locals(memory, argument) {
                 Ok(base) => Some(base),
                 Err(failure) => {
                     self.fail(failure);
@@ -209,9 +217,14 @@ impl Spawner {
         let mut linker: Linker<Threaded> = Linker::new(&self.engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut Threaded| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked for a plugin thread: {error}"))?;
-        linker
-            .define(&store, "env", "memory", self.memory.clone())
-            .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
+        let memory = self.memory.clone().ok_or(UNSHARED)?;
+        for import in self.program.first().imports() {
+            if import.ty().memory().is_some() {
+                linker
+                    .define(&store, import.module(), import.name(), memory.clone())
+                    .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
+            }
+        }
         link(&mut linker)?;
         crate::wake::link(&mut linker)?;
         crate::panic::link(&mut linker)?;
@@ -246,8 +259,9 @@ impl Spawner {
             .layout
             .get()
             .ok_or("a plugin thread started before its plugin was linked")?;
+        let memory = self.memory.as_ref().ok_or(UNSHARED)?;
         let instance = dylink::instantiate(store, linker, sdk, plugin, layout)?;
-        dylink::place_thread_locals(store, &instance, &self.memory, layout, base)
+        dylink::place_thread_locals(store, &instance, memory, layout, base)
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
@@ -284,7 +298,7 @@ impl Spawner {
     }
 
     pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        crate::state::read(&self.memory, pointer, length)
+        crate::state::read(self.memory.as_ref().ok_or(UNSHARED)?, pointer, length)
     }
 
     fn fail(&self, failure: String) {
