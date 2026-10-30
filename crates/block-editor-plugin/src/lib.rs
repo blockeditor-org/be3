@@ -71,11 +71,11 @@ pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};
-pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use editor_state::{
     ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
     PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,
 };
+pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,

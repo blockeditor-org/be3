@@ -1244,6 +1244,41 @@ ignores them and rereads on the wake, and block-editor-beui's
 (one per thing a view reads), so editors read signals and never see the
 callbacks.
 
+The state an editor keeps over `EditorHost` lives there too, as plain values
+with callbacks, so another framework needs only its own views and an adapter
+(`block-editor-plugin/src/editor_state.rs`):
+
+- `EditorCore` is the editor of one block: its content cache (`content`,
+  `content_of`, each a `LiveContent` pumped from `begin_frame`), the view state,
+  peers (`new_peers`, `new_peer_messages`), panning and zooming (`pan`,
+  `zoom_at`, `reveal`, `fit`, `fit_now` for a `Fit`), the sizes and visibility
+  the instance reports, `woken(run)`, and the children it places
+  (`add_child(on_state, on_bar, on_focus)` gives a `PlacedChild`, which the
+  framework moves with `place(child)` after laying out; `begin_frame` reports
+  each `ChildState` that changed). `begin_frame` reads what the host shows of
+  the editor into a `ShownEditor` (the canvas, the placed rect, chrome, drag,
+  files, editability and so on, in the framework's points: `PointScale::ratio`
+  is points per host point) and calls `on_shown` when it changed (after
+  pumping content it first calls `on_pumped`, where an adapter applies the
+  pushed and watched values it queued);
+  `report_content(rect)` and `occlude(rect)` send rects back.
+- `ArtifactsCore` (the artifact settings draft and saved values, with
+  `on_settings`/`on_saved_settings`, and the regenerate and poll handlers) and
+  `CreationCore` (a creation dialog's template, `create`, `accept`, `cancel`,
+  `on_create`).
+- `SettingsLayers<R>` writes a layered setting into the right layer block,
+  through the `SettingsGraph` it is given, and
+  `SettingsChangeLog` holds the "now applies on your devices" changes until
+  they are kept or undone.
+
+block-editor-beui's `Editor`, `Artifacts`, `Creation`, `Fitting` and
+`LayeredSettings` hold these and add the signals (`Editor::core()` reaches the
+plain state); `Artifacts` and `Creation` deref to their cores. What stays in
+block-editor-beui is what needs beui: placing children from the document
+(`EmbedSlot`, overlay layers, docks), measuring the intrinsic size, picking and
+popovers, the settings walks in `editor/settings.rs`, which read through signals
+so memos re-run, and the views.
+
 ### The region driver
 
 What a framework does with the views the host shows is split the same way.

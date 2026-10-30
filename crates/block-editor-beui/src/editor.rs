@@ -1046,8 +1046,8 @@ impl Editor {
 
     pub fn begin_frame(&self) {
         let state = self.state();
-        state.core.begin_frame();
         state.pushed.sync();
+        state.core.begin_frame();
     }
 
     pub fn end_frame(&self, document: &Document, window: beui::WindowId) {

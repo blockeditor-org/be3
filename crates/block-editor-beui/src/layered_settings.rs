@@ -82,8 +82,7 @@ where
         let blocks = store(SettingsLayers::<R>::new(editor.core()));
         let layers = create_memo(move || blocks.with(|blocks| blocks.layer_blocks(&editor)));
         let block = editor.block_id();
-        let target =
-            create_memo(move || layers.with(|layers| Target::choose(page, block, layers)));
+        let target = create_memo(move || layers.with(|layers| Target::choose(page, block, layers)));
         let content = move |block: Option<Uuid>| -> R {
             block
                 .and_then(|block| {
@@ -320,7 +319,8 @@ where
         let (changes, changed) = (self.changes, self.changed);
         let toasts = create_memo(move || {
             changed.get();
-            let (message, round) = changes.with(|changes| (changes.log.message(), changes.log.round()));
+            let (message, round) =
+                changes.with(|changes| (changes.log.message(), changes.log.round()));
             match message {
                 Some(message) => vec![Toast {
                     id: round,

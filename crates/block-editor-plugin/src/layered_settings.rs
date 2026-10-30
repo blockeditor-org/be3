@@ -125,7 +125,13 @@ impl SettingsChangeLog {
             .any(|changed| changed.key == key)
     }
 
-    pub fn note(&self, key: &str, name: &str, undo: impl Fn() + 'static, keep: impl Fn() + 'static) {
+    pub fn note(
+        &self,
+        key: &str,
+        name: &str,
+        undo: impl Fn() + 'static,
+        keep: impl Fn() + 'static,
+    ) {
         if self.noted(key) {
             return;
         }

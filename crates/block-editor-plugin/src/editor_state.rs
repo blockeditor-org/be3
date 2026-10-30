@@ -85,9 +85,17 @@ pub enum SubregionContent {
     WebView(WebViewId),
     Host(HostPanel),
     Window(HostWindowId),
-    Creation { editor: Uuid, template: String },
-    ArtifactSettings { block: Uuid },
-    Picker { filter: BlockFilter, parent: BlockParent },
+    Creation {
+        editor: Uuid,
+        template: String,
+    },
+    ArtifactSettings {
+        block: Uuid,
+    },
+    Picker {
+        filter: BlockFilter,
+        parent: BlockParent,
+    },
     DockTab(block_plugin_api::DockTabPath),
     Rename(Uuid),
 }
@@ -436,9 +444,7 @@ impl EditorCore {
     }
 
     pub fn send_to_peers<M: ChannelKind>(&self, to: Option<u64>, message: &M) {
-        self.0
-            .host
-            .send_to_peers(None, to, M::ID, message.encode());
+        self.0.host.send_to_peers(None, to, M::ID, message.encode());
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
