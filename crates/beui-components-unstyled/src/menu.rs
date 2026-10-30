@@ -50,7 +50,7 @@ pub struct MenuRowHandle {
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
     pub toggle: ClickCallback,
-    pub hovered: ReadSignal<bool>,
+    pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
 }
@@ -468,10 +468,10 @@ fn MenuBackRow(
     row: RenderFn<MenuRowHandle>,
 ) -> NodeId {
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, Focus::Back, handle.hovered);
+        watch_hover(state, Focus::Back, handle.pointed);
         row.call(MenuRowHandle {
             kind: MenuRowKind::Back,
-            hovered: handle.hovered,
+            pointed: handle.pointed,
             active: handle.active,
             focused: handle.focused,
             ..quiet_handle(MenuRowKind::Back, title.into_prop())
@@ -515,7 +515,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         depth: Prop::Static(None),
         expanded: Prop::Static(None),
         toggle: ClickCallback::default(),
-        hovered: quiet(),
+        pointed: quiet(),
         active: quiet(),
         focused: quiet(),
     }
@@ -541,7 +541,7 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
         toggle: ClickCallback::new(move || toggled.toggle()),
-        hovered: handle.hovered,
+        pointed: handle.pointed,
         active: handle.active,
         focused: handle.focused,
     }
@@ -645,7 +645,7 @@ fn MenuTile(
     let test_id = item.test_id.clone();
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.hovered);
+        watch_hover(state, at, handle.pointed);
         row.call(item_handle(MenuRowKind::Tile, &face, &handle))
     };
     let accessibility = row_accessibility(&item);
@@ -701,7 +701,7 @@ fn MenuRow(
     let cascade = create_memo(move || cascades && has_children.get());
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.hovered);
+        watch_hover(state, at, handle.pointed);
         row.call(MenuRowHandle {
             has_submenu: has_children.into_prop(),
             glyphs: state.glyphs.into_prop(),
@@ -788,16 +788,16 @@ fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
     }
 }
 
-fn watch_hover(state: State, at: Focus, hovered: ReadSignal<bool>) {
-    let mut was_hovered = false;
+fn watch_hover(state: State, at: Focus, pointed: ReadSignal<bool>) {
+    let mut was_pointed = false;
     create_effect(move || {
-        let hovering = hovered.get();
-        match (was_hovered, hovering) {
+        let pointing = pointed.get();
+        match (was_pointed, pointing) {
             (_, true) => hover(state, at),
             (true, false) => leave(state, at),
             (false, false) => {}
         }
-        was_hovered = hovering;
+        was_pointed = pointing;
     });
 }
 

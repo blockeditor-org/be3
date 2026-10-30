@@ -885,7 +885,8 @@ mod web {
                         .on_secondary_press
                         .call(press(&element, event));
                 }
-                handled(event, true);
+                event.prevent_default();
+                reactive::flush();
             }),
         ));
         let held = state.clone();

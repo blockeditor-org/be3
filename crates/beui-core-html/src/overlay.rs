@@ -56,6 +56,8 @@ pub struct Layer {
     dismissable: Cell<bool>,
     on_dismiss: Callback<Dismiss>,
     #[cfg(target_arch = "wasm32")]
+    shown_modal: Cell<bool>,
+    #[cfg(target_arch = "wasm32")]
     web: RefCell<web::Held>,
 }
 
@@ -91,6 +93,8 @@ pub fn layer(
         wanted: Cell::new(false),
         dismissable: Cell::new(true),
         on_dismiss,
+        #[cfg(target_arch = "wasm32")]
+        shown_modal: Cell::new(false),
         #[cfg(target_arch = "wasm32")]
         web: RefCell::default(),
     });
@@ -150,7 +154,7 @@ impl Layer {
         self.wanted.get()
     }
 
-    fn modal(&self) -> bool {
+    fn blocks_all(&self) -> bool {
         self.policy.get() == LayerPolicy::BlocksAll
     }
 
@@ -251,7 +255,7 @@ impl Layer {
         set_attribute(
             dialog,
             "popover",
-            (!self.modal()).then(|| "manual".to_owned()),
+            (!self.blocks_all()).then(|| "manual".to_owned()),
         );
         if !crate::frame::started() {
             set_attribute(dialog, "open", self.wanted.get().then(String::new));
@@ -507,11 +511,29 @@ mod web {
             if !on_trigger {
                 layer.dismiss(Dismiss::OutsidePress);
             }
-            if layer.modal() {
+            if shown_modal(&layer) {
                 break;
             }
         }
         reactive::flush();
+    }
+
+    fn shown_modal(layer: &Layer) -> bool {
+        layer.shown_modal.get()
+    }
+
+    fn within_blocking(dialog: &web_sys::Element) -> bool {
+        let Some(outer) = dialog
+            .parent_element()
+            .and_then(|parent| parent.closest(".beui-overlay").ok().flatten())
+        else {
+            return false;
+        };
+        open_layers().iter().any(|other| {
+            other.blocks_all()
+                && other.wanted.get()
+                && crate::dom::element(other.parts.dialog).as_ref() == Some(&outer)
+        })
     }
 
     fn keyed(event: web_sys::Event) {
@@ -525,7 +547,7 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| !layer.modal() && layer.dismisses()) else {
+        let Some(layer) = top.filter(|layer| !shown_modal(layer) && layer.dismisses()) else {
             return;
         };
         event.prevent_default();
@@ -541,7 +563,7 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| layer.traps.get() && !layer.modal()) else {
+        let Some(layer) = top.filter(|layer| layer.traps.get() && !shown_modal(layer)) else {
             return;
         };
         let Some(dialog) = crate::dom::element(layer.parts.dialog) else {
@@ -784,9 +806,13 @@ mod web {
         if layer.wanted.get() && anchored_above(layer) {
             layer.raise();
         }
+        let wanted = layer
+            .wanted
+            .get()
+            .then(|| layer.blocks_all() && !within_blocking(&dialog));
+        layer.shown_modal.set(wanted == Some(true));
         let mut held = layer.web.borrow_mut();
         attach(layer, &mut held, &dialog);
-        let wanted = layer.wanted.get().then(|| layer.modal());
         let mut changed = false;
         if held.shown != wanted || state(&dialog) != wanted {
             let active = crate::dom::document().and_then(|document| document.active_element());

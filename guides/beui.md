@@ -5457,8 +5457,9 @@ moved or the layout did. `on_pointed_change` is the stricter state, as a platfor
 menus and lists have it: a catcher is pointed once the pointer moves while it is on
 the path, so one that only scrolled or was laid out under a resting pointer is
 hovered but not pointed until the pointer moves. A list whose highlight follows the
-pointer (`SearchList`) follows `ButtonHandle::pointed`, so keys walking it
-under a resting pointer keep the highlight; hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the
+pointer (`SearchList`, and menus, whose `MenuRowHandle` carries `pointed`)
+follows `ButtonHandle::pointed`, so keys walking it under a resting pointer keep
+the highlight; other hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
@@ -5795,7 +5796,9 @@ offset and corrects by its drift, snaps to the end, and reveals), `rows`
 `data-beui-spacer` elements that anchoring skips), `canvas` (an inner element
 translated to the view's origin, with `--beui-scale` scaling item positions and
 `scales` items), `overlay` (a `<dialog>`: `showModal()` for `BlocksAll`, else
-`popover="manual"`; CSS anchor positioning, measured with `resolve_rect` where
+`popover="manual"`, whose `::backdrop` lets the pointer through; a `BlocksAll`
+dialog inside an open `BlocksAll` one, a submenu, is such a popover too, so the
+menu beneath it stays reachable as natively; CSS anchor positioning, measured with `resolve_rect` where
 unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps),
 `portal`, and `text` (`Text`: a `div` with `white-space: pre-wrap` and a
 default `line-height` of 1.15, as native's; it keeps the order of its children
