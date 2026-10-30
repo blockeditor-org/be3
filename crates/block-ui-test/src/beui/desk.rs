@@ -239,7 +239,9 @@ impl Desk {
                 let screen = self.view_screen(over.view.view);
                 screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
             }
-            WindowPlacement::Host(placement) => read(&placement).unwrap_or(self.pointer - OPEN_GRAB),
+            WindowPlacement::Host(placement) => {
+                read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
+            }
             WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
         }
     }

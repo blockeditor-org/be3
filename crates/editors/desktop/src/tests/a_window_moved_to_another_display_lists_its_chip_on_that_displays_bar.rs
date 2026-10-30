@@ -52,9 +52,7 @@ fn a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar() {
 
     let title = fixture.desk_text("Program 1");
     let grab = pos2(title.max.x + 80.0, title.center().y);
-    fixture
-        .test
-        .desk_drag(grab, grab - vec2(700.0, 100.0), 8);
+    fixture.test.desk_drag(grab, grab - vec2(700.0, 100.0), 8);
     fixture.settle();
     let dragged = fixture.test.desk_windows()[0];
     assert!(

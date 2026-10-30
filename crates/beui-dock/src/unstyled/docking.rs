@@ -650,7 +650,9 @@ impl<K: DockKey> DockingLayout<K> {
         };
         let at = to - self.area.get_untracked().min.to_vec2();
         self.state.update(|state| {
-            let Some(surface) = state.find(standing_in(state, tab)).map(|found| found.surface)
+            let Some(surface) = state
+                .find(standing_in(state, tab))
+                .map(|found| found.surface)
             else {
                 return;
             };
