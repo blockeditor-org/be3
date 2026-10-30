@@ -1,6 +1,9 @@
+pub mod archive;
+pub mod inputs;
 pub mod map;
 pub mod module;
 pub mod object;
+pub mod tls;
 
 use std::{
     collections::HashSet,
@@ -9,11 +12,16 @@ use std::{
 };
 
 use sha2::{Digest, Sha256};
-use wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, MEMORY_BASE, STACK_POINTER, TABLE, TABLE_BASE};
+use wasm_dylink::{
+    ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, MEMORY_BASE, STACK_POINTER, TABLE, TABLE_BASE,
+};
 
 pub const SDK_FLAG: &str = "--be3-sdk";
 pub const PLUGIN_FLAG: &str = "--be3-plugin=";
 pub const SDK_SECTION: &str = "be3.sdk";
+pub const NEEDS_FLAG: &str = "--be3-needs=";
+pub const LIBRARY_FLAG: &str = "--be3-library";
+pub const LIBRARY_SECTION: &str = "be3.lib";
 pub use wasm_dylink::{LAYOUT_EXPORT_PREFIX, PLUGIN_TLS, PLUGIN_TLS_SIZE, SDK_EXPORT_PREFIX};
 const PLUGIN_TLS_ALIGN_LOG2: u32 = 4;
 const SDK_TLS_SEGMENT: &str = ".tbss.__be3_sdk_tls";
@@ -134,6 +142,7 @@ pub enum Mode {
     Plain,
     Sdk,
     Plugin(PathBuf),
+    Linked { needs: Vec<PathBuf>, library: bool },
 }
 
 pub fn run(linker: &str, arguments: Vec<String>) -> Result<(), String> {
@@ -143,6 +152,7 @@ pub fn run(linker: &str, arguments: Vec<String>) -> Result<(), String> {
         Mode::Plain => link(linker, &arguments),
         Mode::Sdk => link_sdk(linker, arguments),
         Mode::Plugin(sdk) => link_plugin(linker, arguments, &sdk),
+        Mode::Linked { needs, library } => link_linked(linker, arguments, &needs, library),
     }
 }
 
@@ -208,6 +218,26 @@ pub fn mode(arguments: Vec<String>) -> (Mode, Vec<String>) {
             mode = Mode::Sdk;
         } else if let Some(sdk) = argument.strip_prefix(PLUGIN_FLAG) {
             mode = Mode::Plugin(PathBuf::from(sdk));
+        } else if let Some(needed) = argument.strip_prefix(NEEDS_FLAG) {
+            match &mut mode {
+                Mode::Linked { needs, .. } => needs.push(PathBuf::from(needed)),
+                _ => {
+                    mode = Mode::Linked {
+                        needs: vec![PathBuf::from(needed)],
+                        library: false,
+                    }
+                }
+            }
+        } else if argument == LIBRARY_FLAG {
+            match &mut mode {
+                Mode::Linked { library, .. } => *library = true,
+                _ => {
+                    mode = Mode::Linked {
+                        needs: Vec::new(),
+                        library: true,
+                    }
+                }
+            }
         } else if !argument.starts_with("-fuse-ld=") {
             kept.push(argument);
         }
@@ -486,13 +516,13 @@ pub fn identity(bytes: &[u8]) -> String {
         .collect()
 }
 
-pub fn plugin_arguments(arguments: Vec<String>, sdk: &Sdk) -> Vec<String> {
+pub fn plugin_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<String> {
     let mut rewritten = Vec::with_capacity(arguments.len() + PLUGIN_FLAGS.len());
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         if argument == "-l" || argument == "-z" {
             if let Some(value) = arguments.next() {
-                let dropped = (argument == "-l" && sdk.linked.contains(&format!("-l{value}")))
+                let dropped = (argument == "-l" && linked.contains(&format!("-l{value}")))
                     || (argument == "-z" && value.starts_with("stack-size="));
                 if !dropped {
                     rewritten.extend([argument, value]);
@@ -501,8 +531,8 @@ pub fn plugin_arguments(arguments: Vec<String>, sdk: &Sdk) -> Vec<String> {
             continue;
         }
         let dropped = DROPPED_FROM_PLUGINS.contains(&argument.as_str())
-            || (argument.starts_with("-l") && sdk.linked.contains(&argument))
-            || (is_archive(&argument) && sdk.linked.contains(basename(&argument)));
+            || (argument.starts_with("-l") && linked.contains(&argument))
+            || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {
             rewritten.push(argument);
         }
@@ -607,7 +637,7 @@ fn link_plugin(linker: &str, arguments: Vec<String>, sdk: &Path) -> Result<(), S
     let sdk = Sdk::read(sdk)?;
     let mirror = scratch(&out, ".sdk-tls.o");
     write(&mirror, &sdk.mirror())?;
-    let arguments = with_mirror(plugin_arguments(arguments, &sdk), &mirror);
+    let arguments = with_mirror(plugin_arguments(arguments, &sdk.linked), &mirror);
     let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"));
     let _ = std::fs::remove_file(&mirror);
     check_thread_locals(&thread_locals?, &mirror, &sdk)?;
@@ -622,6 +652,151 @@ fn link_plugin(linker: &str, arguments: Vec<String>, sdk: &Path) -> Result<(), S
         ));
     }
     write(&out, &describe(&bytes, &sdk)?)
+}
+
+pub struct Needed {
+    pub linked: HashSet<String>,
+    pub exports: HashSet<String>,
+    pub importable: HashSet<String>,
+}
+
+impl Needed {
+    fn read(path: &Path) -> Result<Self, String> {
+        let bytes = read(path)?;
+        Self::parse(&bytes).map_err(|error| format!("{}: {error}", path.display()))
+    }
+
+    pub fn parse(bytes: &[u8]) -> Result<Self, String> {
+        let listing = match module::custom(bytes, LIBRARY_SECTION)? {
+            Some(listing) => listing,
+            None => module::custom(bytes, SDK_SECTION)?
+                .ok_or("it is not a linked module: it has no be3.lib section")?,
+        };
+        let linked = String::from_utf8_lossy(listing)
+            .lines()
+            .filter_map(|line| line.strip_prefix("link "))
+            .map(str::to_owned)
+            .collect();
+        let exports = module::exports(bytes)?;
+        Ok(Self {
+            linked,
+            importable: exports
+                .iter()
+                .filter(|export| matches!(export.kind, module::FUNCTION | module::TAG))
+                .map(|export| export.name.clone())
+                .collect(),
+            exports: exports.into_iter().map(|export| export.name).collect(),
+        })
+    }
+}
+
+pub fn linked_unresolved(bytes: &[u8], needs: &[Needed]) -> Result<Vec<String>, String> {
+    let own: HashSet<String> = module::exports(bytes)?
+        .into_iter()
+        .map(|export| export.name)
+        .collect();
+    let exported = |name: &str| needs.iter().any(|needed| needed.exports.contains(name));
+    Ok(module::imports(bytes)?
+        .into_iter()
+        .filter(|import| match import.module.as_str() {
+            ENV => {
+                !LINKED_BY_LOADER.contains(&import.name.as_str())
+                    && !needs
+                        .iter()
+                        .any(|needed| needed.importable.contains(&import.name))
+            }
+            GOT_MEMORY | GOT_FUNCTION => !exported(&import.name) && !own.contains(&import.name),
+            GOT_THREAD_LOCAL => !exported(&import.name),
+            _ => false,
+        })
+        .map(|import| format!("{}.{}", import.module, import.name))
+        .collect())
+}
+
+pub fn library_listing(arguments: &[String]) -> String {
+    let mut listing = String::new();
+    let mut arguments = arguments.iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "-l" {
+            if let Some(library) = arguments.next() {
+                listing.push_str(&format!("link -l{library}\n"));
+            }
+        } else if argument.starts_with("-l") {
+            listing.push_str(&format!("link {argument}\n"));
+        } else if argument == "-o" || argument == "-L" || argument == "-z" {
+            arguments.next();
+        } else if is_archive(argument) {
+            listing.push_str(&format!("link {}\n", basename(argument)));
+        }
+    }
+    listing
+}
+
+pub fn layout(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let info = module::memory_info(bytes)?.ok_or("the module has no dylink.0 section")?;
+    let layout = format!(
+        "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}",
+        info.memory_size, info.memory_align, info.table_size, info.table_align
+    );
+    module::with_exported_globals(bytes, &[(layout, 0)])
+}
+
+pub fn library_arguments(arguments: Vec<String>) -> Vec<String> {
+    let mut rewritten = Vec::with_capacity(arguments.len() + 1);
+    for argument in arguments {
+        match is_rust(&argument) {
+            true => rewritten.extend([
+                "--whole-archive".to_owned(),
+                argument,
+                "--no-whole-archive".to_owned(),
+            ]),
+            false => rewritten.push(argument),
+        }
+    }
+    rewritten.push("--export-all".to_owned());
+    rewritten
+}
+
+fn link_linked(
+    linker: &str,
+    arguments: Vec<String>,
+    needs: &[PathBuf],
+    library: bool,
+) -> Result<(), String> {
+    let out = output(&arguments)?;
+    let needs: Vec<Needed> = needs
+        .iter()
+        .map(|path| Needed::read(path))
+        .collect::<Result<_, _>>()?;
+    let linked: HashSet<String> = needs
+        .iter()
+        .flat_map(|needed| needed.linked.iter().cloned())
+        .collect();
+    let arguments = plugin_arguments(arguments, &linked);
+    let listing = library_listing(&arguments);
+    let arguments = match library {
+        true => library_arguments(arguments),
+        false => arguments,
+    };
+    let (arguments, rewritten) = inputs::through_got(arguments, &out)?;
+    let linked = link(linker, &arguments);
+    for path in rewritten {
+        let _ = std::fs::remove_file(path);
+    }
+    linked?;
+    let bytes = without_unused_sections(&read(&out)?)?;
+    let missing = linked_unresolved(&bytes, &needs)?;
+    if !missing.is_empty() {
+        return Err(format!(
+            "the module needs {} symbols that no module it links against exports:\n  {}",
+            missing.len(),
+            missing.join("\n  ")
+        ));
+    }
+    write(
+        &out,
+        &module::with_custom(&layout(&bytes)?, LIBRARY_SECTION, listing.as_bytes()),
+    )
 }
 
 fn without_unused_sections(bytes: &[u8]) -> Result<Vec<u8>, String> {

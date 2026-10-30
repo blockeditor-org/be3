@@ -8,7 +8,7 @@ fn a_plugin_link_leaves_out_what_the_sdk_links() {
              --export=__heap_base plugin.o deps/libbeui-1.rlib deps/libimage-2.rlib -l c -lc++abi \
              sysroot/libsetjmp.a -o out.wasm",
         ),
-        &sdk(&["libbeui-1.rlib", "-lc", "-lc++abi", "libsetjmp.a"]),
+        &sdk(&["libbeui-1.rlib", "-lc", "-lc++abi", "libsetjmp.a"]).linked,
     );
     let expected: Vec<String> = arguments("-flavor wasm plugin.o deps/libimage-2.rlib -o out.wasm")
         .into_iter()

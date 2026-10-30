@@ -1,5 +1,6 @@
 use wasm_dylink::{
-    APPLY_DATA_RELOCS, Declared, ENV, Import, MALLOC, STACK_POINTER, Sdk, TABLE, TLS_BASE, TLS_SIZE,
+    APPLY_DATA_RELOCS, Declared, ENV, GOT_THREAD_LOCAL, Import, MALLOC, STACK_POINTER, Sdk, TABLE,
+    TLS_BASE, TLS_SIZE,
 };
 use wasmtime::{
     Error, Extern, Func, Global, GlobalType, Instance, Linker, Module, Mutability, Ref,
@@ -256,4 +257,32 @@ pub(crate) fn spawned_thread_locals(
     let at = wasm_dylink::spawned_thread_locals(start_argument)?;
     let bytes = crate::state::read(memory, at, 4)?;
     Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn thread_local_imports<T>(
+    store: &mut Store<T>,
+    module: &Module,
+) -> Result<Vec<(String, Global)>, String> {
+    module
+        .imports()
+        .filter(|import| import.module() == GOT_THREAD_LOCAL)
+        .map(|import| Ok((import.name().to_owned(), global(store, 0, Mutability::Var)?)))
+        .collect()
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn place_other_thread_locals<T>(
+    store: &mut Store<T>,
+    globals: &[(String, Global)],
+    own_base: u32,
+    mut address: impl FnMut(&mut Store<T>, &str) -> Result<u32, String>,
+) -> Result<(), String> {
+    for (name, entry) in globals {
+        let slot = wasm_dylink::thread_local_slot(address(store, name)?, own_base);
+        entry
+            .set(&mut *store, Val::I32(slot))
+            .map_err(|error| format!("the thread-local {name} could not be placed: {error}"))?;
+    }
+    Ok(())
 }

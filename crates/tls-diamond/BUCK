@@ -1,0 +1,19 @@
+load("@root//buck/app:drive.bzl", "page_test")
+
+# The thread-local diamond in Chromium, through block-app's dylink.js
+# (guides/plugin_sdk.md, "Thread-locals"); block-wasm-host's tests run it on
+# wasmtime.
+page_test(
+    name = "web-test",
+    files = {
+        "base.wasm": "//crates/tls-diamond/base:module",
+        "diamond.js": "web/diamond.js",
+        "dylink.js": "//crates/block-app:dylink.js",
+        "index.html": "web/index.html",
+        "left.wasm": "//crates/tls-diamond/left:module",
+        "plugin.wasm": "//crates/tls-diamond/plugin:module",
+        "right.wasm": "//crates/tls-diamond/right:module",
+        "wasi.js": "//crates/block-app:wasi.js",
+    },
+    script = "web/test.mjs",
+)

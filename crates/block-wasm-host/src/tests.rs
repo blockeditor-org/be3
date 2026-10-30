@@ -226,3 +226,4 @@ mod a_thread_that_trapped_wakes_the_host_to_be_told;
 mod a_type_module_answers_on_a_thread_of_its_own;
 mod an_interrupted_host_loads_no_plugin;
 mod an_interrupted_plugin_stops_on_every_thread;
+mod the_thread_local_diamond_runs_on_every_thread;

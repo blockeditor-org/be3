@@ -21,5 +21,6 @@ const IMPORTS: [(&str, &str); 7] = [
 ];
 
 mod a_plan_places_the_plugin_after_the_sdk;
+mod a_thread_local_slot_is_relative_to_the_importing_block;
 mod the_declared_layout_is_read_from_an_export;
 mod thread_locals_past_the_reserve_are_copied;

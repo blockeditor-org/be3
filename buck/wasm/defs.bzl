@@ -155,6 +155,66 @@ def plugin_sdk():
         visibility = ["PUBLIC"],
     )
 
+# Libraries linked by the loader with their own thread-local blocks, the design
+# plugins move to (plans/plugin_libraries.md; guides/plugin_sdk.md,
+# "Thread-locals"). Only crates/tls-diamond is built this way so far.
+#
+# wasm_library is the package's crate, built as its library (the rlib other
+# crates compile against), linked whole and exported from a module of its own
+# through library.rs beside Cargo.toml, which only names the crate. With no
+# libraries it is linked as the plugin SDK is, owning the memory, the stack and
+# the allocator; with some it is position-independent, leaves out everything
+# they link and reaches their thread-locals through GOT.tls. linked_plugin is a
+# package's crate linked the same way, but not exported: a plugin.
+def _needs(libraries):
+    return ["--be3-needs=$(location {})".format(library) for library in libraries]
+
+def wasm_library(module, libraries = [], rustc_flags = []):
+    facts = cargo_wasm_facts()
+    cargo_library(rustc_flags = rustc_flags)
+    native.rust_library(
+        name = "wasm",
+        crate = facts.crate + "_library",
+        crate_root = "library.rs",
+        deps = [":" + facts.name],
+        edition = facts.edition,
+        linker_flags = _needs(libraries) + ["--be3-library"] if libraries else ["--be3-sdk"],
+        preferred_linkage = "shared",
+        rustc_flags = plugin_exports + rustc_flags,
+        srcs = ["library.rs"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    )
+    wasi_module(
+        name = "module",
+        library = ":wasm",
+        module = module,
+        visibility = ["PUBLIC"],
+    )
+
+def linked_plugin(module, libraries, rustc_flags = []):
+    facts = cargo_wasm_facts()
+    native.rust_library(
+        name = "wasm",
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
+        linker_flags = _needs(libraries),
+        mapped_srcs = cargo_manifest_sources(),
+        preferred_linkage = "shared",
+        rustc_flags = plugin_exports + rustc_flags,
+        srcs = cargo_library_sources(),
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    )
+    wasi_module(
+        name = "module",
+        library = ":wasm",
+        module = module,
+        visibility = ["PUBLIC"],
+    )
+
 # An editor: the guest cdylib, :wasm (wasm32 only; a plugin is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the

@@ -1,8 +1,8 @@
 pub const CUSTOM: u8 = 0;
-const IMPORT: u8 = 2;
+pub(crate) const IMPORT: u8 = 2;
 const GLOBAL: u8 = 6;
 const EXPORT: u8 = 7;
-const HEADER: usize = 8;
+pub(crate) const HEADER: usize = 8;
 const ORDER: [u8; 13] = [1, 2, 3, 4, 5, 13, 6, 7, 8, 9, 12, 10, 11];
 
 pub const FUNCTION: u8 = 0;
@@ -38,21 +38,21 @@ pub struct MemoryInfo {
     pub table_align: u32,
 }
 
-struct Reader<'a> {
+pub(crate) struct Reader<'a> {
     bytes: &'a [u8],
-    at: usize,
+    pub(crate) at: usize,
 }
 
 impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, at: 0 }
     }
 
-    fn done(&self) -> bool {
+    pub(crate) fn done(&self) -> bool {
         self.at >= self.bytes.len()
     }
 
-    fn byte(&mut self) -> Result<u8, String> {
+    pub(crate) fn byte(&mut self) -> Result<u8, String> {
         let byte = *self
             .bytes
             .get(self.at)
@@ -61,7 +61,7 @@ impl<'a> Reader<'a> {
         Ok(byte)
     }
 
-    fn unsigned(&mut self) -> Result<u64, String> {
+    pub(crate) fn unsigned(&mut self) -> Result<u64, String> {
         let mut value = 0u64;
         let mut shift = 0;
         loop {
@@ -76,11 +76,29 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn u32(&mut self) -> Result<u32, String> {
+    pub(crate) fn signed(&mut self) -> Result<i64, String> {
+        let mut value = 0i64;
+        let mut shift = 0;
+        loop {
+            let byte = self.byte()?;
+            if shift < 64 {
+                value |= i64::from(byte & 0x7f) << shift;
+            }
+            shift += 7;
+            if byte & 0x80 == 0 {
+                if shift < 64 && byte & 0x40 != 0 {
+                    value |= -1i64 << shift;
+                }
+                return Ok(value);
+            }
+        }
+    }
+
+    pub(crate) fn u32(&mut self) -> Result<u32, String> {
         u32::try_from(self.unsigned()?).map_err(|_| "a count does not fit in 32 bits".to_owned())
     }
 
-    fn take(&mut self, length: usize) -> Result<&'a [u8], String> {
+    pub(crate) fn take(&mut self, length: usize) -> Result<&'a [u8], String> {
         let end = self
             .at
             .checked_add(length)
@@ -91,7 +109,7 @@ impl<'a> Reader<'a> {
         Ok(taken)
     }
 
-    fn name(&mut self) -> Result<String, String> {
+    pub(crate) fn name(&mut self) -> Result<String, String> {
         let length = self.u32()? as usize;
         let bytes = self.take(length)?;
         String::from_utf8(bytes.to_vec()).map_err(|_| "a name is not UTF-8".to_owned())
@@ -215,7 +233,7 @@ pub fn memory_info(bytes: &[u8]) -> Result<Option<MemoryInfo>, String> {
     Ok(None)
 }
 
-fn unsigned(mut value: u64, out: &mut Vec<u8>) {
+pub(crate) fn unsigned(mut value: u64, out: &mut Vec<u8>) {
     loop {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
@@ -227,7 +245,7 @@ fn unsigned(mut value: u64, out: &mut Vec<u8>) {
     }
 }
 
-fn signed(mut value: i64, out: &mut Vec<u8>) {
+pub(crate) fn signed(mut value: i64, out: &mut Vec<u8>) {
     loop {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
@@ -240,12 +258,12 @@ fn signed(mut value: i64, out: &mut Vec<u8>) {
     }
 }
 
-fn name(text: &str, out: &mut Vec<u8>) {
+pub(crate) fn name(text: &str, out: &mut Vec<u8>) {
     unsigned(text.len() as u64, out);
     out.extend_from_slice(text.as_bytes());
 }
 
-fn section(id: u8, contents: &[u8], out: &mut Vec<u8>) {
+pub(crate) fn section(id: u8, contents: &[u8], out: &mut Vec<u8>) {
     out.push(id);
     unsigned(contents.len() as u64, out);
     out.extend_from_slice(contents);

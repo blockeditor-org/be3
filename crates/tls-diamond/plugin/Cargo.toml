@@ -1,0 +1,16 @@
+[package]
+name = "tls-diamond-plugin"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tls-diamond-base = { path = "../base" }
+tls-diamond-left = { path = "../left" }
+tls-diamond-right = { path = "../right" }
+
+[lints]
+workspace = true

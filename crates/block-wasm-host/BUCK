@@ -6,6 +6,10 @@ cargo_test(
     env = {
         "COUNTER_TYPES_WASM": "$(location //crates/editors/counter/types:module)",
         "GUEST_ECHO_WASM": "$(location //crates/block-guest-echo:module)",
+        "TLS_DIAMOND_BASE_WASM": "$(location //crates/tls-diamond/base:module)",
+        "TLS_DIAMOND_LEFT_WASM": "$(location //crates/tls-diamond/left:module)",
+        "TLS_DIAMOND_PLUGIN_WASM": "$(location //crates/tls-diamond/plugin:module)",
+        "TLS_DIAMOND_RIGHT_WASM": "$(location //crates/tls-diamond/right:module)",
     }
 )
 

@@ -262,7 +262,8 @@ It also passes `run_apart = True`, which makes a `:test-run-<file>` for each fil
 then loses only its own paintings, not every one the crate accepts.
 crates/be-portal-ui captures its SSR portal as text browser paintings without a browser.
 
-**Browser tests** (`web_drive_test` in `buck/app/drive.bzl`) are the one kind that runs on this
+**Browser tests** (`web_drive_test` in `buck/app/drive.bzl`, and `page_test` there for a page that
+checks itself, such as crates/tls-diamond's) are the one kind that runs on this
 machine rather than a worker, since the workers have no browser: their `:<name>-run` is a
 local-only action in ./scripts/verify, and ./scripts/test runs a test labelled `local` here
 (buck/dev/test.bxl). They need Node, its `playwright` package and a Chrome or Chromium

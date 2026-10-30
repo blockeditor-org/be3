@@ -63,9 +63,13 @@ so nothing else changes about how they build.
 ## Thread-locals
 
 LLVM compiles a thread-local access as an offset from the module's own `__tls_base`
-(local-exec) on every target but Emscripten, and that offset cannot point into another module.
-A plugin reaches the SDK's thread-locals through generics it instantiates, so the two share one
-thread-local block instead:
+(local-exec) on every target but Emscripten, whatever model the IR asks for: `global.get
+__tls_base`, `i32.const` of the symbol with an `R_WASM_MEMORY_ADDR_TLS_SLEB` relocation, `i32.add`.
+That offset cannot point into another module, and rust-lld refuses the relocation against an
+undefined symbol.
+
+Today a plugin reaches the SDK's thread-locals through generics it instantiates, so the two share
+one thread-local block:
 - The SDK's link ends its thread-locals with a reserve, `__be3_plugin_tls`
   (`PLUGIN_TLS_SIZE`, 16 KiB), in every thread's block.
 - A plugin's link starts its thread-locals with a generated object that defines each of the
@@ -73,6 +77,44 @@ thread-local block instead:
 - The host points the plugin's `__tls_base` at the SDK's block for each thread and copies the
   plugin's own initial values into the reserve. The link fails if a plugin's own thread-locals
   outgrow it.
+
+That works only with one module above the SDK. The design plugins move to
+(plans/plugin_libraries.md) gives every module its own block on every thread and reaches another
+module's thread-locals through a global the loader fills, as ELF's dynamic TLS model does:
+- **The link.** A link with `--be3-needs=MODULE` (`Mode::Linked` in `crates/wasm-link`) scans
+  its inputs, objects and the members of archives (`inputs.rs`, `archive.rs`), for TLS relocations
+  against symbols nothing in the link defines, and rewrites those objects before rust-lld
+  (`tls.rs`): the `i32.const` becomes a `global.get` of the same size, its relocation an
+  `R_WASM_GLOBAL_INDEX_LEB`, and the undefined data symbol an undefined global imported as
+  `GOT.tls.<symbol>` (mutable i32). An archive it changes is written again with its symbol table's
+  offsets moved. A relocation with an addend, or one outside the code, is refused; LLVM makes
+  neither for position-independent code.
+- **The value.** The code still adds its own `__tls_base`, so `GOT.tls.<symbol>` holds the
+  symbol's address on this thread less the importing module's `__tls_base` on this thread:
+  `thread_local_slot` in `crates/wasm-dylink`. A module exports its thread-locals' offsets in its
+  block as globals (rust-lld does, with `--export-all`), so the address is the defining module's
+  `__tls_base` on this thread plus that offset.
+- **The loader.** Every thread instantiates every module, and globals are per instance, so the
+  loader fills each module's `GOT.tls` globals once per thread, after `__wasm_init_tls(block)` has
+  set its `__tls_base` and before any of its code runs: `thread_local_imports` and
+  `place_other_thread_locals` in `block-wasm-host/src/dylink.rs`, `threadLocalImports` and
+  `placeOtherThreadLocals` in `block-app/web/dylink.js`. A spawned thread's blocks for the modules
+  above the one that holds libc are allocated on the spawning thread, in `thread-spawn`, before
+  the thread runs; the libc module's block is wasi-libc's, read from the start argument.
+
+`crates/tls-diamond` holds the test of it: base, left and right as libraries (`wasm_library` in
+`buck/wasm/defs.bzl`, the package's crate linked whole through its `library.rs`; base as the SDK is
+linked) and a plugin needing all three (`linked_plugin`), whose generics reach a thread-local in
+each, on the main thread and on a spawned one. block-wasm-host's
+`the_thread_local_diamond_runs_on_every_thread` runs it on wasmtime and `//crates/tls-diamond:web-test`
+in Chromium, each with a small loader for a list of modules of its own. A library's `be3.lib`
+section lists the archives it linked, which a link that needs it leaves out.
+
+Still to wire up: editors and the SDK keep the reserve above until the loaders link a list of
+modules (plans/plugin_libraries.md, Order 3 and 4); then `dylink.rs` and `dylink.js` take over
+the test loaders' thread-local part, the loader allocates every thread's blocks from a region it
+manages and frees them when the thread ends (the tests' blocks are never freed), and the
+reserve, the mirror object and `PLUGIN_TLS` go.
 
 ## Loading
 

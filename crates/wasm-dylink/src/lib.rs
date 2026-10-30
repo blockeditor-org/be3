@@ -22,6 +22,7 @@ pub const APPLY_DATA_RELOCS: &str = "__wasm_apply_data_relocs";
 pub const ENV: &str = "env";
 pub const GOT_MEMORY: &str = "GOT.mem";
 pub const GOT_FUNCTION: &str = "GOT.func";
+pub const GOT_THREAD_LOCAL: &str = "GOT.tls";
 pub const START_ARGUMENT_TLS: u32 = 4;
 const MAX_ALIGN_LOG2: u32 = 16;
 const IDENTITY_LENGTH: usize = 64;
@@ -245,4 +246,8 @@ pub fn spawned_thread_locals(start_argument: i32) -> Result<u32, String> {
         .ok_or_else(|| {
             "a spawned thread's start argument lies past a 32-bit address space".to_owned()
         })
+}
+
+pub fn thread_local_slot(address: u32, own_base: u32) -> i32 {
+    address.wrapping_sub(own_base) as i32
 }

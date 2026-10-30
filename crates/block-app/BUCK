@@ -103,6 +103,7 @@ web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck
             "//crates/beui-shared-tests:",
             "//crates/beui-web-demo:",
             "//crates/paint-review-web:",
+            "//crates/tls-diamond:",
         ],
     )
     for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]

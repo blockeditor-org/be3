@@ -137,3 +137,34 @@ export function placeThreadLocals(instance, memory, layout, base) {
 export function spawnedThreadLocals(memory, startArgument) {
     return new DataView(memory.buffer).getUint32(startArgument + START_ARGUMENT_TLS, true);
 }
+
+// A thread-local another module defines is reached through an imported
+// global, GOT.tls.<symbol>, which wasm-link puts where the code had the
+// symbol's offset from its own __tls_base (guides/plugin_sdk.md,
+// "Thread-locals"). Every thread instantiates every module again, so the
+// global is per thread: it holds where the symbol lies in this thread's block
+// of the module that defines it, less this thread's block of the module that
+// imports it, since the code still adds its own __tls_base.
+const GOT_THREAD_LOCAL = "GOT.tls";
+
+/** A mutable global for each GOT.tls import of a module, to put in its imports. */
+export function threadLocalImports(module) {
+    const globals = { __proto__: null };
+    for (const { module: from, name } of WebAssembly.Module.imports(module)) {
+        if (from === GOT_THREAD_LOCAL) {
+            globals[name] = new WebAssembly.Global({ value: "i32", mutable: true }, 0);
+        }
+    }
+    return globals;
+}
+
+/**
+ * Points a module's GOT.tls globals at this thread's copies. own is this
+ * thread's block of the module, and address(name) where the symbol lies in this
+ * thread's block of the module that defines it.
+ */
+export function placeOtherThreadLocals(globals, own, address) {
+    for (const [name, global] of Object.entries(globals)) {
+        global.value = (address(name) - own) | 0;
+    }
+}
