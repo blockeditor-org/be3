@@ -933,6 +933,7 @@ pub struct Programs {
     rescan: Option<u32>,
     waiting: Vec<(String, Option<u64>)>,
     scanned: bool,
+    unannounced: bool,
 }
 
 impl Programs {
@@ -984,17 +985,21 @@ impl Programs {
                 let _ = sender.send(Scanned::Icons(icons));
             });
         if let Err(error) = spawned {
-            eprintln!("block-app: the programs were not listed: {error}");
             self.scanning = None;
+            self.not_listed(error.to_string());
         }
     }
 
+    fn not_listed(&mut self, problem: String) {
+        eprintln!("block-app: the programs were not listed: {problem}");
+        block_app_base::notices::report(format!("Programs could not be listed: {problem}"));
+        self.scanned = true;
+        self.unannounced = true;
+    }
+
     pub fn receive(&mut self) -> bool {
-        let Some(receiver) = &self.scanning else {
-            return false;
-        };
         let mut changed = false;
-        loop {
+        while let Some(receiver) = &self.scanning {
             match receiver.try_recv() {
                 Ok(Scanned::Programs(programs)) => {
                     self.programs = programs;
@@ -1008,6 +1013,9 @@ impl Programs {
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.scanning = None;
+                    if !self.scanned {
+                        self.not_listed("the scan stopped".to_owned());
+                    }
                     if let Some(pixels) = self.rescan.take() {
                         self.scan(pixels);
                     }
@@ -1020,7 +1028,7 @@ impl Programs {
                 self.launch(&key, launch);
             }
         }
-        changed
+        changed | std::mem::take(&mut self.unannounced)
     }
 
     pub fn listed(&self) -> Vec<HostProgram> {

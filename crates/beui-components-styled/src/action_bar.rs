@@ -136,6 +136,7 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
                 let ToggleHandle {
                     checked,
                     hovered,
+                    pointed,
                     active,
                     focused,
                     disabled,
@@ -147,6 +148,7 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
                 } = handle;
                 let face = unstyled::ButtonHandle {
                     hovered,
+                    pointed,
                     active,
                     focused,
                     disabled,

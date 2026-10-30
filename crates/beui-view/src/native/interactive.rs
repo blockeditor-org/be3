@@ -62,6 +62,7 @@ pub(crate) fn interactive(
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
     on_hover_move: Callback<PointerPress>,
+    on_pointed_change: Callback<bool>,
     on_active_change: Callback<bool>,
     on_cancel: ClickCallback,
     on_middle_click: ClickCallback,
@@ -129,6 +130,7 @@ pub(crate) fn interactive(
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;
         node.on_hover_move = on_hover_move;
+        node.on_pointed_change = on_pointed_change;
         node.on_active_change = on_active_change;
         node.on_cancel = on_cancel;
         node.on_middle_click = on_middle_click;

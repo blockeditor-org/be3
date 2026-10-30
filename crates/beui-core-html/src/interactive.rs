@@ -22,6 +22,7 @@ pub struct Handlers {
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
+    pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
     pub on_middle_click: ClickCallback,
@@ -94,6 +95,7 @@ mod web {
         handlers: Handlers,
         switches: Rc<Switches>,
         pressed: Cell<Option<i32>>,
+        pointed: Cell<bool>,
         held: Cell<Option<(i32, PointerButton)>>,
         pinch: RefCell<beui_web_input::wheel::Pinch>,
         composed: RefCell<String>,
@@ -781,6 +783,9 @@ mod web {
                         .unwrap_or_else(|| vec![event.clone()]),
                     false => vec![event.clone()],
                 };
+                if !held.pointed.replace(true) {
+                    held.handlers.on_pointed_change.call(true);
+                }
                 let mut done = false;
                 for sample in &samples {
                     done |= held.pointer(sample, PointerStage::Move);
@@ -819,6 +824,9 @@ mod web {
                 name,
                 Box::new(move |_| {
                     held.handlers.on_hover_change.call(hovered);
+                    if !hovered && held.pointed.replace(false) {
+                        held.handlers.on_pointed_change.call(false);
+                    }
                     reactive::flush();
                 }),
             ));
@@ -946,6 +954,7 @@ mod web {
             handlers,
             switches,
             pressed: Cell::new(None),
+            pointed: Cell::new(false),
             held: Cell::new(None),
             pinch: RefCell::default(),
             composed: RefCell::default(),

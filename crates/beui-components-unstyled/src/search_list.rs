@@ -291,10 +291,10 @@ where
             press_focus=false
             on_click={move || state.choose(click_key.clone())}
         >|handle: ButtonHandle| {
-            let hovered = handle.hovered;
+            let (hovered, pointed) = (handle.hovered, handle.pointed);
             let hover_key = hover_key.clone();
             create_effect(move || {
-                if hovered.get() && enabled.get_untracked() {
+                if pointed.get() && enabled.get_untracked() {
                     untrack(|| state.highlight_quietly(Some(hover_key.clone())));
                 }
             });

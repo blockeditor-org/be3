@@ -59,7 +59,6 @@ fn typing_into_a_search_list_in_a_page_leaves_the_page_still_until_a_key_moves_t
 
     let search = list.get().search();
     harness.click(harness.center(search));
-    harness.frame(vec![Input::PointerLeft]);
     for _ in 0..6 {
         harness.key(Key::ArrowDown, Modifiers::NONE);
     }

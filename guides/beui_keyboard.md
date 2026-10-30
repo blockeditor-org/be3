@@ -79,7 +79,10 @@ the command palette and select put a capture listener on their search box
 (`@node_ref` on the `TextInput`) for the arrows, and a scroll area puts a bubble
 listener on itself for the arrows its children leave. Answering a key scrolls
 the focus into view; `on_scroll_key` registers a listener whose keys move the
-view themselves and so do not.
+view themselves and so do not. A key handler that brings something other than
+the focus into view (a `SearchList` row it highlights while the search field
+keeps the focus) uses `on_scroll_key`, since after an `on_key` answer the core
+reveals the focused node and overrides the handler's own reveal.
 
 Boundaries cut the path, and they replace what used to be flags:
 

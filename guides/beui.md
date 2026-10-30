@@ -979,7 +979,7 @@ browser's) keeps the galley as it is.
 and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
 its own accessibility node from them. Its content closure receives a
-`ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
+`ButtonHandle` of reactive `hovered`, `pointed`, `active`, `focused` and `disabled` state
 and the resolved `label`, `glyph`, `icon_only` and `tooltip`. `styled::Button` wraps it and
 uses that handle to choose fills and paint a focus outline, so every visual
 treatment sits on the same interaction behavior. A button that opens something
@@ -5432,7 +5432,12 @@ is taken). `gestures::autoscroll` grabs while it scrolls.
 
 Hover is the path under the mouse, worked out again every frame, so a catcher
 hears `on_hover_change` when it joins or leaves the path whether the pointer
-moved or the layout did. The cursor is the innermost armed catcher's, else the
+moved or the layout did. `on_pointed_change` is the stricter state, as a platform's
+menus and lists have it: a catcher is pointed once the pointer moves while it is on
+the path, so one that only scrolled or was laid out under a resting pointer is
+hovered but not pointed until the pointer moves. A list whose highlight follows the
+pointer (`SearchList`, menus) follows `ButtonHandle::pointed`, so keys walking it
+under a resting pointer keep the highlight; hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the

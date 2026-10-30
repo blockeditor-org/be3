@@ -431,19 +431,31 @@ pub struct Programs {
     rescan: Option<u32>,
     waiting: Vec<(String, Option<u64>)>,
     scanned: bool,
+    unannounced: bool,
 }
 
 impl Programs {
     pub fn scan(&mut self, pixels: u32) {
+        self.scan_on(pixels, |job| {
+            std::thread::Builder::new()
+                .name("programs".to_owned())
+                .spawn(job)
+                .map(drop)
+        });
+    }
+
+    fn scan_on(
+        &mut self,
+        pixels: u32,
+        spawn: impl FnOnce(Box<dyn FnOnce() + Send>) -> std::io::Result<()>,
+    ) {
         if self.scanning.is_some() {
             self.rescan = Some(pixels);
             return;
         }
         let (sender, receiver) = block_app_base::host::waking_channel();
         self.scanning = Some(receiver);
-        let spawned = std::thread::Builder::new()
-            .name("programs".to_owned())
-            .spawn(move || {
+        let spawned = spawn(Box::new(move || {
                 let environment = Environment::from_env();
                 let entries = environment.programs();
                 let globs = environment.mime_globs();
@@ -472,19 +484,23 @@ impl Programs {
                     })
                     .collect();
                 let _ = sender.send(Scanned::Icons(icons));
-            });
+        }));
         if let Err(error) = spawned {
-            eprintln!("block-app: the programs were not listed: {error}");
             self.scanning = None;
+            self.not_listed(error.to_string());
         }
     }
 
+    fn not_listed(&mut self, problem: String) {
+        eprintln!("block-app: the programs were not listed: {problem}");
+        block_app_base::notices::report(format!("Programs could not be listed: {problem}"));
+        self.scanned = true;
+        self.unannounced = true;
+    }
+
     pub fn receive(&mut self) -> bool {
-        let Some(receiver) = &self.scanning else {
-            return false;
-        };
         let mut changed = false;
-        loop {
+        while let Some(receiver) = &self.scanning {
             match receiver.try_recv() {
                 Ok(Scanned::Entries(environment, entries, globs)) => {
                     self.environment = environment;
@@ -500,6 +516,9 @@ impl Programs {
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.scanning = None;
+                    if !self.scanned {
+                        self.not_listed("the scan stopped".to_owned());
+                    }
                     if let Some(pixels) = self.rescan.take() {
                         self.scan(pixels);
                     }
@@ -512,7 +531,7 @@ impl Programs {
                 self.launch(&key, launch);
             }
         }
-        changed
+        changed | std::mem::take(&mut self.unannounced)
     }
 
     pub fn listed(&self) -> Vec<HostProgram> {

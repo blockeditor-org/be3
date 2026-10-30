@@ -21,6 +21,7 @@ use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, grab};
 pub struct Pointers {
     sessions: Vec<Session>,
     hovered: Vec<NodeId>,
+    hovered_at: Option<(WindowId, Pos2)>,
     wheel_latch: Option<(NodeId, Instant, WindowId, Pos2)>,
     wheel_held: bool,
     fingers: Fingers,
@@ -1535,7 +1536,15 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
             node.hovered = false;
             node.on_hover_change.clone().call(false);
         }
+        if let Some(node) = node_mut(doc, id)
+            && node.pointed
+        {
+            node.pointed = false;
+            node.on_pointed_change.clone().call(false);
+        }
     }
+    let moved = pointer != doc.pointers.hovered_at;
+    doc.pointers.hovered_at = pointer;
     if let Some((_, pos)) = pointer {
         for id in path.iter().rev() {
             let Some((rect, scale)) = frame.rects.scaled(id) else {
@@ -1547,6 +1556,13 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
             if !node.hovered {
                 node.hovered = true;
                 node.on_hover_change.clone().call(true);
+            }
+            let Some(node) = node_mut(doc, *id) else {
+                continue;
+            };
+            if moved && !node.pointed {
+                node.pointed = true;
+                node.on_pointed_change.clone().call(true);
             }
             let Some(node) = node_mut(doc, *id) else {
                 continue;
