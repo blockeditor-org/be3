@@ -66,6 +66,10 @@ function threadSpawn(startArgument) {
         console.error("a thread was spawned before bindThreads was called");
         return -1;
     }
+    if (!(context.memory.buffer instanceof SharedArrayBuffer)) {
+        console.error("a thread was spawned by a module whose memory is not shared");
+        return -1;
+    }
     const id = nextId++;
     const worker = new Worker(new URL("./thread.js", import.meta.url), { type: "module" });
     worker.onerror = (event) => {

@@ -4,8 +4,13 @@
 <link rel="icon" href="data:,">
 <script type="module">
     const report = new BroadcastChannel("tls-diamond");
-    globalThis.diamond = new Promise((resolve) => {
-        report.onmessage = ({ data }) => resolve(data);
+    globalThis.outcome = new Promise((resolve) => {
+        report.onmessage = ({ data }) =>
+            resolve(
+                data.result === 1
+                    ? { passed: true, message: "the thread-local diamond ran in Chromium" }
+                    : { error: data.error ?? JSON.stringify(data) },
+            );
     });
     new Worker("diamond.js", { type: "module" }).postMessage({ kind: "start" });
 </script>

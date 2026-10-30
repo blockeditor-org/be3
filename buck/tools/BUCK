@@ -104,7 +104,7 @@ genrule(
 )
 
 # wasm-opt, which a release build runs over every plugin and game module
-# (buck/wasm/defs.bzl).
+# (buck/wasm/defs.bzl), and wasm-as.
 binaryen_version = "133"
 
 http_archive(
@@ -118,6 +118,14 @@ http_archive(
 command_alias(
     name = "wasm-opt",
     args = ["$(location :binaryen)/bin/wasm-opt"],
+    visibility = ["PUBLIC"],
+)
+
+# Binaryen's assembler, which turns a test's hand-written WebAssembly text
+# into a module (block-wasm-host's standalone guest).
+command_alias(
+    name = "wasm-as",
+    args = ["$(location :binaryen)/bin/wasm-as"],
     visibility = ["PUBLIC"],
 )
 

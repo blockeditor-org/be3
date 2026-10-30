@@ -1,9 +1,10 @@
-// Runs the thread-local diamond (diamond.js) in Chromium through Playwright:
+// Runs a page that checks itself (page_test in drive.bzl) in Chromium through
+// Playwright:
 //
-//   node test.mjs DIR
+//   node page-test.mjs DIR
 //
-// DIR holds index.html, diamond.js, block-app's dylink.js and wasi.js, and
-// base.wasm, left.wasm, right.wasm and plugin.wasm. The browser is BE3_CHROME
+// DIR is served as it is, and its index.html sets globalThis.outcome to a
+// promise of { passed: true, message } or { error }. The browser is BE3_CHROME
 // when set, else Playwright's Chromium, as for buck/app/web-test.mjs.
 
 import { execFileSync } from "node:child_process";
@@ -50,7 +51,7 @@ await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
 
 // Chromium's singleton socket lives in TMPDIR, and buck's is too long a path
 // for a Unix socket.
-const temporary = await mkdtemp("/tmp/be3-tls-diamond-");
+const temporary = await mkdtemp("/tmp/be3-page-test-");
 const { chromium } = playwright();
 const browser = await chromium.launch({
     executablePath: process.env.BE3_CHROME || chromium.executablePath(),
@@ -66,16 +67,16 @@ try {
     const outcome = await page.evaluate(
         (timeout) =>
             Promise.race([
-                globalThis.diamond,
+                globalThis.outcome,
                 new Promise((resolve) => setTimeout(() => resolve({ error: "timed out" }), timeout)),
             ]),
         TIMEOUT,
     );
-    if (outcome.result === 1) {
-        console.log("the thread-local diamond ran in Chromium");
+    if (outcome?.passed === true) {
+        console.log(outcome.message ?? "the page passed");
         failed = false;
     } else {
-        console.error(`the thread-local diamond failed: ${outcome.error ?? JSON.stringify(outcome)}`);
+        console.error(`the page failed: ${outcome?.error ?? JSON.stringify(outcome)}`);
     }
 } finally {
     await browser.close();

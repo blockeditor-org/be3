@@ -1,3 +1,5 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "page_test")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
 
 cargo_library()
@@ -20,3 +22,40 @@ cargo_binary()
 cargo_example("gpu-calls")
 
 cargo_example("instantiate")
+
+# The standalone guest (src/tests/standalone.wat, which the tests above run on
+# wasmtime) in Chromium: assembled into a module, and booted by block-app's
+# plugin.js against block-gpu-shim, which wasm-bindgen prepares as the web
+# bundle does, in a page that checks what it painted (web/standalone.js).
+genrule(
+    name = "standalone.wasm",
+    srcs = ["src/tests/standalone.wat"],
+    out = "standalone.wasm",
+    cmd = "$(exe //buck/tools:wasm-as) --enable-bulk-memory $SRCS -o $OUT",
+)
+
+app(
+    name = "standalone-bundle",
+    bindgen = ["//crates/block-gpu-shim:module"],
+    files = [
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+        "//crates/block-app:plugin.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:wasi.js",
+    ],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+page_test(
+    name = "standalone-web-test",
+    files = {
+        "bundle": ":standalone-bundle",
+        "index.html": "web/index.html",
+        "standalone.js": "web/standalone.js",
+        "standalone.wasm": ":standalone.wasm",
+    },
+)

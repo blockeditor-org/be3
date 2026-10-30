@@ -1,9 +1,12 @@
 // Instantiating a plugin in the browser.
 //
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
-// platform: its only imports are WASI and the be3 gpu abi, and, when it was
-// linked against the plugin SDK, the SDK, which is fetched from beside it and
-// linked to it here (dylink.js). In a browser the
+// platform: its only imports are be3_host, its world's and the be3 gpu abi,
+// WASI and wasi-threads if it uses them, and, when it was linked against the
+// plugin SDK, the SDK, which is fetched from beside it and linked to it here
+// (dylink.js). A standalone plugin is instantiated as it is, with the memory it
+// imports, shared or not, or the one it exports (guides/plugin_sdk.md, "The
+// raw plugin interface"). In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
 // and a real wgpu device in the worker, which draws what the plugin shows into
 // the canvases the page transferred to the worker. The two modules have
@@ -61,7 +64,7 @@ function callItem(name, hasParent, parent, args) {
 function transport(memory, direct) {
     const inbox = [];
     let outbox = [];
-    const bytes = () => new Uint8Array(memory.buffer);
+    const bytes = () => new Uint8Array(memory().buffer);
     return {
         inbox,
         direct,
@@ -119,14 +122,14 @@ function resolve(module, memory, shim, frames) {
     for (const wanted of WebAssembly.Module.imports(module)) {
         const group = (resolved[wanted.module] ??= { __proto__: null });
         if (wanted.kind === "memory") {
-            group[wanted.name] = memory;
+            group[wanted.name] = memory();
         } else if (wanted.module === "wasi_snapshot_preview1") {
             group[wanted.name] = wasi[wanted.name] ?? stub(wanted.module, wanted.name);
         } else if (wanted.module === "wasi") {
             group[wanted.name] = threads[wanted.name];
         } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
             group[wanted.name] = (pointer, length) => {
-                const bytes = new Uint8Array(memory.buffer).slice(pointer, pointer + length);
+                const bytes = new Uint8Array(memory().buffer).slice(pointer, pointer + length);
                 throw new Error(new TextDecoder().decode(bytes));
             };
         } else if (
@@ -146,10 +149,12 @@ function resolve(module, memory, shim, frames) {
     return resolved;
 }
 
-// WebAssembly.Module.imports does not report a memory's limits, and a shared
-// memory has to be created with limits the module accepts, so the import
-// section is read out of the bytes the worker already fetched.
-function memoryLimits(bytes) {
+// WebAssembly.Module.imports does not report a memory's limits, and a memory
+// has to be created with limits the module accepts, so the import section is
+// read out of the bytes the worker already fetched. A module that imports no
+// memory has null, and is bound to the memory it exports once it is
+// instantiated.
+function importedMemory(bytes) {
     const view = new DataView(bytes);
     let at = 8;
     const byte = () => view.getUint8(at++);
@@ -195,7 +200,7 @@ function memoryLimits(bytes) {
                 const flags = byte();
                 const initial = leb();
                 const maximum = flags & 1 ? leb() : undefined;
-                return { initial, maximum };
+                return { initial, maximum, shared: (flags & 2) !== 0 };
             } else if (kind === 3) {
                 byte();
                 byte();
@@ -207,7 +212,17 @@ function memoryLimits(bytes) {
         }
         at = end;
     }
-    throw new Error("a plugin does not import the memory it runs in");
+    return null;
+}
+
+// What a standalone plugin runs before anything else: the WASI reactor's
+// _initialize when it has one, else the constructors LLVM collected.
+function initialize(exports) {
+    if (typeof exports._initialize === "function") {
+        exports._initialize();
+    } else {
+        exports.__wasm_call_ctors?.();
+    }
 }
 
 async function fetched(url) {
@@ -231,19 +246,27 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
         shimModule.check_sdk(new Uint8Array(sdkBytes), identity);
     }
     const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
-    const memory = new WebAssembly.Memory({ ...memoryLimits(sdkBytes ?? bytes), shared: true });
-    wasi.bindMemory(memory);
-    shimModule.bind(memory);
-    threads.bindThreads(first, memory);
+    const imported = importedMemory(sdkBytes ?? bytes);
+    if (sdkBytes !== null && !imported?.shared) {
+        throw new Error("the plugin SDK does not import a shared memory");
+    }
+    let memory = imported === null ? null : new WebAssembly.Memory(imported);
+    const current = () => memory;
+    const bindMemory = () => {
+        wasi.bindMemory(memory);
+        shimModule.bind(memory);
+        threads.bindThreads(first, memory);
+    };
+    if (memory !== null) bindMemory();
     threads.bindWake(wake);
     shimModule.bind_wake(wake);
-    const frames = transport(memory, direct);
-    const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim, frames));
-    runtime.exports.__wasm_call_ctors?.();
+    const frames = transport(current, direct);
+    const runtime = new WebAssembly.Instance(first, resolve(first, current, shim, frames));
     let exports = runtime.exports;
     if (first !== plugin) {
+        runtime.exports.__wasm_call_ctors?.();
         const layout = dylink.plan(shimModule, runtime, plugin, memory);
-        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim, frames));
+        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, current, shim, frames));
         dylink.relocate(instance, layout);
         instance.exports.plugin_initialize_tls(
             runtime.exports.__tls_size.value,
@@ -254,7 +277,11 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
         instance.exports.__wasm_call_ctors?.();
         exports = instance.exports;
     } else {
-        exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
+        if (memory === null && exports.memory instanceof WebAssembly.Memory) {
+            memory = exports.memory;
+            bindMemory();
+        }
+        initialize(exports);
     }
     exports.plugin_start();
     return {

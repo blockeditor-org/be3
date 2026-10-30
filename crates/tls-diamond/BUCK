@@ -15,5 +15,4 @@ page_test(
         "right.wasm": "//crates/tls-diamond/right:module",
         "wasi.js": "//crates/block-app:wasi.js",
     },
-    script = "web/test.mjs",
 )
