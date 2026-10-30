@@ -11,6 +11,8 @@ use wgpu::custom::*;
 use crate::convert::{self, custom};
 use crate::features::Allowed;
 
+mod compute;
+
 pub(crate) fn last_error() -> String {
     gpu::take_error().unwrap_or_default()
 }
@@ -146,6 +148,8 @@ macro_rules! resource {
         }
     };
 }
+
+pub(crate) use resource;
 
 resource!(Buffer);
 resource!(Texture);
@@ -435,9 +439,9 @@ impl DeviceInterface for Device {
 
     fn create_compute_pipeline(
         &self,
-        _desc: &wgpu::ComputePipelineDescriptor<'_>,
+        desc: &wgpu::ComputePipelineDescriptor<'_>,
     ) -> DispatchComputePipeline {
-        unimplemented!("compute pipelines are not available to plugins yet")
+        compute::pipeline(desc)
     }
 
     unsafe fn create_pipeline_cache(
@@ -859,8 +863,8 @@ impl CommandEncoderInterface for CommandEncoder {
         checked();
     }
 
-    fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
-        unimplemented!("compute passes are not available to plugins yet")
+    fn begin_compute_pass(&self, desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
+        compute::pass(&self.0, desc)
     }
 
     fn begin_render_pass(&self, desc: &wgpu::RenderPassDescriptor<'_>) -> DispatchRenderPass {

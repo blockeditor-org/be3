@@ -272,9 +272,13 @@ creation, which starts zeroed; a range written through `get_mapped_range_mut` go
 when it is dropped (`buffer.write-mapped`). Unmapping or dropping a buffer fails its
 pending map. The host refuses, as an error rather than a panic, a read or write outside
 the mapped range, misaligned, or a write to a read map. Copies between buffers and
-textures, `clear_buffer`, and implicit bind group layouts (`layout: None` and
-`get_bind_group_layout`) are recorded as wgpu records them. Textures stay on the gpu;
-only a mapped read crosses into the plugin's memory.
+textures, `clear_buffer`, compute pipelines and passes (`dispatch_workgroups` and
+`dispatch_workgroups_indirect`), and implicit bind group layouts (`layout: None` and
+`get_bind_group_layout`, on render and compute pipelines) are recorded as wgpu records
+them. A compute pass's calls, like a render pass's, take only wasm values. A device without
+compute (the WebGL fallback) reports zero compute workgroups per dimension in its limits
+and refuses a compute pipeline as a validation error. Textures stay
+on the gpu; only a mapped read crosses into the plugin's memory.
 
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its

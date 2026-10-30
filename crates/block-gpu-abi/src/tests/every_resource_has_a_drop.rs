@@ -16,6 +16,8 @@ fn every_resource_has_a_drop() {
         "command-encoder",
         "command-buffer",
         "render-pass",
+        "compute-pipeline",
+        "compute-pass",
         "surface",
     ] {
         let drop = format!("[resource-drop]{resource}");

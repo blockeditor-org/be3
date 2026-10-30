@@ -1,5 +1,7 @@
 use block_gpu_abi::{device as abi, embed::device::Host};
 
+mod compute;
+
 use crate::{Gpu, Outcome, SURFACE_USAGE, convert, slice, texel_copy_buffer, texel_copy_texture};
 
 impl Gpu {
@@ -481,6 +483,17 @@ impl Host for Gpu {
         .map(abi::RenderPipeline)
     }
 
+    fn create_compute_pipeline(
+        &mut self,
+        descriptor: abi::ComputePipelineDescriptor,
+    ) -> Option<abi::ComputePipeline> {
+        self.create(
+            |gpu| &mut gpu.compute_pipelines,
+            |gpu| gpu.try_create_compute_pipeline(&descriptor),
+        )
+        .map(abi::ComputePipeline)
+    }
+
     fn create_command_encoder(
         &mut self,
         descriptor: abi::CommandEncoderDescriptor,
@@ -727,6 +740,18 @@ impl Host for Gpu {
             |gpu| gpu.try_begin_render_pass(this, &descriptor),
         )
         .map(abi::RenderPass)
+    }
+
+    fn command_encoder_begin_compute_pass(
+        &mut self,
+        this: abi::CommandEncoder,
+        descriptor: abi::ComputePassDescriptor,
+    ) -> Option<abi::ComputePass> {
+        self.create(
+            |gpu| &mut gpu.compute_passes,
+            |gpu| gpu.try_begin_compute_pass(this, &descriptor),
+        )
+        .map(abi::ComputePass)
     }
 
     fn command_encoder_copy_buffer_to_buffer(
@@ -990,6 +1015,87 @@ impl Host for Gpu {
 
     fn render_pass_drop(&mut self, this: abi::RenderPass) {
         self.passes.remove(this.0);
+    }
+
+    fn compute_pipeline_get_bind_group_layout(
+        &mut self,
+        this: abi::ComputePipeline,
+        index: u32,
+    ) -> Option<abi::BindGroupLayout> {
+        self.create(
+            |gpu| &mut gpu.group_layouts,
+            |gpu| {
+                let pipeline = gpu.compute_pipelines.get(this.0, "compute pipeline")?;
+                Ok(pipeline.get_bind_group_layout(index))
+            },
+        )
+        .map(abi::BindGroupLayout)
+    }
+
+    fn compute_pipeline_drop(&mut self, this: abi::ComputePipeline) {
+        self.compute_pipelines.remove(this.0);
+    }
+
+    fn compute_pass_set_pipeline(
+        &mut self,
+        this: abi::ComputePass,
+        pipeline: abi::ComputePipeline,
+    ) {
+        let result = self
+            .compute_pipelines
+            .get(pipeline.0, "compute pipeline")
+            .cloned()
+            .and_then(|pipeline| {
+                self.compute_passes
+                    .get_mut(this.0, "compute pass")
+                    .map(|pass| pass.set_pipeline(&pipeline))
+            });
+        self.fail(result, ());
+    }
+
+    fn compute_pass_set_bind_group(
+        &mut self,
+        this: abi::ComputePass,
+        index: u32,
+        bind_group: Option<abi::BindGroup>,
+        dynamic_offsets: &[u32],
+    ) {
+        let result = bind_group
+            .map(|group| self.groups.get(group.0, "bind group").cloned())
+            .transpose()
+            .and_then(|group| {
+                self.compute_passes
+                    .get_mut(this.0, "compute pass")
+                    .map(|pass| pass.set_bind_group(index, group.as_ref(), dynamic_offsets))
+            });
+        self.fail(result, ());
+    }
+
+    fn compute_pass_dispatch_workgroups(&mut self, this: abi::ComputePass, x: u32, y: u32, z: u32) {
+        self.compute_pass(this, |pass| pass.dispatch_workgroups(x, y, z));
+    }
+
+    fn compute_pass_dispatch_workgroups_indirect(
+        &mut self,
+        this: abi::ComputePass,
+        buffer: abi::Buffer,
+        offset: u64,
+    ) {
+        let result = self.buffers.get(buffer.0, "buffer").cloned();
+        match result {
+            Ok(buffer) => self.compute_pass(this, |pass| {
+                pass.dispatch_workgroups_indirect(&buffer, offset)
+            }),
+            Err(message) => self.report(message),
+        }
+    }
+
+    fn compute_pass_end(&mut self, this: abi::ComputePass) {
+        self.guard(|gpu| gpu.compute_passes.take(this.0, "compute pass").map(drop));
+    }
+
+    fn compute_pass_drop(&mut self, this: abi::ComputePass) {
+        self.compute_passes.remove(this.0);
     }
 
     fn surface_new(&mut self, id: u32) -> abi::Surface {

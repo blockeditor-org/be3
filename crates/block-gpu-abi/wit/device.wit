@@ -435,6 +435,7 @@ interface device {
 
     resource command-encoder {
         begin-render-pass: func(descriptor: render-pass-descriptor) -> option<render-pass>;
+        begin-compute-pass: func(descriptor: compute-pass-descriptor) -> option<compute-pass>;
         copy-buffer-to-buffer: func(
             source: borrow<buffer>,
             source-offset: u64,
@@ -538,6 +539,38 @@ interface device {
         end: func();
     }
 
+    resource compute-pipeline {
+        /// The layout of a bind group the pipeline was made with, or worked
+        /// out from its shader when it was made without a layout.
+        get-bind-group-layout: func(index: u32) -> option<bind-group-layout>;
+    }
+
+    record compute-pipeline-descriptor {
+        label: option<string>,
+        layout: option<borrow<pipeline-layout>>,
+        module: borrow<shader-module>,
+        entry-point: option<string>,
+    }
+
+    record compute-pass-descriptor {
+        label: option<string>,
+    }
+
+    /// The calls made per dispatch: each takes its arguments as wasm values.
+    resource compute-pass {
+        set-pipeline: func(pipeline: borrow<compute-pipeline>);
+        set-bind-group: func(
+            index: u32,
+            bind-group: option<borrow<bind-group>>,
+            dynamic-offsets: list<u32>,
+        );
+        dispatch-workgroups: func(x: u32, y: u32, z: u32);
+        /// Dispatches the three workgroup counts the buffer holds at the offset.
+        dispatch-workgroups-indirect: func(buffer: borrow<buffer>, offset: u64);
+        /// Records the pass into its encoder.
+        end: func();
+    }
+
     record texel-copy-texture-info {
         texture: borrow<texture>,
         mip-level: u32,
@@ -594,6 +627,9 @@ interface device {
     create-render-pipeline: func(
         descriptor: render-pipeline-descriptor,
     ) -> option<render-pipeline>;
+    create-compute-pipeline: func(
+        descriptor: compute-pipeline-descriptor,
+    ) -> option<compute-pipeline>;
     create-command-encoder: func(
         descriptor: command-encoder-descriptor,
     ) -> option<command-encoder>;

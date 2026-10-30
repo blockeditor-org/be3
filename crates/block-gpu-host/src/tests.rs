@@ -80,6 +80,7 @@ impl Caller for Guest {
     }
 }
 
+mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
 mod a_created_buffer_gets_a_live_handle;
