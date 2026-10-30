@@ -596,11 +596,12 @@ impl App {
         self.click("#file-tree.back")?;
         let folder = self.row_button("TreeItem \"Folder\"", ".more")?;
         self.click(&folder)?;
-        self.wait("#file-tree.export")?;
+        self.click("#file-tree.export")?;
+        self.wait("#file-tree.export.block")?;
         let started = Instant::now();
         self.within(
             LONG,
-            &["save", &path.to_string_lossy(), "#file-tree.export"],
+            &["save", &path.to_string_lossy(), "#file-tree.export.block"],
         )?;
         bench::time(metric, started.elapsed());
         let bytes = std::fs::read(path)

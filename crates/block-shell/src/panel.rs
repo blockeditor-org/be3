@@ -367,7 +367,7 @@ fn DockedBlockTab(
             <Show condition={own}>
                 <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
             </Show>
-            <Layers @sizing=ItemSize::Percent(100.0)>{body}</Layers>
+            <Layers @sizing=ItemSize::Percent(100.0) @test_id={"workspace.block"}>{body}</Layers>
         </List>
     }
 }
