@@ -227,8 +227,8 @@ wasi:webgpu), which be-ops-bindgen generates with `local` (guides/type_modules.m
 plugin's own thread, so they return their results, and a call made per draw takes only
 wasm values. block-gpu-guest is wgpu's custom backend over the guest bindings (a
 surface is the host's surface id; `release_surface` drops it), block-gpu-host's `Gpu`
-implements `Host` over a real wgpu device, block-wasm-host's `State` is the `Caller`
-and links the glue, and block-gpu-shim is the `Caller` in a browser worker and exports
+implements `Host` over a real wgpu device, block-wasm-host's `Guest` (`State` with a
+view of the plugin's memory, shared or its own) is the `Caller` and links the glue, and block-gpu-shim is the `Caller` in a browser worker and exports
 each import as `module#name`, which `plugin.js` binds every import it does not answer
 itself to. A call whose arguments cannot be read is refused into the device's error,
 which `take-error` and the step both report; natively a plugin that reaches for a gpu

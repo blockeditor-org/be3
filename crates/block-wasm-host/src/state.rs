@@ -139,7 +139,11 @@ impl State {
     }
 
     #[inline]
-    pub(crate) fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+    pub(crate) fn host<R>(
+        &mut self,
+        function: &'static str,
+        call: impl FnOnce(&mut Gpu) -> R,
+    ) -> Option<R> {
         if let Device::Ready(gpu) = &mut self.device {
             let started = Instant::now();
             let result = call(gpu.as_mut());

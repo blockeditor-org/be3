@@ -13,7 +13,8 @@ test_environment = {
 # The triangle linked against the plugin SDK and standalone, which the tests
 # load and paint side by side.
 cargo_test(
-    env = test_environment | {
+    env = test_environment
+    | {
         "PLUGIN_SDK_WASM": "$(location //crates/block-plugin-sdk:module)",
         "TRIANGLE_STANDALONE_WASM": "$(location //crates/editors/triangle:standalone)",
         "TRIANGLE_WASM": "$(location //crates/editors/triangle:module)",

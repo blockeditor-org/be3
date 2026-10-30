@@ -152,7 +152,9 @@ fn painted(
         plugin.take_presented().contains(&SURFACE),
         "the plugin presented its surface"
     );
-    let (texture, _) = plugin.surface(SURFACE).expect("the plugin asked for a surface");
+    let (texture, _) = plugin
+        .surface(SURFACE)
+        .expect("the plugin asked for a surface");
     let pixels = read_back(device, queue, &texture);
     plugin.stop();
     pixels

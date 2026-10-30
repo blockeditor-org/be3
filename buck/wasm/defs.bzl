@@ -288,9 +288,9 @@ def editor_module(name, module, libraries = None, extra_deps = [], visibility = 
 def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
     editor_module(
         name = "module",
-        module = module,
-        libraries = libraries,
         extra_deps = extra_deps,
+        libraries = libraries,
+        module = module,
         visibility = visibility,
     )
     native.export_file(

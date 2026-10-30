@@ -506,7 +506,11 @@ fn initialize(instance: &Instance, store: &mut Store<State>) -> Result<(), Strin
 fn memory_import(module: &Module) -> Option<(String, String, MemoryType)> {
     module.imports().find_map(|import| {
         let declared = import.ty().memory()?.clone();
-        Some((import.module().to_owned(), import.name().to_owned(), declared))
+        Some((
+            import.module().to_owned(),
+            import.name().to_owned(),
+            declared,
+        ))
     })
 }
 

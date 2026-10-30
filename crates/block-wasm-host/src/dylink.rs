@@ -1,6 +1,6 @@
 use wasm_dylink::{
-    APPLY_DATA_RELOCS, Declared, ENV, GOT_THREAD_LOCAL, Import, PAGE_SIZE, STACK_POINTER, Sdk, TABLE,
-    TLS_BASE, TLS_SIZE,
+    APPLY_DATA_RELOCS, Declared, ENV, GOT_THREAD_LOCAL, Import, PAGE_SIZE, STACK_POINTER, Sdk,
+    TABLE, TLS_BASE, TLS_SIZE,
 };
 use wasmtime::{
     Error, Extern, Func, Global, GlobalType, Instance, Linker, Module, Mutability, Ref,

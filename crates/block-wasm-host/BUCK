@@ -29,9 +29,9 @@ cargo_example("instantiate")
 # bundle does, in a page that checks what it painted (web/standalone.js).
 genrule(
     name = "standalone.wasm",
-    srcs = ["src/tests/standalone.wat"],
-    out = "standalone.wasm",
     cmd = "$(exe //buck/tools:wasm-as) --enable-bulk-memory $SRCS -o $OUT",
+    out = "standalone.wasm",
+    srcs = ["src/tests/standalone.wat"],
 )
 
 app(
