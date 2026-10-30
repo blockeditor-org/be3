@@ -10,7 +10,6 @@ use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 
 const GAP: u16 = 4;
 const MARGIN: u16 = 8;
-const INSET: Space = Space::Sm;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverWindow(pub(crate) Memo<Option<beui::WindowId>>);
@@ -170,11 +169,11 @@ fn AnchoredPopover(
         false => ColorRole::None,
     });
     let border = create_memo(move || drawn.get().then_some(Border::DEFAULT));
-    let padding = create_memo(move || match carded.get() {
-        true => Padding::all(INSET),
-        false => Padding::ZERO,
-    });
     let pointer = NodeRef::new();
+    let trigger = match anchor {
+        PickAnchor::Node(node) => Some(node),
+        PickAnchor::Centre | PickAnchor::Rect(_) => None,
+    };
     on_key(KeyAt::Host, KeyPhase::Capture, move |event| {
         let escaped = event
             .press()
@@ -190,6 +189,7 @@ fn AnchoredPopover(
             placement
             policy=LayerPolicy::Pass
             pointer={pointer}
+            trigger={trigger}
             beak
             open=true
             on_dismiss={move |why: Dismiss| {
@@ -198,7 +198,7 @@ fn AnchoredPopover(
                 }
             }}
         >
-            <Frame @node_ref=&pointer fill border radius=Radius::Lg padding>
+            <Frame @node_ref=&pointer fill border radius=Radius::Lg>
                 <Frame width height>{child}</Frame>
             </Frame>
         </Overlay>

@@ -268,6 +268,9 @@ impl Document {
                 floating,
                 scrims,
                 dismiss_on_outside_press: layer.dismissable && layer.policy != LayerPolicy::Inert,
+                trigger: self
+                    .overlay_trigger_rect(overlay)
+                    .map(|rect| to_host.rect(rect)),
                 keyboard: layer.traps,
                 blocks_owner: matches!(
                     layer.policy,

@@ -25,6 +25,7 @@ pub struct ButtonHandle {
 
 #[derive(Clone, Copy)]
 struct State {
+    hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
 }
@@ -128,6 +129,7 @@ pub fn Button(
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
     api.fill(ButtonApi(State {
+        hovered: hovered.read_only(),
         active: active.read_only(),
         focused: focused.read_only(),
     }));
@@ -195,6 +197,10 @@ pub fn Button(
 pub struct ButtonApi(State);
 
 impl ButtonApi {
+    pub fn hovered(&self) -> ReadSignal<bool> {
+        self.0.hovered
+    }
+
     pub fn active(&self) -> ReadSignal<bool> {
         self.0.active
     }

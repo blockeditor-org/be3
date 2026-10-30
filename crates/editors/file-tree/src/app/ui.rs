@@ -12,7 +12,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
-    AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
+    AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, phone_layout,
 };
 use block_editor_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
@@ -190,7 +190,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             editor,
             id,
             [id].into_iter().collect::<HashSet<Uuid>>(),
-            node_anchor(&new_button),
+            new_button,
         );
     };
     let content = NodeRef::new();
@@ -966,7 +966,7 @@ impl Picker {
         editor: Editor,
         parent: Uuid,
         excluded: HashSet<Uuid>,
-        anchor: Option<Rect>,
+        anchor: impl Into<block_editor_beui::PickAnchor>,
     ) {
         self.error.set(None);
         let picked = std::rc::Rc::clone(&self.inner.value().picked);

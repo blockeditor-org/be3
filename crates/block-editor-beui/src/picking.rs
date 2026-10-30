@@ -37,6 +37,12 @@ impl From<NodeRef> for PickAnchor {
     }
 }
 
+impl PickAnchor {
+    pub(crate) fn reopens(self, open: Self) -> bool {
+        matches!(self, Self::Node(_)) && self == open
+    }
+}
+
 impl From<&NodeRef> for PickAnchor {
     fn from(node: &NodeRef) -> Self {
         Self::Node(*node)
@@ -84,6 +90,10 @@ impl Picking {
 
     pub(crate) fn serial(&self) -> u64 {
         self.0.serial
+    }
+
+    pub(crate) fn anchor(&self) -> PickAnchor {
+        self.0.anchor
     }
 
     pub(crate) fn answer(&self, answer: BlockPick) {

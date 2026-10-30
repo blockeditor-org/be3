@@ -655,7 +655,8 @@ ignores input for one it has closed since. A press outside a chain of anchored v
 `dismiss-on-outside-press` (a view and those hanging from it) closes the
 chain: the instance hears the views in `input-batch.dismissed` of the screen
 the chain hangs from, before that batch's events, and the press still reaches
-whatever it landed on. A press on a menu closes only the submenus hanging
+whatever it landed on, except a press on the view's `trigger`, the control
+that opened it, which closes nothing: that control's click closes the view. A press on a menu closes only the submenus hanging
 from it. A view marked `keyboard` gives the instance the keyboard while it is
 open, or, when the view holds a child, gives it to the first child placed in
 it instead, and the instance does not take it while such a view is open; and one marked `blocks-owner` keeps presses on the view the chain hangs

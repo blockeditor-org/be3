@@ -505,15 +505,19 @@ interface types {
     /// With `dismiss-on-outside-press`, a press outside the view's chain (it
     /// and the views hanging from it) closes the chain: the instance hears
     /// `input-batch.dismissed`, and the press still reaches what it landed
-    /// on. `keyboard` gives the instance the keyboard while the view is
-    /// open, or the first child the view places when it places one;
-    /// `blocks-owner` keeps presses on the view the chain hangs from from
-    /// reaching its content.
+    /// on. `trigger` is the control that opens and closes the view, in host
+    /// coordinates like `rect`: a press on it closes nothing, so the
+    /// control's own click closes the view rather than the press closing it
+    /// and the click opening it again. `keyboard` gives the instance the
+    /// keyboard while the view is open, or the first child the view places
+    /// when it places one; `blocks-owner` keeps presses on the view the
+    /// chain hangs from from reaching its content.
     record anchored-placement {
         parent: view-id,
         anchor: view-anchor,
         rect: rect,
         dismiss-on-outside-press: bool,
+        trigger: option<rect>,
         keyboard: bool,
         blocks-owner: bool,
     }

@@ -189,7 +189,11 @@ impl MapState {
         self.selected.set(Some(point_id));
     }
 
-    pub(crate) fn open_picker(self, at: Option<MapCoordinate>, anchor: Option<Rect>) {
+    pub(crate) fn open_picker(
+        self,
+        at: Option<MapCoordinate>,
+        anchor: impl Into<block_editor_beui::PickAnchor>,
+    ) {
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {
                 if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {

@@ -77,6 +77,7 @@ pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<Anchored>
                     },
                     rect: layer.rect,
                     dismiss_on_outside_press: layer.dismiss_on_outside_press,
+                    trigger: layer.trigger,
                     keyboard: layer.keyboard,
                     blocks_owner: layer.blocks_owner,
                 },

@@ -2032,7 +2032,7 @@ impl CanvasState {
         });
     }
 
-    pub(crate) fn open_component_picker(self, anchor: Option<Rect>) {
+    pub(crate) fn open_component_picker(self, anchor: impl Into<block_editor_beui::PickAnchor>) {
         let selected = self
             .selected_entities()
             .iter()

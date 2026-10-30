@@ -27,6 +27,14 @@ fn the_app_menu_opens_under_its_button() {
 
     app.click(button);
     app.wait("#app.menu.status");
+    app.click(button);
+    assert!(
+        !app.shown("#app.menu.status"),
+        "a second click on the button closes its menu rather than closing it and opening it again"
+    );
+
+    app.click(button);
+    app.wait("#app.menu.status");
     app.click("Tab \"Settings\"");
     app.gone("#app.menu.status");
     assert!(

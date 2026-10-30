@@ -153,27 +153,45 @@ fn taken(shown: &[Shown], holes: &[(u64, ViewId, Rect)]) -> beui::HitRegion {
 
 type Target = (u64, ViewId);
 
+#[derive(Default)]
+struct Pointing {
+    held: Cell<Option<Target>>,
+    over: Cell<Option<Target>>,
+}
+
 fn route(
     input: &ForwardedInput,
     shown: &[Shown],
-    held: &Cell<Option<Target>>,
+    pointing: &Pointing,
 ) -> Vec<(Target, Vec<Forwarded>, bool)> {
+    let Pointing { held, over } = pointing;
     let mut runs: Vec<(Target, Vec<Forwarded>, bool)> = Vec::new();
     for event in input.events.iter().cloned() {
         let (target, pressed) = match &event {
-            Forwarded::Pointer { event: pointer, .. } => match pointer.phase {
-                PointerPhase::Down(_) => {
-                    let target = topmost(shown, pointer.pos);
-                    held.set(target);
-                    (target, true)
+            Forwarded::Pointer { event: pointer, .. } => {
+                let (target, pressed) = match pointer.phase {
+                    PointerPhase::Down(_) => {
+                        let target = topmost(shown, pointer.pos);
+                        held.set(target);
+                        (target, true)
+                    }
+                    PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
+                        (held.take().or_else(|| topmost(shown, pointer.pos)), false)
+                    }
+                    _ => (held.get().or_else(|| topmost(shown, pointer.pos)), false),
+                };
+                let left = over.replace(match pointer.phase {
+                    PointerPhase::Gone => None,
+                    _ => target,
+                });
+                if let Some(left) = left.filter(|left| Some(*left) != target) {
+                    push(&mut runs, left, Forwarded::Left, false);
                 }
-                PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
-                    (held.take().or_else(|| topmost(shown, pointer.pos)), false)
-                }
-                _ => (held.get().or_else(|| topmost(shown, pointer.pos)), false),
-            },
+                (target, pressed)
+            }
             Forwarded::Left => (
                 held.get()
+                    .or(over.take())
                     .or_else(|| input.pointer.and_then(|pos| topmost(shown, pos))),
                 false,
             ),
@@ -182,19 +200,28 @@ fn route(
         let Some(target) = target else {
             continue;
         };
-        match runs.last_mut() {
-            Some((last, events, presses)) if *last == target => {
-                events.push(event);
-                *presses |= pressed;
-            }
-            _ => runs.push((target, vec![event], pressed)),
-        }
+        push(&mut runs, target, event, pressed);
     }
     runs
 }
 
-fn forward(input: ForwardedInput, shown: &[Shown], held: &Cell<Option<Target>>) {
-    for ((mount, layer), events, pressed) in route(&input, shown, held) {
+fn push(
+    runs: &mut Vec<(Target, Vec<Forwarded>, bool)>,
+    target: Target,
+    event: Forwarded,
+    pressed: bool,
+) {
+    match runs.last_mut() {
+        Some((last, events, presses)) if *last == target => {
+            events.push(event);
+            *presses |= pressed;
+        }
+        _ => runs.push((target, vec![event], pressed)),
+    }
+}
+
+fn forward(input: ForwardedInput, shown: &[Shown], pointing: &Pointing) {
+    for ((mount, layer), events, pressed) in route(&input, shown, pointing) {
         let Some(owner) = owner(mount) else {
             continue;
         };
@@ -262,9 +289,9 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
                 .collect::<Vec<_>>()
         })
     });
-    let pressing: Rc<Cell<Option<Target>>> = Rc::new(Cell::new(None));
+    let pointing: Rc<Pointing> = Rc::new(Pointing::default());
     let on_forward = move |input: ForwardedInput| {
-        shown.with_untracked(|shown| forward(input, shown, &pressing));
+        shown.with_untracked(|shown| forward(input, shown, &pointing));
     };
     let hit_area = create_memo(move || {
         let holes: Vec<(u64, ViewId, Rect)> = owners

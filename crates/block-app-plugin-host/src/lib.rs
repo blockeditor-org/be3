@@ -148,6 +148,7 @@ pub struct HostAnchored {
     pub surface: u32,
     pub pixels_per_point: f32,
     pub dismiss_on_outside_press: bool,
+    pub trigger: Option<Rect>,
     pub keyboard: bool,
     pub blocks_owner: bool,
     pub edge: bool,
@@ -184,7 +185,7 @@ pub fn dismissed_by_press(
         let inside = layers
             .iter()
             .filter(|held| chain.contains(&held.id))
-            .any(|held| held.takes(pos));
+            .any(|held| held.takes(pos) || held.trigger.is_some_and(|rect| rect.contains(pos)));
         if !inside {
             for id in chain {
                 if !dismissed.contains(&id) {

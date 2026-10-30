@@ -699,6 +699,7 @@ fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> 
                 surface: anchored.surface,
                 pixels_per_point,
                 dismiss_on_outside_press: placement.dismiss_on_outside_press,
+                trigger: placement.trigger.map(|rect| rect.translate(shift)),
                 keyboard: placement.keyboard,
                 blocks_owner: placement.blocks_owner,
                 edge: matches!(placement.anchor, ViewAnchor::Edge(_)),

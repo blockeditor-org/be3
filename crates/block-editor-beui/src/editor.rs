@@ -946,6 +946,15 @@ impl Editor {
         picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
         let state = self.state();
+        let anchor = anchor.into();
+        if let Some(open) = state
+            .picking
+            .get_untracked()
+            .filter(|open| anchor.reopens(open.anchor()))
+        {
+            self.finish_pick(open.serial(), Ok(None));
+            return;
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let mut filter = filter;
@@ -963,7 +972,7 @@ impl Editor {
             serial,
             filter,
             parent,
-            anchor.into(),
+            anchor,
             touch,
             Box::new(picked),
         )));
@@ -979,6 +988,14 @@ impl Editor {
 
     fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {
         let state = self.state();
+        if let Some(open) = state
+            .popped
+            .get_untracked()
+            .filter(|open| open.asked == asked && anchor.reopens(open.anchor))
+        {
+            self.close_popped(open.serial);
+            return;
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);

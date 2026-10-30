@@ -151,6 +151,7 @@ pub struct EscapedLayer {
     pub floating: Vec<Rect>,
     pub scrims: Vec<(Rect, Color32)>,
     pub dismiss_on_outside_press: bool,
+    pub trigger: Option<Rect>,
     pub keyboard: bool,
     pub blocks_owner: bool,
 }

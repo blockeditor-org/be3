@@ -66,6 +66,7 @@ fn anchored(parent: u64, anchor: ViewAnchor, rect: Rect) -> AnchoredPlacement {
         anchor,
         rect,
         dismiss_on_outside_press: true,
+        trigger: None,
         keyboard: true,
         blocks_owner: false,
     }

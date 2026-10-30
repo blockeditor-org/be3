@@ -5,7 +5,7 @@ fn a_press_on_an_anchored_view_keeps_its_drag_until_it_is_let_go() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
     let right = Rect::from_min_size(pos2(200.0, 0.0), vec2(100.0, 100.0));
     let layers = vec![shown(1, 1, 1, left), shown(1, 2, 2, right)];
-    let held = Cell::new(None);
+    let held = Pointing::default();
 
     let runs = route(
         &input(vec![
@@ -31,8 +31,10 @@ fn a_press_on_an_anchored_view_keeps_its_drag_until_it_is_let_go() {
     );
     assert_eq!(
         targets(&runs),
-        vec![(1, ViewId(2))],
-        "once let go, the pointer reaches the layer it is over"
+        vec![(1, ViewId(1)), (1, ViewId(2))],
+        "once let go, the layer it began on hears the pointer leave, \
+         and the pointer reaches the layer it is over"
     );
-    assert!(!runs[0].2);
+    assert!(matches!(runs[0].1.as_slice(), [Forwarded::Left]));
+    assert!(!runs[1].2);
 }
