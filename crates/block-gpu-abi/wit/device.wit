@@ -353,6 +353,7 @@ interface device {
     record vertex-state {
         module: borrow<shader-module>,
         entry-point: option<string>,
+        constants: list<tuple<string, f64>>,
         buffers: list<vertex-buffer-layout>,
     }
 
@@ -376,6 +377,7 @@ interface device {
     record fragment-state {
         module: borrow<shader-module>,
         entry-point: option<string>,
+        constants: list<tuple<string, f64>>,
         targets: list<option<color-target-state>>,
     }
 
@@ -567,6 +569,7 @@ interface device {
         layout: option<borrow<pipeline-layout>>,
         module: borrow<shader-module>,
         entry-point: option<string>,
+        constants: list<tuple<string, f64>>,
     }
 
     record compute-pass-descriptor {

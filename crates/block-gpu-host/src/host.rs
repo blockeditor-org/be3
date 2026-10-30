@@ -134,6 +134,12 @@ impl Gpu {
                     .collect()
             })
             .unwrap_or_default();
+        let vertex_constants = convert::constants(&descriptor.vertex.constants);
+        let fragment_constants = descriptor
+            .fragment
+            .as_ref()
+            .map(|fragment| convert::constants(&fragment.constants))
+            .unwrap_or_default();
         let primitive = descriptor.primitive;
         Ok(self
             .device
@@ -143,7 +149,10 @@ impl Gpu {
                 vertex: wgpu::VertexState {
                     module: &vertex_module,
                     entry_point: descriptor.vertex.entry_point.as_deref(),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                        constants: &vertex_constants,
+                        ..Default::default()
+                    },
                     buffers: &buffers,
                 },
                 primitive: wgpu::PrimitiveState {
@@ -184,7 +193,10 @@ impl Gpu {
                         .fragment
                         .as_ref()
                         .and_then(|fragment| fragment.entry_point.as_deref()),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                        constants: &fragment_constants,
+                        ..Default::default()
+                    },
                     targets: &targets,
                 }),
                 multiview_mask: None,

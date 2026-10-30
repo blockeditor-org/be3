@@ -15,6 +15,7 @@ fn a_compute_pass_is_recorded_on_its_encoder() {
             layout: None,
             module,
             entry_point: None,
+            constants: Vec::new(),
         })
         .unwrap();
     let encoder = gpu

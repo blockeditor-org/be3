@@ -74,6 +74,7 @@ fn guest() -> String {
         vertex: abi::VertexState {
             module: abi::ShaderModule(1),
             entry_point: Some("vs_main".into()),
+            constants: Vec::new(),
             buffers: Vec::new(),
         },
         primitive: abi::PrimitiveState {
@@ -94,6 +95,7 @@ fn guest() -> String {
         fragment: Some(abi::FragmentState {
             module: abi::ShaderModule(1),
             entry_point: Some("fs_main".into()),
+            constants: Vec::new(),
             targets: vec![Some(abi::ColorTargetState {
                 format: abi::TextureFormat::Rgba8Unorm,
                 blend: None,

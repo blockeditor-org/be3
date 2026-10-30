@@ -26,7 +26,10 @@ impl Gpu {
                 layout: layout.as_ref(),
                 module: &module,
                 entry_point: descriptor.entry_point.as_deref(),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &convert::constants(&descriptor.constants),
+                    ..Default::default()
+                },
                 cache: None,
             }))
     }

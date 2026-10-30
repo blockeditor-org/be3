@@ -153,6 +153,13 @@ plain_map!(storage_access, abi::StorageTextureAccess, wgpu::StorageTextureAccess
 
 plain_map!(store_op, abi::StoreOp, wgpu::StoreOp, { Store, Discard });
 
+pub(crate) fn constants(values: &[(String, f64)]) -> Vec<(&str, f64)> {
+    values
+        .iter()
+        .map(|(key, value)| (key.as_str(), *value))
+        .collect()
+}
+
 pub(crate) fn label(value: &Option<String>) -> Option<&str> {
     value.as_deref()
 }

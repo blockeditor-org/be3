@@ -13,6 +13,7 @@ pub(super) fn pipeline(desc: &wgpu::ComputePipelineDescriptor<'_>) -> DispatchCo
         layout: desc.layout.map(convert::layout_handle),
         module: convert::module_handle(desc.module),
         entry_point: desc.entry_point.map(str::to_owned),
+        constants: convert::constants(&desc.compilation_options),
     };
     DispatchComputePipeline::custom(ComputePipeline::created(gpu::create_compute_pipeline(
         &descriptor,

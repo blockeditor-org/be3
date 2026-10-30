@@ -357,6 +357,7 @@ impl DeviceInterface for Device {
             vertex: abi::VertexState {
                 module: convert::module_handle(desc.vertex.module),
                 entry_point: desc.vertex.entry_point.map(str::to_owned),
+                constants: convert::constants(&desc.vertex.compilation_options),
                 buffers: desc
                     .vertex
                     .buffers
@@ -412,6 +413,7 @@ impl DeviceInterface for Device {
             fragment: desc.fragment.as_ref().map(|fragment| abi::FragmentState {
                 module: convert::module_handle(fragment.module),
                 entry_point: fragment.entry_point.map(str::to_owned),
+                constants: convert::constants(&fragment.compilation_options),
                 targets: fragment
                     .targets
                     .iter()

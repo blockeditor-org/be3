@@ -192,6 +192,14 @@ pub(crate) fn mipmap_filter_mode(value: wgpu::MipmapFilterMode) -> abi::FilterMo
     }
 }
 
+pub(crate) fn constants(options: &wgpu::PipelineCompilationOptions<'_>) -> Vec<(String, f64)> {
+    options
+        .constants
+        .iter()
+        .map(|&(key, value)| (key.to_owned(), value))
+        .collect()
+}
+
 pub(crate) fn label(value: Option<&str>) -> Option<String> {
     value.map(str::to_owned)
 }
