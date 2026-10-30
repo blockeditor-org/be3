@@ -160,13 +160,8 @@ impl Gpu {
         self
     }
 
-    /// For a device the plugin is the only user of, as in a browser worker:
-    /// the `Gpu` takes the device's lost callback and tells the plugin when it
-    /// is lost. A device the host shares keeps its own callback, and the host
-    /// restarts its plugins on a new device when it is lost.
     pub fn owning_device(self) -> Self {
-        self.device
-            .set_device_lost_callback(self.settling.losing());
+        self.device.set_device_lost_callback(self.settling.losing());
         self
     }
 

@@ -19,7 +19,9 @@ fn a_shader_module_says_where_its_wgsl_went_wrong() {
     let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let broken = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
-        source: wgpu::ShaderSource::Wgsl("@compute @workgroup_size(1)\nfn main() { let x = ; }\n".into()),
+        source: wgpu::ShaderSource::Wgsl(
+            "@compute @workgroup_size(1)\nfn main() { let x = ; }\n".into(),
+        ),
     });
     refusal(scope);
     let messages = compiled(&broken).messages;

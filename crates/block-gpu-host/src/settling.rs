@@ -118,7 +118,9 @@ impl Settling {
     pub(crate) fn is_work_done(&mut self, ticket: u64) -> Result<bool, String> {
         let mut held = self.shared.held();
         match held.work.get(&ticket) {
-            None => Err(format!("no submitted work is awaited under ticket {ticket}")),
+            None => Err(format!(
+                "no submitted work is awaited under ticket {ticket}"
+            )),
             Some(false) => Ok(false),
             Some(true) => {
                 held.work.remove(&ticket);

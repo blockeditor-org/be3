@@ -380,11 +380,14 @@ pub(crate) fn compilation_message(value: &abi::CompilationMessage) -> wgpu::Comp
             abi::CompilationMessageType::Warning => wgpu::CompilationMessageType::Warning,
             abi::CompilationMessageType::Info => wgpu::CompilationMessageType::Info,
         },
-        location: value.location.as_ref().map(|location| wgpu::SourceLocation {
-            line_number: location.line_number,
-            line_position: location.line_position,
-            offset: location.offset,
-            length: location.length,
-        }),
+        location: value
+            .location
+            .as_ref()
+            .map(|location| wgpu::SourceLocation {
+                line_number: location.line_number,
+                line_position: location.line_position,
+                offset: location.offset,
+                length: location.length,
+            }),
     }
 }
