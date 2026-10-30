@@ -964,10 +964,13 @@ interface types {
     }
 
     /// Where a bar of the layout sits now; `owner` as in `dock-bar`.
+    /// A `hidden` bar takes no room and is not drawn until it is shown
+    /// again.
     record dock-placed-bar {
         bar: dock-tab-path,
         owner: option<dock-tab-path>,
         placement: dock-bar-placement,
+        hidden: bool,
     }
 
     /// A pane of the root's outside the declaration's group, by its key, and
@@ -1056,16 +1059,23 @@ interface types {
         stage: dock-drag-stage,
     }
 
+    /// Hides bar `bar` (`hidden`) or shows it again.
+    record dock-bar-hide {
+        bar: dock-tab-path,
+        hidden: bool,
+    }
+
     /// What a hosted dock asks of its holder: to show a tab, to replace the
     /// group with a layout (restoring one saved, or a fresh one to reset),
-    /// to show a tab full screen (`none` leaves full screen), or to place or
-    /// move one of its bars.
+    /// to show a tab full screen (`none` leaves full screen), or to place,
+    /// move, hide or show one of its bars.
     variant dock-request {
         show(dock-tab-path),
         restore(dock-layout),
         fullscreen(option<dock-fullscreen>),
         place-bar(dock-bar-place),
         move-bar(dock-bar-move),
+        hide-bar(dock-bar-hide),
     }
 
     record dock-declare {

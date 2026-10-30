@@ -519,15 +519,16 @@ lent, `DockDeclaration::splice`), the root gives a child's to the tab hosting it
 and each level hears its own back with no owner again (`DockHosted::own`,
 `own_dock_bars`); a root's own dock bars never cross, it draws them itself. The root gives its body the `size` the owner
 declares, measured as the owner last laid it out along the bar's edge, and
-the layout says where each bar is (`dock-layout.bars`). Its owner draws the
-grip too: placing it is a `place-bar` request, and dragging it a run of
+the layout says where each bar is and whether it is hidden (`dock-layout.bars`;
+a hidden bar takes no room and is not drawn). Its owner draws the
+grip too: placing it is a `place-bar` request, hiding or showing it a `hide-bar`, and dragging it a run of
 `move-bar` requests with the pointer in the bar body's own points (`move`,
 then `drop` or `cancel`; while the pointer is over another view of the owner,
 the owner maps the position it hears there back into the bar's view through
 the views' anchor spaces), which the root carries as a drag of its own, showing
 where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
 declaring editor and passed on unchanged by the host) says which bars are one
-bar of different tabs: the root places every bar of a kind the same way and
+bar of different tabs: the root places and hides every bar of a kind the same way and
 shows the popped-out ones in one window. A `bare` pane shows its one tab with no tab bar. A
 layout also names where each tab moved out of the declaration's group went
 (`dock-layout.outside`: a pane of the root's by key and index, or a window of

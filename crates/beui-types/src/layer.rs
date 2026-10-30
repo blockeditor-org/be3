@@ -22,8 +22,18 @@ pub enum AboveEmbeds {
 pub enum LayerLevel {
     #[default]
     Normal,
+    Raised,
     Top,
     Lock,
+}
+
+impl LayerLevel {
+    pub fn stacked(self, policy: LayerPolicy) -> LayerLevel {
+        match (self, policy) {
+            (LayerLevel::Normal, LayerPolicy::BlocksAll) => LayerLevel::Raised,
+            (level, _) => level,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

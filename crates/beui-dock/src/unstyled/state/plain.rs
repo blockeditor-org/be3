@@ -22,6 +22,7 @@ pub struct DockPlainBar {
     pub bar: TabId,
     pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
+    pub hidden: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +113,7 @@ impl DockState {
                 bar: bar.bar,
                 owner: bar.owner,
                 placement: bar.placement,
+                hidden: bar.hidden,
             })
             .collect();
         plain.outside = self.outside.clone();
@@ -221,6 +223,7 @@ impl DockState {
                 bar: bar.bar,
                 owner: bar.owner,
                 placement: bar.placement,
+                hidden: bar.hidden,
             })
             .collect();
         state.outside = plain.outside.clone();

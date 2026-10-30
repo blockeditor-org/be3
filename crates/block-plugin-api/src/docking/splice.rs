@@ -162,6 +162,7 @@ impl Mapping<'_> {
                             None => None,
                         },
                         placement: bar.placement.clone(),
+                        hidden: bar.hidden,
                     })
                 })
                 .collect(),
@@ -392,6 +393,10 @@ impl DockRequest {
                 bar: moved.bar.clone().through(child),
                 ..moved.clone()
             }),
+            Self::HideBar(hide) => Self::HideBar(crate::DockBarHide {
+                bar: hide.bar.clone().through(child),
+                hidden: hide.hidden,
+            }),
         })
     }
 }
@@ -449,6 +454,7 @@ impl DockHosted {
                         None => None,
                     },
                     placement: bar.placement.clone(),
+                    hidden: bar.hidden,
                 })
             })
             .collect();
@@ -490,6 +496,7 @@ impl DockHosted {
                     owner: owner(&tab)?,
                     bar: tab,
                     placement: bar.placement.clone(),
+                    hidden: bar.hidden,
                 })
             })
             .collect();

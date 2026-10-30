@@ -3327,10 +3327,32 @@ fn fitted(size: Vec2, bounds: Vec2) -> Vec2 {
     }
 }
 
-fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
-    let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
-    let x = rect.min.x.clamp(0.0, (bounds.x - keep).max(0.0));
-    let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Walls {
+    right: bool,
+    bottom: bool,
+}
+
+impl Walls {
+    fn of(edges: &[DockEdge]) -> Self {
+        Self {
+            right: edges.contains(&DockEdge::Right),
+            bottom: edges.contains(&DockEdge::Bottom),
+        }
+    }
+}
+
+fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32, walls: Walls) -> Pos2 {
+    let keep_x = match walls.right {
+        true => rect.width(),
+        false => rect.width().min(WINDOW_KEEP_VISIBLE),
+    };
+    let keep_y = match walls.bottom {
+        true => rect.height().max(bar),
+        false => bar,
+    };
+    let x = rect.min.x.clamp(0.0, (bounds.x - keep_x).max(0.0));
+    let y = rect.min.y.clamp(0.0, (bounds.y - keep_y).max(0.0));
     pos2(x, y)
 }
 
@@ -3435,13 +3457,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let overshoot = create_signal(Vec2::ZERO);
     let grip_ref = NodeRef::new();
     let reach = move || grip_reach(&frame, &grip_ref);
+    let walls = create_memo(move || state.with(|state| Walls::of(&state.dock_band_edges())));
     let placed = create_memo(move || {
         if hosted.get() {
             return rect.get();
         }
         let bounds = area.get().size();
         let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
-        let origin = reachable_origin(rect, bounds, reach());
+        let origin = reachable_origin(rect, bounds, reach(), walls.get());
         Rect::from_min_size(origin, rect.size())
     });
     let outset = vec2(HANDLE_REACH, HANDLE_REACH);
@@ -3457,8 +3480,9 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             let window = placed.get_untracked();
             let bounds = area.get_untracked().size();
             let reach = reach();
+            let walls = walls.get_untracked();
             let limit = |origin: Pos2| {
-                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
+                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach, walls)
             };
             let banding = motion().animates();
             let mut origin = window.min;
@@ -3662,7 +3686,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         let placed =
                                                             Rect::from_min_size(start.min + (press.pos - from), start.size());
                                                         let bounds = dock.rect.get_untracked().size();
-                                                        let origin = reachable_origin(placed, bounds, reach());
+                                                        let origin = reachable_origin(placed, bounds, reach(), walls.get_untracked());
                                                         let banding = motion().animates();
                                                         let band = band.value();
                                                         let mut band = band.borrow_mut();

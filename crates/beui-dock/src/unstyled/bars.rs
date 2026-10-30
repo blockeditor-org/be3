@@ -13,7 +13,8 @@ use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::window::{WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{
-    Align, Align2, Color, Direction, ItemSize, LayerPolicy, Placement, PointerPress,
+    Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement,
+    PointerPress,
 };
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
@@ -91,6 +92,7 @@ impl DockBarControl {
         let place = Callback::new(move |placement: Option<DockBarPlacement>| {
             request.call(DockRequest::PlaceBar(bar, placement));
         });
+        let hide = Callback::new(move |()| request.call(DockRequest::HideBar(bar, true)));
         Self {
             bar,
             backing: BarBacking::Hosted {
@@ -98,7 +100,7 @@ impl DockBarControl {
                 request,
                 last: create_signal(None),
             },
-            menu: bar_menu(placement, place),
+            menu: bar_menu(placement, place, hide),
         }
     }
 
@@ -123,6 +125,35 @@ impl DockBarControl {
 
     pub fn edge(&self) -> DockEdge {
         self.placement().edge()
+    }
+
+    pub fn is_hidden(&self) -> bool {
+        let bar = self.bar;
+        match self.backing {
+            BarBacking::Local(dock) => dock.state.with(|state| state.is_bar_hidden(bar)),
+            BarBacking::Hosted { hosted, .. } => hosted.with(|hosted| {
+                hosted
+                    .as_ref()
+                    .is_some_and(|hosted| hosted.state.is_bar_hidden(bar))
+            }),
+        }
+    }
+
+    pub fn hide(&self) {
+        self.set_hidden(true);
+    }
+
+    pub fn show(&self) {
+        self.set_hidden(false);
+    }
+
+    fn set_hidden(&self, hidden: bool) {
+        match self.backing {
+            BarBacking::Local(dock) => dock.hide_bar(self.bar, hidden),
+            BarBacking::Hosted { request, .. } => {
+                request.call(DockRequest::HideBar(self.bar, hidden));
+            }
+        }
     }
 
     pub fn direction(&self) -> Direction {
@@ -247,10 +278,11 @@ impl State {
                 Some(placement) => dock.place_bar(bar, placement),
                 None => dock.pop_out_bar(bar),
             });
+            let hide = Callback::new(move |()| dock.hide_bar(bar, true));
             provide_context(DockBarControl {
                 bar,
                 backing: BarBacking::Local(dock),
-                menu: bar_menu(placement, place),
+                menu: bar_menu(placement, place, hide),
             });
             self.content.call(bar)
         });
@@ -271,6 +303,21 @@ impl State {
         let dock = *self;
         self.edit(|state| {
             state.set_bar_placement(bar, placement);
+            dock.share_placement(state, bar);
+        });
+    }
+
+    pub(super) fn bar_level(&self) -> LayerLevel {
+        match self.fullscreen_in_front() {
+            true => LayerLevel::Normal,
+            false => LayerLevel::Raised,
+        }
+    }
+
+    fn hide_bar(&self, bar: TabId, hidden: bool) {
+        let dock = *self;
+        self.edit(|state| {
+            state.set_bar_hidden(bar, hidden);
             dock.share_placement(state, bar);
         });
     }
@@ -304,6 +351,7 @@ impl State {
             DockRequest::PlaceBar(bar, Some(placement)) => self.place_bar(bar, placement),
             DockRequest::PlaceBar(bar, None) => self.pop_out_bar(bar),
             DockRequest::MoveBar(bar, moved) => self.carry_bar(bar, moved),
+            DockRequest::HideBar(bar, hidden) => self.hide_bar(bar, hidden),
             DockRequest::Show(_) | DockRequest::Restore(_) | DockRequest::Fullscreen(_) => {}
         }
     }
@@ -608,6 +656,7 @@ impl State {
             };
             let mut bars: Vec<TabId> = state.with(|state| {
                 held.into_iter()
+                    .filter(|bar| !state.is_bar_hidden(*bar))
                     .filter(|bar| state.bar_placement(*bar).is_some_and(&wanted))
                     .collect()
             });
@@ -622,6 +671,7 @@ impl State {
 fn bar_menu(
     placement: Memo<Option<DockBarPlacement>>,
     place: Callback<Option<DockBarPlacement>>,
+    hide: Callback<()>,
 ) -> Memo<Vec<MenuNode>> {
     let item = move |target: DockBarPlacement, label: String| {
         let id = format!("dock.bar.{}", target.name());
@@ -685,6 +735,9 @@ fn bar_menu(
         },
         "Pop out into a window".to_owned(),
     ));
+    nodes.push(MenuNode::Separator);
+    let hidden = Action::new("dock.bar.hide", "Hide", move || hide.call(())).detached();
+    nodes.push(MenuNode::action(&hidden));
     create_memo(move || nodes.clone())
 }
 
@@ -1177,6 +1230,11 @@ fn DockBarFloat(
     align: DockAlign,
     ends: Signal<[f32; 2]>,
 ) -> NodeId {
+    if let BarHolder::Dock = holder {
+        return view! {
+            <DockBarOverlay dock edge align ends />
+        };
+    }
     let mode = dock.mode;
     let stacked = move || match holder {
         BarHolder::Tab { stacked, .. } => stacked,
@@ -1246,6 +1304,109 @@ fn DockBarFloat(
     });
     on_cleanup(forget);
     built
+}
+
+#[component]
+fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f32; 2]>) -> NodeId {
+    let mode = dock.mode;
+    let bars = dock.bars_at(BarHolder::Dock, edge, true, move |placement| match placement {
+        DockBarPlacement::Over(held, at) => held == edge && at == align,
+        DockBarPlacement::Window { edge: held, .. } => {
+            held == edge && align == DockAlign::Center && mode.get() == DockMode::Stacked
+        }
+        DockBarPlacement::Beside(..) => false,
+    });
+    let margin = dock.bar_margin;
+    let line = view! {
+        <List direction={across(edge)} spacing={margin}>
+            <ForEach keys={bars}>|bar: TabId| {
+                let dock = dock;
+                view! {
+                    <Portal
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        node={Some(dock.bar_panel(bar))}
+                    />
+                }
+            }</ForEach>
+        </List>
+    };
+    let covered = measure(line);
+    keep_clear(
+        line,
+        create_memo(move || {
+            covered
+                .get()
+                .map(|covered| vec![Rect::from_min_size(Pos2::ZERO, covered.rect.size())])
+                .unwrap_or_default()
+        }),
+    );
+    let area = dock.rect;
+    let along = move |size: Vec2| match edge.direction() {
+        Direction::Horizontal => size.x,
+        Direction::Vertical => size.y,
+    };
+    let size = create_memo(move || covered.get().map_or(Vec2::ZERO, |own| own.rect.size()));
+    if align != DockAlign::Center {
+        create_effect(move || {
+            let length = along(size.get());
+            let extent = match bars.with(Vec::is_empty) || length <= 0.0 {
+                true => 0.0,
+                false => length + margin,
+            };
+            let side = usize::from(align == DockAlign::End);
+            if ends.with_untracked(|ends| ends[side] != extent) {
+                ends.update(|ends| ends[side] = extent);
+            }
+        });
+    }
+    let at = create_memo(move || {
+        let rect = area.get();
+        let own = size.get();
+        let length = along(own);
+        let room = along(rect.size()) - margin * 2.0;
+        let [start, end] = ends.get();
+        let offset = margin
+            + match align {
+                DockAlign::Start => 0.0,
+                DockAlign::End => room - length,
+                DockAlign::Center => {
+                    let centred = (room - length) / 2.0;
+                    centred.min(room - end - length).max(start)
+                }
+            };
+        let pos = match edge {
+            DockEdge::Top => pos2(offset, margin),
+            DockEdge::Bottom => pos2(offset, rect.height() - margin - own.y),
+            DockEdge::Left => pos2(margin, offset),
+            DockEdge::Right => pos2(rect.width() - margin - own.x, offset),
+        };
+        rect.min + pos.to_vec2()
+    });
+    let anchor = create_memo(move || OverlayAnchor::Point(at.get()));
+    let open = create_memo(move || !bars.with(Vec::is_empty) && area.get().is_positive());
+    let level = create_memo(move || dock.bar_level());
+    let layer = NodeRef::new();
+    let view = view! {
+        <Overlay
+            @node_ref=&layer
+            anchor={anchor}
+            placement={Placement::Over(0)}
+            policy=LayerPolicy::Pass
+            level={level}
+            traps_focus=false
+            open={open}
+        >
+            <Frame align=Align2::START>
+                <Portal node={Some(line)} />
+            </Frame>
+        </Overlay>
+    };
+    create_effect(move || {
+        if open.get() {
+            untrack(|| dock.raise_window(layer));
+        }
+    });
+    view
 }
 
 #[component]
@@ -1348,6 +1509,7 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
             id={None}
             size={size}
             at={at}
+            level={create_memo(move || dock.bar_level())}
             placement={placement}
             on_report={move |report: WindowReport| match report {
                 WindowReport::Placed { placement, .. } => dock.bar_placements.update(|placements| {

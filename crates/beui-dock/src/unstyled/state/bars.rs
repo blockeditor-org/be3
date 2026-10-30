@@ -125,6 +125,8 @@ pub(super) struct Bar {
     pub(super) bar: TabId,
     pub(super) owner: Option<TabId>,
     pub(super) placement: DockBarPlacement,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(super) hidden: bool,
 }
 
 impl DockState {
@@ -158,6 +160,16 @@ impl DockState {
         }
     }
 
+    pub fn is_bar_hidden(&self, bar: TabId) -> bool {
+        self.bar(bar).is_some_and(|bar| bar.hidden)
+    }
+
+    pub fn set_bar_hidden(&mut self, bar: TabId, hidden: bool) {
+        if let Some(held) = self.bars.iter_mut().find(|held| held.bar == bar) {
+            held.hidden = hidden;
+        }
+    }
+
     pub fn add_bar(&mut self, bar: TabId, owner: Option<TabId>, placement: DockBarPlacement) {
         match self.bars.iter_mut().find(|held| held.bar == bar) {
             Some(held) => held.owner = owner,
@@ -165,6 +177,7 @@ impl DockState {
                 bar,
                 owner,
                 placement,
+                hidden: false,
             }),
         }
     }
@@ -174,11 +187,28 @@ impl DockState {
     }
 
     pub fn is_bar_shown(&self, bar: TabId, stacked: bool) -> bool {
+        if self.is_bar_hidden(bar) {
+            return false;
+        }
         if self.is_dock_bar(bar) {
             return true;
         }
         self.bar_tab(bar)
             .is_some_and(|tab| self.is_shown(tab, stacked))
+    }
+
+    pub fn dock_band_edges(&self) -> Vec<DockEdge> {
+        DockEdge::ALL
+            .into_iter()
+            .filter(|edge| {
+                self.bars.iter().any(|held| {
+                    held.owner.is_none()
+                        && !held.hidden
+                        && held.placement.is_beside()
+                        && held.placement.edge() == *edge
+                })
+            })
+            .collect()
     }
 
     pub fn bar_tab(&self, bar: TabId) -> Option<TabId> {
@@ -271,13 +301,14 @@ impl DockState {
     }
 
     pub fn share_bar_placement(&mut self, bar: TabId, key: &dyn Fn(TabId) -> String) {
-        let Some(placement) = self.bar_placement(bar) else {
+        let Some((placement, hidden)) = self.bar(bar).map(|bar| (bar.placement, bar.hidden)) else {
             return;
         };
         let shared = key(bar);
         for held in self.bars.iter_mut() {
             if held.bar != bar && key(held.bar) == shared {
                 held.placement = placement;
+                held.hidden = hidden;
             }
         }
     }
@@ -295,9 +326,10 @@ impl DockState {
                 .bars
                 .iter()
                 .find(|held| self.bar(held.bar).is_some() && key(held.bar) == shared)
-                .map(|held| held.placement);
-            if let Some(placement) = kept {
+                .map(|held| (held.placement, held.hidden));
+            if let Some((placement, hidden)) = kept {
                 self.set_bar_placement(bar, placement);
+                self.set_bar_hidden(bar, hidden);
             }
         }
     }

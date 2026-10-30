@@ -598,6 +598,7 @@ impl DockRequest {
                     .as_ref()
                     .map_or(Ok(()), DockBarPlacement::validate)
             }
+            Self::HideBar(hide) => hide.bar.validate(),
             Self::MoveBar(moved) => {
                 moved.bar.validate()?;
                 match moved.at.x.is_finite() && moved.at.y.is_finite() {

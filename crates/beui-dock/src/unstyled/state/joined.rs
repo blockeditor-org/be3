@@ -323,6 +323,7 @@ impl DockState {
                     bar: (map.tab)(bar.bar)?,
                     owner,
                     placement: bar.placement,
+                    hidden: bar.hidden,
                 })
             })
             .collect();
@@ -438,6 +439,7 @@ impl DockState {
             };
             self.add_bar(moved, Some(owner), bar.placement);
             self.set_bar_placement(moved, bar.placement);
+            self.set_bar_hidden(moved, bar.hidden);
         }
         let unlocked: Vec<DockHome> = from
             .unlocked

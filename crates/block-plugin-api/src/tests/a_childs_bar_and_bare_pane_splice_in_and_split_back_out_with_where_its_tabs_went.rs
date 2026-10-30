@@ -67,6 +67,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
                     edge: DockEdge::Left,
                     origin: Pos2::new(40.0, 60.0),
                 }),
+                hidden: false,
             }],
             outside: vec![DockOutside {
                 tab: moved,
@@ -102,6 +103,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
                 edge: DockEdge::Left,
                 origin: Pos2::new(40.0, 60.0),
             }),
+            hidden: false,
         }]
     );
     assert_eq!(part.layout.outside[0].tab, DockTabPath::own(5));

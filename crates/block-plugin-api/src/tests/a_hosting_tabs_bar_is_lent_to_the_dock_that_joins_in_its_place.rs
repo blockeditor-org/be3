@@ -46,6 +46,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
                     edge: DockEdge::Left,
                     align: DockAlign::Center,
                 }),
+                hidden: false,
             }],
             outside: Vec::new(),
         },
@@ -66,6 +67,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
                 edge: DockEdge::Left,
                 align: DockAlign::Center,
             }),
+            hidden: false,
         }],
         "its owner hears it back on its own tab"
     );

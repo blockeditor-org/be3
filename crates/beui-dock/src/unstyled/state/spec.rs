@@ -310,6 +310,7 @@ impl DockState {
                     bar: declared.bar,
                     owner: declared.owner,
                     placement: declared.placement,
+                    hidden: false,
                 },
             );
         }

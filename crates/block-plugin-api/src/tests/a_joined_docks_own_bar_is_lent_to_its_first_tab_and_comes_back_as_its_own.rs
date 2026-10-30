@@ -47,6 +47,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
                     edge: DockEdge::Top,
                     align: DockAlign::Center,
                 }),
+                hidden: false,
             }],
             outside: Vec::new(),
         },
@@ -72,6 +73,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
+            hidden: false,
         }],
         "the child hears it back as its dock's own"
     );

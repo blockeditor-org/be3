@@ -1991,7 +1991,11 @@ dispatch all walk that same list. Siblings that block everything sit above
 those that do not, and otherwise are ordered by when they were opened or raised
 (`Document::raise_overlay`), so raising a window never lifts it over a dialog;
 children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
-every layer of a lower level: `Top` for things that must float over every
+every layer of a lower level: `Raised` for things that stay over the windows
+they share a document with but under menus and dialogs, such as a dock's
+floating and popped-out tool bars (a layer that blocks everything at `Normal`
+counts as `Raised`, `LayerLevel::stacked`, so a menu or a modal still opens over
+them), `Top` for things that must float over every
 window and dialog, such as a drag preview, a volume OSD or `styled::Toasts` (so
 a toast stays readable and pressable while a dialog is open), and `Lock` for
 the lock screen.
@@ -2977,15 +2981,22 @@ the edge from its start: a joined layer's bars after those of the layers around 
 that hosts a joined dock lends its bars to the first pane of that dock, so the
 outer editor's bar comes before the inner one's), and one layer's
 bars in the order kept in `DockState`, which starts as the order they were
-declared in and which a drop changes. The placements and that order are part of
+declared in and which a drop changes. A bar can also be hidden: it then takes no
+room and draws nothing, wherever it is placed, while its body stays built (as a
+bar whose tab is hidden does, so a joined plugin's bar region keeps running), until
+its owner shows it again; the dock offers no way back itself, so an owner that lets a
+bar be hidden offers showing it. The placements, the hidden flags and that order are part of
 `DockState` (`bars`, `bars_of(owner)`, `bar_owner`, `bar_placement`,
-`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `pane_bars(tab)`,
-`bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`), so they are saved and restored
+`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `is_bar_hidden`,
+`set_bar_hidden`, `pane_bars(tab)`, `bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`,
+false for a hidden bar), so they are saved and restored
 with the layout; `DockingLayout::bar_placement` and
-`place_bar` read and set one by key. The body's `use_dock_bar()` is a
-`DockBarControl`: `placement()`, `edge()` and `direction()` (the way to lay its
-items out, across for the top and bottom edges) are tracked reads, `place` and
-`pop_out` move it, `menu()` is the radio menu of every placement, and
+`place_bar` read and set one by key, and `is_bar_hidden`, `hide_bar` and `show_bar`
+its hidden flag. The body's `use_dock_bar()` is a
+`DockBarControl`: `placement()`, `edge()`, `direction()` (the way to lay its
+items out, across for the top and bottom edges) and `is_hidden()` are tracked reads, `place` and
+`pop_out` move it, `hide` and `show` hide it and show it again, `menu()` is the radio menu of every placement
+with a last row that hides the bar, and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
 carries the drag: over the tab's body it draws Docking's `bar_target` for the 24
@@ -3003,15 +3014,15 @@ to move its window, and the menu docks it again. The styled `DockBarGrip`
 its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
 submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
-`over.top.left`, `beside.bottom.right`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+`over.top.left`, `beside.bottom.right`; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
 joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
 platform that builds a joined bar's body itself provides
 `DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
-apart): its reads follow the hosted state, and `place`, `pop_out` and
-`begin_move` become `DockRequest::PlaceBar` and `DockRequest::MoveBar` (a
+apart): its reads follow the hosted state, and `place`, `pop_out`, `hide`, `show` and
+`begin_move` become `DockRequest::PlaceBar`, `DockRequest::HideBar` and `DockRequest::MoveBar` (a
 `DockBarMove`: the pointer in the body's own coordinates and a
 `DockDragStage`), which the root's `Docking` carries as if its own grip were
 dragged, a popped-out bar from where its window is in the dock. A press held in
@@ -3030,8 +3041,18 @@ rather than a pane: `Beside(edge, align)` sits in a band along that edge of the 
 the area floating dock windows live in give up room for (the dock's `rect`, which windows
 open in and are clamped to, is what is left; a fullscreen tab and the stacked/tiled switch
 still use the dock's whole rect), `Over(edge, align)` floats over the whole dock's edge
-under its floating windows, and `Window` pops out as any bar's does (in a stacked dock it
-floats over the dock's edge). Its drag targets, its slot among the dock's other bars and
+above its floating windows, and `Window` pops out as any bar's does (in a stacked dock it
+floats over the dock's edge). Each run of dock bars floating over one place is a layer of
+its own, `Pass` and anchored `Placement::Over` (so in a plugin it escapes its frame and
+draws over the host's windows too), at `LayerLevel::Raised` like every popped-out bar's
+window, so floating dock windows pass under them while menus and modals open over them;
+while a fullscreen tab is in front they drop to `Normal` and it covers them. A tab's bars
+floating over its pane stay in that pane, under the windows that cover it. Floating dock
+windows (in a dock that draws its own) never cover a band: on an edge with a dock band
+beside it a window is kept wholly inside the area the bands leave, shrinking to fit, as it
+is on the dock's top and left; on an edge without one it may hang past the dock as far as
+its title strip and its left 96 points stay in view, the rule block-app's
+`desktop::reachable` keeps for windows it shows itself. Its drag targets, its slot among the dock's other bars and
 its menu are the same as a tab's bar's, measured against the dock; the dock's bars lie
 outside every pane's bars. They are saved in `DockState` with the rest. A `Docking` that
 joins another declares its own dock bars up with no owner (`DockDeclaredBar::owner` is

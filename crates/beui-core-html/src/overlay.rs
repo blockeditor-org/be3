@@ -120,7 +120,7 @@ fn open_layers() -> Vec<Rc<Layer>> {
 #[cfg(target_arch = "wasm32")]
 pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
     let mut open = open_layers();
-    open.sort_by_key(|layer| layer.level.get());
+    open.sort_by_key(|layer| layer.level.get().stacked(layer.policy.get()));
     open.iter()
         .filter(|layer| layer.policy.get() != LayerPolicy::Inert)
         .filter_map(|layer| {
@@ -731,14 +731,14 @@ mod web {
     }
 
     fn raise_above(layer: &Layer) {
-        let level = layer.level.get();
+        let level = layer.level.get().stacked(layer.policy.get());
         let mut after = false;
         for other in open_layers() {
             if std::ptr::eq(Rc::as_ptr(&other), layer) {
                 after = true;
                 continue;
             }
-            let other_level = other.level.get();
+            let other_level = other.level.get().stacked(other.policy.get());
             if other_level < level || (other_level == level && !after) {
                 continue;
             }

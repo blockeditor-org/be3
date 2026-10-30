@@ -28,6 +28,10 @@ fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
             at: Pos2::new(90.0, 6.0),
             stage: DockDragStage::Drop,
         }),
+        DockRequest::HideBar(DockBarHide {
+            bar: DockTabPath::own(7),
+            hidden: true,
+        }),
     ];
     let message = FrameCommit {
         docks: requests
@@ -61,6 +65,14 @@ fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
     });
     round_trips(&update);
     assert_eq!(update.validate(), Ok(()));
+    assert_eq!(
+        requests[4].through(child, "host/03").unwrap(),
+        DockRequest::HideBar(DockBarHide {
+            bar: DockTabPath::own(7).through(child),
+            hidden: true,
+        }),
+        "hiding a bar reaches the root through its owner too"
+    );
 
     let lost = DockRequest::MoveBar(DockBarMove {
         bar: DockTabPath::own(7),

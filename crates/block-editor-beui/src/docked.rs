@@ -1365,6 +1365,7 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
                         None => None,
                     },
                     placement: placement_to_api(bar.placement),
+                    hidden: bar.hidden,
                 })
             })
             .collect(),
@@ -1488,6 +1489,7 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
                         None => None,
                     },
                     placement: placement_from_api(&bar.placement),
+                    hidden: bar.hidden,
                 })
             })
             .collect(),
@@ -1579,6 +1581,10 @@ fn request_to_api(request: &DockRequest, path: PathOf<'_>) -> Option<api::DockRe
             bar: path(*bar)?,
             placement: placement.map(placement_to_api),
         }),
+        DockRequest::HideBar(bar, hidden) => api::DockRequest::HideBar(api::DockBarHide {
+            bar: path(*bar)?,
+            hidden: *hidden,
+        }),
         DockRequest::MoveBar(bar, moved) => api::DockRequest::MoveBar(api::DockBarMove {
             bar: path(*bar)?,
             at: moved.at,
@@ -1605,6 +1611,9 @@ fn request_from_api(request: &api::DockRequest, paths: &mut Paths) -> Option<Doc
             paths.tab(&place.bar),
             place.placement.as_ref().map(placement_from_api),
         ),
+        api::DockRequest::HideBar(hide) => {
+            DockRequest::HideBar(paths.tab(&hide.bar), hide.hidden)
+        }
         api::DockRequest::MoveBar(moved) => DockRequest::MoveBar(
             paths.tab(&moved.bar),
             DockBarMove {

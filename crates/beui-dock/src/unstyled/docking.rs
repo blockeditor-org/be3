@@ -717,6 +717,41 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.set_bar_placement(bar, placement));
     }
 
+    pub fn is_bar_hidden(&self, key: &K) -> bool {
+        let Some(bar) = self.tab_of(key) else {
+            return false;
+        };
+        let own = self.state.with(|state| state.is_dock_bar(bar));
+        let hosted = self.inner().bars_hosted.with(|hosted| {
+            hosted
+                .as_ref()
+                .filter(|_| !own)
+                .map(|hosted| hosted.state.is_bar_hidden(bar))
+        });
+        hosted.unwrap_or_else(|| self.state.with(|state| state.is_bar_hidden(bar)))
+    }
+
+    pub fn hide_bar(&self, key: &K) {
+        self.set_bar_hidden(key, true);
+    }
+
+    pub fn show_bar(&self, key: &K) {
+        self.set_bar_hidden(key, false);
+    }
+
+    fn set_bar_hidden(&self, key: &K, hidden: bool) {
+        let Some(bar) = self.tab_of(key) else {
+            return;
+        };
+        let own = self.state.with_untracked(|state| state.is_dock_bar(bar));
+        let bars_host = self.bars_host().filter(|_| !own);
+        if let Some(host) = self.host().or(bars_host) {
+            host.request(DockRequest::HideBar(bar, hidden));
+            return;
+        }
+        self.edit(|state| state.set_bar_hidden(bar, hidden));
+    }
+
     fn bars_host(&self) -> Option<Rc<dyn DockHostLink>> {
         let inner = self.inner();
         let hosted = inner.bars_hosted.with_untracked(Option::is_some);

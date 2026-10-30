@@ -112,6 +112,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
                     bar: DockTabPath::own(bar),
                     owner: Some(DockTabPath::own(stage)),
                     placement,
+                    hidden: false,
                 }],
                 outside: Vec::new(),
             },

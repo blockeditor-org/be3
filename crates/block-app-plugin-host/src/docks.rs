@@ -54,7 +54,7 @@ pub(super) struct Docks {
     docked: HashSet<EditorInstanceId>,
     offscreen: HashSet<EditorInstanceId>,
     framed: HashSet<EditorInstanceId>,
-    parked: HashMap<(EditorInstanceId, u64), DockBarPlacement>,
+    parked: HashMap<(EditorInstanceId, u64), (DockBarPlacement, bool)>,
     shown_bars: HashSet<(EditorInstanceId, u64)>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
     bars: Vec<(EditorInstanceId, ViewId, ChildId, BarAction)>,
@@ -586,7 +586,7 @@ impl Docks {
                 let placement = self.parked.get(&(instance, bar.tab.tab));
                 (
                     bar.key.clone(),
-                    placement.cloned().unwrap_or_else(|| bar.placement.clone()),
+                    placement.map_or_else(|| bar.placement.clone(), |(held, _)| held.clone()),
                 )
             })
             .collect();
@@ -631,7 +631,9 @@ impl Docks {
         if !bar.is_own() || self.shown_bars.contains(&(instance, bar.tab)) {
             return None;
         }
-        self.parked.get(&(instance, bar.tab)).cloned()
+        self.parked
+            .get(&(instance, bar.tab))
+            .map(|(placement, _)| placement.clone())
     }
 
     fn request(&mut self, asker: EditorInstanceId, request: DockRequest) {
@@ -642,7 +644,10 @@ impl Docks {
             let Some((placer, child, record)) = self.placer_of(instance) else {
                 return;
             };
-            let bar = matches!(request, DockRequest::PlaceBar(_) | DockRequest::MoveBar(_));
+            let bar = matches!(
+                request,
+                DockRequest::PlaceBar(_) | DockRequest::MoveBar(_) | DockRequest::HideBar(_)
+            );
             if record.frame && !bar {
                 return;
             }
@@ -780,8 +785,10 @@ impl Docks {
         self.shown_bars.retain(|(held, _)| *held != instance);
         for bar in &own.layout.bars {
             self.shown_bars.insert((instance, bar.bar.tab));
-            self.parked
-                .insert((instance, bar.bar.tab), bar.placement.clone());
+            self.parked.insert(
+                (instance, bar.bar.tab),
+                (bar.placement.clone(), bar.hidden),
+            );
         }
         let Some((_, record)) = self.frame_record(instance) else {
             return;
@@ -800,14 +807,15 @@ impl Docks {
                     .is_none_or(|taken| bar.owner.as_ref() == Some(taken))
             })
             .filter(|bar| !self.shown_bars.contains(&(instance, bar.tab.tab)))
-            .map(|bar| DockPlacedBar {
-                bar: bar.tab.clone(),
-                owner: bar.owner.clone(),
-                placement: self
-                    .parked
-                    .get(&(instance, bar.tab.tab))
-                    .cloned()
-                    .unwrap_or_else(|| bar.placement.clone()),
+            .map(|bar| {
+                let parked = self.parked.get(&(instance, bar.tab.tab));
+                DockPlacedBar {
+                    bar: bar.tab.clone(),
+                    owner: bar.owner.clone(),
+                    placement: parked
+                        .map_or_else(|| bar.placement.clone(), |(placement, _)| placement.clone()),
+                    hidden: parked.is_some_and(|(_, hidden)| *hidden),
+                }
             })
             .collect();
         own.layout.bars.extend(hidden);

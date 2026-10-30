@@ -270,7 +270,10 @@ impl Document {
             chain.reverse();
             let level = chain
                 .iter()
-                .map(|overlay| self.arena.get_as::<OverlayNode>(*overlay).level)
+                .map(|overlay| {
+                    let node = self.arena.get_as::<OverlayNode>(*overlay);
+                    node.level.stacked(node.policy)
+                })
                 .max()
                 .unwrap_or_default();
             let seqs = chain

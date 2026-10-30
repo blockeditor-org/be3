@@ -4364,12 +4364,13 @@ pub(crate) fn DockBarsPage() -> NodeId {
             <DockSplit id="bars" fraction=0.75>
                 <DockPane id="stage" bare=true>
                     <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
-                        <BarsStage />
+                        <BarsStage layout />
                     </DockTab>
                 </DockPane>
                 <DockPane id="side">
                     <DockTab id=4u64 title="Layers" icon=beui::icons::ICON_LAYERS>
                         <NestedNote
+                            @test_id="bars.note"
                             text="The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane."
                         />
                     </DockTab>
@@ -4408,19 +4409,38 @@ pub(crate) fn DockBarsPage() -> NodeId {
     }
 }
 
+const BARS: [u64; 5] = [2, 3, 5, 6, 7];
+
 #[component]
-fn BarsStage() -> NodeId {
+fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
+    let hidden = create_memo(move || BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
     view! {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
             <Frame padding=PAGE_PADDING align=Align::Center>
+                <List spacing=SECTION_SPACING>
                 <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
                     "This page is a Docking of its own with a bare stage with two tool bars, a side \
                      pane and three status bars of the whole dock. Drag a bar by its grip to float it over an edge of the stage, to dock it along an edge \
                      beside the stage, or away from the stage to pop it out into a window. Bars \
                      floating over one edge stack, bars docked along one edge share its band side \
                      by side, and a bar dropped between or beside them takes that place. The \
-                     grip's menu moves it without dragging."
+                     grip's menu moves it without dragging, or hides it: a hidden bar takes no \
+                     room until the button below shows it again. Bars floating over the whole \
+                     dock and popped-out bars stay above its floating windows."
                 </Text>
+                <Show condition={hidden}>
+                    <Button
+                        @test_id="bars.show"
+                        label="Show hidden bars"
+                        glyph={Some(beui::icons::ICON_EYE)}
+                        on_click={move || {
+                            for bar in BARS {
+                                layout.show_bar(&bar);
+                            }
+                        }}
+                    />
+                </Show>
+                </List>
             </Frame>
         </Frame>
     }

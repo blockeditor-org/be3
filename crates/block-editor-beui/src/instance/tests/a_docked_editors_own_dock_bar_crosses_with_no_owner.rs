@@ -44,6 +44,7 @@ fn hosted(bar: u64) -> DockUpdate {
                         edge: DockEdge::Left,
                         align: DockAlign::Center,
                     }),
+                    hidden: false,
                 }],
                 outside: Vec::new(),
             },

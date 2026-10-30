@@ -77,6 +77,7 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
                         edge: DockEdge::Left,
                         align: DockAlign::Center,
                     }),
+                    hidden: false,
                 }],
                 outside: vec![DockOutside {
                     tab: DockTabPath::own(notes),

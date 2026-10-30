@@ -97,6 +97,7 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
             bar: TabId::new(20),
             owner: Some(TabId::new(11)),
             placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
+            hidden: false,
         }],
         outside: Vec::new(),
         unlocked: Vec::new(),
