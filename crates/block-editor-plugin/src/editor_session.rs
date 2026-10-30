@@ -6,7 +6,7 @@ use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId, ChildPlacement,
     ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
-    FrameCommit, FrameReport, HostView, LayerSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
+    FrameCommit, FrameReport, HostView, AnchorSpace, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
     Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
     ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region};
+use crate::plugin::{Frame, Instance, ShownView};
 use crate::{EditorHost, Module, Waker, host::BlockDrag};
 use block_plugin_api::ViewRef;
 
@@ -102,7 +102,7 @@ struct ViewState {
     docked: bool,
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
-    layer_space: Option<LayerSpace>,
+    anchor_space: Option<AnchorSpace>,
     anchored: Option<AnchoredPlacement>,
 }
 
@@ -171,7 +171,7 @@ impl EditorSession {
         let space = self
             .views
             .get(&view)
-            .and_then(|state| state.layer_space.as_ref());
+            .and_then(|state| state.anchor_space.as_ref());
         let anchor = anchor
             .zip(space)
             .map(|(rect, space)| space.to_host.inverse_rect(rect));
@@ -179,7 +179,7 @@ impl EditorSession {
     }
 
     fn host_anchor(&self, view: ViewId, anchor: Option<Rect>) -> Option<Rect> {
-        let space = self.views.get(&view)?.layer_space.as_ref()?;
+        let space = self.views.get(&view)?.anchor_space.as_ref()?;
         Some(space.to_host.rect(anchor?))
     }
 
@@ -400,7 +400,7 @@ impl EditorSession {
             state.docked = request.docked;
             state.view_placement = Some(request.placement);
             state.host_place.clone_from(&request.host_place);
-            state.layer_space.clone_from(&request.layers);
+            state.anchor_space.clone_from(&request.anchor_space);
         }
     }
 
@@ -792,10 +792,10 @@ impl EditorSession {
         })
     }
 
-    fn context(&self, view: ViewId) -> Region {
+    fn context(&self, view: ViewId) -> ShownView {
         let state = self.views.get(&view);
         let shown = self.view(view);
-        Region {
+        ShownView {
             instance: self.instance,
             view: shown,
             block: self.own_block,
@@ -819,7 +819,7 @@ impl EditorSession {
             windows: state.is_some_and(|state| state.windows),
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
-            layers: state.and_then(|state| state.layer_space.clone()),
+            anchor_space: state.and_then(|state| state.anchor_space.clone()),
         }
     }
 
@@ -828,7 +828,7 @@ impl EditorSession {
     }
 
     pub fn frame(&mut self, views: &[(ViewId, u32)]) -> Vec<Frame> {
-        let begun: Vec<Region> = views
+        let begun: Vec<ShownView> = views
             .iter()
             .map(|(view, age)| self.begin(*view, *age))
             .collect();
@@ -844,7 +844,7 @@ impl EditorSession {
             .collect()
     }
 
-    pub fn begin(&mut self, view: ViewId, age: u32) -> Region {
+    pub fn begin(&mut self, view: ViewId, age: u32) -> ShownView {
         self.open(view);
         if let Some(state) = self.views.get_mut(&view) {
             state.age = age;

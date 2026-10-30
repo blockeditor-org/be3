@@ -298,7 +298,7 @@ fn place_layered(instances: &mut Instances, origin: Pos2, bounds: Rect) {
         1.0,
         false,
         None,
-        Some(block_plugin_api::LayerSpace {
+        Some(block_plugin_api::AnchorSpace {
             to_host: block_plugin_api::HostTransform {
                 origin,
                 scale: vec2(1.0, 1.0),
@@ -348,7 +348,7 @@ fn anchored_screen(id: u64) -> ScreenId {
     ScreenId::opened(id)
 }
 
-fn report_layers(instances: &mut Instances, layers: Vec<Layer>) {
+fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
     let layout = block_plugin_api::ScreenLayout {
         screens: layers
             .iter()
@@ -389,7 +389,7 @@ fn report_layers(instances: &mut Instances, layers: Vec<Layer>) {
 
 fn shown_rects(instances: &Instances) -> Vec<Rect> {
     instances
-        .layers(INSTANCE, REGION)
+        .shown_anchored(INSTANCE, REGION)
         .into_iter()
         .map(|layer| layer.rect)
         .collect()
@@ -402,10 +402,10 @@ mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
-mod a_layer_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
+mod an_anchored_view_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
 mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
-mod a_moved_region_moves_its_layers_with_it_and_a_pan_does_not;
+mod a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not;
 mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
@@ -414,13 +414,13 @@ mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
 mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
-mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
+mod a_restarted_plugin_no_longer_shows_its_views_stopped;
 mod a_screen_focused_before_the_plugin_has_it_hears_so_with_its_first_input;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
-mod a_view_attached_to_an_edge_stays_on_it_when_its_region_moves;
+mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen;
-mod a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at;
+mod a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_active_child_takes_the_frame_of_the_dock_view_holding_the_content;
 mod an_editor_can_read_and_edit_a_block_it_watches;

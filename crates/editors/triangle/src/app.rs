@@ -2,7 +2,7 @@ use block_editor_plugin::wgpu;
 use std::collections::HashMap;
 
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, Regions, SurfaceRect,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, ShownView, ViewHandler, SurfaceRect,
     TimedInput, View, ViewRef,
 };
 use triangle_types::TriangleContent;
@@ -27,7 +27,7 @@ impl Triangle {
 }
 
 #[derive(Default)]
-pub(crate) struct TriangleRegions {
+pub(crate) struct TriangleViews {
     painted: HashMap<ViewRef, bool>,
     pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
@@ -43,17 +43,17 @@ impl Instance for Triangle {
     }
 
     fn open_view(&mut self, _view: View) {
-        if !self.host.handles_regions() {
+        if !self.host.handles_views() {
             self.host
-                .handle_regions(Box::new(TriangleRegions::default()));
+                .handle_views(Box::new(TriangleViews::default()));
         }
     }
 }
 
-impl Regions for TriangleRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
+impl ViewHandler for TriangleViews {
+    fn input(&mut self, _region: &ShownView, _event: &TimedInput, _over: Option<ViewRef>) {}
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         self.painted
             .retain(|id, _| regions.iter().any(|region| region.id() == *id));
         regions

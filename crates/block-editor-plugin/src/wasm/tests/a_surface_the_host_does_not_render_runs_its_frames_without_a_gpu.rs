@@ -8,7 +8,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::Surfaces;
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, ShownView, ViewHandler, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -18,18 +18,18 @@ impl Instance for Unpainted {
     fn connect(&mut self, _block_id: Uuid) {}
 
     fn open_view(&mut self, _view: block_plugin_api::View) {
-        if !self.0.handles_regions() {
-            self.0.handle_regions(Box::new(UnpaintedRegions));
+        if !self.0.handles_views() {
+            self.0.handle_views(Box::new(UnpaintedViews));
         }
     }
 }
 
-struct UnpaintedRegions;
+struct UnpaintedViews;
 
-impl Regions for UnpaintedRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
+impl ViewHandler for UnpaintedViews {
+    fn input(&mut self, _region: &ShownView, _event: &TimedInput, _over: Option<ViewRef>) {}
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions
             .iter()
             .map(|region| Frame {
@@ -98,7 +98,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             windows: false,
             host_place: None,
             docked: false,
-            layers: None,
+            anchor_space: None,
         }]),
         Delivery::Configure(1),
     ] {

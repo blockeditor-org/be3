@@ -8,11 +8,11 @@ fn a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it() {
     let tooltip = Rect::from_min_size(pos2(300.0, 200.0), vec2(40.0, 20.0));
     let mut kept = layer(3, 0, tooltip);
     kept.placement.dismiss_on_outside_press = false;
-    report_layers(
+    report_anchored(
         &mut instances,
         vec![layer(1, 0, menu), layer(2, 1, submenu), kept],
     );
-    let shown = instances.layers(INSTANCE, REGION);
+    let shown = instances.shown_anchored(INSTANCE, REGION);
 
     assert!(
         crate::dismissed_by_press(&shown, pos2(120.0, 70.0)).is_empty(),
@@ -30,7 +30,7 @@ fn a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it() {
         "a press outside the chain closes all of it, and leaves a layer that is not dismissable"
     );
 
-    let messages = instances.dismiss_layers(INSTANCE, REGION, outside);
+    let messages = instances.dismiss_anchored_views(INSTANCE, REGION, outside);
     let batches: Vec<_> = messages
         .into_iter()
         .filter_map(|message| match message {

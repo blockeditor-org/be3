@@ -2,20 +2,20 @@ use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
 mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
-mod a_region_without_a_layer_space_anchors_no_views;
+mod a_view_without_an_anchor_space_anchors_no_views;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
 mod an_anchored_views_surface_is_kept_while_it_is_open_and_released_once_it_closes;
-mod dismissed_layers_are_heard_before_the_batchs_events;
+mod dismissed_anchored_views_are_heard_before_the_batchs_events;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_plugin_api::{
     AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId, FrameCommit,
-    HelloAccepted, HostTransform, LayerSpace, OpenBlock, Opening, ParentView, ScreenId,
+    HelloAccepted, HostTransform, AnchorSpace, OpenBlock, Opening, ParentView, ScreenId,
     ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics,
 };
@@ -26,14 +26,14 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::Surfaces;
 use crate::wire::Delivery;
-use crate::{Anchored, EditorHost, Frame, Instance, Region, Regions};
+use crate::{Anchored, EditorHost, Frame, Instance, ShownView, ViewHandler};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
 
 #[derive(Default)]
 struct Seen {
-    spaces: Vec<Option<LayerSpace>>,
+    spaces: Vec<Option<AnchorSpace>>,
     painted: Vec<(ViewId, [u32; 2])>,
     heard: Vec<String>,
 }
@@ -55,8 +55,8 @@ impl Instance for Layered {
     fn connect(&mut self, _block_id: Uuid) {}
 
     fn open_view(&mut self, _view: View) {
-        if !self.host.handles_regions() {
-            self.host.handle_regions(Box::new(LayeredRegions {
+        if !self.host.handles_views() {
+            self.host.handle_views(Box::new(AnchoringViews {
                 host: self.host.clone(),
                 shared: Rc::clone(&self.shared),
             }));
@@ -64,23 +64,23 @@ impl Instance for Layered {
     }
 }
 
-struct LayeredRegions {
+struct AnchoringViews {
     host: EditorHost,
     shared: Rc<Shared>,
 }
 
-impl Regions for LayeredRegions {
-    fn input(&mut self, _region: &Region, event: &TimedInput, _over: Option<ViewRef>) {
+impl ViewHandler for AnchoringViews {
+    fn input(&mut self, _region: &ShownView, event: &TimedInput, _over: Option<ViewRef>) {
         let heard = format!("input on {:?} at {:?}", _region.view.id, event.input);
         self.shared.seen.borrow_mut().heard.push(heard);
     }
 
-    fn dismiss_anchored(&mut self, _region: &Region, views: &[ViewId]) {
+    fn dismiss_anchored(&mut self, _region: &ShownView, views: &[ViewId]) {
         let heard = format!("dismissed {views:?}");
         self.shared.seen.borrow_mut().heard.push(heard);
     }
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions
             .iter()
             .map(|region| {
@@ -88,7 +88,7 @@ impl Regions for LayeredRegions {
                     .seen
                     .borrow_mut()
                     .spaces
-                    .push(region.layers.clone());
+                    .push(region.anchor_space.clone());
                 if let Some(layer) = *self.shared.child_in.borrow() {
                     self.host.in_view(View::anchored(layer), || {
                         let rect = Rect::from_min_size(pos2(230.0, 140.0), vec2(30.0, 20.0));
@@ -129,7 +129,7 @@ impl Regions for LayeredRegions {
             .collect()
     }
 
-    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame_opened(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions
             .iter()
             .map(|region| Frame {
@@ -163,8 +163,8 @@ impl Regions for LayeredRegions {
     }
 }
 
-fn space() -> LayerSpace {
-    LayerSpace {
+fn space() -> AnchorSpace {
+    AnchorSpace {
         to_host: HostTransform {
             origin: pos2(200.0, 100.0),
             scale: vec2(2.0, 1.0),
@@ -195,7 +195,7 @@ struct Rig {
 }
 
 impl Rig {
-    fn new(layers: Option<LayerSpace>) -> Self {
+    fn new(layers: Option<AnchorSpace>) -> Self {
         let spec = SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
             render: true,
@@ -236,7 +236,7 @@ impl Rig {
             windows: false,
             host_place: None,
             docked: false,
-            layers,
+            anchor_space: layers,
         }];
         screens.deliver(Delivery::Open(Opening::Block(OpenBlock {
             instance: INSTANCE,

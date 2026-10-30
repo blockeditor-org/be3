@@ -1,6 +1,6 @@
 use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::{
-    EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, Region, View,
+    EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View,
     pos2, vec2,
 };
 use triangle_types::TriangleContent;
@@ -10,8 +10,8 @@ use crate::app::Triangle;
 mod a_triangle_asks_to_be_painted_until_it_has_been;
 mod creating_a_triangle_makes_a_block_with_no_state;
 
-fn region() -> Region {
-    Region {
+fn region() -> ShownView {
+    ShownView {
         instance: EditorInstanceId(1),
         view: View::MAIN,
         block: None,
@@ -27,6 +27,6 @@ fn region() -> Region {
         windows: false,
         docked: false,
         host_place: None,
-        layers: None,
+        anchor_space: None,
     }
 }

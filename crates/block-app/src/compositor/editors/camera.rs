@@ -7,7 +7,7 @@ use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{EditorInstanceId, FitArea, PanMode, ViewChange, ViewId};
 use uuid::Uuid;
 
-use super::super::region::PanDrag;
+use super::super::plugin_view::PanDrag;
 use block_app_plugin_host::EditorView;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;

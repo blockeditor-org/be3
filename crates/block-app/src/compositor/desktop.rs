@@ -429,7 +429,7 @@ fn point_in(
     if let Some(origin) = desktop {
         return origin + at.to_vec2();
     }
-    match block_app_plugin_host::region_placement(plugin, instance, region) {
+    match block_app_plugin_host::view_placement_of(plugin, instance, region) {
         Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
             placed.rect.min + at.to_vec2() * placed.zoom
         }

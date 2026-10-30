@@ -87,23 +87,24 @@ plugin draws leaves its worker; the page hands the worker canvases instead:
   canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed
   by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The app
   canvas punches a hole where the screen shows.
-- Layers (menus, popovers, sheets: PROTOCOL.md, Layers): each worker that has
-  opened a layer gets one more canvas, in `#layers` above `#block`, covering
-  the whole viewport with `pointer-events: none`. It is made on the plugin's
-  first layer and kept (`web/overlay.rs`). The page lists the layers' painted
-  pieces (`layer_blits`, the same ones native draws) as a surface, a rectangle
-  in the canvas's pixels and one in the surface's; the shim redraws the canvas
+- Anchored views (menus, popovers, sheets: PROTOCOL.md, Anchored views): each
+  worker that has opened one gets one more canvas, the overlay canvas, in
+  `#layers` above `#block`, covering the whole viewport with
+  `pointer-events: none`. It is made on the plugin's first anchored view and
+  kept (`web/overlay.rs`). The page lists the anchored views' painted pieces
+  (`anchored_blits`, the same ones native draws) as a surface, a rectangle in
+  the canvas's pixels and one in the surface's; the shim redraws the canvas
   from them whenever the list changes or a listed surface is presented. The
-  page clips the canvas to the plugin's layer bounds, hides it
-  (`visibility:hidden`) while the plugin has no layer, and stacks the canvases
-  in the order of each plugin's newest layer. Scrims are drawn by the app
-  canvas, below every overlay. Input still lands on the app canvas, which
-  routes it to layers and dismisses them as natively.
+  page clips the canvas to the plugin's anchor bounds, hides it
+  (`visibility:hidden`) while the plugin has no anchored view, and stacks the
+  canvases in the order of each plugin's newest one. Scrims are drawn by the
+  app canvas, below every overlay. Input still lands on the app canvas, which
+  routes it to anchored views and dismisses them as natively.
 - A child placed in an anchored view, above its pixels, shows under them on the web,
   since its screen canvas is behind `#block`.
 
-Screens and layers are placed from what the app canvas drew in its last frame,
-so on the web they follow the app by one frame. To see a layer, open one (`drive
+Screens and anchored views are placed from what the app canvas drew in its last frame,
+so on the web they follow the app by one frame. To see an anchored view, open one (`drive
 click TARGET right` on a file-tree row) and check `drive eval` on
 `#layers canvas`'s style. `drive shot` captures the plugins' canvases with
 `-- --webgl`; with WebGPU in the headless browser it can time out once a plugin

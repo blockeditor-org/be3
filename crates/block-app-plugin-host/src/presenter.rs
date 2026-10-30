@@ -272,11 +272,11 @@ pub struct Blit {
     pub(super) drawn: Option<(u32, u32)>,
     pub(super) requested: Option<(u32, u32)>,
     pub(super) placed: Option<[u32; 3]>,
-    pub(super) layer: Option<LayerSource>,
+    pub(super) layer: Option<AnchoredSource>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct LayerSource {
+pub(super) struct AnchoredSource {
     pub(super) surface: u32,
     pub(super) pixels: Rect,
     pub(super) bounds: Rect,
@@ -426,7 +426,7 @@ pub struct Piece {
     pub source: Rect,
 }
 
-pub struct RegionDrawing {
+pub struct ViewDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
     template: Blit,
@@ -438,7 +438,7 @@ pub struct RegionDrawing {
 
 pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 
-impl RegionDrawing {
+impl ViewDrawing {
     pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
         Self {
             #[cfg(target_arch = "wasm32")]
@@ -502,17 +502,17 @@ impl RegionDrawing {
     }
 }
 
-pub type LayerBlits = Rc<RefCell<Vec<Blit>>>;
+pub type AnchoredBlits = Rc<RefCell<Vec<Blit>>>;
 
-pub struct LayersDrawing {
+pub struct AnchoredDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
-    blits: LayerBlits,
+    blits: AnchoredBlits,
     drawing: PluginDrawing,
 }
 
-impl LayersDrawing {
-    pub(super) fn new(blits: LayerBlits) -> Self {
+impl AnchoredDrawing {
+    pub(super) fn new(blits: AnchoredBlits) -> Self {
         Self {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
@@ -523,14 +523,14 @@ impl LayersDrawing {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Drop for LayersDrawing {
+impl Drop for AnchoredDrawing {
     fn drop(&mut self) {
         SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
         block_app_base::host::wake();
     }
 }
 
-impl beui::native::Draw for LayersDrawing {
+impl beui::native::Draw for AnchoredDrawing {
     fn prepare(
         &self,
         device: &wgpu::Device,
@@ -552,7 +552,7 @@ impl beui::native::Draw for LayersDrawing {
                         corners,
                         opacity: blit.quad.opacity,
                     },
-                    layer: blit.layer.map(|layer| LayerSource {
+                    layer: blit.layer.map(|layer| AnchoredSource {
                         bounds: layer.bounds.translate(offset),
                         ..layer
                     }),
@@ -571,7 +571,7 @@ impl beui::native::Draw for LayersDrawing {
     }
 }
 
-impl Paints for LayersDrawing {
+impl Paints for AnchoredDrawing {
     fn overflows(&self, _rect: Rect) -> Vec<String> {
         Vec::new()
     }
@@ -672,14 +672,14 @@ fn record_shown(id: u64, blits: &[Blit]) {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Drop for RegionDrawing {
+impl Drop for ViewDrawing {
     fn drop(&mut self) {
         SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
         block_app_base::host::wake();
     }
 }
 
-impl beui::native::Draw for RegionDrawing {
+impl beui::native::Draw for ViewDrawing {
     fn prepare(
         &self,
         device: &wgpu::Device,
@@ -699,7 +699,7 @@ impl beui::native::Draw for RegionDrawing {
     }
 }
 
-impl Paints for RegionDrawing {
+impl Paints for ViewDrawing {
     fn overflows(&self, rect: Rect) -> Vec<String> {
         let mut found = Vec::new();
         for blit in self.blits_in(rect) {

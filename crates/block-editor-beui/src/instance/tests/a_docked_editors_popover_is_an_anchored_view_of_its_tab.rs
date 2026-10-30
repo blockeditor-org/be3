@@ -1,6 +1,6 @@
 use super::*;
 use beui::reactive::*;
-use block_plugin_api::{HostTransform, LayerSpace};
+use block_plugin_api::{HostTransform, AnchorSpace};
 
 thread_local! {
     static OPEN: std::cell::Cell<Option<Signal<bool>>> = const { std::cell::Cell::new(None) };
@@ -53,7 +53,7 @@ impl crate::BeuiApp for PopoverApp {
 #[test]
 fn a_docked_editors_popover_is_an_anchored_view_of_its_tab() {
     let mut session = session::<PopoverApp>(Uuid::new_v4());
-    let space = LayerSpace {
+    let space = AnchorSpace {
         to_host: HostTransform {
             origin: block_plugin_api::Pos2::new(100.0, 60.0),
             scale: block_plugin_api::Vec2::new(1.0, 1.0),
@@ -68,7 +68,7 @@ fn a_docked_editors_popover_is_an_anchored_view_of_its_tab() {
             .iter()
             .map(|(view, screen)| {
                 let (placement, mut request) = dock_screen(*view, *screen, true);
-                request.layers = Some(space.clone());
+                request.anchor_space = Some(space.clone());
                 (placement, request)
             })
             .unzip();

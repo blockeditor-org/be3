@@ -341,7 +341,7 @@ one direction:
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
 | `beui-platform-headless` | `beui_host::native::Headless`, the platform that draws offscreen with no window or display server; `beui_host::native::Simulation`, the headless window and its stand-in services; and `beui_host::native::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-host` | `beui_host::native`'s engine items over beui: the inspector and on-screen keyboard every `build` installs, the font and context makers, and the runners (`runner.rs`, which picks the platform and layers from `BEUI_*`, `web.rs`, and the saved preferences of `RunOptions::saving_preferences`); beui's document tests live here, since they run documents |
-| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
+| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `ViewHandler` handler, whose batched calls then drive its frames; every view the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -2385,6 +2385,9 @@ A window given a layer space (`Context::set_layer_space(window, Some(LayerSpace 
 `beui_types::layer`) lets its anchored overlays out of its rectangle. `to_host` maps the window's
 points to the host's (`host = origin + point * scale`) and `bounds` is where layers may go, in host
 coordinates. Without one nothing changes: native block-app, tests and standalone apps never set it.
+"Layer" and "layer space" are beui's words: in the plugin protocol an escaped layer is an
+anchored view and a window's layer space is its view's anchor space (`screen-request.anchor-space`;
+beui-platform-plugin's `escaped.rs` maps one onto the other, guides/adding_a_plugin_editor.md).
 
 One rule decides what escapes, `Placement::escapes()`: anchored placements (`BelowStart`,
 `RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `Popover`) and `Edge(LayerEdge)`,
@@ -3660,7 +3663,7 @@ as beui-platform-plugin-api's `Views` and its `views.placement(id)` do; every ot
 `Window` is an overlay inside the window it was opened in, so a plugin's
 docked windows stay inside its region). A platform may move between them: the
 plugin platform hosts every window while its host shows the windows of one of
-its regions (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
+its views (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
 as a real window or an overlay from the frame the hosting changes. `Context::opens_windows` is true only
 for `Any`. A platform with no main window of its own (beui-platform-plugin,
 beui-platform-drm) sets `Context::set_shows_main(false)`: the document then paints neither the
@@ -3782,7 +3785,7 @@ window. A key listener at `KeyAt::Window` and an action, registered inside a
 `Window`, belong to the hosted window that holds it
 (`Document::host_window_of`): they hear a key only while the key's window is
 theirs (`Document::key_window`: the window of the focused node, else the one
-the host focused last) or while no window is known, so two plugin regions each
+the host focused last) or while no window is known, so two plugin views each
 keep their own Escape and shortcuts. `Context::request_action_in(window, id)`
 runs that window's action of that id, and the actions the document describes
 come once more per window, as an `ActionGroup` whose `window` names it. Where
@@ -4292,7 +4295,7 @@ it, and all its 3D (`glam`) stays in the crate.
   softer. A new window takes its scale at once. An `Embed` in the window
   hears the new raster (`EmbedPlacement::raster`), which is how block-app
   sends a plugin region in it its raster beside its scale (the protocol's
-  `raster`, `RegionPlacement::raster`), and beui-platform-plugin reports it
+  `raster`, `ViewPlace::raster`), and beui-platform-plugin reports it
   to the region's window as its `WindowReport::Rastered`, so plugin content
   in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
@@ -5108,7 +5111,7 @@ and moves itself until the target is in view. A `Canvas` cannot move itself,
 since its view belongs to whoever hands it one, so it takes the same request
 and answers through its `on_reveal` callback: after each layout at a new view
 it measures the target (or, when that does not fit, the focused text's caret)
-against its own rect less the floating layers over it (a dock, a zoom pill),
+against its own rect less the floating overlays over it (a dock bar, the zoom bar),
 and calls `on_reveal(delta)` with the least pan that brings it into view. It
 keeps measuring at each new view the owner pans to, for up to a second and
 only while the distance shrinks, so the owner can ease there a step at a time
@@ -5225,8 +5228,8 @@ view placed by the host (`HostView::Window`). block-app keeps every such window 
 `compositor/desktop.rs` (`Floated`): on the desktop shell it draws them on the
 displays (`DesktopWindows`), and under space, where it says `windows` for every
 frame region (`host::opens_windows()`), each is a `Panel`: a beui `Window` of
-its own holding a `PluginRegion` of the window region (`PanelWindows` in
-`compositor/region.rs`), opened where the plugin asked with its role, moved
+its own holding a `PluginView` of the window region (`PanelWindows` in
+`compositor/plugin_view.rs`), opened where the plugin asked with its role, moved
 and resized by space on `BeginMove`/`BeginResize`, and its `Placed` answered as
 the window region's `placement`; closing the panel ends the region, which
 closes the app's window. block-editor-beui places the children laid out in a

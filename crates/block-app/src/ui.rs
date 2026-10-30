@@ -16,7 +16,7 @@ use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
-use crate::compositor::{PluginLayers, ShellDisplay};
+use crate::compositor::{AnchoredViews, ShellDisplay};
 use block_app_base::app_state::{SavedAccount, ServerLocation};
 use block_app_desktop::desktop_host::WindowActions;
 
@@ -441,7 +441,7 @@ pub(crate) fn Displays(view: AppViewStore) -> NodeId {
                     false => view! {
                         <Layers>
                             <Root view />
-                            <PluginLayers />
+                            <AnchoredViews />
                         </Layers>
                     },
                     true => {
@@ -520,7 +520,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
                                 },
                             }
                         }</Dynamic>
-                        <PluginLayers />
+                        <AnchoredViews />
                     </Layers>
                 </beui::styled::Root>
             }

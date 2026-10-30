@@ -3,7 +3,7 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, LayerSpace, TimedInput, View,
+    AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, AnchorSpace, TimedInput, View,
     ViewId, ViewRef, WindowRequests,
 };
 use geometry::{Rect, Vec2};
@@ -55,23 +55,23 @@ pub trait Instance: std::any::Any {
     fn open_view(&mut self, _view: View) {}
 }
 
-pub trait Regions: std::any::Any {
-    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<ViewRef>);
+pub trait ViewHandler: std::any::Any {
+    fn input(&mut self, region: &ShownView, event: &TimedInput, over: Option<ViewRef>);
 
-    fn dismiss_anchored(&mut self, _region: &Region, _views: &[ViewId]) {}
+    fn dismiss_anchored(&mut self, _region: &ShownView, _views: &[ViewId]) {}
 
-    fn run_action(&mut self, _region: &Region, _id: &str) {}
+    fn run_action(&mut self, _region: &ShownView, _id: &str) {}
 
     fn node_action(
         &mut self,
-        _region: &Region,
+        _region: &ShownView,
         _request: block_plugin_api::accesskit::ActionRequest,
     ) {
     }
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame>;
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame>;
 
-    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame_opened(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions.iter().map(|_| Frame::default()).collect()
     }
 
@@ -94,7 +94,7 @@ pub struct SettingsDraft {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Region {
+pub struct ShownView {
     pub instance: EditorInstanceId,
     pub view: View,
     pub block: Option<Uuid>,
@@ -110,10 +110,10 @@ pub struct Region {
     pub windows: bool,
     pub docked: bool,
     pub host_place: Option<String>,
-    pub layers: Option<LayerSpace>,
+    pub anchor_space: Option<AnchorSpace>,
 }
 
-impl Region {
+impl ShownView {
     pub fn id(&self) -> ViewRef {
         ViewRef {
             instance: self.instance,

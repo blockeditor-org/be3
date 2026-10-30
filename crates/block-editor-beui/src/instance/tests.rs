@@ -72,7 +72,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             windows: false,
             host_place: None,
             docked: false,
-            layers: None,
+            anchor_space: None,
         }],
     );
 }
@@ -109,7 +109,7 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         windows: false,
         host_place: None,
         docked: docked && shown.is_main(),
-        layers: None,
+        anchor_space: None,
     };
     (placement, request)
 }

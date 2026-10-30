@@ -2,4 +2,4 @@ use super::*;
 mod a_fitted_view_stays_fitted_through_a_resize;
 mod a_followed_fit_gives_way_to_a_move_by_hand;
 mod a_moved_camera_keeps_its_centre_through_a_resize;
-mod a_moved_region_carries_its_world;
+mod a_moved_view_carries_its_world;

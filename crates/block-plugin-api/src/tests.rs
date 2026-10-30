@@ -116,7 +116,7 @@ fn view_screen(
         windows: false,
         host_place: None,
         docked: false,
-        layers: None,
+        anchor_space: None,
     }
 }
 
@@ -152,7 +152,7 @@ mod frame_screens_and_reports_round_trip;
 mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
-mod insets_give_the_content_area_of_a_region_resized_since_they_were_reported;
+mod insets_give_the_content_area_of_a_view_resized_since_they_were_reported;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod notification_messages_round_trip;

@@ -193,7 +193,7 @@ fn screens() -> Vec<ScreenRequest> {
             windows: false,
             host_place: None,
             docked: false,
-            layers: None,
+            anchor_space: None,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -205,7 +205,7 @@ fn screens() -> Vec<ScreenRequest> {
             windows: false,
             host_place: None,
             docked: false,
-            layers: None,
+            anchor_space: None,
         },
     ]
 }

@@ -36,7 +36,7 @@ pub(super) fn intercept_keys(
             }
             held.with(|held| held.set(press.modifiers));
         }
-        block_app_plugin_host::intercept_region(
+        block_app_plugin_host::intercept_view(
             &plugin_id.value(),
             instance,
             region,
@@ -60,6 +60,6 @@ pub(super) fn intercept_keys(
                 logo: was.logo && now.logo,
             })
         });
-        block_app_plugin_host::intercept_region(&plugin_id.value(), instance, region, None, now);
+        block_app_plugin_host::intercept_view(&plugin_id.value(), instance, region, None, now);
     });
 }

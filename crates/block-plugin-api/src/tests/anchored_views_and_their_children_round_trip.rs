@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn anchored_views_and_their_children_round_trip() {
     let mut request = screen(1, 2, 640, 480, 2.0);
-    request.layers = Some(LayerSpace {
+    request.anchor_space = Some(AnchorSpace {
         to_host: HostTransform {
             origin: Pos2::new(200.0, 80.0),
             scale: Vec2::new(1.0, 1.0),

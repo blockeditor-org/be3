@@ -14,7 +14,7 @@ use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
     DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
-use crate::{compositor::RegionEditor, surfaces::HostedRegion};
+use crate::{compositor::ViewEditor, surfaces::HostedView};
 use block_app_base::host;
 use block_app_plugin_host::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
@@ -62,9 +62,9 @@ impl PluginCreation {
         InstanceRole::Creation(self.target.editor, self.target.template)
     }
 
-    fn hosted(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
-        HostedRegion {
-            editor: RegionEditor {
+    fn hosted(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: self.role(),
                 instance: self.instance,
@@ -111,9 +111,9 @@ impl PluginPicker {
         }
     }
 
-    pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
-        HostedRegion {
-            editor: RegionEditor {
+    pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: self.role,
                 instance: self.instance,
@@ -166,7 +166,7 @@ impl Drop for PluginCreation {
 }
 
 impl PendingCreation for PluginCreation {
-    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion> {
+    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView> {
         self.target.dialog.then(|| self.hosted(registry, client_id))
     }
 
@@ -215,7 +215,7 @@ impl PendingCreation for PluginCreation {
 
     fn height(&self) -> Option<f32> {
         self.target.dialog.then(|| {
-            block_app_plugin_host::region_size(
+            block_app_plugin_host::view_size(
                 &self.plugin.identity.id,
                 self.instance,
                 ViewId::MAIN,
@@ -650,10 +650,10 @@ impl ArtifactSession for PluginArtifact {
         }
     }
 
-    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion {
+    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedView {
         self.opened = true;
-        HostedRegion {
-            editor: RegionEditor {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: InstanceRole::Artifact(self.editor, self.block, self.source),
                 instance: self.instance,
@@ -670,7 +670,7 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn settings_height(&self) -> f32 {
-        block_app_plugin_host::region_size(
+        block_app_plugin_host::view_size(
             &self.plugin.identity.id,
             self.instance,
             ViewId::ARTIFACT_SETTINGS,

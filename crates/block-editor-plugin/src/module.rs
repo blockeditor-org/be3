@@ -6,11 +6,11 @@ use std::sync::{Arc, Mutex};
 
 use block_plugin_api::EditorInstanceId;
 
-use crate::{EditorHost, Regions, Waker};
+use crate::{EditorHost, ViewHandler, Waker};
 
 #[derive(Default)]
 pub(crate) struct ModuleState {
-    handler: RefCell<Option<Box<dyn Regions>>>,
+    handler: RefCell<Option<Box<dyn ViewHandler>>>,
     locals: RefCell<HashMap<TypeId, Rc<dyn Any>>>,
     hosts: RefCell<HashMap<EditorInstanceId, EditorHost>>,
     wakers: Arc<Mutex<HashMap<EditorInstanceId, Waker>>>,
@@ -35,16 +35,16 @@ impl Module {
             .map_or(true, |handler| handler.is_some())
     }
 
-    pub fn handle(&self, handler: Box<dyn Regions>) {
+    pub fn handle(&self, handler: Box<dyn ViewHandler>) {
         *self.0.handler.borrow_mut() = Some(handler);
     }
 
-    pub fn with_handler<R>(&self, act: impl FnOnce(&mut dyn Regions) -> R) -> Option<R> {
+    pub fn with_handler<R>(&self, act: impl FnOnce(&mut dyn ViewHandler) -> R) -> Option<R> {
         let mut handler = self.0.handler.borrow_mut();
         Some(act(handler.as_deref_mut()?))
     }
 
-    pub fn take_handler(&self) -> Option<Box<dyn Regions>> {
+    pub fn take_handler(&self) -> Option<Box<dyn ViewHandler>> {
         self.0.handler.borrow_mut().take()
     }
 

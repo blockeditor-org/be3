@@ -18,12 +18,12 @@ use uuid::Uuid;
 
 use block_app_desktop::desktop_host::WindowSurface;
 
-use super::region::{ChildView, PluginRegion, RegionEditor};
+use super::plugin_view::{ChildView, PluginView, ViewEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
+use crate::surfaces::{ConflictNotice, HostedView, HostedSurface, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
 use block_app_desktop::host_item::{HostItem, HostItemFace};
@@ -258,7 +258,7 @@ impl Editors {
         drop(forgotten);
     }
 
-    fn creation_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+    fn creation_view(&self, key: &CreationKey) -> Option<HostedView> {
         let state = self.0.value();
         let registry = self.registry();
         state
@@ -411,7 +411,7 @@ impl Editors {
         drop(forgotten);
     }
 
-    fn picker_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+    fn picker_view(&self, key: &CreationKey) -> Option<HostedView> {
         let state = self.0.value();
         let registry = self.registry();
         let pickers = state.pickers.borrow();
@@ -482,8 +482,8 @@ impl Editors {
         self.with(|open| open.get(&id).map(Handle::of))
     }
 
-    fn region(&self, handle: &Handle) -> Option<RegionEditor> {
-        Some(RegionEditor {
+    fn region(&self, handle: &Handle) -> Option<ViewEditor> {
+        Some(ViewEditor {
             plugin: handle.plugin.clone()?,
             role: handle.role,
             instance: handle.instance,
@@ -597,7 +597,7 @@ pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
             <ForEach keys={keys}>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
-                    <BlockRegion block region={View::display(display)} />
+                    <BlockView block region={View::display(display)} />
                 }
             }</ForEach>
         </Layers>
@@ -850,29 +850,29 @@ fn stop_on_escape(overlay: NodeRef) {
 }
 
 #[component]
-fn BlockRegion(block: Uuid, region: View) -> NodeId {
+fn BlockView(block: Uuid, region: View) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, false)
+        view_key(&editors, block, false)
             .into_iter()
             .collect::<Vec<_>>()
     });
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: RegionKey| {
-                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+            <ForEach keys={keys}>|_key: ViewKey| {
+                let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
                     };
                 };
                 view! {
-                    <PluginRegion
-                        editor={region_editor}
+                    <PluginView
+                        editor={view_editor}
                         region
                         frame={Some(FrameSpec::default())}
                         child_view
@@ -1091,17 +1091,17 @@ fn BlockFrame(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct RegionKey {
+struct ViewKey {
     plugin: String,
     instance: EditorInstanceId,
 }
 
-fn region_key(editors: &Editors, block: Uuid, preview: bool) -> Option<RegionKey> {
+fn view_key(editors: &Editors, block: Uuid, preview: bool) -> Option<ViewKey> {
     let handle = editors.handle(block)?;
     if preview && !handle.preview {
         return None;
     }
-    Some(RegionKey {
+    Some(ViewKey {
         plugin: handle.plugin_id()?.to_owned(),
         instance: handle.instance,
     })
@@ -1114,7 +1114,7 @@ enum Resolution {
     Locked,
     Unsupported(Uuid),
     Stale(Uuid, block_app_stack::Stale),
-    Ready { region: RegionKey, access: Access },
+    Ready { region: ViewKey, access: Access },
 }
 
 #[component]
@@ -1221,7 +1221,7 @@ fn BlockFrameBody(
         if let Some(stale) = block_app_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
-        match region_key(&editors, block, false) {
+        match view_key(&editors, block, false) {
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
         }
@@ -1280,7 +1280,7 @@ fn BlockFrameBody(
                                 <Frame />
                             };
                         };
-                        let Some(region_editor) = editors.region(&handle) else {
+                        let Some(view_editor) = editors.region(&handle) else {
                             return view! {
                                 <Frame />
                             };
@@ -1290,7 +1290,7 @@ fn BlockFrameBody(
                                 block
                                 access
                                 handle
-                                region_editor
+                                view_editor
                                 chrome={chrome}
                                 content={content}
                                 top_bar={top_bar}
@@ -1314,7 +1314,7 @@ fn BlockFrameView(
     block: Uuid,
     access: Access,
     handle: Handle,
-    region_editor: RegionEditor,
+    view_editor: ViewEditor,
     chrome: Prop<Chrome>,
     content: Prop<Option<Rect>>,
     top_bar: Prop<TopBar>,
@@ -1329,8 +1329,8 @@ fn BlockFrameView(
     provide_context(FocusedWithin(on_focus));
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
-    let plugin_id = store(region_editor.plugin_id().to_owned());
-    let instance = region_editor.instance;
+    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let instance = view_editor.instance;
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
@@ -1402,8 +1402,8 @@ fn BlockFrameView(
                 })
             });
             view! {
-                <PluginRegion
-                    editor={region_editor.clone()}
+                <PluginView
+                    editor={view_editor.clone()}
                     region=View::MAIN
                     frame={frame}
                     view={editor_view}
@@ -1485,7 +1485,7 @@ fn HostedChild(
             rects
         },
     )));
-    provide_context(super::region::GivenKeyboard(create_memo(move || {
+    provide_context(super::plugin_view::GivenKeyboard(create_memo(move || {
         child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
     })));
     let content = create_memo(move || child.get().map(|child| child.content));
@@ -1699,7 +1699,7 @@ fn HostedChild(
                             Kind::Missing | Kind::Unavailable | Kind::NoPicker => view! {
                                 <Frame />
                             },
-                            Kind::Picker => match editors.picker_region(&creation_key) {
+                            Kind::Picker => match editors.picker_view(&creation_key) {
                                 Some(hosted) => {
                                     let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
                                     view! {
@@ -1728,7 +1728,7 @@ fn HostedChild(
                                     <HostedSurface id=SurfaceId::ArtifactSettings dialog />
                                 }
                             }
-                            Kind::Creation => match editors.creation_region(&creation_key) {
+                            Kind::Creation => match editors.creation_view(&creation_key) {
                                 Some(hosted) => {
                                     let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
                                     view! {
@@ -1828,7 +1828,7 @@ fn placed_anchor() -> Memo<Option<Rect>> {
 fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
-    let Some((handle, region_editor)) = editors
+    let Some((handle, view_editor)) = editors
         .handle(block)
         .and_then(|handle| Some((handle.clone(), editors.region(&handle)?)))
     else {
@@ -1840,8 +1840,8 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     provide_context(FocusedWithin(reporter.focus));
     provide_context(nesting.within(block, access));
     let region = View::dock(ViewId(tab));
-    let plugin_id = store(region_editor.plugin_id().to_owned());
-    let instance = region_editor.instance;
+    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let instance = view_editor.instance;
     let revision = super::listen(&plugin_id.value());
     let holds = create_memo(move || {
         revision.get();
@@ -1864,7 +1864,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let anchor = placed_anchor();
     view! {
         <FrameStack block top_bar=TopBar::Hidden holds={holds}>|stack: Memo<Vec<Uuid>>| {
-            let region_editor = region_editor.clone();
+            let view_editor = view_editor.clone();
             let frame = create_memo(move || {
                 holds.get().then(|| FrameSpec {
                     chrome: match stack.get().is_empty() {
@@ -1879,8 +1879,8 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
                 <Camera spec>|camera: CameraView| {
                     let CameraView { view: editor_view, pan_drag, .. } = camera;
                     view! {
-                        <PluginRegion
-                            editor={region_editor.clone()}
+                        <PluginView
+                            editor={view_editor.clone()}
                             region
                             frame={frame}
                             view={editor_view}
@@ -1896,11 +1896,11 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
 }
 
 #[component]
-fn CreationSurface(hosted: HostedRegion, dialog: Memo<Option<DialogFrame>>) -> NodeId {
+fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> NodeId {
     let child_view = child_view(hosted_parent(hosted.editor.instance), hosted.region);
     let frame = hosted.frame;
     view! {
-        <PluginRegion
+        <PluginView
             editor={hosted.editor}
             region={hosted.region}
             frame={Prop::dynamic(move || {
@@ -2023,22 +2023,22 @@ fn BlockPreview(block: Uuid) -> NodeId {
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, true)
+        view_key(&editors, block, true)
             .into_iter()
             .collect::<Vec<_>>()
     });
     let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: RegionKey| {
-                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+            <ForEach keys={keys}>|_key: ViewKey| {
+                let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
                     };
                 };
                 view! {
-                    <PluginRegion
-                        editor={region_editor}
+                    <PluginView
+                        editor={view_editor}
                         region=View::PREVIEW
                         offscreen=true
                         child_view

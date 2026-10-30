@@ -23,7 +23,7 @@ fn press(pos: Pos2) -> beui::Forwarded {
 fn input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points() {
     let mut instances = layered(pos2(10.0, 10.0));
     let menu = Rect::from_min_size(pos2(150.0, 50.0), vec2(60.0, 40.0));
-    report_layers(&mut instances, vec![layer(3, 0, menu)]);
+    report_anchored(&mut instances, vec![layer(3, 0, menu)]);
     let input = beui::ForwardedInput {
         events: vec![press(pos2(160.0, 60.0))],
         rect: window(),
@@ -33,7 +33,7 @@ fn input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points() {
         modifiers: beui::Modifiers::NONE,
     };
 
-    let messages = instances.forward_layer(INSTANCE, REGION, ViewId(3), &input);
+    let messages = instances.forward_anchored(INSTANCE, REGION, ViewId(3), &input);
 
     let events: Vec<_> = messages
         .into_iter()
@@ -59,7 +59,7 @@ fn input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points() {
     );
     assert!(
         instances
-            .forward_layer(INSTANCE, REGION, ViewId(4), &input)
+            .forward_anchored(INSTANCE, REGION, ViewId(4), &input)
             .is_empty(),
         "input for a layer the region does not have open goes nowhere"
     );

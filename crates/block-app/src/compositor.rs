@@ -1,8 +1,8 @@
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
-pub(crate) mod layers;
-pub(crate) mod region;
+pub(crate) mod anchored;
+pub(crate) mod plugin_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -17,8 +17,8 @@ pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use layers::PluginLayers;
-pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
+pub(crate) use anchored::AnchoredViews;
+pub(crate) use plugin_view::{ChildView, PluginView, ViewEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 
@@ -35,7 +35,7 @@ thread_local! {
 
 pub(crate) fn install() {
     desktop::install();
-    layers::install();
+    anchored::install();
     let signal = create_signal(0u64);
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);

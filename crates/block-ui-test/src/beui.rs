@@ -467,7 +467,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 windows: false,
                 host_place: None,
                 docked: self.docked,
-                layers: None,
+                anchor_space: None,
             }]
         });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);

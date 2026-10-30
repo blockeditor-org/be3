@@ -515,7 +515,7 @@ grip too: placing it is a `place-bar` request, and dragging it a run of
 `move-bar` requests with the pointer in the bar body's own points (`move`,
 then `drop` or `cancel`; while the pointer is over another view of the owner,
 the owner maps the position it hears there back into the bar's view through
-the views' layer spaces), which the root carries as a drag of its own, showing
+the views' anchor spaces), which the root carries as a drag of its own, showing
 where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
 declaring editor and passed on unchanged by the host) says which bars are one
 bar of different tabs: the root places every bar of a kind the same way and
@@ -591,7 +591,7 @@ A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every
 frame that laid it out again, the content area it laid out, as insets from
 the frame's edges (or `none` where the view holds no content), and the rectangles it painted and the rectangles its
-floating layers took, in the frame's own logical coordinates. The host works
+floating overlays took, in the frame's own logical coordinates. The host works
 out the view it hands a pan-and-zoom editor against the content area those
 insets leave of the frame's current size, so a frame resized since the
 editor last drew is handed a view for its new size in the same frame. It
@@ -604,13 +604,13 @@ pixel is blended twice.
 Anchored views carry what points back to where it came from (menus and their
 submenus, popovers, tooltips, the selection toolbar, small dialogs opened from
 a control) and sheets attached to an edge out of the view that opened them,
-with no round trip; the host draws each as a layer above every view. A screen
-request may carry a layer space (`screen-request.layers`): `to-host`, which
+with no round trip; the host draws each above every view. A screen
+request may carry an anchor space (`screen-request.anchor-space`): `to-host`, which
 maps the view's points to host coordinates (the app window's logical points)
 at the camera the request lays it out against, and `bounds`, the rectangle in
 host coordinates where views anchored to it may go: the app window for a
 trusted plugin, the plugin's own box for a confined one. A child's bounds
-never exceed its parent's, and a screen requested without a layer space
+never exceed its parent's, and a screen requested without an anchor space
 anchors no views. An anchored view is a screen like any other, which the
 plugin creates as it creates any view: in the frame that opens it the plugin
 places it, anchored to a rectangle in its parent's coordinates or attached to

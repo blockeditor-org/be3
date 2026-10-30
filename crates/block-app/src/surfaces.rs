@@ -8,7 +8,7 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
+use crate::compositor::{ChildView, PluginView, ViewEditor, ShellSurface};
 use beui::{Align2, Direction};
 
 mod notices;
@@ -23,19 +23,19 @@ pub(crate) enum SurfaceId {
 const HOSTING: [SurfaceId; 1] = [SurfaceId::ArtifactSettings];
 
 #[derive(Clone)]
-pub(crate) struct HostedRegion {
-    pub(crate) editor: RegionEditor,
+pub(crate) struct HostedView {
+    pub(crate) editor: ViewEditor,
     pub(crate) region: View,
     pub(crate) frame: Option<FrameSpec>,
 }
 
-impl HostedRegion {
+impl HostedView {
     pub(crate) fn key(&self) -> (EditorInstanceId, View) {
         (self.editor.instance, self.region)
     }
 }
 
-impl PartialEq for HostedRegion {
+impl PartialEq for HostedView {
     fn eq(&self, other: &Self) -> bool {
         self.key() == other.key() && self.frame == other.frame
     }
@@ -43,12 +43,12 @@ impl PartialEq for HostedRegion {
 
 #[derive(Clone)]
 struct Hosted {
-    region: Signal<Option<HostedRegion>>,
+    region: Signal<Option<HostedView>>,
 }
 
 #[derive(Default)]
 struct Declared {
-    regions: HashMap<SurfaceId, HostedRegion>,
+    regions: HashMap<SurfaceId, HostedView>,
 }
 
 thread_local! {
@@ -77,7 +77,7 @@ fn hosted(id: SurfaceId) -> Hosted {
     })
 }
 
-pub(crate) fn host(id: SurfaceId, region: Option<HostedRegion>) {
+pub(crate) fn host(id: SurfaceId, region: Option<HostedView>) {
     DECLARED.with(|declared| {
         let mut declared = declared.borrow_mut();
         match region {
@@ -116,7 +116,7 @@ pub(crate) fn HostedSurface(
     let keys = create_memo(move || {
         region.with(|held| {
             held.as_ref()
-                .map(HostedRegion::key)
+                .map(HostedView::key)
                 .into_iter()
                 .collect::<Vec<_>>()
         })
@@ -141,7 +141,7 @@ pub(crate) fn HostedSurface(
                     None => frame.clone(),
                 });
                 view! {
-                    <PluginRegion editor={hosted.editor} region={hosted.region} frame child_view />
+                    <PluginView editor={hosted.editor} region={hosted.region} frame child_view />
                 }
             }</ForEach>
         </Layers>

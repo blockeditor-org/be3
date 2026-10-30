@@ -3,7 +3,7 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand, BlockPick,
     ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
-    EditorInstanceId, FrameReport, FrameSpec, LayerSpace, MenuEntry, Occluder, OpenArtifact,
+    EditorInstanceId, FrameReport, FrameSpec, AnchorSpace, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
     ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewAnchor,
     ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
@@ -20,7 +20,7 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostChild, HostChildStatus, HostLayer, InstanceRole,
+    ChildCommit, EditorBlock, HostChild, HostChildStatus, HostAnchored, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
@@ -562,8 +562,8 @@ struct Screen {
     revoked: HashSet<ChildId>,
     frame_revoked: HashSet<ChildId>,
     scales: Sent<f32>,
-    spaces: Sent<Option<(LayerSpace, f32)>>,
-    fresh_layers: Option<LayerSpace>,
+    spaces: Sent<Option<(AnchorSpace, f32)>>,
+    fresh_space: Option<AnchorSpace>,
     serial: u64,
     kept: Option<ViewportMetrics>,
 }
@@ -592,7 +592,7 @@ impl Screen {
             frame_revoked: HashSet::new(),
             scales: Sent::default(),
             spaces: Sent::default(),
-            fresh_layers: None,
+            fresh_space: None,
             serial: 0,
             kept: None,
         }
@@ -611,9 +611,9 @@ impl Screen {
         ) * ratio(painted, metrics.scale_factor)
     }
 
-    fn layer_shift(&self) -> Option<(LayerSpace, Vec2, f32)> {
-        self.request.layers?;
-        let now = self.fresh_layers.or(self.request.layers)?;
+    fn anchor_shift(&self) -> Option<(AnchorSpace, Vec2, f32)> {
+        self.request.anchor_space?;
+        let now = self.fresh_space.or(self.request.anchor_space)?;
         let (laid, raster) = self
             .spaces
             .at(self.serial)
@@ -644,8 +644,8 @@ struct AnchoredScreen {
     screen: Screen,
 }
 
-fn host_layers(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Vec<HostLayer> {
-    let (Some(_), Some((space, shift, pixels_per_point))) = (root.placement, root.layer_shift())
+fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Vec<HostAnchored> {
+    let (Some(_), Some((space, shift, pixels_per_point))) = (root.placement, root.anchor_shift())
     else {
         return Vec::new();
     };
@@ -668,7 +668,7 @@ fn host_layers(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Ve
                     .filter(|rect| rect.is_positive())
                     .collect()
             };
-            Some(HostLayer {
+            Some(HostAnchored {
                 id: anchored.view,
                 parent: (placement.parent != region).then_some(placement.parent),
                 opened: anchored.opened,
@@ -956,7 +956,7 @@ impl Instances {
                     windows: false,
                     host_place: None,
                     docked: false,
-                    layers: None,
+                    anchor_space: None,
                 },
                 pass,
             )
@@ -1080,14 +1080,14 @@ impl Instances {
         raster: f32,
         windows: bool,
         host_place: Option<String>,
-        layers: Option<LayerSpace>,
+        anchor_space: Option<AnchorSpace>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        screen.fresh_layers = layers;
-        if !only_moved(screen.request.layers, layers) {
-            screen.request.layers = layers;
+        screen.fresh_space = anchor_space;
+        if !only_moved(screen.request.anchor_space, anchor_space) {
+            screen.request.anchor_space = anchor_space;
         }
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
         if region == ViewId::MAIN && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
@@ -1105,7 +1105,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn refresh_hosting_layers(&mut self) -> bool {
+    pub(super) fn refresh_anchoring_views(&mut self) -> bool {
         let hosting: Vec<(EditorInstanceId, ViewId)> = self
             .entries
             .iter()
@@ -1119,17 +1119,17 @@ impl Instances {
         hosting
             .into_iter()
             .fold(false, |refreshed, (instance, region)| {
-                self.refresh_layers(instance, region) || refreshed
+                self.refresh_anchor_space(instance, region) || refreshed
             })
     }
 
-    pub(super) fn refresh_layers(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
+    pub(super) fn refresh_anchor_space(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
         let Some(screen) = self.screen_mut(instance, region) else {
             return false;
         };
-        let fresh = screen.fresh_layers;
-        let changed = screen.request.layers != fresh;
-        screen.request.layers = fresh;
+        let fresh = screen.fresh_space;
+        let changed = screen.request.anchor_space != fresh;
+        screen.request.anchor_space = fresh;
         changed
     }
 
@@ -1331,12 +1331,12 @@ impl Instances {
         (messages, revoked)
     }
 
-    pub(super) fn layers(&self, instance: EditorInstanceId, region: ViewId) -> Vec<HostLayer> {
+    pub(super) fn shown_anchored(&self, instance: EditorInstanceId, region: ViewId) -> Vec<HostAnchored> {
         self.entries
             .get(&instance)
             .and_then(|entry| {
                 let root = entry.screens.get(&region)?;
-                Some(host_layers(root, &entry.anchored, region))
+                Some(host_anchored(root, &entry.anchored, region))
             })
             .unwrap_or_default()
     }
@@ -1403,7 +1403,7 @@ impl Instances {
                         windows: false,
                         host_place: None,
                         docked: false,
-                        layers: None,
+                        anchor_space: None,
                     },
                     0,
                 ),
@@ -1439,7 +1439,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
     ) -> Vec<(ViewId, Rect, Rect)> {
-        self.layers(instance, region)
+        self.shown_anchored(instance, region)
             .into_iter()
             .map(|layer| (layer.id, layer.rect, layer.bounds))
             .collect()
@@ -1477,7 +1477,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn forward_layer(
+    pub(super) fn forward_anchored(
         &mut self,
         instance: EditorInstanceId,
         region: ViewId,
@@ -1485,7 +1485,7 @@ impl Instances {
         input: &beui::ForwardedInput,
     ) -> Vec<Outbound> {
         let Some(rect) = self
-            .layers(instance, region)
+            .shown_anchored(instance, region)
             .into_iter()
             .find(|held| held.id == layer)
             .map(|held| held.rect)
@@ -1534,7 +1534,7 @@ impl Instances {
             .collect()
     }
 
-    pub(super) fn dismiss_layers(
+    pub(super) fn dismiss_anchored_views(
         &mut self,
         instance: EditorInstanceId,
         region: ViewId,
@@ -2115,7 +2115,7 @@ impl Instances {
                             screen.spaces.push(
                                 serial,
                                 request
-                                    .layers
+                                    .anchor_space
                                     .map(|layers| (layers, request.metrics.raster)),
                             );
                         }
@@ -2185,7 +2185,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn set_region_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
+    pub(super) fn set_view_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
             if let Some(screen) = self.screen_by_id(size.screen) {
@@ -2373,7 +2373,7 @@ impl Instances {
         let mut holes = Holes::default();
         let mut live = 0;
         let mut shown_tabs = HashSet::new();
-        let layers = host_layers(screen, &entry.anchored, region);
+        let layers = host_anchored(screen, &entry.anchored, region);
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report
                 .painted
@@ -2401,7 +2401,7 @@ impl Instances {
                 (usize::MAX, child, Some(layer))
             }))
         });
-        let placed: Vec<(usize, ChildPlacement, Option<&HostLayer>)> = table
+        let placed: Vec<(usize, ChildPlacement, Option<&HostAnchored>)> = table
             .children
             .iter()
             .enumerate()
@@ -2870,7 +2870,7 @@ impl Instances {
         self.entries.get(&instance)?.intrinsic
     }
 
-    pub(super) fn region_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
+    pub(super) fn view_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
         self.entries.get(&instance)?.screens.get(&region)?.used
     }
 
@@ -2907,7 +2907,7 @@ impl Instances {
                     windows: true,
                     host_place: None,
                     docked: false,
-                    layers: None,
+                    anchor_space: None,
                 },
                 0,
             ),
@@ -3635,7 +3635,7 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     hosts.iter().any(|allowed| allowed == host)
 }
 
-fn only_moved(sent: Option<LayerSpace>, now: Option<LayerSpace>) -> bool {
+fn only_moved(sent: Option<AnchorSpace>, now: Option<AnchorSpace>) -> bool {
     match (sent, now) {
         (Some(sent), Some(now)) => {
             sent.bounds == now.bounds && sent.to_host.scale == now.to_host.scale

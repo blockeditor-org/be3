@@ -1,6 +1,6 @@
 mod fonts;
 mod input;
-mod layers;
+mod escaped;
 mod platform;
 mod surface;
 
@@ -21,7 +21,7 @@ use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
-    Claim, DescribedAction, Description, EditorHost, Frame, HostView, Input, Region, Regions,
+    Claim, DescribedAction, Description, EditorHost, Frame, HostView, Input, ShownView, ViewHandler,
     TimedInput, ViewId, ViewPlacement, ViewRef,
 };
 #[cfg(target_arch = "wasm32")]
@@ -29,7 +29,7 @@ use block_editor_plugin::{PaintTarget, SurfaceRect};
 
 use beui_host::styled::Root;
 use beui_platform_plugin_api::{
-    PluginRuntime, RegionsRunner, View, Views, anchored_layer, anchored_view, window_view,
+    PluginRuntime, ViewRunner, View, Views, anchored_layer, anchored_view, window_view,
 };
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Surface};
@@ -81,11 +81,11 @@ impl Platform for PluginPlatform {
                 overflows: Vec::new(),
                 floated: HashMap::new(),
                 asks: Vec::new(),
-                layers: HashMap::new(),
+                escaped: HashMap::new(),
                 placements: HashMap::new(),
                 ratio: 1.0,
             };
-            self.host.handle_regions(Box::new(handler));
+            self.host.handle_views(Box::new(handler));
             Ok(())
         })
     }
@@ -119,7 +119,7 @@ impl PluginRuntime for Runtime {
         fonts::use_bundled();
     }
 
-    fn runner<'a>(&self, handler: &'a mut dyn Regions) -> Option<&'a mut dyn RegionsRunner> {
+    fn runner<'a>(&self, handler: &'a mut dyn ViewHandler) -> Option<&'a mut dyn ViewRunner> {
         Some(ModuleRunner::of(handler)?)
     }
 }
@@ -166,7 +166,7 @@ struct ModuleRunner {
     overflows: Vec<(WindowId, String)>,
     floated: HashMap<WindowId, Floated>,
     asks: Vec<(ViewRef, block_plugin_api::WindowRequest)>,
-    layers: HashMap<ViewRef, Vec<layers::Shown>>,
+    escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
     placements: HashMap<ViewRef, ViewPlacement>,
     ratio: f32,
 }
@@ -177,7 +177,7 @@ struct Floated {
     placement: Option<String>,
 }
 
-impl RegionsRunner for ModuleRunner {
+impl ViewRunner for ModuleRunner {
     fn context(&self) -> &Context {
         self.runner.context()
     }
@@ -192,11 +192,11 @@ impl RegionsRunner for ModuleRunner {
 }
 
 impl ModuleRunner {
-    fn of(handler: &mut dyn Regions) -> Option<&mut Self> {
+    fn of(handler: &mut dyn ViewHandler) -> Option<&mut Self> {
         (handler as &mut dyn Any).downcast_mut()
     }
 
-    fn ratio(&self, regions: &[Region]) -> f32 {
+    fn ratio(&self, regions: &[ShownView]) -> f32 {
         let scale = regions.first().map_or(1.0, |region| region.scale_factor);
         let context = self.runner.context();
         context.set_pixels_per_point(scale);
@@ -204,7 +204,7 @@ impl ModuleRunner {
         scale / context.pixels_per_point()
     }
 
-    fn show(&mut self, regions: &[Region], ratio: f32) {
+    fn show(&mut self, regions: &[ShownView], ratio: f32) {
         self.views.set(
             regions
                 .iter()
@@ -229,7 +229,7 @@ impl ModuleRunner {
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
-        self.layers.retain(|id, _| shown(id));
+        self.escaped.retain(|id, _| shown(id));
         self.placements = regions
             .iter()
             .map(|region| (region.id(), region.view.placement))
@@ -237,7 +237,7 @@ impl ModuleRunner {
         for region in regions {
             let id = region.id();
             if let Some(window) = self.windows.get(&id).copied() {
-                layers::set_space(self.runner.context(), window, region.layers, ratio);
+                escaped::set_space(self.runner.context(), window, region.anchor_space, ratio);
                 let raster = match region.raster.is_finite() && region.raster > 0.0 {
                     true => region.raster,
                     false => region.scale_factor,
@@ -261,7 +261,7 @@ impl ModuleRunner {
         }
     }
 
-    fn float(&mut self, regions: &[Region]) {
+    fn float(&mut self, regions: &[ShownView]) {
         let mut gone = Vec::new();
         for (window, floated) in &mut self.floated {
             match regions.iter().find(|region| region.id() == floated.region) {
@@ -305,7 +305,7 @@ impl ModuleRunner {
             .map(|(id, _)| *id)
     }
 
-    fn ask(&mut self, request: WindowRequest, ratio: f32, regions: &[Region]) {
+    fn ask(&mut self, request: WindowRequest, ratio: f32, regions: &[ShownView]) {
         use block_plugin_api::WindowRequest as Ask;
         let to_region = |size: Vec2| block_plugin_api::Size {
             width: size.x / ratio,
@@ -325,7 +325,7 @@ impl ModuleRunner {
                 }
                 .or(self.active)
                 .filter(|id| regions.iter().any(|region| region.id() == *id))
-                .or_else(|| regions.iter().find(|region| region.windows).map(Region::id));
+                .or_else(|| regions.iter().find(|region| region.windows).map(ShownView::id));
                 let Some(opener) = opener else {
                     return;
                 };
@@ -399,7 +399,7 @@ impl ModuleRunner {
         }
     }
 
-    fn describe_regions(&mut self, regions: &[Region]) {
+    fn describe_views(&mut self, regions: &[ShownView]) {
         let described: Vec<(ViewRef, u64)> = regions
             .iter()
             .filter_map(|region| Some((region.id(), region.describe?)))
@@ -415,7 +415,7 @@ impl ModuleRunner {
         self.described = described;
     }
 
-    fn match_windows(&mut self, ratio: f32, regions: &[Region]) {
+    fn match_windows(&mut self, ratio: f32, regions: &[ShownView]) {
         let Some(output) = self.runner.output() else {
             return;
         };
@@ -446,7 +446,7 @@ impl ModuleRunner {
         }
     }
 
-    fn keyboard_region(&self, regions: &[Region]) -> Option<ViewRef> {
+    fn keyboard_view(&self, regions: &[ShownView]) -> Option<ViewRef> {
         let keyboard = self.runner.context().keyboard_window();
         self.windows
             .iter()
@@ -454,7 +454,7 @@ impl ModuleRunner {
             .map(|(id, _)| *id)
             .or(self.active)
             .filter(|id| regions.iter().any(|region| region.id() == *id))
-            .or_else(|| regions.first().map(Region::id))
+            .or_else(|| regions.first().map(ShownView::id))
     }
 
     fn requests(&mut self, id: ViewRef, keyboard: Option<ViewRef>, ratio: f32) -> WindowRequests {
@@ -486,7 +486,7 @@ impl ModuleRunner {
         state.scaled(ratio.recip()).requests
     }
 
-    fn describe(&self, id: ViewRef, region: &Region, ratio: f32) -> Description {
+    fn describe(&self, id: ViewRef, region: &ShownView, ratio: f32) -> Description {
         let window = self.windows.get(&id).copied();
         let output = self.runner.output();
         let tree = window.zip(output).map(|(window, output)| {
@@ -518,7 +518,7 @@ impl ModuleRunner {
     #[allow(clippy::too_many_arguments)]
     fn framed(
         &mut self,
-        region: &Region,
+        region: &ShownView,
         asks: Vec<block_plugin_api::WindowRequest>,
         keyboard: Option<ViewRef>,
         escaped: &[beui_core::context::EscapedOutput],
@@ -537,12 +537,12 @@ impl ModuleRunner {
         }
         let changed = surface.unpainted();
         surface.settle();
-        let held = self.layers.entry(id).or_default();
+        let held = self.escaped.entry(id).or_default();
         match window {
-            Some(window) => layers::follow(held, escaped, window),
+            Some(window) => escaped::follow(held, escaped, window),
             None => held.clear(),
         }
-        let anchored = layers::report(held, region.view.id, ratio);
+        let anchored = escaped::report(held, region.view.id, ratio);
         let report = self.views.take_report(id);
         let to_region = |rect: Rect| rect.scaled(ratio.recip());
         Frame {
@@ -587,7 +587,7 @@ impl ModuleRunner {
     }
 
     fn owner_of(&self, view: ViewRef) -> Option<ViewRef> {
-        self.layers
+        self.escaped
             .iter()
             .find(|(owner, held)| {
                 owner.instance == view.instance
@@ -598,15 +598,15 @@ impl ModuleRunner {
             .map(|(owner, _)| *owner)
     }
 
-    fn anchored(&mut self, view: ViewRef) -> Option<&mut layers::Shown> {
-        self.layers
+    fn anchored(&mut self, view: ViewRef) -> Option<&mut escaped::Shown> {
+        self.escaped
             .iter_mut()
             .filter(|(owner, _)| owner.instance == view.instance)
             .flat_map(|(_, held)| held.iter_mut())
             .find(|shown| anchored_view(shown.escaped.layer.id) == view.view)
     }
 
-    fn anchored_frame(&mut self, region: &Region) -> Frame {
+    fn anchored_frame(&mut self, region: &ShownView) -> Frame {
         let describe = region.describe.is_some();
         let output = self.runner.output();
         let context = self.runner.context();
@@ -616,7 +616,7 @@ impl ModuleRunner {
             && let Some(window) = self.windows.get(&owner).copied()
             && let Some(space) = context.layer_space(window)
             && let Some(output) = output
-            && let Some(shown) = self.layers.get(&owner).and_then(|held| {
+            && let Some(shown) = self.escaped.get(&owner).and_then(|held| {
                 held.iter()
                     .find(|shown| anchored_view(shown.escaped.layer.id) == region.view.id)
             })
@@ -633,12 +633,12 @@ impl ModuleRunner {
             });
         }
         match self.anchored(region.id()) {
-            Some(shown) => layers::framed(shown, description),
+            Some(shown) => escaped::framed(shown, description),
             None => Frame::default(),
         }
     }
 
-    fn stopped(&self, regions: &[Region]) -> Vec<Frame> {
+    fn stopped(&self, regions: &[ShownView]) -> Vec<Frame> {
         let stopped = self.runner.exited().then(|| match self.runner.failure() {
             Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
             None => block_plugin_api::Stopped::Closed,
@@ -680,8 +680,8 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
     tree
 }
 
-impl Regions for ModuleRunner {
-    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<ViewRef>) {
+impl ViewHandler for ModuleRunner {
+    fn input(&mut self, region: &ShownView, event: &TimedInput, over: Option<ViewRef>) {
         let id = region.id();
         self.active = Some(self.owner_of(id).unwrap_or(id));
         self.services.serve(region.instance);
@@ -701,8 +701,8 @@ impl Regions for ModuleRunner {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
         } else if region.view.is_anchored() {
-            if let (Some(space), Some(layer)) = (region.layers, anchored_layer(region.view.id)) {
-                let input = layers::to_host(event.input.clone(), space.to_host);
+            if let (Some(space), Some(layer)) = (region.anchor_space, anchored_layer(region.view.id)) {
+                let input = escaped::to_host(event.input.clone(), space.to_host);
                 self.runner.push(Incoming::layer(layer, input));
             }
         } else {
@@ -720,14 +720,14 @@ impl Regions for ModuleRunner {
         }
     }
 
-    fn dismiss_anchored(&mut self, region: &Region, views: &[ViewId]) {
+    fn dismiss_anchored(&mut self, region: &ShownView, views: &[ViewId]) {
         self.services.serve(region.instance);
         for layer in views.iter().copied().filter_map(anchored_layer) {
             self.runner.context().dismiss_layer(layer);
         }
     }
 
-    fn run_action(&mut self, region: &Region, id: &str) {
+    fn run_action(&mut self, region: &ShownView, id: &str) {
         let context = self.runner.context();
         match self.windows.get(&region.id()) {
             Some(window) => context.request_action_in(*window, id.to_owned()),
@@ -735,12 +735,12 @@ impl Regions for ModuleRunner {
         }
     }
 
-    fn node_action(&mut self, region: &Region, request: ActionRequest) {
+    fn node_action(&mut self, region: &ShownView, request: ActionRequest) {
         self.services.serve(region.instance);
         self.runner.accessibility_action(request);
     }
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         self.runner
             .reports()
             .system_preferences(block_editor_plugin::host_preferences().into());
@@ -760,7 +760,7 @@ impl Regions for ModuleRunner {
             self.runner.context().set_clock(now);
             beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
-        self.describe_regions(regions);
+        self.describe_views(regions);
         let Some(frame) = self.runner.frame(&mut self.services, SafeArea::default()) else {
             return self.stopped(regions);
         };
@@ -770,14 +770,14 @@ impl Regions for ModuleRunner {
             .output()
             .map(|output| output.window_overflows.clone())
             .unwrap_or_default();
-        let keyboard = self.keyboard_region(regions);
+        let keyboard = self.keyboard_view(regions);
         let escaped = self
             .runner
             .output()
             .map(|output| output.escaped.clone())
             .unwrap_or_default();
         let mut asks = std::mem::take(&mut self.asks);
-        let fallback = regions.first().map(Region::id);
+        let fallback = regions.first().map(ShownView::id);
         regions
             .iter()
             .map(|region| {
@@ -786,7 +786,7 @@ impl Regions for ModuleRunner {
                 asks.retain(|(from, ask)| {
                     let owner = regions
                         .iter()
-                        .map(Region::id)
+                        .map(ShownView::id)
                         .find(|region| region.instance == from.instance)
                         .or(fallback);
                     let here = owner == Some(id);
@@ -814,7 +814,7 @@ impl Regions for ModuleRunner {
             .collect()
     }
 
-    fn frame_opened(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame_opened(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         let ratio = self.ratio;
         for region in regions.iter().filter(|region| !region.view.is_anchored()) {
             let id = region.id();

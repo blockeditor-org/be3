@@ -154,7 +154,7 @@ impl Desk {
                 windows: true,
                 host_place: None,
                 docked: false,
-                layers: None,
+                anchor_space: None,
             });
         let windows = self.windows.iter().map(|window| ScreenRequest {
             screen: window.screen,
@@ -166,7 +166,7 @@ impl Desk {
             windows: true,
             host_place: Some(placement(window.rect)),
             docked: false,
-            layers: None,
+            anchor_space: None,
         });
         displays.chain(windows).collect()
     }

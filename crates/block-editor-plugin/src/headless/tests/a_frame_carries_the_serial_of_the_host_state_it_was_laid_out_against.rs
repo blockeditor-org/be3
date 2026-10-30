@@ -6,7 +6,7 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, ShownView, ViewHandler, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -17,18 +17,18 @@ impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
     fn open_view(&mut self, _view: block_plugin_api::View) {
-        if !self.0.handles_regions() {
-            self.0.handle_regions(Box::new(StillRegions));
+        if !self.0.handles_views() {
+            self.0.handle_views(Box::new(StillViews));
         }
     }
 }
 
-struct StillRegions;
+struct StillViews;
 
-impl Regions for StillRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<ViewRef>) {}
+impl ViewHandler for StillViews {
+    fn input(&mut self, _region: &ShownView, _event: &TimedInput, _over: Option<ViewRef>) {}
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions
             .iter()
             .map(|region| Frame {
@@ -70,7 +70,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             windows: false,
             host_place: None,
             docked: false,
-            layers: None,
+            anchor_space: None,
         }])
         .unwrap();
     plugin.configure(serial).unwrap();

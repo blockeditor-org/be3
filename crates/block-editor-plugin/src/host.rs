@@ -1783,13 +1783,13 @@ impl EditorHost {
             .map(crate::Module::from_state)
     }
 
-    pub fn handle_regions(&self, handler: Box<dyn crate::Regions>) {
+    pub fn handle_views(&self, handler: Box<dyn crate::ViewHandler>) {
         self.module()
             .expect("an editor host belongs to a module before a handler registers")
             .handle(handler);
     }
 
-    pub fn handles_regions(&self) -> bool {
+    pub fn handles_views(&self) -> bool {
         self.module().is_some_and(|module| module.handles())
     }
 

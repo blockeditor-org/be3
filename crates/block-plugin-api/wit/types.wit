@@ -229,7 +229,7 @@ interface types {
     /// `docked` says the dock this view shows joins the dock of the
     /// instance that placed it (`child-placement.docks`): it declares itself
     /// (`dock-message.declare`) and draws no chrome, and the host shows each
-    /// of its tabs' bodies as a view placed by the dock. `layers` is where
+    /// of its tabs' bodies as a view placed by the dock. `anchor-space` is where
     /// the view may anchor views of its own (`frame-report.anchored`),
     /// `none` where it may anchor none.
     record screen-request {
@@ -242,7 +242,7 @@ interface types {
         windows: bool,
         host-place: option<string>,
         docked: bool,
-        layers: option<layer-space>,
+        anchor-space: option<anchor-space>,
     }
 
     /// Maps a view's logical points to the app window's (host
@@ -257,7 +257,7 @@ interface types {
     /// `bounds`, in host coordinates, is where its anchored views may go: the
     /// app window for a trusted plugin, the plugin's own box for a confined
     /// one, and never more than the bounds of the view that placed this one.
-    record layer-space {
+    record anchor-space {
         to-host: host-transform,
         bounds: rect,
     }
@@ -477,7 +477,7 @@ interface types {
         bottom: f32,
     }
 
-    /// An edge of a layer space's bounds.
+    /// An edge of an anchor space's bounds.
     enum view-edge {
         top,
         bottom,
@@ -488,7 +488,7 @@ interface types {
     /// How a view that places itself hangs from its parent view: anchored to
     /// a rectangle in the parent's coordinates (the parent's points, or host
     /// coordinates when the parent is itself anchored), as a menu hangs from
-    /// its button, or attached to an edge of the layer space's bounds, as a
+    /// its button, or attached to an edge of the anchor space's bounds, as a
     /// sheet is.
     variant view-anchor {
         rect(rect),
@@ -497,10 +497,10 @@ interface types {
 
     /// How a view the instance anchored places itself: a menu, popover,
     /// tooltip or sheet, allowed outside its parent's rectangle. `parent` is
-    /// the view it hangs from: one the host asked for with a layer space, or
+    /// the view it hangs from: one the host asked for with an anchor space, or
     /// another anchored view of the instance, as a submenu hangs from its
     /// menu. `rect` is where the plugin laid it out, in host coordinates,
-    /// against `layer-space.bounds` of the view the chain hangs from: the
+    /// against `anchor-space.bounds` of the view the chain hangs from: the
     /// view's own points are host points from `rect`'s top-left corner.
     /// With `dismiss-on-outside-press`, a press outside the view's chain (it
     /// and the views hanging from it) closes the chain: the instance hears

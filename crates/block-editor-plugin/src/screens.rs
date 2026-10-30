@@ -1,6 +1,6 @@
 use block_plugin_api::{
     AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit, HostTransform,
-    HostView, LayerSpace, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    HostView, AnchorSpace, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
     ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
@@ -14,7 +14,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    Frame, Module, Region, Waker,
+    Frame, Module, ShownView, Waker,
     editor_session::{EditorSession, Open},
     plugin::Anchored,
     wire::Delivery,
@@ -115,7 +115,7 @@ impl Screens {
                 begun.push((*placement, session.begin(placement.view, *age)));
             }
         }
-        let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
+        let regions: Vec<ShownView> = begun.iter().map(|(_, region)| region.clone()).collect();
         let mut frames = self
             .module
             .with_handler(|handler| handler.frame(&regions))
@@ -143,7 +143,7 @@ impl Screens {
 
     fn open_windows(
         &mut self,
-        region: &Region,
+        region: &ShownView,
         asks: &mut [WindowRequest],
         opened: &mut Vec<ScreenRequest>,
     ) {
@@ -186,8 +186,8 @@ impl Screens {
             .any(|anchored| anchored.request.screen == screen)
     }
 
-    fn anchor(&mut self, region: &Region, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
-        let Some(space) = region.layers.filter(|_| region.view.placement.reports()) else {
+    fn anchor(&mut self, region: &ShownView, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
+        let Some(space) = region.anchor_space.filter(|_| region.view.placement.reports()) else {
             return;
         };
         let instance = region.instance;
@@ -274,7 +274,7 @@ impl Screens {
         if begun.is_empty() {
             return Vec::new();
         }
-        let regions: Vec<Region> = begun.iter().map(|(_, _, region)| region.clone()).collect();
+        let regions: Vec<ShownView> = begun.iter().map(|(_, _, region)| region.clone()).collect();
         let mut frames = self
             .module
             .with_handler(|handler| handler.frame_opened(&regions))
@@ -748,8 +748,8 @@ struct AnchoredScreen {
 }
 
 fn anchored_request(
-    region: &Region,
-    space: &LayerSpace,
+    region: &ShownView,
+    space: &AnchorSpace,
     screen: ScreenId,
     view: ViewId,
     rect: block_plugin_api::Rect,
@@ -786,7 +786,7 @@ fn anchored_request(
         windows: false,
         host_place: None,
         docked: false,
-        layers: Some(LayerSpace {
+        anchor_space: Some(AnchorSpace {
             to_host: HostTransform {
                 origin: rect.min,
                 scale: Vec2::new(1.0, 1.0),
@@ -796,7 +796,7 @@ fn anchored_request(
     }
 }
 
-fn opened_window(region: &Region, view: ViewId, screen: ScreenId, size: Size) -> ScreenRequest {
+fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size) -> ScreenRequest {
     let side = |points: f32| match points.is_finite() {
         true => points.clamp(1.0, LARGEST_WINDOW),
         false => 1.0,
@@ -828,7 +828,7 @@ fn opened_window(region: &Region, view: ViewId, screen: ScreenId, size: Size) ->
         windows: true,
         host_place: None,
         docked: false,
-        layers: None,
+        anchor_space: None,
     }
 }
 

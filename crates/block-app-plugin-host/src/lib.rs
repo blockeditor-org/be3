@@ -41,22 +41,22 @@ pub use presenter::Piece;
 pub use presenter::Pieces;
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
-pub use presenter::{Blit, LayerBlits};
+pub use presenter::{Blit, AnchoredBlits};
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, dismiss_layers, drag_over_region,
-    forward_layer, forward_region, frames, intercept_region, intercept_tap, layer_blits,
-    layers_drawing, mount_region, place_region, pressed_outside_region, region_damage,
-    region_drawing, region_placed, region_published, region_view, take_block_drags, take_changed,
-    take_focus_request, take_region_actions, unmount_region, unplace_region,
+    ViewPlace, ViewSlot, PlacedView, back_view, dismiss_anchored_views, drag_over_view,
+    forward_anchored, forward_view, frames, intercept_view, intercept_tap, anchored_blits,
+    anchored_drawing, mount_view, place_view, pressed_outside_view, view_damage,
+    view_drawing, view_placed, view_published, placed_view, take_block_drags, take_changed,
+    take_focus_request, take_view_actions, unmount_view, unplace_view,
 };
 pub use runtime::{
     artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
     content_view, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
     frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, picked,
-    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, region_placement,
-    region_size, replace_child, replace_gpu, report_child_bars, report_child_focus,
+    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, view_placement_of,
+    view_size, replace_child, replace_gpu, report_child_bars, report_child_focus,
     report_children, request_painting, resized, revoke_frame_child, running, set_artifact_states,
     set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
     show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
@@ -135,7 +135,7 @@ pub struct HostChild {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct HostLayer {
+pub struct HostAnchored {
     pub id: block_plugin_api::ViewId,
     pub parent: Option<block_plugin_api::ViewId>,
     pub opened: u64,
@@ -153,13 +153,13 @@ pub struct HostLayer {
     pub edge: bool,
 }
 
-impl HostLayer {
+impl HostAnchored {
     pub fn takes(&self, pos: beui::Pos2) -> bool {
         self.floating.iter().any(|rect| rect.contains(pos))
     }
 }
 
-pub fn dismissed_by_press(layers: &[HostLayer], pos: beui::Pos2) -> Vec<block_plugin_api::ViewId> {
+pub fn dismissed_by_press(layers: &[HostAnchored], pos: beui::Pos2) -> Vec<block_plugin_api::ViewId> {
     let below = |root: block_plugin_api::ViewId| {
         let mut chain = vec![root];
         for layer in layers {

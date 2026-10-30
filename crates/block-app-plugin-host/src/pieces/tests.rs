@@ -20,6 +20,6 @@ fn disjoint(pieces: &[beui::Rect]) -> bool {
 }
 
 mod a_hole_in_the_middle_leaves_a_ring;
-mod a_tooltip_over_a_region_uncovers_only_its_own_area;
+mod a_tooltip_over_a_view_uncovers_only_its_own_area;
 mod nothing_is_left_when_a_hole_covers_everything;
 mod pieces_of_two_holes_stay_disjoint;
