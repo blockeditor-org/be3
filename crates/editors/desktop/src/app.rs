@@ -1,8 +1,9 @@
+mod apps;
 mod bar;
 mod calendar;
 mod clock;
 mod fullscreen;
-pub(crate) mod launcher;
+mod launcher;
 pub(crate) mod media;
 mod notifications;
 pub(crate) mod osd;
@@ -30,9 +31,9 @@ use block_shell::{
 };
 use uuid::Uuid;
 
+use apps::{Apps, AppsKey, AppsOverlay};
 use bar::DesktopBar;
 use beui::ItemSize;
-use launcher::{ProgramLauncher, ProgramLauncherOverlay};
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use placeholders::{Placeholder, Placeholders};
@@ -82,7 +83,7 @@ impl block_editor_beui::BeuiApp for DesktopApp {
 struct Desktop {
     workspace: Workspace,
     notifications: DesktopNotifications,
-    launcher: ProgramLauncher,
+    apps: Apps,
     placeholders: Placeholders,
     osd: media::Osd,
 }
@@ -128,7 +129,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                 <DesktopBar
                     workspace={desktop.workspace}
                     notifications={desktop.notifications}
-                    launcher={desktop.launcher}
+                    apps={desktop.apps}
                     placeholders={desktop.placeholders}
                     display
                 />
@@ -175,8 +176,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
-    let launcher = ProgramLauncher::new(editor);
-    let launchable = launcher.offered;
+    let apps = Apps::new(workspace);
+    let launches = apps.launches();
+    let dock = NodeRef::new();
     let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
@@ -187,7 +189,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         Desktop {
             workspace,
             notifications,
-            launcher,
+            apps,
             placeholders,
             osd,
         },
@@ -197,6 +199,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking
+                    @node_ref=&dock
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={"desktop.dock"}
                     layout
@@ -219,7 +222,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     @node_ref=&bar_node
                     workspace
                     notifications={notifications}
-                    launcher={launcher}
+                    apps
                     placeholders
                     display=0
                 />
@@ -228,9 +231,10 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <MediaKeys editor osd />
                 </Show>
                 <media::LevelDisplay osd area display=0 />
-                <Show condition={launchable}>
-                    <ProgramLauncherOverlay launcher />
+                <Show condition={launches}>
+                    <AppsKey apps />
                 </Show>
+                <AppsOverlay apps display=0 area={dock} />
                 <DesktopToasts notifications bar={bar_node} area />
             </List>
         </Frame>

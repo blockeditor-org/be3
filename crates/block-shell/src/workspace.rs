@@ -366,6 +366,11 @@ impl Workspace {
         })
     }
 
+    pub fn shows(&self, id: Uuid) -> bool {
+        self.tabs
+            .with(|tabs| tabs.values().any(|item| item.id == id))
+    }
+
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
         self.open(TabItem::new(id, block_type), None);
     }

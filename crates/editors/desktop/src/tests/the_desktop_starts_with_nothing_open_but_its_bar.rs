@@ -20,13 +20,19 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
     );
 
     drop(document);
-    fixture.test.click("desktop.menu");
+    fixture.test.click("desktop.apps");
     fixture.settle();
+    fixture.test.click("desktop.apps.menu");
+    fixture.settle();
+    assert!(
+        !fixture.test.shown("desktop.apps.panel"),
+        "the Apps panel closes for the menu"
+    );
     assert!(
         fixture
             .test
             .placed(|content| *content == ChildContent::Host(HostPanel::AppMenu))
             .is_some(),
-        "the menu button places the app's menu in a view it anchored"
+        "the Apps panel's menu row places the app's menu in a view it anchored"
     );
 }

@@ -4,9 +4,7 @@ use std::time::Duration;
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS, ICON_REFRESH_CW,
-};
+use block_editor_beui::beui::icons::ICON_REFRESH_CW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
@@ -15,11 +13,10 @@ use block_editor_beui::{
 use block_shell::Workspace;
 
 use super::clock::ClockButton;
-use super::launcher::ProgramLauncher;
+use super::apps::{Apps, AppsButton};
 use super::notifications::DesktopNotifications;
 use super::placeholders::{OpenAllButton, Placeholders};
 use super::rotate::RotateButton;
-use super::sessions::Sessions;
 use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
 use super::windows::WindowPicker;
@@ -58,7 +55,7 @@ fn wall_clock() -> ReadSignal<String> {
 pub(crate) fn DesktopBar(
     workspace: Workspace,
     notifications: DesktopNotifications,
-    launcher: ProgramLauncher,
+    apps: Apps,
     placeholders: Placeholders,
     display: u32,
 ) -> NodeId {
@@ -71,8 +68,6 @@ pub(crate) fn DesktopBar(
     let kept = placeholders.keys;
     let launches = placeholders.launchable;
     let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
-    let launchable = launcher.offered;
-    let launcher = move || launcher.show(true);
     let powered = editor.offered::<PowerWatch>();
     let windowed = editor.offered::<WindowsWatch>();
     let epaper = editor.watch::<EpaperWatch>();
@@ -94,81 +89,12 @@ pub(crate) fn DesktopBar(
         epaper,
         screen,
     };
-    let menu_button = NodeRef::new();
-    let menu = move || editor.show_app_menu(menu_button);
-    let sessions = Sessions::new(workspace);
-    let listed = sessions.listed;
-    let keys = create_memo(move || {
-        listed.with(|sessions| {
-            sessions
-                .iter()
-                .map(|session| session.block)
-                .collect::<Vec<_>>()
-        })
-    });
-    let settings = sessions.settings;
-    let unready = create_memo(move || settings.get().is_none());
-    let listing = create_memo(move || !listed.with(Vec::is_empty));
-    let chose = move |path: Vec<usize>| {
-        let chosen = path
-            .first()
-            .and_then(|index| listed.with_untracked(|sessions| sessions.get(*index).cloned()));
-        if let Some(session) = chosen {
-            sessions.open(session.block);
-        }
-    };
     view! {
         <List spacing=Space::None>
             <Separator />
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Button
-                        icon_only=true
-                        @node_ref={&menu_button}
-                        glyph=ICON_MENU
-                        label="Menu"
-                        @test_id={"desktop.menu"}
-                        on_click={menu}
-                    />
-                    <Show condition={launchable}>
-                        <Button
-                            icon_only=true
-                            glyph=ICON_LAYOUT_GRID
-                            label="Programs"
-                            @test_id={"desktop.launcher"}
-                            on_click={launcher}
-                        />
-                    </Show>
-                    <MenuButton
-                        label="Sessions"
-                        glyph=ICON_BOXES
-                        disabled={unready}
-                        @test_id={"desktop.sessions"}
-                        items={view! {
-                            <ForEach keys={keys}>|block: uuid::Uuid| {
-                                let label = create_memo(move || {
-                                    listed.with(|sessions| {
-                                        sessions
-                                            .iter()
-                                            .find(|session| session.block == block)
-                                            .map(|session| session.name.clone())
-                                            .unwrap_or_default()
-                                    })
-                                });
-                                view! {
-                                    <MenuItem label />
-                                }
-                            }</ForEach>
-                            <MenuItem
-                                row_test_id={"desktop.sessions.new".to_owned()}
-                                label="New session"
-                                glyph=ICON_PLUS
-                                separated={listing}
-                                on_click={move || sessions.create()}
-                            />
-                        }}
-                        on_select={chose}
-                    />
+                    <AppsButton apps display />
                     <Show condition={windowed}>
                         <WindowPicker workspace />
                     </Show>

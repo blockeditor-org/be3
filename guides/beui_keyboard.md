@@ -128,7 +128,7 @@ whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
 offers it on the release to the host and window capture listeners as a
 `KeyInput::Tap`. The release still goes
-on to whatever it would have reached. The desktop plugin's program launcher opens
+on to whatever it would have reached. The desktop plugin's Apps panel opens
 that way. An intercepting tap action (see below) is named among the document's
 intercepted keys as a `KeyChord` with `tap` set, and a host that hears that tap
 while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
@@ -257,7 +257,7 @@ view does not have the keyboard itself, since it then hears the key and
 counts the tap on its own; the release still reaches whatever had the focus.
 
 A document with a layer open that traps focus
-(`Layers::takes_keyboard`, such as a dialog, a popover or the launcher) reports `WindowRequests::wants_keyboard`, which the
+(`Layers::takes_keyboard`, such as a dialog, a popover or the command palette) reports `WindowRequests::wants_keyboard`, which the
 runner hands to `Platform::show_window`. A plugin passes it on as
 `WindowRequests::wants_keyboard` (guides/adding_a_plugin_editor.md), and block-app's view then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when
@@ -275,9 +275,15 @@ searches those `PaletteItem`s (each with a key, title, detail line, glyph or
 picture, shortcut, checked and disabled) and calls `on_choose` with the chosen
 key; `score` picks the ranking (`PaletteItem::substring_score` by default,
 `PaletteItem::fuzzy_score` for names, keywords and comments, as the desktop plugin's
-program launcher uses). Its overlay is an `unstyled::Modal`. It and `Select` are stylings of `unstyled::SearchList`,
-which owns the query, the highlight, the arrow, Page, Home and End keys, scrolling to the
-highlighted row, Enter and hover.
+Apps panel uses). Its overlay is an `unstyled::Modal`. `styled::SearchList` is the same search
+and rows inline, with no overlay, for a panel that holds more than the search (the desktop's
+Apps panel); its rows are `{id}.item.{key}` and its field `{id}.search`. It, `CommandPalette` and
+`Select` are stylings of `unstyled::SearchList`, which owns the query, the highlight, the arrow,
+Page, Home and End keys, scrolling to the highlighted row, Enter and hover. With `columns` above
+one it lays the rows out as a grid of tiles (`styled::SearchList` draws each as an icon over its
+title), Up and Down move a row of tiles and Left and Right one tile, so a caller that wants the
+caret keys back in the field while a query is typed passes one column then, as the Apps panel
+does.
 
 A menu is described once as `MenuNode`s: `MenuNode::action(&action)` (or
 `labelled` to name it differently in this menu), `MenuNode::submenu(id, label,

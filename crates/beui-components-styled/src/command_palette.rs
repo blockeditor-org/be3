@@ -92,7 +92,7 @@ fn PalettePanel(children: Child) -> NodeId {
 }
 
 #[component]
-fn PaletteSearch(handle: TextInputHandle) -> NodeId {
+pub(crate) fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     let TextInputHandle { field, .. } = handle;
     view! {
         <Frame
@@ -113,7 +113,7 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
 }
 
 #[component]
-fn PaletteRow(handle: CommandRowHandle) -> NodeId {
+pub(crate) fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let CommandRowHandle {
         label,
         detail,

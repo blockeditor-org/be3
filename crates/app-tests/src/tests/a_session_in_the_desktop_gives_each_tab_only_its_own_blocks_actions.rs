@@ -6,8 +6,8 @@ const EDITORS_BAR: &str = "#dock.joined:2/editors.";
 #[test]
 fn a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions() {
     let mut app = AppTest::start_desktop();
-    app.click("#desktop.sessions");
-    app.click("#desktop.sessions.new");
+    app.click("#desktop.apps");
+    app.click("#desktop.apps.sessions.new");
     app.wait("Pane \"Files\"");
     add_to_my_files(&mut app, "Canvas");
     app.key("Enter");

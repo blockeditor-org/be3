@@ -5553,7 +5553,7 @@ lists, `Regular` for settings (whose label wraps), `Large` for a picker with
 fills with `AccentSoft`, and with `AccentSoftHover` while the pointer is
 over it, so it stays visibly selected under the pointer. `ListRow` (selection
 and activation), `ActionRow` (an action, `Touch`), `SettingsLink` (a page of
-settings, with a chevron), the menu sheet's rows and the launcher's rows are all
+settings, with a chevron), the menu sheet's rows and the command palette's and search list's rows are all
 built on it.
 
 A pick among pictures is a row of `TileButton`s: a square tile (`size`, `Xl` by

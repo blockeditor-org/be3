@@ -1,67 +1,53 @@
-use beui::KeyAt;
 use block_editor_beui::beui::icons::{ICON_LAYOUT_GRID, ICON_TERMINAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Image, Key, NodeId};
+use block_editor_beui::beui::{Image, NodeId};
 use block_editor_beui::desktop;
 use block_editor_beui::{Editor, HostProgram, ProgramAction, ProgramsWatch};
 
 const ICON_POINTS: f32 = 32.0;
 const RUN: &str = "run";
+const COLUMNS: usize = 4;
+const RESULTS_HEIGHT: f32 = 320.0;
 
 #[derive(Clone, Copy)]
-pub(crate) struct ProgramLauncher {
+pub(crate) struct Programs {
     editor: Editor,
-    open: Signal<bool>,
     scale: ReadSignal<f32>,
+    query: Signal<String>,
     pub(crate) offered: Memo<bool>,
 }
 
-impl ProgramLauncher {
+impl Programs {
     pub(crate) fn new(editor: Editor) -> Self {
-        let open = create_signal(false);
         Self {
             editor,
-            open,
             scale: pixels_per_point(),
+            query: create_signal(String::new()),
             offered: editor.offered::<ProgramsWatch>(),
         }
     }
 
-    pub(crate) fn show(&self, open: bool) {
-        if open && !self.open.get_untracked() {
-            let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
-            self.editor
-                .act(move || desktop::programs::request(ProgramAction::List { icon_size }));
+    pub(crate) fn opened(&self) {
+        self.query.set(String::new());
+        if !self.offered.get_untracked() {
+            return;
         }
-        self.open.set(open);
-    }
-
-    fn toggle(&self) {
-        self.show(!self.open.get_untracked());
-    }
-
-    fn choose(&self, key: String, query: &str) {
-        match key == RUN {
-            true => self.run(query.trim().to_owned()),
-            false => self.launch(key),
-        }
-    }
-
-    fn launch(&self, id: String) {
-        self.show(false);
-        self.editor.act(move || {
-            desktop::programs::request(ProgramAction::Launch {
-                program: id,
-                launch: None,
-            })
-        });
-    }
-
-    fn run(&self, line: String) {
-        self.show(false);
+        let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
         self.editor
-            .act(move || desktop::programs::request(ProgramAction::Run(line)));
+            .act(move || desktop::programs::request(ProgramAction::List { icon_size }));
+    }
+
+    fn choose(&self, key: String) {
+        let query = self.query.get_untracked();
+        let action = match key == RUN {
+            true => ProgramAction::Run(query.trim().to_owned()),
+            false => ProgramAction::Launch {
+                program: key,
+                launch: None,
+            },
+        };
+        self.editor.act(move || desktop::programs::request(action));
     }
 }
 
@@ -107,38 +93,43 @@ fn score(item: &PaletteItem, query: &str) -> Option<u32> {
 }
 
 #[component]
-pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
-    Action::new("desktop.launcher.toggle", "Programs", move || {
-        launcher.toggle();
-    })
-    .glyph(ICON_LAYOUT_GRID)
-    .shortcut(Chord::tap(Key::Logo))
-    .at(KeyAt::Window)
-    .capture()
-    .register();
-    let programs = launcher.editor.watch::<ProgramsWatch>();
-    let query = create_signal(String::new());
+pub(super) fn ProgramSearch(
+    programs: Programs,
+    focused: Memo<bool>,
+    close: Callback<()>,
+) -> NodeId {
+    let listed = programs.editor.watch::<ProgramsWatch>();
+    let query = programs.query;
+    let searching = create_memo(move || !query.with(|query| query.trim().is_empty()));
     let items = create_memo(move || {
         let query = query.get();
-        programs.with(|programs| {
-            programs
+        listed.with(|listed| {
+            listed
                 .iter()
                 .map(item)
                 .chain((!query.trim().is_empty()).then(|| run_item(&query)))
                 .collect::<Vec<_>>()
         })
     });
-    let open = Binding::new(launcher.open, move |open: bool| launcher.show(open));
+    let columns = create_memo(move || match searching.get() {
+        true => 1,
+        false => COLUMNS,
+    });
     view! {
-        <CommandPalette
-            open
-            items={PaletteItems::list(items)}
+        <SearchList
+            items
             score
             query
+            columns
+            focused
+            list_height=RESULTS_HEIGHT
             placeholder="Search programs, or type a command"
             label="Search programs"
-            id="launcher"
-            on_choose={move |key: String| launcher.choose(key, &query.get_untracked())}
+            id="desktop.apps"
+            on_choose={move |key: String| {
+                programs.choose(key);
+                close.call(());
+            }}
         />
     }
 }

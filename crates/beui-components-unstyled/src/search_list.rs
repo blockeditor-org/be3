@@ -14,7 +14,7 @@ use beui_view::types::{Key, KeyPress};
 use crate::button::{Button, ButtonHandle};
 use crate::scroll::{Scroll, ScrollbarStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
-use beui_view::types::ItemSize;
+use beui_view::types::{ItemSize, Track};
 
 const EXACT: u32 = 100;
 const PREFIX: u32 = 90;
@@ -39,6 +39,7 @@ struct State<K: 'static> {
     highlighted: Signal<Option<K>>,
     rows: Stored<RefCell<HashMap<K, NodeRef>>>,
     page: usize,
+    columns: Memo<usize>,
     on_choose: Callback<K>,
 }
 
@@ -76,10 +77,13 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
         if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let moves = matches!(
-            press.key,
-            Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp | Key::Home | Key::End
-        );
+        let columns = self.columns.get_untracked().max(1);
+        let sideways = columns > 1 && matches!(press.key, Key::ArrowLeft | Key::ArrowRight);
+        let moves = sideways
+            || matches!(
+                press.key,
+                Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp | Key::Home | Key::End
+            );
         let choosable = self.choosable();
         if !moves || choosable.is_empty() {
             return moves;
@@ -89,15 +93,27 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
             .get_untracked()
             .and_then(|key| choosable.iter().position(|other| *other == key));
         let last = choosable.len() - 1;
+        let page = self.page * columns;
         let next = match press.key {
-            Key::ArrowDown => at.map_or(0, |at| (at + 1).min(last)),
-            Key::ArrowUp => at.map_or(0, |at| at.saturating_sub(1)),
-            Key::PageDown => at.map_or(0, |at| (at + self.page).min(last)),
-            Key::PageUp => at.map_or(0, |at| at.saturating_sub(self.page)),
+            Key::ArrowRight => at.map_or(0, |at| (at + 1).min(last)),
+            Key::ArrowLeft => at.map_or(0, |at| at.saturating_sub(1)),
+            Key::ArrowDown => at.map_or(0, |at| (at + columns).min(last)),
+            Key::ArrowUp => at.map_or(0, |at| at.saturating_sub(columns)),
+            Key::PageDown => at.map_or(0, |at| (at + page).min(last)),
+            Key::PageUp => at.map_or(0, |at| at.saturating_sub(page)),
             Key::Home => 0,
             _ => last,
         };
-        self.highlighted.set(Some(choosable[next].clone()));
+        let key = choosable[next].clone();
+        self.highlighted.set(Some(key.clone()));
+        if columns > 1
+            && let Some(row) = self.rows.try_value().and_then(|rows| {
+                let rows = rows.borrow();
+                rows.get(&key).and_then(NodeRef::try_get)
+            })
+        {
+            row.reveal();
+        }
         true
     }
 }
@@ -111,6 +127,7 @@ pub fn SearchList<K>(
     #[prop(default = None)] enabled: Option<Func<K, bool>>,
     #[prop(default = true)] highlight_first: bool,
     #[prop(default = 8)] page: usize,
+    #[prop(default = 1)] columns: Prop<usize>,
     on_choose: Callback<K>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
@@ -133,6 +150,9 @@ where
         let query = query.get();
         rank.call(query)
     });
+    let columns = create_memo(move || columns.get().max(1));
+    let gridded = create_memo(move || columns.get() > 1);
+    let listed = create_memo(move || !gridded.get());
     let state = State {
         search: NodeRef::new(),
         shown,
@@ -140,6 +160,7 @@ where
         highlighted,
         rows: store(RefCell::default()),
         page,
+        columns,
         on_choose,
     };
     api.fill(SearchListApi(state));
@@ -165,9 +186,10 @@ where
 
     let highlight = create_selector(move || highlighted.get());
     let reveal = create_memo(move || {
-        let highlighted = highlighted.get()?;
+        let highlighted = highlighted.get().filter(|_| listed.get())?;
         shown.with(|shown| shown.iter().position(|key| *key == highlighted))
     });
+    let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
     on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
         event.press().is_some_and(|press| state.navigate(press))
     });
@@ -196,9 +218,18 @@ where
                 reveal
                 scrollbar
             >
-                <ForEach keys={shown}>|key: K|
-                    <SearchRow state key accessibility row highlight />
-                </ForEach>
+                <Show condition={listed}>
+                    <ForEach keys={shown}>|key: K|
+                        <SearchRow state key accessibility row highlight />
+                    </ForEach>
+                </Show>
+                <Show condition={gridded}>
+                    <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
+                        <ForEach keys={shown}>|key: K|
+                            <SearchRow state key accessibility row highlight />
+                        </ForEach>
+                    </Grid>
+                </Show>
             </Scroll>
         </List>
     }
@@ -221,7 +252,10 @@ where
         let key = key.clone();
         move || {
             if let Some(rows) = state.rows.try_value() {
-                rows.borrow_mut().remove(&key);
+                let mut rows = rows.borrow_mut();
+                if rows.get(&key) == Some(&button) {
+                    rows.remove(&key);
+                }
             }
         }
     });

@@ -1226,6 +1226,7 @@ dependencies = [
  "beui_macros",
  "bytemuck",
  "reactive",
+ "stable-hash",
  "text-editor-core",
  "wgpu",
 ]

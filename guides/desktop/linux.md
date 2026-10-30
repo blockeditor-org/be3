@@ -400,12 +400,12 @@ When that is unset, as it is under `:dev`, be-wayland (`src/runtime_dir.rs`) mak
 one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
 starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
 those that processes now ended left behind (by name and owner). In the desktop shell
-the program launcher, which tapping Super alone or the bar's programs button opens, lists the
-`.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
-command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
+the Apps panel, which tapping Super alone or the bar's Apps button opens (guides/desktop.md, The
+Apps panel), lists the `.desktop` programs of the XDG data dirs and starts the one picked, or what
+was typed as a command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). The desktop plugin draws it; block-app only reads the
 `.desktop` files and their icons and starts the programs (`ProgramsWatch` and
-`programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
+`programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no Apps panel. A
 program can also be started against a driven app directly: the app hands the same variables to
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
@@ -538,7 +538,7 @@ that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`
 given a token only while it has the keyboard and only for the serial of an input event since it
 got it; the token works once, within `TOKEN_LIFETIME` on the frame clock, and only while the
 keyboard is still where it was when the token was made. Every program the compositor starts
-(`Windows::run`, which the launcher and `ProgramAction::Run` use) gets a fresh token of the
+(`Windows::run`, which the Apps panel's Run row sends as `ProgramAction::Run`) gets a fresh token of the
 compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
 keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
 which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;

@@ -2486,7 +2486,10 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog with busy and nested actions" code={vec![InviteDialog::SOURCE]}>
                 <InviteDialog />
             </Sample>
-            <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
+            <Sample
+                title="Launcher"
+                code={vec![ProgramLauncher::SOURCE, programs::SOURCE, program::SOURCE]}
+            >
                 <ProgramLauncher />
             </Sample>
             <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
@@ -2750,11 +2753,8 @@ fn program(
 }
 
 #[sample]
-#[component]
-fn ProgramLauncher() -> NodeId {
-    let launcher = create_signal(false);
-    let outcome = create_signal("Nothing launched".to_owned());
-    let items = vec![
+fn programs() -> Vec<PaletteItem> {
+    vec![
         program(
             "calculator",
             "Calculator",
@@ -2790,7 +2790,15 @@ fn ProgramLauncher() -> NodeId {
             &["notepad"],
             Some(Color32::from_rgb(90, 180, 110)),
         ),
-    ];
+    ]
+}
+
+#[sample]
+#[component]
+fn ProgramLauncher() -> NodeId {
+    let launcher = create_signal(false);
+    let outcome = create_signal("Nothing launched".to_owned());
+    let items = programs();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -2811,6 +2819,35 @@ fn ProgramLauncher() -> NodeId {
                 id="launcher"
                 on_choose={move |key: String| outcome.set(format!("Launched {key}"))}
             />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ProgramGrid() -> NodeId {
+    let query = create_signal(String::new());
+    let outcome = create_signal("Nothing launched".to_owned());
+    let columns = create_memo(move || match query.with(|query| query.trim().is_empty()) {
+        true => 3,
+        false => 1,
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION>{outcome}</Text>
+            <Frame width={Extent::at_most(360.0)}>
+                <SearchList
+                    items={programs()}
+                    score={PaletteItem::fuzzy_score as PaletteScore}
+                    query
+                    columns
+                    list_height=240.0
+                    placeholder="Search programs"
+                    label="Search programs"
+                    id="demo.programs"
+                    on_choose={move |key: String| outcome.set(format!("Launched {key}"))}
+                />
+            </Frame>
         </List>
     }
 }
@@ -3045,6 +3082,12 @@ pub(crate) fn RowsPage() -> NodeId {
                 code={vec![SelectableServerLog::SOURCE, ServerLine::SOURCE]}
             >
                 <SelectableServerLog />
+            </Sample>
+            <Sample
+                title="Search list as a grid"
+                code={vec![ProgramGrid::SOURCE, programs::SOURCE, program::SOURCE]}
+            >
+                <ProgramGrid />
             </Sample>
         </ScrollPage>
     }

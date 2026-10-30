@@ -8,15 +8,13 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
 
     for shown in [
         "desktop.bar",
-        "desktop.menu",
-        "desktop.sessions",
+        "desktop.apps",
         "desktop.clock",
         "desktop.status",
     ] {
         assert!(fixture.test.shown(shown), "the bar still shows {shown}");
     }
     for hidden in [
-        "desktop.launcher",
         "desktop.status.wifi",
         "desktop.status.volume",
         "desktop.status.power",
@@ -27,6 +25,18 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
         );
     }
     fixture.test.snapshot("the_desktop_away_from_linux");
+    fixture.test.click("desktop.apps");
+    fixture.settle();
+    assert!(
+        fixture.test.shown("desktop.apps.sessions.new") && fixture.test.shown("desktop.apps.menu"),
+        "the Apps panel still offers sessions and the menu"
+    );
+    assert!(
+        !fixture.test.shown("desktop.apps.search"),
+        "but no programs to search"
+    );
+    fixture.test.key(Key::Escape, Modifiers::NONE);
+    fixture.settle();
 
     let intercepted = fixture.test.intercepted_keys();
     assert!(
@@ -55,8 +65,10 @@ fn the_desktop_away_from_linux_hides_what_its_host_does_not_offer() {
     fixture.test.set_watched::<ProgramsWatch>(&programs());
     fixture.test.set_watched::<PowerWatch>(&EVERYTHING);
     fixture.settle();
+    fixture.test.click("desktop.apps");
+    fixture.settle();
     assert!(
-        fixture.test.shown("desktop.launcher") && fixture.test.shown("desktop.status.power"),
+        fixture.test.shown("desktop.apps.search") && fixture.test.shown("desktop.status.power"),
         "what the host offers later shows up"
     );
 }

@@ -12,7 +12,7 @@ programs' windows inside it. This guide is what every host shares; each host has
 programs open as windows inside it (guides/desktop/linux.md); on Windows it shows Windows'
 monitors and windows, launches Start Menu programs and offers power (guides/desktop/windows.md);
 on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
-windows, notification server, tray, media, power, lock screen or launcher.
+windows, notification server, tray, media, power, lock screen or programs to launch.
 The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless
 and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
 
@@ -27,8 +27,8 @@ in another language, can implement it from the WIT alone. A plugin uses it only 
 `be3:desktop` in its manifest's `extensions` (the desktop plugin, workspace-ui for the program
 windows, and settings for displays, input devices and remaps); the host denies a watch or a call
 from any other. The desktop plugin shows a control only while the host offers what backs it
-(`editor.offered::<W>()`, true once the host answered the watch): the Programs button, the
-Super tap and placeholders' Open need `ProgramsWatch`, the clock's notification count and
+(`editor.offered::<W>()`, true once the host answered the watch): the Apps panel's program
+search and grid, the Super tap and placeholders' Open need `ProgramsWatch`, the clock's notification count and
 history `NotificationsWatch`, the power row `PowerWatch`, the media keys `MediaWatch` (the
 volume icon and controls, its `output`), the Wi-Fi icon and tile `WifiWatch` (its `available`),
 and the tray its items.
@@ -68,6 +68,27 @@ parent into raising the dialog. Outside space all of this stays an overlay or a 
 
 A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
 texture back, opaque), so paintings and `drive paint` show what programs drew.
+
+## The Apps panel
+
+The bar starts with one icon-only Apps button (`desktop.apps`, `app/apps.rs`, labelled Apps for
+its tooltip and screen readers), and a tap of Super alone opens the same panel (the
+`desktop.apps.toggle` action, captured from programs too, registered while the host offers
+`ProgramsWatch`). The panel (`desktop.apps.panel`) is a popover of the button, and when no Apps
+button shows on the display it opens on (`Apps` keeps which displays have one) it is centred over
+the dock instead (`AppsOverlay`). It holds, top to bottom:
+
+- while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`app/launcher.rs`):
+  opening the panel asks the host to list them with icons at the display's scale, an empty query
+  shows them as a grid of tiles (`desktop.apps.item.ID`) that the arrow keys walk, and typing
+  narrows them to a list by name, keywords and comment, ending with a row that runs the query as
+  a command (`desktop.apps.item.run`); choosing one launches it (`ProgramAction::Launch` or `Run`)
+  and closes the panel;
+- the sessions (`app/sessions.rs`): every block-app session the account's settings list, other
+  than desktop sessions, each a row (`desktop.apps.sessions.UUID`, "Open" under one already in a
+  window) that opens it in a floating window, or brings its window to the front if it is already
+  open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it;
+- Menu (`desktop.apps.menu`), which closes the panel and opens the app menu at the Apps button.
 
 ## Notes
 
@@ -145,7 +166,7 @@ and hosts the windows as block-app does, takes input in desktop points (`desk_pr
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
 desktop's points and its `scale`. The desktop plugin draws, in every view, a bar along its foot and
 a level display (`desktop.osd.{n}`, n the view's display), and in the frame alone its dock,
-launcher, pickers and notification toasts (above that display's bar); `BeuiApp::Display`
+pickers and notification toasts (above that display's bar); `BeuiApp::Display`
 draws the further displays' views from what the frame's view shares (`app.rs`, `Desktop`).
 The dock fills the frame above the bar, and its windows open over it.
 
@@ -163,4 +184,4 @@ responding. The lock screen is the host's and works throughout. The new shell se
 windows in `WindowsWatch` and shows them as it shows any window; the desktop plugin's saved layout
 names window tabs by `HostWindowId`, which the host keeps, so a restored layout puts
 each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
-panel from the bar's menu and press Crash beside `be3.desktop`.
+panel from the Apps panel's Menu and press Crash beside `be3.desktop`.
