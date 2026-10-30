@@ -6,8 +6,11 @@ whose shell is the desktop plugin. Two ways to run it are Linux's alone:
 - `BEUI_PLATFORM=drm block-app --desktop`, a login session: runs on the displays and input
   devices themselves through `beui-platform-drm` instead of in a window, from a virtual terminal
   with no other display server on it. block-app accepts `drm` in `BEUI_PLATFORM` beside `winit`
-  (`beui_host::native::run_with_platforms`), and refuses it without `--desktop` (the workspace
-  shell does not run on the displays) and on other systems (`src/arguments.rs`). Quick settings'
+  (`beui_host::native::run_with_platforms`), and refuses it on other systems (`src/arguments.rs`).
+  Without `--desktop` it runs the workspace shell on the displays: the log, logind and the power
+  actions, the lock screen (which the host draws over any shell, and logind needs to lock before
+  sleep) and the panic path below key off running on the displays and work there too, while
+  notifications and the tray come only with `--desktop`. Quick settings'
   Log out (see below) logs out, Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
@@ -80,7 +83,7 @@ login screen then offers Block on its session menu, where it can be picked and r
 the default. Running it again replaces the install, and removes an entry an older install left
 in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list the commands in
 `/etc/greetd/environments` instead, so when that file exists the same command, with the installed link, is
-added to it once.
+added to it once, and a line `LINK --session` an install from before `--desktop` left there is removed.
 
 In a login session stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/login-session.log`

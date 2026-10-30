@@ -206,17 +206,19 @@ pub(crate) fn place_greetd(environments: &Path, link: &Path) -> io::Result<bool>
         return Ok(false);
     }
     let command = command(&path);
-    if listed.lines().any(|line| line.trim() == command) {
+    let stale = format!("{path} --session");
+    let kept: Vec<&str> = listed.lines().filter(|line| line.trim() != stale).collect();
+    let listed_already = kept.iter().any(|line| line.trim() == command);
+    if listed_already && kept.len() == listed.lines().count() {
         return Ok(false);
     }
-    let mut updated = listed;
-    if !updated.is_empty() && !updated.ends_with('\n') {
+    let mut updated: String = kept.iter().map(|line| format!("{line}\n")).collect();
+    if !listed_already {
+        updated.push_str(&command);
         updated.push('\n');
     }
-    updated.push_str(&command);
-    updated.push('\n');
     std::fs::write(environments, updated)?;
-    Ok(true)
+    Ok(!listed_already)
 }
 
 pub(crate) fn place_pam(dir: &Path) -> io::Result<Option<PathBuf>> {
