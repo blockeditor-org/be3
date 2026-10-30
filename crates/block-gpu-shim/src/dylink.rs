@@ -22,7 +22,9 @@ pub fn library_file_name(identity: &str) -> String {
 #[wasm_bindgen]
 pub fn check_library(bytes: &[u8], identity: &str) -> Result<(), JsValue> {
     wasm_dylink::check_library(bytes, identity).map_err(|error| {
-        refused(format!("the library {identity} could not be loaded: {error}"))
+        refused(format!(
+            "the library {identity} could not be loaded: {error}"
+        ))
     })
 }
 
@@ -33,7 +35,7 @@ pub fn link_pages(modules: &str) -> Result<u32, JsValue> {
 
 #[wasm_bindgen]
 pub fn link_plan(modules: &str, placed: u32, table_size: u32) -> Result<String, JsValue> {
-    let plan = wasm_dylink::plan(&described(modules)?, placed, u64::from(table_size))
-        .map_err(refused)?;
+    let plan =
+        wasm_dylink::plan(&described(modules)?, placed, u64::from(table_size)).map_err(refused)?;
     serde_json::to_string(&plan).map_err(|error| refused(error.to_string()))
 }

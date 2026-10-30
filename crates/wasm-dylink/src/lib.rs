@@ -69,7 +69,11 @@ pub fn libraries<'a>(exports: impl IntoIterator<Item = &'a str>) -> Result<Vec<S
     }
     named.sort();
     let positions: Vec<usize> = named.iter().map(|(position, _)| *position).collect();
-    if positions.iter().enumerate().any(|(at, position)| at != *position) {
+    if positions
+        .iter()
+        .enumerate()
+        .any(|(at, position)| at != *position)
+    {
         return Err(format!(
             "the module numbers its libraries {positions:?}, not from 0 up"
         ));
@@ -119,17 +123,21 @@ impl Declared {
         let layout = exports
             .into_iter()
             .find_map(|export| export.strip_prefix(LAYOUT_EXPORT_PREFIX))
-            .ok_or(
-                "it does not say how much memory, table and thread-local storage it needs",
-            )?;
+            .ok_or("it does not say how much memory, table and thread-local storage it needs")?;
         let unreadable = || format!("its layout {layout} is not one this reads");
         let numbers: Vec<u32> = layout
             .split('_')
             .map(|number| number.parse::<u32>())
             .collect::<Result<_, _>>()
             .map_err(|_| unreadable())?;
-        let [memory_size, memory_align, table_size, table_align, tls_size, tls_align] =
-            numbers[..]
+        let [
+            memory_size,
+            memory_align,
+            table_size,
+            table_align,
+            tls_size,
+            tls_align,
+        ] = numbers[..]
         else {
             return Err(unreadable());
         };
@@ -305,10 +313,9 @@ pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan,
                         .ok_or_else(|| missing(from, name, "no library under it"))?,
                 ),
                 (GOT_FUNCTION, _) => {
-                    let module = defined(modules, index + 1, |module| {
-                        module.functions.contains(name)
-                    })
-                    .ok_or_else(|| missing(from, name, "nothing it is linked with"))?;
+                    let module =
+                        defined(modules, index + 1, |module| module.functions.contains(name))
+                            .ok_or_else(|| missing(from, name, "nothing it is linked with"))?;
                     slots.push(Slot {
                         slot: next,
                         module,
@@ -351,8 +358,8 @@ impl Blocks {
             return Vec::new();
         }
         let size = u64::from(self.size);
-        let end = (u64::from(start) + u64::from(pages) * u64::from(PAGE_SIZE))
-            .min(u64::from(u32::MAX));
+        let end =
+            (u64::from(start) + u64::from(pages) * u64::from(PAGE_SIZE)).min(u64::from(u32::MAX));
         let mut at = aligned(u64::from(start), u64::from(self.align));
         let mut carved = Vec::new();
         while at + size <= end {

@@ -71,5 +71,6 @@ pub extern "C" fn plugin_step() {
     unsafe { host_send([1].as_ptr(), 1) };
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "C" fn plugin_shutdown() {}

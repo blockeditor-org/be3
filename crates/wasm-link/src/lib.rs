@@ -144,7 +144,6 @@ const MATH: [&str; 44] = [
     "tanh",
 ];
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum Mode {
     Plain,
@@ -452,7 +451,10 @@ pub fn crate_of(archive: &str) -> String {
 }
 
 pub fn closure(given: Vec<Library>) -> Result<Vec<Library>, String> {
-    let named: HashSet<String> = given.iter().map(|library| library.identity.clone()).collect();
+    let named: HashSet<String> = given
+        .iter()
+        .map(|library| library.identity.clone())
+        .collect();
     for library in &given {
         if let Some(missing) = library.needs.iter().find(|need| !named.contains(*need)) {
             return Err(format!(
@@ -465,11 +467,16 @@ pub fn closure(given: Vec<Library>) -> Result<Vec<Library>, String> {
     let mut ordered: Vec<Library> = Vec::with_capacity(given.len());
     let mut waiting = given;
     while !waiting.is_empty() {
-        let placed: HashSet<&str> = ordered.iter().map(|library| library.identity.as_str()).collect();
-        let Some(next) = waiting
+        let placed: HashSet<&str> = ordered
             .iter()
-            .position(|library| library.needs.iter().all(|need| placed.contains(need.as_str())))
-        else {
+            .map(|library| library.identity.as_str())
+            .collect();
+        let Some(next) = waiting.iter().position(|library| {
+            library
+                .needs
+                .iter()
+                .all(|need| placed.contains(need.as_str()))
+        }) else {
             return Err("the libraries need each other in a cycle".to_owned());
         };
         let library = waiting.remove(next);
@@ -596,8 +603,7 @@ pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), S
 pub fn declared(bytes: &[u8]) -> Result<Declared, String> {
     let info = module::memory_info(bytes)?.ok_or("the module has no dylink.0 section")?;
     let constant = |name: &str, default: u32| -> Result<u32, String> {
-        Ok(module::exported_constant(bytes, name)?
-            .map_or(default, |value| value as u32))
+        Ok(module::exported_constant(bytes, name)?.map_or(default, |value| value as u32))
     };
     Ok(Declared {
         memory_size: info.memory_size,
@@ -641,8 +647,10 @@ fn link_linked(
 ) -> Result<(), String> {
     let out = output(&arguments)?;
     let name = library.clone().unwrap_or_else(|| {
-        out.file_stem()
-            .map_or_else(|| out.display().to_string(), |stem| stem.to_string_lossy().into_owned())
+        out.file_stem().map_or_else(
+            || out.display().to_string(),
+            |stem| stem.to_string_lossy().into_owned(),
+        )
     });
     let closure = closure(
         needs
@@ -668,11 +676,18 @@ fn link_linked(
     let thread_locals = thread_locals?;
     let bytes = without_unused_sections(&read(&out)?)?;
     unresolved(&bytes, &name, &closure)?;
-    let needs: Vec<&str> = closure.iter().map(|library| library.identity.as_str()).collect();
+    let needs: Vec<&str> = closure
+        .iter()
+        .map(|library| library.identity.as_str())
+        .collect();
     let listing = listing(&name, &needs, &kept, &thread_locals);
     write(
         &out,
-        &module::with_custom(&described(&bytes, &closure)?, LIBRARY_SECTION, listing.as_bytes()),
+        &module::with_custom(
+            &described(&bytes, &closure)?,
+            LIBRARY_SECTION,
+            listing.as_bytes(),
+        ),
     )
 }
 

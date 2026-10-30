@@ -1,6 +1,12 @@
 use super::*;
 
-fn module(name: &str, layout: &str, imports: &[(&str, &str)], functions: &[&str], globals: &[&str]) -> Described {
+fn module(
+    name: &str,
+    layout: &str,
+    imports: &[(&str, &str)],
+    functions: &[&str],
+    globals: &[&str],
+) -> Described {
     Described {
         name: name.to_owned(),
         imports: imports
@@ -24,7 +30,12 @@ fn diamond() -> Vec<Described> {
         module(
             "left",
             "__be3_dylink_100_4_3_2_12_4",
-            &[(ENV, TABLE), (ENV, MEMORY_BASE), (ENV, "malloc"), (GOT_THREAD_LOCAL, "ROOT_TLS")],
+            &[
+                (ENV, TABLE),
+                (ENV, MEMORY_BASE),
+                (ENV, "malloc"),
+                (GOT_THREAD_LOCAL, "ROOT_TLS"),
+            ],
             &["left_function"],
             &["LEFT_DATA", "LEFT_TLS"],
         ),

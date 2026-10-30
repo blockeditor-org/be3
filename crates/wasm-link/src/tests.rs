@@ -8,10 +8,16 @@ fn library(name: &str, needs: &[&str], linked: &[&str], functions: &[&str]) -> L
     Library {
         name: name.to_owned(),
         identity: name.repeat(64 / name.len()),
-        needs: needs.iter().map(|need| need.repeat(64 / need.len())).collect(),
+        needs: needs
+            .iter()
+            .map(|need| need.repeat(64 / need.len()))
+            .collect(),
         linked: linked.iter().map(|archive| (*archive).to_owned()).collect(),
         thread_locals: HashSet::from([format!("{}_LOCAL", name.to_uppercase())]),
-        functions: functions.iter().map(|function| (*function).to_owned()).collect(),
+        functions: functions
+            .iter()
+            .map(|function| (*function).to_owned())
+            .collect(),
         globals: HashSet::from([format!("{}_DATA", name.to_uppercase())]),
     }
 }

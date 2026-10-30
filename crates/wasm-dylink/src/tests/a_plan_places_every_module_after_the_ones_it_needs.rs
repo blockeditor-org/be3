@@ -9,10 +9,23 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
         panic!("{plan:?}");
     };
     assert_eq!((root.memory_base, root.imports.len()), (0, 0));
-    assert_eq!((left.memory_base, left.table_base, left.block), (65536, 12, 0));
-    assert_eq!((plugin.memory_base, plugin.table_base, plugin.block), (65636, 15, 16));
+    assert_eq!(
+        (left.memory_base, left.table_base, left.block),
+        (65536, 12, 0)
+    );
+    assert_eq!(
+        (plugin.memory_base, plugin.table_base, plugin.block),
+        (65636, 15, 16)
+    );
     assert_eq!(plan.region, 65648);
-    assert_eq!(plan.blocks, Blocks { size: 40, align: 8, pages: 1 });
+    assert_eq!(
+        plan.blocks,
+        Blocks {
+            size: 40,
+            align: 8,
+            pages: 1
+        }
+    );
     assert_eq!(
         left.imports,
         vec![
@@ -38,8 +51,16 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
     assert_eq!(
         plan.slots,
         vec![
-            Slot { slot: 16, module: 0, name: "malloc".to_owned() },
-            Slot { slot: 17, module: 2, name: "own_function".to_owned() },
+            Slot {
+                slot: 16,
+                module: 0,
+                name: "malloc".to_owned()
+            },
+            Slot {
+                slot: 17,
+                module: 2,
+                name: "own_function".to_owned()
+            },
         ]
     );
     assert_eq!(plan.table_grow, 8);

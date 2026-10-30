@@ -4,7 +4,11 @@ use super::*;
 fn the_libraries_are_read_in_dependency_order() {
     let base = "a".repeat(64);
     let beui = "b".repeat(64);
-    let exports = [library_export(1, &beui), "plugin_start".to_owned(), library_export(0, &base)];
+    let exports = [
+        library_export(1, &beui),
+        "plugin_start".to_owned(),
+        library_export(0, &base),
+    ];
     assert_eq!(
         libraries(exports.iter().map(String::as_str)),
         Ok(vec![base.clone(), beui])
