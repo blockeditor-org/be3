@@ -404,6 +404,10 @@ fn PluginLayer(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     }
 }
 
+fn closed_with(region: &reactive::ScopeContext) -> Option<reactive::Scope> {
+    region.is_alive().then(|| region.run(reactive::Scope::new))
+}
+
 #[component]
 fn LayerChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
     view! {
@@ -428,7 +432,7 @@ fn LayerChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
                 });
                 let built = held
                     .and_then(|owner| {
-                        let scope = owner.scope.as_ref()?.child()?;
+                        let scope = closed_with(owner.scope.as_ref()?)?;
                         let built = scope.run(|| owner.child_view.with(|view| view(id, child, rect)));
                         on_cleanup(move || scope.dispose());
                         Some(built)
