@@ -20,7 +20,10 @@ fn the_keyboard_button_shows_when_the_display_settings_ask_for_it() {
     assert!(fixture.test.shown("desktop.keyboard"));
     let keyboard = fixture.test.rect_of("desktop.keyboard");
     assert!(
-        fixture.test.rect_of("desktop.bar.status").contains_rect(keyboard)
+        fixture
+            .test
+            .rect_of("desktop.bar.status")
+            .contains_rect(keyboard)
             && keyboard.right() < fixture.test.rect_of("desktop.status").left(),
         "it sits on the Status bar before the status button"
     );

@@ -9,8 +9,15 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
 
     assert!(fixture.placed_blocks().is_empty(), "no window is open");
     let document = fixture.test.document();
-    for bar in ["desktop.bar.apps", "desktop.bar.windows", "desktop.bar.status"] {
-        assert!(document.find_test_id(bar).is_some(), "the desktop shows {bar}");
+    for bar in [
+        "desktop.bar.apps",
+        "desktop.bar.windows",
+        "desktop.bar.status",
+    ] {
+        assert!(
+            document.find_test_id(bar).is_some(),
+            "the desktop shows {bar}"
+        );
     }
     let clock = document
         .find_test_id("desktop.clock")

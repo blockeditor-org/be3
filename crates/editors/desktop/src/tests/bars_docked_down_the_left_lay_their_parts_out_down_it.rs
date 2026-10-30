@@ -48,7 +48,9 @@ fn bars_docked_down_the_left_lay_their_parts_out_down_it() {
         quick.left() >= band.right() - 0.5,
         "Quick settings opens away from the edge, toward the windows: {quick:?} {band:?}"
     );
-    fixture.test.snapshot("quick_settings_beside_a_bar_down_the_left");
+    fixture
+        .test
+        .snapshot("quick_settings_beside_a_bar_down_the_left");
     fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
 

@@ -58,12 +58,7 @@ pub(crate) fn TrayItems(
         })
     });
     view! {
-        <List
-            direction
-            align=Align::Center
-            spacing=TRAY_SPACING
-            @test_id={"desktop.tray"}
-        >
+        <List direction align=Align::Center spacing=TRAY_SPACING @test_id={"desktop.tray"}>
             <ForEach keys>|id: String|
                 <TrayButton editor={editor} listed={listed} id />
             </ForEach>

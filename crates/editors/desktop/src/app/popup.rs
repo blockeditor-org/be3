@@ -1,9 +1,9 @@
+use beui::Direction;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PANEL_MAX_WIDTH;
 use block_editor_beui::beui::styled::*;
-use beui::Direction;
 
 use super::bar::bar_direction;
 

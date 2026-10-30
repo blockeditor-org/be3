@@ -154,11 +154,7 @@ pub(crate) fn DisplayRow(shell: Shell, display: u32) -> NodeId {
             <Frame fill=ColorRole::Surface padding=ROW_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <AppsButton apps={shell.apps} display />
-                    <WindowChips
-                        @sizing=ItemSize::Percent(100.0)
-                        windows={shell.windows}
-                        display
-                    />
+                    <WindowChips @sizing=ItemSize::Percent(100.0) windows={shell.windows} display />
                     <StatusItems shell display />
                 </List>
             </Frame>

@@ -5,14 +5,19 @@ fn the_desktops_three_bars_share_one_band_along_its_foot() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     let band = fixture.test.rect_of("dock.bar.band.bottom");
     assert!(
-        band.left() < 0.5 && (band.right() - 800.0).abs() < 0.5 && (band.bottom() - 600.0).abs() < 0.5,
+        band.left() < 0.5
+            && (band.right() - 800.0).abs() < 0.5
+            && (band.bottom() - 600.0).abs() < 0.5,
         "one band runs along the whole foot: {band:?}"
     );
     let apps = fixture.test.rect_of("desktop.bar.apps");
     let windows = fixture.test.rect_of("desktop.bar.windows");
     let status = fixture.test.rect_of("desktop.bar.status");
     for bar in [apps, windows, status] {
-        assert!(band.contains_rect(bar), "each bar lies in the band: {bar:?} {band:?}");
+        assert!(
+            band.contains_rect(bar),
+            "each bar lies in the band: {bar:?} {band:?}"
+        );
     }
     assert!(
         (apps.left() - band.left()).abs() < 0.5,
@@ -32,7 +37,8 @@ fn the_desktops_three_bars_share_one_band_along_its_foot() {
         assert!(fixture.test.shown(part), "{part} is on the bars");
     }
     assert!(
-        fixture.test.rect_of("desktop.status").right() < fixture.test.rect_of("desktop.clock").left(),
+        fixture.test.rect_of("desktop.status").right()
+            < fixture.test.rect_of("desktop.clock").left(),
         "the clock ends the Status bar"
     );
     fixture.test.snapshot("the_desktop_bars_in_one_band");

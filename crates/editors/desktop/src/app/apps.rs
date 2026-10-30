@@ -164,7 +164,8 @@ fn AppsPanel(
     let launches = apps.programs.offered;
     let editor = apps.editor;
     let layout = apps.workspace.layout();
-    let hidden = create_memo(move || display == 0 && BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
+    let hidden =
+        create_memo(move || display == 0 && BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
     let show_bars = move || {
         close.call(());
         for bar in BARS {

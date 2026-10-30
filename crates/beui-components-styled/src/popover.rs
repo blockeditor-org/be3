@@ -6,7 +6,9 @@ use crate::button::{ButtonSize, ButtonVariant};
 use crate::menu_button::PopupButtonFace;
 use crate::sheet::AnchoredSheet;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{AnchoredStyle, PopoverHandle, PopoverPlacement, PopupTriggerHandle};
+use beui_components_unstyled::{
+    AnchoredStyle, PopoverHandle, PopoverPlacement, PopupTriggerHandle,
+};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
