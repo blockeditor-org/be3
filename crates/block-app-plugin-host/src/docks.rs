@@ -753,9 +753,9 @@ impl Docks {
             if record.frame && !self.framed.contains(&inner) {
                 continue;
             }
+            let declaration = hosted.as_ref().and_then(|_| self.spliced(inner, depth + 1));
             let part = match (&hosted, record.frame) {
                 (Some(hosted), true) => {
-                    let declaration = self.spliced(inner, depth + 1);
                     let host = (record.tab != ViewId::MAIN.0).then_some(record.tab);
                     Some(hosted.frame_child(child, host, &|bar| {
                         declaration.as_ref()?.bar(bar).map(|bar| bar.owner.clone())
@@ -763,7 +763,13 @@ impl Docks {
                 }
                 (Some(hosted), false) => self
                     .prefix(instance, &record)
-                    .and_then(|prefix| hosted.child(child, &prefix).ok().flatten()),
+                    .and_then(|prefix| hosted.child(child, &prefix).ok().flatten())
+                    .map(|mut part| {
+                        if let Some(declaration) = &declaration {
+                            part.own_dock_bars(declaration);
+                        }
+                        part
+                    }),
                 (None, _) => None,
             };
             self.split(inner, part, depth + 1);
@@ -788,7 +794,11 @@ impl Docks {
             .bars
             .iter()
             .filter(|bar| bar.tab.is_own())
-            .filter(|bar| taken.as_ref().is_none_or(|taken| bar.owner == *taken))
+            .filter(|bar| {
+                taken
+                    .as_ref()
+                    .is_none_or(|taken| bar.owner.as_ref() == Some(taken))
+            })
             .filter(|bar| !self.shown_bars.contains(&(instance, bar.tab.tab)))
             .map(|bar| DockPlacedBar {
                 bar: bar.tab.clone(),

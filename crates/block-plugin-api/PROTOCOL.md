@@ -508,7 +508,12 @@ dialog is no dock dialog, its owner draws it as an anchored view of its own), a 
 while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
 (`owner`) and shows while it does, floating over an edge of its body at its
 start, centre or end (`dock-bar-over`), in a band along the whole edge beside
-it, or popped out (`dock-bar-placement`); the root gives its body the `size` the owner
+it, or popped out (`dock-bar-placement`). A bar with no `owner` belongs to the
+declaring dock itself: the host splices it in as a bar of the first tab of the
+group that takes the hosting tab's place (where the hosting tab's own bars are
+lent, `DockDeclaration::splice`), the root gives a child's to the tab hosting it,
+and each level hears its own back with no owner again (`DockHosted::own`,
+`own_dock_bars`); a root's own dock bars never cross, it draws them itself. The root gives its body the `size` the owner
 declares, measured as the owner last laid it out along the bar's edge, and
 the layout says where each bar is (`dock-layout.bars`). Its owner draws the
 grip too: placing it is a `place-bar` request, and dragging it a run of

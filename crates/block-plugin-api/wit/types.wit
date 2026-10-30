@@ -903,7 +903,11 @@ interface types {
     }
 
     /// A bar of the dock: an entry that belongs to the tab `owner` and shows
-    /// while it does, at `placement` (in a declaration the one it starts at).
+    /// while it does, or, with no `owner`, to the declaring dock itself,
+    /// showing whichever tab is shown and wrapping the whole dock (a docked
+    /// dock's own bars, which the root gives the tab that hosts it, so they
+    /// wrap its group's first pane), at `placement` (in a declaration the one
+    /// it starts at).
     /// Its body is the owner's view `tab`, which is no tab of
     /// the tree, laid out along its placement's edge; `size` is that body's
     /// size as its owner last laid it out, which the root gives it. `key`
@@ -916,7 +920,7 @@ interface types {
         tab: dock-tab-path,
         key: string,
         kind: string,
-        owner: dock-tab-path,
+        owner: option<dock-tab-path>,
         placement: dock-bar-placement,
         size: size,
     }
@@ -944,10 +948,10 @@ interface types {
         place: dock-place,
     }
 
-    /// Where a bar of the layout sits now.
+    /// Where a bar of the layout sits now; `owner` as in `dock-bar`.
     record dock-placed-bar {
         bar: dock-tab-path,
-        owner: dock-tab-path,
+        owner: option<dock-tab-path>,
         placement: dock-bar-placement,
     }
 

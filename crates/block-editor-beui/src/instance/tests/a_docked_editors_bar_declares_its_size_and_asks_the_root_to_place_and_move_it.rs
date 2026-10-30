@@ -39,7 +39,7 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
                 unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
-                    owner: stage.clone(),
+                    owner: Some(stage.clone()),
                     placement,
                 }],
                 outside: Vec::new(),
@@ -108,7 +108,7 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         "a bar's kind is the editor's block type and the bar's key: {}",
         bar.kind
     );
-    assert_eq!(bar.owner, DockTabPath::own(1));
+    assert_eq!(bar.owner, Some(DockTabPath::own(1)));
     assert_eq!(
         bar.placement,
         DockBarPlacement::Over(DockBarOver {

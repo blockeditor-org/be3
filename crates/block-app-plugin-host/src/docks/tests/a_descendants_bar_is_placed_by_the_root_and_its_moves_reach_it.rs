@@ -12,7 +12,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
         tab: path(&[], 9),
         key: "tools".to_owned(),
         kind: "canvas/tools".to_owned(),
-        owner: path(&[], 5),
+        owner: Some(path(&[], 5)),
         placement: DockBarPlacement::Over(DockBarOver {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
@@ -37,7 +37,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
     let bar = delivered
         .bar(&path(&[INNER_CHILD], 9))
         .expect("the bar is spliced through the child that declared it");
-    assert_eq!(bar.owner, path(&[INNER_CHILD], 5));
+    assert_eq!(bar.owner, Some(path(&[INNER_CHILD], 5)));
     assert!(bar.key.ends_with("/tools"));
 
     updates(&mut docks, "shell");

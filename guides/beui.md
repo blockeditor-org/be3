@@ -3031,9 +3031,9 @@ joins another declares its own dock bars up with no owner (`DockDeclaredBar::own
 `None`) and the root gives them to the tab hosting it, so they behave as that tab's bars
 (lent to the joined dock's first pane); the joined dock sees them as its own again
 (`subtree`/`graft` map the host to none). A dock that only declares its bars up
-(`DockHostSlot::bars`) keeps its dock bars and draws them itself, and a plugin's dock
-joined across the plugin protocol leaves them out, since `dock-bar.owner` cannot name the
-dock there yet.
+(`DockHostSlot::bars`) keeps its dock bars and draws them itself, so a plugin whose dock is
+the root (the desktop's) draws its own. Across the plugin protocol a docked plugin's dock bars
+cross with no `owner` too (block-plugin-api PROTOCOL.md, "Docks cross plugins").
 
 A dock that joins none (the root, or a standalone dock) places bars by key: a
 bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it

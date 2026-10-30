@@ -12,12 +12,14 @@ mod a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame;
 mod a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes;
 mod a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it;
 mod a_docked_editors_nested_dock_and_dialog_join_its_declaration;
+mod a_docked_editors_own_dock_bar_crosses_with_no_owner;
 mod a_docked_editors_palette_opens_over_the_tab_whose_menu_asked;
 mod a_docked_editors_popover_is_an_anchored_view_of_its_tab;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
 mod a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks;
+mod a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it;
 mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it;
 mod a_root_places_bars_of_one_kind_together_and_others_apart;
@@ -322,4 +324,38 @@ impl crate::BeuiApp for BarredApp {
 fn barred_session() -> EditorSession {
     BAR.with(|held| held.set(None));
     session::<BarredApp>(Uuid::new_v4())
+}
+
+struct DockBarredApp;
+
+#[beui::reactive::component]
+impl crate::BeuiApp for DockBarredApp {
+    #[beui::reactive::component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
+        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
+        use beui::dock::unstyled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::reactive::*;
+        let _ = editor;
+        let layout = DockingLayout::<u64>::new();
+        LAYOUT.with(|held| held.set(Some(layout)));
+        view! {
+            <beui::styled::Root>
+                <Docking layout>
+                    <DockPane id="stage" bare=true>
+                        <DockTab id=1u64 title="Stage">
+                            <beui::styled::Frame />
+                        </DockTab>
+                    </DockPane>
+                    <DockBar id=3u64 placement=DockBarPlacement::Beside(DockEdge::Bottom)>
+                        <BarProbe />
+                    </DockBar>
+                </Docking>
+            </beui::styled::Root>
+        }
+    }
+}
+
+fn dock_barred_session() -> EditorSession {
+    BAR.with(|held| held.set(None));
+    session::<DockBarredApp>(Uuid::new_v4())
 }

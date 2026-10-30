@@ -6,7 +6,7 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
         tab: DockTabPath::own(tab),
         key: key.into(),
         kind: format!("canvas/{key}"),
-        owner: DockTabPath::own(owner),
+        owner: Some(DockTabPath::own(owner)),
         placement: DockBarPlacement::Over(DockBarOver {
             edge,
             align: DockAlign::Center,
@@ -37,17 +37,17 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
         "the child's tabs stay out"
     );
     let tools = DockTabPath::own(7).through(child);
-    let keys: Vec<(&DockTabPath, &str, &DockTabPath)> = spliced
+    let keys: Vec<(&DockTabPath, &str, Option<&DockTabPath>)> = spliced
         .bars
         .iter()
-        .map(|bar| (&bar.tab, bar.key.as_str(), &bar.owner))
+        .map(|bar| (&bar.tab, bar.key.as_str(), bar.owner.as_ref()))
         .collect();
     let joined = format!("{prefix}/tools");
     assert_eq!(
         keys,
         [
-            (&DockTabPath::own(9), "tags", &DockTabPath::own(1)),
-            (&tools, joined.as_str(), &DockTabPath::own(2)),
+            (&DockTabPath::own(9), "tags", Some(&DockTabPath::own(1))),
+            (&tools, joined.as_str(), Some(&DockTabPath::own(2))),
         ],
         "the parent's bars on the taken tab go, the child's join that tab"
     );
@@ -60,7 +60,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             .iter()
             .map(|bar| bar.owner.clone())
             .collect::<Vec<_>>(),
-        [DockTabPath::own(4).through(ChildId(3))],
+        [Some(DockTabPath::own(4).through(ChildId(3)))],
         "spliced as bars only, every bar of the dock goes and the child's keep their owners"
     );
 
@@ -71,7 +71,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             unlocked: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
-                owner: DockTabPath::own(2),
+                owner: Some(DockTabPath::own(2)),
                 placement: DockBarPlacement::Beside(DockEdge::Right),
             }],
             outside: Vec::new(),
@@ -101,7 +101,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
         part.layout.bars,
         [DockPlacedBar {
             bar: DockTabPath::own(7),
-            owner: DockTabPath::own(4),
+            owner: Some(DockTabPath::own(4)),
             placement: DockBarPlacement::Beside(DockEdge::Right),
         }]
     );

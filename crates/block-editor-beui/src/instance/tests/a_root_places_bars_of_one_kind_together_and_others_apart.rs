@@ -10,7 +10,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
         tab: DockTabPath::own(tab),
         key: key.to_owned(),
         kind: kind.to_owned(),
-        owner: DockTabPath::own(5),
+        owner: Some(DockTabPath::own(5)),
         placement: DockBarPlacement::Over(DockBarOver {
             edge: DockEdge::Top,
             align: DockAlign::Center,

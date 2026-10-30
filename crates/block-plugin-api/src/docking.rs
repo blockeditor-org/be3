@@ -433,7 +433,10 @@ impl DockDeclaration {
                 || bar.key.is_empty()
                 || keys.contains(bar.key.as_str())
                 || !bar_keys.insert(&bar.key)
-                || !held.contains(&bar.owner)
+                || bar
+                    .owner
+                    .as_ref()
+                    .is_some_and(|owner| !held.contains(owner))
                 || held.contains(&bar.tab)
                 || !bodies.insert(&bar.tab)
             {
@@ -468,19 +471,18 @@ impl DockDeclaration {
 
     pub fn validate_own(&self) -> Result<(), DecodeError> {
         let nodes = self.nest()?;
-        let bodies_own = self
-            .dialogs
-            .iter()
-            .all(|dialog| dialog.tab.is_own() && dialog.parent.is_own())
-            && nodes
-                .panes()
+        let bodies_own =
+            self.dialogs
                 .iter()
-                .filter_map(|pane| pane.empty.as_ref())
-                .all(DockTabPath::is_own)
-            && self
-                .bars
-                .iter()
-                .all(|bar| bar.tab.is_own() && bar.owner.is_own());
+                .all(|dialog| dialog.tab.is_own() && dialog.parent.is_own())
+                && nodes
+                    .panes()
+                    .iter()
+                    .filter_map(|pane| pane.empty.as_ref())
+                    .all(DockTabPath::is_own)
+                && self.bars.iter().all(|bar| {
+                    bar.tab.is_own() && bar.owner.as_ref().is_none_or(DockTabPath::is_own)
+                });
         if nodes.tabs().iter().all(|tab| tab.is_own()) && !nodes.spliced() && bodies_own {
             Ok(())
         } else {
@@ -518,7 +520,9 @@ impl DockBarPlacement {
 impl DockBar {
     fn validate(&self) -> Result<(), DecodeError> {
         self.tab.validate()?;
-        self.owner.validate()?;
+        if let Some(owner) = &self.owner {
+            owner.validate()?;
+        }
         self.placement.validate()
     }
 }
@@ -526,7 +530,9 @@ impl DockBar {
 impl DockPlacedBar {
     fn validate(&self) -> Result<(), DecodeError> {
         self.bar.validate()?;
-        self.owner.validate()?;
+        if let Some(owner) = &self.owner {
+            owner.validate()?;
+        }
         self.placement.validate()
     }
 }

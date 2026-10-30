@@ -45,7 +45,7 @@ fn barred() -> DockDeclaration {
             tab: DockTabPath::own(9),
             key: "tools".to_owned(),
             kind: "canvas/tools".to_owned(),
-            owner: DockTabPath::own(5),
+            owner: Some(DockTabPath::own(5)),
             placement: DockBarPlacement::Over(DockBarOver {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,

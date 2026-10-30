@@ -157,7 +157,10 @@ impl Mapping<'_> {
                 .filter_map(|bar| {
                     Some(DockPlacedBar {
                         bar: (self.tab)(&bar.bar)?,
-                        owner: (self.tab)(&bar.owner)?,
+                        owner: match &bar.owner {
+                            Some(owner) => Some((self.tab)(owner)?),
+                            None => None,
+                        },
                         placement: bar.placement.clone(),
                     })
                 })
@@ -312,22 +315,23 @@ impl DockDeclaration {
             tabs.first().map(|tab| (*tab).clone().through(child))
         });
         self.bars.retain_mut(|bar| {
-            if bar.owner != host {
+            if bar.owner.as_ref() != Some(&host) {
                 return true;
             }
-            match &lent {
-                Some(tab) => {
-                    bar.owner = tab.clone();
-                    true
-                }
-                None => false,
-            }
+            bar.owner.clone_from(&lent);
+            lent.is_some()
         });
-        self.bars.extend(inner.bars.iter().map(|bar| DockBar {
-            tab: bar.tab.clone().through(child),
-            key: prefixed(prefix, &bar.key),
-            owner: bar.owner.clone().through(child),
-            ..bar.clone()
+        self.bars.extend(inner.bars.iter().filter_map(|bar| {
+            let owner = match &bar.owner {
+                Some(owner) => owner.clone().through(child),
+                None => lent.clone()?,
+            };
+            Some(DockBar {
+                tab: bar.tab.clone().through(child),
+                key: prefixed(prefix, &bar.key),
+                owner: Some(owner),
+                ..bar.clone()
+            })
         }));
         Ok(true)
     }
@@ -341,7 +345,7 @@ impl DockDeclaration {
     ) {
         let host = host.map(DockTabPath::own);
         match &host {
-            Some(host) => self.bars.retain(|bar| bar.owner != *host),
+            Some(host) => self.bars.retain(|bar| bar.owner.as_ref() != Some(host)),
             None => self.bars.clear(),
         }
         self.bars.extend(inner.bars.iter().map(|bar| {
@@ -350,7 +354,7 @@ impl DockDeclaration {
                 key: prefixed(prefix, &bar.key),
                 owner: host
                     .clone()
-                    .unwrap_or_else(|| bar.owner.clone().through(child)),
+                    .or_else(|| bar.owner.clone().map(|owner| owner.through(child))),
                 ..bar.clone()
             }
         }));
@@ -440,7 +444,10 @@ impl DockHosted {
             .filter_map(|bar| {
                 Some(DockPlacedBar {
                     bar: bar.bar.clone(),
-                    owner: path(&bar.owner)?,
+                    owner: match &bar.owner {
+                        Some(owner) => Some(path(owner)?),
+                        None => None,
+                    },
                     placement: bar.placement.clone(),
                 })
             })
@@ -471,7 +478,7 @@ impl DockHosted {
         &self,
         child: ChildId,
         host: Option<u64>,
-        owner: &dyn Fn(&DockTabPath) -> Option<DockTabPath>,
+        owner: &dyn Fn(&DockTabPath) -> Option<Option<DockTabPath>>,
     ) -> DockHosted {
         let bars: Vec<DockPlacedBar> = self
             .layout
@@ -487,9 +494,9 @@ impl DockHosted {
             })
             .collect();
         let mut owners: Vec<DockTabPath> = Vec::new();
-        for bar in &bars {
-            if !owners.contains(&bar.owner) {
-                owners.push(bar.owner.clone());
+        for owner in bars.iter().filter_map(|bar| bar.owner.as_ref()) {
+            if !owners.contains(owner) {
+                owners.push(owner.clone());
             }
         }
         let covered = host.map(DockTabPath::own);
@@ -519,6 +526,17 @@ impl DockHosted {
             fullscreen: None,
             stacked: self.stacked,
             covers,
+        }
+    }
+
+    pub fn own_dock_bars(&mut self, declaration: &DockDeclaration) {
+        for bar in &mut self.layout.bars {
+            if declaration
+                .bar(&bar.bar)
+                .is_some_and(|declared| declared.owner.is_none())
+            {
+                bar.owner = None;
+            }
         }
     }
 
