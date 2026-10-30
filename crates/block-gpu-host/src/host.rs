@@ -2,6 +2,8 @@ use block_gpu_abi::{device as abi, embed::device::Host};
 
 mod compute;
 
+use crate::bundles::{BundleEncoder, Command};
+use crate::queries::{Coarsening, QuerySet};
 use crate::{Gpu, Outcome, SURFACE_USAGE, convert, slice, texel_copy_buffer, texel_copy_texture};
 
 impl Gpu {
@@ -217,6 +219,18 @@ impl Gpu {
                     .map(|view| (attachment, view))
             })
             .transpose()?;
+        let occlusion = descriptor
+            .occlusion_query_set
+            .map(|set| self.query_sets.get(set.0, "query set").map(|set| set.set.clone()))
+            .transpose()?;
+        let timestamps = descriptor
+            .timestamp_writes
+            .map(|writes| {
+                self.query_sets
+                    .get(writes.query_set.0, "query set")
+                    .map(|set| (set.set.clone(), writes))
+            })
+            .transpose()?;
         let encoder = self.encoders.get_mut(encoder.0, "command encoder")?;
         let color_attachments: Vec<_> = colors
             .iter()
@@ -264,8 +278,14 @@ impl Gpu {
                 label: convert::label(&descriptor.label),
                 color_attachments: &color_attachments,
                 depth_stencil_attachment,
-                timestamp_writes: None,
-                occlusion_query_set: None,
+                timestamp_writes: timestamps.as_ref().map(|(set, writes)| {
+                    wgpu::RenderPassTimestampWrites {
+                        query_set: set,
+                        beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                        end_of_pass_write_index: writes.end_of_pass_write_index,
+                    }
+                }),
+                occlusion_query_set: occlusion.as_ref(),
                 multiview_mask: None,
             })
             .forget_lifetime())
@@ -322,7 +342,7 @@ impl Host for Gpu {
                 Ok(gpu.device.create_buffer(&wgpu::BufferDescriptor {
                     label: convert::label(&descriptor.label),
                     size: descriptor.size,
-                    usage: wgpu::BufferUsages::from_bits_truncate(descriptor.usage),
+                    usage: gpu.resolvable(wgpu::BufferUsages::from_bits_truncate(descriptor.usage)),
                     mapped_at_creation: descriptor.mapped_at_creation,
                 }))
             },
@@ -911,12 +931,10 @@ impl Host for Gpu {
             .get(buffer.0, "buffer")
             .cloned()
             .and_then(|buffer| {
-                self.passes.get_mut(this.0, "render pass").map(|pass| {
-                    pass.set_index_buffer(
-                        slice(&buffer, offset, size),
-                        convert::index_format(format),
-                    )
-                })
+                let slice = slice(&buffer, offset, size)?;
+                self.passes
+                    .get_mut(this.0, "render pass")
+                    .map(|pass| pass.set_index_buffer(slice, convert::index_format(format)))
             });
         self.fail(result, ());
     }
@@ -934,9 +952,10 @@ impl Host for Gpu {
             .get(buffer.0, "buffer")
             .cloned()
             .and_then(|buffer| {
+                let slice = slice(&buffer, offset, size)?;
                 self.passes
                     .get_mut(this.0, "render pass")
-                    .map(|pass| pass.set_vertex_buffer(slot, slice(&buffer, offset, size)))
+                    .map(|pass| pass.set_vertex_buffer(slot, slice))
             });
         self.fail(result, ());
     }
@@ -1181,5 +1200,248 @@ impl Host for Gpu {
         if let Ok(surface) = self.surface_ids.take(this.0, "surface") {
             self.detach_surface(surface);
         }
+    }
+
+    fn create_query_set(&mut self, descriptor: abi::QuerySetDescriptor) -> Option<abi::QuerySet> {
+        self.create(
+            |gpu| &mut gpu.query_sets,
+            |gpu| {
+                let (ty, timestamps) = match descriptor.r#type {
+                    abi::QueryType::Occlusion => (wgpu::QueryType::Occlusion, false),
+                    abi::QueryType::Timestamp => (wgpu::QueryType::Timestamp, true),
+                };
+                Ok(QuerySet {
+                    set: gpu.device.create_query_set(&wgpu::QuerySetDescriptor {
+                        label: convert::label(&descriptor.label),
+                        ty,
+                        count: descriptor.count,
+                    }),
+                    timestamps,
+                })
+            },
+        )
+        .map(abi::QuerySet)
+    }
+
+    fn query_set_drop(&mut self, this: abi::QuerySet) {
+        self.query_sets.remove(this.0);
+    }
+
+    fn command_encoder_resolve_query_set(
+        &mut self,
+        this: abi::CommandEncoder,
+        query_set: abi::QuerySet,
+        first_query: u32,
+        query_count: u32,
+        destination: abi::Buffer,
+        destination_offset: u64,
+    ) {
+        self.encode(this, |gpu| {
+            let set = gpu.query_sets.get(query_set.0, "query set")?;
+            let (queries, timestamps) = (set.set.clone(), set.timestamps);
+            let to = gpu.buffers.get(destination.0, "buffer")?.clone();
+            let coarsen = timestamps && Coarsening::fits(&to, destination_offset, query_count);
+            let coarsening = coarsen.then(|| {
+                let pipeline = gpu.coarsening().clone();
+                (pipeline, gpu.device.clone())
+            });
+            Ok(Box::new(move |encoder| {
+                let queries_range = first_query..first_query.saturating_add(query_count);
+                encoder.resolve_query_set(&queries, queries_range, &to, destination_offset);
+                if let Some((coarsening, device)) = coarsening {
+                    coarsening.record(&device, encoder, &to, destination_offset, query_count);
+                }
+            }))
+        });
+    }
+
+    fn render_pass_draw_indirect(
+        &mut self,
+        this: abi::RenderPass,
+        indirect_buffer: abi::Buffer,
+        indirect_offset: u64,
+    ) {
+        let result = self.buffers.get(indirect_buffer.0, "buffer").cloned();
+        if let Some(buffer) = self.fail(result.map(Some), None) {
+            self.pass(this, |pass| pass.draw_indirect(&buffer, indirect_offset));
+        }
+    }
+
+    fn render_pass_draw_indexed_indirect(
+        &mut self,
+        this: abi::RenderPass,
+        indirect_buffer: abi::Buffer,
+        indirect_offset: u64,
+    ) {
+        let result = self.buffers.get(indirect_buffer.0, "buffer").cloned();
+        if let Some(buffer) = self.fail(result.map(Some), None) {
+            self.pass(this, |pass| pass.draw_indexed_indirect(&buffer, indirect_offset));
+        }
+    }
+
+    fn render_pass_begin_occlusion_query(&mut self, this: abi::RenderPass, query_index: u32) {
+        self.pass(this, |pass| pass.begin_occlusion_query(query_index));
+    }
+
+    fn render_pass_end_occlusion_query(&mut self, this: abi::RenderPass) {
+        self.pass(this, |pass| pass.end_occlusion_query());
+    }
+
+    fn render_pass_execute_bundles(&mut self, this: abi::RenderPass, bundles: &[abi::RenderBundle]) {
+        let found = bundles
+            .iter()
+            .map(|bundle| self.bundles.get(bundle.0, "render bundle").cloned())
+            .collect::<Outcome<Vec<_>>>();
+        if let Some(bundles) = self.fail(found.map(Some), None) {
+            self.pass(this, |pass| pass.execute_bundles(&bundles));
+        }
+    }
+
+    fn create_render_bundle_encoder(
+        &mut self,
+        descriptor: abi::RenderBundleEncoderDescriptor,
+    ) -> Option<abi::RenderBundleEncoder> {
+        self.create(
+            |gpu| &mut gpu.bundle_encoders,
+            |_| BundleEncoder::new(descriptor),
+        )
+        .map(abi::RenderBundleEncoder)
+    }
+
+    fn render_bundle_encoder_set_pipeline(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        pipeline: abi::RenderPipeline,
+    ) {
+        self.bundle(this, |gpu| {
+            let pipeline = gpu.pipelines.get(pipeline.0, "render pipeline")?;
+            Ok(Command::Pipeline(pipeline.clone()))
+        });
+    }
+
+    fn render_bundle_encoder_set_bind_group(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        index: u32,
+        bind_group: Option<abi::BindGroup>,
+        dynamic_offsets: &[u32],
+    ) {
+        self.bundle(this, |gpu| {
+            let group = bind_group
+                .map(|group| gpu.groups.get(group.0, "bind group").cloned())
+                .transpose()?;
+            Ok(Command::BindGroup(index, group, dynamic_offsets.to_vec()))
+        });
+    }
+
+    fn render_bundle_encoder_set_index_buffer(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        buffer: abi::Buffer,
+        format: abi::IndexFormat,
+        offset: u64,
+        size: Option<u64>,
+    ) {
+        self.bundle(this, |gpu| {
+            let buffer = gpu.buffers.get(buffer.0, "buffer")?.clone();
+            let format = convert::index_format(format);
+            Ok(Command::IndexBuffer(buffer, format, offset, size))
+        });
+    }
+
+    fn render_bundle_encoder_set_vertex_buffer(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        slot: u32,
+        buffer: abi::Buffer,
+        offset: u64,
+        size: Option<u64>,
+    ) {
+        self.bundle(this, |gpu| {
+            let buffer = gpu.buffers.get(buffer.0, "buffer")?.clone();
+            Ok(Command::VertexBuffer(slot, buffer, offset, size))
+        });
+    }
+
+    fn render_bundle_encoder_draw(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        vertex_count: u32,
+        instance_count: u32,
+        first_vertex: u32,
+        first_instance: u32,
+    ) {
+        self.bundle(this, |_| {
+            Ok(Command::Draw(
+                first_vertex..first_vertex.saturating_add(vertex_count),
+                first_instance..first_instance.saturating_add(instance_count),
+            ))
+        });
+    }
+
+    fn render_bundle_encoder_draw_indexed(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        base_vertex: i32,
+        first_instance: u32,
+    ) {
+        self.bundle(this, |_| {
+            Ok(Command::DrawIndexed(
+                first_index..first_index.saturating_add(index_count),
+                base_vertex,
+                first_instance..first_instance.saturating_add(instance_count),
+            ))
+        });
+    }
+
+    fn render_bundle_encoder_draw_indirect(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        indirect_buffer: abi::Buffer,
+        indirect_offset: u64,
+    ) {
+        self.bundle(this, |gpu| {
+            let buffer = gpu.buffers.get(indirect_buffer.0, "buffer")?.clone();
+            Ok(Command::DrawIndirect(buffer, indirect_offset))
+        });
+    }
+
+    fn render_bundle_encoder_draw_indexed_indirect(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        indirect_buffer: abi::Buffer,
+        indirect_offset: u64,
+    ) {
+        self.bundle(this, |gpu| {
+            let buffer = gpu.buffers.get(indirect_buffer.0, "buffer")?.clone();
+            Ok(Command::DrawIndexedIndirect(buffer, indirect_offset))
+        });
+    }
+
+    fn render_bundle_encoder_finish(
+        &mut self,
+        this: abi::RenderBundleEncoder,
+        descriptor: abi::RenderBundleDescriptor,
+    ) -> Option<abi::RenderBundle> {
+        self.create(
+            |gpu| &mut gpu.bundles,
+            |gpu| {
+                gpu.bundle_encoders
+                    .take(this.0, "render bundle encoder")?
+                    .finish(&gpu.device, &descriptor)
+            },
+        )
+        .map(abi::RenderBundle)
+    }
+
+    fn render_bundle_encoder_drop(&mut self, this: abi::RenderBundleEncoder) {
+        self.bundle_encoders.remove(this.0);
+    }
+
+    fn render_bundle_drop(&mut self, this: abi::RenderBundle) {
+        self.bundles.remove(this.0);
     }
 }

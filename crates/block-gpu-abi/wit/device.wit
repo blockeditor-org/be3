@@ -459,6 +459,16 @@ interface device {
             size: extent3d,
         );
         clear-buffer: func(buffer: borrow<buffer>, offset: u64, size: option<u64>);
+        /// Writes the results of queries as u64s from 256-byte aligned
+        /// `destination-offset`. Timestamps are in nanoseconds, coarsened to
+        /// 100 microseconds as browsers coarsen them.
+        resolve-query-set: func(
+            query-set: borrow<query-set>,
+            first-query: u32,
+            query-count: u32,
+            destination: borrow<buffer>,
+            destination-offset: u64,
+        );
         /// Ends the encoder: anything it is asked after this is an error.
         finish: func() -> option<command-buffer>;
     }
@@ -506,6 +516,8 @@ interface device {
         label: option<string>,
         color-attachments: list<option<color-attachment>>,
         depth-stencil-attachment: option<depth-stencil-attachment>,
+        occlusion-query-set: option<borrow<query-set>>,
+        timestamp-writes: option<pass-timestamp-writes>,
     }
 
     /// The calls made per draw: each takes its arguments as wasm values.
@@ -535,6 +547,11 @@ interface device {
             base-vertex: s32,
             first-instance: u32,
         );
+        draw-indirect: func(indirect-buffer: borrow<buffer>, indirect-offset: u64);
+        draw-indexed-indirect: func(indirect-buffer: borrow<buffer>, indirect-offset: u64);
+        begin-occlusion-query: func(query-index: u32);
+        end-occlusion-query: func();
+        execute-bundles: func(bundles: list<borrow<render-bundle>>);
         /// Records the pass into its encoder.
         end: func();
     }
@@ -554,6 +571,7 @@ interface device {
 
     record compute-pass-descriptor {
         label: option<string>,
+        timestamp-writes: option<pass-timestamp-writes>,
     }
 
     /// The calls made per dispatch: each takes its arguments as wasm values.
@@ -570,6 +588,70 @@ interface device {
         /// Records the pass into its encoder.
         end: func();
     }
+    enum query-type { occlusion, timestamp }
+
+    record query-set-descriptor {
+        label: option<string>,
+        %type: query-type,
+        count: u32,
+    }
+
+    resource query-set;
+
+    record pass-timestamp-writes {
+        query-set: borrow<query-set>,
+        beginning-of-pass-write-index: option<u32>,
+        end-of-pass-write-index: option<u32>,
+    }
+
+    record render-bundle-depth-stencil {
+        format: texture-format,
+        depth-read-only: bool,
+        stencil-read-only: bool,
+    }
+
+    record render-bundle-encoder-descriptor {
+        label: option<string>,
+        color-formats: list<option<texture-format>>,
+        depth-stencil: option<render-bundle-depth-stencil>,
+        sample-count: u32,
+    }
+
+    record render-bundle-descriptor {
+        label: option<string>,
+    }
+
+    /// Records draws to replay in render passes. Its calls are made per draw,
+    /// as a render pass's are.
+    resource render-bundle-encoder {
+        set-pipeline: func(pipeline: borrow<render-pipeline>);
+        set-bind-group: func(
+            index: u32,
+            bind-group: option<borrow<bind-group>>,
+            dynamic-offsets: list<u32>,
+        );
+        set-index-buffer: func(
+            buffer: borrow<buffer>,
+            format: index-format,
+            offset: u64,
+            size: option<u64>,
+        );
+        set-vertex-buffer: func(slot: u32, buffer: borrow<buffer>, offset: u64, size: option<u64>);
+        draw: func(vertex-count: u32, instance-count: u32, first-vertex: u32, first-instance: u32);
+        draw-indexed: func(
+            index-count: u32,
+            instance-count: u32,
+            first-index: u32,
+            base-vertex: s32,
+            first-instance: u32,
+        );
+        draw-indirect: func(indirect-buffer: borrow<buffer>, indirect-offset: u64);
+        draw-indexed-indirect: func(indirect-buffer: borrow<buffer>, indirect-offset: u64);
+        /// Ends the encoder: anything it is asked after this is an error.
+        finish: func(descriptor: render-bundle-descriptor) -> option<render-bundle>;
+    }
+
+    resource render-bundle;
 
     record texel-copy-texture-info {
         texture: borrow<texture>,
@@ -633,6 +715,10 @@ interface device {
     create-command-encoder: func(
         descriptor: command-encoder-descriptor,
     ) -> option<command-encoder>;
+    create-query-set: func(descriptor: query-set-descriptor) -> option<query-set>;
+    create-render-bundle-encoder: func(
+        descriptor: render-bundle-encoder-descriptor,
+    ) -> option<render-bundle-encoder>;
 
     write-buffer: func(buffer: borrow<buffer>, offset: u64, data: list<u8>);
     write-texture: func(

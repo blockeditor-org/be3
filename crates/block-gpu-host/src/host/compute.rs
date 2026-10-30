@@ -36,11 +36,25 @@ impl Gpu {
         encoder: abi::CommandEncoder,
         descriptor: &abi::ComputePassDescriptor,
     ) -> Outcome<wgpu::ComputePass<'static>> {
+        let timestamps = descriptor
+            .timestamp_writes
+            .map(|writes| {
+                self.query_sets
+                    .get(writes.query_set.0, "query set")
+                    .map(|set| (set.set.clone(), writes))
+            })
+            .transpose()?;
         let encoder = self.encoders.get_mut(encoder.0, "command encoder")?;
         Ok(encoder
             .begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: convert::label(&descriptor.label),
-                timestamp_writes: None,
+                timestamp_writes: timestamps.as_ref().map(|(set, writes)| {
+                    wgpu::ComputePassTimestampWrites {
+                        query_set: set,
+                        beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                        end_of_pass_write_index: writes.end_of_pass_write_index,
+                    }
+                }),
             })
             .forget_lifetime())
     }

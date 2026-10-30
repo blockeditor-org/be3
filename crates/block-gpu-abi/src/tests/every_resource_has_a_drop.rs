@@ -18,6 +18,9 @@ fn every_resource_has_a_drop() {
         "render-pass",
         "compute-pipeline",
         "compute-pass",
+        "query-set",
+        "render-bundle-encoder",
+        "render-bundle",
         "surface",
     ] {
         let drop = format!("[resource-drop]{resource}");

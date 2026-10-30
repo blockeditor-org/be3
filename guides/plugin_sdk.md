@@ -254,9 +254,11 @@ as wgpu's `request_device` does; block-editor-plugin requests every offered limi
 feature. The device then has only what it requested, and `features.rs` in the guest
 refuses, as a validation error, a texture format, storage format, blend or
 `unclipped_depth` that needs a feature it did not request, and a shader whose `enable`
-names one. The host refuses the rest against its own device. A query set, indirect draw
-or bind group gains the same check (timestamps, `indirect-first-instance`,
-`float32-filterable`) when it is added.
+names one, and a timestamp query set without `timestamp-query`. The host refuses the rest
+against its own device. A bind group gains the same check (`float32-filterable`) when it
+learns its view formats. `indirect-first-instance` cannot be checked: the first instance
+of an indirect draw is in a gpu buffer, so a plugin that did not request it gets what the
+host's device does with a nonzero one (honoured wherever the device has the feature).
 
 Buffer mapping is asynchronous on both hosts, as in a browser. `map_async` asks the host
 (`buffer.map-async`), which maps the buffer and wakes the plugin once the map settles:
@@ -279,6 +281,23 @@ them. A compute pass's calls, like a render pass's, take only wasm values. A dev
 compute (the WebGL fallback) reports zero compute workgroups per dimension in its limits
 and refuses a compute pipeline as a validation error. Textures stay
 on the gpu; only a mapped read crosses into the plugin's memory.
+
+Occlusion and timestamp query sets, `resolve_query_set`, a render pass's
+`occlusion_query_set`, occlusion queries and `timestamp_writes`, render bundles
+(`create_render_bundle_encoder`, `execute_bundles`) and `draw_indirect` and
+`draw_indexed_indirect` are WebGPU's. Timestamps inside encoders and passes
+(`write_timestamp`) and pipeline statistics are native-only and not in browser WebGPU.
+A resolved timestamp is in nanoseconds, coarsened to 100 microseconds as Chrome does, on
+both hosts: the host gives a buffer made with `QUERY_RESOLVE` the `STORAGE` usage too
+(when its device has `timestamp-query`), and after resolving timestamps into it runs a
+compute pass (`queries.rs` in block-gpu-host) that converts the device's ticks
+(`get_timestamp_period`) to nanoseconds and rounds them down, so the guest's period is
+1. The host records a render bundle's commands itself and replays them into wgpu's
+encoder at `finish` (`bundles.rs`), since wgpu's encoder borrows what it is given. Two
+of wgpu's gaps are filled by an overlay of the wgpu crate (`third-party/rust/overlays/wgpu`,
+see `fixups.bzl`): a custom backend's bundle encoder can be finished (`finish_custom`),
+and a bundle that fails validation goes to the device's error scope instead of panicking
+the host; refresh or drop it when wgpu is upgraded.
 
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its

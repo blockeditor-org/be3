@@ -1,7 +1,7 @@
 use block_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
 
-use super::{BindGroup, BindGroupLayout, Buffer, checked, last_error, reject, resource};
+use super::{BindGroup, BindGroupLayout, Buffer, QuerySet, checked, last_error, reject, resource};
 use crate::convert::{self, custom};
 
 resource!(ComputePipeline);
@@ -25,6 +25,14 @@ pub(super) fn pass(
 ) -> DispatchComputePass {
     let descriptor = abi::ComputePassDescriptor {
         label: convert::label(desc.label),
+        timestamp_writes: desc
+            .timestamp_writes
+            .as_ref()
+            .map(|writes| abi::PassTimestampWrites {
+                query_set: custom::<QuerySet>(writes.query_set.as_custom()).0.handle(),
+                beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                end_of_pass_write_index: writes.end_of_pass_write_index,
+            }),
     };
     DispatchComputePass::custom(ComputePass::created(
         encoder.begin_compute_pass(&descriptor),

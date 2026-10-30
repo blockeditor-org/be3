@@ -114,6 +114,8 @@ fn guest() -> String {
             depth_slice: None,
         })],
         depth_stencil_attachment: None,
+        occlusion_query_set: None,
+        timestamp_writes: None,
     }));
     let call = |name: &str, this: Option<u32>, (at, length): (usize, usize)| {
         let this = this.map_or(String::new(), |this| format!("(i32.const {this}) "));

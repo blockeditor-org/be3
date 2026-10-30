@@ -103,6 +103,13 @@ pub(crate) struct Allowed {
 }
 
 impl Allowed {
+    pub(crate) fn query_set(&self, kind: wgpu::QueryType) -> Result<(), String> {
+        match kind {
+            wgpu::QueryType::Timestamp => self.needs(wgpu::Features::TIMESTAMP_QUERY),
+            _ => Ok(()),
+        }
+    }
+
     fn needs(&self, needed: wgpu::Features) -> Result<(), String> {
         let missing = needed & !self.requested;
         match missing.is_empty() {

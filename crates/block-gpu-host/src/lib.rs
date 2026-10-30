@@ -1,6 +1,8 @@
+mod bundles;
 mod convert;
 mod host;
 mod maps;
+mod queries;
 mod tables;
 pub mod transport;
 
@@ -47,6 +49,10 @@ pub struct Gpu {
     passes: Table<wgpu::RenderPass<'static>>,
     compute_pipelines: Table<wgpu::ComputePipeline>,
     compute_passes: Table<wgpu::ComputePass<'static>>,
+    query_sets: Table<queries::QuerySet>,
+    coarsening: Option<queries::Coarsening>,
+    bundle_encoders: Table<bundles::BundleEncoder>,
+    bundles: Table<wgpu::RenderBundle>,
     surface_ids: Table<u32>,
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
@@ -120,6 +126,10 @@ impl Gpu {
             passes: Table::new(),
             compute_pipelines: Table::new(),
             compute_passes: Table::new(),
+            query_sets: Table::new(),
+            coarsening: None,
+            bundle_encoders: Table::new(),
+            bundles: Table::new(),
             surface_ids: Table::new(),
             surfaces: HashMap::new(),
             imports: Imports::default(),
@@ -271,10 +281,18 @@ fn texel_copy_buffer(
     }
 }
 
-fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> wgpu::BufferSlice<'_> {
-    match size {
-        None => buffer.slice(offset..),
-        Some(size) => buffer.slice(offset..offset.saturating_add(size)),
+fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> Outcome<wgpu::BufferSlice<'_>> {
+    let end = match size {
+        None => Some(buffer.size()),
+        Some(size) => offset.checked_add(size),
+    };
+    match end {
+        Some(end) if offset < end && end <= buffer.size() => Ok(buffer.slice(offset..end)),
+        _ => Err(format!(
+            "a binding of {offset}..{} is empty or runs past the end of its {}-byte buffer",
+            end.map_or_else(|| "overflow".to_owned(), |end| end.to_string()),
+            buffer.size()
+        )),
     }
 }
 

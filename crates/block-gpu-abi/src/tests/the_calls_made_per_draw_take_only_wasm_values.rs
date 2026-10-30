@@ -37,6 +37,22 @@ fn the_calls_made_per_draw_take_only_wasm_values() {
         signature("[method]compute-pass.dispatch-workgroups-indirect"),
         ("u32, u32, u64", "")
     );
+    assert_eq!(
+        signature("[method]render-pass.draw-indirect"),
+        ("u32, u32, u64", "")
+    );
+    assert_eq!(
+        signature("[method]render-pass.begin-occlusion-query"),
+        ("u32, u32", "")
+    );
+    assert_eq!(
+        signature("[method]render-bundle-encoder.draw"),
+        ("u32, u32, u32, u32, u32", "")
+    );
+    assert_eq!(
+        signature("[method]render-bundle-encoder.set-vertex-buffer"),
+        ("u32, u32, u32, u64, u32, u64", "")
+    );
     assert_eq!(signature("create-buffer"), ("u32, u32", "u32"));
     assert_eq!(signature("take-error"), ("u32, u32", "u32"));
 }
