@@ -16,8 +16,8 @@
         "preserve_aspect_ratio": true,
         "pan_and_zoom": false
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

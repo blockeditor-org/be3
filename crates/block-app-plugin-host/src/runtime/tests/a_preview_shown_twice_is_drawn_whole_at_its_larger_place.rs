@@ -2,7 +2,7 @@ use super::*;
 use crate::EditorBlock;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
-const REGION: EditorRegion = EditorRegion::Preview;
+const REGION: ViewId = ViewId::PREVIEW;
 
 fn manifest() -> PluginManifest {
     block_plugin_manifest::manifest_from_json(
@@ -15,7 +15,7 @@ fn manifest() -> PluginManifest {
                 "edits": "00000000-0000-4000-8000-0000000000d1",
                 "display_name": "Previewed",
                 "icon": "x",
-                "regions": ["Frame", "Preview"]
+                "views": ["Main", "Preview"]
             }},
             "entry_point": "test.previewed.wasm"
         }"#,
@@ -23,14 +23,15 @@ fn manifest() -> PluginManifest {
     .expect("the manifest is valid")
 }
 
-fn placement(rect: Rect, clip: Rect) -> RegionPlacement {
-    RegionPlacement {
+fn placement(rect: Rect, clip: Rect) -> ViewPlace {
+    ViewPlace {
         rect,
         clip,
         zoom: 1.0,
         raster: 1.0,
         windows: false,
         placement: None,
+        anchor_bounds: None,
     }
 }
 
@@ -76,14 +77,14 @@ fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
         with("test.previewed", |runtime| {
             runtime
                 .instances
-                .mount(INSTANCE, REGION, Uuid::nil(), role, &block_types)
+                .mount(INSTANCE, View::PREVIEW, Uuid::nil(), role, &block_types)
         });
     }
     let large = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
     let half = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 100.0));
     let small = Rect::from_min_size(pos2(10.0, 10.0), vec2(60.0, 40.0));
 
-    place_region(
+    place_view(
         "test.previewed",
         INSTANCE,
         REGION,
@@ -92,7 +93,7 @@ fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
         None,
         None,
     );
-    place_region(
+    place_view(
         "test.previewed",
         INSTANCE,
         REGION,
@@ -113,7 +114,7 @@ fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
         "the preview is drawn whole, though only its top half is in view, since its parent shows it as a picture"
     );
 
-    unplace_region("test.previewed", INSTANCE, REGION, 1);
+    unplace_view("test.previewed", INSTANCE, REGION, 1);
 
     assert_eq!(
         chosen(),

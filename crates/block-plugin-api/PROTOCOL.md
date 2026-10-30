@@ -45,7 +45,7 @@ the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,
 move, place, restore), and `shell.act` with a `shell-command` asks the app
-around it (share, leave, rename, close the editor, the app menu). Shapes shared by several
+around it (share, leave, close the editor). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
 Every call a plugin makes about an editor instance is made under that editor's
@@ -173,7 +173,7 @@ opaque settings the host stores on it. The instance answers with the block the
 artifact was generated from and a short description of what the settings
 produce, or with why they cannot be read, and repeats that answer whenever the
 settings change. The host sends the settings again whenever it changes them
-itself; the instance's settings region edits its own copy and reports every
+itself; the instance's settings view edits its own copy and reports every
 edit, which the host stores on the artifact only once the user applies it. A
 regeneration request carries the settings to rebuild from and is answered
 exactly once, after the instance has written the artifact through its own
@@ -198,16 +198,16 @@ it is busy, the last error, the branches, the working change and what it
 changed since its parent, whether the branch has moved past that parent, the
 history, and the operation log.
 
-An editor instance may ask for the cursor shown over one of its regions,
+An editor instance may ask for the cursor shown over one of its views,
 which only the host can put on the window. The request names what the cursor
 means rather than any one toolkit's spelling of it, is sent only when the
-cursor changes, and is honoured only while the pointer is over that region.
+cursor changes, and is honoured only while the pointer is over that view.
 
 An editor instance may report the area its text input occupies and where its
-caret sits inside it, in the region's own logical coordinates, which is what an
+caret sits inside it, in the view's own logical coordinates, which is what an
 operating system's input method needs to place its candidate window. Only the
 host can tell the window that, and it maps the area through the placement it
-last drew the region at. The host sends the composition back the other way, as
+last drew the view at. The host sends the composition back the other way, as
 input events of their own alongside the text it already delivers: an input
 method turning on, the text being composed, the text it settled on, and its
 turning off again.
@@ -280,10 +280,10 @@ whatever the pointer moves over, so a block dragged out of one editor may be
 dropped into another. The drag ends with the pointer, and is not answered.
 
 An editor instance may ask the host to act on one of the blocks it draws: to
-share or rename it, to replace an occurrence of it inside a named container
+share it, to replace an occurrence of it inside a named container
 with a copy of its own, to take it out of where it is listed, to move it from
 there into another block, or to place it under one. These are structural edits
-an instance cannot make for itself, and the ask to share or rename, which the
+an instance cannot make for itself, and the ask to share, which the
 host passes to the instance that draws the window to show its own dialog for;
 each names where the block is listed - the root, the blocks with
 no parent, or a container - and whether it is listed there as a reference
@@ -338,7 +338,7 @@ which the manifest's resize mode allows - is told the size it was given, in
 its own points. Only an editor whose block records its size answers by
 writing it; the rest ignore it and keep reporting the size they want.
 
-Files the user drags onto a region reach the instance the way a dragged block
+Files the user drags onto a view reach the instance the way a dragged block
 does: while they are only hovering the instance is told where they are and
 nothing else, and on the drop it is told the same position along with each
 file's name and the bytes the host read. Only the host can read a file on
@@ -412,39 +412,69 @@ its display name, the codepoint of the host's icon font, and which of the
 host's structural edits - adding, deleting and replacing a child - blocks of
 that type accept.
 
-The host reports a block dragged over an editor instance's region in that
+The host reports a block dragged over an editor instance's view in that
 screen's own logical coordinates, once per frame while it hovers, once more
 when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of five kinds: a frame, a preview, an
-artifact-settings region, a display and a window. A host that shows a desktop
-on several displays shows the frame on its first display and a `display(n)`
-region on each further one, numbered from 1 in the order it lists them. A screen
-request may say the host shows the windows the plugin opens from it as windows
-of its own (`windows`): the plugin then asks for each with a `window-request`
-in its frame (`open`, naming the region it opens from and a placement: at the
-pointer, at a point of a region, or where a `placement` the host gave says,
-and its role, which a host showing windows in space reads to never focus a
-keyboard or a popup, and with which an `overlay` window, the plugin's menus and
-tooltips over the region it is placed over, stays in front of that region and
-takes only the presses its frame says it paints; then `begin-move` and `begin-resize`, which hand the pointer to the host until
-the press is let go, `resize` and `close`), and the host shows it as a
-`window(w)` screen of that instance, whose size, scale and `placement` are the
-host's answer, whose focus arrives as input, and whose going away closes it.
-block-app says `windows` for every frame it shows and, where it opens no windows
-of its own, draws each one over its own window at the point asked for, moved
-back inside it, or shrunk to the room below that point when there is enough.
-Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
+An instance draws its views: each a surface of its own, named by a `view-id`
+unique among the instance's views, and placed by exactly one placer, which
+the view's `view-placement` names. View 0 is the instance's main view, the
+frame it is edited in. The host asks for every view another placer places
+with a screen request (`screen-request.view` and `placement`) and sizes it:
+`parent`, placed by the instance's placer as part of where the block is (its
+main view, its preview, its artifact settings, the `parent-view`s a manifest
+lists in `views`); `dock`, placed by the root dock as the body of one of the
+instance's own dock tabs, bars or dialogs, or of an empty pane (a
+`dock-tab-path` names that body by its view id); and `host`, a window the
+instance opened or a further display. A view can also place itself against
+its parent view, as a menu hangs from its button: an anchored view
+(`anchored`), which the host never asks for. There is one way for an instance
+to create a view, whatever places it: in the frame that creates it, the
+plugin lays the view out, paints it as a screen it numbers itself from 2^63,
+lists that screen in its layout before the commit, and reports it in the
+commit, so a created view costs no frame; how it is placed decides what the
+host does with it: a window (`window-request.open`) the host places and from
+then on asks for, an anchored view (`frame-report.anchored`) the plugin keeps
+placing itself. The host numbers the
+views it asks for other than the main view from the top (the preview 2^63,
+the artifact settings 2^63 + 1, the view on further display `n` 2^63 + 1 + n);
+the instance numbers the views it makes itself, never 0 and below 2^63.
+Screens, frame reports, child placements, input, child statuses and
+`view-stopped` all name a view. A host that shows a desktop on several
+displays shows the main view on its first display and a view placed by the
+host on each further one, numbered from 1 in the order it lists them. A
+screen request may say the host shows the windows the plugin opens from it
+as windows of its own (`windows`). The plugin then opens each window itself,
+as it creates any view: in the frame that opens
+it, the plugin lays the window out at the size it wants and paints it as a
+screen of its own, which it numbers from 2^63, lists in its layout and
+reports in the same commit as the `window-request` that opens it (`open`,
+naming the view the window will be, that screen, the view it opens from and
+a placement: at the pointer, at a point of a view, or where a `host-place` the
+host gave says). A window is always a window of its own; what points back to
+where it came from (a menu, a picker, a popover) is an anchored view. The host shows the window from that
+screen in the frame that commits it, where the placement says, moved back
+inside its bounds, and from then on asks for the view with that same screen,
+placed by the host, whose size, scale and `host-place` are the host's answer,
+whose focus arrives as input, and whose going away closes it; the plugin
+draws the screen as it opened it until the host's screens name it or it
+closes the window. The other requests, `begin-move` and `begin-resize`, which
+hand the pointer to the host until the press is let go, `raise`, `resize`
+and `close`, each name the window's view. block-app says `windows` for every
+main view it shows and, where it opens no windows of its own, draws each one
+over its own window at the point asked for, moved back inside it, or shrunk
+to the room below that point when there is enough. Without `windows` the plugin draws its
+windows inside the screen. The main view is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where
-its content goes inside the frame, and the trail of editors it sits under. An
-instance told it owns no chrome draws its content alone: that is an editor
-embedded in another one, a creation dialog, or an instance presenting. An
-instance told it owns the chrome and given no content rectangle fills its own
-content band, which is what a tab of its own means.
+its content goes inside the main view, and the trail of editors it sits
+under. An instance told it owns no chrome draws its content alone: that is an
+editor embedded in another one, a creation dialog, or an instance presenting.
+An instance told it owns the chrome and given no content rectangle fills its
+own content band, which is what a tab of its own means.
 
 Docks cross plugins the way windows do: one root dock, the outermost, holds
 the only dock state and draws every tab bar, splitter and drag; a dock nested
@@ -462,42 +492,197 @@ declaration into its placer's in place of that tab, as a pinned group
 child's block id (`dock_prefix`, `DockDeclaration::splice`), up to the root,
 the instance whose own frame is not docked: only the root hears its docked
 children's declarations (`dock-update.child`) and requests
-(`child-request`), and hosts them (`dock-message.host`, `close`). The host
+(`child-request`, whose request already names its tabs through every child in
+`owner`), and hosts them (`dock-message.host`, `close`). The host
 splits what the root hosts back down (`DockHosted::own`, `DockHosted::child`),
 so each docked instance hears only its own tabs (`dock-update.hosted`, a
 spliced child's group again the tab it was placed in) and its own closes. The
 root places a descendant's tab body as a child showing `child-content.dock-tab`
-with the full path, and the host shows the owner's `tab(t)` region there,
+with the full path, and the host shows the owner's view of that body there,
+placed by the dock,
 only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
-declaration names that are no tabs: a `dock-dialog`'s (which the root presents
-as it presents its own dialogs, over the dialog's parent, closing it with a
-`close` of the dialog's `tab`) and a pane's `empty` view, which the root shows
-while the pane holds no tab. The host keeps a docked
+declaration names that are no tabs: a `dock-dialog`'s (a window or a modal,
+which the root presents as it presents its own dialogs, over the dialog's
+parent, closing it with a `close` of the dialog's `tab`; a popover-style
+dialog is no dock dialog, its owner draws it as an anchored view of its own), a pane's `empty` view, which the root shows
+while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
+(`owner`) and shows while it does, floating over an edge of its body at its
+start, centre or end (`dock-bar-over`), in a band along the whole edge beside
+it, or popped out (`dock-bar-placement`); the root gives its body the `size` the owner
+declares, measured as the owner last laid it out along the bar's edge, and
+the layout says where each bar is (`dock-layout.bars`). Its owner draws the
+grip too: placing it is a `place-bar` request, and dragging it a run of
+`move-bar` requests with the pointer in the bar body's own points (`move`,
+then `drop` or `cancel`; while the pointer is over another view of the owner,
+the owner maps the position it hears there back into the bar's view through
+the views' anchor spaces), which the root carries as a drag of its own, showing
+where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
+declaring editor and passed on unchanged by the host) says which bars are one
+bar of different tabs: the root places every bar of a kind the same way and
+shows the popped-out ones in one window. A `bare` pane shows its one tab with no tab bar. A
+layout also names where each tab moved out of the declaration's group went
+(`dock-layout.outside`: a pane of the root's by key and index, or a window of
+its own), so a `restore` puts them back; each docked instance saves its own
+layout, since the root saves only the tab it hosts in place of the group. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
-declares the tab it was placed in (for the root, from the declaration it hears until it lets go with a `host`
-of `none`), requesting its frame at its last size without drawing it; a tab closes
-when its owner stops declaring it. Each `dock-tab` carries the menu its owner
-gives that tab (`menu`, the same `menu-item`s as a frame's menu, the owner's
-frame menu included), which the root shows on the tab's bar, whatever level
-the tab's owner is at; the root sends a pick as `dock-message.pick` with the
-tab's path, and the host hands it to the owner as `dock-update.pick` of its
-own tab, so the owner knows which tab asked (and presents what the command
-opens, such as its command palette, over that tab's body, not in its frame).
+declares the tab it was placed in (for the root, from the declaration it hears
+while it hosts it, `dock-hold.hosted`, and after it stops, `placing`, until it
+places the child in the tab's body again or lets go, `released`), requesting its frame at its last size without drawing it; a tab closes
+when its owner stops declaring it. Every view has its own menu: an instance
+sends `shell.menu` for a view, and a pick from it, wherever it was shown,
+arrives as its `menu-pick` of that view. The host gives the root each
+spliced tab's menu as that `dock-tab`'s `menu` (a declaring instance leaves it
+empty), whatever level the tab's owner is at; the root shows it on the tab's
+bar and sends a pick as `dock-message.pick` with the tab's path, which the
+host hands the owner as a `menu-pick` of the tab's view, so the owner knows
+which tab asked (and presents what the command opens, such as its command
+palette, over that tab's body, not in its frame).
+A `menu-pick` carries `anchor`, in host coordinates, what the menu belongs to:
+the tab that shows the view, or the rect a parent placed the editor at when
+it has no tab; a dialog the command opens points at it, and `none` (nothing
+of it visible, as in a fullscreen tab) opens it at the top centre of the
+frame. The root fills it in as `dock-child-pick.anchor` and a placer as
+`child-menu-pick`'s `anchor`, each from its own placement of what it showed
+(`child-placement.anchor`: the tab a child fills, or the child's own rect),
+and the host passes it on unchanged; a pick the host routes to a child that
+took the frame over carries `none`, so that child points at its own rect.
+The same rect reaches a view as `frame-spec.anchor`, in the view's points, so
+a dialog opened from a shortcut or the palette points at the tab too.
 A bar action of a docked child whose dock the host spliced (its frame is not
 shown), such as asking for its details, reaches its placer as a `child-bar` as
 if from its frame.
+Popping a tab out keeps the root as the placer of its body: the root holds
+the only dock state, so it draws the popped-out window's chrome (its tab
+strip, the grab bar that moves it, the drop targets that dock it again, its
+tabs' menus and locks) as a window it creates as it creates any view, in the
+frame that pops the tab out, and places the tab's body in it
+(`child-content.dock-tab`), so the owner's view stays placed by the dock
+whichever plugin owns it, keeping every feature it has, and only its size
+changes. An instance popping out a view of its own that no dock places opens
+a window for it the same way.
+
+An editor's features belong to the view that holds its content, not to view
+0. That view is the one whose frame report gives `content` (insets); a view
+holding none of the editor's content, such as a bar of its tools or a window
+of its own, reports `none`, and so does a docked main view whose content is in
+a dock tab. The host hands the camera to the view holding the content
+(`view-changed`, `change-view`), shows a child that takes the frame over (an
+`active` or `live` child placed without `own-frame`) over that view, and says
+whether the instance's chrome is drawn through that view's `frame` (a dock
+view holding the content is requested with one; the chrome of a docked main
+view counts for nothing). A child placed in a dock tab's body with
+`own-frame` joins the dock (`child-placement.docks`); a child placed anywhere
+else, such as a card on a canvas, draws its dock itself. A main view that is
+not docked still declares its dock, and a child that takes over the frame of
+a docked instance's tab keeps its stage there, drawn over that tab's content,
+while its bars join that tab's pane in place of the instance's own bars,
+which the root stops showing until the child lets the frame go
+(`DockDeclaration::splice_bars`); the host says so with a `hosted` of only its
+bars (`DockHosted::frame_child`), and the child draws its bars itself again
+when that turns `none`. A child of such a child that takes its frame over
+replaces its bars the same way. A docked editor's
+tab view's menu is its frame menu, or the menu of the child that took its
+frame over, after the tab's own items; the menu a placer reads as
+`child-status.menu` is the menu of the view holding the child's content. A root showing a joined group of one bare pane in place of the tab
+that hosts it shows that group as the tab: the tab's title, icon, lock and
+close, and the bare pane's tab's menu followed by the hosting tab's.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
 the host draws beneath shows through there. The plugin publishes, with every
-frame that laid it out again, the content rectangle it laid out, the
-rectangles it painted and the rectangles its floating layers took, all in the
-frame's own logical coordinates. The host works out the view it hands a pan-and-zoom editor
-against the content it was told about, delivers no pointer input over the
-parts of the frame the instance did not paint, and composites the frames of
+frame that laid it out again, the content area it laid out, as insets from
+the frame's edges (or `none` where the view holds no content), and the rectangles it painted and the rectangles its
+floating overlays took, in the frame's own logical coordinates. The host works
+out the view it hands a pan-and-zoom editor against the content area those
+insets leave of the frame's current size, so a frame resized since the
+editor last drew is handed a view for its new size in the same frame. It
+delivers no pointer input over the parts of the frame the instance did not paint, and composites the frames of
 one tab bottom-up: every frame's painted area first, then every frame's
 floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
+
+Anchored views carry what points back to where it came from (menus and their
+submenus, popovers, tooltips, the selection toolbar, small dialogs opened from
+a control) and sheets attached to an edge out of the view that opened them,
+with no round trip; the host draws each above every view. A screen
+request may carry an anchor space (`screen-request.anchor-space`): `to-host`, which
+maps the view's points to host coordinates (the app window's logical points)
+at the camera the request lays it out against, and `bounds`, the rectangle in
+host coordinates where views anchored to it may go: the app window for a
+trusted plugin, the plugin's own box for a confined one. A child's bounds
+never exceed its parent's, and a screen requested without an anchor space
+anchors no views. An anchored view is a screen like any other, which the
+plugin creates as it creates any view: in the frame that opens it the plugin
+places it, anchored to a rectangle in its parent's coordinates or attached to
+an edge of the bounds (`view-anchor`), lays it out against the bounds
+(flipping, sliding or shrinking it to fit), numbers its screen from 2^63,
+lists that screen in its layout with a surface it configured itself, paints
+it, and commits its report with that frame. The report says how it hangs
+(`frame-report.anchored`: its parent, the view the screen request was for or
+another anchored view of the instance for a submenu, its anchor, and its
+rectangle in host coordinates), and every report of it repeats that; the view
+closes when the plugin's layout no longer lists its screen, and with it the
+views hanging from it. Everything else is the screen's own, in its own points,
+which are host points from its rectangle's top-left corner: what it painted,
+where it takes input (`floating`) and the scrims it dims, its accessibility
+description, which the host places where the view is drawn and leaves out of
+its parent's, and its child placements (`child-placements.view` naming it),
+which the host places in host coordinates, ordered against the view's pixels
+by their `layer`, clipped to the view and its bounds and hidden by no
+occluder; a child's own frame appears one frame after the view that holds it.
+The plugin lays an anchored view out and draws it at full size in host
+points, so a menu opened in a view shown at half size is as large as any
+other menu, at the screen's raster divided by `to-host`'s scale, in pixels per
+host point: the app window's own density, whatever the view's zoom, since the
+screen's raster already counts it. The host draws anchored views after every
+view, in the order they opened across every view of the window: each one's
+scrims, then its `painted` rectangles from its surface; it draws nothing of
+one outside `painted`, and the commit that opens one draws it in the same host
+frame. When the view a chain hangs from moves, the host moves the chain
+rigidly by the difference between the `to-host` it shows that view at and the
+one the frame was laid out against, so a move alone need not send the plugin
+a new `to-host`: the host may keep sending the origin it sent last while only
+the origin changes, and sends where the view now is with the next input it
+gives the view, or once the plugin commits a frame with anchored views hanging
+from a view laid out against an older origin; a view attached to an edge of the bounds hangs from the
+bounds rather than from the view, so a move leaves it (and what it holds)
+where it is; a pan of the view's camera does nothing to them, and the
+plugin repositions or closes them on its next layout. The host hit-tests
+anchored views before any other view, over their `floating` rectangles, the
+one opened last first, and input that lands on one reaches its own screen in
+its own points; a plugin takes input for any screen it opened itself and
+ignores input for one it has closed since. A press outside a chain of anchored views marked
+`dismiss-on-outside-press` (a view and those hanging from it) closes the
+chain: the instance hears the views in `input-batch.dismissed` of the screen
+the chain hangs from, before that batch's events, and the press still reaches
+whatever it landed on. A press on a menu closes only the submenus hanging
+from it. A view marked `keyboard` gives the instance the keyboard while it is
+open, or, when the view holds a child, gives it to the first child placed in
+it instead, and the instance does not take it while such a view is open; and one marked `blocks-owner` keeps presses on the view the chain hangs
+from from its content.
+
+A popup that embeds another editor is an anchored view holding a child
+(`child-placements.view` naming the anchored view): the instance that asks
+lays the view out, draws its card and beak if it has one, and places the child
+in it, whose own pixels appear one frame after the view. That is how an
+instance asks for a block (the picker, below), renames one
+(`child-content.rename`, run in the editor whose manifest accepts `rename`,
+opened as `opening.rename`, which says it is done with `close-dialog`,
+arriving as the child's `child-status.dialog`) and shows the app's menu
+(`host-panel.app-menu`, which the host draws and reports done the same way,
+its size as the child's intrinsic size). The instance marks the view
+`keyboard`, so the child takes the keyboard when it opens and gives it back
+when it closes. A press outside the view closes it and removes the child,
+which closes the editor in it. On touch or a phone the instance instead
+attaches a bare view to the bottom edge of its bounds and has the child fill
+it; the host tells a child placed in a view attached to an edge that it is a
+sheet (`open-picker.sheet`, `open-rename.sheet`, and the app menu it draws
+itself), and the child draws the sheet.
+In the browser, where a plugin draws in a worker of its own, the page gives
+that worker one canvas over the whole app on its first anchored view and keeps
+it; the worker draws each anchored view's `painted` rectangles into it where
+the page says, the page clips the canvas to the plugin's bounds, and the
+canvas of the plugin that opened the newest one is on top.
 
 A frame report may also carry press claims: a set of modifiers and a
 rectangle. While every one of those modifiers is held, a pointer press inside
@@ -564,13 +749,13 @@ A child placed below is cut out of the instance's own surface, which is
 cleared transparent, so the host composites the child's editor under the
 instance and anything the instance draws after the child covers it again. A
 child placed above composites against the instance's pixels instead and cannot
-be drawn over. The host draws the children below a region, then the region,
+be drawn over. The host draws the children below a view, then the view,
 then the children above it. A painting is never stretched: the host shows each
-frame at the size it was painted, from the region's top-left corner, so while
-a region is resizing ahead of the plugin the painting is cropped or falls
+frame at the size it was painted, from the view's top-left corner, so while
+a view is resizing ahead of the plugin the painting is cropped or falls
 short at the right and bottom, and the children, occluders and input method
 area that frame carried are placed in its own coordinates from that corner,
-unscaled. Only a zoom the host renders a region at - a pixel density sent with
+unscaled. Only a zoom the host renders a view at - a pixel density sent with
 its screen - scales them, and then by the one sent at the frame's serial. A
 child the placement says follows the view is moved from the view sent at that
 serial to the one the host is showing, so a child keeps up with a pan the
@@ -638,7 +823,7 @@ it, whether it is being given input, whether its own editor is live or only
 previewed until it is asked for, which of rotation, aspect ratio and pan-and-zoom
 it allows, how it may be resized, and why it is unavailable when it is. A block
 already open above the instance is refused, so an editor cannot be nested inside
-itself. The host bounds how many children of one region it will run as editors and
+itself. The host bounds how many children of one view it will run as editors and
 falls back to preview rendering for the rest.
 
 A placement may also carry the size the parent is giving the child, which the
@@ -667,7 +852,7 @@ input go to the innermost active editor, and the cursor comes from the
 innermost editor the pointer is over. Promotion to active is the user's, so
 the host takes it away again when the user presses Escape or clicks outside
 the child. A live child is the instance's own content rather than something
-the user promoted - the whole of what the region shows - so it is given input
+the user promoted - the whole of what the view shows - so it is given input
 from the moment it is placed and the host never takes that away.
 
 An editor instance chooses a block by placing a picker as a child
@@ -678,9 +863,12 @@ any, the blocks never to offer, whether the picker opens on the templates the
 host offers, and where to place what it makes - the location new blocks are
 made in when the filter places none, and whether to lay the picker out for
 touch, as sheets filling the child's rectangle, rather than as a menu and a
-card sized to their content. The instance sizes and places the child itself,
-in its own coordinates, as a popover from the control that asked, usually in
-a window of its own so it can reach past its frame. The host runs the child in
+card sized to their content. The instance places the child in an anchored
+view (above) hung from the control that asked, sized to the picker's last
+reported intrinsic size, or one attached to the bottom edge of its bounds
+filling them for touch; it frames the child with its card and beak while the
+picker says it shows a card (`shell.show-card`), and a press outside the view
+answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
 `opening::picker`; that editor reads the block graph for itself, so the
 instance that asked never sees what the picker browses. The picker reports the
@@ -727,7 +915,7 @@ which of the states it sent the frame was built from. The host keeps the
 states it sent by serial and forgets each once a frame names a later one.
 
 A frame is one commit of everything a plugin laid out together: the serial,
-the size each region used, its frame report, its window requests - cursor,
+the size each view used, its frame report, its window requests - cursor,
 input method area, intercepted keys and the rest - and its child placements
 and occluders, along with how long it wants to wait before being drawn again
 and the surfaces it presented. Each part is present only for a screen it
@@ -752,7 +940,7 @@ process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
 The host shows whatever the plugin has committed by the time it finishes
-building its own frame. Which surface each region is drawn from is settled then
+building its own frame. Which surface each view is drawn from is settled then
 as well, against the layout that arrived with the frame being shown, so a
 plugin that republishes its layout mid-frame is never drawn through the
 placements of the one before it.

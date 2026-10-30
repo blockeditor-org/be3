@@ -4,11 +4,11 @@ use super::*;
 fn an_editor_not_docked_draws_its_dock_itself_and_declares_nothing() {
     let mut session = docked_session();
 
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], false);
+    show_docked(&mut session, &[(View::MAIN, 0)], false);
 
     assert!(dock_messages(&mut session).is_empty());
     assert_eq!(BODIES.with(std::cell::Cell::get), 1);
-    let placed = session.placed_children(EditorRegion::Frame).to_vec();
+    let placed = session.placed_children(ViewId::MAIN).to_vec();
     let [child] = placed.as_slice() else {
         panic!("the shown tab's body should place its child block, not {placed:?}");
     };

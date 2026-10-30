@@ -18,7 +18,7 @@ fn a_tab_the_root_closes_is_closed_at_its_owner() {
         [(
             INNER,
             DockUpdate::Close(DockClosedTab {
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
                 tab: path(&[], 5),
             })
         )]

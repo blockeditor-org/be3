@@ -85,37 +85,6 @@ impl Document {
                 && matches!(spec.placement, super::WindowPlacement::Host(_)))
     }
 
-    pub fn overlays_in_windows(&self) -> bool {
-        self.context().is_some_and(|ctx| ctx.overlays_in_windows())
-    }
-
-    pub fn window_role(&self, window: WindowId) -> Option<super::WindowRole> {
-        let node = self.window_node(window)?;
-        self.overlay_window(node).map(|spec| spec.role)
-    }
-
-    pub(crate) fn shows_over(&self, window: WindowId, under: WindowId) -> bool {
-        let mut current = window;
-        for _ in 0..crate::node::ANCESTOR_LIMIT {
-            if current == under {
-                return true;
-            }
-            let Some(spec) = self
-                .window_node(current)
-                .and_then(|node| self.overlay_window(node))
-            else {
-                return false;
-            };
-            match (spec.role, &spec.placement) {
-                (super::WindowRole::Overlay, super::WindowPlacement::Over { window, .. }) => {
-                    current = *window;
-                }
-                _ => return false,
-            }
-        }
-        false
-    }
-
     pub(crate) fn shows_in(&self, window: WindowId) -> bool {
         self.opens_windows() && (window.is_main() || self.window_node(window).is_some())
     }

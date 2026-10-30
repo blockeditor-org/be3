@@ -147,7 +147,11 @@ pub fn TextInput(
     create_effect(move || {
         let value = value.get();
         if text_of(state) != value {
+            let whole = untrack(|| select_on_focus.get() && is_focused.get()) && selects_all(state);
             state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
+            if whole {
+                state.execute(EditorCommand::SelectAll);
+            }
         }
     });
     let edited = state.content();
@@ -357,6 +361,8 @@ fn BrowserField(
         ..
     } = style;
     let shown = placeholder.clone();
+    let named = accessibility.clone();
+    let label = Prop::dynamic(move || named.get().label().map(str::to_owned));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         let text = value.get();
@@ -422,6 +428,7 @@ fn BrowserField(
                 placeholder={Prop::dynamic(move || present(placeholder.get()))}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
+                @attr={("aria-label", label)}
                 on_input={move |event: Event| take(&event)}
                 on_change={move |event: Event| take(&event)}
                 on_keydown={move |event: Event| {
@@ -483,6 +490,11 @@ fn plain_text(value: &str) -> TextAreaState {
         focus: end,
     });
     state
+}
+
+fn selects_all(state: TextAreaState) -> bool {
+    let length = text_of(state).len();
+    length == 0 || state.selection_ranges() == [0..length]
 }
 
 fn text_of(state: TextAreaState) -> String {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;
-use beui_types::{CanvasView, Pos2, Vec2};
+use beui_types::{CanvasArrangement, CanvasView, Pos2, Vec2};
 
 use crate::css::px;
 use crate::document::set_style;
@@ -22,10 +22,14 @@ pub struct Canvas {
     unclipped: Cell<usize>,
     on_reveal: Callback<Vec2>,
     revealing: Cell<Option<NodeId>>,
+    arrangement: RefCell<Option<CanvasArrangement>>,
+    arranged_at: Cell<Option<Vec2>>,
+    items: RefCell<Vec<NodeId>>,
 }
 
 struct Item {
     clip: Cell<bool>,
+    arranged: Cell<Option<u64>>,
     canvas: RefCell<Weak<Canvas>>,
 }
 
@@ -38,6 +42,9 @@ pub fn canvas(canvas: NodeId, view_node: NodeId, on_reveal: Callback<Vec2>) -> R
         unclipped: Cell::new(0),
         on_reveal,
         revealing: Cell::new(None),
+        arrangement: RefCell::default(),
+        arranged_at: Cell::new(None),
+        items: RefCell::default(),
     });
     CANVASES.with(|held| {
         let mut held = held.borrow_mut();
@@ -71,6 +78,41 @@ impl Canvas {
             self.apply();
             crate::frame::request_frame();
         }
+    }
+
+    pub fn set_arrangement(&self, arrangement: Option<CanvasArrangement>) {
+        if *self.arrangement.borrow() != arrangement {
+            self.arrangement.replace(arrangement);
+            self.rearrange();
+        }
+    }
+
+    fn rearrange(&self) {
+        self.arranged_at.set(None);
+        crate::frame::request_frame();
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    fn arrange(&self, size: Vec2) -> bool {
+        let Some(arrangement) = self.arrangement.borrow().clone() else {
+            return false;
+        };
+        if self.arranged_at.replace(Some(size)) == Some(size) {
+            return false;
+        }
+        let placed: HashMap<u64, beui_types::Rect> =
+            arrangement.arrange(size).into_iter().collect();
+        for item in self.items.borrow().iter().copied() {
+            let Some(key) = item_state(item).and_then(|held| held.arranged.get()) else {
+                continue;
+            };
+            let rect = placed.get(&key).copied().unwrap_or(beui_types::Rect::ZERO);
+            set_style(item, "left", Some(scale_property(rect.min.x)));
+            set_style(item, "top", Some(scale_property(rect.min.y)));
+            set_style(item, "width", Some(scale_property(rect.width())));
+            set_style(item, "height", Some(scale_property(rect.height())));
+        }
+        true
     }
 
     fn scale(&self) -> f32 {
@@ -129,7 +171,7 @@ impl Canvas {
         let rect = crate::dom::client_rect(&element);
         let origin = crate::dom::origin();
         let placed_at = Pos2::new(rect.min.x - origin.x, rect.min.y - origin.y);
-        let mut changed = false;
+        let mut changed = self.arrange(rect.size());
         if self.view.get().is_some() && (placed_at - self.placed_at.get()).length() >= 0.25 {
             self.placed_at.set(placed_at);
             self.apply();
@@ -181,6 +223,7 @@ pub fn item(node: NodeId) {
             node,
             Rc::new(Item {
                 clip: Cell::new(true),
+                arranged: Cell::new(None),
                 canvas: RefCell::default(),
             }),
         )
@@ -192,6 +235,12 @@ pub fn item(node: NodeId) {
 
 fn item_state(node: NodeId) -> Option<Rc<Item>> {
     ITEMS.with(|held| held.borrow().get(&node).cloned())
+}
+
+pub fn set_item_arranged(node: NodeId, key: Option<u64>) {
+    if let Some(item) = item_state(node) {
+        item.arranged.set(key);
+    }
 }
 
 pub fn set_item_clip(node: NodeId, clip: bool) {
@@ -219,7 +268,12 @@ pub(crate) fn place(view_node: NodeId, node: NodeId) {
     if !item.clip.get() {
         canvas.count_unclipped(1);
     }
+    canvas.items.borrow_mut().push(node);
+    canvas.rearrange();
     reactive::on_cleanup(move || {
+        if let Some(held) = item.canvas.borrow().upgrade() {
+            held.items.borrow_mut().retain(|other| *other != node);
+        }
         let held = item.canvas.replace(Weak::new()).upgrade();
         if let Some(held) = held
             && !item.clip.get()

@@ -2,8 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use be3:manifest/types@0.1.0.{editor-region};
-    use types.{child-id, frame-commit, opening, screen-id, screen-request, size};
+    use types.{child-id, frame-commit, opening, screen-id, screen-request, size, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, drag-over, file-drop, focus};
@@ -15,14 +14,19 @@ interface plugin {
     resource editor {
         constructor(opening: opening);
 
-        /// The user picked a command of the editor's menu.
-        menu-pick: func(id: string);
+        /// The user picked command `id` of the menu of the editor's view
+        /// `view` (`shell.menu`), wherever the menu was shown. `anchor`, in
+        /// host coordinates, is what the menu belongs to: the tab that
+        /// shows the view, or the rect a parent placed the editor at when it
+        /// has no tab; `none` when nothing of it is visible. A dialog the
+        /// command opens points at it.
+        menu-pick: func(view: view-id, id: string, anchor: option<rect>);
 
         /// The user ran an action of the bar of a child the editor placed.
-        child-bar: func(region: editor-region, child: child-id, action: bar-action);
+        child-bar: func(view: view-id, child: child-id, action: bar-action);
 
         /// The user focused a child the editor placed.
-        child-focused: func(region: editor-region, child: child-id);
+        child-focused: func(view: view-id, child: child-id);
 
         /// Whether the user may edit what the editor shows.
         set-editable: func(editable: bool);

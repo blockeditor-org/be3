@@ -8,31 +8,27 @@ use be_graph::Access;
 use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{
-    Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
-};
+use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
-    EditorInstanceId, EditorRegion, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId,
-    PanMode, TopBar, ViewChange,
+    EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
+    View, ViewId,
 };
 use uuid::Uuid;
 
 use block_app_desktop::desktop_host::WindowSurface;
 
-use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
+use super::plugin_view::{ChildView, PluginView, ViewEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
 use crate::editors::{
     Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
-use crate::surfaces::{ConflictNotice, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
+use crate::surfaces::{ConflictNotice, HostedSurface, HostedView, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use beui::{Align, Direction, ItemSize, Placement};
 use block_app_desktop::host_item::{HostItem, HostItemFace};
-use block_app_plugin_host::{ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
+use block_app_plugin_host::{ChildCommit, HostChild, HostChildStatus, HostContent};
 
-const MIN_ZOOM: f32 = 1.0 / 64.0;
-const MAX_ZOOM: f32 = 32.0;
 const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
 const NO_PICKER: &str = "No editor can pick blocks here.";
 
@@ -50,7 +46,7 @@ pub(crate) struct State {
     settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
 }
 
-pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
+pub(crate) type CreationKey = (Uuid, View, ChildId);
 
 struct CreationChild {
     creation: Box<dyn PendingCreation>,
@@ -262,7 +258,7 @@ impl Editors {
         drop(forgotten);
     }
 
-    fn creation_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+    fn creation_view(&self, key: &CreationKey) -> Option<HostedView> {
         let state = self.0.value();
         let registry = self.registry();
         state
@@ -397,13 +393,13 @@ impl Editors {
     fn ensure_picker(
         &self,
         key: CreationKey,
-        request: block_app_plugin_host::PickerRequest,
+        make: impl FnOnce(&EditorRegistry) -> Option<PluginPicker>,
     ) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
             return true;
         }
-        let Some(picker) = self.registry().picker(request) else {
+        let Some(picker) = make(&self.registry()) else {
             return false;
         };
         state.pickers.borrow_mut().insert(key, picker);
@@ -415,7 +411,7 @@ impl Editors {
         drop(forgotten);
     }
 
-    fn picker_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+    fn picker_view(&self, key: &CreationKey) -> Option<HostedView> {
         let state = self.0.value();
         let registry = self.registry();
         let pickers = state.pickers.borrow();
@@ -425,11 +421,21 @@ impl Editors {
     fn picker_status(
         &self,
         key: &CreationKey,
-    ) -> Option<(Option<block_plugin_api::BlockPick>, Option<Vec2>, bool)> {
+    ) -> Option<(
+        Option<block_plugin_api::BlockPick>,
+        Option<Vec2>,
+        bool,
+        DialogStatus,
+    )> {
         let state = self.0.value();
         let pickers = state.pickers.borrow();
         let picker = pickers.get(key)?;
-        Some((picker.picked(), picker.intrinsic(), picker.card()))
+        Some((
+            picker.picked(),
+            picker.intrinsic(),
+            picker.card(),
+            picker.dialog(),
+        ))
     }
 
     pub(crate) fn step_creations(&self) {
@@ -476,8 +482,8 @@ impl Editors {
         self.with(|open| open.get(&id).map(Handle::of))
     }
 
-    fn region(&self, handle: &Handle) -> Option<RegionEditor> {
-        Some(RegionEditor {
+    fn region(&self, handle: &Handle) -> Option<ViewEditor> {
+        Some(ViewEditor {
             plugin: handle.plugin.clone()?,
             role: handle.role,
             instance: handle.instance,
@@ -510,7 +516,7 @@ impl Handle {
             pan_and_zoom: capabilities.supports_pan_and_zoom,
             max_zoom: capabilities.max_zoom,
             pan: capabilities.pan,
-            preview: editor.has_region(EditorRegion::Preview),
+            preview: editor.has_view(ParentView::Preview),
         }
     }
 
@@ -591,7 +597,7 @@ pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
             <ForEach keys={keys}>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
-                    <BlockRegion block region={EditorRegion::Display(display)} />
+                    <BlockView block region={View::display(display)} />
                 }
             }</ForEach>
         </Layers>
@@ -687,6 +693,7 @@ fn ConflictDialog(comparison: Memo<Option<block_app_stack::conflicts::Comparison
             open={open}
             title="Both versions"
             width={Size::Custom(960.0)}
+            size=DialogSize::Large
             id="conflict.compare"
             actions={vec![
                 DialogAction::primary("Keep merged", move || {
@@ -843,29 +850,29 @@ fn stop_on_escape(overlay: NodeRef) {
 }
 
 #[component]
-fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
+fn BlockView(block: Uuid, region: View) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, false)
+        view_key(&editors, block, false)
             .into_iter()
             .collect::<Vec<_>>()
     });
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: RegionKey| {
-                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+            <ForEach keys={keys}>|_key: ViewKey| {
+                let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
                     };
                 };
                 view! {
-                    <PluginRegion
-                        editor={region_editor}
+                    <PluginView
+                        editor={view_editor}
                         region
                         frame={Some(FrameSpec::default())}
                         child_view
@@ -882,11 +889,42 @@ fn TabFrame(
     top_bar: Prop<TopBar>,
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
+    view! {
+        <FrameStack block top_bar holds=Prop::Static(true)>|stack: Memo<Vec<Uuid>>| {
+            let chrome = create_memo(move || match stack.get().is_empty() {
+                true => Chrome::Drawn,
+                false => Chrome::None,
+            });
+            view! {
+                <BlockFrame
+                    block
+                    chrome={chrome}
+                    content=None
+                    top_bar={top_bar}
+                    embedded=false
+                    passive=false
+                    reporter
+                />
+            }
+        }</FrameStack>
+    }
+}
+
+#[component]
+fn FrameStack(
+    block: Uuid,
+    top_bar: Prop<TopBar>,
+    holds: Prop<bool>,
+    #[prop(children)] body: RenderFn<Memo<Vec<Uuid>>, NodeId>,
+) -> NodeId {
     let editors = editors();
     let any = super::any();
     let stack = create_memo(move || {
         any.get();
         let mut stack = Vec::new();
+        if !holds.get() {
+            return stack;
+        }
         let mut next = frame_child(&editors, block);
         while let Some(id) = next {
             if id == block || stack.contains(&id) {
@@ -922,21 +960,10 @@ fn TabFrame(
                 .collect::<Vec<_>>()
         })
     });
-    let chrome = create_memo(move || match stack.get().is_empty() {
-        true => Chrome::Drawn,
-        false => Chrome::None,
-    });
+    let body = body.call(stack);
     view! {
         <Layers>
-            <BlockFrame
-                block
-                chrome={chrome}
-                content=None
-                top_bar={top_bar}
-                embedded=false
-                passive=false
-                reporter
-            />
+            {body}
             <ForEach keys={shown}>|id: Uuid| {
                 let node = create_memo(move || {
                     portals.with(|held| {
@@ -976,12 +1003,13 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<block_plugin_api::MenuEntry
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String) {
+pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
+    let anchor = anchor.filter(|_| owner == block);
     editors.with(|open| {
         if let Some(editor) = open.get(&owner) {
-            editor.pick_menu(pick);
+            editor.pick_menu(pick, anchor);
         }
     });
 }
@@ -994,81 +1022,8 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Viewport {
-    zoom: f32,
-    pan: Vec2,
-    center: Option<Pos2>,
-    moved: bool,
-}
-
-impl Default for Viewport {
-    fn default() -> Self {
-        Self {
-            zoom: 1.0,
-            pan: Vec2::ZERO,
-            center: None,
-            moved: false,
-        }
-    }
-}
-
-thread_local! {
-    static VIEWPORTS: RefCell<HashMap<Uuid, Viewport>> = RefCell::new(HashMap::new());
-}
-
-#[derive(Clone, Copy)]
-struct CameraOwner(Callback<Command>);
-
-#[derive(Clone, Copy)]
-enum Command {
-    Pan(Vec2),
-    Zoom { factor: f32, anchor: Option<Pos2> },
-}
-
-fn settle(viewport: &mut Viewport, command: Command, rect: Rect, max_zoom: f32) {
-    match command {
-        Command::Pan(delta) => {
-            viewport.pan += delta;
-            viewport.moved = true;
-        }
-        Command::Zoom { factor, anchor } => {
-            zoom(
-                viewport,
-                factor,
-                anchor.unwrap_or_else(|| rect.center()),
-                rect,
-                max_zoom,
-            );
-            viewport.moved = true;
-        }
-    }
-}
-
-fn follow(
-    viewport: &mut Viewport,
-    area: Option<FitArea>,
-    rect: Rect,
-    content: Vec2,
-    max_zoom: f32,
-) {
-    let Some(area) = area.filter(|_| !viewport.moved) else {
-        return;
-    };
-    let (scale, centre) = area.fit(content, rect.size());
-    viewport.zoom = scale.clamp(MIN_ZOOM, max_zoom);
-    viewport.pan = (content * 0.5 - centre.to_vec2()) * viewport.zoom;
-}
-
-fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom: f32) {
-    let old = viewport.zoom;
-    let new = (old * factor).clamp(MIN_ZOOM, max_zoom);
-    if new != old {
-        let offset = anchor - rect.center();
-        viewport.pan = offset - (offset - viewport.pan) * (new / old);
-        viewport.zoom = new;
-    }
-}
+mod camera;
+use camera::{Camera, CameraSpec, CameraView};
 
 #[component]
 fn BlockFrame(
@@ -1136,17 +1091,17 @@ fn BlockFrame(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct RegionKey {
+struct ViewKey {
     plugin: String,
     instance: EditorInstanceId,
 }
 
-fn region_key(editors: &Editors, block: Uuid, preview: bool) -> Option<RegionKey> {
+fn view_key(editors: &Editors, block: Uuid, preview: bool) -> Option<ViewKey> {
     let handle = editors.handle(block)?;
     if preview && !handle.preview {
         return None;
     }
-    Some(RegionKey {
+    Some(ViewKey {
         plugin: handle.plugin_id()?.to_owned(),
         instance: handle.instance,
     })
@@ -1159,7 +1114,7 @@ enum Resolution {
     Locked,
     Unsupported(Uuid),
     Stale(Uuid, block_app_stack::Stale),
-    Ready { region: RegionKey, access: Access },
+    Ready { region: ViewKey, access: Access },
 }
 
 #[component]
@@ -1266,7 +1221,7 @@ fn BlockFrameBody(
         if let Some(stale) = block_app_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
-        match region_key(&editors, block, false) {
+        match view_key(&editors, block, false) {
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
         }
@@ -1325,7 +1280,7 @@ fn BlockFrameBody(
                                 <Frame />
                             };
                         };
-                        let Some(region_editor) = editors.region(&handle) else {
+                        let Some(view_editor) = editors.region(&handle) else {
                             return view! {
                                 <Frame />
                             };
@@ -1335,7 +1290,7 @@ fn BlockFrameBody(
                                 block
                                 access
                                 handle
-                                region_editor
+                                view_editor
                                 chrome={chrome}
                                 content={content}
                                 top_bar={top_bar}
@@ -1359,7 +1314,7 @@ fn BlockFrameView(
     block: Uuid,
     access: Access,
     handle: Handle,
-    region_editor: RegionEditor,
+    view_editor: ViewEditor,
     chrome: Prop<Chrome>,
     content: Prop<Option<Rect>>,
     top_bar: Prop<TopBar>,
@@ -1374,151 +1329,30 @@ fn BlockFrameView(
     provide_context(FocusedWithin(on_focus));
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
-    let plugin_id = store(region_editor.plugin_id().to_owned());
-    let instance = region_editor.instance;
+    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let instance = view_editor.instance;
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        block_app_plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
+        block_app_plugin_host::hold(&plugin_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&plugin_id.value());
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
     let read_only = !access.can_edit();
     let placed = embedded || content.get_untracked().is_some();
-    let pan_and_zoom = handle.pan_and_zoom && !placed;
-    let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
-    let viewport = create_signal(
-        VIEWPORTS
-            .with(|viewports| viewports.borrow().get(&block).copied())
-            .unwrap_or_default(),
-    );
-    create_effect(move || {
-        let state = viewport.get();
-        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
-    });
-    let viewport_rect = create_memo(move || {
-        revision.get();
-        let rect = rect.get();
-        block_app_plugin_host::frame_rects(&plugin_id.value(), instance)
-            .map(|rects| rects.content.translate(rect.min.to_vec2()))
-            .filter(Rect::is_positive)
-            .unwrap_or(rect)
-    });
-    let content_size = create_memo(move || {
-        revision.get();
-        let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
-            .unwrap_or(vec2(420.0, 240.0));
-        vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
-    });
-    let content_rect = create_memo(move || {
-        let state = viewport.get();
-        Rect::from_center_size(
-            viewport_rect.get().center() + state.pan,
-            content_size.get() * state.zoom,
-        )
-    });
-    let editor_view = create_memo(move || {
-        if !handle.pan_and_zoom {
-            return None;
-        }
-        let origin = rect.get().min;
-        if !placed {
-            let state = viewport.get();
-            return Some(EditorView {
-                rect: content_rect.get().translate(-origin.to_vec2()),
-                scale: state.zoom,
-            });
-        }
-        revision.get();
-        let shown = content.get().unwrap_or(rect.get());
-        let scale = block_app_plugin_host::intrinsic_size(&plugin_id.value(), instance)
-            .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-            .map_or(1.0, |intrinsic| {
-                (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-            });
-        Some(EditorView {
-            rect: shown.translate(-origin.to_vec2()),
-            scale,
-        })
-    });
-    let fitted = create_signal(None::<FitArea>);
-    let fit = move || {
-        if !pan_and_zoom {
-            return;
-        }
-        let mut state = viewport.get_untracked();
-        state.moved = false;
-        follow(
-            &mut state,
-            fitted.get_untracked(),
-            viewport_rect.get_untracked(),
-            content_size.get_untracked(),
-            max_zoom,
-        );
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+    let spec = CameraSpec {
+        block,
+        plugin_id,
+        instance,
+        view: ViewId::MAIN,
+        pan_and_zoom: handle.pan_and_zoom,
+        max_zoom: handle.max_zoom,
+        pan: handle.pan,
+        placed,
+        read_only,
+        revision,
     };
-    let owner = use_context::<CameraOwner>();
-    let command = move |command: Command| {
-        if !pan_and_zoom {
-            if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                owner.0.call(command);
-            }
-            return;
-        }
-        let mut state = viewport.get_untracked();
-        settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
-    };
-    if pan_and_zoom {
-        provide_context(CameraOwner(Callback::new(command)));
-    }
-    create_effect(move || {
-        if !pan_and_zoom {
-            return;
-        }
-        let rect = viewport_rect.get();
-        let content = content_size.get();
-        let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
-        let mut state = viewport.get_untracked();
-        if let Some(previous) = state.center.replace(rect.center()) {
-            state.pan += previous - rect.center();
-        }
-        follow(&mut state, area, rect, content, max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
-    });
-    let pan_drags = create_signal(0u64);
     create_effect(move || {
         revision.get();
-        let rect = rect.get_untracked();
-        for change in block_app_plugin_host::take_view_changes(&plugin_id.value(), instance) {
-            command(match change {
-                ViewChange::Pan(by) => Command::Pan(by),
-                ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                    factor,
-                    anchor: anchor.map(|at| rect.min + at.to_vec2()),
-                },
-                ViewChange::KeepFitted(area) => {
-                    fitted.set(area);
-                    continue;
-                }
-                ViewChange::Fit => {
-                    fit();
-                    continue;
-                }
-                ViewChange::PanDrag => {
-                    pan_drags.update(|asked| *asked += 1);
-                    continue;
-                }
-            });
-        }
         let actions = block_app_plugin_host::take_bar_actions(&plugin_id.value(), instance);
         for action in actions {
             on_bar_action.call(action);
@@ -1532,120 +1366,59 @@ fn BlockFrameView(
             }
         });
     }
-    let frame = create_memo(move || {
-        let origin = rect.get().min;
-        Some(FrameSpec {
-            chrome: match chrome.get() {
-                Chrome::Drawn => FrameChrome::Drawn,
-                Chrome::None => FrameChrome::None,
-            },
-            content: content
-                .get()
-                .map(|content| content.translate(-origin.to_vec2())),
-            top_bar: top_bar.get(),
-            dialog: None,
-        })
-    });
-    let gestures =
-        handle.pan != PanMode::None && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
-    let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
-        asked: pan_drags.read_only(),
-        pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
-    });
-    let steered =
-        create_memo(move || (!read_only && !handle.pan_and_zoom).then(|| content_rect.get()));
-    let scroll = move |gesture: ScrollGesture| {
-        if !gestures
-            || steered
-                .get_untracked()
-                .is_some_and(|rect| rect.contains(gesture.pos))
-        {
-            return;
-        }
-        match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
-            true => command(Command::Zoom {
-                factor: (gesture.delta.y * 0.002).exp(),
-                anchor: Some(gesture.pos),
-            }),
-            false => command(Command::Pan(gesture.delta)),
-        }
-    };
-    let zoom = move |gesture: ZoomGesture| {
-        if gestures {
-            command(Command::Zoom {
-                factor: gesture.factor,
-                anchor: Some(gesture.pos),
+    let fits = create_memo(move || chrome.get() == Chrome::Drawn);
+    let zoomable = handle.pan_and_zoom;
+    let child_view = child_view(block, View::MAIN);
+    let anchor = placed_anchor();
+    view! {
+        <Camera spec content fits={fits}>|camera: CameraView| {
+            let CameraView { view: editor_view, pan_drag, rect } = camera;
+            let placed_zoom = create_memo(move || {
+                if zoomable || !embedded || content.get().is_some() {
+                    return 1.0;
+                }
+                revision.get();
+                let shown = rect.get();
+                block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
+                    .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
+                    .map_or(1.0, |assigned| {
+                        (shown.width() / assigned.x).min(shown.height() / assigned.y)
+                    })
             });
-        }
-    };
-    let pan = move |delta: Vec2| {
-        if gestures {
-            command(Command::Pan(delta));
-        }
-    };
-    let gesture_area = create_memo(move || {
-        if !gestures {
-            return beui::Area::Nowhere;
-        }
-        revision.get();
-        let origin = rect.get().min.to_vec2();
-        let mut area = beui::HitRegion::rect(viewport_rect.get().translate(-origin));
-        if let Some(steered) = steered.get() {
-            area = area.without(steered.translate(-origin));
-        }
-        if let Some(frame) = block_app_plugin_host::frame_rects(&plugin_id.value(), instance) {
-            for floating in frame.floating {
-                area = area.without(floating);
+            let frame = create_memo(move || {
+                let origin = rect.get().min;
+                let zoom = placed_zoom.get().max(f32::EPSILON);
+                Some(FrameSpec {
+                    chrome: match chrome.get() {
+                        Chrome::Drawn => FrameChrome::Drawn,
+                        Chrome::None => FrameChrome::None,
+                    },
+                    content: content
+                        .get()
+                        .map(|content| content.translate(-origin.to_vec2())),
+                    top_bar: top_bar.get(),
+                    dialog: None,
+                    anchor: anchor.get().map(|anchor| anchor.scaled(zoom.recip())),
+                })
+            });
+            view! {
+                <PluginView
+                    editor={view_editor.clone()}
+                    region=View::MAIN
+                    frame={frame}
+                    view={editor_view}
+                    zoom={placed_zoom}
+                    passive={passive}
+                    pan_drag
+                    on_focus
+                    child_view
+                />
             }
-        }
-        beui::Area::Within(area)
-    });
-    let recognised = beui::unstyled::gestures::pan_zoom(pan, zoom);
-    let placed_zoom = create_memo(move || {
-        if handle.pan_and_zoom || !embedded || content.get().is_some() {
-            return 1.0;
-        }
-        revision.get();
-        let shown = rect.get();
-        block_app_plugin_host::assigned_size(&plugin_id.value(), instance)
-            .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
-            .map_or(1.0, |assigned| {
-                (shown.width() / assigned.x).min(shown.height() / assigned.y)
-            })
-    });
-    let child_view = child_view(block, EditorRegion::Frame);
-    let built = view! {
-        <Interactive
-            on_wheel={beui::unstyled::gestures::first_of([
-                recognised.wheel,
-                beui::unstyled::gestures::scroll_wheel(None, scroll),
-            ])}
-            on_pointer={recognised.pointer}
-            gesture_area={gesture_area}
-        >
-            <PluginRegion
-                editor={region_editor}
-                region=EditorRegion::Frame
-                frame={frame}
-                view={editor_view}
-                zoom={placed_zoom}
-                passive={passive}
-                pan_drag
-                on_focus
-                child_view
-            />
-        </Interactive>
-    };
-    let rect_measured = measure(built);
-    create_effect(move || {
-        if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
-        }
-    });
-    built
+        }</Camera>
+    }
 }
 
-pub(super) fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
+pub(super) fn child_view(parent: Uuid, region: View) -> ChildView {
     store(Box::new(
         move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
             view! {
@@ -1673,6 +1446,13 @@ enum Kind {
     NoPicker,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct PanelReport {
+    pub(crate) done: Signal<bool>,
+    pub(crate) size: Signal<Option<Vec2>>,
+    pub(crate) sheet: Memo<bool>,
+}
+
 pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
     Uuid::from_u64_pair(0x686f_7374_6564_0000, instance.0)
 }
@@ -1680,7 +1460,7 @@ pub(crate) fn hosted_parent(instance: EditorInstanceId) -> Uuid {
 #[component]
 fn HostedChild(
     parent: Uuid,
-    region: EditorRegion,
+    region: View,
     key: ChildId,
     child: Memo<Option<HostChild>>,
     rect: Memo<Rect>,
@@ -1705,7 +1485,18 @@ fn HostedChild(
             rects
         },
     )));
+    provide_context(super::plugin_view::GivenKeyboard(create_memo(move || {
+        child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
+    })));
     let content = create_memo(move || child.get().map(|child| child.content));
+    let sheet =
+        create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.sheet)));
+    let panel = PanelReport {
+        done: create_signal(false),
+        size: create_signal(None),
+        sheet,
+    };
+    provide_context(panel);
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(move || {
         editors.forget_creation(&creation_key);
@@ -1744,19 +1535,26 @@ fn HostedChild(
                     false => Kind::Unavailable,
                 };
             }
-            Some(HostContent::Picker {
-                filter,
-                parent,
-                touch,
-            }) => {
+            Some(HostContent::Picker { filter, parent }) => {
                 let request = block_app_plugin_host::PickerRequest {
                     filter,
                     parent,
-                    touch,
+                    sheet: sheet.get(),
                 };
-                return match editors.ensure_picker(creation_key, request) {
+                return match editors
+                    .ensure_picker(creation_key, |registry| registry.picker(request))
+                {
                     true => Kind::Picker,
                     false => Kind::NoPicker,
+                };
+            }
+            Some(HostContent::Rename(block)) => {
+                let sheet = sheet.get();
+                return match editors
+                    .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
+                {
+                    true => Kind::Picker,
+                    false => Kind::Unavailable,
                 };
             }
             Some(HostContent::Block {
@@ -1822,10 +1620,19 @@ fn HostedChild(
             if kind.get() == Kind::NoPicker {
                 status.error = Some(NO_PICKER.to_owned());
             }
-            if let Some((picked, intrinsic, card)) = editors.picker_status(&creation_key) {
+            if let Some((picked, intrinsic, card, dialog)) = editors.picker_status(&creation_key) {
                 status.picked = picked;
                 status.card = card;
                 status.intrinsic = intrinsic;
+                status.dialog = dialog;
+            }
+            if let Kind::Panel(_) = kind.get() {
+                if let Some(size) = panel.size.get() {
+                    status.intrinsic = Some(size);
+                }
+                if panel.done.get() {
+                    status.dialog.answer = Some(block_plugin_api::DialogAnswer::Accepted);
+                }
             }
             if let Kind::ArtifactSettings(block) = kind.get()
                 && let Some((height, dialog)) = editors.settings_status(block)
@@ -1882,12 +1689,18 @@ fn HostedChild(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                        provide_context(PlacedAnchor(create_memo(move || {
+                            child.get().and_then(|child| {
+                                let anchor = child.anchor?;
+                                Some(anchor.translate(-child.rect.min.to_vec2()))
+                            })
+                        })));
                         let reporter = reporter_for(parent, region, key, within);
                         match kind {
                             Kind::Missing | Kind::Unavailable | Kind::NoPicker => view! {
                                 <Frame />
                             },
-                            Kind::Picker => match editors.picker_region(&creation_key) {
+                            Kind::Picker => match editors.picker_view(&creation_key) {
                                 Some(hosted) => {
                                     let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
                                     view! {
@@ -1916,7 +1729,7 @@ fn HostedChild(
                                     <HostedSurface id=SurfaceId::ArtifactSettings dialog />
                                 }
                             }
-                            Kind::Creation => match editors.creation_region(&creation_key) {
+                            Kind::Creation => match editors.creation_view(&creation_key) {
                                 Some(hosted) => {
                                     let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
                                     view! {
@@ -2002,33 +1815,93 @@ fn HostedChild(
     }
 }
 
+#[derive(Clone, Copy)]
+struct PlacedAnchor(Memo<Option<Rect>>);
+
+fn placed_anchor() -> Memo<Option<Rect>> {
+    match use_context::<PlacedAnchor>() {
+        Some(PlacedAnchor(anchor)) => anchor,
+        None => create_memo(|| None),
+    }
+}
+
 #[component]
 fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
-    let Some(region_editor) = editors
+    let Some((handle, view_editor)) = editors
         .handle(block)
-        .and_then(|handle| editors.region(&handle))
+        .and_then(|handle| Some((handle.clone(), editors.region(&handle)?)))
     else {
         return view! {
             <Frame />
         };
     };
+    let access = editors.access(block, nesting.access);
     provide_context(FocusedWithin(reporter.focus));
-    provide_context(nesting.within(block, editors.access(block, nesting.access)));
-    let region = EditorRegion::Tab(tab);
+    provide_context(nesting.within(block, access));
+    let region = View::dock(ViewId(tab));
+    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let instance = view_editor.instance;
+    let revision = super::listen(&plugin_id.value());
+    let holds = create_memo(move || {
+        revision.get();
+        block_app_plugin_host::content_view(&plugin_id.value(), instance) == region.id
+    });
+    let spec = CameraSpec {
+        block,
+        plugin_id,
+        instance,
+        view: region.id,
+        pan_and_zoom: handle.pan_and_zoom,
+        max_zoom: handle.max_zoom,
+        pan: handle.pan,
+        placed: false,
+        read_only: !access.can_edit(),
+        revision,
+    };
     let child_view = child_view(block, region);
+    let on_focus = reporter.focus;
+    let anchor = placed_anchor();
     view! {
-        <PluginRegion editor={region_editor} region child_view on_focus={reporter.focus} />
+        <FrameStack block top_bar=TopBar::Hidden holds={holds}>|stack: Memo<Vec<Uuid>>| {
+            let view_editor = view_editor.clone();
+            let frame = create_memo(move || {
+                holds.get().then(|| FrameSpec {
+                    chrome: match stack.get().is_empty() {
+                        true => FrameChrome::Drawn,
+                        false => FrameChrome::None,
+                    },
+                    anchor: anchor.get(),
+                    ..FrameSpec::default()
+                })
+            });
+            view! {
+                <Camera spec>|camera: CameraView| {
+                    let CameraView { view: editor_view, pan_drag, .. } = camera;
+                    view! {
+                        <PluginView
+                            editor={view_editor.clone()}
+                            region
+                            frame={frame}
+                            view={editor_view}
+                            pan_drag
+                            child_view
+                            on_focus
+                        />
+                    }
+                }</Camera>
+            }
+        }</FrameStack>
     }
 }
 
 #[component]
-fn CreationSurface(hosted: HostedRegion, dialog: Memo<Option<DialogFrame>>) -> NodeId {
+fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> NodeId {
     let child_view = child_view(hosted_parent(hosted.editor.instance), hosted.region);
     let frame = hosted.frame;
     view! {
-        <PluginRegion
+        <PluginView
             editor={hosted.editor}
             region={hosted.region}
             frame={Prop::dynamic(move || {
@@ -2116,12 +1989,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
     }
 }
 
-fn reporter_for(
-    parent: Uuid,
-    region: EditorRegion,
-    key: ChildId,
-    within: Callback<()>,
-) -> ChildReporter {
+fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
@@ -2129,7 +1997,7 @@ fn reporter_for(
             block_app_plugin_host::report_child_bars(
                 &plugin_id,
                 parent.instance,
-                region,
+                region.id,
                 vec![(key, action)],
             );
         }))
@@ -2140,7 +2008,7 @@ fn reporter_for(
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
-            block_app_plugin_host::report_child_focus(plugin_id, instance, region, key);
+            block_app_plugin_host::report_child_focus(plugin_id, instance, region.id, key);
         }
         within.call(());
     });
@@ -2156,23 +2024,23 @@ fn BlockPreview(block: Uuid) -> NodeId {
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, true)
+        view_key(&editors, block, true)
             .into_iter()
             .collect::<Vec<_>>()
     });
-    let child_view = child_view(block, EditorRegion::Preview);
+    let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: RegionKey| {
-                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+            <ForEach keys={keys}>|_key: ViewKey| {
+                let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
                     };
                 };
                 view! {
-                    <PluginRegion
-                        editor={region_editor}
-                        region=EditorRegion::Preview
+                    <PluginView
+                        editor={view_editor}
+                        region=View::PREVIEW
                         offscreen=true
                         child_view
                     />

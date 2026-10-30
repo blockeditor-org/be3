@@ -14,18 +14,14 @@ fn more_blocks_from_the_add_menu_in_space_opens_the_search() {
     app.wait("#picker.search");
     app.type_text("check");
     app.wait("Button \"Checklist\"");
-    let (_, _, search_width, _) = app.place("#picker.search");
     let windows = app.run(&["windows"]);
-    let card = windows
-        .lines()
-        .filter(|line| !line.contains("main"))
-        .filter_map(|line| line.split_whitespace().last()?.split_once('x'))
-        .filter_map(|(width, _)| width.parse::<f32>().ok())
-        .next()
-        .unwrap_or_else(|| panic!("the card shows in a panel of its own:\n{windows}"));
-    assert!(
-        card > search_width,
-        "the card's panel grows to hold the card, {card} wide around a search {search_width} wide"
+    assert_eq!(
+        windows
+            .lines()
+            .filter(|line| !line.contains("main"))
+            .count(),
+        0,
+        "the card is drawn over the app's own panel, not in a panel of its own:\n{windows}"
     );
     app.snapshot("more_blocks_from_the_add_menu_in_space_opens_the_search");
     app.key("Tab");

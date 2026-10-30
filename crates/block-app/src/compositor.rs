@@ -1,7 +1,8 @@
+pub(crate) mod anchored;
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
-pub(crate) mod region;
+pub(crate) mod plugin_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -12,11 +13,12 @@ use beui::reactive::*;
 
 use block_app_plugin_host::EditorAction;
 
+pub(crate) use anchored::AnchoredViews;
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
-    ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
+    ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
+pub(crate) use plugin_view::{ChildView, PluginView, ViewEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 
@@ -33,6 +35,7 @@ thread_local! {
 
 pub(crate) fn install() {
     desktop::install();
+    anchored::install();
     let signal = create_signal(0u64);
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);

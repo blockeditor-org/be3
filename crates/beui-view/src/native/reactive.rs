@@ -99,14 +99,37 @@ fn listen(at: KeyAt, phase: KeyPhase, reveal: bool, handler: impl Fn(KeyEvent) -
     on_cleanup(move || drop(handler));
 }
 
-pub(crate) fn arrow_focus(row: NodeRef, direction: Direction) {
-    let (back, forth) = match direction {
-        Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
-        Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
-    };
+pub(crate) fn keep_clear(node: NodeId, rects: Prop<Vec<crate::types::Rect>>) {
+    create_effect(move || {
+        let rects = rects.get();
+        with_document(|document| document.set_kept_clear(node, Some(rects)));
+    });
+    on_cleanup(move || {
+        try_with_document(|document| document.set_kept_clear(node, None));
+    });
+}
+
+pub(crate) fn window_point(
+    pos: crate::types::Pos2,
+    from: crate::types::WindowId,
+    to: crate::types::WindowId,
+) -> Option<crate::types::Pos2> {
+    try_with_document(|document| {
+        let context = document.context()?;
+        let host = context.layer_space(from)?.to_host.point(pos);
+        Some(context.layer_space(to)?.to_host.inverse_point(host))
+    })
+    .flatten()
+}
+
+pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
     on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {
             return false;
+        };
+        let (back, forth) = match direction.get_untracked() {
+            Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
+            Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
         };
         if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
             return false;
@@ -190,7 +213,7 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 }
 
 pub(crate) use crate::core::nodes::{
-    focus_ancestry, focused_node, set_focus, stacked_at, tree_local, use_font_revision,
+    focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_revision,
     use_preference_layer, use_preferences, window_of,
 };
 

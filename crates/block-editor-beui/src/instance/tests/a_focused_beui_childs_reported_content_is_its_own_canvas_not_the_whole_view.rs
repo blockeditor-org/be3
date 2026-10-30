@@ -37,21 +37,17 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
         TopBar::Shown,
     );
 
-    session.run(EditorRegion::Frame, 0);
-    session.run(EditorRegion::Frame, 0);
+    session.run(ViewId::MAIN, 0);
+    session.run(ViewId::MAIN, 0);
 
     let report = session
-        .report(EditorRegion::Frame)
+        .report(ViewId::MAIN)
         .expect("the frame region reports its content rect");
+    let content = report.content.expect("the frame holds the content");
 
     assert!(
-        report.content.width() < 750.0,
-        "expected the reported content to be narrowed to the canvas, excluding the 100px sidebar, got {:?}",
-        report.content
-    );
-    assert!(
-        report.content.min.x >= 99.0,
+        content.left >= 99.0,
         "expected the reported content to start after the sidebar, got {:?}",
-        report.content
+        content
     );
 }

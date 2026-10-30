@@ -15,9 +15,7 @@ fn the_root_places_a_descendants_dialog_and_empty_pane_bodies() {
             height: 100.0,
         },
         modal: false,
-        card: false,
         dismiss_on_outside_press: false,
-        anchor: None,
         closable: true,
     });
     if let DockItemKind::Pane(pane) = &mut inner.tree.items[0].kind {
@@ -25,7 +23,7 @@ fn the_root_places_a_descendants_dialog_and_empty_pane_bodies() {
         pane.empty = Some(path(&[], 7));
     }
     docks.heard("inner", vec![declare(INNER, Some(inner))]);
-    host(&mut docks, Some(hosted_by_root()));
+    host(&mut docks, DockHold::Hosted(hosted_by_root()));
 
     for (tab, what) in [(6, "the dialog's body"), (7, "the empty pane's body")] {
         assert_eq!(

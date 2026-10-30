@@ -8,12 +8,12 @@ fn a_preview_is_not_drawn_through_the_frames_view() {
         2.0,
     );
 
-    host.in_region(EditorRegion::Preview, || {
+    host.in_view(block_plugin_api::View::PREVIEW, || {
         assert_eq!(host.view(), None);
         assert_eq!(host.view_scale(), None);
     });
 
-    host.in_region(EditorRegion::Frame, || {
+    host.in_view(block_plugin_api::View::MAIN, || {
         assert_eq!(host.view_scale(), Some(2.0));
     });
 }

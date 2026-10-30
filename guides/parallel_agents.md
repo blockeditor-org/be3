@@ -16,13 +16,16 @@ How a coordinating agent splits a large task across subagents on one Claude Code
 ## Limits of the VM
 
 - Memory is the tightest limit. The VM has 15G and each worktree runs its own buck2 daemon of about 1.5G, and verify runs got OOM-killed with six worktrees building at once. Five concurrent agents is about the most that fits, and each must run `./scripts/buck kill` in its worktree when it finishes. The coordinator should kill its own idle daemon too.
-- Disk is a fixed allowance of about 39G. A worktree's `buck-out` can reach 11G after verify. Delete `buck-out` when space runs low: everything is cached on the build server. Run `./scripts/buck kill` first, or buck2 reports a stale working directory.
-- Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build.
+- Disk is a fixed allowance of about 39G. A worktree's `buck-out` can reach 11G after verify. Delete `buck-out` when space runs low: everything is cached on the build server. Run `./scripts/buck kill` first, or buck2 reports a stale working directory. An agent that rebuilds and reruns the app in a loop (a `:dev` restarted after each change, or an app test run many times to chase a flake) fills it fastest: kill and delete it between rebuilds.
+- Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build. `pkill -x block-app` likewise kills every agent's app.
+- Every worktree's `:dev` uses the same `~/.cache/be3/dev` (data, drive socket, `env` file) unless `BE_DRIVE_DIR` says otherwise, so by default one headless app runs on the VM for all agents: starting `:dev` from one worktree restarts the app another agent is driving, and `--fresh` or `--stop` deletes or stops it. Give each agent that drives the app its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`) in its prompt, and have it source that directory's `env`.
 - When the account's usage limit is reached, or the container restarts, every agent stops at once. Resume each one by messaging it (after the limit resets); its worktree and transcript survive. A restart kills background builds and buck2 daemons, so tell resumed agents to rerun theirs, and check each worktree's state (`git status`, `git log`) before trusting what its agent last reported.
 
 ## The build server
 
 When one test target fails for reasons of the build server alone (a known relay error on one test run, say), name it in the protocol with the narrow check that replaces it: if it is verify's only failure and that target passes when run on its own with `./scripts/test`, the agent lands and says so in its report. Otherwise every agent stalls on the same flake.
+
+`./scripts/test` caches results: a test that ran on the same tree and the same inputs is not run again, and its earlier result is printed. Rerunning one to see whether it is flaky proves nothing until something it depends on changes; loop it inside one run instead (a loop in the test, or the binary run directly), and say in a report how a flake was counted.
 
 It has intermittent outages: "service is currently unavailable", connection resets, broken pipes, keep-alive timeouts, jobs queued for over ten minutes, and dropped bootstrap downloads. Each agent reruns a failing command once. If it fails the same way again, the agent commits its work as `wip:`, keeps its worktree and stops with a report. The coordinator then runs `//:check` itself: if that passes, it resumes the agent; only if it fails too does it pause everything and ask the user. Run that check in the background, since a cold check can take longer than ten minutes.
 

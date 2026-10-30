@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
     let hosted = |stacked| {
-        DockUpdate::Hosted(DockHostedRegion {
-            region: EditorRegion::Frame,
+        DockUpdate::Hosted(DockHostedView {
+            view: ViewId::MAIN,
             hosted: Some(DockHosted {
                 layout: DockLayout {
                     tree: DockTree {
@@ -12,6 +12,8 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                         focus: None,
                     },
                     homes: Vec::new(),
+                    bars: Vec::new(),
+                    outside: Vec::new(),
                     unlocked: Vec::new(),
                 },
                 tabs: Vec::new(),
@@ -20,11 +22,12 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                 visible: Vec::new(),
                 fullscreen: None,
                 stacked,
+                covers: Vec::new(),
             }),
         })
     };
     let close = DockUpdate::Close(DockClosedTab {
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         tab: DockTabPath::own(1),
     });
     let mut waiting = Vec::new();

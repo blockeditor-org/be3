@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor, Rect};
+use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use presentation_types::{Presentation, PresentationContent};
 use uuid::Uuid;
 
@@ -119,7 +119,7 @@ impl Slides {
         }
     }
 
-    pub fn add(&self, index: usize, anchor: Option<Rect>) {
+    pub fn add(&self, index: usize, anchor: impl Into<block_editor_beui::PickAnchor>) {
         let block = self.block;
         let selected = self.selected;
         self.editor.pick_block(

@@ -96,7 +96,7 @@ impl Pane {
     ) {
         let slot = match request.target {
             RenderTarget::FullPage { .. } => &mut self.base,
-            RenderTarget::Region { .. } => &mut self.detail,
+            RenderTarget::ShownView { .. } => &mut self.detail,
         };
         let stored = Instant::now();
         *slot = Some(Tile {
@@ -209,7 +209,7 @@ impl Pane {
         }
 
         let region = tile_region(visible, bounds);
-        Some(RenderTarget::Region {
+        Some(RenderTarget::ShownView {
             scale,
             origin_pts: region.min,
             size_pts: region.size(),

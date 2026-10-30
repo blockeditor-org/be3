@@ -2,23 +2,25 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use beui_view::component_ref::ComponentRef;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
-use beui_view::types::{Rect, Vec2};
+use beui_view::types::{Pos2, Rect, Vec2};
 
-use super::super::DockMode;
-use super::super::dialog::DockDialogPresentation;
 use super::super::state::{
-    DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host, joined_key, joined_prefix,
+    DockBarPlacement, DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host,
+    joined_key, joined_prefix,
 };
+use super::super::{DockApi, DockMode};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockDeclaration {
     pub spec: DockSpec,
     pub tabs: Vec<DockDeclaredTab>,
     pub dialogs: Vec<DockDeclaredDialog>,
+    pub bars: Vec<DockDeclaredBar>,
 }
 
 impl DockDeclaration {
@@ -29,6 +31,19 @@ impl DockDeclaration {
     pub fn dialog(&self, tab: TabId) -> Option<&DockDeclaredDialog> {
         self.dialogs.iter().find(|declared| declared.tab == tab)
     }
+
+    pub fn bar(&self, tab: TabId) -> Option<&DockDeclaredBar> {
+        self.bars.iter().find(|declared| declared.tab == tab)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockDeclaredBar {
+    pub tab: TabId,
+    pub key: String,
+    pub kind: String,
+    pub owner: TabId,
+    pub placement: DockBarPlacement,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -49,9 +64,7 @@ pub struct DockDeclaredDialog {
     pub icon: Option<Glyph>,
     pub size: Vec2,
     pub modal: bool,
-    pub presentation: DockDialogPresentation,
     pub dismiss_on_outside_press: bool,
-    pub anchor: Option<Rect>,
     pub closable: bool,
 }
 
@@ -64,6 +77,7 @@ pub struct DockHosted {
     pub visible: Vec<TabId>,
     pub fullscreen: Option<TabId>,
     pub mode: DockMode,
+    pub covers: Vec<(TabId, Rect)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -71,6 +85,21 @@ pub enum DockRequest {
     Show(TabId),
     Restore(DockState),
     Fullscreen(Option<(TabId, Option<Rect>)>),
+    PlaceBar(TabId, Option<DockBarPlacement>),
+    MoveBar(TabId, DockBarMove),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockBarMove {
+    pub at: Pos2,
+    pub stage: DockDragStage,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DockDragStage {
+    Move,
+    Drop,
+    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,6 +120,7 @@ pub struct DockHostSlot {
     link: Option<Rc<dyn DockHostLink>>,
     claimed: Rc<Cell<bool>>,
     asked: Rc<Cell<bool>>,
+    bars: bool,
 }
 
 impl DockHostSlot {
@@ -99,7 +129,19 @@ impl DockHostSlot {
             link,
             claimed: Rc::default(),
             asked: Rc::default(),
+            bars: false,
         }
+    }
+
+    pub fn bars(link: Rc<dyn DockHostLink>) -> Self {
+        Self {
+            bars: true,
+            ..Self::new(Some(link))
+        }
+    }
+
+    pub fn joins_bars(&self) -> bool {
+        self.bars
     }
 
     pub fn asked(&self) -> bool {
@@ -115,6 +157,44 @@ impl DockHostSlot {
         let claimed = Rc::clone(&self.claimed);
         on_cleanup(move || claimed.set(false));
         Some(Rc::clone(link))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct DockKept {
+    pub layout: Memo<DockState>,
+    pub keys: Memo<Vec<(TabId, String)>>,
+    pub restore: Callback<DockState>,
+}
+
+#[derive(Clone)]
+pub struct DockKeeper {
+    keep: Option<Rc<dyn Fn(DockKept)>>,
+    claimed: Rc<Cell<bool>>,
+}
+
+impl DockKeeper {
+    pub fn new(keep: impl Fn(DockKept) + 'static) -> Self {
+        Self {
+            keep: Some(Rc::new(keep)),
+            claimed: Rc::default(),
+        }
+    }
+
+    pub fn none() -> Self {
+        Self {
+            keep: None,
+            claimed: Rc::default(),
+        }
+    }
+
+    pub(crate) fn claim(&self) -> Option<Rc<dyn Fn(DockKept)>> {
+        if self.claimed.replace(true) {
+            return None;
+        }
+        let claimed = Rc::clone(&self.claimed);
+        on_cleanup(move || claimed.set(false));
+        self.keep.clone()
     }
 }
 
@@ -186,6 +266,8 @@ pub(crate) struct Registry {
     pub(crate) mode: Signal<DockMode>,
     pub(crate) above: Signal<Option<DockHosted>>,
     pub(crate) host: RefCell<Option<Rc<dyn DockHostLink>>>,
+    pub(crate) dock: Cell<Option<ComponentRef<DockApi>>>,
+    pub(crate) covers: Signal<super::super::BarCovers>,
 }
 
 impl Registry {
@@ -197,6 +279,20 @@ impl Registry {
 
     pub(crate) fn joined(&self, host: TabId) -> Option<Rc<Joined>> {
         self.joins.borrow().get(&host).cloned()
+    }
+
+    pub(crate) fn keep_joined(&self) {
+        let joins: Vec<(TabId, Rc<Joined>)> = self
+            .joins
+            .borrow()
+            .iter()
+            .map(|(host, joined)| (*host, Rc::clone(joined)))
+            .collect();
+        for (host, joined) in joins {
+            if let Some(hosted) = untrack(|| self.hosted(host)) {
+                *joined.pending.borrow_mut() = Some(hosted.state);
+            }
+        }
     }
 
     pub(crate) fn graft(&self, state: &mut DockState, host: TabId, from: &DockState) -> bool {
@@ -229,10 +325,11 @@ impl Registry {
         let mode = above
             .as_ref()
             .map_or_else(|| self.mode.get(), |above| above.mode);
+        let covers = self.covers.get();
         self.state.with(|state| {
             let group = state.find_group(&joined_key(host))?;
             let prefix = joined_prefix(host);
-            let subtree = state.subtree(
+            let mut subtree = state.subtree(
                 group,
                 &DockMapping {
                     tab: &inner,
@@ -240,6 +337,7 @@ impl Registry {
                     group: &|key| joined_host(key).and_then(inner),
                 },
             );
+            subtree.set_outside(state.outside_of(group, &inner));
             if let Some(above) = &above {
                 let list = |tabs: &[TabId]| tabs.iter().copied().filter_map(inner).collect();
                 return Some(DockHosted {
@@ -250,6 +348,11 @@ impl Registry {
                     visible: list(&above.visible),
                     fullscreen: above.fullscreen.and_then(inner),
                     mode,
+                    covers: above
+                        .covers
+                        .iter()
+                        .filter_map(|(tab, rect)| Some((inner(*tab)?, *rect)))
+                        .collect(),
                 });
             }
             let stacked = mode == DockMode::Stacked;
@@ -267,6 +370,10 @@ impl Registry {
                     .collect(),
                 fullscreen: state.fullscreen().and_then(|shown| inner(shown.tab)),
                 mode,
+                covers: covers
+                    .iter()
+                    .filter_map(|((tab, ..), rect)| Some((inner(*tab)?, *rect)))
+                    .collect(),
             })
         })
     }
@@ -288,10 +395,13 @@ impl DockJoin {
         if self.claimed.replace(true) {
             return None;
         }
-        Some(Rc::new(JoinedLink {
+        let link = Rc::new(JoinedLink {
             join: self.clone(),
             joined: Rc::new(Joined::default()),
-        }))
+        });
+        let held = Rc::clone(&link);
+        on_cleanup(move || held.release());
+        Some(link)
     }
 }
 
@@ -320,6 +430,10 @@ impl JoinedLink {
                 DockRequest::Fullscreen(Some((self.outer(tab)?, area)))
             }
             DockRequest::Fullscreen(None) => DockRequest::Fullscreen(None),
+            DockRequest::PlaceBar(bar, placement) => {
+                DockRequest::PlaceBar(self.outer(bar)?, placement)
+            }
+            DockRequest::MoveBar(bar, moved) => DockRequest::MoveBar(self.outer(bar)?, moved),
             DockRequest::Restore(from) => {
                 let registry = &self.join.registry;
                 let mut state = registry.state.get_untracked();
@@ -331,6 +445,10 @@ impl JoinedLink {
                 DockRequest::Restore(state)
             }
         })
+    }
+
+    fn dock(&self) -> Option<DockApi> {
+        self.join.registry.dock.get()?.try_get()
     }
 
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
@@ -416,6 +534,16 @@ impl DockHostLink for JoinedLink {
                     }
                 });
             }
+            DockRequest::PlaceBar(bar, placement) => {
+                if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
+                    dock.ask_bar(DockRequest::PlaceBar(bar, placement));
+                }
+            }
+            DockRequest::MoveBar(bar, moved) => {
+                if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
+                    dock.ask_bar(DockRequest::MoveBar(bar, moved));
+                }
+            }
             DockRequest::Restore(from) => {
                 let host = self.join.host;
                 let registry = Rc::clone(&self.join.registry);
@@ -449,9 +577,16 @@ impl DockHostLink for JoinedLink {
                 joins.remove(&host);
             }
         }
+        registry.bump();
+    }
+}
+
+impl JoinedLink {
+    fn release(&self) {
+        self.withdraw();
+        *self.joined.declaration.borrow_mut() = None;
         *self.joined.events.borrow_mut() = None;
         *self.joined.bodies.borrow_mut() = None;
         self.join.claimed.set(false);
-        registry.bump();
     }
 }

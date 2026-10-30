@@ -14,6 +14,7 @@ fn two_tabs_of_an_unlocked_group_can_be_grouped_outside_it() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     state.set_locked(DockHome::Group(group), false);

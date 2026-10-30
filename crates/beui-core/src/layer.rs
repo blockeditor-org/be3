@@ -45,6 +45,7 @@ pub struct Layer {
     pub dismissable: bool,
     pub locks: bool,
     pub window: WindowId,
+    pub escapes: bool,
 }
 
 impl Layer {
@@ -295,6 +296,7 @@ impl Document {
             dismissable: false,
             locks: false,
             window: WindowId::MAIN,
+            escapes: false,
         });
         for ((level, _), index) in &keyed {
             let (overlay, _, hangs_from) = entries[*index];
@@ -314,6 +316,7 @@ impl Document {
                     .real_window(overlay)
                     .or_else(|| self.shown_in(overlay))
                     .unwrap_or(WindowId::MAIN),
+                escapes: false,
             });
         }
         for at in 1..layers.len() {
@@ -335,6 +338,11 @@ impl Document {
             {
                 layers[at].window = layers[parent].window;
             }
+            let node = self.arena.get_as::<OverlayNode>(overlay);
+            layers[at].escapes = self.real_window(overlay).is_none()
+                && self
+                    .escape_space(node.placement(), layers[at].window)
+                    .is_some();
         }
         Layers(layers.into())
     }
@@ -601,6 +609,7 @@ impl Document {
     }
 
     pub fn request_dismiss(&mut self, overlay: NodeOf<OverlayNode>, reason: Dismiss) {
+        self.escapes.asked(overlay);
         let layers = self.layers();
         let Some(index) = layers.index_of(overlay) else {
             return;
@@ -759,7 +768,7 @@ impl Document {
         covers.into_iter().filter(Rect::is_positive).collect()
     }
 
-    fn layer_paints(&self, layer: &Layer) -> Vec<Rect> {
+    pub(crate) fn layer_paints(&self, layer: &Layer) -> Vec<Rect> {
         let Some(content) = layer.content.and_then(|content| self.node_rect(content)) else {
             return Vec::new();
         };
@@ -782,15 +791,16 @@ impl Document {
     pub fn overlay_scrims(&self, window: WindowId) -> Vec<(Rect, Color32)> {
         self.window_overlays(window)
             .iter()
-            .filter_map(|(_, layer)| {
-                layer.content?;
-                let overlay = layer.overlay?;
-                let node = self.arena.get_as::<OverlayNode>(overlay);
-                let rect = self.node_rect(self.overlay_scrim(overlay))?;
-                (node.dims() && rect.is_positive())
-                    .then(|| (rect, self.resolve_color(node.scrim_color())))
-            })
+            .filter_map(|(_, layer)| self.layer_scrim(layer))
             .collect()
+    }
+
+    pub(crate) fn layer_scrim(&self, layer: &Layer) -> Option<(Rect, Color32)> {
+        layer.content?;
+        let overlay = layer.overlay?;
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let rect = self.node_rect(self.overlay_scrim(overlay))?;
+        (node.dims() && rect.is_positive()).then(|| (rect, self.resolve_color(node.scrim_color())))
     }
 
     fn window_overlays(&self, window: WindowId) -> Vec<(usize, Layer)> {
@@ -799,7 +809,7 @@ impl Document {
             .iter()
             .enumerate()
             .skip(1)
-            .filter(|(_, layer)| layer.window == window)
+            .filter(|(_, layer)| layer.window == window && !layer.escapes)
             .filter(|(_, layer)| own.is_none() || layer.overlay != own)
             .map(|(index, layer)| (index, layer.clone()))
             .collect()
@@ -816,6 +826,27 @@ impl Document {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_paints(layer))
+            .collect()
+    }
+
+    pub fn set_kept_clear(&mut self, node: NodeId, rects: Option<Vec<Rect>>) {
+        match rects {
+            Some(rects) => self.clear_of.insert(node, rects),
+            None => self.clear_of.remove(&node),
+        };
+    }
+
+    pub fn kept_clear(&self, window: WindowId) -> Vec<Rect> {
+        self.clear_of
+            .iter()
+            .filter(|(node, _)| self.arena.contains(**node) && self.window_of(**node) == window)
+            .filter_map(|(node, rects)| Some((self.node_rect(*node)?, rects)))
+            .flat_map(|(at, rects)| {
+                rects
+                    .iter()
+                    .map(move |rect| rect.translate(at.min.to_vec2()))
+            })
+            .filter(|rect| rect.is_positive())
             .collect()
     }
 

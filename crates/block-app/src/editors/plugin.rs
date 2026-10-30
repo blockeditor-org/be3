@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorRegion, FrameSpec,
-    HostPanel, InteractionMode, ResizeMode,
+    DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, FrameSpec, HostPanel,
+    InteractionMode, ParentView, ResizeMode, View, ViewId,
 };
 use block_plugin_manifest::{EditorManifest, PluginManifest};
 use std::sync::{
@@ -14,7 +14,7 @@ use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
     DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
-use crate::{compositor::RegionEditor, surfaces::HostedRegion};
+use crate::{compositor::ViewEditor, surfaces::HostedView};
 use block_app_base::host;
 use block_app_plugin_host::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
@@ -62,16 +62,16 @@ impl PluginCreation {
         InstanceRole::Creation(self.target.editor, self.target.template)
     }
 
-    fn hosted(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
-        HostedRegion {
-            editor: RegionEditor {
+    fn hosted(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: self.role(),
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id,
             },
-            region: EditorRegion::Frame,
+            region: View::MAIN,
             frame: Some(FrameSpec::default()),
         }
     }
@@ -79,7 +79,7 @@ impl PluginCreation {
 
 pub(crate) struct PluginPicker {
     plugin: Arc<PluginManifest>,
-    editor: Uuid,
+    role: InstanceRole,
     instance: EditorInstanceId,
 }
 
@@ -93,21 +93,34 @@ impl PluginPicker {
         block_app_plugin_host::ask_picker(instance, request);
         Self {
             plugin,
-            editor,
+            role: InstanceRole::Picker(editor),
             instance,
         }
     }
 
-    pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
-        HostedRegion {
-            editor: RegionEditor {
+    pub(crate) fn rename(
+        plugin: Arc<PluginManifest>,
+        editor: Uuid,
+        block: Uuid,
+        sheet: bool,
+    ) -> Self {
+        Self {
+            plugin,
+            role: InstanceRole::Rename(editor, block, sheet),
+            instance: next_instance(),
+        }
+    }
+
+    pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
-                role: InstanceRole::Picker(self.editor),
+                role: self.role,
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id,
             },
-            region: EditorRegion::Frame,
+            region: View::MAIN,
             frame: Some(FrameSpec::default()),
         }
     }
@@ -130,6 +143,11 @@ impl PluginPicker {
     pub(crate) fn card(&self) -> bool {
         block_app_plugin_host::card(&self.plugin.identity.id, self.instance)
     }
+
+    pub(crate) fn dialog(&self) -> DialogStatus {
+        block_app_plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default()
+    }
 }
 
 impl Drop for PluginPicker {
@@ -148,7 +166,7 @@ impl Drop for PluginCreation {
 }
 
 impl PendingCreation for PluginCreation {
-    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion> {
+    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView> {
         self.target.dialog.then(|| self.hosted(registry, client_id))
     }
 
@@ -197,12 +215,8 @@ impl PendingCreation for PluginCreation {
 
     fn height(&self) -> Option<f32> {
         self.target.dialog.then(|| {
-            block_app_plugin_host::region_size(
-                &self.plugin.identity.id,
-                self.instance,
-                EditorRegion::Frame,
-            )
-            .map_or(CREATION_DIALOG_HEIGHT, |size| size.y.max(1.0))
+            block_app_plugin_host::view_size(&self.plugin.identity.id, self.instance, ViewId::MAIN)
+                .map_or(CREATION_DIALOG_HEIGHT, |size| size.y.max(1.0))
         })
     }
 
@@ -373,9 +387,9 @@ impl PluginEditor {
             .is_some_and(|editor| editor.accepts(request))
     }
 
-    pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
+    pub(crate) fn has_view(&self, view: ParentView) -> bool {
         self.manifest()
-            .is_some_and(|editor| editor.regions.contains(&region))
+            .is_some_and(|editor| editor.views.contains(&view))
     }
 
     pub(crate) fn stop_presenting_now(&mut self) {
@@ -527,9 +541,9 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pick_menu(&self, id: String) {
+    pub(crate) fn pick_menu(&self, id: String, anchor: Option<beui::Rect>) {
         if let Some(plugin) = self.plugin() {
-            block_app_plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
+            block_app_plugin_host::menu_pick(&plugin.identity.id, self.instance, id, anchor);
         }
     }
 
@@ -632,17 +646,17 @@ impl ArtifactSession for PluginArtifact {
         }
     }
 
-    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion {
+    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedView {
         self.opened = true;
-        HostedRegion {
-            editor: RegionEditor {
+        HostedView {
+            editor: ViewEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: InstanceRole::Artifact(self.editor, self.block, self.source),
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id: self.client_id,
             },
-            region: EditorRegion::ArtifactSettings,
+            region: View::ARTIFACT_SETTINGS,
             frame: None,
         }
     }
@@ -652,10 +666,10 @@ impl ArtifactSession for PluginArtifact {
     }
 
     fn settings_height(&self) -> f32 {
-        block_app_plugin_host::region_size(
+        block_app_plugin_host::view_size(
             &self.plugin.identity.id,
             self.instance,
-            EditorRegion::ArtifactSettings,
+            ViewId::ARTIFACT_SETTINGS,
         )
         .map_or(ARTIFACT_SETTINGS_HEIGHT, |size| size.y.max(1.0))
     }

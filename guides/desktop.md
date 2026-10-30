@@ -87,54 +87,54 @@ A hidden window shown again opens at its default place, not where it was.
 
 The host shows each display in a window of its own (under `--session`, guides/desktop/linux.md,
 Displays). The desktop is one space in points: the displays side by side along their bottom edges. Each
-display's window shows its own region of the shell, macOS-like: the first display the shell's
-frame (`ui::Root`'s `MainSurface`), each further one a `display(n)` region of the same instance
+display's window shows its own view of the shell, macOS-like: the first display the shell's
+main view (`ui::Root`'s `MainSurface`), each further one a display view (`HostView::Display(n)`) of the same instance
 (`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the
 list from 1), each at its display's size and scale. The shell's windows are the host's own,
-placed in the desktop's points: the shell's regions say the host shows the windows the plugin
-opens from them (`windows` in the screen request, set for the shell's frame and display regions
+placed in the desktop's points: the shell's views say the host shows the windows the plugin
+opens from them (`windows` in the screen request, set for the shell's frame and display views
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
-opens, each of the desktop plugin's dock windows, becomes a `window(w)` region that block-app keeps
+opens, each of the desktop plugin's dock windows, becomes a window view (`HostView::Window`) that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
 stacking order. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the
 program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
 and popups, along in front of it. The dock's windows clear to transparent, so the margin their
-resize grips reach into and their rounded corners show what is behind them. The shell's region on each display draws, between its own
+resize grips reach into and their rounded corners show what is behind them. The shell's view on each display draws, between its own
 surface and its floating layers (menus, popovers, toasts), the windows that display holds most
-of (`desktop::shown_on`, `DesktopWindows` in `compositor/region.rs`), each a `PluginRegion` of
-its window region placed at its rect less the display's corner, whose children are the program
+of (`desktop::shown_on`, `DesktopWindows` in `compositor/plugin_view.rs`), each a `PluginView` of
+its window view placed at its rect less the display's corner, whose children are the program
 windows and block editors the shell placed in it. A window opens where the plugin asked: at a
-point of the region it opened from (`Over`, measured from that region's corner on the desktop),
+point of the view it opened from (`Over`, measured from that view's corner on the desktop),
 at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
 placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
 hand the press to the host: the window follows the pointer from where it was pressed (the
 press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
 no moves meanwhile, and the release ends it and gives the new placement. While one moves it is
 drawn on every display it overlaps and on the one the move began on, which holds the press;
-once let go it is drawn only on the display holding most of it. Each region is laid out at the
+once let go it is drawn only on the display holding most of it. Each view is laid out at the
 document's scale and rendered at the raster of the display that shows most of it (each mount's
-`EmbedPlacement::raster`, `RegionPlacement::raster` of the offer whose clip is largest), so a window moved onto a display at another scale is rendered at that scale once
+`EmbedPlacement::raster`, `ViewPlace::raster` of the offer whose clip is largest), so a window moved onto a display at another scale is rendered at that scale once
 it is mostly there; while it straddles two, the display that holds less of it shows the same
 texture scaled. Program windows and block editors are children of the windows they are tabs
 of, so they stack and take the focus with them. The pointer crosses between display windows
 with a press held, by beui's cross-window rules (the platform reports each window's desktop
-origin, `WindowReport::Moved`), and between the shell's regions by the protocol's `over`: a
-press held in one of the shell's regions names the region the pointer is over, so a tab dragged
+origin, `WindowReport::Moved`), and between the shell's views by the protocol's `over`: a
+press held in one of the shell's views names the view the pointer is over, so a tab dragged
 out of one window and over another, on any display, lands on that window's bar.
 
 `--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
 fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
-tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the regions
+tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the views
 and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
 `desk_move`, `desk_release`, `desk_drag`) and paints a display with the windows on it
 (`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
-desktop's points and its `scale`. The desktop plugin draws, in every region, a bar along its foot and
-a level display (`desktop.osd.{n}`, n the region's display), and in the frame alone its dock,
+desktop's points and its `scale`. The desktop plugin draws, in every view, a bar along its foot and
+a level display (`desktop.osd.{n}`, n the view's display), and in the frame alone its dock,
 launcher, pickers and notification toasts (above that display's bar); `BeuiApp::Display`
-draws the further displays' regions from what the frame's region shares (`app.rs`, `Desktop`).
+draws the further displays' views from what the frame's view shares (`app.rs`, `Desktop`).
 The dock fills the frame above the bar, and its windows open over it.
 
 ## A shell that stops

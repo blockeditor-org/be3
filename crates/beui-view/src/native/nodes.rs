@@ -165,6 +165,10 @@ pub(crate) fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, Care
     });
 }
 
+pub(crate) fn opener_of(node: NodeId) -> NodeId {
+    with_document(|document| document.opener_of(node))
+}
+
 pub(crate) fn window_of(node: NodeId) -> WindowId {
     with_document(|document| document.window_of(node))
 }

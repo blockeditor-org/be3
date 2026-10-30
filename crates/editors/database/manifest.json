@@ -11,8 +11,8 @@
       "templates": {
         "main": {}
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "schema": {
@@ -23,8 +23,8 @@
       "templates": {
         "main": {}
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "view": {
@@ -42,8 +42,8 @@
         "pan_and_zoom": false
       },
       "resize": "None",
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "Preview"
       ]
     }

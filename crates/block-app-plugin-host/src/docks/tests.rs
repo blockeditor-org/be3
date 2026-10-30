@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
     DockChildClose, DockChildHosted, DockDeclare, DockItem, DockItemKind, DockLayout, DockPane,
-    DockRegionRequest, DockTab, DockTree, RegionRef,
+    DockTab, DockTree, DockViewRequest, ViewRef,
 };
 
 const ROOT: EditorInstanceId = EditorInstanceId(1);
@@ -24,6 +24,7 @@ fn pane(depth: u32, key: &str) -> DockItem {
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         }),
     }
 }
@@ -52,6 +53,7 @@ fn declaration(key: &str, tabs: &[(u64, &str)]) -> DockDeclaration {
             })
             .collect(),
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 
@@ -65,9 +67,9 @@ fn inner() -> DockDeclaration {
 
 fn declare(instance: EditorInstanceId, declaration: Option<DockDeclaration>) -> DockMessage {
     DockMessage::Declare(DockDeclare {
-        region: RegionRef {
+        view: ViewRef {
             instance,
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
         },
         declaration,
     })
@@ -92,6 +94,7 @@ fn nested() -> Docks {
             tab: 100,
             block: OUTER_BLOCK,
         }],
+        None,
     );
     docks.heard("outer", vec![declare(OUTER, Some(outer()))]);
     docks.placed(
@@ -101,6 +104,7 @@ fn nested() -> Docks {
             tab: 2,
             block: INNER_BLOCK,
         }],
+        None,
     );
     docks.heard("inner", vec![declare(INNER, Some(inner()))]);
     docks
@@ -143,6 +147,8 @@ fn hosted_by_root() -> DockHosted {
         layout: DockLayout {
             tree: spliced.tree.clone(),
             homes: Vec::new(),
+            bars: Vec::new(),
+            outside: Vec::new(),
             unlocked: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
@@ -151,10 +157,11 @@ fn hosted_by_root() -> DockHosted {
         visible: vec![path(&[], 1), path(&[INNER_CHILD], 5)],
         fullscreen: None,
         stacked: false,
+        covers: Vec::new(),
     }
 }
 
-fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
+fn host(docks: &mut Docks, hold: DockHold) {
     docks.heard(
         "shell",
         vec![DockMessage::Host(DockChildHosted {
@@ -162,14 +169,17 @@ fn host(docks: &mut Docks, hosted: Option<DockHosted>) {
                 instance: ROOT,
                 child: OUTER_CHILD,
             },
-            hosted,
+            hold,
         })],
     );
 }
 
 mod a_closed_instance_withdraws_its_dock_from_the_root;
+mod a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it;
 mod a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab;
 mod a_docked_child_that_declares_nothing_stays_a_plain_child;
+mod a_docked_child_the_root_stops_hosting_stays_docked_until_the_root_places_it;
+mod a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;
 mod a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down;
 mod a_request_reaches_the_root_through_each_placer;

@@ -229,7 +229,7 @@ The desktop plugin binds the volume, mute, mic mute, brightness and media transp
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
-a `styled::Progress` bar on every display (one card in each display's region, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
+a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
@@ -378,7 +378,7 @@ While it is locked, two things keep input from everything behind it: the lock is
 `Overlay` at `LayerLevel::Lock`, which nothing dismisses, which stays above every other layer and keeps
 the focus and the pointer, and while it is open the host and window key listeners hear only media keys (no other window action, no plugin's
 intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
-of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
+of their own for it: each is a forwarding catcher like a plugin's view, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
 go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
@@ -416,13 +416,13 @@ windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt 
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 
-Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
+Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's view (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
 `wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
 button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM platform
 reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
-window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
+window (a floating window's tab, say) the window takes nothing (`occluders`, from the view's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
 A pen (a drawing tablet's tool or a screen's stylus, `Event::Pen` in guides/beui.md) reaches a
@@ -588,7 +588,7 @@ first one for a type with no editor of its own (the EPUB's default). Elsewhere (
 Android, Windows, macOS) no program is listed, so nothing changes there.
 
 The plugin side is only that editor id on a `ChildTarget`; the host does the rest. When a
-child region asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
+child view asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
 `ProgramSurface` instead of a plugin, and `programs::show` starts a session for the block:
 
 - **Write out.** `block_app_stack::plain_file` asks the block's type module for `to-file`, the same
@@ -601,7 +601,7 @@ child region asks for a block in a listed program (`programs::opens`), `HostedCh
 - **Launch.** `desktop_host::Programs::open_file` runs the entry with the path in place of its first
   `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
   first top-level window is bound to the session (`desktop_host::opening_windows`) and drawn in the
-  region by `WindowSurface`. Until then the region says it is opening; once the program exits
+  view by `WindowSurface`. Until then the view says it is opening; once the program exits
   it says so with Open again (`program.reopen`).
 - **Hidden from the shell.** A bound window is left out of `WindowsWatch`
   (`programs::bound_windows`), so the desktop plugin does not float it and keeps no placeholder for

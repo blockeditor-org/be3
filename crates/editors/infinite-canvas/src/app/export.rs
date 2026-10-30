@@ -947,6 +947,7 @@ const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
+    let tab = use_frame_anchor();
     let dialog = exporter.dialog;
     let options = exporter.options;
     let open = create_memo(move || dialog.get().is_some());
@@ -977,6 +978,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             open={open}
             title={title}
             id="infinite-canvas.export"
+            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
             actions={vec![
                 DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
                 DialogAction::cancel("Cancel"),

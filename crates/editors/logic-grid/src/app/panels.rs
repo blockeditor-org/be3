@@ -42,7 +42,6 @@ pub(super) fn Panels(session: Session) -> NodeId {
             <Accordion title="Generated graph" open={graph_open}>
                 <GraphPanel session={session} />
             </Accordion>
-            <StorageDialog session={session} />
         </List>
     }
 }
@@ -159,7 +158,7 @@ enum SimulationFrame {
 }
 
 fn value_text(value: u64) -> String {
-    format!("0x{value:016x} ({value})")
+    format!("0x{value:x} ({value})")
 }
 
 impl LogicGridEditor {
@@ -1020,7 +1019,7 @@ fn GraphCanvas(
 }
 
 #[component]
-fn StorageDialog(session: Session) -> NodeId {
+pub(super) fn StorageDialog(session: Session) -> NodeId {
     let configured = create_memo(move || {
         session.read(|model| {
             let id = model.configured_storage?;
@@ -1045,7 +1044,12 @@ fn StorageDialog(session: Session) -> NodeId {
     });
     let dismiss = move || session.update(|model| model.configured_storage = None);
     view! {
-        <Dialog open={open} title={title} on_dismiss={dismiss}>
+        <Dialog
+            open={open}
+            title={title}
+            anchor={DialogAnchor::Control(session.configured_at)}
+            on_dismiss={dismiss}
+        >
             <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={bits}>|bit: u32| {
                     let label = create_memo(move || {

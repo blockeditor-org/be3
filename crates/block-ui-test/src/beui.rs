@@ -8,8 +8,8 @@ use block_editor_beui::be_block::{LiveEdit, Merge};
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    EditorRegion, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange,
-    WebViewCommand, WebViewId,
+    Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
+    WebViewId,
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
@@ -19,8 +19,8 @@ use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
-    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar,
-    ViewportMetrics,
+    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ViewId, ViewportMetrics,
 };
 use block_plugin_api::{
     embed::host_services::Call,
@@ -114,6 +114,8 @@ pub struct BeuiTest<A: BeuiApp> {
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
+    docked: bool,
+    docks: Vec<block_plugin_api::DockMessage>,
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
@@ -169,6 +171,7 @@ enum Kind {
     Creation,
     Settings,
     Picker,
+    Rename(Uuid),
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
@@ -216,6 +219,21 @@ impl<A: BeuiApp> BeuiTest<A> {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let mut test = Self::picker(host, request);
+        if let Some(catalog) = beside.shown_catalog.clone() {
+            test.catalog(catalog);
+        }
+        test
+    }
+
+    pub fn rename_beside<B: BeuiApp>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+        beside.store.forget_answers();
+        SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
+        let editor = OwnedEditor::new(host, Uuid::nil());
+        let mut test = Self::open(
+            Kind::Rename(block),
+            Adopted::Editor(editor, None),
+            Vec::new(),
+        );
         if let Some(catalog) = beside.shown_catalog.clone() {
             test.catalog(catalog);
         }
@@ -291,12 +309,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                     editor: ADOPTED_EDITOR,
                     filter: request.filter,
                     parent: request.parent.encode(),
-                    touch: request.touch,
+                    sheet: request.sheet,
                     account_id,
                     organization_id,
                     client_id,
                 })
             }
+            Kind::Rename(block) => Opening::Rename(block_plugin_api::OpenRename {
+                instance: INSTANCE,
+                editor: ADOPTED_EDITOR,
+                block_id: block.into_bytes(),
+                sheet: false,
+                account_id,
+                organization_id,
+                client_id,
+            }),
             Kind::Settings => Opening::Artifact(OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
@@ -315,18 +342,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
-            Kind::Picker => Some(block_plugin_api::FrameSpec {
+            Kind::Picker | Kind::Rename(_) => Some(block_plugin_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
             Kind::Creation => Some(block_plugin_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
                 dialog: Some(block_plugin_api::DialogFrame::default()),
+                anchor: None,
             }),
             _ => None,
         };
@@ -358,6 +388,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             debug_templates: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
+            docked: false,
+            docks: Vec::new(),
             output: None,
             shown_window: None,
             drew: false,
@@ -411,7 +443,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn place(&mut self) {
-        let region = self.region();
+        let shown = self.view();
         let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
@@ -428,12 +460,14 @@ impl<A: BeuiApp> BeuiTest<A> {
             vec![ScreenRequest {
                 screen: SCREEN,
                 instance: INSTANCE,
-                region,
+                view: shown.id,
+                placement: shown.placement,
                 metrics,
                 frame: self.frame,
                 windows: false,
-                placement: None,
-                docked: false,
+                host_place: None,
+                docked: self.docked,
+                anchor_space: None,
             }]
         });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
@@ -444,7 +478,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn block_id(&self) -> Option<Uuid> {
         match self.kind {
             Kind::Frame(block) | Kind::Preview(block) => Some(block),
-            Kind::Creation | Kind::Settings | Kind::Picker => None,
+            Kind::Creation | Kind::Settings | Kind::Picker | Kind::Rename(_) => None,
         }
     }
 
@@ -506,12 +540,21 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(false, TopBar::Phone)
     }
 
+    pub fn in_tab(mut self, tab: Option<Rect>) -> Self {
+        let frame = self.frame.get_or_insert_with(Default::default);
+        frame.anchor = tab;
+        self.place();
+        self.run();
+        self
+    }
+
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
             dialog: None,
+            anchor: None,
         });
         self.place();
         self.run();
@@ -545,9 +588,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
+        self.pick_menu_from(id, None);
+    }
+
+    pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| editor.menu_pick(connection, id));
+        self.call(|editor, connection| editor.menu_pick(connection, ViewId::MAIN, id, anchor));
         self.run();
     }
 
@@ -599,9 +646,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
-        self.call(|editor, connection| {
-            editor.child_bar(connection, EditorRegion::Frame, child, action)
-        });
+        self.call(|editor, connection| editor.child_bar(connection, ViewId::MAIN, child, action));
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -623,13 +668,29 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
         let drag = block_plugin_api::shell_types::DragOver {
-            region: self.region(),
+            view: self.view().id,
             pos: position,
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
             dropped,
         };
         self.call(|editor, connection| editor.drag_over(connection, drag));
+    }
+
+    pub fn docked(mut self) -> Self {
+        self.docked = true;
+        self.place();
+        self.run();
+        self
+    }
+
+    pub fn take_dock_messages(&mut self) -> Vec<block_plugin_api::DockMessage> {
+        std::mem::take(&mut self.docks)
+    }
+
+    pub fn receive_dock_updates(&mut self, updates: Vec<block_plugin_api::DockUpdate>) {
+        self.host.receive_dock_updates(updates);
+        self.run();
     }
 
     pub fn with_size(mut self, size: Vec2) -> Self {
@@ -740,7 +801,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
-        Some(report.content)
+        Some(report.content?.inside(self.rect()))
     }
 
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
@@ -873,10 +934,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn available_children(&mut self) {
-        let region = self.region();
+        let view = self.view().id;
         self.report_children(|placement| ChildStatus {
             instance: INSTANCE,
-            region,
+            view,
             child: placement.child,
             available: true,
             intrinsic: None,
@@ -1017,6 +1078,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     screen: SCREEN,
                     every_sample: false,
                     events,
+                    dismissed: Vec::new(),
                 },
                 "the host's input",
             );
@@ -1073,12 +1135,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn committed(&mut self, commit: FrameCommit) {
-        let region = self.region();
+        self.docks.extend(commit.docks);
+        let view = self.view().id;
         let asked = commit.window_requests;
         if let Some(placements) = commit
             .children
             .into_iter()
-            .filter(|placements| placements.region == region)
+            .filter(|placements| placements.view == view)
             .last()
         {
             self.children = placements.children;
@@ -1095,7 +1158,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .windows
             .into_iter()
             .find(|window| window.screen == SCREEN)
-            .filter(|_| self.region() == EditorRegion::Frame)
+            .filter(|_| self.view().is_main())
         {
             self.window = window.window;
         }
@@ -1280,7 +1343,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             }
             match &call {
-                ShellCall::Menu { items, .. } => {
+                ShellCall::Menu { view, items, .. } if view.is_main() => {
                     self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
                         panic!("the plugin sent a menu it may not: {error}")
                     });
@@ -1340,26 +1403,28 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn placed_picker(&self) -> Option<ChildPlacement> {
+        self.placed(|content| matches!(content, block_plugin_api::ChildContent::Picker { .. }))
+    }
+
+    pub fn placed(
+        &self,
+        which: impl Fn(&block_plugin_api::ChildContent) -> bool,
+    ) -> Option<ChildPlacement> {
         self.children
             .iter()
-            .find(|placement| {
-                matches!(
-                    placement.content,
-                    block_plugin_api::ChildContent::Picker { .. }
-                )
-            })
+            .find(|placement| which(&placement.content))
             .cloned()
     }
 
     pub fn answer_picker(&mut self, pick: block_editor_beui::BlockPick) {
-        let region = self.region();
+        let view = self.view().id;
         let picker = self
             .placed_picker()
             .expect("the editor placed a picker to answer")
             .child;
         self.report_children(|placement| ChildStatus {
             instance: INSTANCE,
-            region,
+            view,
             child: placement.child,
             available: true,
             intrinsic: None,
@@ -1380,7 +1445,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn show_picker(&mut self, intrinsic: Vec2, card: bool) {
-        let region = self.region();
+        let view = self.view().id;
         let picker = self
             .placed_picker()
             .expect("the editor placed a picker to show")
@@ -1389,7 +1454,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             let shown = placement.child == picker;
             ChildStatus {
                 instance: INSTANCE,
-                region,
+                view,
                 child: placement.child,
                 available: true,
                 intrinsic: shown.then_some(block_plugin_api::Size {
@@ -1642,11 +1707,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.intrinsic
     }
 
-    fn region(&self) -> EditorRegion {
+    fn view(&self) -> View {
         match self.kind {
-            Kind::Preview(_) => EditorRegion::Preview,
-            Kind::Settings => EditorRegion::ArtifactSettings,
-            Kind::Frame(_) | Kind::Creation | Kind::Picker => EditorRegion::Frame,
+            Kind::Preview(_) => View::PREVIEW,
+            Kind::Settings => View::ARTIFACT_SETTINGS,
+            Kind::Frame(_) | Kind::Creation | Kind::Picker | Kind::Rename(_) => View::MAIN,
         }
     }
 

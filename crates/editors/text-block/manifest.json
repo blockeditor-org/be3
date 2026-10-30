@@ -15,8 +15,8 @@
       },
       "interaction": "Live",
       "resize": "Horizontal",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

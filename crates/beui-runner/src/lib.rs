@@ -552,6 +552,7 @@ impl Runner {
                         .window_size(window)
                         .or((window == WindowId::MAIN).then_some(physical / scale))
                 },
+                layer_target: &|layer| self.context.layer_target(layer),
             },
             &mut self.events,
         );

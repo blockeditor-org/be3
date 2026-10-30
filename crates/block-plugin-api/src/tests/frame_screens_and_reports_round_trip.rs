@@ -22,7 +22,7 @@ fn checklist_tree() -> TreeUpdate {
 
 #[test]
 fn frame_screens_and_reports_round_trip() {
-    let mut request = region_screen(EditorRegion::Frame, 1, 2, 640, 480, 1.0);
+    let mut request = view_screen(View::MAIN, 1, 2, 640, 480, 1.0);
     request.frame = Some(FrameSpec {
         chrome: FrameChrome::Drawn,
         content: Some(Rect::from_min_size(
@@ -34,13 +34,22 @@ fn frame_screens_and_reports_round_trip() {
             narrow: true,
             bottom_inset: 24.0,
         }),
+        anchor: Some(Rect::from_min_size(
+            Pos2::new(40.0, -28.0),
+            Vec2::new(120.0, 28.0),
+        )),
     });
     round_trips(&vec![request]);
 
     let frames = FrameCommit {
         reports: vec![FrameReport {
             screen: ScreenId(1),
-            content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
+            content: Some(Insets {
+                left: 0.0,
+                top: 40.0,
+                right: 0.0,
+                bottom: 0.0,
+            }),
             painted: vec![Rect::from_min_size(
                 Pos2::new(0.0, 0.0),
                 Vec2::new(640.0, 40.0),
@@ -84,6 +93,7 @@ fn frame_screens_and_reports_round_trip() {
                     live: true,
                 }],
             }),
+            anchored: None,
         }],
         ..frame(1)
     };

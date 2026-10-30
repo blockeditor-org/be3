@@ -7,9 +7,9 @@ use beui_core::app::App;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
 use beui_core::window::WindowId;
-use block_editor_plugin::{EditorHost, RegionId, Regions};
+use block_editor_plugin::{EditorHost, ViewHandler, ViewRef};
 
-pub use views::{Report, View, Views};
+pub use views::{Report, View, Views, anchored_layer, anchored_view, window_view};
 
 pub trait PluginRuntime {
     fn launch(
@@ -25,13 +25,13 @@ pub trait PluginRuntime {
 
     fn use_bundled_fonts(&self);
 
-    fn runner<'a>(&self, handler: &'a mut dyn Regions) -> Option<&'a mut dyn RegionsRunner>;
+    fn runner<'a>(&self, handler: &'a mut dyn ViewHandler) -> Option<&'a mut dyn ViewRunner>;
 }
 
-pub trait RegionsRunner {
+pub trait ViewRunner {
     fn context(&self) -> &Context;
 
-    fn window(&self, region: RegionId) -> Option<WindowId>;
+    fn window(&self, region: ViewRef) -> Option<WindowId>;
 
     fn take_output(&mut self) -> Option<FrameOutput>;
 }

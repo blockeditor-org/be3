@@ -3,8 +3,8 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits, editor-region};
-    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, web-view-id};
+    use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
+    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
@@ -15,7 +15,7 @@ interface shell-types {
 
     /// A block dragged over the editor, where, and whether it was dropped there.
     record drag-over {
-        region: editor-region,
+        view: view-id,
         pos: pos2,
         block-id: block-id,
         block-type: block-type-id,
@@ -29,7 +29,7 @@ interface shell-types {
 
     /// Files dragged over the editor from outside the app.
     record file-drop {
-        region: editor-region,
+        view: view-id,
         pos: pos2,
         files: list<dropped-file>,
         dropped: bool,
@@ -109,7 +109,7 @@ interface shell-types {
     /// What the host knows of a child an editor placed.
     record child-status {
         instance: editor-instance-id,
-        region: editor-region,
+        view: view-id,
         child: child-id,
         available: bool,
         intrinsic: option<size>,
@@ -186,23 +186,14 @@ interface shell-types {
         failed(string),
     }
 
-    record rename-command {
-        anchor: option<rect>,
-    }
-
-    record app-menu-command {
-        anchor: option<rect>,
-    }
-
     /// What an editor asks of the app around it for a block it draws: to share
-    /// it, leave it, rename it (hung from `anchor`), close the editor, or show
-    /// the app's menu.
+    /// it, leave it, or close the editor. An editor renames a block or shows
+    /// the app's menu by placing a `child-content.rename` or
+    /// `host(app-menu)` child in a view it anchored.
     variant shell-command {
         share,
         leave,
-        rename(rename-command),
         close-editor,
-        app-menu(app-menu-command),
     }
 
     /// The block an editor's focus is in, and the blocks it is shown through.
@@ -215,9 +206,9 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use be3:manifest/types@0.1.0.{editor-region};
-    use types.{block-location, block-pick, child-id, editor-instance-id, size, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-instance-id, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
+    use be3:ui/types@0.1.0.{rect};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
         child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
@@ -257,14 +248,21 @@ interface shell {
         next: async func() -> catalog;
     }
 
-    /// The editor's menu, replacing the one it sent before.
-    menu: func(instance: editor-instance-id, items: list<menu-item>);
+    /// The menu of one of the editor's views, replacing the one it sent for
+    /// that view before. The menu of the view that holds the editor's
+    /// content is its frame's (a placer reads it as `child-status.menu`);
+    /// a dock view's is its tab's, which the host gives the root as that
+    /// tab's `dock-tab.menu`. A pick from any of them arrives as the
+    /// editor's `menu-pick` of that view.
+    menu: func(instance: editor-instance-id, view: view-id, items: list<menu-item>);
 
     /// The editor asks the host to run an action of its bar.
     run-bar-action: func(instance: editor-instance-id, action: bar-action);
 
-    /// The editor picked a command of a child's menu.
-    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string);
+    /// The editor picked a command of a child's menu. `anchor`, in host
+    /// coordinates, is what the menu belongs to (the child's tab, or the
+    /// child), which the host passes on as the child's `menu-pick` anchor.
+    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
 
     copy-text: func(instance: editor-instance-id, text: string);
 
@@ -292,8 +290,8 @@ interface shell {
     /// The editor asks to leave the frame it is shown in.
     leave-frame: func(instance: editor-instance-id);
 
-    /// The editor stopped drawing a region, closed or failed.
-    region-stopped: func(instance: editor-instance-id, region: editor-region, stopped: stopped);
+    /// The editor stopped drawing a view, closed or failed.
+    view-stopped: func(instance: editor-instance-id, view: view-id, stopped: stopped);
 
     /// The editor asks to be presented full screen, or no longer.
     present: func(instance: editor-instance-id, presenting: bool);

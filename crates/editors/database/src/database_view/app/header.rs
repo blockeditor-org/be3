@@ -77,6 +77,7 @@ fn NarrowHeader(data: Data) -> NodeId {
     let count = row_count(data);
     let open = move || sheet.set(true);
     let close = move || sheet.set(false);
+    let opener = NodeRef::new();
     view! {
         <Frame padding={Padding::symmetric(GUTTER, Space::Md)}>
             <List spacing=SPACING>
@@ -96,6 +97,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                         label={filtered}
                         glyph=ICON_SLIDERS_HORIZONTAL
                         variant=ButtonVariant::Secondary
+                        @node_ref={&opener}
                         @test_id={"database-view.filter-and-display"}
                         on_click={open}
                     />
@@ -103,6 +105,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                 <Dialog
                     open={sheet}
                     title="Filter and display"
+                    anchor={DialogAnchor::Control(opener)}
                     id="database-view.sheet"
                     on_dismiss={close}
                 >

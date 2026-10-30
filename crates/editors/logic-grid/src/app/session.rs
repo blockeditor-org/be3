@@ -13,6 +13,7 @@ pub(super) struct Session {
     pub(super) pointer: Signal<Option<[f32; 2]>>,
     pub(super) debug_hover: Signal<Option<DebugEntity>>,
     pub(super) graph_hover: Signal<GraphHover>,
+    pub(super) configured_at: NodeRef,
 }
 
 impl Session {
@@ -28,6 +29,7 @@ impl Session {
             pointer,
             debug_hover,
             graph_hover,
+            configured_at: NodeRef::new(),
         };
         create_effect(move || {
             session.version.get();

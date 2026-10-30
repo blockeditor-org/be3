@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use beui::{Rect, Vec2};
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
-    InteractionMode, ResizeMode, ScreenId,
+    ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, InteractionMode,
+    ResizeMode, ScreenId, ViewId,
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -41,30 +41,29 @@ pub use presenter::Piece;
 pub use presenter::Pieces;
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
+pub use presenter::{AnchoredBlits, Blit};
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
-    intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
-    region_damage, region_drawing, region_placed, region_published, region_view, take_block_drags,
-    take_changed, take_focus_request, take_region_actions, unmount_region, unplace_region,
+    PlacedView, ViewPlace, ViewSlot, anchored_blits, anchored_drawing, back_view,
+    dismiss_anchored_views, drag_over_view, forward_anchored, forward_view, frames, intercept_tap,
+    intercept_view, mount_view, place_view, placed_view, pressed_outside_view, take_block_drags,
+    take_changed, take_focus_request, take_view_actions, unmount_view, unplace_view, view_damage,
+    view_drawing, view_placed, view_published,
 };
 pub use runtime::{
     artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
-    crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer, frame_child,
-    frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick,
-    picked, poll, present, presenting, preview_image, reanchor, record_pacing, regenerate_artifact,
-    region_placement, region_size, replace_child, replace_gpu, report_child_bars,
-    report_child_focus, report_children, request_painting, resized, revoke_frame_child, running,
-    set_artifact_states, set_focus, set_presence_visible, set_presented, set_shell, settle,
-    show_block, show_dialog, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_child_commits, take_child_dismissals, take_child_menu_picks,
-    take_crashed, take_created, take_focus_report, take_leaving, take_steps, take_view_changes,
-    warm,
+    content_view, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
+    frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, picked,
+    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, replace_child,
+    replace_gpu, report_child_bars, report_child_focus, report_children, request_painting, resized,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_child_commits,
+    take_child_dismissals, take_child_menu_picks, take_crashed, take_created, take_focus_report,
+    take_leaving, take_steps, take_view_changes, view_placement_of, view_size, warm,
 };
-pub use windows::{
-    forget_windows, is_overlay, request_windows, serve_overlays, take_window_requests,
-};
+pub use windows::{forget_windows, request_windows, take_window_requests};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cache_in(directory: std::path::PathBuf) {
@@ -104,9 +103,6 @@ pub enum EditorAction {
         id: Uuid,
         access: block_plugin_api::AccessLevel,
     },
-    AppMenu {
-        at: Option<Rect>,
-    },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -132,6 +128,72 @@ pub struct HostChild {
     pub rotation: f32,
     pub opacity: f32,
     pub dialog: Option<block_plugin_api::DialogFrame>,
+    pub anchored: Option<block_plugin_api::ViewId>,
+    pub keyboard: bool,
+    pub sheet: bool,
+    pub anchor: Option<Rect>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostAnchored {
+    pub id: block_plugin_api::ViewId,
+    pub parent: Option<block_plugin_api::ViewId>,
+    pub opened: u64,
+    pub screen: block_plugin_api::ScreenId,
+    pub rect: Rect,
+    pub bounds: Rect,
+    pub painted: Vec<Rect>,
+    pub floating: Vec<Rect>,
+    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub surface: u32,
+    pub pixels_per_point: f32,
+    pub dismiss_on_outside_press: bool,
+    pub keyboard: bool,
+    pub blocks_owner: bool,
+    pub edge: bool,
+}
+
+impl HostAnchored {
+    pub fn takes(&self, pos: beui::Pos2) -> bool {
+        self.floating.iter().any(|rect| rect.contains(pos))
+    }
+}
+
+pub fn dismissed_by_press(
+    layers: &[HostAnchored],
+    pos: beui::Pos2,
+) -> Vec<block_plugin_api::ViewId> {
+    let below = |root: block_plugin_api::ViewId| {
+        let mut chain = vec![root];
+        for layer in layers {
+            if let Some(parent) = layer.parent
+                && chain.contains(&parent)
+                && !chain.contains(&layer.id)
+            {
+                chain.push(layer.id);
+            }
+        }
+        chain
+    };
+    let mut dismissed = Vec::new();
+    for layer in layers {
+        if !layer.dismiss_on_outside_press || dismissed.contains(&layer.id) {
+            continue;
+        }
+        let chain = below(layer.id);
+        let inside = layers
+            .iter()
+            .filter(|held| chain.contains(&held.id))
+            .any(|held| held.takes(pos));
+        if !inside {
+            for id in chain {
+                if !dismissed.contains(&id) {
+                    dismissed.push(id);
+                }
+            }
+        }
+    }
+    dismissed
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -156,8 +218,8 @@ pub enum HostContent {
     Picker {
         filter: block_plugin_api::BlockFilter,
         parent: block_plugin_api::BlockLocation,
-        touch: bool,
     },
+    Rename(Uuid),
 }
 
 impl HostContent {
@@ -169,7 +231,8 @@ impl HostContent {
             | Self::Creation { .. }
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
-            | Self::Picker { .. } => None,
+            | Self::Picker { .. }
+            | Self::Rename(_) => None,
         }
     }
 
@@ -181,7 +244,8 @@ impl HostContent {
             | Self::Creation { .. }
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
-            | Self::Picker { .. } => None,
+            | Self::Picker { .. }
+            | Self::Rename(_) => None,
         }
     }
 }
@@ -233,7 +297,7 @@ pub struct ChildCommit {
 pub struct PickerRequest {
     pub filter: block_plugin_api::BlockFilter,
     pub parent: block_plugin_api::BlockLocation,
-    pub touch: bool,
+    pub sheet: bool,
 }
 
 impl Default for PickerRequest {
@@ -241,7 +305,7 @@ impl Default for PickerRequest {
         Self {
             filter: block_plugin_api::BlockFilter::default(),
             parent: block_plugin_api::BlockLocation::Root,
-            touch: false,
+            sheet: false,
         }
     }
 }
@@ -299,7 +363,7 @@ pub struct ArtifactStatus {
 
 pub struct ScreenStatus {
     pub screen: ScreenId,
-    pub region: EditorRegion,
+    pub view: ViewId,
     pub logical: Vec2,
     pub pixels: [u32; 2],
     pub scale_factor: f32,
@@ -348,13 +412,14 @@ pub enum InstanceRole {
     Creation(Uuid, &'static str),
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
+    Rename(Uuid, Uuid, bool),
 }
 
 impl InstanceRole {
     pub fn block(self) -> Option<EditorBlock> {
         match self {
             Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
-            Self::Creation(..) | Self::Picker(..) => None,
+            Self::Creation(..) | Self::Picker(..) | Self::Rename(..) => None,
         }
     }
 }

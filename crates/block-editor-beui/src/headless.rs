@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use block_editor_plugin::headless::HeadlessPlugin as Core;
-use block_editor_plugin::{Instance, RegionId};
+use block_editor_plugin::{Instance, ViewRef};
 use block_plugin_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
 
 use crate::instance::BeuiInstance;
@@ -109,9 +109,9 @@ impl HeadlessPlugin {
                 let windows: Vec<(ScreenPlacement, beui::WindowId)> = placements
                     .into_iter()
                     .filter_map(|placement| {
-                        let window = runner.window(RegionId {
+                        let window = runner.window(ViewRef {
                             instance: placement.instance,
-                            region: placement.region,
+                            view: placement.view,
                         })?;
                         Some((placement, window))
                     })

@@ -11,7 +11,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     app.wait("#checklist.add");
     let pane = app.place(PANE);
     let button = app.place("#checklist.add");
-    app.crop("#workspace.block");
+    app.crop("#infinite-canvas.canvas");
     app.record();
 
     app.click("#infinite-canvas.pill.zoom-in");

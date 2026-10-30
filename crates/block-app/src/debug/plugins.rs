@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use beui::Vec2;
-use block_plugin_api::{EditorCapabilities, EditorRegion};
+use block_plugin_api::{EditorCapabilities, ParentView};
 use block_plugin_manifest::PluginManifest;
 
 use crate::ui::{Line, LineStyle, PluginsView, RuntimeView};
@@ -74,7 +74,7 @@ fn manifest_lines(lines: &mut Vec<Line>, manifest: &PluginManifest) {
             ),
         );
         let mut small = |text: String| push(lines, LineStyle::Muted, 2, text);
-        small(format!("regions {}", regions(&editor.regions)));
+        small(format!("views {}", views(&editor.views)));
         small(format!(
             "interaction {:?} · resize {:?}",
             editor.interaction, editor.resize
@@ -197,8 +197,8 @@ fn instance_lines(lines: &mut Vec<Line>, instance: &InstanceStatus) {
 
 fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
     let text = format!(
-        "{:?} #{} — {} pt @ {:.2}, drawn @ {:.2} ({}x{} px){}{}{}{}",
-        screen.region,
+        "view {} #{} — {} pt @ {:.2}, drawn @ {:.2} ({}x{} px){}{}{}{}",
+        screen.view.0,
         screen.screen.0,
         size(screen.logical),
         screen.scale_factor,
@@ -226,8 +226,8 @@ fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
     push(lines, style, 2, text);
 }
 
-fn regions(regions: &[EditorRegion]) -> String {
-    list(regions.iter().map(|region| format!("{region:?}")))
+fn views(views: &[ParentView]) -> String {
+    list(views.iter().map(|view| format!("{view:?}")))
 }
 
 fn capabilities(capabilities: &EditorCapabilities) -> String {

@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockDeclaration, DockGroup, DockHome, DockHosted, DockItem, DockItemKind,
-    DockLayout, DockMessage, DockPane, DockPlace, DockRequest, DockSplit, DockTab, DockTabPath,
-    DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
+    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
+    DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
+    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab,
+    DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
 mod splice;
@@ -412,7 +413,6 @@ impl DockDeclaration {
             if !size.iter().all(|side| side.is_finite() && *side >= 0.0) {
                 return Err(DecodeError::MalformedPayload);
             }
-            dialog.anchor.map_or(Ok(()), finite)?;
             if held.contains(&dialog.tab) || !bodies.insert(&dialog.tab) {
                 return Err(DecodeError::MalformedPayload);
             }
@@ -422,7 +422,29 @@ impl DockDeclaration {
                 return Err(DecodeError::MalformedPayload);
             }
         }
+        collection(self.bars.len())?;
+        let mut bar_keys: HashSet<&str> = HashSet::new();
+        for bar in &self.bars {
+            bar.validate()?;
+            string(&bar.key)?;
+            string(&bar.kind)?;
+            let size = [bar.size.width, bar.size.height];
+            if !size.iter().all(|side| side.is_finite() && *side >= 0.0)
+                || bar.key.is_empty()
+                || keys.contains(bar.key.as_str())
+                || !bar_keys.insert(&bar.key)
+                || !held.contains(&bar.owner)
+                || held.contains(&bar.tab)
+                || !bodies.insert(&bar.tab)
+            {
+                return Err(DecodeError::MalformedPayload);
+            }
+        }
         Ok(nodes)
+    }
+
+    pub fn bar(&self, tab: &DockTabPath) -> Option<&DockBar> {
+        self.bars.iter().find(|bar| bar.tab == *tab)
     }
 
     pub fn dialog(&self, tab: &DockTabPath) -> Option<&crate::DockDialog> {
@@ -431,6 +453,7 @@ impl DockDeclaration {
 
     pub fn shows_body(&self, tab: &DockTabPath) -> bool {
         self.dialog(tab).is_some()
+            || self.bar(tab).is_some()
             || self.nest().is_ok_and(|nodes| {
                 nodes
                     .panes()
@@ -453,7 +476,11 @@ impl DockDeclaration {
                 .panes()
                 .iter()
                 .filter_map(|pane| pane.empty.as_ref())
-                .all(DockTabPath::is_own);
+                .all(DockTabPath::is_own)
+            && self
+                .bars
+                .iter()
+                .all(|bar| bar.tab.is_own() && bar.owner.is_own());
         if nodes.tabs().iter().all(|tab| tab.is_own()) && !nodes.spliced() && bodies_own {
             Ok(())
         } else {
@@ -467,8 +494,50 @@ impl DockLayout {
         self.tree.nest()?;
         collection(self.homes.len())?;
         self.homes.iter().try_for_each(DockHome::validate)?;
+        collection(self.bars.len())?;
+        self.bars.iter().try_for_each(DockPlacedBar::validate)?;
+        collection(self.outside.len())?;
+        self.outside.iter().try_for_each(DockOutside::validate)?;
         collection(self.unlocked.len())?;
         self.unlocked.iter().try_for_each(DockPlace::validate)
+    }
+}
+
+impl DockBarPlacement {
+    fn validate(&self) -> Result<(), DecodeError> {
+        match self {
+            Self::Over(_) | Self::Beside(_) => Ok(()),
+            Self::Window(window) if window.origin.x.is_finite() && window.origin.y.is_finite() => {
+                Ok(())
+            }
+            Self::Window(_) => Err(DecodeError::MalformedPayload),
+        }
+    }
+}
+
+impl DockBar {
+    fn validate(&self) -> Result<(), DecodeError> {
+        self.tab.validate()?;
+        self.owner.validate()?;
+        self.placement.validate()
+    }
+}
+
+impl DockPlacedBar {
+    fn validate(&self) -> Result<(), DecodeError> {
+        self.bar.validate()?;
+        self.owner.validate()?;
+        self.placement.validate()
+    }
+}
+
+impl DockOutside {
+    fn validate(&self) -> Result<(), DecodeError> {
+        self.tab.validate()?;
+        match &self.place {
+            DockOutsidePlace::Pane(pane) => string(&pane.key),
+            DockOutsidePlace::Window(rect) => finite(*rect),
+        }
     }
 }
 
@@ -494,6 +563,11 @@ impl DockHosted {
             collection(tabs.len())?;
             tabs.iter().try_for_each(DockTabPath::validate)?;
         }
+        collection(self.covers.len())?;
+        for cover in &self.covers {
+            cover.tab.validate()?;
+            finite(cover.rect)?;
+        }
         [&self.focused, &self.shown, &self.fullscreen]
             .into_iter()
             .flatten()
@@ -511,6 +585,20 @@ impl DockRequest {
                 fullscreen.tab.validate()?;
                 fullscreen.area.map_or(Ok(()), finite)
             }
+            Self::PlaceBar(place) => {
+                place.bar.validate()?;
+                place
+                    .placement
+                    .as_ref()
+                    .map_or(Ok(()), DockBarPlacement::validate)
+            }
+            Self::MoveBar(moved) => {
+                moved.bar.validate()?;
+                match moved.at.x.is_finite() && moved.at.y.is_finite() {
+                    true => Ok(()),
+                    false => Err(DecodeError::MalformedPayload),
+                }
+            }
         }
     }
 }
@@ -523,7 +611,10 @@ impl DockMessage {
                 .as_ref()
                 .map_or(Ok(()), DockDeclaration::validate_own),
             Self::Request(request) => request.request.validate(),
-            Self::Host(host) => host.hosted.as_ref().map_or(Ok(()), DockHosted::validate),
+            Self::Host(host) => match &host.hold {
+                DockHold::Hosted(hosted) => hosted.validate(),
+                DockHold::Placing | DockHold::Released => Ok(()),
+            },
             Self::Close(close) => close.tab.validate(),
             Self::Pick(pick) => {
                 pick.tab.validate()?;
@@ -538,10 +629,6 @@ impl DockUpdate {
         match self {
             Self::Hosted(hosted) => hosted.hosted.as_ref().map_or(Ok(()), DockHosted::validate),
             Self::Close(close) => close.tab.validate(),
-            Self::Pick(pick) => {
-                pick.tab.validate()?;
-                string(&pick.id)
-            }
             Self::Child(child) => child
                 .declaration
                 .as_ref()
@@ -560,12 +647,12 @@ impl DockUpdate {
     pub fn queue(updates: &mut Vec<Self>, update: Self) {
         match &update {
             Self::Hosted(hosted) => updates.retain(
-                |waiting| !matches!(waiting, Self::Hosted(held) if held.region == hosted.region),
+                |waiting| !matches!(waiting, Self::Hosted(held) if held.view == hosted.view),
             ),
             Self::Child(child) => updates.retain(
                 |waiting| !matches!(waiting, Self::Child(held) if held.child == child.child),
             ),
-            Self::Close(_) | Self::Pick(_) | Self::ChildRequest(_) => {}
+            Self::Close(_) | Self::ChildRequest(_) => {}
         }
         updates.push(update);
     }

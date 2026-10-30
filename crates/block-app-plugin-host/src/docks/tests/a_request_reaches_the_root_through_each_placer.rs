@@ -6,10 +6,10 @@ fn a_request_reaches_the_root_through_each_placer() {
     updates(&mut docks, "shell");
     docks.heard(
         "inner",
-        vec![DockMessage::Request(DockRegionRequest {
-            region: RegionRef {
+        vec![DockMessage::Request(DockViewRequest {
+            view: ViewRef {
                 instance: INNER,
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
             },
             request: DockRequest::Show(path(&[], 5)),
         })],

@@ -323,17 +323,15 @@ interface types {
 
     /// What a window is for. A `keyboard` is an on-screen keyboard: the
     /// host never gives it the focus and places it by the field it types into.
-    /// A `popup` is a menu or tooltip of the window it is placed over, which
-    /// keeps the focus: the host never gives the popup the focus either.
-    /// An `overlay` shows the overlays of the window it is placed over (its
-    /// menus, tooltips and dialogs) in a window of that size: the host keeps it
-    /// above that window, never gives it the focus, and lets presses through
-    /// wherever the overlay paints nothing. The app dismisses it itself.
+    /// A `popup` is a menu of another program's window the app shows (a
+    /// Wayland or Win32 popup), placed over that window, which keeps the
+    /// focus: the host never gives the popup the focus either, and closes it
+    /// on a press outside it. A plugin's windows have no role: what of a
+    /// plugin points back to where it came from is an anchored view.
     enum window-role {
         normal,
         keyboard,
         popup,
-        overlay,
     }
 
     record window-request-open {

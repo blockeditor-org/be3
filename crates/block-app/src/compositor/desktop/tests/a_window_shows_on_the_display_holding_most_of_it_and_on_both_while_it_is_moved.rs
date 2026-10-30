@@ -1,5 +1,5 @@
 use beui::{PointerButton, PointerEvent, PointerId, WindowPlacement as Placed};
-use block_plugin_api::{RegionRef, Size, WindowOpen, WindowOver};
+use block_plugin_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 use crate::display::shown::ShownDisplay;
@@ -65,19 +65,20 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
     crate::display::apply_shown();
     let on_left = shown_on(place(left, &[left, right]), PLUGIN.to_owned(), INSTANCE);
     let on_right = shown_on(place(right, &[left, right]), PLUGIN.to_owned(), INSTANCE);
-    note_origin(PLUGIN, INSTANCE, EditorRegion::Frame, left.min);
+    note_origin(PLUGIN, INSTANCE, ViewId::MAIN, left.min);
     block_app_plugin_host::request_windows(
         PLUGIN,
         vec![WindowRequest::Open(WindowOpen {
-            window: 7,
-            opener: RegionRef {
+            view: ViewId(7),
+            screen: block_plugin_api::ScreenId::opened(7),
+            opener: ViewRef {
                 instance: INSTANCE,
-                region: EditorRegion::Frame,
+                view: ViewId::MAIN,
             },
             placement: WindowPlacement::Over(WindowOver {
-                region: RegionRef {
+                view: ViewRef {
                     instance: INSTANCE,
-                    region: EditorRegion::Frame,
+                    view: ViewId::MAIN,
                 },
                 at: pos2(100.0, 100.0),
             }),
@@ -85,19 +86,18 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
                 width: 300.0,
                 height: 200.0,
             },
-            role: block_plugin_api::WindowRole::Normal,
         })],
     );
     apply();
     assert_eq!(
         (on_left.get_untracked(), on_right.get_untracked()),
-        (vec![7], vec![]),
+        (vec![ViewId(7)], vec![]),
         "a window opens where the region asked, on the display holding it"
     );
     let key = FloatedKey {
         plugin: PLUGIN.to_owned(),
         instance: INSTANCE,
-        window: 7,
+        window: ViewId(7),
     };
     let origin = left.min.to_vec2();
     follow(
@@ -108,7 +108,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         ),
         origin,
     );
-    block_app_plugin_host::request_windows(PLUGIN, vec![WindowRequest::BeginMove(7)]);
+    block_app_plugin_host::request_windows(PLUGIN, vec![WindowRequest::BeginMove(ViewId(7))]);
     apply();
     follow(&key, mouse(PointerPhase::Move, pos2(700.0, 110.0)), origin);
     assert_eq!(
@@ -118,13 +118,13 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
     );
     assert_eq!(
         (on_left.get_untracked(), on_right.get_untracked()),
-        (vec![7], vec![7]),
+        (vec![ViewId(7)], vec![ViewId(7)]),
         "moving across the seam, it shows on both displays"
     );
     follow(&key, mouse(PointerPhase::Move, pos2(1000.0, 110.0)), origin);
     assert_eq!(
         on_left.get_untracked(),
-        vec![7],
+        vec![ViewId(7)],
         "it stays on the display the move began on, which holds the press, until it is let go"
     );
     follow(
@@ -137,7 +137,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
     );
     assert_eq!(
         (on_left.get_untracked(), on_right.get_untracked()),
-        (vec![], vec![7]),
+        (vec![], vec![ViewId(7)]),
         "let go, it shows only on the display holding most of it"
     );
     assert_eq!(

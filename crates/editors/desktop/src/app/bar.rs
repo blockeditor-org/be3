@@ -10,8 +10,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, WindowsWatch, node_anchor,
-    utc_offset,
+    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, WindowsWatch, utc_offset,
 };
 use block_shell::Workspace;
 
@@ -91,11 +90,7 @@ pub(crate) fn DesktopBar(
         display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
     });
     let menu_button = NodeRef::new();
-    let menu = move || {
-        editor
-            .host()
-            .show_app_menu(editor.block_id(), node_anchor(&menu_button))
-    };
+    let menu = move || editor.show_app_menu(menu_button);
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
     let keys = create_memo(move || {

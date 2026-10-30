@@ -249,7 +249,7 @@ fn render_tile(
             (max_width.max(1.0) / page_size_pts.x).min(max_height.max(1.0) / page_size_pts.y),
             bounds,
         ),
-        RenderTarget::Region {
+        RenderTarget::ShownView {
             scale,
             origin_pts,
             size_pts,

@@ -1,6 +1,8 @@
 use block_plugin_api::{
-    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, FrameCommit, Opening, ScreenId,
-    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory,
+    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit,
+    HostTransform, HostView, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
+    ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -12,8 +14,9 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    Frame, Module, Region, Waker,
+    Frame, Module, ShownView, Waker,
     editor_session::{EditorSession, Open},
+    plugin::Anchored,
     wire::Delivery,
 };
 
@@ -25,12 +28,14 @@ pub(crate) struct Screens {
     apps: Vec<(Uuid, Opener)>,
     waker: Waker,
     requests: Vec<ScreenRequest>,
+    opened: Vec<ScreenRequest>,
+    anchored: Vec<AnchoredScreen>,
+    next_opened: u64,
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     catalog: Catalog,
     debug_templates: Vec<DebugTemplate>,
     surface: Option<SurfaceSpec>,
-    next_surface: u32,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     everything: bool,
@@ -64,12 +69,14 @@ impl Screens {
             apps,
             waker,
             requests: Vec::new(),
+            opened: Vec::new(),
+            anchored: Vec::new(),
+            next_opened: 0,
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             catalog: Catalog::default(),
             debug_templates: Vec::new(),
             surface: None,
-            next_surface: 0,
             dirty: Arc::default(),
             everything: true,
             reporting: HashSet::new(),
@@ -95,23 +102,199 @@ impl Screens {
         self.laid_out.insert(instance);
     }
 
-    pub(crate) fn frame(&mut self, shown: &[(ScreenPlacement, u32)]) -> Vec<Frame> {
+    pub(crate) fn frame(
+        &mut self,
+        shown: &[(ScreenPlacement, u32)],
+    ) -> Vec<(ScreenPlacement, Frame)> {
         let mut begun = Vec::new();
-        for (index, (placement, age)) in shown.iter().enumerate() {
+        for (placement, age) in shown {
+            if self.is_anchored(placement.screen) {
+                continue;
+            }
             if let Some(session) = self.sessions.get_mut(&placement.instance) {
-                begun.push((index, session.begin(placement.region, *age)));
+                begun.push((*placement, session.begin(placement.view, *age)));
             }
         }
-        let regions: Vec<Region> = begun.iter().map(|(_, region)| region.clone()).collect();
+        let regions: Vec<ShownView> = begun.iter().map(|(_, region)| region.clone()).collect();
         let mut frames = self
             .module
             .with_handler(|handler| handler.frame(&regions))
             .unwrap_or_default();
         frames.resize_with(regions.len(), Frame::default);
-        let mut framed = vec![Frame::default(); shown.len()];
-        for ((index, region), frame) in begun.into_iter().zip(frames) {
+        let mut framed = Vec::new();
+        let mut opened = Vec::new();
+        let mut anchored = Vec::new();
+        for ((placement, region), mut frame) in begun.into_iter().zip(frames) {
+            self.open_windows(&region, &mut frame.asks, &mut opened);
+            let hung = std::mem::take(&mut frame.anchored);
+            self.anchor(&region, hung, &mut anchored);
             if let Some(session) = self.sessions.get_mut(&region.instance) {
-                framed[index] = session.finish(region.region, frame);
+                framed.push((placement, session.finish(region.view.id, frame)));
+                self.ran(region.instance);
+            }
+        }
+        let ages: HashMap<ScreenId, u32> = shown
+            .iter()
+            .map(|(placement, age)| (placement.screen, *age))
+            .collect();
+        framed.extend(self.frame_created(opened, anchored, &ages));
+        framed
+    }
+
+    fn open_windows(
+        &mut self,
+        region: &ShownView,
+        asks: &mut [WindowRequest],
+        opened: &mut Vec<ScreenRequest>,
+    ) {
+        let instance = region.instance;
+        for ask in asks {
+            match ask {
+                WindowRequest::Open(open) => {
+                    let held = self
+                        .layout
+                        .screens
+                        .iter()
+                        .map(|placement| (placement.instance, placement.view, placement.screen))
+                        .chain(
+                            opened
+                                .iter()
+                                .map(|request| (request.instance, request.view, request.screen)),
+                        )
+                        .find(|(held, view, _)| *held == instance && *view == open.view);
+                    if let Some((_, _, screen)) = held {
+                        open.screen = screen;
+                        continue;
+                    }
+                    self.next_opened += 1;
+                    open.screen = ScreenId::opened(self.next_opened);
+                    opened.push(opened_window(region, open.view, open.screen, open.size));
+                }
+                WindowRequest::Close(view) => {
+                    let view = *view;
+                    self.opened
+                        .retain(|held| (held.instance, held.view) != (instance, view));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn is_anchored(&self, screen: ScreenId) -> bool {
+        self.anchored
+            .iter()
+            .any(|anchored| anchored.request.screen == screen)
+    }
+
+    fn anchor(&mut self, region: &ShownView, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
+        let Some(space) = region
+            .anchor_space
+            .filter(|_| region.view.placement.reports())
+        else {
+            return;
+        };
+        let instance = region.instance;
+        let mut kept: Vec<ViewId> = Vec::new();
+        for anchored in hung.into_iter().take(MAX_COLLECTION_ITEMS) {
+            let view = anchored.view;
+            let parent = anchored.placement.parent;
+            let taken = view == region.view.id
+                || kept.contains(&view)
+                || out
+                    .iter()
+                    .any(|held| (held.request.instance, held.request.view) == (instance, view))
+                || self
+                    .requests
+                    .iter()
+                    .chain(&self.opened)
+                    .any(|request| (request.instance, request.view) == (instance, view));
+            if taken || (parent != region.view.id && !kept.contains(&parent)) {
+                continue;
+            }
+            kept.push(view);
+            let screen = self
+                .anchored
+                .iter()
+                .find(|held| (held.request.instance, held.request.view) == (instance, view))
+                .map(|held| held.request.screen)
+                .unwrap_or_else(|| {
+                    self.next_opened += 1;
+                    ScreenId::opened(self.next_opened)
+                });
+            out.push(AnchoredScreen {
+                request: anchored_request(region, &space, screen, view, anchored.placement.rect),
+                placement: anchored.placement,
+            });
+        }
+    }
+
+    fn frame_created(
+        &mut self,
+        opened: Vec<ScreenRequest>,
+        anchored: Vec<AnchoredScreen>,
+        ages: &HashMap<ScreenId, u32>,
+    ) -> Vec<(ScreenPlacement, Frame)> {
+        let mut created: Vec<ScreenId> = opened.iter().map(|request| request.screen).collect();
+        created.extend(anchored.iter().map(|anchored| anchored.request.screen));
+        let previous = self.layout.clone();
+        let moved = !opened.is_empty()
+            || anchored.len() != self.anchored.len()
+            || anchored
+                .iter()
+                .zip(&self.anchored)
+                .any(|(now, was)| now.request != was.request);
+        for gone in self.anchored.iter().filter(|was| {
+            !anchored
+                .iter()
+                .any(|now| now.request.screen == was.request.screen)
+        }) {
+            if let Some(session) = self.sessions.get_mut(&gone.request.instance) {
+                session.close_anchored(gone.request.view);
+            }
+        }
+        self.opened.extend(opened);
+        self.anchored = anchored;
+        if moved {
+            self.relayout();
+        }
+        let mut begun = Vec::new();
+        for screen in created {
+            let Some(placement) = self.layout.placement(screen).copied() else {
+                continue;
+            };
+            let kept = previous.placement(screen).is_some_and(|held| {
+                (held.surface, held.width, held.height)
+                    == (placement.surface, placement.width, placement.height)
+            });
+            let age = match kept {
+                true => ages.get(&screen).copied().unwrap_or(0),
+                false => 0,
+            };
+            if let Some(session) = self.sessions.get_mut(&placement.instance) {
+                begun.push((placement, kept, session.begin(placement.view, age)));
+            }
+        }
+        if begun.is_empty() {
+            return Vec::new();
+        }
+        let regions: Vec<ShownView> = begun.iter().map(|(_, _, region)| region.clone()).collect();
+        let mut frames = self
+            .module
+            .with_handler(|handler| handler.frame_opened(&regions))
+            .unwrap_or_default();
+        frames.resize_with(regions.len(), Frame::default);
+        let mut framed = Vec::new();
+        for ((placement, kept, region), mut frame) in begun.into_iter().zip(frames) {
+            frame.changed |= !kept;
+            frame.anchored.clear();
+            let anchored = self
+                .anchored
+                .iter()
+                .find(|held| held.request.screen == placement.screen)
+                .map(|held| held.placement);
+            if let Some(session) = self.sessions.get_mut(&region.instance) {
+                session.set_anchored(region.view.id, anchored);
+                framed.push((placement, session.finish(region.view.id, frame)));
                 self.ran(region.instance);
             }
         }
@@ -194,11 +377,11 @@ impl Screens {
             let Some(session) = self.sessions.get_mut(&placement.instance) else {
                 continue;
             };
-            let overflows = session.overflows(placement.region);
+            let overflows = session.overflows(placement.view);
             if !overflows.is_empty() {
                 paintings.overflows.push((placement.screen.0, overflows));
             }
-            if let Some(painting) = session.painting(placement.region) {
+            if let Some(painting) = session.painting(placement.view) {
                 paintings.screens.push((placement.screen.0, painting));
                 if paintings.encode().len() > block_plugin_api::MAX_BLOB_BYTES {
                     paintings.screens.pop();
@@ -276,9 +459,17 @@ impl Screens {
             Delivery::Close(instance) => {
                 self.sessions.remove(&instance);
                 self.requests.retain(|request| request.instance != instance);
+                self.opened.retain(|request| request.instance != instance);
+                self.anchored
+                    .retain(|anchored| anchored.request.instance != instance);
                 self.relayout();
             }
             Delivery::Screens(screens) => {
+                self.opened.retain(|opened| {
+                    !screens.iter().any(|request| {
+                        (request.instance, request.view) == (opened.instance, opened.view)
+                    })
+                });
                 self.requests = screens;
                 self.relayout();
             }
@@ -289,13 +480,15 @@ impl Screens {
                 let Some(session) = self.sessions.get_mut(&instance) else {
                     return false;
                 };
+                if !batch.dismissed.is_empty() {
+                    session.dismiss_anchored(region, &batch.dismissed);
+                }
                 for event in &batch.events {
                     let over = event.over.and_then(|over| {
-                        let (instance, region) = self
-                            .layout
-                            .placement(over)
-                            .map(|placement| (placement.instance, placement.region))?;
-                        Some(crate::RegionId { instance, region })
+                        self.layout.placement(over).map(|placement| ViewRef {
+                            instance: placement.instance,
+                            view: placement.view,
+                        })
                     });
                     session.input(region, event, over);
                 }
@@ -344,6 +537,13 @@ impl Screens {
                 open.organization_id,
                 open.client_id,
             ),
+            Opening::Rename(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
         };
         let session = self.open(instance, Uuid::from_bytes(editor));
         session.set_block_types(block_types);
@@ -363,7 +563,11 @@ impl Screens {
             Opening::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,
                 parent: crate::graph::BlockParent::decode(open.parent),
-                touch: open.touch,
+                sheet: open.sheet,
+            }),
+            Opening::Rename(open) => session.connect_rename(crate::host::RenameRequest {
+                block: Uuid::from_bytes(open.block_id),
+                sheet: open.sheet,
             }),
             Opening::Artifact(open) => session.connect_artifact(
                 crate::Artifact {
@@ -434,23 +638,45 @@ impl Screens {
         self.sessions.get_mut(&instance)
     }
 
-    fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, EditorRegion)> {
+    fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, ViewId)> {
         self.layout
             .placement(screen)
-            .map(|placement| (placement.instance, placement.region))
+            .map(|placement| (placement.instance, placement.view))
+    }
+
+    fn requested(&self) -> Vec<ScreenRequest> {
+        let mut requested = self.requests.clone();
+        requested.extend(
+            self.opened
+                .iter()
+                .filter(|opened| {
+                    !self.requests.iter().any(|request| {
+                        (request.instance, request.view) == (opened.instance, opened.view)
+                    })
+                })
+                .cloned(),
+        );
+        let mut hanging: Vec<(EditorInstanceId, ViewId)> = requested
+            .iter()
+            .map(|request| (request.instance, request.view))
+            .collect();
+        for anchored in &self.anchored {
+            let request = &anchored.request;
+            if hanging.contains(&(request.instance, anchored.placement.parent)) {
+                hanging.push((request.instance, request.view));
+                requested.push(request.clone());
+            }
+        }
+        requested
     }
 
     fn relayout(&mut self) {
         let previous = std::mem::take(&mut self.layout);
-        let next = &mut self.next_surface;
-        self.layout = ScreenLayout::placed(&self.requests, |screen| {
+        let requests = self.requested();
+        self.layout = ScreenLayout::placed(&requests, |screen| {
             previous
                 .placement(screen)
-                .map(|placement| placement.surface)
-                .unwrap_or_else(|| {
-                    *next += 1;
-                    *next
-                })
+                .map_or_else(new_surface, |placement| placement.surface)
         });
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {
@@ -462,7 +688,7 @@ impl Screens {
         for (instance, session) in &mut self.sessions {
             session.place(
                 placements.get(instance).map_or(&[], Vec::as_slice),
-                &self.requests,
+                &requests,
             );
         }
     }
@@ -515,6 +741,104 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
         extensions: editor.extensions.clone(),
     }))
+}
+
+const LARGEST_WINDOW: f32 = 16384.0;
+
+struct AnchoredScreen {
+    request: ScreenRequest,
+    placement: AnchoredPlacement,
+}
+
+fn anchored_request(
+    region: &ShownView,
+    space: &AnchorSpace,
+    screen: ScreenId,
+    view: ViewId,
+    rect: block_plugin_api::Rect,
+) -> ScreenRequest {
+    let raster = match region.raster.is_finite() && region.raster > 0.0 {
+        true => region.raster,
+        false => 1.0,
+    };
+    let per = |scale: f32| match scale.is_finite() && scale > 0.0 {
+        true => raster / scale,
+        false => raster,
+    };
+    let density = Vec2::new(per(space.to_host.scale.x), per(space.to_host.scale.y));
+    let side = |points: f32| match points.is_finite() {
+        true => points.clamp(0.0, LARGEST_WINDOW),
+        false => 0.0,
+    };
+    let (width, height) = (side(rect.width()), side(rect.height()));
+    let pixels = |points: f32, density: f32| ((points * density).ceil() as u32).max(1);
+    ScreenRequest {
+        screen,
+        instance: region.instance,
+        view,
+        placement: ViewPlacement::Anchored,
+        metrics: ViewportMetrics {
+            logical: Size { width, height },
+            visible: Pos2::ZERO,
+            pixel_width: pixels(width, density.x),
+            pixel_height: pixels(height, density.y),
+            scale_factor: density.x,
+            raster: density.x,
+        },
+        frame: None,
+        windows: false,
+        host_place: None,
+        docked: false,
+        anchor_space: Some(AnchorSpace {
+            to_host: HostTransform {
+                origin: rect.min,
+                scale: Vec2::new(1.0, 1.0),
+            },
+            bounds: space.bounds,
+        }),
+    }
+}
+
+fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size) -> ScreenRequest {
+    let side = |points: f32| match points.is_finite() {
+        true => points.clamp(1.0, LARGEST_WINDOW),
+        false => 1.0,
+    };
+    let (width, height) = (side(size.width), side(size.height));
+    let scale_factor = match region.scale_factor.is_finite() && region.scale_factor > 0.0 {
+        true => region.scale_factor,
+        false => 1.0,
+    };
+    let raster = match region.raster.is_finite() && region.raster > 0.0 {
+        true => region.raster,
+        false => scale_factor,
+    };
+    let pixels = |points: f32| ((points * raster).round() as u32).max(1);
+    ScreenRequest {
+        screen,
+        instance: region.instance,
+        view,
+        placement: ViewPlacement::Host(HostView::Window),
+        metrics: ViewportMetrics {
+            logical: Size { width, height },
+            visible: Pos2::ZERO,
+            pixel_width: pixels(width),
+            pixel_height: pixels(height),
+            scale_factor,
+            raster,
+        },
+        frame: None,
+        windows: true,
+        host_place: None,
+        docked: false,
+        anchor_space: None,
+    }
+}
+
+static NEXT_SURFACE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+pub(crate) fn new_surface() -> u32 {
+    NEXT_SURFACE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

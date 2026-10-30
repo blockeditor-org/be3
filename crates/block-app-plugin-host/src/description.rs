@@ -3,7 +3,7 @@ use std::cell::Cell;
 use beui::accesskit::Action;
 use beui::native::accessibility::Fragment;
 use beui::{ActionGroup, ActionInfo};
-use block_plugin_api::{EditorRegion, ScreenId};
+use block_plugin_api::{ScreenId, ViewPlacement};
 
 use super::runtime;
 
@@ -40,20 +40,37 @@ pub fn describe(context: &beui::native::Context) {
         let placements: Vec<_> = runtime
             .placements
             .iter()
-            .filter(|((_, region), _)| {
-                matches!(
-                    region,
-                    EditorRegion::Frame
-                        | EditorRegion::Display(_)
-                        | EditorRegion::Window(_)
-                        | EditorRegion::Tab(_)
-                )
+            .filter(|((instance, view), _)| {
+                runtime
+                    .instances
+                    .view_placement(*instance, *view)
+                    .is_some_and(ViewPlacement::reports)
             })
             .map(|((instance, region), placed)| {
-                (*instance, *region, placed.rect, placed.clip, placed.zoom)
+                (
+                    *instance,
+                    *region,
+                    placed.rect,
+                    placed.clip,
+                    placed.zoom,
+                    false,
+                )
             })
             .collect();
-        for (instance, region, rect, clip, zoom) in placements {
+        let anchored: Vec<_> = placements
+            .iter()
+            .flat_map(|(instance, region, ..)| {
+                runtime
+                    .instances
+                    .anchored_views(*instance, *region)
+                    .into_iter()
+                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, true))
+            })
+            .collect();
+        for (instance, region, rect, clip, zoom, anchored) in placements.into_iter().chain(anchored)
+        {
+            let title =
+                (!anchored && !super::docks::is_bar(instance, region.0)).then_some(name.as_str());
             let Some(described) = runtime.instances.described(instance, region) else {
                 continue;
             };
@@ -67,12 +84,8 @@ pub fn describe(context: &beui::native::Context) {
                     Some(request)
                 })
                 .collect();
-            let overlay = match region {
-                EditorRegion::Window(window) => super::is_overlay(&plugin, instance, window),
-                _ => false,
-            };
             let fragment = described.tree.fragment(
-                (!overlay).then_some(name.as_str()),
+                title,
                 rect.intersect(clip),
                 rect.min.to_vec2(),
                 zoom,

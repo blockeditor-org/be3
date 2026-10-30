@@ -13,6 +13,7 @@ mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_back_slide_carries_its_page_away_and_brings_the_next_one_in;
 mod a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped;
 mod a_backdrop_drag_expands_an_unscrolled_half_open_sheet;
+mod a_bare_dock_pane_draws_no_tab_bar;
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_break_in_rich_text_ends_the_line_but_holds_no_bytes;
@@ -41,6 +42,7 @@ mod a_catcher_that_declines_a_press_declines_the_embed_inside_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
+mod a_centred_dialog_stays_in_its_region_given_a_layer_space;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_change_inside_a_turned_child_still_paints_turned;
 mod a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt;
@@ -73,9 +75,11 @@ mod a_container_in_a_zoomed_canvas_item_answers_with_its_unzoomed_size;
 mod a_containers_content_reads_the_context_its_caller_provides;
 mod a_context_menu_as_tall_as_the_window_allows_shows_every_item;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
+mod a_context_menu_near_the_edge_of_its_region_escapes_into_its_layer_space;
 mod a_context_menu_opens_at_the_press_when_measurement_comes_late;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
 mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
+mod a_context_menu_without_a_layer_space_stays_in_its_window;
 mod a_copyable_text_input_copies_from_its_button_without_selecting;
 mod a_covering_picture_paints_only_the_part_inside_its_frame;
 mod a_crowded_dock_tab_bar_scrolls_rather_than_spilling;
@@ -87,8 +91,10 @@ mod a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it;
 mod a_dialog_of_a_dock_dialog_stacks_over_it;
 mod a_dialog_opened_by_a_finger_is_a_sheet_and_by_a_pen_a_card;
 mod a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes;
+mod a_dialog_opened_from_a_menu_row_hangs_from_what_the_menu_was_opened_on;
 mod a_dialog_opens_in_the_middle_and_escape_dismisses_it;
 mod a_dialog_taller_than_the_screen_stays_on_it_and_scrolls;
+mod a_dialog_with_nothing_to_point_at_opens_at_the_top_of_its_frame_and_a_large_one_centres_on_it;
 mod a_dialogs_scrim_dims_what_comes_after_it_in_the_tree;
 mod a_disabled_action_ignores_its_shortcut_and_disables_its_button;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
@@ -97,13 +103,9 @@ mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
 mod a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu;
-mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
-mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
-mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
-mod a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window;
-mod a_dock_card_closes_on_a_press_on_its_tab_when_asked;
-mod a_dock_card_reaches_past_its_pane_and_holds_only_its_tab;
-mod a_dock_card_stays_inside_a_small_window;
+mod a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it;
+mod a_dock_bar_sits_at_each_placement_of_its_pane;
+mod a_dock_bars_grip_menu_moves_it_without_dragging;
 mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
@@ -251,6 +253,7 @@ mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_tool
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_again;
+mod a_menu_from_a_zoomed_out_window_escapes_at_full_size;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
 mod a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
@@ -304,6 +307,7 @@ mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_rel
 mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
 mod a_popover_opens_beside_its_trigger_when_measurement_comes_late;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
+mod a_popovers_beak_survives_its_reach_going_away_and_back;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
@@ -319,6 +323,7 @@ mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_released_in_the_frame_it_began_drags_once_where_it_was;
+mod a_press_sent_to_an_escaped_layer_reaches_the_row_under_it;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still;
@@ -333,6 +338,7 @@ mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_release_that_moves_the_simulated_screens_edge_resizes_it_to_it;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
+mod a_resized_dock_lays_its_panes_out_for_the_new_size_in_the_same_frame;
 mod a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
@@ -370,6 +376,7 @@ mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_selection_in_a_virtual_list_clamps_when_its_rows_are_removed;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
+mod a_sheet_escapes_attached_to_the_bottom_of_its_layer_space;
 mod a_sheet_is_never_taller_than_what_it_holds;
 mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
@@ -391,6 +398,8 @@ mod a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
+mod a_small_dialog_opened_from_a_control_hangs_from_it_as_a_card;
+mod a_small_dialog_points_at_the_tab_it_is_handed_or_when_its_control_is_gone;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_split_divider_takes_presses_only_in_its_gap;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
@@ -404,6 +413,7 @@ mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
+mod a_submenu_escapes_as_a_layer_nested_in_its_menu;
 mod a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it;
@@ -427,6 +437,7 @@ mod a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_area_without_find_leaves_ctrl_f_to_the_app;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
+mod a_text_input_that_selects_on_focus_selects_text_that_arrives_after_it_is_focused;
 mod a_text_of_spans_takes_its_alignment_and_line_height;
 mod a_text_with_breaks_draws_its_lines_apart_but_keeps_its_text_whole;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
@@ -437,6 +448,7 @@ mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_toast_goes_away_when_dismissed_or_when_its_time_is_up;
 mod a_toast_with_actions_reports_them_and_stays_until_answered;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
+mod a_tooltip_escapes_its_region_and_takes_no_input;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
@@ -512,6 +524,7 @@ mod an_embed_that_appears_in_a_rastered_window_is_placed_at_its_raster;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_error_toast_stays_until_it_is_dismissed;
+mod an_escaped_overlay_under_a_moved_opener_is_described_where_it_is_shown;
 mod an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there;
 mod an_icon_in_rich_text_takes_room_and_spacing_but_no_bytes;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
@@ -556,6 +569,7 @@ mod arrows_pick_which_emoji_the_menu_inserts;
 mod autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it;
 mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
+mod bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_shown_last;
 mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod breaking_anywhere_wraps_monospace_text_every_column;
 mod changing_a_filter_damages_only_the_region_it_covers;
@@ -603,6 +617,7 @@ mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
 mod ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it;
 mod ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
+mod dismissing_an_escaped_layer_asks_it_to_close_as_a_press_outside_does;
 mod disposing_a_scope_removes_the_nodes_it_owns;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
 mod dock_tabs_moved_into_a_sidebar_stack_beside_the_panel;
@@ -613,6 +628,7 @@ mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
+mod dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window;
 mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
 mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
 mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
@@ -2799,178 +2815,6 @@ impl Intaken {
     }
 }
 
-const CARD: u64 = 10;
-const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
-
-struct CardDock {
-    document: Document,
-    layout: dock::unstyled::DockingLayout<u64>,
-    pressed: Signal<Vec<u64>>,
-    built: Signal<u32>,
-    attended: ReadSignal<Vec<u64>>,
-    open: Signal<bool>,
-    anchor: Signal<Option<Rect>>,
-}
-
-#[component]
-fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
-    built.update(|built| *built += 1);
-    if let Some(tab) = dock::unstyled::use_dock_tab() {
-        let called = crate::reactive::create_memo(move || tab.attention());
-        crate::reactive::create_effect(move || {
-            if called.get().is_some() {
-                attended.update(|attended| attended.push(CARD));
-            }
-        });
-    }
-    view! {
-        <Interactive focusable=true @test_id="card.field">
-            <Frame width=120.0 height=40.0 />
-        </Interactive>
-    }
-}
-
-#[component]
-fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
-    view! {
-        <Interactive
-            focusable=true
-            @test_id={format!("content.{owner}")}
-            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
-        >
-            <Frame />
-        </Interactive>
-    }
-}
-
-fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, true, 1)
-}
-
-fn anchored_card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, false, 1)
-}
-
-fn side_card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, true, 3)
-}
-
-fn anchored_side_card_dock(dismiss_on_outside_press: bool) -> CardDock {
-    dock_with_card(dismiss_on_outside_press, false, 3)
-}
-
-fn open_anchored(
-    harness: &mut Harness,
-    signals: (Signal<Option<Rect>>, Signal<bool>),
-    place: impl Fn(Rect) -> Rect,
-) -> Rect {
-    open_anchored_in(harness, signals, "content.1", place)
-}
-
-fn open_anchored_in(
-    harness: &mut Harness,
-    (anchor, open): (Signal<Option<Rect>>, Signal<bool>),
-    panel: &str,
-    place: impl Fn(Rect) -> Rect,
-) -> Rect {
-    harness.frame(Vec::new());
-    let panel = harness.rect(harness.find(panel));
-    let rect = place(panel);
-    anchor.set(Some(rect));
-    open.set(true);
-    harness.frame(Vec::new());
-    harness.frame(Vec::new());
-    rect
-}
-
-fn beak(output: &crate::native::FrameOutput) -> Option<Pos2> {
-    output
-        .main()
-        .shapes()
-        .into_iter()
-        .find_map(|shape| match shape {
-            crate::painter::Shape::Rect { rotation, .. }
-                if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
-            {
-                Some(rotation.pivot)
-            }
-            _ => None,
-        })
-}
-
-fn dims(output: &crate::native::FrameOutput, panel: Rect) -> bool {
-    output.main().shapes().into_iter().any(|shape| match shape {
-        crate::painter::Shape::Rect { rect, color, .. } => {
-            let [red, green, blue, alpha] = color.to_array();
-            rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0
-        }
-        _ => false,
-    })
-}
-
-fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -> CardDock {
-    let pressed = create_signal(Vec::new());
-    let built = create_signal(0);
-    let attended = create_signal(Vec::new());
-    let open = create_signal(open_now);
-    let anchor = create_signal(None::<Rect>);
-    let layout = dock::unstyled::DockingLayout::new();
-    let document = build_node(move || {
-        let cards = crate::reactive::create_memo(move || match open.get() {
-            true => vec![CARD],
-            false => Vec::new(),
-        });
-        view! {
-            <dock::styled::Docking layout>
-                <dock::unstyled::DockSplit id="root" fraction=0.3>
-                    <dock::unstyled::DockPane id="left">
-                        <dock::unstyled::DockTab id=4_u64 title="Left">
-                            <PressPanel owner=4 pressed />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                    <dock::unstyled::DockSplit id="rest" fraction=0.5>
-                        <dock::unstyled::DockPane id="tabs">
-                            <ForEach keys={vec![1_u64, 2]}>|id: u64|
-                                <dock::unstyled::DockTab id title={format!("Tab {id}")}>
-                                    <PressPanel owner=id pressed />
-                                </dock::unstyled::DockTab>
-                            </ForEach>
-                        </dock::unstyled::DockPane>
-                        <dock::unstyled::DockPane id="side">
-                            <dock::unstyled::DockTab id=3_u64 title="Side">
-                                <PressPanel owner=3 pressed />
-                            </dock::unstyled::DockTab>
-                        </dock::unstyled::DockPane>
-                    </dock::unstyled::DockSplit>
-                </dock::unstyled::DockSplit>
-                <ForEach keys={cards}>|id: u64|
-                    <dock::unstyled::DockDialog
-                        id
-                        parent
-                        title="Card"
-                        size=CARD_SIZE
-                        presentation=dock::unstyled::DockDialogPresentation::Card
-                        anchor
-                        dismiss_on_outside_press
-                        on_close={move || open.set(false)}
-                    >
-                        <CardBody built attended />
-                    </dock::unstyled::DockDialog>
-                </ForEach>
-            </dock::styled::Docking>
-        }
-    });
-    CardDock {
-        document,
-        layout,
-        pressed,
-        built,
-        attended: attended.read_only(),
-        open,
-        anchor,
-    }
-}
-
 pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 
 struct SpaceScreen;
@@ -3135,4 +2979,92 @@ impl InSpace {
         self.frame([button(to, false)]);
         self.settle();
     }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BarDock {
+    pub(crate) layout: dock::unstyled::DockingLayout<u64>,
+    pub(crate) shown: Signal<Vec<u64>>,
+}
+
+#[component]
+fn TestToolBar() -> NodeId {
+    let bar = dock::unstyled::use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    view! {
+        <Frame @test_id="bar.9">
+            <List direction={direction} spacing=4.0>
+                <dock::styled::DockBarGrip />
+                <Frame width=24.0 height=24.0 />
+                <Frame width=24.0 height=24.0 />
+                <Frame width=24.0 height=24.0 />
+            </List>
+        </Frame>
+    }
+}
+
+pub(crate) fn bar_dock(
+    placement: dock::unstyled::DockBarPlacement,
+    bare: bool,
+) -> (Document, BarDock) {
+    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout};
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let layout = DockingLayout::new();
+        let shown = create_signal(vec![1u64]);
+        handle.set(Some(BarDock { layout, shown }));
+        view! {
+            <dock::styled::Docking layout focus=1u64>
+                <DockSplit id="root" fraction=0.6>
+                    <DockPane id="stage" bare>
+                        <ForEach keys={shown}>|id: u64|
+                            <DockTab id title={format!("Tab {id}")}>
+                                <Frame @test_id={format!("content.{id}")} />
+                            </DockTab>
+                        </ForEach>
+                    </DockPane>
+                    <DockPane id="side">
+                        <DockTab id=2u64 title="Side">
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+                <DockBar id=9u64 parent=1u64 placement>
+                    <TestToolBar />
+                </DockBar>
+            </dock::styled::Docking>
+        }
+    });
+    (document, built.get().expect("the dock was built"))
+}
+
+pub(crate) const LAYER_SPACE: crate::LayerSpace = crate::LayerSpace {
+    to_host: crate::HostTransform {
+        origin: pos2(200.0, 100.0),
+        scale: Vec2::splat(1.0),
+    },
+    bounds: Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 700.0)),
+};
+
+pub(crate) fn give_layer_space(harness: &mut Harness) {
+    harness
+        .context()
+        .set_layer_space(WindowId::MAIN, Some(LAYER_SPACE));
+    harness.frame(Vec::new());
+}
+
+pub(crate) fn press_secondary(harness: &mut Harness, pos: Pos2) {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
+        pos,
+        button: PointerButton::Secondary,
+        pressed: true,
+    }]);
+    harness.frame(vec![Input::PointerButton {
+        pos,
+        button: PointerButton::Secondary,
+        pressed: false,
+    }]);
+    harness.frame(Vec::new());
 }

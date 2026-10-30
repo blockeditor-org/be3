@@ -11,8 +11,8 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
         &EditorHost::default(),
         Windowed::new(move |id| {
             let heard = Rc::clone(&heard);
-            match id.region {
-                EditorRegion::Frame => view! {
+            match id.view.is_main() {
+                true => view! {
                     <Window
                         size={vec2(200.0, 100.0)}
                         on_report={move |report: WindowReport| heard.borrow_mut().push(report)}
@@ -43,33 +43,31 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
     });
     let opened = opened.expect("the window is asked of the host");
     assert_eq!(
+        (opened.opener.view, opened.placement.clone(), opened.size,),
         (
-            opened.opener.region,
-            opened.placement.clone(),
-            opened.size,
-            opened.role
-        ),
-        (
-            EditorRegion::Frame,
+            ViewId::MAIN,
             block_plugin_api::WindowPlacement::AtPointer,
             block_plugin_api::Size {
                 width: 200.0,
                 height: 100.0
             },
-            block_plugin_api::WindowRole::Normal
         ),
         "from the region it was opened in, at the pointer, at its size, with its role"
     );
     let mut window = whole(200.0, 100.0);
-    window.region = EditorRegion::Window(opened.window);
+    window.view = block_editor_plugin::View::window(opened.view);
     window.windows = true;
-    window.placement = Some("desktop 10 20".to_owned());
+    window.host_place = Some("desktop 10 20".to_owned());
     surface.frame(&[frame.clone(), window.clone()]);
     surface.frame(&[frame.clone(), window.clone()]);
     let shown = surface
         .window(window.id())
         .expect("the host's window region shows the app's window");
-    assert_eq!(shown.raw(), opened.window, "the very window it asked for");
+    assert_eq!(
+        window_view(shown),
+        opened.view,
+        "the very window it asked for"
+    );
     assert!(
         reports.borrow().iter().any(|report| matches!(
             report,

@@ -42,6 +42,7 @@ pub(crate) struct Surfaces {
     panes: Panes,
     layout: ScreenLayout,
     fresh: HashSet<u32>,
+    relaid: bool,
 }
 
 impl Surfaces {
@@ -61,11 +62,16 @@ impl Surfaces {
             panes: Panes::default(),
             layout: ScreenLayout::default(),
             fresh: HashSet::new(),
+            relaid: false,
         })
     }
 
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
+    }
+
+    pub(crate) fn take_relaid(&mut self) -> bool {
+        std::mem::take(&mut self.relaid)
     }
 
     pub(crate) fn place(&mut self, layout: ScreenLayout) {
@@ -115,6 +121,10 @@ impl Surfaces {
         );
         let repaint = ran.repaint;
         let animating = ran.animating;
+        if !self.layout.same_placements(screens.layout()) {
+            self.place(screens.layout().clone());
+            self.relaid = true;
+        }
         let mut presented = None;
         if let Some((gpu, format)) = &self.gpu
             && !ran.painting.is_empty()

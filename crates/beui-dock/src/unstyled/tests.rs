@@ -2,6 +2,9 @@ use super::*;
 use crate::unstyled::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use beui_view::types::Direction;
 
+mod a_bar_keeps_its_placement_wherever_its_tab_goes;
+mod a_bare_pane_shows_its_one_tab_and_takes_no_other;
+mod a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane;
 mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;
 mod a_group_cannot_be_dropped_inside_itself;
 mod a_group_left_with_one_tab_becomes_that_tab_again;
@@ -28,6 +31,7 @@ mod a_spec_seeds_the_layout_it_describes;
 mod a_split_divides_its_area_between_the_panes_and_the_handle;
 mod a_split_follows_the_code_until_the_user_moves_it;
 mod a_split_leaves_each_pane_room_for_its_tab_bar;
+mod a_subtree_names_where_its_moved_out_tabs_went_and_grafting_puts_them_back;
 mod a_tab_closed_out_of_the_way_hands_its_visits_to_the_tab_it_was_reached_from;
 mod a_tab_closed_while_switching_leaves_the_switch;
 mod a_tab_declared_in_a_window_that_is_not_open_opens_the_window;
@@ -35,11 +39,14 @@ mod a_tab_declared_later_in_a_locked_pane_is_locked_to_its_area;
 mod a_tab_declared_later_joins_its_pane_after_its_declared_neighbour;
 mod a_tab_dropped_on_another_tab_bar_lands_at_the_place_it_was_dropped;
 mod a_tab_hosting_a_dock_becomes_a_pinned_group_in_its_place;
+mod a_tab_hosting_one_bare_pane_stays_locked_in_its_area;
 mod a_tab_of_an_unlocked_area_goes_anywhere_and_locks_again_once_home;
 mod a_tab_whose_pane_is_gone_joins_the_nearest_open_tab;
 mod a_tab_with_no_open_neighbour_floats_in_a_window;
 mod a_tree_read_from_one_state_rebuilds_the_same_layout_in_another;
 mod an_undeclared_tab_is_closed_and_the_one_shown_before_it_takes_its_place;
+mod bars_of_one_key_share_one_window_that_follows_the_tab_shown_last;
+mod bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in;
 mod cancelling_a_switch_leaves_the_tab_that_was_shown;
 mod closing_the_last_tab_of_a_window_closes_the_window;
 mod dropping_a_tab_onto_another_tab_groups_them;
@@ -64,6 +71,7 @@ fn pane_spec(key: &str) -> DockSpecPane {
         sidebar: SIDEBAR_WIDTH,
         keep: false,
         locked: false,
+        bare: false,
     }
 }
 

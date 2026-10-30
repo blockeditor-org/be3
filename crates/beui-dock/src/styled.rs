@@ -4,28 +4,29 @@ mod stack;
 mod switch;
 
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_components_styled::sheet::ModalSheet;
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockEntry, DockMode, DockNode, DockPane, DockSlot, DockSplit, DockTab,
-    DockWindow, DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_tab,
+    DockAlign, DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument,
+    DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode,
+    DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot, TabId,
+    dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
-    DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle, DockStackHandle,
-    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle,
+    DockDialogHandle, DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle,
+    DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
-use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_components_styled::tool_pill::{BAND_FILL, ToolPill};
 use beui_components_styled::tooltip::Tooltip;
+use beui_components_styled::{Length, List, Separator};
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
 use beui_view::primitives::{Drawing, Interactive};
@@ -35,6 +36,8 @@ use beui_view::types::{Align, Direction, ItemSize, Justify};
 use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
 use std::rc::Rc;
 
+use beui_components_styled::menu_button::MenuButton;
+use beui_components_unstyled::menu::MenuNodes;
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -43,7 +46,8 @@ use beui_view::types::Modifiers;
 use beui_view::types::Sides;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE,
+    ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -56,6 +60,7 @@ const BAR_HEIGHT: f32 = 39.0;
 const ROOMY_BAR: f32 = 400.0;
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
+const BAR_MARGIN: Space = Space::Md;
 const GRIP_WIDTH: Size = Size::Xs;
 const ICON_SIDEBAR: f32 = TAB_HEIGHT.px() + 2.0 * BAR_PADDING.px();
 const PREVIEW_PADDING: Space = Space::Md;
@@ -95,11 +100,11 @@ where
 {
     let mode = layout.mode();
     let theme = use_theme();
-    let dialog_scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
     let back_shade = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
+    let through = dock::dock_shows_through();
     let fill = create_memo(move || match mode.get() {
-        DockMode::Tiled => ColorRole::None,
-        DockMode::Stacked => ColorRole::Background,
+        DockMode::Stacked if !through.get() => ColorRole::Background,
+        DockMode::Tiled | DockMode::Stacked => ColorRole::None,
     });
     view! {
         <dock::Docking
@@ -134,15 +139,8 @@ where
                 <DockSwitchPanel handle />
             }}
             dialog_chrome={move |handle: DockDialogHandle| view! {
-                <DockDialogFace handle />
+                <DockWindowFace handle />
             }}
-            dialog_sheet={move |handle: DockSheetHandle| view! {
-                <DockDialogSheet handle />
-            }}
-            dialog_scrim={dialog_scrim}
-            dialog_margin=CARD_MARGIN
-            dialog_gap=CARD_GAP
-            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -161,6 +159,13 @@ where
             }}
             highlight={move || view! {
                 <DockDropHighlight />
+            }}
+            bar_margin={BAR_MARGIN.px()}
+            bar_target={move |handle: DockBarTargetHandle| view! {
+                <DockBarTargetFace handle />
+            }}
+            bar_band={move |handle: DockBarBandHandle| view! {
+                <DockBarBandFace handle />
             }}
             refused={move || view! {
                 <DockDropRefused />
@@ -223,9 +228,9 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         vertical,
         icons_only,
         host,
+        grouped,
         ..
     } = handle;
-    let grouped = matches!(entry, Entry::Group(_));
     let noticed = create_memo(move || notice.with(Option::is_some));
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
@@ -487,28 +492,6 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     }
 }
 
-#[component]
-fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
-    match handle.presentation {
-        DockDialogPresentation::Window => view! {
-            <DockWindowFace handle />
-        },
-        DockDialogPresentation::Card => view! {
-            <DockCardFace handle />
-        },
-    }
-}
-
-#[component]
-fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
-    let DockSheetHandle {
-        open, close, body, ..
-    } = handle;
-    view! {
-        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
-    }
-}
-
 fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Border>> {
     create_memo(move || {
         let color = match (attention.get(), focused.get()) {
@@ -518,20 +501,6 @@ fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Bor
         };
         Some(Border::new(color).width(CHROME_STROKE))
     })
-}
-
-#[component]
-fn DockCardFace(handle: DockDialogHandle) -> NodeId {
-    let DockDialogHandle {
-        focused,
-        attention,
-        pointer,
-        body,
-        ..
-    } = handle;
-    view! {
-        <DockCard focused attention={create_memo(move || attention.get())} pointer>{body}</DockCard>
-    }
 }
 
 pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
@@ -986,6 +955,124 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
             <Frame fill={line} />
         </Frame>
+    }
+}
+
+#[component]
+fn DockBarTargetFace(handle: DockBarTargetHandle) -> NodeId {
+    let DockBarTargetHandle { placement, active } = handle;
+    let fill = create_memo(move || match active.get() {
+        true => ColorRole::Accent,
+        false => ColorRole::SurfaceRaised,
+    });
+    let border = create_memo(move || match active.get() {
+        true => Some(Border::FOCUS),
+        false => Some(Border::DEFAULT),
+    });
+    let marker = match placement {
+        DockBarPlacement::Window { .. } => String::new(),
+        placement => format!("dock.bar.target.{}", placement.name()),
+    };
+    view! {
+        <Frame @test_id={marker} fill={fill} border={border} radius=Radius::Sm />
+    }
+}
+
+#[component]
+fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
+    let DockBarBandHandle { edge, body } = handle;
+    let along = edge.direction();
+    let across = match along {
+        Direction::Horizontal => Direction::Vertical,
+        Direction::Vertical => Direction::Horizontal,
+    };
+    let held = view! {
+        <Frame>{body}</Frame>
+    };
+    let line = view! {
+        <Separator direction=along length=Length::FILL />
+    };
+    let parts = match edge {
+        DockEdge::Top | DockEdge::Left => [held, line],
+        DockEdge::Bottom | DockEdge::Right => [line, held],
+    };
+    let [first, second] = parts;
+    view! {
+        <Frame fill=BAND_FILL @test_id={format!("dock.bar.band.{}", edge.name())}>
+            <List direction=across spacing=Space::None>{first}{second}</List>
+        </Frame>
+    }
+}
+
+#[component]
+pub fn DockBarSurface(
+    #[prop(default = Space::Xs2)] spacing: Prop<Space>,
+    children: Children<ListChild>,
+) -> NodeId {
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    let band = create_memo(move || {
+        bar.is_some_and(|bar| matches!(bar.placement(), DockBarPlacement::Beside(_)))
+    });
+    view! {
+        <ToolPill direction={direction} band={band} spacing={spacing} children />
+    }
+}
+
+#[component]
+pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> NodeId {
+    let Some(control) = control.or_else(use_dock_bar) else {
+        return view! {
+            <Frame />
+        };
+    };
+    let pressed = StoredCell::new(None::<PointerPress>);
+    let moved = StoredCell::new(false);
+    let glyph = create_memo(move || match control.direction() {
+        Direction::Horizontal => ICON_GRIP_VERTICAL,
+        Direction::Vertical => ICON_GRIP_HORIZONTAL,
+    });
+    let menu = control.menu();
+    view! {
+        <Interactive
+            cursor=beui_view::types::CursorIcon::Grab
+            on_press={move |press: PointerPress| {
+                pressed.set(Some(press));
+                moved.set(false);
+            }}
+            on_drag={move |press: PointerPress| {
+                let Some(down) = pressed.get() else {
+                    return;
+                };
+                if moved.get() {
+                    control.begin_move(press);
+                } else if (press.pos - down.pos).length() >= beui_components_unstyled::DRAG_THRESHOLD {
+                    moved.set(true);
+                    control.begin_move(down);
+                    control.begin_move(press);
+                }
+            }}
+            on_active_change={move |active: bool| {
+                if !active {
+                    pressed.set(None);
+                    moved.set(false);
+                    control.end_move();
+                }
+            }}
+        >
+            <MenuButton
+                @test_id={format!("dock.bar.{}.grip", control.bar().value())}
+                label="Move toolbar"
+                glyph={create_memo(move || Some(glyph.get()))}
+                icon_only=true
+                arrow=false
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Toolbar
+                items={view! {
+                    <MenuNodes nodes={menu} test_prefix={"grip".to_owned()} />
+                }}
+            />
+        </Interactive>
     }
 }
 

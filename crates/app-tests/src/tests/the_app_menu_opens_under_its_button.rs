@@ -24,5 +24,14 @@ fn the_app_menu_opens_under_its_button() {
     app.snapshot("the_app_menu_opens_under_its_button");
     app.key("Escape");
     app.gone("#app.menu.status");
+
+    app.click(button);
+    app.wait("#app.menu.status");
+    app.click("Tab \"Settings\"");
+    app.gone("#app.menu.status");
+    assert!(
+        app.shown("Tab \"Settings\" selected"),
+        "a press outside the menu closes it and goes on to what it landed on"
+    );
     app.close();
 }

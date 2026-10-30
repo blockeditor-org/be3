@@ -1,3 +1,4 @@
+use beui::dock::unstyled::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -181,9 +182,9 @@ pub enum SubregionContent {
     Picker {
         filter: BlockFilter,
         parent: BlockParent,
-        touch: bool,
     },
     DockTab(block_plugin_api::DockTabPath),
+    Rename(Uuid),
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -211,16 +212,12 @@ impl SubregionContent {
             Self::ArtifactSettings { block } => ChildContent::ArtifactSettings {
                 block_id: block.into_bytes(),
             },
-            Self::Picker {
-                filter,
-                parent,
-                touch,
-            } => ChildContent::Picker {
+            Self::Picker { filter, parent } => ChildContent::Picker {
                 filter: filter.clone(),
                 parent: parent.encode(),
-                touch: *touch,
             },
             Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
+            Self::Rename(block) => ChildContent::Rename(block.into_bytes()),
         }
     }
 }
@@ -296,6 +293,7 @@ struct ChildRecord {
     zone: u64,
     dock_tab: Option<u64>,
     docks: bool,
+    tab: Option<DockTabControl>,
 }
 
 type Revision = OwnedSignal<u64>;
@@ -408,6 +406,7 @@ impl OwnedEditor {
         let scale = create_signal(1.0_f32);
         let chrome = create_signal(true);
         let placed_content = create_signal(None::<Rect>);
+        let frame_anchor = create_signal(None::<Rect>);
         let editable = create_signal(host.editable());
         let presenting = create_signal(false);
         let drag = create_signal(None::<Drag>);
@@ -417,7 +416,9 @@ impl OwnedEditor {
         let revealed = create_signal(None::<u64>);
         let files = create_signal(None::<FileDrop>);
         let placed = create_signal(Rect::ZERO);
+        let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
+        let popped = create_signal(None::<crate::popover::Popped>);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
@@ -431,6 +432,7 @@ impl OwnedEditor {
             scale,
             chrome,
             placed_content,
+            frame_anchor,
             editable,
             presenting,
             drag,
@@ -449,7 +451,9 @@ impl OwnedEditor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             picking,
+            popped,
             next_pick: Cell::new(0),
+            picker_size: Cell::new(None),
             fitted: Cell::new(None),
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
@@ -459,6 +463,7 @@ impl OwnedEditor {
             watches: RefCell::default(),
             files,
             placed,
+            frame_children,
         });
         Self {
             editor: Editor(state.handle()),
@@ -495,6 +500,7 @@ struct EditorState {
     scale: Signal<f32>,
     chrome: Signal<bool>,
     placed_content: Signal<Option<Rect>>,
+    frame_anchor: Signal<Option<Rect>>,
     editable: Signal<bool>,
     presenting: Signal<bool>,
     drag: Signal<Option<Drag>>,
@@ -513,7 +519,9 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     picking: Signal<Option<crate::picking::Picking>>,
+    popped: Signal<Option<crate::popover::Popped>>,
     next_pick: Cell<u64>,
+    picker_size: Cell<Option<Vec2>>,
     fitted: Cell<Option<NodeRef>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
@@ -523,6 +531,7 @@ struct EditorState {
     watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
+    frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
 }
 
 impl Editor {
@@ -872,6 +881,10 @@ impl Editor {
         self.state().placed_content.read_only()
     }
 
+    pub fn frame_anchor(&self) -> ReadSignal<Option<Rect>> {
+        self.state().frame_anchor.read_only()
+    }
+
     pub fn presenting(&self) -> ReadSignal<bool> {
         self.state().presenting.read_only()
     }
@@ -956,6 +969,84 @@ impl Editor {
         )));
     }
 
+    pub fn rename_block(&self, block: Uuid, anchor: impl Into<crate::PickAnchor>) {
+        self.pop(crate::popover::Asked::Rename(block), anchor.into());
+    }
+
+    pub fn show_app_menu(&self, anchor: impl Into<crate::PickAnchor>) {
+        self.pop(crate::popover::Asked::AppMenu, anchor.into());
+    }
+
+    fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {
+        let state = self.state();
+        let serial = state.next_pick.get() + 1;
+        state.next_pick.set(serial);
+        let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
+        state.popped.set(Some(crate::popover::Popped {
+            serial,
+            asked,
+            anchor,
+            touch,
+        }));
+    }
+
+    pub(crate) fn popped(&self) -> ReadSignal<Option<crate::popover::Popped>> {
+        self.state().popped.read_only()
+    }
+
+    pub(crate) fn close_popped(&self, serial: u64) {
+        let popped = self.state().popped;
+        if popped.with_untracked(|popped| popped.is_some_and(|popped| popped.serial == serial)) {
+            popped.set(None);
+        }
+    }
+
+    pub(crate) fn frame_child_menu(&self) -> Option<Memo<Vec<MenuNode>>> {
+        self.state()
+            .frame_children
+            .with(|held| held.last().map(|(_, menu)| *menu))
+    }
+
+    pub(crate) fn hold_frame_child_menu(&self, key: u64, menu: Option<Memo<Vec<MenuNode>>>) {
+        let Some(state) = self.0.try_value() else {
+            return;
+        };
+        let held = state.frame_children;
+        if !held.is_alive() {
+            return;
+        }
+        let present = held.with_untracked(|held| held.iter().any(|(at, _)| *at == key));
+        match menu {
+            Some(menu) if !present => held.update(|held| held.push((key, menu))),
+            None if present => held.update(|held| held.retain(|(at, _)| *at != key)),
+            _ => {}
+        }
+    }
+
+    pub(crate) fn content_window(&self) -> Option<beui::WindowId> {
+        let node = self
+            .state()
+            .content
+            .borrow()
+            .as_ref()
+            .and_then(|(node, _)| node.try_get());
+        try_with_document(|document| node.map(|node| document.window_of(node)))
+            .flatten()
+            .or_else(|| {
+                use_context::<crate::popover::PopoverWindow>()?
+                    .0
+                    .get_untracked()
+            })
+    }
+
+    pub(crate) fn picker_size(&self) -> Option<Vec2> {
+        self.state().picker_size.get()
+    }
+
+    pub(crate) fn remember_picker_size(&self, size: Vec2) {
+        self.state().picker_size.set(Some(size));
+    }
+
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
         self.state().picking.read_only()
     }
@@ -990,6 +1081,7 @@ impl Editor {
         focus: Callback<()>,
         dock_tab: Option<u64>,
         docks: bool,
+        tab: Option<DockTabControl>,
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
@@ -1016,6 +1108,7 @@ impl Editor {
                 zone: document_zone(),
                 dock_tab,
                 docks,
+                tab,
             }),
         ));
         let editor = self.0;
@@ -1261,6 +1354,10 @@ impl Editor {
             state
                 .placed_content
                 .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
+            let anchor = state.host.frame_anchor().map(|rect| rect.scaled(ratio));
+            if state.frame_anchor.get_untracked() != anchor {
+                state.frame_anchor.set(anchor);
+            }
             state.editable.set(state.host.editable());
             state.presenting.set(state.host.presenting());
             state.drag.set(state.host.drag().map(|drag| Drag {
@@ -1402,25 +1499,50 @@ impl Editor {
         let shown = document
             .window_rect(document.window_of(node))
             .unwrap_or_else(|| document.viewport_rect());
-        Some(state.host.place_child(
-            content.wire(),
-            rect.scaled(unscale),
-            placement.clip.scaled(unscale),
-            record.mode.get_untracked(),
-            record.layer.get_untracked(),
-            record.own_frame.get_untracked(),
-            record.top_bar.get_untracked(),
-            record.rotation.get_untracked(),
-            record.opacity.get_untracked(),
-            record.intrinsic.get_untracked(),
-            document.panned_by_canvas(node),
-            record.dialog.get_untracked().map(|dialog| DialogFrame {
-                bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
-                ..dialog
-            }),
-            record.dock_tab,
-            record.docks,
-        ))
+        let escaped = document.escaped_layer_of(node);
+        let to_placed = |rect: Rect| match escaped {
+            Some((_, to_host)) => to_host.rect(rect),
+            None => rect.scaled(unscale),
+        };
+        let fills_tab =
+            record.own_frame.get_untracked() || matches!(content, SubregionContent::DockTab(_));
+        let anchor = match record.tab.filter(|_| fills_tab) {
+            None => Some(to_placed(rect)),
+            Some(tab) if untrack(|| tab.fullscreen()) => None,
+            Some(tab) => match tab.handle() {
+                Some(handle) => document.node_rect(handle).map(to_placed),
+                None => state.host.frame_anchor(),
+            },
+        };
+        let placed = || {
+            state.host.place_child(
+                content.wire(),
+                to_placed(rect),
+                to_placed(placement.clip),
+                record.mode.get_untracked(),
+                record.layer.get_untracked(),
+                record.own_frame.get_untracked(),
+                record.top_bar.get_untracked(),
+                record.rotation.get_untracked(),
+                record.opacity.get_untracked(),
+                record.intrinsic.get_untracked(),
+                document.panned_by_canvas(node),
+                record.dialog.get_untracked().map(|dialog| DialogFrame {
+                    bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
+                    ..dialog
+                }),
+                record.dock_tab,
+                record.docks,
+                anchor,
+            )
+        };
+        Some(match escaped {
+            Some((id, _)) => state.host.in_view(
+                block_plugin_api::View::anchored(beui_platform_plugin_api::anchored_view(id)),
+                placed,
+            ),
+            None => placed(),
+        })
     }
 }
 

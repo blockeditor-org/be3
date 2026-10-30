@@ -4,10 +4,11 @@ use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::{debug::debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
+    ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
+    Failure, FrameChrome, FrameCommit, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    MenuEntry, Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size,
+    TimedInput, View, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -20,8 +21,9 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region, RegionId};
+use crate::plugin::{Frame, Instance, ShownView};
 use crate::{EditorHost, Module, Waker, host::BlockDrag};
+use block_plugin_api::ViewRef;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -30,17 +32,17 @@ static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 pub struct EditorSession {
     app: Box<dyn Instance>,
     module: Module,
-    opened: HashSet<EditorRegion>,
+    opened: HashSet<ViewId>,
     instance: EditorInstanceId,
-    regions: HashMap<EditorRegion, RegionState>,
+    views: HashMap<ViewId, ViewState>,
     host: EditorHost,
     own_block: Option<Uuid>,
-    drag: Option<(EditorRegion, BlockDrag)>,
-    files: Option<(EditorRegion, crate::host::FileDrop)>,
+    drag: Option<(ViewId, BlockDrag)>,
+    files: Option<(ViewId, crate::host::FileDrop)>,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
-    sent_menu: Vec<MenuEntry>,
+    sent_menus: std::collections::BTreeMap<ViewId, Vec<MenuEntry>>,
     sent_card: bool,
     audio_watched: bool,
     docks_watched: bool,
@@ -78,7 +80,7 @@ impl ArtifactState {
 type ReportedChildren = (Vec<ChildPlacement>, Vec<Occluder>);
 
 #[derive(Default)]
-struct RegionState {
+struct ViewState {
     placement: Option<ScreenPlacement>,
     metrics: Option<ViewportMetrics>,
     frame: Option<block_plugin_api::FrameSpec>,
@@ -98,7 +100,20 @@ struct RegionState {
     age: u32,
     windows: bool,
     docked: bool,
-    placement_value: Option<String>,
+    view_placement: Option<ViewPlacement>,
+    host_place: Option<String>,
+    anchor_space: Option<AnchorSpace>,
+    anchored: Option<AnchoredPlacement>,
+}
+
+fn holds_content_anyway(state: &ViewState) -> bool {
+    !state.docked
+        && matches!(
+            state.view_placement,
+            None | Some(
+                ViewPlacement::Parent(ParentView::Main) | ViewPlacement::Host(HostView::Display(_))
+            )
+        )
 }
 
 impl Drop for EditorSession {
@@ -134,7 +149,7 @@ impl EditorSession {
             module,
             opened: HashSet::new(),
             instance,
-            regions: HashMap::new(),
+            views: HashMap::new(),
             host,
             own_block: None,
             drag: None,
@@ -142,7 +157,7 @@ impl EditorSession {
             intrinsic: None,
             aspect_ratio: None,
             artifact: None,
-            sent_menu: Vec::new(),
+            sent_menus: std::collections::BTreeMap::new(),
             sent_card: false,
             audio_watched: false,
             docks_watched: false,
@@ -152,8 +167,42 @@ impl EditorSession {
         }
     }
 
-    pub fn pick_menu(&self, id: String) {
-        self.host.push_menu_pick(id);
+    pub fn pick_menu(&self, view: ViewId, id: String, anchor: Option<Rect>) {
+        let space = self
+            .views
+            .get(&view)
+            .and_then(|state| state.anchor_space.as_ref());
+        let anchor = anchor
+            .zip(space)
+            .map(|(rect, space)| space.to_host.inverse_rect(rect));
+        self.host.push_menu_pick(view, id, anchor);
+    }
+
+    fn host_anchor(&self, view: ViewId, anchor: Option<Rect>) -> Option<Rect> {
+        let space = self.views.get(&view)?.anchor_space.as_ref()?;
+        Some(space.to_host.rect(anchor?))
+    }
+
+    fn child_anchor(&self, child: ChildId) -> Option<Rect> {
+        self.views.iter().find_map(|(view, state)| {
+            let placed = state.children.iter().find(|placed| placed.child == child)?;
+            self.host_anchor(*view, placed.anchor)
+        })
+    }
+
+    fn dock_tab_anchor(&self, child: ChildId, tab: &DockTabPath) -> Option<Rect> {
+        let mut via = vec![child];
+        via.extend(tab.via.iter().copied());
+        let shown = DockTabPath { via, tab: tab.tab };
+        self.views
+            .iter()
+            .find_map(|(view, state)| {
+                let placed = state.children.iter().find(|placed| {
+                    matches!(&placed.content, ChildContent::DockTab(path) if *path == shown)
+                })?;
+                Some(self.host_anchor(*view, placed.anchor))
+            })
+            .unwrap_or_else(|| self.child_anchor(child))
     }
 
     pub fn dismiss(&self) {
@@ -182,9 +231,21 @@ impl EditorSession {
         self.module = module.clone();
     }
 
-    fn open(&mut self, region: EditorRegion) {
-        if self.opened.insert(region) {
-            self.app.open_region(region);
+    fn open(&mut self, view: ViewId) {
+        if self.view(view).is_anchored() {
+            return;
+        }
+        if self.opened.insert(view) {
+            let view = self.view(view);
+            self.app.open_view(view);
+        }
+    }
+
+    fn view(&self, id: ViewId) -> View {
+        let placement = self.views.get(&id).and_then(|state| state.view_placement);
+        match placement {
+            Some(placement) => View { id, placement },
+            None => View::requested(id).unwrap_or(View::dock(id)),
         }
     }
 
@@ -253,11 +314,11 @@ impl EditorSession {
         self.host.set_presenting(presenting);
     }
 
-    pub(crate) fn set_drag(&mut self, drag: Option<(EditorRegion, BlockDrag)>) {
+    pub(crate) fn set_drag(&mut self, drag: Option<(ViewId, BlockDrag)>) {
         self.drag = drag;
     }
 
-    pub(crate) fn set_files(&mut self, files: Option<(EditorRegion, crate::host::FileDrop)>) {
+    pub(crate) fn set_files(&mut self, files: Option<(ViewId, crate::host::FileDrop)>) {
         self.files = files;
     }
 
@@ -271,6 +332,12 @@ impl EditorSession {
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
         self.host.set_editable(true);
         self.host.set_picker(picker);
+        self.app.connect(Uuid::nil());
+    }
+
+    pub(crate) fn connect_rename(&mut self, rename: crate::host::RenameRequest) {
+        self.host.set_editable(true);
+        self.host.set_renaming(rename);
         self.app.connect(Uuid::nil());
     }
 
@@ -312,8 +379,8 @@ impl EditorSession {
     }
 
     pub fn place(&mut self, placements: &[ScreenPlacement], requests: &[ScreenRequest]) {
-        self.regions
-            .retain(|region, _| placements.iter().any(|it| it.region == *region));
+        self.views
+            .retain(|view, _| placements.iter().any(|it| it.view == *view));
         for placement in placements {
             let Some(request) = requests
                 .iter()
@@ -321,7 +388,7 @@ impl EditorSession {
             else {
                 continue;
             };
-            let state = self.regions.entry(placement.region).or_default();
+            let state = self.views.entry(placement.view).or_default();
             if state.placement.map(|placed| placed.screen) != Some(placement.screen) {
                 state.epoch = NEXT_EPOCH.fetch_add(1, Ordering::Relaxed);
                 state.tree = None;
@@ -331,19 +398,25 @@ impl EditorSession {
             state.frame = request.frame;
             state.windows = request.windows;
             state.docked = request.docked;
-            state.placement_value.clone_from(&request.placement);
+            state.view_placement = Some(request.placement);
+            state.host_place.clone_from(&request.host_place);
+            state.anchor_space.clone_from(&request.anchor_space);
         }
     }
 
     pub fn commit(&mut self, commit: &mut FrameCommit) {
-        commit.sizes.extend(self.region_sizes());
+        commit.sizes.extend(self.view_sizes());
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
         commit.children.extend(self.children());
         commit.window_requests.append(&mut self.asks);
-        commit
-            .docks
-            .extend(self.host.take_dock_messages(self.instance));
+        let mut docks = self.host.take_dock_messages(self.instance);
+        for message in &mut docks {
+            if let DockMessage::Pick(pick) = message {
+                pick.anchor = self.dock_tab_anchor(pick.child.child, &pick.tab);
+            }
+        }
+        commit.docks.extend(docks);
         self.retain_child_statuses();
     }
 
@@ -417,13 +490,23 @@ impl EditorSession {
         for action in self.host.take_bar_actions() {
             shell::run_bar_action(instance, action);
         }
-        let menu = self.host.menu();
-        if self.sent_menu != menu {
-            shell::menu(instance, MenuEntry::flatten(&menu));
-            self.sent_menu = menu;
+        let menus = self.host.menus();
+        if self.sent_menus != menus {
+            for (view, menu) in &menus {
+                if self.sent_menus.get(view) != Some(menu) {
+                    shell::menu(instance, *view, MenuEntry::flatten(menu));
+                }
+            }
+            for view in self.sent_menus.keys() {
+                if !menus.contains_key(view) {
+                    shell::menu(instance, *view, Vec::new());
+                }
+            }
+            self.sent_menus = menus;
         }
         for (child, id) in self.host.take_child_menu_picks() {
-            shell::child_menu_pick(instance, child, id);
+            let anchor = self.child_anchor(child);
+            shell::child_menu_pick(instance, child, id, anchor);
         }
         for text in self.host.take_copied_text() {
             shell::copy_text(instance, text);
@@ -481,7 +564,7 @@ impl EditorSession {
 
     fn windows(&mut self) -> Vec<ScreenWindow> {
         let mut windows = Vec::new();
-        for state in self.regions.values_mut() {
+        for state in self.views.values_mut() {
             let Some(placement) = state.placement else {
                 continue;
             };
@@ -572,18 +655,20 @@ impl EditorSession {
     }
 
     fn report_stopped(&mut self) {
-        for (region, state) in &mut self.regions {
+        for (view, state) in &mut self.views {
             if let Some(stopped) = &state.stopped
                 && !std::mem::replace(&mut state.reported_stopped, true)
             {
-                shell::region_stopped(self.instance, *region, stopped.clone());
+                shell::view_stopped(self.instance, *view, stopped.clone());
             }
         }
     }
 
     fn frame_reports(&mut self) -> Vec<FrameReport> {
         let mut reports = Vec::new();
-        for state in self.regions.values_mut() {
+        let mut views: Vec<_> = self.views.iter_mut().collect();
+        views.sort_by_key(|(view, _)| **view);
+        for (_, state) in views {
             let Some(report) = &state.report else {
                 continue;
             };
@@ -600,9 +685,9 @@ impl EditorSession {
         reports
     }
 
-    fn region_sizes(&mut self) -> Vec<RegionSize> {
+    fn view_sizes(&mut self) -> Vec<ViewSize> {
         let mut sizes = Vec::new();
-        for state in self.regions.values_mut() {
+        for state in self.views.values_mut() {
             let (Some(placement), Some(used)) = (state.placement, state.used) else {
                 continue;
             };
@@ -610,7 +695,7 @@ impl EditorSession {
                 continue;
             }
             state.reported = Some(used);
-            sizes.push(RegionSize {
+            sizes.push(ViewSize {
                 screen: placement.screen,
                 logical: Size {
                     width: used.x,
@@ -621,8 +706,8 @@ impl EditorSession {
         sizes
     }
 
-    fn used(&mut self, region: EditorRegion, content: Rect) {
-        let Some(state) = self.regions.get_mut(&region) else {
+    fn used(&mut self, view: ViewId, content: Rect) {
+        let Some(state) = self.views.get_mut(&view) else {
             return;
         };
         let used = content.max.to_vec2().max(Vec2::ZERO);
@@ -644,7 +729,7 @@ impl EditorSession {
     fn children(&mut self) -> Vec<ChildPlacements> {
         let instance = self.instance;
         let mut messages = Vec::new();
-        for (region, state) in &mut self.regions {
+        for (view, state) in &mut self.views {
             let current = bounded(&state.children, &state.occluders);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
@@ -653,7 +738,7 @@ impl EditorSession {
             let (children, occluders) = current;
             messages.push(ChildPlacements {
                 instance,
-                region: *region,
+                view: *view,
                 children,
                 occluders,
             });
@@ -663,37 +748,37 @@ impl EditorSession {
 
     fn retain_child_statuses(&self) {
         let live: HashSet<ChildId> = self
-            .regions
+            .views
             .values()
             .flat_map(|state| state.children.iter().map(|child| child.child))
             .collect();
         self.host.retain_child_statuses(&live);
     }
 
-    fn scale_factor(&self, region: EditorRegion) -> f32 {
-        self.placement(region)
+    fn scale_factor(&self, view: ViewId) -> f32 {
+        self.placement(view)
             .map_or(1.0, |placement| placement.scale_factor())
     }
 
-    fn raster(&self, region: EditorRegion) -> f32 {
-        self.placement(region)
+    fn raster(&self, view: ViewId) -> f32 {
+        self.placement(view)
             .map_or(1.0, |placement| placement.raster())
     }
 
-    fn placement(&self, region: EditorRegion) -> Option<&ScreenPlacement> {
-        self.regions
-            .get(&region)
+    fn placement(&self, view: ViewId) -> Option<&ScreenPlacement> {
+        self.views
+            .get(&view)
             .and_then(|state| state.placement.as_ref())
     }
 
-    fn metrics(&self, region: EditorRegion) -> Option<&ViewportMetrics> {
-        let state = self.regions.get(&region)?;
+    fn metrics(&self, view: ViewId) -> Option<&ViewportMetrics> {
+        let state = self.views.get(&view)?;
         state.placement.as_ref()?;
         state.metrics.as_ref()
     }
 
-    fn rect(&self, region: EditorRegion) -> Rect {
-        self.metrics(region).map_or(Rect::ZERO, |metrics| {
+    fn rect(&self, view: ViewId) -> Rect {
+        self.metrics(view).map_or(Rect::ZERO, |metrics| {
             Rect::from_min_size(
                 Pos2::ZERO,
                 vec2(metrics.logical.width, metrics.logical.height),
@@ -701,57 +786,51 @@ impl EditorSession {
         })
     }
 
-    fn visible(&self, region: EditorRegion) -> Vec2 {
-        self.metrics(region).map_or(Vec2::ZERO, |metrics| {
+    fn visible(&self, view: ViewId) -> Vec2 {
+        self.metrics(view).map_or(Vec2::ZERO, |metrics| {
             vec2(metrics.visible.x, metrics.visible.y)
         })
     }
 
-    fn context(&self, region: EditorRegion) -> Region {
-        let state = self.regions.get(&region);
-        Region {
+    fn context(&self, view: ViewId) -> ShownView {
+        let state = self.views.get(&view);
+        let shown = self.view(view);
+        ShownView {
             instance: self.instance,
-            region,
+            view: shown,
             block: self.own_block,
-            rect: self.rect(region),
-            visible: self.visible(region),
-            scale_factor: self.scale_factor(region),
-            raster: self.raster(region),
+            rect: self.rect(view),
+            visible: self.visible(view),
+            scale_factor: self.scale_factor(view),
+            raster: self.raster(view),
             pixels: self
-                .placement(region)
+                .placement(view)
                 .map_or([0, 0], |placement| [placement.width, placement.height]),
             age: state.map_or(0, |state| state.age),
             spec: self
-                .regions
-                .get(&region)
+                .views
+                .get(&view)
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             describe: state
-                .filter(|_| {
-                    matches!(
-                        region,
-                        EditorRegion::Frame
-                            | EditorRegion::Display(_)
-                            | EditorRegion::Window(_)
-                            | EditorRegion::Tab(_)
-                    ) && crate::screens::describing()
-                })
+                .filter(|_| shown.placement.reports() && crate::screens::describing())
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
             windows: state.is_some_and(|state| state.windows),
             docked: state.is_some_and(|state| state.docked),
-            placement: state.and_then(|state| state.placement_value.clone()),
+            host_place: state.and_then(|state| state.host_place.clone()),
+            anchor_space: state.and_then(|state| state.anchor_space.clone()),
         }
     }
 
-    pub fn run(&mut self, region: EditorRegion, age: u32) -> Frame {
-        self.frame(&[(region, age)]).pop().unwrap_or_default()
+    pub fn run(&mut self, view: ViewId, age: u32) -> Frame {
+        self.frame(&[(view, age)]).pop().unwrap_or_default()
     }
 
-    pub fn frame(&mut self, regions: &[(EditorRegion, u32)]) -> Vec<Frame> {
-        let begun: Vec<Region> = regions
+    pub fn frame(&mut self, views: &[(ViewId, u32)]) -> Vec<Frame> {
+        let begun: Vec<ShownView> = views
             .iter()
-            .map(|(region, age)| self.begin(*region, *age))
+            .map(|(view, age)| self.begin(*view, *age))
             .collect();
         let module = self.module.clone();
         let mut frames = module
@@ -761,32 +840,48 @@ impl EditorSession {
         begun
             .iter()
             .zip(frames)
-            .map(|(region, frame)| self.finish(region.region, frame))
+            .map(|(view, frame)| self.finish(view.view.id, frame))
             .collect()
     }
 
-    pub fn begin(&mut self, region: EditorRegion, age: u32) -> Region {
-        self.open(region);
-        if let Some(state) = self.regions.get_mut(&region) {
+    pub fn begin(&mut self, view: ViewId, age: u32) -> ShownView {
+        self.open(view);
+        if let Some(state) = self.views.get_mut(&view) {
             state.age = age;
         }
-        let context = self.context(region);
-        self.host.begin_region(region);
-        if region == EditorRegion::Frame {
+        let context = self.context(view);
+        if !context.view.is_anchored() {
+            self.host.begin_view(view);
+        }
+        let framed = self
+            .views
+            .get(&view)
+            .is_some_and(|state| state.frame.is_some());
+        let frames = match context.view.placement {
+            ViewPlacement::Parent(ParentView::Main) => !context.docked,
+            ViewPlacement::Dock => framed,
+            _ => false,
+        };
+        if frames {
             self.host
                 .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+        }
+        if frames {
+            self.host.set_frame_anchor(context.spec.anchor);
+        }
+        if view.is_main() {
             self.host.set_placed_content(context.spec.content);
         }
         let drag = self
             .drag
-            .and_then(|(dragged, drag)| (dragged == region).then_some(drag));
-        self.host.set_drag(region, drag);
+            .and_then(|(dragged, drag)| (dragged == view).then_some(drag));
+        self.host.set_drag(view, drag);
         let files = self
             .files
             .as_ref()
-            .and_then(|(dropped, files)| (*dropped == region).then(|| files.clone()));
-        self.host.set_files(region, files);
-        if region == EditorRegion::ArtifactSettings {
+            .and_then(|(dropped, files)| (*dropped == view).then(|| files.clone()));
+        self.host.set_files(view, files);
+        if view == ViewId::ARTIFACT_SETTINGS {
             let draft = self.artifact.as_ref().map(|artifact| crate::SettingsDraft {
                 saved: artifact.data.clone(),
                 draft: artifact.draft.clone(),
@@ -796,62 +891,72 @@ impl EditorSession {
         context
     }
 
-    pub fn finish(&mut self, region: EditorRegion, mut frame: Frame) -> Frame {
-        let host = self.rect(region);
-        let draft = match region {
-            EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
+    pub fn finish(&mut self, view: ViewId, mut frame: Frame) -> Frame {
+        let host = self.rect(view);
+        let draft = match view {
+            ViewId::ARTIFACT_SETTINGS => self.host.close_settings_draft(),
             _ => None,
         };
         let delivered_drop = self
             .drag
-            .is_some_and(|(dragged, drag)| dragged == region && drag.dropped);
+            .is_some_and(|(dragged, drag)| dragged == view && drag.dropped);
         let delivered_files = self
             .files
             .as_ref()
-            .is_some_and(|(dropped, files)| *dropped == region && files.dropped);
-        if let Some(state) = self.regions.get_mut(&region)
+            .is_some_and(|(dropped, files)| *dropped == view && files.dropped);
+        if let Some(state) = self.views.get_mut(&view)
             && state.stopped.is_none()
         {
             state.stopped = frame.stopped.take();
         }
 
         self.asks.append(&mut frame.asks);
-        if let Some(delay) = self.host.take_frame_request(region) {
+        if let Some(delay) = self.host.take_frame_request(view) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
         if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
         }
-        let (placed, occluders) = self.host.end_region(region);
-        self.host.set_drag(region, None);
-        self.host.set_files(region, None);
+        let (mut placed, mut occluders) = self.host.end_view(view);
+        if let Some(anchored) = self.views.get(&view).and_then(|state| state.anchored) {
+            let from = anchored.rect.min.to_vec2();
+            for child in &mut placed {
+                child.rect = child.rect.translate(-from);
+                child.clip = child.clip.translate(-from);
+            }
+            for occluder in &mut occluders {
+                occluder.rect = occluder.rect.translate(-from);
+            }
+        }
+        self.host.set_drag(view, None);
+        self.host.set_files(view, None);
         if delivered_drop {
             self.drag = None;
         }
         if delivered_files {
             self.files = None;
         }
-        let screen = self.placement(region).map(|placement| placement.screen);
+        let screen = self.placement(view).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
-        self.used(region, content);
+        self.used(view, content);
         let reported_content = self
             .host
-            .take_content(region)
+            .take_content(view)
             .map(|reported| reported.intersect(content))
-            .filter(|reported| reported.is_positive())
-            .unwrap_or(content);
-        if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
+            .filter(|reported| reported.is_positive());
+        let reported_content = match self.views.get(&view) {
+            Some(state) if holds_content_anyway(state) => Some(reported_content.unwrap_or(content)),
+            _ => reported_content,
+        };
+        if let (Some(state), Some(screen)) = (self.views.get_mut(&view), screen) {
             state.children = placed;
             state.occluders = occluders;
             state.window = frame.window.clone();
-            let reports = matches!(
-                region,
-                EditorRegion::Frame
-                    | EditorRegion::Display(_)
-                    | EditorRegion::Window(_)
-                    | EditorRegion::Tab(_)
-            );
+            let reports = state
+                .view_placement
+                .unwrap_or(ViewPlacement::Parent(ParentView::Main))
+                .reports();
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -862,7 +967,8 @@ impl EditorSession {
             }
             state.report = reports.then(|| FrameReport {
                 screen,
-                content: reported_content,
+                content: reported_content
+                    .map(|reported| block_plugin_api::Insets::between(host, reported)),
                 painted: frame.painted.clone(),
                 floating: frame.floating.clone(),
                 floating_painted: frame.floating_painted.clone(),
@@ -882,25 +988,36 @@ impl EditorSession {
                         actions: description.actions.clone(),
                     }
                 }),
+                anchored: state.anchored,
             });
         }
         frame
     }
 
-    fn id(&self, region: EditorRegion) -> RegionId {
-        RegionId {
-            instance: self.instance,
-            region,
+    pub(crate) fn set_anchored(&mut self, view: ViewId, anchored: Option<AnchoredPlacement>) {
+        if let Some(state) = self.views.get_mut(&view) {
+            state.anchored = anchored;
         }
     }
 
-    pub(crate) fn painting(&mut self, region: EditorRegion) -> Option<paint_format::Painting> {
-        let id = self.id(region);
+    pub(crate) fn close_anchored(&mut self, view: ViewId) {
+        self.host.end_view(view);
+    }
+
+    fn id(&self, view: ViewId) -> ViewRef {
+        ViewRef {
+            instance: self.instance,
+            view,
+        }
+    }
+
+    pub(crate) fn painting(&mut self, view: ViewId) -> Option<paint_format::Painting> {
+        let id = self.id(view);
         self.module.with_handler(|handler| handler.painting(id))?
     }
 
-    pub(crate) fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
-        let id = self.id(region);
+    pub(crate) fn overflows(&mut self, view: ViewId) -> Vec<String> {
+        let id = self.id(view);
         self.module
             .with_handler(|handler| handler.overflows(id))
             .unwrap_or_default()
@@ -909,56 +1026,58 @@ impl EditorSession {
     #[cfg(target_arch = "wasm32")]
     pub fn paint(
         &mut self,
-        region: EditorRegion,
+        view: ViewId,
         target: &PaintTarget<'_>,
     ) -> Vec<block_plugin_api::SurfaceRect> {
-        let id = self.id(region);
+        let id = self.id(view);
         self.module
             .with_handler(|handler| handler.paint(id, target))
             .unwrap_or_default()
     }
 
-    pub(crate) fn input(
-        &mut self,
-        region: EditorRegion,
-        event: &TimedInput,
-        over: Option<RegionId>,
-    ) {
-        self.open(region);
-        let context = self.context(region);
+    pub(crate) fn dismiss_anchored(&mut self, view: ViewId, anchored: &[ViewId]) {
+        self.open(view);
+        let context = self.context(view);
+        self.module
+            .with_handler(|handler| handler.dismiss_anchored(&context, anchored));
+    }
+
+    pub(crate) fn input(&mut self, view: ViewId, event: &TimedInput, over: Option<ViewRef>) {
+        self.open(view);
+        let context = self.context(view);
         self.module
             .with_handler(|handler| handler.input(&context, event, over));
     }
 
-    pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {
-        self.open(region);
-        let context = self.context(region);
+    pub(crate) fn node_action(&mut self, view: ViewId, request: ActionRequest) {
+        self.open(view);
+        let context = self.context(view);
         self.module
             .with_handler(|handler| handler.node_action(&context, request));
     }
 
-    pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
-        self.open(region);
-        let context = self.context(region);
+    pub(crate) fn run_action(&mut self, view: ViewId, id: &str) {
+        self.open(view);
+        let context = self.context(view);
         self.module
             .with_handler(|handler| handler.run_action(&context, id));
     }
 
-    pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {
-        self.regions
-            .get(&region)
+    pub fn report(&self, view: ViewId) -> Option<&FrameReport> {
+        self.views
+            .get(&view)
             .and_then(|state| state.report.as_ref())
     }
 
-    pub fn placed_children(&self, region: EditorRegion) -> &[ChildPlacement] {
-        self.regions
-            .get(&region)
+    pub fn placed_children(&self, view: ViewId) -> &[ChildPlacement] {
+        self.views
+            .get(&view)
             .map_or(&[], |state| state.children.as_slice())
     }
 
-    pub fn occluders(&self, region: EditorRegion) -> &[Occluder] {
-        self.regions
-            .get(&region)
+    pub fn occluders(&self, view: ViewId) -> &[Occluder] {
+        self.views
+            .get(&view)
             .map_or(&[], |state| state.occluders.as_slice())
     }
 

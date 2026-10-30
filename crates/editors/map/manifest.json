@@ -18,8 +18,8 @@
         "pan": "OneFinger",
         "max_zoom": 32768
       },
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "Preview"
       ]
     }

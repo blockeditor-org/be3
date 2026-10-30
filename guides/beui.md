@@ -341,7 +341,7 @@ one direction:
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
 | `beui-platform-headless` | `beui_host::native::Headless`, the platform that draws offscreen with no window or display server; `beui_host::native::Simulation`, the headless window and its stand-in services; and `beui_host::native::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-host` | `beui_host::native`'s engine items over beui: the inspector and on-screen keyboard every `build` installs, the font and context makers, and the runners (`runner.rs`, which picks the platform and layers from `BEUI_*`, `web.rs`, and the saved preferences of `RunOptions::saving_preferences`); beui's document tests live here, since they run documents |
-| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
+| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `ViewHandler` handler, whose batched calls then drive its frames; every view the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -2039,14 +2039,9 @@ Each layer has one `policy` (`LayerPolicy`):
 An overlay that is not a window of its own is shown in the window it was
 opened in, unless `shown_in` names another of the document's windows where
 windows open: it is then laid out in that window's viewport, painted in it and
-counts as in it (`Document::window_of`). Where the context says the host shows
-overlays in windows (`Context::overlays_in_windows`, which the plugin platform
-sets) and the window it was opened in is hosted, the `Overlay` component opens
-a transparent `Window` of role `Overlay` the size of that window, placed `Over`
-it at its corner, while the overlay is open or lingers, and shows the overlay
-in it through `shown_in`, so the host stacks the overlay's menus, tooltips and
-dialogs with its other windows rather than drawing them in the window's own
-picture.
+counts as in it (`Document::window_of`). An anchored overlay of a window that
+has a layer space escapes it instead (Layers that escape their window, below), which is how a
+plugin's menus, tooltips and popovers reach past its frame.
 
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
@@ -2180,11 +2175,39 @@ inside a dialog is an alert of its own, opened over it; a control or row action
 (a member's role, share's Add) stays in the content.
 
 `styled::Dialog` is the two parts together: `DialogFrame`, the outer part, and
-`DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) is a centred
-`DialogCard` in a `Modal`, or, for a `Dialog` kind when its window is
-narrower than `SHEET_BELOW` or the press that opened it was a finger's
-(`touched_by_finger()`, the same rule as `Anchored`'s), a fitted
-`ModalSheet`; an alert is always a card. It builds its content once, when it first
+`DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) picks its presentation from
+its kind, its `size` (`DialogSize::Small`, the default, or `Large`) and its `anchor`
+(`DialogAnchor::None`, the default, `Control(node_ref)` or `Rect(Option<Rect>)`), one rule in
+`dialog_presentation`: an alert is always a centred `DialogCard` in a `Modal` over a scrim; a
+`Dialog` kind whose window is narrower than `SHEET_BELOW` or that a finger opened
+(`touched_by_finger()`, the same rule as `Anchored`'s) is a `ModalSheet`, fitted when small and
+full height when large; otherwise one with no anchor is a centred card as before, a large one
+with an anchor is centred on its frame (`CenterOn`) over a scrim, and a small one is always one
+placement: a card anchored to a rect (`Popover`, no scrim). It draws its beak only when that rect
+is something the user can see: the control that opened it, or the rect it was handed (a tab, a
+card). A control is resolved when the dialog opens with `opener_of`: a control inside a menu that
+has closed, or inside a menu with a trigger, stands for what that menu hangs from (its trigger, or
+the node a `ContextMenu` was opened on), menu after menu. A control that can't be found stands for
+the frame's anchor (`use_frame_anchor()`, below). With nothing visible to point at (`Rect(None)`, or
+a lost control in a frame with no anchor), the card opens under a zero-height rect at the top
+centre of its frame, with no beak. Anchored presentations escape a window that has a layer space;
+centred ones stay.
+`provide_frame_anchor(memo)` / `use_frame_anchor() -> Memo<Option<Rect>>` (unstyled) is where a
+window's frame shows to the user, in the window's points: block-editor-beui provides the editor's
+tab (the handle in the dock's strip that shows it, or the rect a parent placed it at when it has
+no tab, or the anchor of the last menu pick), and `None` when nothing of it is visible, such as a
+fullscreen tab. Which to pass: a small form about one object, opened from a control, passes
+`Control` of that control (pixel-art's Resize button, database's Filter and display button).
+Opened from a menu row, it fills its `NodeRef` with `focused_node()` in the row's `on_click`,
+since a `MenuItem` is no node (file-tree's Inspect). Opened from a point on a canvas, it passes
+`Control` of an empty `Frame` in a `CanvasItem` over that point (logic-grid's storage, a calendar
+slot). Opened from an action, which the frame menu on the tab, the palette or a shortcut runs, it
+passes `Rect` of `use_frame_anchor()` (text settings, canvas Export), so it points at its tab. A
+large form or embedded editor passes `size=DialogSize::Large`, with `Rect` of `use_frame_anchor()`
+when it belongs to a frame (block-shell's Share and artifact settings); a host-drawn one with no
+frame (block-app's Members, Contacts, Agents, Unsent edits, the conflict compare) passes no anchor
+and stays centred. Alerts and
+app-level modals pass neither. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
 while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)
 to what it holds. `DialogBody` is the title row, the content in a fitted `Scroll` with
@@ -2194,9 +2217,7 @@ the card's sides with a `Scroll` or `Tree` whose `bleed` is `Bleed::DIALOG`), an
 pinned footer; it reads `narrow` and `bottom_inset` (how much of its bottom is covered,
 which its padding keeps the footer above) from the `DialogLayout` it is in. Code that places
 its own body uses the parts: block-app's keep-changes prompt is a `DialogCard` with a
-`DialogBody` in a centred `Modal`, the dock's Rename card and the
-block picker's stages are a `DialogBody` in a `DockDialog` (which provides a
-`DialogLayout` that is narrow while the dock is stacked and the card a sheet), and a
+`DialogBody` in a centred `Modal`, and a
 plugin opened as a dialog draws a `DialogBody` that block-editor-beui hands a
 `DialogLayout` from its frame's `dialog`. A sheet is fitted to the screen beui's on-screen
 keyboard leaves, so its footer stays above it.
@@ -2358,6 +2379,64 @@ fills (or centres in) its window; block-app puts one in each display's window.
 The desktop plugin's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
 display's region.
 
+### Layers that escape their window
+
+A window given a layer space (`Context::set_layer_space(window, Some(LayerSpace { to_host, bounds }))`,
+`beui_types::layer`) lets its anchored overlays out of its rectangle. `to_host` maps the window's
+points to the host's (`host = origin + point * scale`) and `bounds` is where layers may go, in host
+coordinates. Without one nothing changes: native block-app, tests and standalone apps never set it.
+"Layer" and "layer space" are beui's words: in the plugin protocol an escaped layer is an
+anchored view and a window's layer space is its view's anchor space (`screen-request.anchor-space`;
+beui-platform-plugin's `escaped.rs` maps one onto the other, guides/adding_a_plugin_editor.md).
+
+One rule decides what escapes, `Placement::escapes()`: anchored placements (`BelowStart`,
+`RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `Popover`) and `Edge(LayerEdge)`,
+a sheet attached to an edge of the bounds (`ModalPlacement::Sheet`, which `ModalSheet` uses) do;
+`Center`, `Fill`, `At` (windows, dock windows) and the `Inside*` placements (toasts, `Floating`)
+stay in the window. So menus, `ContextMenu` and its submenus, popovers, tooltips, the selection
+toolbar and anchored dialogs escape, and modals centred in their region, toasts and banners stay.
+An overlay that is a window of its own never escapes.
+
+An escaping overlay is laid out at full size in host units, whatever `to_host.scale` is: its
+content sits in a zoomed space of its overlay (slot 1, scale `1 / to_host.scale`, translated by
+`-origin / scale`) whose own coordinates are host coordinates, against `bounds`, with its anchor
+mapped through `to_host`, so it flips, slides and shrinks against the bounds and a menu from a
+region shown at half size is as large as any other. An `Edge` sheet fills the bounds, so a `ModalSheet` works out its stops from them. Its rects as `Rects::get`, hit testing and
+accessibility see them are still window coordinates, which `to_host` maps to where it is drawn
+(`Document::escaped_layer_of(node)` answers with the layer and that `to_host`). The accessibility
+tree places every space node, this one included, from the space's own transform rather than its
+host node's, so an escaped layer opened from deep in the window is described where its rects are.
+An escaped layer's nodes are left out of its window's tree (`FrameOutput::window_accessibility_tree`)
+and described on their own by `FrameOutput::escaped_accessibility_tree(layer, size, origin, to_host)`,
+rooted at the layer's overlay node and mapped into points from `origin` (the layer's top-left in
+host coordinates), so a platform that shows each layer as a view of its own (the plugin platform's
+anchored views) describes it there; `Fragment::escaped` and `escaped_roots` carry which nodes belong
+to which layer, and the window's tree drops escaped roots from its nodes' children. An overlay that
+starts escaping after it was described in its window (its window's layer space arrived late), or
+that falls back into its window while open, makes the next accessibility update a full one, so
+neither tree keeps a stale copy. A blocking scrim
+still covers only its window, in window coordinates. Hit testing, focus, trapping, Escape and back
+are unchanged. It is left out of the window's painting and of the
+window's `overlay_rects`, `overlay_painted_rects`, `floating_rects` and `overlay_scrims`, and
+painted into a paint window of its own. `Document::escaped_layers()` lists them in layer order,
+each after its parent, as `EscapedLayer`s: a stable `id`, `parent` (the escaped layer it is
+nested in, for submenus), `placement` (`Anchored(rect)` in window points for a layer of the
+window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`, `painted`,
+`floating` (the content of every layer that takes input) and `scrims` in host coordinates, and
+`dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
+`blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
+`EscapedOutput` per layer: that record and a `WindowOutput` (clear colour transparent) painted in host units from the
+layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
+since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
+`DocumentTest::snapshot_layers` paints.
+
+Input that landed on a layer is pushed as `Incoming::layer(id, input)` with host positions; the
+runner maps it into the owning window and it is hit-tested there like any other.
+`Context::dismiss_layer(id)` asks the layer to close as a press outside does
+(`Dismiss::OutsidePress`), and its nested layers close with it. It is heard after the frame's
+input, and not at all if that input already asked the layer to close or closed it, so a press on a
+popover's trigger toggles it closed once.
+
 ### Docking and windows
 
 `dock::styled::Docking` (crate `beui-dock`) is the workspace layout: panes split from one another, a tab
@@ -2404,7 +2483,7 @@ keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
 app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
-under it (`DockState::admits` refuses it a window). A tab's key is any `Clone + Eq + Hash` type; a key that is a
+under it (`DockState::admits` refuses it a window). `provide_dock_shows_through(memo)` makes every dock built below show through the same way while it is true, except in floating windows: an editor keeping to its card on its parent's stage while it holds the parent's frame provides it (block-editor-beui's frame chrome, from `Editor::placed_content`), so the parent's stage shows around the card. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
 carries its hosting tab's). Every container has an `id`, saved with the
@@ -2709,35 +2788,61 @@ prefixed `joined:<tab>/`, so its locked panes stay areas inside the group (a
 tab declared in a locked pane has that area as its home, inside a pinned group
 too), and its `DockWindow`s become windows of the outer dock. Its tabs live in
 the group: unlocking it from a grip of its panes lets them go anywhere in the
-outer dock. The outer dock places their bodies, built in a scope
+outer dock. A group of one bare pane stands for its hosting tab instead
+(`stands_for(group)`, `hosted_by(tab)`, `standing_tabs(entry)`): its tab wears
+the host's title, icon and close, its menu is the bare tab's followed by the
+host's (`menu_tab(leaf)`), and the hosting tab keeps its home, so the group is
+held by the host's place like the tab itself and the grip of the pane it sits in
+locks and unlocks it. The outer dock places their bodies, built in a scope
 under the inner `Docking` with the outer dock's `use_dock_tab()` and
 `dock_menu`, so they survive moving; switching, back history, fullscreen and
 the stacked mode are the outer dock's and cover them like its own tabs. The
 inner `DockingLayout` keeps working: `show`, `focused`, `shown`, `contains`,
 `mode` and fullscreen go through the outer dock, `state()` and `snapshot` are
-the group as the outer dock holds it (moved-out tabs leave the snapshot but
-not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
+the group as the outer dock holds it, with `DockState::outside` naming where
+each tab moved out of the group went (a `DockOutside`: the keyed outer pane and
+index, or the window's rect), and `restore`/`reset` rebuild the group and put
+the moved-out tabs back where they were (unlocked) when those panes are there. A tab joins when its
 body is first built, so a hosting tab not yet shown is an ordinary tab until
 then. When the inner `Docking` goes (its tab closes, or its body stops
 building it) the group turns back into the tab and every inner tab closes,
 those moved out too. On the outer layout, a focused or shown inner tab counts
 as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
-group, and `contains` holds it while the group stands. The outer `snapshot`
-saves the hosting tab in the group's place, the group's subtree beside it, and
-every inner tab, in the group or moved out, by a key path (the hosting tab's id,
-then each level's declared tab key), never by an inner id. `restore` puts the
-moved-out tabs back where they were, titled but empty, and once the hosting
-tab's inner `Docking` declares again it grafts the group back and gives the
-moved-out tabs their bodies; a saved tab it no longer declares closes. The seam is `docking/host.rs`'s
+group, and `contains` holds it while the group stands. Each layer saves its own layout: the outer
+`snapshot` keeps only the hosting tab, leaving out every inner tab and bar,
+in the group or moved out, so the inner dock's owner saves the inner
+`snapshot` (block-editor-beui does this itself for a dock that joins another
+plugin's, guides/adding_a_plugin_editor.md) and restores it before or after it joins (a restore made before it
+joins is grafted in once the group stands). An outer `restore` while an inner
+dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
 `DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
-`from_plain` read and build a state as plain `DockPlain` data), and a platform
+`from_plain` read and build a state as plain `DockPlain` data, bars and
+`outside` included; `DockTree` keeps a pane's `bare` too), and a platform
 implements it too: a `Docking` that finds no outer dock claims the
 `DockHostSlot` context if one is provided above it, and joins that host the same
-way. block-editor-beui provides one in the frame of an editor whose dock joins
-another plugin's (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
+way. A slot made with `DockHostSlot::bars(link)` (`joins_bars`) is joined by
+bars only: its `Docking` stays standalone, drawing its tabs and keeping its
+layout, but declares itself to the link, places only its bar bodies through
+`DockBodies`, and while the link's `hosted` is `Some` draws none of its bars
+(the dock's `bars_away`), keeps its tab bodies clear of that hosted state's
+covers, and reads and places bars there (`DockingLayout::bar_placement`,
+`place_bar`). block-editor-beui provides a slot in every editor's frame: a
+joining one where the editor's dock joins another plugin's, a bars one
+otherwise (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
-`claim`) for the child editor's dock. Such a platform builds the tab bodies
+`claim`) for the child editor's dock. A link's `withdraw` takes back only the
+declaration: the bodies `place` gave and the `listen` callback stay with the
+link until the scope that claimed it ends, so a dock that stops declaring and
+declares again (a child editor whose `Docking` is torn down and built again) is
+hosted again with the same bodies. A `Docking` that joins no host instead
+claims the `DockKeeper` context if one is provided above it (one per keeper; a
+dock nested in it joins it and claims none) and hands it a `DockKept`: its own
+layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
+a restore that puts a state in place keeping the tab ids, so the keeper can
+save and restore a standalone dock as it would a joined one (block-editor-beui
+provides one in every editor's frame). An owner that saves its dock itself
+provides `DockKeeper::none()` above it, as block-shell's `Workspace::new` does. Such a platform builds the tab bodies
 itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
 request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
 as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
@@ -2817,46 +2922,100 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-`presentation=DockDialogPresentation::Card` (rather than the default `Window`)
-shows the same dialog as a card floating from its tab: always modal, it is
-centred on the parent's panel a small gap under its tab bar
-(`Placement::HangFrom`, Docking's `dialog_margin`) and keeps the `size` it asks
-for even where the pane is narrower, reaching over the panes beside it; it is
-only kept that margin inside the window, and shrinks only where the window is
-too small (the body is `Extent::at_most(size)`): in a short window it shrinks
-under its tab bar first, and rises over the bar, hiding the tab's waiting dot,
-only when even its smallest size does not fit below it. Its scrim (Docking's
-`dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
-scrim lays it over the node it blocks. A `BlocksParent` layer occludes the node
-it blocks and its content (`Document::layer_covers`), dimmed or not, so the card
-draws over other panes and takes the presses it covers there, a plugin's host
-routes presses on the blocked panel to the dock rather than to an editor shown
-in it, and the rest of those panes, the tab bar and other tabs stay live. A
-press on the blocked panel calls the card's attention, or
-closes it through `on_close` with `dismiss_on_outside_press` (any modal
-`DockDialog` takes it; a press on another pane never closes one). It has no
-title bar: its content draws its own header and close button (styled: the
-dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
-that shows focus and attention, kept `dialog::MARGIN`
-from the tab bar and the window's edges). Its layer hangs from the panel, so it
-follows the tab into another pane or a window.
+A `DockDialog` is only ever a window or a modal (`dismiss_on_outside_press` lets a
+press on the blocked panel close a modal one instead of calling its attention).
+A small form that points at a control or at its tab is no dock dialog: it is
+the shared `Dialog` (above), which escapes its pane as a layer of its own
+(and, in a plugin, an anchored view of its owner) and finds its tab through
+`use_frame_anchor()`, which the dock provides in every tab body
+(`DockTabControl::anchor()`: the tab's entry in its strip, none while the tab
+is fullscreen; `DockTabControl::handle()` is that entry's node). A dialog's
+body is built once when it is declared and kept while its tab is hidden.
 
-Given an `anchor`, the rect in document coordinates of the control that asked
-for it, a card is a popover instead: it hangs `Placement::Popover` from that rect
-pinned to the parent's panel (`OverlayAnchor::Pinned`), Docking's `dialog_gap`
-off it and `dialog_margin` inside the window, so it keeps its place on the tab
-when the pane moves or resizes and follows the tab into another pane or window.
-It is not dimmed: the panel is blocked all the same, so a press on it closes the
-card or calls its attention as above. The chrome names the frame to point from
-with the handle's `pointer` (styled: the card's frame, whose beak points at the
-control's middle from the side the card opened on). Everything else - modal to
-its tab, hidden with it, the waiting dot, the keyboard, the sheet in a stacked
-dock - is the card's. In a stacked dock it is
-`dialog_sheet` instead (styled: a `ModalSheet`), whose body fills the sheet's
-width as every sheet's does rather than keeping the card's `size`, and the same
-body moves between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
-body is built once when it is declared and kept while its tab is hidden,
-whichever presentation it has.
+A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
+tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
+(`placement` is where it starts). Its owner draws all of it, the grip included. A
+`DockBarPlacement` is `Over(edge, align)`, floating over the tab's body at a
+`DockEdge` and a `DockAlign` along it (its start, its centre or its end, so the
+corners too; Docking's `bar_margin` in from it, the body keeping its full size;
+bars at different alignments of one edge sit side by side, the centred ones
+moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge)`, a band the whole length of that edge of the
+pane that the body gives up room for (the styled Docking draws it with
+`bar_band`: the band's fill and one line on the side facing the body), or `Window { edge, origin }`, popped out into a dock window sized to
+the bar, `origin` being relative to the dock. A bar shows only while its tab
+is shown, wherever that tab goes, since its placement is relative to whatever
+pane shows the tab; in a stacked dock a popped-out bar floats over the body at
+its edge. Several bars on one edge of a pane stack away from it, the
+nearest first: a joined layer's bars after those of the layers around it (a tab
+that hosts a joined dock lends its bars to the first pane of that dock, so the
+outer editor's bar sits nearer the edge than the inner one's), and one layer's
+bars in the order kept in `DockState`, which starts as the order they were
+declared in and which a drop changes. The placements and that order are part of
+`DockState` (`bars`, `bars_of(owner)`, `bar_owner`, `bar_placement`,
+`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `pane_bars(tab)`,
+`bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`), so they are saved and restored
+with the layout; `DockingLayout::bar_placement` and
+`place_bar` read and set one by key. The body's `use_dock_bar()` is a
+`DockBarControl`: `placement()`, `edge()` and `direction()` (the way to lay its
+items out, across for the top and bottom edges) are tracked reads, `place` and
+`pop_out` move it, `menu()` is the radio menu of every placement, and
+`begin_move(press)` starts a drag, called from the handle's `on_drag` once past
+the drag threshold with the press that went down, then with each move. The dock
+carries the drag: over the tab's body it draws Docking's `bar_target` for the 16
+placements (the outer band of the pane, past any bars already beside that edge,
+docks the bar beside it, the next band in, or any bar already floating there,
+floats it over it, at the start, centre or end by which third of the edge the
+pointer is over), and dropped away from the pane it pops out where it was let
+go. On an edge that already holds bars the drop slots the bar in among its own
+layer's bars by where the pointer is against their middles, and the highlight
+shows that slot. The bars floating over an edge are kept clear together
+(`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
+to move its window, and the menu docks it again. The styled `DockBarGrip`
+(`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
+its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
+`DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
+submenu `grip.dock.bar.over.ends` the ends of each edge, `over.top.left`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+bar's direction that is a pill while the bar floats or is popped out and the
+band's fill while it is docked beside an edge (a joined bar's body is cut out
+of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
+joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
+platform that builds a joined bar's body itself provides
+`DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
+apart): its reads follow the hosted state, and `place`, `pop_out` and
+`begin_move` become `DockRequest::PlaceBar` and `DockRequest::MoveBar` (a
+`DockBarMove`: the pointer in the body's own coordinates and a
+`DockDragStage`), which the root's `Docking` carries as if its own grip were
+dragged, a popped-out bar from where its window is in the dock. A press held in
+one window that the pointer carries over another of the same program reports
+its position in that other window (`PointerPress::window`); `begin_move` turns
+it back into the bar's own window with `window_point(pos, from, to)`, which maps
+a point between windows through their layer spaces, so the move stays in the
+body's points wherever the pointer goes; such a handle calls `end_move` when its press ends, which drops the
+bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
+asks the root the same way.
+
+A dock that joins none (the root, or a standalone dock) places bars by key: a
+bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it
+was declared with (`DockDeclaredBar::kind`: in-process, the declaring dock's own
+`key()`; across plugins, block-editor-beui declares `{block type}/{key}`, as
+saved layouts are keyed `{block type}/frame`). So every canvas's `tools` bar
+shares one, whichever plugin instance declared it, while another editor's
+`tools` bar does not. Placing, dragging, popping out or docking back
+one bar places every bar of its key the same way (`DockState::share_bar_placement`),
+and a bar that arrives later takes the placement of the bars of its key already
+there (`adopt_bar_placements`), so popping out one canvas's tool bar pops out
+every canvas's. The popped-out bars of a key share one dock window
+(`DockState::bar_windows(key)`): it shows the bar of the declarer whose tab
+was focused last and is shown (`followed_bar`, by `recent_tabs`), and hides
+while no such tab is shown. Pressing or focusing that window focuses no tab, so
+it keeps following the tab it was. Every bar of the key stays laid out in the
+window, the ones not followed clipped to nothing and taking no pointer, so a
+joined plugin's bar region keeps running and switching tabs shows it at once.
+The window takes the size of the bar it shows and keeps its top-left corner,
+where a bar's grip comes first. A
+`bare` `DockPane` draws no tab bar: it holds one tab, takes no tab dropped onto
+it (only a split at its edge), and is what a joined dock's single pane uses so
+its group shows no second tab strip. The demo's Dock bars page has both.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
@@ -3504,7 +3663,7 @@ as beui-platform-plugin-api's `Views` and its `views.placement(id)` do; every ot
 `Window` is an overlay inside the window it was opened in, so a plugin's
 docked windows stay inside its region). A platform may move between them: the
 plugin platform hosts every window while its host shows the windows of one of
-its regions (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
+its views (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
 as a real window or an overlay from the frame the hosting changes. `Context::opens_windows` is true only
 for `Any`. A platform with no main window of its own (beui-platform-plugin,
 beui-platform-drm) sets `Context::set_shows_main(false)`: the document then paints neither the
@@ -3626,7 +3785,7 @@ window. A key listener at `KeyAt::Window` and an action, registered inside a
 `Window`, belong to the hosted window that holds it
 (`Document::host_window_of`): they hear a key only while the key's window is
 theirs (`Document::key_window`: the window of the focused node, else the one
-the host focused last) or while no window is known, so two plugin regions each
+the host focused last) or while no window is known, so two plugin views each
 keep their own Escape and shortcuts. `Context::request_action_in(window, id)`
 runs that window's action of that id, and the actions the document describes
 come once more per window, as an `ActionGroup` whose `window` names it. Where
@@ -4136,7 +4295,7 @@ it, and all its 3D (`glam`) stays in the crate.
   softer. A new window takes its scale at once. An `Embed` in the window
   hears the new raster (`EmbedPlacement::raster`), which is how block-app
   sends a plugin region in it its raster beside its scale (the protocol's
-  `raster`, `RegionPlacement::raster`), and beui-platform-plugin reports it
+  `raster`, `ViewPlace::raster`), and beui-platform-plugin reports it
   to the region's window as its `WindowReport::Rastered`, so plugin content
   in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
@@ -4822,7 +4981,17 @@ unplaced. `Measured::rect` is in the window's coordinates, the space
 any zoom, for content that builds from its own size, so a `Container` in a
 zoomed `CanvasItem scales=true` answers the same at every zoom. Each node has one signal per function, made on the first call and
 dropped with the node, so a handler may call `measure(node).get_untracked()`
-as often as it likes. `TextGeometrySignal` reads like a `ReadSignal` (it is
+as often as it likes. A measured size arrives after the layout that made it, so
+children placed from their parent's measured size lag a layout behind (a frame
+with delayed measurement). Children whose rects are a function of the space
+they are given are placed in the layout pass itself instead: a `Canvas` given
+an `arrangement` (`CanvasArrangement::new(|size| Vec<(u64, Rect)>)`, a pure
+function of the canvas's laid-out size, compared by identity, so a memo hands a
+new one when what it places changes) calls it each time it is laid out and puts
+every `CanvasItem arranged=KEY` at the rect returned for KEY (empty if none),
+ignoring its x, y, width and height. The HTML core runs it from the canvas's
+measured size. beui-dock's tiled panes and splitters are placed this way.
+`TextGeometrySignal` reads like a `ReadSignal` (it is
 `Get<Option<TextGeometry>>` over the core's own signal). `TextGeometry` is a
 `Text`'s last layout (a snapshot natively, read from the DOM on HTML):
 `bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,
@@ -4942,7 +5111,7 @@ and moves itself until the target is in view. A `Canvas` cannot move itself,
 since its view belongs to whoever hands it one, so it takes the same request
 and answers through its `on_reveal` callback: after each layout at a new view
 it measures the target (or, when that does not fit, the focused text's caret)
-against its own rect less the floating layers over it (a dock, a zoom pill),
+against its own rect less the floating overlays over it (a dock bar, the zoom bar),
 and calls `on_reveal(delta)` with the least pan that brings it into view. It
 keeps measuring at each new view the owner pans to, for up to a second and
 only while the distance shrinks, so the owner can ease there a step at a time
@@ -5055,12 +5224,12 @@ A plugin's frame can open windows (a dock's floating window, the desktop plugin'
 Outside space and the desktop shell a `Window` is an overlay inside its
 region's window. Where the host shows windows as its own (the screen request's
 `windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a
-`EditorRegion::Window(w)` region. block-app keeps every such window in
+view placed by the host (`HostView::Window`). block-app keeps every such window in
 `compositor/desktop.rs` (`Floated`): on the desktop shell it draws them on the
 displays (`DesktopWindows`), and under space, where it says `windows` for every
 frame region (`host::opens_windows()`), each is a `Panel`: a beui `Window` of
-its own holding a `PluginRegion` of the window region (`PanelWindows` in
-`compositor/region.rs`), opened where the plugin asked with its role, moved
+its own holding a `PluginView` of the window region (`PanelWindows` in
+`compositor/plugin_view.rs`), opened where the plugin asked with its role, moved
 and resized by space on `BeginMove`/`BeginResize`, and its `Placed` answered as
 the window region's `placement`; closing the panel ends the region, which
 closes the app's window. block-editor-beui places the children laid out in a
@@ -5348,9 +5517,18 @@ it shows nothing while that is `None`. Its test ids are `{id}` and
 region labelled with the message.
 
 `ToolPill` is the raised, bordered, fully rounded bar a floating set of tools
-sits in (a canvas's zoom controls, block-editor-beui's `BottomDock`): its
-children in a row with arrow-key focus, scrolling sideways when the bar is
-offered less than it needs. Placing it (a `Floating`, a margin) is the caller's.
+sits in, or with `band` set the flat fill of a toolbar band (`BAND_FILL`, which
+beui-dock's band is drawn with too; a dock bar's body uses `DockBarSurface`,
+which sets `band` while the bar is docked beside an edge): its children in a row,
+or a column with `direction=Direction::Vertical` (a dock bar on a side edge),
+with arrow-key focus along it, scrolling when the bar is offered less than it
+needs. Placing it (a `Floating`, a dock bar, a margin) is the caller's.
+
+`keep_clear(node, rects)` names parts of a node (rects relative to it) that
+something floats over, as floating overlays do: a `Canvas` revealing its
+focused content keeps it out of both. beui-dock keeps an over-the-body dock
+bar clear this way, and a joined editor's tab body is kept clear of the bars
+the root draws over it (`DockHosted.covers`).
 
 ### Text
 

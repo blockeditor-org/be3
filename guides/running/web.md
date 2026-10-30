@@ -77,6 +77,39 @@ native one (the inspector button shows a stand-in, since the inspector reads the
 `./scripts/test //crates/beui-demo-html:web-test` opens every page in Chromium and drives the dock,
 the on-screen keyboard and the floating window there (crates/beui-demo-html/src/drive).
 
+## Plugins on the page
+
+Each plugin runs in a Web Worker of its own with its own GPU device
+(crates/block-app-plugin-host/src/web, crates/block-app/web/plugin.js, and
+crates/block-gpu-shim, which answers the plugin's gpu abi there). Nothing a
+plugin draws leaves its worker; the page hands the worker canvases instead:
+- Screens: each shown screen is a `<canvas>` in `#plugins`, behind the app's
+  canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed
+  by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The app
+  canvas punches a hole where the screen shows.
+- Anchored views (menus, popovers, sheets: PROTOCOL.md, Anchored views): each
+  worker that has opened one gets one more canvas, the overlay canvas, in
+  `#layers` above `#block`, covering the whole viewport with
+  `pointer-events: none`. It is made on the plugin's first anchored view and
+  kept (`web/overlay.rs`). The page lists the anchored views' painted pieces
+  (`anchored_blits`, the same ones native draws) as a surface, a rectangle in
+  the canvas's pixels and one in the surface's; the shim redraws the canvas
+  from them whenever the list changes or a listed surface is presented. The
+  page clips the canvas to the plugin's anchor bounds, hides it
+  (`visibility:hidden`) while the plugin has no anchored view, and stacks the
+  canvases in the order of each plugin's newest one. Scrims are drawn by the
+  app canvas, below every overlay. Input still lands on the app canvas, which
+  routes it to anchored views and dismisses them as natively.
+- A child placed in an anchored view, above its pixels, shows under them on the web,
+  since its screen canvas is behind `#block`.
+
+Screens and anchored views are placed from what the app canvas drew in its last frame,
+so on the web they follow the app by one frame. To see an anchored view, open one (`drive
+click TARGET right` on a file-tree row) and check `drive eval` on
+`#layers canvas`'s style. `drive shot` captures the plugins' canvases with
+`-- --webgl`; with WebGPU in the headless browser it can time out once a plugin
+canvas is shown.
+
 ## Files and offline
 
 The web build keeps the same files as the native app, under `/block` in the

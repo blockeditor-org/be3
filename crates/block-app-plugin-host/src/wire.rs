@@ -236,9 +236,10 @@ impl Wire {
                     .change(connection, |held| {
                         let mut merged = held.unwrap_or_default();
                         for status in statuses {
-                            match merged.iter_mut().find(|held| {
-                                (held.region, held.child) == (status.region, status.child)
-                            }) {
+                            match merged
+                                .iter_mut()
+                                .find(|held| (held.view, held.child) == (status.view, status.child))
+                            {
                                 Some(held) => *held = status,
                                 None => merged.push(status),
                             }
@@ -256,15 +257,17 @@ impl Wire {
                         updates
                     });
             }
-            EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
+            EditorCall::MenuPick { view, id, anchor } => {
+                editor.menu_pick(connection, view, id, anchor)
+            }
             EditorCall::Dismiss => editor.dismiss(connection),
             EditorCall::ChildBar {
-                region,
+                view,
                 child,
                 action,
-            } => editor.child_bar(connection, region, child, action),
-            EditorCall::ChildFocused { region, child } => {
-                editor.child_focused(connection, region, child)
+            } => editor.child_bar(connection, view, child, action),
+            EditorCall::ChildFocused { view, child } => {
+                editor.child_focused(connection, view, child)
             }
             EditorCall::SetEditable(editable) => editor.set_editable(connection, editable),
             EditorCall::ViewChanged { view, scale } => editor.view_changed(connection, view, scale),

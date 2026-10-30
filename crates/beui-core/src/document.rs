@@ -107,6 +107,7 @@ pub struct Document {
     pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
+    pub(crate) clear_of: HashMap<NodeId, Vec<Rect>>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
     pub drags: Rc<crate::drag_board::Board>,
@@ -179,6 +180,7 @@ pub struct Document {
     out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
     pub(crate) windows: crate::window::hosted::Windows,
+    pub(crate) escapes: crate::escape::Escapes,
 }
 
 #[derive(Clone, Copy)]
@@ -338,6 +340,7 @@ impl Document {
             drawing_surfaces: HashSet::default(),
             every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
+            clear_of: HashMap::default(),
             forward: Default::default(),
             pointers: Default::default(),
             paste_requested: false,
@@ -409,6 +412,7 @@ impl Document {
             out_of_bounds: None,
             animations: Rc::default(),
             windows: Default::default(),
+            escapes: Default::default(),
         }
     }
 
@@ -1358,6 +1362,8 @@ impl Document {
             self.viewport = Some((ctx.clone(), rect, scale));
         }
         self.follow_windows(ctx);
+        self.follow_layer_spaces(ctx);
+        self.begin_escapes();
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
@@ -1386,6 +1392,7 @@ impl Document {
         if let Some(interacted) = self.interaction_done.clone() {
             crate::current::enter(self, || interacted());
         }
+        self.dismiss_layers(ctx);
         if self.handles_back() {
             ctx.handle_back();
         }
@@ -1422,6 +1429,7 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        self.sync_escapes();
         self.ask_for_windows(ctx);
         ctx.set_keyboard_window(
             self.focused
@@ -1534,6 +1542,11 @@ impl Document {
         }
         ctx.show_painting(&self.painting, rect);
         self.show_windows(ctx, window_damage.as_ref(), &window_moves);
+        self.publish_escapes(ctx, &|paint| {
+            window_damage.as_ref().is_some_and(|taken| {
+                taken.is_everything() || !taken.of(paint, Rect::EVERYTHING).is_empty()
+            })
+        });
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
@@ -1547,6 +1560,7 @@ impl Document {
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
         }
         self.send_file_dialogs(ctx);
+        let regrouped = self.escapes.take_regrouped();
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();
@@ -1556,7 +1570,7 @@ impl Document {
                 }
                 return;
             }
-            let full = !ctx.accessibility_known(self.accessibility_id);
+            let full = !ctx.accessibility_known(self.accessibility_id) || regrouped;
             if let Some(fragment) = self.accessibility_update(full) {
                 ctx.publish_accessibility(self.accessibility_id, fragment);
             }
@@ -1596,11 +1610,35 @@ impl Document {
             let content = self.overlay_content(overlay);
             let beak = self.overlay_beak(overlay);
             let painter = ctx.window_painter(layer.window);
-            self.paint_cache.get_mut().paint_into(layer.window);
+            let into = match layer.escapes {
+                true => self.escapes.paint_window(overlay).unwrap_or(layer.window),
+                false => layer.window,
+            };
+            self.paint_cache.get_mut().paint_into(into);
+            let zoomed = layer
+                .escapes
+                .then(|| {
+                    self.arena
+                        .get_as::<crate::base::overlay::OverlayNode>(overlay)
+                        .escape_zoom()
+                })
+                .flatten()
+                .map(|(by, zoom)| {
+                    painter.zoomed(
+                        crate::node::SpaceId::inside(overlay.id(), 1),
+                        by,
+                        zoom,
+                        Rect::EVERYTHING,
+                    )
+                });
             for root in [scrim, content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
-                    paint::paint(self, &painter, &self.rects, root);
-                    roots.push((layer.window, root));
+                    let painter = match (&zoomed, Some(root) == scrim) {
+                        (Some(zoomed), false) => zoomed,
+                        _ => &painter,
+                    };
+                    paint::paint(self, painter, &self.rects, root);
+                    roots.push((into, root));
                 }
             }
         }
@@ -1609,20 +1647,26 @@ impl Document {
         if cache.take_recorded() {
             let mut main = Vec::new();
             let mut windows: Vec<(WindowId, Painting)> = Vec::new();
+            let mut escaped: Vec<(WindowId, Painting)> = Vec::new();
             for (window, root) in &roots {
                 let Some(painted) = cache.painting_of(*root) else {
                     continue;
                 };
+                let into = match self.escapes.paints_into(*window) {
+                    true => &mut escaped,
+                    false => &mut windows,
+                };
                 match window.is_main() {
                     true => main.push(painted),
-                    false => match windows.iter_mut().find(|(id, _)| id == window) {
+                    false => match into.iter_mut().find(|(id, _)| id == window) {
                         Some((_, painting)) => painting.push(painted),
-                        None => windows.push((*window, vec![painted])),
+                        None => into.push((*window, vec![painted])),
                     },
                 }
             }
             self.painting = main;
             self.windows.paintings = windows;
+            self.escapes.paintings = escaped;
         }
         self.damage.add_regions(cache.take_damage());
     }
@@ -1723,10 +1767,12 @@ impl Document {
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
         let windows = std::mem::take(&mut self.windows.paintings);
+        let escaped = std::mem::take(&mut self.escapes.paintings);
         let damage = std::mem::take(&mut self.damage);
         ctx.verifying_paint(true);
         self.paint(ctx);
         ctx.verifying_paint(false);
+        self.escapes.paintings = escaped;
         let fresh_main = std::mem::replace(&mut self.painting, painting);
         let fresh_windows = std::mem::replace(&mut self.windows.paintings, windows);
         self.paint_cache.replace(retained);

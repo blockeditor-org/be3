@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, HelloAccepted, OpenBlock, Opening,
-    ScreenId, ScreenRequest, ViewportMetrics,
+    EditorInstanceId, FrameChrome, FrameSpec, HelloAccepted, OpenBlock, Opening, ParentView,
+    ScreenId, ScreenRequest, ViewId, ViewPlacement, ViewportMetrics,
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
@@ -180,27 +180,32 @@ fn screens() -> Vec<ScreenRequest> {
         ScreenRequest {
             screen: ScreenId(1),
             instance: EditorInstanceId(1),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content: None,
                 top_bar: block_plugin_api::TopBar::Hidden,
                 dialog: None,
+                anchor: None,
             }),
             metrics: metrics(),
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
+            anchor_space: None,
         },
         ScreenRequest {
             screen: ScreenId(2),
             instance: EditorInstanceId(1),
-            region: EditorRegion::Preview,
+            view: ViewId::PREVIEW,
+            placement: ViewPlacement::Parent(ParentView::Preview),
             frame: None,
             metrics: metrics(),
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
+            anchor_space: None,
         },
     ]
 }

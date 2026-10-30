@@ -4,12 +4,12 @@ use block_plugin_api::{DockClosedTab, DockTabPath, DockUpdate};
 #[test]
 fn a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes() {
     let mut session = docked_session();
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
 
     session
         .host()
         .receive_dock_updates(vec![hosted_tabs(&[2, 1], &[2], Some(2))]);
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the app made its layout");
@@ -20,10 +20,10 @@ fn a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes() {
     session
         .host()
         .receive_dock_updates(vec![DockUpdate::Close(DockClosedTab {
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             tab: DockTabPath::own(2),
         })]);
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
 
     assert!(CLOSED.with(std::cell::Cell::get));
 }

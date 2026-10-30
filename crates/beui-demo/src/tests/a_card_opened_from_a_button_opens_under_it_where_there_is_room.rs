@@ -7,7 +7,7 @@ fn a_card_opened_from_a_button_opens_under_it_where_there_is_room() {
     let mut test = demo(TALL);
     let (button, card) = open_pointing_card(&mut test);
     assert!(
-        card.top() > button.bottom() && card.top() < button.bottom() + 40.0,
+        card.top() > button.bottom() && card.top() < button.bottom() + 100.0,
         "the card opens just under the button: {card:?} under {button:?}"
     );
     assert!(

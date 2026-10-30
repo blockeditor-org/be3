@@ -31,15 +31,16 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
         TopBar::Shown,
     );
 
-    session.run(EditorRegion::Frame, 0);
+    session.run(ViewId::MAIN, 0);
 
     let report = session
-        .report(EditorRegion::Frame)
+        .report(ViewId::MAIN)
         .expect("the frame region reports its content rect");
+    let content = report.content.expect("the frame holds the content");
 
     assert!(
-        report.content.width() > 400.0,
+        content.left + content.right < 400.0,
         "expected the child's own content to span close to the full viewport width, got {:?}",
-        report.content
+        content
     );
 }

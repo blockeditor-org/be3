@@ -28,7 +28,7 @@ pub(crate) enum RenderTarget {
         max_width: f32,
         max_height: f32,
     },
-    Region {
+    ShownView {
         scale: f32,
         origin_pts: Pos2,
         size_pts: Vec2,

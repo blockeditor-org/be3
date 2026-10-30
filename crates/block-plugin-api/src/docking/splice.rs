@@ -1,7 +1,8 @@
 use super::{DockEntry, DockFloating, DockNode, DockNodes};
 use crate::{
-    ChildId, DecodeError, DockDeclaration, DockGroup, DockHome, DockHosted, DockLayout, DockPane,
-    DockPlace, DockRequest, DockTab, DockTabPath, DockTree,
+    ChildId, DecodeError, DockBar, DockCover, DockDeclaration, DockGroup, DockHome, DockHosted,
+    DockLayout, DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab, DockTabPath,
+    DockTree,
 };
 
 pub fn dock_prefix(host_key: &str, block: [u8; 16]) -> String {
@@ -150,6 +151,27 @@ impl Mapping<'_> {
                 .iter()
                 .filter_map(|home| self.home(home))
                 .collect(),
+            bars: layout
+                .bars
+                .iter()
+                .filter_map(|bar| {
+                    Some(DockPlacedBar {
+                        bar: (self.tab)(&bar.bar)?,
+                        owner: (self.tab)(&bar.owner)?,
+                        placement: bar.placement.clone(),
+                    })
+                })
+                .collect(),
+            outside: layout
+                .outside
+                .iter()
+                .filter_map(|outside| {
+                    Some(DockOutside {
+                        tab: (self.tab)(&outside.tab)?,
+                        place: outside.place.clone(),
+                    })
+                })
+                .collect(),
             unlocked: layout
                 .unlocked
                 .iter()
@@ -177,6 +199,7 @@ fn empty_pane(key: String) -> DockNode {
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         },
         entries: Vec::new(),
     }
@@ -283,7 +306,54 @@ impl DockDeclaration {
                 parent: dialog.parent.clone().through(child),
                 ..dialog.clone()
             }));
+        let lent = inner_nodes.main.as_ref().and_then(|main| {
+            let mut tabs = Vec::new();
+            main.tabs(&mut tabs);
+            tabs.first().map(|tab| (*tab).clone().through(child))
+        });
+        self.bars.retain_mut(|bar| {
+            if bar.owner != host {
+                return true;
+            }
+            match &lent {
+                Some(tab) => {
+                    bar.owner = tab.clone();
+                    true
+                }
+                None => false,
+            }
+        });
+        self.bars.extend(inner.bars.iter().map(|bar| DockBar {
+            tab: bar.tab.clone().through(child),
+            key: prefixed(prefix, &bar.key),
+            owner: bar.owner.clone().through(child),
+            ..bar.clone()
+        }));
         Ok(true)
+    }
+
+    pub fn splice_bars(
+        &mut self,
+        host: Option<u64>,
+        child: ChildId,
+        prefix: &str,
+        inner: &DockDeclaration,
+    ) {
+        let host = host.map(DockTabPath::own);
+        match &host {
+            Some(host) => self.bars.retain(|bar| bar.owner != *host),
+            None => self.bars.clear(),
+        }
+        self.bars.extend(inner.bars.iter().map(|bar| {
+            DockBar {
+                tab: bar.tab.clone().through(child),
+                key: prefixed(prefix, &bar.key),
+                owner: host
+                    .clone()
+                    .unwrap_or_else(|| bar.owner.clone().through(child)),
+                ..bar.clone()
+            }
+        }));
     }
 }
 
@@ -310,6 +380,14 @@ impl DockRequest {
                     area: fullscreen.area,
                 }))
             }
+            Self::PlaceBar(place) => Self::PlaceBar(crate::DockBarPlace {
+                bar: place.bar.clone().through(child),
+                placement: place.placement.clone(),
+            }),
+            Self::MoveBar(moved) => Self::MoveBar(crate::DockBarMove {
+                bar: moved.bar.clone().through(child),
+                ..moved.clone()
+            }),
         })
     }
 }
@@ -353,8 +431,22 @@ impl DockHosted {
                 .map(|(_, tab)| DockTabPath::own(*tab))
                 .filter(|tab| !self.tabs.contains(tab)),
         );
+        let mut layout = mapping.layout(&nodes, &self.layout);
+        layout.bars = self
+            .layout
+            .bars
+            .iter()
+            .filter(|bar| bar.bar.is_own())
+            .filter_map(|bar| {
+                Some(DockPlacedBar {
+                    bar: bar.bar.clone(),
+                    owner: path(&bar.owner)?,
+                    placement: bar.placement.clone(),
+                })
+            })
+            .collect();
         Ok(DockHosted {
-            layout: mapping.layout(&nodes, &self.layout),
+            layout,
             tabs,
             focused: self.focused.as_ref().and_then(path),
             shown: self.shown.as_ref().and_then(path),
@@ -366,7 +458,68 @@ impl DockHosted {
                 .collect(),
             fullscreen: self.fullscreen.as_ref().filter(|tab| tab.is_own()).cloned(),
             stacked: self.stacked,
+            covers: self
+                .covers
+                .iter()
+                .filter(|cover| cover.tab.is_own())
+                .cloned()
+                .collect(),
         })
+    }
+
+    pub fn frame_child(
+        &self,
+        child: ChildId,
+        host: Option<u64>,
+        owner: &dyn Fn(&DockTabPath) -> Option<DockTabPath>,
+    ) -> DockHosted {
+        let bars: Vec<DockPlacedBar> = self
+            .layout
+            .bars
+            .iter()
+            .filter_map(|bar| {
+                let tab = bar.bar.within(child)?;
+                Some(DockPlacedBar {
+                    owner: owner(&tab)?,
+                    bar: tab,
+                    placement: bar.placement.clone(),
+                })
+            })
+            .collect();
+        let mut owners: Vec<DockTabPath> = Vec::new();
+        for bar in &bars {
+            if !owners.contains(&bar.owner) {
+                owners.push(bar.owner.clone());
+            }
+        }
+        let covered = host.map(DockTabPath::own);
+        let covers = self
+            .covers
+            .iter()
+            .filter(|cover| covered.as_ref().is_none_or(|host| cover.tab == *host))
+            .flat_map(|cover| {
+                owners.iter().map(|tab| DockCover {
+                    tab: tab.clone(),
+                    rect: cover.rect,
+                })
+            })
+            .collect();
+        DockHosted {
+            layout: DockLayout {
+                tree: DockTree::flatten(&DockNodes::default(), None),
+                homes: Vec::new(),
+                bars,
+                outside: Vec::new(),
+                unlocked: Vec::new(),
+            },
+            tabs: Vec::new(),
+            focused: None,
+            shown: None,
+            visible: Vec::new(),
+            fullscreen: None,
+            stacked: self.stacked,
+            covers,
+        }
     }
 
     pub fn child(&self, child: ChildId, prefix: &str) -> Result<Option<DockHosted>, DecodeError> {
@@ -400,6 +553,16 @@ impl DockHosted {
             visible: self.visible.iter().filter_map(within).collect(),
             fullscreen: self.fullscreen.as_ref().and_then(within),
             stacked: self.stacked,
+            covers: self
+                .covers
+                .iter()
+                .filter_map(|cover| {
+                    Some(DockCover {
+                        tab: within(&cover.tab)?,
+                        rect: cover.rect,
+                    })
+                })
+                .collect(),
         }))
     }
 }

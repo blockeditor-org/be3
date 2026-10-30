@@ -7,18 +7,24 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
+mod bars;
 mod history;
 mod joined;
 mod plain;
 mod spec;
 mod switch;
 
+use bars::Bar;
+pub use bars::{DockAlign, DockBarPlacement, DockEdge};
 pub use history::DockVisit;
-pub use joined::{DockMapping, joined_host, joined_key, joined_prefix};
-pub use plain::{
-    DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow,
+pub use joined::{
+    DockMapping, DockOutside, DockOutsidePlace, joined_host, joined_key, joined_prefix,
 };
-pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+pub use plain::{
+    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
+    DockPlainWindow,
+};
+pub use spec::{DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -42,6 +48,18 @@ pub struct SplitId(u64);
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SurfaceId(u64);
+
+impl LeafId {
+    pub(crate) fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl SplitId {
+    pub(crate) fn raw(self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct GroupId(u64);
@@ -141,6 +159,8 @@ struct Leaf {
     key: Option<String>,
     keep: bool,
     area: Option<String>,
+    #[serde(default)]
+    bare: bool,
 }
 
 impl Leaf {
@@ -155,6 +175,7 @@ impl Leaf {
             key: None,
             keep: false,
             area: None,
+            bare: false,
         }
     }
 }
@@ -305,6 +326,7 @@ pub enum DockTree {
         vertical: bool,
         icons_only: bool,
         sidebar: f32,
+        bare: bool,
     },
     Split {
         direction: Direction,
@@ -328,6 +350,7 @@ impl Default for DockTree {
             vertical: false,
             icons_only: false,
             sidebar: SIDEBAR_WIDTH,
+            bare: false,
         }
     }
 }
@@ -364,6 +387,7 @@ impl DockTree {
                 vertical,
                 icons_only,
                 sidebar,
+                bare,
             } => {
                 let shown = entries.get(*active);
                 let kept: Vec<DockTreeEntry> = entries
@@ -387,6 +411,7 @@ impl DockTree {
                     vertical: *vertical,
                     icons_only: *icons_only,
                     sidebar: *sidebar,
+                    bare: *bare,
                 }
             }
             DockTree::Split {
@@ -511,6 +536,10 @@ pub struct DockState {
     history: Vec<DockVisit>,
     next: u64,
     seeded: bool,
+    #[serde(default)]
+    bars: Vec<Bar>,
+    #[serde(default)]
+    outside: Vec<DockOutside>,
     #[serde(skip)]
     fullscreen: Option<DockFullscreen>,
     #[serde(skip)]
@@ -542,6 +571,8 @@ impl DockState {
             history: Vec::new(),
             next: 0,
             seeded: false,
+            bars: Vec::new(),
+            outside: Vec::new(),
             fullscreen: None,
             switch: None,
             lookup: Lookup::default(),
@@ -759,6 +790,24 @@ impl DockState {
         self.active_entry(leaf).and_then(Entry::tab)
     }
 
+    pub fn menu_tab(&self, leaf: LeafId) -> Option<TabId> {
+        let mut entry = self.active_entry(leaf)?;
+        for _ in 0..16 {
+            let group = match entry {
+                Entry::Tab(tab) => return Some(tab),
+                Entry::Group(group) => group,
+            };
+            let [inner] = self.tree_leaves(Tree::Group(group))[..] else {
+                return None;
+            };
+            if !self.is_bare(inner) {
+                return None;
+            }
+            entry = self.active_entry(inner)?;
+        }
+        None
+    }
+
     pub fn set_active_index(&mut self, leaf: LeafId, index: usize) {
         if let Some(leaf) = self.leaf_mut(leaf)
             && index < leaf.entries.len()
@@ -801,6 +850,15 @@ impl DockState {
             false if moved < 0.0 && width < MIN_SIDEBAR_WIDTH => leaf.icons_only = true,
             false => leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH),
         }
+    }
+
+    pub fn is_bare(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.bare)
+    }
+
+    pub fn is_one_bare_pane(&self) -> bool {
+        self.surfaces.len() == 1
+            && matches!(self.leaves(self.main()).as_slice(), [leaf] if self.is_bare(*leaf))
     }
 
     pub fn is_kept(&self, leaf: LeafId) -> bool {
@@ -898,6 +956,16 @@ impl DockState {
 
     pub fn group_tabs(&self, group: GroupId) -> Vec<TabId> {
         self.tree_tabs(Tree::Group(group))
+    }
+
+    pub fn standing_tabs(&self, entry: Entry) -> Vec<TabId> {
+        match entry {
+            Entry::Group(group) => match self.stands_for(group) {
+                Some(host) => vec![host],
+                None => self.group_tabs(group),
+            },
+            Entry::Tab(tab) => vec![tab],
+        }
     }
 
     pub fn entry_tabs(&self, entry: Entry) -> Vec<TabId> {
@@ -1362,6 +1430,7 @@ impl DockState {
                 leaf.key.clone_from(&like.key);
                 leaf.keep = like.keep;
                 leaf.area.clone_from(&like.area);
+                leaf.bare = like.bare;
             }
         }
     }
@@ -1691,9 +1760,16 @@ impl DockState {
             .is_some_and(|home| self.is_locked(&home) && self.at_home(tab))
     }
 
+    fn placed(&self, tab: TabId) -> Option<(LeafId, usize)> {
+        self.locate(Entry::Tab(tab)).or_else(|| {
+            self.hosted_by(tab)
+                .and_then(|group| self.locate(Entry::Group(group)))
+        })
+    }
+
     pub fn at_home(&self, tab: TabId) -> bool {
         self.home(tab)
-            .zip(self.locate(Entry::Tab(tab)))
+            .zip(self.placed(tab))
             .is_some_and(|(home, (leaf, _))| self.is_home(leaf, &home))
     }
 
@@ -1762,6 +1838,12 @@ impl DockState {
     }
 
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
+        if let DockDrop::Tab { leaf, .. } | DockDrop::Group { leaf, .. } | DockDrop::Pane { leaf } =
+            target
+            && self.is_bare(leaf)
+        {
+            return false;
+        }
         let away = target
             .leaf()
             .is_none_or(|leaf| self.surface_of(leaf) != Some(self.main()));
@@ -1784,7 +1866,11 @@ impl DockState {
             }
         };
         let tabs = self.entry_tabs(entry);
-        let held = tabs.iter().any(|tab| {
+        let mut guarded = tabs.clone();
+        if let Entry::Group(group) = entry {
+            guarded.extend(self.stands_for(group));
+        }
+        let held = guarded.iter().any(|tab| {
             let Some(home) = self.home(*tab).filter(|_| self.is_tab_locked(*tab)) else {
                 return false;
             };
@@ -1794,14 +1880,14 @@ impl DockState {
                 }
                 DockHome::Area(_) => {
                     let carried = self
-                        .locate(Entry::Tab(*tab))
+                        .placed(*tab)
                         .and_then(|(leaf, _)| self.area_leaf(leaf))
                         .is_some_and(|area| self.contains_leaf(entry, area));
                     !carried && !target.leaf().is_some_and(|leaf| self.is_home(leaf, &home))
                 }
             }
         });
-        if held || self.keeps_out(entry, &tabs, target) {
+        if held || self.keeps_out(entry, &guarded, target) {
             return false;
         }
         let Some(destination) = destination else {
@@ -1850,7 +1936,7 @@ impl DockState {
                         .is_some_and(|(leaf, _)| self.contains_leaf(entry, leaf))
             }
             Some(DockHome::Area(_)) => self
-                .locate(Entry::Tab(tab))
+                .placed(tab)
                 .and_then(|(leaf, _)| self.area_leaf(leaf))
                 .is_some_and(|area| self.contains_leaf(entry, area)),
             None => false,
@@ -1955,6 +2041,7 @@ impl DockState {
                 vertical: leaf.vertical,
                 icons_only: leaf.icons_only,
                 sidebar: leaf.sidebar,
+                bare: leaf.bare,
             },
             Node::Split(split) => DockTree::Split {
                 direction: split.direction,
@@ -2036,6 +2123,7 @@ impl DockState {
                 vertical,
                 icons_only,
                 sidebar,
+                bare,
             } => {
                 let entries: Vec<Entry> = entries
                     .iter()
@@ -2060,6 +2148,7 @@ impl DockState {
                 leaf.vertical = *vertical;
                 leaf.icons_only = *icons_only;
                 leaf.sidebar = sidebar.max(MIN_SIDEBAR_WIDTH);
+                leaf.bare = *bare;
                 Node::Leaf(leaf)
             }
             DockTree::Split {
@@ -2174,28 +2263,96 @@ pub fn layout_surface(
 }
 
 pub fn layout_tree(state: &DockState, tree: Tree, area: Rect, thickness: f32) -> DockLayout {
-    let mut layout = DockLayout::default();
-    if let Some(root) = state.root(tree) {
-        place(root, area, thickness, &mut layout);
-    }
-    layout
+    tree_shape(state, tree).map_or_else(DockLayout::default, |shape| shape.layout(area, thickness))
 }
 
-fn place(node: &Node, area: Rect, thickness: f32, out: &mut DockLayout) {
-    match node {
-        Node::Leaf(leaf) => out.leaves.push((leaf.id, area)),
-        Node::Split(split) => {
-            let fraction = shown_fraction(area, split.direction, split.fraction, thickness);
-            let (first, handle, second) = divide(area, split.direction, fraction, thickness);
-            out.splitters.push(DockSplitter {
+pub fn tree_shape(state: &DockState, tree: Tree) -> Option<DockShape> {
+    state.root(tree).map(DockShape::of)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DockShape {
+    Leaf(LeafId),
+    Split {
+        id: SplitId,
+        direction: Direction,
+        fraction: f32,
+        first: Box<DockShape>,
+        second: Box<DockShape>,
+    },
+}
+
+impl DockShape {
+    fn of(node: &Node) -> Self {
+        match node {
+            Node::Leaf(leaf) => Self::Leaf(leaf.id),
+            Node::Split(split) => Self::Split {
                 id: split.id,
                 direction: split.direction,
-                handle,
-                area,
+                fraction: split.fraction,
+                first: Box::new(Self::of(&split.first)),
+                second: Box::new(Self::of(&split.second)),
+            },
+        }
+    }
+
+    pub fn leaves(&self) -> Vec<LeafId> {
+        let mut out = Vec::new();
+        self.walk(&mut |shape| {
+            if let Self::Leaf(leaf) = shape {
+                out.push(*leaf);
+            }
+        });
+        out
+    }
+
+    pub fn splits(&self) -> Vec<SplitId> {
+        let mut out = Vec::new();
+        self.walk(&mut |shape| {
+            if let Self::Split { id, .. } = shape {
+                out.push(*id);
+            }
+        });
+        out
+    }
+
+    fn walk(&self, visit: &mut impl FnMut(&Self)) {
+        visit(self);
+        if let Self::Split { first, second, .. } = self {
+            first.walk(visit);
+            second.walk(visit);
+        }
+    }
+
+    pub fn layout(&self, area: Rect, thickness: f32) -> DockLayout {
+        let mut layout = DockLayout::default();
+        self.place(area, thickness, &mut layout);
+        layout
+    }
+
+    fn place(&self, area: Rect, thickness: f32, out: &mut DockLayout) {
+        match self {
+            Self::Leaf(leaf) => out.leaves.push((*leaf, area)),
+            Self::Split {
+                id,
+                direction,
                 fraction,
-            });
-            place(&split.first, first, thickness, out);
-            place(&split.second, second, thickness, out);
+                first,
+                second,
+            } => {
+                let fraction = shown_fraction(area, *direction, *fraction, thickness);
+                let (first_area, handle, second_area) =
+                    divide(area, *direction, fraction, thickness);
+                out.splitters.push(DockSplitter {
+                    id: *id,
+                    direction: *direction,
+                    handle,
+                    area,
+                    fraction,
+                });
+                first.place(first_area, thickness, out);
+                second.place(second_area, thickness, out);
+            }
         }
     }
 }

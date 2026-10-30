@@ -2,8 +2,8 @@ use block_editor_plugin::wgpu;
 use std::collections::HashMap;
 
 use block_editor_plugin::{
-    BlockParent, EditorHost, EditorRegion, Frame, Instance, PaintTarget, Plugin, Region, RegionId,
-    Regions, SurfaceRect, TimedInput,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, ShownView, SurfaceRect,
+    TimedInput, View, ViewHandler, ViewRef,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -27,8 +27,8 @@ impl Triangle {
 }
 
 #[derive(Default)]
-pub(crate) struct TriangleRegions {
-    painted: HashMap<RegionId, bool>,
+pub(crate) struct TriangleViews {
+    painted: HashMap<ViewRef, bool>,
     pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
@@ -42,18 +42,17 @@ impl Instance for Triangle {
             .create(&TriangleContent::default(), BlockParent::Detached))
     }
 
-    fn open_region(&mut self, _region: EditorRegion) {
-        if !self.host.handles_regions() {
-            self.host
-                .handle_regions(Box::new(TriangleRegions::default()));
+    fn open_view(&mut self, _view: View) {
+        if !self.host.handles_views() {
+            self.host.handle_views(Box::new(TriangleViews::default()));
         }
     }
 }
 
-impl Regions for TriangleRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
+impl ViewHandler for TriangleViews {
+    fn input(&mut self, _region: &ShownView, _event: &TimedInput, _over: Option<ViewRef>) {}
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         self.painted
             .retain(|id, _| regions.iter().any(|region| region.id() == *id));
         regions
@@ -66,7 +65,7 @@ impl Regions for TriangleRegions {
             .collect()
     }
 
-    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+    fn paint(&mut self, region: ViewRef, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         let (width, height) = (target.width, target.height);
         let side = width.min(height);
         if side == 0 {

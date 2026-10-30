@@ -74,6 +74,7 @@ impl ShownFrame for SurfaceFrame {
 struct Target {
     generation: u64,
     bind_group: wgpu::BindGroup,
+    size: (u32, u32),
 }
 
 pub struct Presenter {
@@ -123,9 +124,11 @@ impl SurfacePresenter for Presenter {
             let view = presented
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
+            let size = presented.texture.size();
             *shown = Some(Target {
                 generation: presented.generation,
                 bind_group: self.pipeline.texture_group(device, &view),
+                size: (size.width, size.height),
             });
         }
         Ok(())
@@ -160,6 +163,13 @@ impl SurfacePresenter for Presenter {
         pass.set_bind_group(0, texture, &[]);
         pass.set_bind_group(1, regions, &[offset]);
         pass.draw(0..6, 0..1);
+    }
+
+    fn size(&self, slot: u32, surface: u32) -> Option<(u32, u32)> {
+        self.targets
+            .get(&(slot, surface))
+            .and_then(|[shown, _]| shown.as_ref())
+            .map(|target| target.size)
     }
 
     fn retain(&mut self, slot: u32, surfaces: &[u32]) {

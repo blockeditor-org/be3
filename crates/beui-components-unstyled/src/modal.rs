@@ -10,11 +10,13 @@ use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::WindowId;
+use beui_view::types::layer::LayerEdge;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalPlacement {
     Center,
     Fill,
+    Sheet,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,6 +86,7 @@ pub fn Modal(
     let placed = match placement {
         ModalPlacement::Center => Placement::Center,
         ModalPlacement::Fill => Placement::Fill,
+        ModalPlacement::Sheet => Placement::Edge(LayerEdge::Bottom),
     };
     view! {
         <Overlay

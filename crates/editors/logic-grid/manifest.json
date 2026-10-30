@@ -18,8 +18,8 @@
         "pan_and_zoom": true
       },
       "resize": "Both",
-      "regions": [
-        "Frame",
+      "views": [
+        "Main",
         "ArtifactSettings"
       ]
     },
@@ -31,8 +31,8 @@
       "templates": {
         "main": {}
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "hotbar": {
@@ -40,8 +40,8 @@
       "edits": "6c6f6769-632d-686f-7462-617201010101",
       "display_name": "Hotbar",
       "icon": "\ue4fa",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "compiled": {
@@ -49,8 +49,8 @@
       "edits": "636f6d70-696c-6564-2d6c-6f6769630101",
       "display_name": "Compiled Logic",
       "icon": "\ue0a9",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

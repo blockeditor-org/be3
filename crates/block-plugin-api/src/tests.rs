@@ -44,6 +44,33 @@ fn committed(children: ChildPlacements) -> FrameCommit {
     }
 }
 
+fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameReport {
+    let size = placement.rect.size();
+    FrameReport {
+        screen,
+        content: None,
+        painted: vec![Rect::from_min_size(Pos2::ZERO, size)],
+        floating: vec![Rect::from_min_size(Pos2::ZERO, size)],
+        floating_painted: Vec::new(),
+        scrims: Vec::new(),
+        drawing: Vec::new(),
+        claims: Vec::new(),
+        description: None,
+        anchored: Some(placement),
+    }
+}
+
+fn anchored(parent: u64, anchor: ViewAnchor, rect: Rect) -> AnchoredPlacement {
+    AnchoredPlacement {
+        parent: ViewId(parent),
+        anchor,
+        rect,
+        dismiss_on_outside_press: true,
+        keyboard: true,
+        blocks_owner: false,
+    }
+}
+
 fn screen(
     screen: u64,
     instance: u64,
@@ -51,8 +78,8 @@ fn screen(
     pixel_height: u32,
     scale_factor: f32,
 ) -> ScreenRequest {
-    region_screen(
-        EditorRegion::Frame,
+    view_screen(
+        View::MAIN,
         screen,
         instance,
         pixel_width,
@@ -61,8 +88,8 @@ fn screen(
     )
 }
 
-fn region_screen(
-    region: EditorRegion,
+fn view_screen(
+    view: View,
     screen: u64,
     instance: u64,
     pixel_width: u32,
@@ -72,7 +99,8 @@ fn region_screen(
     ScreenRequest {
         screen: ScreenId(screen),
         instance: EditorInstanceId(instance),
-        region,
+        view: view.id,
+        placement: view.placement,
         frame: None,
         metrics: ViewportMetrics {
             logical: Size {
@@ -86,16 +114,21 @@ fn region_screen(
             raster: scale_factor,
         },
         windows: false,
-        placement: None,
+        host_place: None,
         docked: false,
+        anchor_space: None,
     }
 }
 
+mod a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_went;
 mod a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out;
 mod a_description_keeps_every_kind_of_node_property;
 mod a_dock_declaration_round_trips_and_nests;
+mod a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out;
 mod a_frame_says_which_host_state_it_was_laid_out_against;
+mod a_host_transform_maps_region_points_to_host_coordinates;
 mod a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest;
+mod a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
@@ -104,12 +137,14 @@ mod a_show_request_already_waiting_moves_to_the_end;
 mod a_watch_answers_its_next_with_the_latest_change;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;
+mod anchored_views_and_their_children_round_trip;
 mod artifact_messages_round_trip;
 mod block_types_round_trip;
 mod child_placements_round_trip;
 mod child_statuses_round_trip;
 mod creation_children_round_trip;
 mod creation_messages_round_trip;
+mod dock_bar_requests_round_trip_and_reach_the_root_through_their_owner;
 mod every_block_id_a_message_carries_is_visited;
 mod every_key_round_trips;
 mod frame_round_trips;
@@ -117,6 +152,7 @@ mod frame_screens_and_reports_round_trip;
 mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
+mod insets_give_the_content_area_of_a_view_resized_since_they_were_reported;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod notification_messages_round_trip;
@@ -124,10 +160,11 @@ mod open_messages_round_trip;
 mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
-mod region_sizes_round_trip;
 mod rejects_unordered_occluders;
+mod rename_and_app_menu_children_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;
+mod view_sizes_round_trip;
 mod web_view_events_waiting_for_the_editor_fold_and_stay_bounded;
 mod wifi_messages_round_trip;
 mod window_requests_round_trip;
@@ -152,6 +189,7 @@ fn pane(depth: u32, key: &str, locked: bool) -> DockItem {
             keep: false,
             area: locked.then(|| key.into()),
             empty: None,
+            bare: false,
         }),
     }
 }
@@ -200,6 +238,7 @@ fn declaration() -> DockDeclaration {
             declared(DockTabPath::own(3), "nested"),
         ],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }
 
@@ -211,5 +250,6 @@ fn child_declaration() -> DockDeclaration {
         },
         tabs: vec![declared(DockTabPath::own(4), "side-tab")],
         dialogs: Vec::new(),
+        bars: Vec::new(),
     }
 }

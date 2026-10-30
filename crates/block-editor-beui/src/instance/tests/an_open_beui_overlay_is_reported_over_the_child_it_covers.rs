@@ -47,11 +47,11 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
     let mut session = session::<OverlaidApp>(BLOCK_TYPE);
     frame(&mut session, None, TopBar::Hidden);
 
-    session.run(EditorRegion::Frame, 0);
-    session.run(EditorRegion::Frame, 0);
+    session.run(ViewId::MAIN, 0);
+    session.run(ViewId::MAIN, 0);
 
     let report = session
-        .report(EditorRegion::Frame)
+        .report(ViewId::MAIN)
         .expect("the frame region reports");
     let floating = report
         .floating
@@ -63,7 +63,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         "the reported rectangle is the one the overlay was laid out at"
     );
     let occluder = session
-        .occluders(EditorRegion::Frame)
+        .occluders(ViewId::MAIN)
         .first()
         .expect("an open overlay must be withheld from the child under it");
     assert_eq!(
@@ -72,7 +72,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         "the occluder covers the same rectangle the overlay was laid out at"
     );
     assert!(
-        occluder.after as usize >= session.placed_children(EditorRegion::Frame).len(),
+        occluder.after as usize >= session.placed_children(ViewId::MAIN).len(),
         "the overlay occludes every child placed under it"
     );
 }

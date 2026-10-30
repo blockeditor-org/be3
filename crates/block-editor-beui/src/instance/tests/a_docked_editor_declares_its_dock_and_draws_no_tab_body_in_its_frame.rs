@@ -5,7 +5,7 @@ use block_plugin_api::{DockMessage, DockTabPath};
 fn a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame() {
     let mut session = docked_session();
 
-    show_docked(&mut session, &[(EditorRegion::Frame, 0)], true);
+    show_docked(&mut session, &[(View::MAIN, 0)], true);
 
     let declared: Vec<_> = dock_messages(&mut session)
         .into_iter()
@@ -17,7 +17,7 @@ fn a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame() {
     let [declare] = declared.as_slice() else {
         panic!("a docked editor should declare its dock once, not {declared:?}");
     };
-    assert_eq!(declare.region.region, EditorRegion::Frame);
+    assert_eq!(declare.view.view, ViewId::MAIN);
     let declaration = declare
         .declaration
         .as_ref()
@@ -45,5 +45,5 @@ fn a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame() {
         ]
     );
     assert_eq!(BODIES.with(std::cell::Cell::get), 0);
-    assert!(session.placed_children(EditorRegion::Frame).is_empty());
+    assert!(session.placed_children(ViewId::MAIN).is_empty());
 }

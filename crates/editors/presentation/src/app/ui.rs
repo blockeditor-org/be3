@@ -2,25 +2,31 @@ use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
+use block_editor_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+};
+use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
-use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor, node_anchor};
+use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
 use uuid::Uuid;
 
 use super::slides::Slides;
 use beui::{Align, Direction, ItemSize};
 
-const FILMSTRIP_WIDTH: Size = Size::Custom(210.0);
+const FILMSTRIP: &str = "filmstrip";
+const STAGE: &str = "stage";
+const TOOLBAR: &str = "toolbar";
+const FILMSTRIP_SHARE: f32 = 0.22;
 const THUMBNAIL_WIDTH: Size = Size::Custom(176.0);
 const PLAYBACK_HEIGHT: Size = Size::Xl2;
 const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
 const FILL: f32 = 0.0;
-const PANEL_PADDING: Space = Space::Md;
 const FILMSTRIP_PADDING: Space = Space::Sm;
 const TILE_INSET: Space = Space::Xs;
 const TILE_SPACING: Space = Space::Md;
@@ -31,10 +37,17 @@ const PLAYBACK_SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 180);
 pub fn PresentationView(editor: Editor) -> NodeId {
     let slides = Slides::new(editor);
     let presenting = editor.presenting();
-    let stage = NodeRef::new();
-    editor.content(&stage);
+    let chrome = editor.chrome_shown();
+    let docked_stage = NodeRef::new();
+    let bare_stage = NodeRef::new();
 
     let editing = create_memo(move || !presenting.get());
+    let docked = create_memo(move || editing.get() && chrome.get());
+    let bare = create_memo(move || !docked.get());
+    create_effect(move || match docked.get() {
+        true => editor.content(&docked_stage),
+        false => editor.content(&bare_stage),
+    });
     let background = create_memo(move || match presenting.get() {
         true => ColorRole::Custom(PRESENTING.into()),
         false => ColorRole::Background,
@@ -44,34 +57,74 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame fill={background}>
-                <List direction=Direction::Horizontal spacing=Space::None>
-                    <ShowKeepAlive condition={editing}>
+                <Layers>
+                    <Show condition={docked}>
+                        <DeckDock
+                            editor={editor}
+                            slides={slides}
+                            stage={docked_stage}
+                            selected={slides.selected()}
+                        />
+                    </Show>
+                    <Show condition={bare}>
+                        <List spacing=Space::None>
+                            <Stage
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&bare_stage}
+                                editor={editor}
+                                slides={slides}
+                                selected={slides.selected()}
+                                mode=ChildMode::Live
+                                own_frame={editing}
+                                fit={presenting}
+                                report_size=true
+                            />
+                            <Show condition={presenting}>
+                                <Playback editor={editor} slides={slides} />
+                            </Show>
+                        </List>
+                    </Show>
+                </Layers>
+            </Frame>
+        </Interactive>
+    }
+}
+
+#[component]
+fn DeckDock(
+    editor: Editor,
+    slides: Slides,
+    stage: NodeRef,
+    selected: ReadSignal<Option<Uuid>>,
+) -> NodeId {
+    let layout = DockingLayout::<&'static str>::new();
+    view! {
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="deck" fraction=FILMSTRIP_SHARE>
+                <DockPane id="filmstrip" locked=true>
+                    <DockTab id=FILMSTRIP title="Slides">
                         <Filmstrip editor={editor} slides={slides} />
-                        <Separator direction=Direction::Vertical />
-                    </ShowKeepAlive>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                        <ShowKeepAlive condition={editing}>
-                            <Toolbar editor={editor} slides={slides} />
-                            <Separator />
-                        </ShowKeepAlive>
+                    </DockTab>
+                </DockPane>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Slide">
                         <Stage
-                            @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
                             editor={editor}
                             slides={slides}
-                            selected={slides.selected()}
+                            selected={selected}
                             mode=ChildMode::Live
-                            own_frame={editing}
-                            fit={presenting}
-                            report_size=true
+                            own_frame=true
+                            fit=false
+                            report_size=false
                         />
-                        <Show condition={presenting}>
-                            <Playback editor={editor} slides={slides} />
-                        </Show>
-                    </List>
-                </List>
-            </Frame>
-        </Interactive>
+                    </DockTab>
+                </DockPane>
+            </DockSplit>
+            <DockBar id=TOOLBAR parent=STAGE placement={DockBarPlacement::Beside(DockEdge::Top)}>
+                <Toolbar editor={editor} slides={slides} />
+            </DockBar>
+        </Docking>
     }
 }
 
@@ -179,32 +232,32 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
     let add_button = NodeRef::new();
     let add = move || {
         let index = slides.count();
-        slides.add(index, node_anchor(&add_button));
+        slides.add(index, add_button);
     };
     let present = move || editor.present(true);
     view! {
-        <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
-                <Button
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&add_button}
-                    label="Add slide"
-                    variant=ButtonVariant::Primary
-                    disabled={read_only}
-                    on_click={add}
-                    @test_id={"presentation.add"}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_MAXIMIZE
-                    label="Present"
-                    disabled={empty}
-                    on_click={present}
-                    @test_id={"presentation.present"}
-                />
-            </List>
-        </Frame>
+        <DockBarSurface spacing=Space::Md @test_id={"presentation.toolbar"}>
+            <Frame @test_id={"presentation.toolbar.grip"}>
+                <DockBarGrip />
+            </Frame>
+            <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
+            <Button
+                @node_ref={&add_button}
+                label="Add slide"
+                variant=ButtonVariant::Primary
+                disabled={read_only}
+                on_click={add}
+                @test_id={"presentation.add"}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_MAXIMIZE
+                label="Present"
+                disabled={empty}
+                on_click={present}
+                @test_id={"presentation.present"}
+            />
+        </DockBarSurface>
     }
 }
 
@@ -299,13 +352,19 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
     };
 
     view! {
-        <Frame width=FILMSTRIP_WIDTH fill=ColorRole::Surface padding=FILMSTRIP_PADDING>
-            <List spacing=TILE_SPACING>
+        <Frame fill=ColorRole::Surface>
+            <List spacing=Space::None>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
+                    <Frame padding=FILMSTRIP_PADDING>
+                        <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
+                    </Frame>
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
-                    <ForEach keys={keys} view={tiles} />
+                    <Frame padding=FILMSTRIP_PADDING>
+                        <List spacing=TILE_SPACING>
+                            <ForEach keys={keys} view={tiles} />
+                        </List>
+                    </Frame>
                 </Scroll>
             </List>
         </Frame>

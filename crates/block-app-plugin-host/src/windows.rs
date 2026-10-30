@@ -1,13 +1,10 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
-use block_plugin_api::{EditorInstanceId, WindowRequest};
-
-type Overlays = fn(&str, EditorInstanceId, u64) -> bool;
+use block_plugin_api::WindowRequest;
 
 thread_local! {
     static PENDING: RefCell<Vec<(String, WindowRequest)>> = const { RefCell::new(Vec::new()) };
     static FORGOTTEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-    static OVERLAYS: Cell<Option<Overlays>> = const { Cell::new(None) };
 }
 
 pub fn request_windows(plugin: &str, requests: Vec<WindowRequest>) {
@@ -34,14 +31,4 @@ pub fn take_window_requests() -> (Vec<(String, WindowRequest)>, Vec<String>) {
         PENDING.with(|pending| std::mem::take(&mut *pending.borrow_mut())),
         FORGOTTEN.with(|forgotten| std::mem::take(&mut *forgotten.borrow_mut())),
     )
-}
-
-pub fn serve_overlays(overlays: Overlays) {
-    OVERLAYS.with(|held| held.set(Some(overlays)));
-}
-
-pub fn is_overlay(plugin: &str, instance: EditorInstanceId, window: u64) -> bool {
-    OVERLAYS
-        .with(Cell::get)
-        .is_some_and(|overlays| overlays(plugin, instance, window))
 }

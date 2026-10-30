@@ -13,8 +13,8 @@
           "category": "debug"
         }
       },
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

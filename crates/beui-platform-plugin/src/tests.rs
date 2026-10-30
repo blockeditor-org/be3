@@ -9,31 +9,35 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, pos2};
 use beui_core::input::Event;
 use beui_core::node::NodeId;
-use block_editor_plugin::{EditorInstanceId, EditorRegion, FrameSpec, Input, Module};
+use block_editor_plugin::{EditorInstanceId, FrameSpec, Input, Module};
 
 use super::*;
 use beui_host::native::build;
 
-mod a_copy_in_a_region_reaches_the_host;
-mod a_region_describes_itself_and_does_what_a_screen_reader_asks;
-mod a_region_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out;
-mod a_region_lays_out_over_its_whole_rect_not_just_what_shows;
-mod a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops;
-mod a_region_that_loses_the_keyboard_mid_press_keeps_the_press;
-mod a_regions_keyboard_reaches_the_host_with_its_asks;
+mod a_copy_in_a_view_reaches_the_host;
+mod a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view;
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
+mod a_view_describes_itself_and_does_what_a_screen_reader_asks;
+mod a_view_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out;
+mod a_view_lays_out_over_its_whole_rect_not_just_what_shows;
+mod a_view_tells_the_host_it_locks_the_pointer_and_when_it_stops;
+mod a_view_that_loses_the_keyboard_mid_press_keeps_the_press;
+mod a_views_keyboard_reaches_the_host_with_its_asks;
+mod a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
 mod a_window_opened_where_the_host_places_windows_is_the_hosts_own;
-mod a_window_the_app_floats_inside_a_region_stays_in_that_region;
-mod an_image_copied_in_a_region_reaches_the_host;
-mod each_region_reads_its_own_viewport_size;
-mod every_region_is_a_window_painted_in_the_frame_that_first_asks_for_it;
+mod a_window_the_app_floats_inside_a_view_stays_in_that_view;
+mod a_window_the_app_opens_is_painted_in_the_frame_that_opens_it;
+mod a_zoomed_out_views_menu_paints_all_of_itself;
+mod an_image_copied_in_a_view_reaches_the_host;
+mod each_view_reads_its_own_viewport_size;
+mod every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
-fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
-    Region {
+fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> ShownView {
+    ShownView {
         instance: INSTANCE,
-        region: EditorRegion::Frame,
+        view: block_editor_plugin::View::MAIN,
         block: None,
         rect: Rect::from_min_size(Pos2::ZERO, size),
         visible,
@@ -46,11 +50,12 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
         seen: true,
         windows: false,
         docked: false,
-        placement: None,
+        host_place: None,
+        anchor_space: None,
     }
 }
 
-fn whole(width: f32, height: f32) -> Region {
+fn whole(width: f32, height: f32) -> ShownView {
     region(
         vec2(width, height),
         Vec2::ZERO,
@@ -58,14 +63,41 @@ fn whole(width: f32, height: f32) -> Region {
     )
 }
 
-fn one(surface: &mut ModuleRunner, region: &Region) -> Frame {
+fn anchored_shown(owner: &ShownView, anchored: &block_editor_plugin::Anchored) -> ShownView {
+    let rect = anchored.placement.rect;
+    ShownView {
+        view: block_editor_plugin::View::anchored(anchored.view),
+        rect: Rect::from_min_size(Pos2::ZERO, rect.size()),
+        visible: Vec2::ZERO,
+        pixels: [rect.width().ceil() as u32, rect.height().ceil() as u32],
+        anchor_space: owner
+            .anchor_space
+            .map(|space| block_editor_plugin::AnchorSpace {
+                to_host: block_editor_plugin::HostTransform {
+                    origin: rect.min,
+                    scale: Vec2::splat(1.0),
+                },
+                bounds: space.bounds,
+            }),
+        ..owner.clone()
+    }
+}
+
+fn one_anchored(surface: &mut ModuleRunner, region: &ShownView) -> Frame {
+    surface
+        .frame_opened(std::slice::from_ref(region))
+        .pop()
+        .expect("one view framed gets one frame")
+}
+
+fn one(surface: &mut ModuleRunner, region: &ShownView) -> Frame {
     surface
         .frame(std::slice::from_ref(region))
         .pop()
         .expect("one region framed gets one frame")
 }
 
-type Content = Rc<dyn Fn(RegionId) -> NodeId>;
+type Content = Rc<dyn Fn(ViewRef) -> NodeId>;
 type Hook = Box<dyn FnMut(&Context)>;
 
 struct Windowed {
@@ -77,7 +109,7 @@ struct Windowed {
 }
 
 impl Windowed {
-    fn new(content: impl Fn(RegionId) -> NodeId + 'static) -> Self {
+    fn new(content: impl Fn(ViewRef) -> NodeId + 'static) -> Self {
         Self {
             content: Rc::new(content),
             hook: None,
@@ -129,15 +161,15 @@ impl App for Windowed {
                     requested.with(|views| {
                         views
                             .iter()
+                            .filter(|view| view.placement != ViewPlacement::Host(HostView::Window))
                             .map(|view| view.id)
-                            .filter(|id| !matches!(id.region, EditorRegion::Window(_)))
                             .collect::<Vec<_>>()
                     })
                 });
                 view! {
                     <styled::Root>
                         <styled::List spacing=styled::Space::None>
-                            <ForEach keys>|id: RegionId|
+                            <ForEach keys>|id: ViewRef|
                                 <Shown
                                     id
                                     requested
@@ -160,7 +192,7 @@ impl App for Windowed {
 }
 
 #[component]
-fn Shown(id: RegionId, requested: ReadSignal<Vec<View>>, views: Views, content: Content) -> NodeId {
+fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: Content) -> NodeId {
     let size = create_memo(move || {
         requested.with(|views| {
             views

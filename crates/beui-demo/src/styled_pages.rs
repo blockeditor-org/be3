@@ -6,7 +6,7 @@ use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP,
     ICON_FOLDER, ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE,
     ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE, ICON_TRIANGLE_ALERT,
-    ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::{Align, CanvasView, Extent};
@@ -171,9 +171,12 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample
                 title="Dialogs attached to a tab"
-                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedCard::SOURCE]}
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, PointingCard::SOURCE]}
             >
                 <AttachedDialogs />
+            </Sample>
+            <Sample title="A dialog from a shortcut" code={vec![TabSettings::SOURCE]}>
+                <TabSettings />
             </Sample>
         </ScrollPage>
     }
@@ -185,11 +188,7 @@ fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
     let pointing = NodeRef::new();
-    let open_card = move |anchor: Option<Rect>| {
-        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-            dialogs.open_card(tab, anchor);
-        }
-    };
+    let card = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
@@ -214,23 +213,14 @@ fn AttachedDialogs() -> NodeId {
                     }}
                 />
                 <Button
-                    @test_id="demo.dialog.card"
-                    label="Open a card"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || open_card(None)}
-                />
-                <Button
                     @test_id="demo.dialog.pointing"
                     @node_ref=&pointing
                     label="Open a card from here"
                     variant=ButtonVariant::Secondary
-                    on_click={move || {
-                        open_card(pointing.try_get().and_then(|button| {
-                            Some(measure(button).get_untracked()?.rect)
-                        }))
-                    }}
+                    on_click={move || card.set(true)}
                 />
             </List>
+            <PointingCard open={card} control={pointing} />
             <Text style=TextStyle::CAPTION>
                 "A dialog hangs from the tab that opened it: it floats in the middle of \
                  that tab, hides when another tab is shown in its place and comes back with it, \
@@ -238,17 +228,11 @@ fn AttachedDialogs() -> NodeId {
                  for its tab until it closes, and the focus goes back to the tab when it does."
             </Text>
             <Text style=TextStyle::CAPTION>
-                "A card floats just under the tab bar, centred on the tab but free to \
-                 reach past its pane, dims the tab and waits for a choice, with a dot on the tab \
-                 meanwhile. Pressing the dimmed tab closes it. Other tabs and panes stay usable, \
-                 and the card keeps what was done in it while another tab is shown. On a phone it \
-                 is a sheet from the bottom of the screen."
-            </Text>
-            <Text style=TextStyle::CAPTION>
-                "A card opened from a control points at it instead, like a popover: it \
-                 opens under the control, or above it where there is no room below, and leaves \
-                 the tab undimmed. Pressing elsewhere on the tab closes it, and it keeps its \
-                 place on the tab when the pane is moved or resized."
+                "A small form opened from a control is no dialog of the dock: it is the \
+                 shared Dialog, a card pointing at the control, under it or above it where \
+                 there is no room below, which leaves the tab undimmed and escapes its pane. \
+                 Pressing elsewhere closes it. On a phone it is a sheet from the bottom of the \
+                 screen."
             </Text>
         </List>
     }
@@ -298,55 +282,33 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
 
 #[sample]
 #[component]
-pub(crate) fn AttachedCard() -> NodeId {
-    let dialogs = use_context::<DemoDialogs>();
-    let tab = use_dock_tab().map(|control| control.tab());
-    let id = tab.map_or(0, TabId::value);
+fn PointingCard(open: Signal<bool>, control: NodeRef) -> NodeId {
     let presses = create_signal(0_u32);
     let label = create_memo(move || match presses.get() {
         0 => "Press me".to_owned(),
         count => format!("Pressed {count} times"),
     });
-    let close = move || {
-        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-            dialogs.close(tab);
-        }
-    };
     view! {
-        <List spacing=Space::None>
-            <Frame padding=PAGE_PADDING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                        "Choose something"
-                    </Text>
-                    <Button
-                        icon_only=true
-                        @test_id={format!("demo.card.{id}.close")}
-                        glyph=ICON_X
-                        label="Close"
-                        variant=ButtonVariant::Ghost
-                        on_click={close}
-                    />
-                </List>
-            </Frame>
-            <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=PAGE_PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <Text>
-                            "Only the tab under this card waits for it. Show another tab \
-                             and come back: the count below is kept."
-                        </Text>
-                        <Button
-                            @test_id={format!("demo.card.{id}.count")}
-                            label={label}
-                            variant=ButtonVariant::Secondary
-                            on_click={move || presses.update(|presses| *presses += 1)}
-                        />
-                    </List>
-                </Frame>
-            </Scroll>
-        </List>
+        <Dialog
+            open={open}
+            title="Choose something"
+            anchor={DialogAnchor::Control(control)}
+            width={Size::Custom(520.0)}
+            on_dismiss={move || open.set(false)}
+        >
+            <List @test_id="demo.pointing.card" spacing=SECTION_SPACING>
+                <Text>
+                    "A card opened from a control points at it and dims nothing. \
+                     Pressing anywhere outside it closes it."
+                </Text>
+                <Button
+                    @test_id="demo.pointing.count"
+                    label={label}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || presses.update(|presses| *presses += 1)}
+                />
+            </List>
+        </Dialog>
     }
 }
 
@@ -456,6 +418,44 @@ fn FullscreenTab() -> NodeId {
                  Escape or the same button brings it back. Full screen in the tab's \
                  right-click menu shows it the same way."
             </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TabSettings() -> NodeId {
+    let open = create_signal(false);
+    let tab = use_frame_anchor();
+    Action::new("demo.tab-settings", "Tab settings", move || open.set(true))
+        .shortcut(Chord::ctrl(Key::Period))
+        .register();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.tab-settings"
+                    label="Open as Ctrl+. does"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open.set(true)}
+                />
+            </List>
+            <Text style=TextStyle::CAPTION>
+                "A dialog opened from a shortcut, the palette or a menu another layer drew \
+                 has no control to hang from, so it points at its tab. In a fullscreen tab, \
+                 where no tab shows, it opens at the top of the page without a beak."
+            </Text>
+            <Dialog
+                open={open}
+                title="Tab settings"
+                anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+                width={Size::Custom(240.0)}
+                on_dismiss={move || open.set(false)}
+            >
+                <Text @test_id="demo.tab-settings.body" style=TextStyle::CAPTION>
+                    "Settings about this tab."
+                </Text>
+            </Dialog>
         </List>
     }
 }
@@ -1732,6 +1732,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu opened by a model" code={vec![HeldMenu::SOURCE]}>
                 <HeldMenu />
             </Sample>
+            <Sample title="A menu in place" code={vec![MenuInPlace::SOURCE]}>
+                <MenuInPlace />
+            </Sample>
             <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
                 <TrayIcons />
             </Sample>
@@ -2345,6 +2348,35 @@ fn HeldMenu() -> NodeId {
 
 #[sample]
 #[component]
+fn MenuInPlace() -> NodeId {
+    let chosen = create_signal("Nothing chosen yet".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame align={beui::Align2::START}>
+                <MenuRows
+                    @test_id="demo.menu-rows"
+                    min_width={Size::Custom(240.0)}
+                    on_select={move |path: Vec<usize>| {
+                        let shape = ["Circle", "Square", "Star"][path.first().copied().unwrap_or_default()];
+                        chosen.set(format!("Chose {shape}"));
+                    }}
+                    items={view! {
+                        <MenuItem label="Circle" />
+                        <MenuItem label="Square" />
+                        <MenuItem label="Star" separated=true />
+                    }}
+                />
+            </Frame>
+            <Text style=TextStyle::CAPTION>
+                "A menu's rows drawn in place, in their panel, with no popup around them: for a menu something else places, such as a host's menu in a view another editor anchored."
+            </Text>
+            <Text style=TextStyle::CAPTION>{chosen}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn NewSlideMenu() -> NodeId {
     let added = create_signal("No slide added yet".to_owned());
     let chosen = create_signal(None::<usize>);
@@ -2584,10 +2616,12 @@ fn RenameDialog() -> NodeId {
         name.set(typed.get_untracked().trim().to_owned());
         dialog.set(false);
     };
+    let opener = NodeRef::new();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
+                    @node_ref=&opener
                     @test_id={"demo.rename.open"}
                     label="Rename…"
                     variant=ButtonVariant::Secondary
@@ -2602,6 +2636,7 @@ fn RenameDialog() -> NodeId {
                 open={dialog}
                 title="Rename"
                 width=DIALOG_WIDTH
+                anchor={DialogAnchor::Control(opener)}
                 id="demo.rename"
                 actions={vec![
                     DialogAction::cancel("Cancel"),
@@ -4264,5 +4299,90 @@ fn NestedNote(text: &'static str) -> NodeId {
                 <Text style=TextStyle::PARAGRAPH>{text}</Text>
             </Frame>
         </Scroll>
+    }
+}
+
+#[component]
+pub(crate) fn DockBarsPage() -> NodeId {
+    let layout = DockingLayout::<u64>::new();
+    view! {
+        <Docking layout>
+            <DockPane id="stage" bare=true>
+                <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
+                    <BarsStage />
+                </DockTab>
+            </DockPane>
+            <DockBar
+                id=2u64
+                parent=1u64
+                placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}
+            >
+                <DemoToolBar name="tools" tools={DRAWING_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar
+                id=3u64
+                parent=1u64
+                placement={DockBarPlacement::Over(DockEdge::Left, DockAlign::Center)}
+            >
+                <DemoToolBar name="style" tools={STYLE_TOOLS.to_vec()} />
+            </DockBar>
+        </Docking>
+    }
+}
+
+#[component]
+fn BarsStage() -> NodeId {
+    view! {
+        <Frame @test_id="bars.stage" fill=ColorRole::Background>
+            <Frame padding=PAGE_PADDING align=Align::Center>
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                    "This page is a Docking of its own with one bare pane and two tool bars. Drag a \
+                     bar by its grip to float it over an edge of the stage, to dock it along an edge \
+                     beside the stage, or away from the stage to pop it out into a window. Bars on \
+                     one edge stack, and a bar dropped between or beside them takes that place. The \
+                     grip's menu moves it without dragging."
+                </Text>
+            </Frame>
+        </Frame>
+    }
+}
+
+const DRAWING_TOOLS: [(&str, Glyph); 6] = [
+    ("Select", beui::icons::ICON_MOUSE_POINTER_2),
+    ("Hand", beui::icons::ICON_HAND),
+    ("Pencil", beui::icons::ICON_PENCIL),
+    ("Shape", ICON_SQUARE),
+    ("Text", beui::icons::ICON_TYPE),
+    ("Eraser", beui::icons::ICON_ERASER),
+];
+
+const STYLE_TOOLS: [(&str, Glyph); 3] = [
+    ("Fill", beui::icons::ICON_PAINT_BUCKET),
+    ("Colour", beui::icons::ICON_PALETTE),
+    ("Layers", beui::icons::ICON_LAYERS),
+];
+
+#[component]
+fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId {
+    let grip = match name {
+        "tools" => "bars.grip".to_owned(),
+        name => format!("bars.{name}.grip"),
+    };
+    view! {
+        <DockBarSurface @test_id={format!("bars.{name}")}>
+            <Frame @test_id={grip}>
+                <DockBarGrip />
+            </Frame>
+            <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
+                <Button
+                    @test_id={format!("bars.tool.{}", label.to_lowercase())}
+                    label
+                    glyph={Some(glyph)}
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Toolbar
+                />
+            </ForEach>
+        </DockBarSurface>
     }
 }

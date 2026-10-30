@@ -40,22 +40,26 @@ pub use block_plugin_api::{
     ChildOperations, ChildPlacement, ChildPreview, ChildStatus, ConflictSide, ContactsWatch,
     CreationProgress, CursorIcon, DescribedAction, Description, DialogAnswer, DialogFrame,
     DialogStatus, DisplayMode, DisplaysWatch, EditorCapabilities, EditorDescriptor,
-    EditorInstanceId, EditorRegion, Edits, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec,
-    HostContact, HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel,
-    HostProgram, HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock,
-    IncomingNotification, Input, InputDevicesWatch, InteractionMode, Key, KeyChord, LinkBaseWatch,
-    MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuCheck, MenuCommand, MenuEntry, MenuPin,
-    MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder,
-    PenPhase, PickedBlock, PlayerCommand, PointerButton, PowerAction, PowerAvailability,
-    PowerWatch, Press, PreviewImage, ProgramAction, ProgramsWatch, RemapState, RemapsWatch,
-    ResizeMode, Revision, Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand,
-    ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput,
-    TopBar, TouchPhase, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle,
-    TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
-    VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
-    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
-    WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
+    EditorInstanceId, Edits, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec, HostContact,
+    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input,
+    InputDevicesWatch, InteractionMode, Key, KeyChord, LinkBaseWatch, MediaLevel, MediaLevels,
+    MediaRequest, MediaWatch, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers,
+    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
+    NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder, PenPhase, PickedBlock,
+    PlayerCommand, PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage,
+    ProgramAction, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation,
+    ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand, ShellDialog, Size, Stopped,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
+    TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
+    WindowOrigin, WindowRequests, WindowsWatch,
+};
+pub use block_plugin_api::{
+    AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
+    ViewEdge, ViewId, ViewPlacement, ViewRef,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
@@ -69,11 +73,12 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed, SavedFile,
-    SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
+    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
+    RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
+    Waker,
 };
 pub use module::Module;
-pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionId, Regions, SettingsDraft};
+pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

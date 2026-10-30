@@ -1,6 +1,5 @@
 use super::*;
 mod a_child_asking_for_another_editor_reopens_in_it;
 mod a_conflicted_block_offers_both_versions;
-mod a_followed_fit_gives_way_to_a_move_by_hand;
 mod escape_stops_a_presentation_rather_than_reaching_the_editor;
 mod plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends;

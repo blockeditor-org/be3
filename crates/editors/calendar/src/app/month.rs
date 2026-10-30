@@ -6,6 +6,7 @@ use block_editor_beui::beui::styled::*;
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
+use super::ui::use_form_opener;
 use beui::{Direction, ItemSize};
 
 const CELL_HEIGHT: f32 = 92.0;
@@ -115,9 +116,15 @@ fn MonthCell(
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let pick = move || on_pick_day.call(day);
+    let opened_from = use_form_opener();
+    let cell = NodeRef::new();
+    let pick = move || {
+        opened_from(cell);
+        on_pick_day.call(day);
+    };
     view! {
         <Frame
+            @node_ref={&cell}
             fill={fill}
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Sm
@@ -138,13 +145,16 @@ fn MonthCell(
                     let title = create_memo(move || {
                         event.get().map(|event| event.value.title).unwrap_or_default()
                     });
+                    let chip = NodeRef::new();
                     let open = move || {
                         if let Some(event) = event.get_untracked() {
+                            opened_from(chip);
                             on_pick_event.call(event);
                         }
                     };
                     view! {
                         <EventChip
+                            @node_ref={&chip}
                             title={title}
                             @test_id={format!("calendar.event.{id}")}
                             on_click={open}

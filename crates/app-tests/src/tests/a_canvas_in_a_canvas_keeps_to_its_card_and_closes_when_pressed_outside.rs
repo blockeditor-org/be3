@@ -10,7 +10,6 @@ fn a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside() {
     let full = format!("Pane \"Canvas\" at {x},{y} size {width}x{height}");
     add_to_canvas(&mut app, "Canvas");
     let card = app.place(SHAPE);
-    app.crop("#workspace.block");
 
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     app.run(&["click", &inside]);

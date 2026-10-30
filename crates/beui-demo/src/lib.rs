@@ -5,11 +5,11 @@ use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-use beui::dock::styled::Docking;
+use beui::dock::styled::{DockBarGrip, DockBarSurface, Docking};
 use beui::dock::unstyled::{
-    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
-    DockingLayout, TabId, dock_menu, use_dock_tab,
+    DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
+    DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
+    DockTabControl, DockingLayout, TabId, dock_menu, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{
@@ -18,8 +18,8 @@ use beui::icons::{
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
-    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER,
+    ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
     ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
@@ -39,11 +39,11 @@ use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
-use styled_pages::{AttachedCard, AttachedDialog};
+use styled_pages::AttachedDialog;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage, RowsPage,
-    TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
+    InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
+    RowsPage, TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -63,7 +63,6 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: Space = Space::Md;
 const TOOLBAR_SPACING: Space = Space::Md;
@@ -81,6 +80,7 @@ const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 enum Page {
     Docking,
     NestedDocks,
+    DockBars,
     Text,
     Buttons,
     Inputs,
@@ -112,9 +112,10 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 18] = [
+const STYLED_PAGES: [Page; 19] = [
     Page::Docking,
     Page::NestedDocks,
+    Page::DockBars,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -152,9 +153,10 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 31] = [
+const PAGES: [Page; 32] = [
     Page::Docking,
     Page::NestedDocks,
+    Page::DockBars,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -191,6 +193,7 @@ impl Page {
         match self {
             Page::Docking => "Docking",
             Page::NestedDocks => "Nested docks",
+            Page::DockBars => "Dock bars",
             Page::Text => "Text",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
@@ -227,6 +230,7 @@ impl Page {
         match self {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
             Page::NestedDocks => ICON_PANELS_TOP_LEFT,
+            Page::DockBars => ICON_PANEL_BOTTOM,
             Page::Text => ICON_TYPE,
             Page::Buttons => ICON_MOUSE_POINTER_CLICK,
             Page::Inputs => ICON_TOGGLE_RIGHT,
@@ -263,6 +267,7 @@ impl Page {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
             Page::NestedDocks => "A dock in a tab joins the dock around it",
+            Page::DockBars => "A tool bar on any edge of its pane, or in a window",
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
@@ -383,40 +388,18 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
-    card: bool,
-    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        match self.card {
-            true => CARD_SIZE,
-            false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
-        }
-    }
-
-    fn anchor(self) -> Option<Rect> {
-        self.anchor.map(|[left, top, right, bottom]| {
-            Rect::from_min_max(
-                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
-                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
-            )
-        })
-    }
-
-    fn presentation(self) -> DockDialogPresentation {
-        match self.card {
-            true => DockDialogPresentation::Card,
-            false => DockDialogPresentation::Window,
-        }
+        DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth)
     }
 
     fn title(self) -> &'static str {
-        match (self.card, self.modal) {
-            (true, _) => "Card",
-            (false, true) => "Modal dialog",
-            (false, false) => "Dialog",
+        match self.modal {
+            true => "Modal dialog",
+            false => "Dialog",
         }
     }
 }
@@ -437,16 +420,6 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false, None);
-    }
-
-    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
-        self.add(parent, true, true, anchor);
-    }
-
-    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
-        let anchor =
-            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -457,8 +430,6 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
-                card,
-                anchor,
                 depth,
             });
         });
@@ -649,31 +620,16 @@ fn DemoShell() -> NodeId {
                         id={dialog.id}
                         parent={dialog.parent}
                         modal={dialog.modal}
-                        presentation={dialog.presentation()}
-                        anchor={dialog.anchor()}
-                        dismiss_on_outside_press={dialog.card}
                         title={dialog.title()}
                         icon=ICON_EXTERNAL_LINK
                         size={dialog.size()}
                         on_close={move || dialogs.close(dialog.id)}
                     >
-                        <DemoDialogBody dialog />
+                        <AttachedDialog modal={dialog.modal} />
                     </DockDialog>
                 </ForEach>
             </Docking>
         </List>
-    }
-}
-
-#[component]
-fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
-    match dialog.card {
-        true => view! {
-            <AttachedCard />
-        },
-        false => view! {
-            <AttachedDialog modal={dialog.modal} />
-        },
     }
 }
 
@@ -685,6 +641,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::NestedDocks => view! {
             <NestedDocksPage />
+        },
+        Page::DockBars => view! {
+            <DockBarsPage />
         },
         Page::Text => view! {
             <TextPage />

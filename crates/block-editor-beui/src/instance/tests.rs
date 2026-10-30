@@ -2,20 +2,25 @@ use super::*;
 use block_editor_plugin::editor_session::EditorSession;
 use block_editor_plugin::{Plugin, Waker};
 use block_plugin_api::{
-    EditorInstanceId, FrameChrome, FrameSpec, Rect, ScreenId, ScreenPlacement, ScreenRequest,
-    TopBar, ViewportMetrics,
+    EditorInstanceId, FrameChrome, FrameSpec, ParentView, Rect, ScreenId, ScreenPlacement,
+    ScreenRequest, TopBar, View, ViewId, ViewPlacement, ViewportMetrics,
 };
 
 mod a_child_block_asks_the_host_for_the_frame_it_will_own;
 mod a_docked_editor_builds_a_tab_body_only_where_the_host_shows_it_and_keeps_it;
 mod a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame;
 mod a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes;
+mod a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it;
 mod a_docked_editors_nested_dock_and_dialog_join_its_declaration;
 mod a_docked_editors_palette_opens_over_the_tab_whose_menu_asked;
+mod a_docked_editors_popover_is_an_anchored_view_of_its_tab;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
+mod a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks;
 mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
+mod a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it;
+mod a_root_places_bars_of_one_kind_together_and_others_apart;
 mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
 mod an_editor_not_docked_draws_its_dock_itself_and_declares_nothing;
@@ -34,7 +39,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
         &[ScreenPlacement {
             screen: ScreenId(0),
             instance: EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             surface: 1,
             width: 800,
             height: 600,
@@ -44,7 +49,8 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
         &[ScreenRequest {
             screen: ScreenId(0),
             instance: EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
+            placement: ViewPlacement::Parent(ParentView::Main),
             metrics: ViewportMetrics {
                 logical: block_plugin_api::Size {
                     width: 800.0,
@@ -61,24 +67,22 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 content,
                 top_bar,
                 dialog: None,
+                anchor: None,
             }),
             windows: false,
-            placement: None,
+            host_place: None,
             docked: false,
+            anchor_space: None,
         }],
     );
 }
 
-fn dock_screen(
-    region: EditorRegion,
-    screen: u64,
-    docked: bool,
-) -> (ScreenPlacement, ScreenRequest) {
+fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, ScreenRequest) {
     let width = 400 + 100 * screen as u32;
     let placement = ScreenPlacement {
         screen: ScreenId(screen),
         instance: EditorInstanceId(0),
-        region,
+        view: shown.id,
         surface: screen as u32 + 1,
         width,
         height: 300,
@@ -88,7 +92,8 @@ fn dock_screen(
     let request = ScreenRequest {
         screen: ScreenId(screen),
         instance: EditorInstanceId(0),
-        region,
+        view: shown.id,
+        placement: shown.placement,
         metrics: ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: width as f32,
@@ -100,21 +105,22 @@ fn dock_screen(
             scale_factor: 1.0,
             raster: 1.0,
         },
-        frame: (region == EditorRegion::Frame).then(FrameSpec::default),
+        frame: shown.is_main().then(FrameSpec::default),
         windows: false,
-        placement: None,
-        docked: docked && region == EditorRegion::Frame,
+        host_place: None,
+        docked: docked && shown.is_main(),
+        anchor_space: None,
     };
     (placement, request)
 }
 
-fn show_docked(session: &mut EditorSession, screens: &[(EditorRegion, u64)], docked: bool) {
+fn show_docked(session: &mut EditorSession, screens: &[(View, u64)], docked: bool) {
     let (placements, requests): (Vec<_>, Vec<_>) = screens
         .iter()
-        .map(|(region, screen)| dock_screen(*region, *screen, docked))
+        .map(|(shown, screen)| dock_screen(*shown, *screen, docked))
         .unzip();
     session.place(&placements, &requests);
-    let framed: Vec<_> = screens.iter().map(|(region, _)| (*region, 0)).collect();
+    let framed: Vec<_> = screens.iter().map(|(shown, _)| (shown.id, 0)).collect();
     session.frame(&framed);
     session.frame(&framed);
 }
@@ -142,7 +148,7 @@ fn hosted_tabs(
     focused: Option<u64>,
 ) -> block_plugin_api::DockUpdate {
     use block_plugin_api::{
-        DockHosted, DockHostedRegion, DockItem, DockItemKind, DockLayout, DockPane, DockTabPath,
+        DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout, DockPane, DockTabPath,
         DockTree, DockUpdate,
     };
     let mut items = vec![DockItem {
@@ -158,6 +164,7 @@ fn hosted_tabs(
             keep: false,
             area: None,
             empty: None,
+            bare: false,
         }),
     }];
     items.extend(tabs.iter().map(|tab| DockItem {
@@ -165,8 +172,8 @@ fn hosted_tabs(
         kind: DockItemKind::Tab(DockTabPath::own(*tab)),
     }));
     let own = |tabs: &[u64]| tabs.iter().copied().map(DockTabPath::own).collect();
-    DockUpdate::Hosted(DockHostedRegion {
-        region: EditorRegion::Frame,
+    DockUpdate::Hosted(DockHostedView {
+        view: ViewId::MAIN,
         hosted: Some(DockHosted {
             layout: DockLayout {
                 tree: DockTree {
@@ -174,6 +181,8 @@ fn hosted_tabs(
                     focus: focused.map(DockTabPath::own),
                 },
                 homes: Vec::new(),
+                bars: Vec::new(),
+                outside: Vec::new(),
                 unlocked: Vec::new(),
             },
             tabs: own(tabs),
@@ -182,6 +191,7 @@ fn hosted_tabs(
             visible: own(visible),
             fullscreen: None,
             stacked: false,
+            covers: Vec::new(),
         }),
     })
 }
@@ -192,6 +202,8 @@ thread_local! {
     static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
     static LAYOUT: std::cell::Cell<Option<beui::dock::unstyled::DockingLayout<u64>>> =
+        const { std::cell::Cell::new(None) };
+    static BAR: std::cell::Cell<Option<beui::dock::unstyled::DockBarControl>> =
         const { std::cell::Cell::new(None) };
 }
 
@@ -257,4 +269,57 @@ fn docked_session() -> EditorSession {
     BODIES.with(|built| built.set(0));
     CLOSED.with(|closed| closed.set(false));
     session::<DockedApp>(Uuid::new_v4())
+}
+
+#[beui::reactive::component]
+fn BarProbe() -> beui::NodeId {
+    use beui::reactive::*;
+    let bar = beui::dock::unstyled::use_dock_bar();
+    BAR.with(|held| held.set(bar));
+    let vertical =
+        create_memo(move || bar.is_some_and(|bar| bar.direction() == beui::Direction::Vertical));
+    let length = |length: f32| beui::styled::Length::Size(beui::styled::Size::Custom(length));
+    let width = create_memo(move || length(if vertical.get() { 24.0 } else { 120.0 }));
+    let height = create_memo(move || length(if vertical.get() { 120.0 } else { 24.0 }));
+    view! {
+        <beui::styled::Frame width={width} height={height} />
+    }
+}
+
+struct BarredApp;
+
+#[beui::reactive::component]
+impl crate::BeuiApp for BarredApp {
+    #[beui::reactive::component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
+        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
+        use beui::dock::unstyled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::reactive::*;
+        let _ = editor;
+        let layout = DockingLayout::<u64>::new();
+        LAYOUT.with(|held| held.set(Some(layout)));
+        view! {
+            <beui::styled::Root>
+                <Docking layout>
+                    <DockPane id="stage" bare=true>
+                        <DockTab id=1u64 title="Stage">
+                            <beui::styled::Frame />
+                        </DockTab>
+                    </DockPane>
+                    <DockBar
+                        id=3u64
+                        parent=1u64
+                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)
+                    >
+                        <BarProbe />
+                    </DockBar>
+                </Docking>
+            </beui::styled::Root>
+        }
+    }
+}
+
+fn barred_session() -> EditorSession {
+    BAR.with(|held| held.set(None));
+    session::<BarredApp>(Uuid::new_v4())
 }

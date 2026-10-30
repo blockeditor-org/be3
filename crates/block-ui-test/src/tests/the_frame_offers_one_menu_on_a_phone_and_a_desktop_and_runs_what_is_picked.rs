@@ -101,12 +101,12 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     );
 
     test.pick_menu("editor.rename");
-    assert_eq!(
-        test.take_shell_commands(),
-        [(
-            block,
-            block_plugin_api::ShellCommand::Rename { anchor: None }
-        )]
+    assert!(
+        test.placed(
+            |content| *content == block_plugin_api::ChildContent::Rename(block.into_bytes())
+        )
+        .is_some(),
+        "Rename places the form renaming the block, in a view it anchored"
     );
 
     test.pick_menu("editor.details");

@@ -7,7 +7,7 @@ use block_plugin_api::{Edits, TemplateCategory};
 use block_plugin_manifest::{EditorManifest, PluginManifest, ShellRequest};
 use uuid::Uuid;
 
-use crate::surfaces::HostedRegion;
+use crate::surfaces::HostedView;
 use block_app_plugin_host::PluginCatalog;
 
 pub(crate) use self::plugin::PluginEditor;
@@ -69,7 +69,7 @@ type CreateOptions = Box<dyn Fn() -> Box<dyn PendingCreation>>;
 
 pub(super) trait ArtifactSession {
     fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus;
-    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion;
+    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedView;
     fn take_draft(&mut self) -> Option<Vec<u8>>;
     fn settings_height(&self) -> f32;
     fn cancel_settings(&mut self);
@@ -88,7 +88,7 @@ pub(super) enum ArtifactStatus {
 }
 
 pub(crate) trait PendingCreation {
-    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion>;
+    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView>;
     fn source(&self) -> plugin::InstanceSource;
     fn step(&mut self, registry: &EditorRegistry, client_id: Uuid);
     fn dialog(&self) -> block_plugin_api::DialogStatus;
@@ -267,8 +267,8 @@ impl EditorRegistry {
             .editor(editor.id.into_bytes())
             .is_some_and(|manifest| {
                 manifest
-                    .regions
-                    .contains(&block_plugin_api::EditorRegion::ArtifactSettings)
+                    .views
+                    .contains(&block_plugin_api::ParentView::ArtifactSettings)
             });
         match generates {
             true => Ok(Box::new(plugin::PluginArtifact::new(
@@ -300,6 +300,21 @@ impl EditorRegistry {
             Arc::clone(&editor.manifest),
             editor.id,
             request,
+        ))
+    }
+
+    pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<plugin::PluginPicker> {
+        let editor = self.editors.iter().find(|editor| {
+            editor
+                .manifest
+                .editor(editor.id.into_bytes())
+                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Rename))
+        })?;
+        Some(plugin::PluginPicker::rename(
+            Arc::clone(&editor.manifest),
+            editor.id,
+            block,
+            sheet,
         ))
     }
 

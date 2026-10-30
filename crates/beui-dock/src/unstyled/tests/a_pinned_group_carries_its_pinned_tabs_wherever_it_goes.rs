@@ -13,6 +13,7 @@ fn a_pinned_group_carries_its_pinned_tabs_wherever_it_goes() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
 

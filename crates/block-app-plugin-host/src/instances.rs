@@ -1,26 +1,27 @@
 use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
-    EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenPicker, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, ViewportMetrics,
-    WebViewEvent, WebViewId,
+    AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
+    BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
+    DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
+    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewAnchor,
+    ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
-    DescribedAction, WindowRequests,
+    DescribedAction, HostView, WindowOpen, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
 };
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    ChildCommit, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
+    MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
@@ -34,6 +35,7 @@ use block_app_base::{host, performance};
 mod services;
 
 thread_local! {
+    static LAYERS_OPENED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
         std::cell::RefCell::default();
 }
@@ -98,7 +100,8 @@ struct Instance {
     dialog: DialogStatus,
     child_dismissals: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
-    screens: HashMap<EditorRegion, Screen>,
+    screens: HashMap<ViewId, Screen>,
+    anchored: Vec<AnchoredScreen>,
     opened: bool,
     deferred: Vec<Outbound>,
     opens: Vec<OpenRequest>,
@@ -125,8 +128,8 @@ struct Instance {
     views: Sent<EditorView>,
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
-    menu: Vec<block_plugin_api::MenuEntry>,
-    child_menu_picks: Vec<(ChildId, String)>,
+    menus: BTreeMap<ViewId, Vec<block_plugin_api::MenuEntry>>,
+    child_menu_picks: Vec<(ChildId, String, Option<Rect>)>,
     presenting: bool,
     presented: bool,
     reported_presenting: bool,
@@ -252,6 +255,7 @@ impl Instance {
             child_dismissals: Vec::new(),
             created: None,
             screens: HashMap::new(),
+            anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
             opens: Vec::new(),
@@ -278,7 +282,7 @@ impl Instance {
             views: Sent::default(),
             view_changes: Vec::new(),
             bar_actions: Vec::new(),
-            menu: Vec::new(),
+            menus: BTreeMap::new(),
             child_menu_picks: Vec::new(),
             presenting: false,
             presented: false,
@@ -301,7 +305,8 @@ impl Instance {
                 InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..)
                 | InstanceRole::Artifact(..)
-                | InstanceRole::Picker(..) => None,
+                | InstanceRole::Picker(..)
+                | InstanceRole::Rename(..) => None,
             },
         }
     }
@@ -557,11 +562,42 @@ struct Screen {
     revoked: HashSet<ChildId>,
     frame_revoked: HashSet<ChildId>,
     scales: Sent<f32>,
+    spaces: Sent<Option<(AnchorSpace, f32)>>,
+    fresh_space: Option<AnchorSpace>,
     serial: u64,
     kept: Option<ViewportMetrics>,
 }
 
 impl Screen {
+    fn new(request: ScreenRequest, pass: u64) -> Self {
+        Self {
+            input: InputForwarder::default(),
+            placement: None,
+            request,
+            last_seen: pass,
+            mounted: 0,
+            presented: None,
+            holding: false,
+            used: None,
+            report: None,
+            accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
+            focus_requested: false,
+            dragging: false,
+            file_dropping: false,
+            window: WindowRequests::default(),
+            stopped: None,
+            children: ChildTable::default(),
+            reported_statuses: HashMap::new(),
+            revoked: HashSet::new(),
+            frame_revoked: HashSet::new(),
+            scales: Sent::default(),
+            spaces: Sent::default(),
+            fresh_space: None,
+            serial: 0,
+            kept: None,
+        }
+    }
+
     fn shown_scale(&self, rect: Rect) -> Vec2 {
         let metrics = &self.request.metrics;
         let painted = self
@@ -575,10 +611,100 @@ impl Screen {
         ) * ratio(painted, metrics.scale_factor)
     }
 
+    fn anchor_shift(&self) -> Option<(AnchorSpace, Vec2, f32)> {
+        self.request.anchor_space?;
+        let now = self.fresh_space.or(self.request.anchor_space)?;
+        let (laid, raster) = self
+            .spaces
+            .at(self.serial)
+            .copied()
+            .flatten()
+            .unwrap_or((now, self.request.metrics.raster));
+        let shift = now.to_host.origin - laid.to_host.origin;
+        let scale = laid.to_host.scale.x;
+        let pixels_per_point = match scale.is_finite() && scale > 0.0 {
+            true => raster / scale,
+            false => raster,
+        };
+        Some((now, shift, pixels_per_point))
+    }
+
     fn unplace(&mut self) {
         self.placement = None;
         self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
     }
+}
+
+struct AnchoredScreen {
+    view: ViewId,
+    root: ViewId,
+    opened: u64,
+    placement: AnchoredPlacement,
+    surface: u32,
+    screen: Screen,
+}
+
+fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> Vec<HostAnchored> {
+    let (Some(_), Some((space, shift, pixels_per_point))) = (root.placement, root.anchor_shift())
+    else {
+        return Vec::new();
+    };
+    let bounds = space.bounds;
+    anchored
+        .iter()
+        .filter(|anchored| anchored.root == region)
+        .filter_map(|anchored| {
+            let report = anchored.screen.report.as_ref()?;
+            let placement = &anchored.placement;
+            let shift = match placement.anchor {
+                ViewAnchor::Edge(_) => Vec2::ZERO,
+                ViewAnchor::Rect(_) => shift,
+            };
+            let to_host = placement.rect.min.to_vec2() + shift;
+            let within = |rects: &[Rect]| -> Vec<Rect> {
+                rects
+                    .iter()
+                    .map(|rect| rect.translate(to_host).intersect(bounds))
+                    .filter(|rect| rect.is_positive())
+                    .collect()
+            };
+            Some(HostAnchored {
+                id: anchored.view,
+                parent: (placement.parent != region).then_some(placement.parent),
+                opened: anchored.opened,
+                screen: anchored.screen.request.screen,
+                rect: placement.rect.translate(shift),
+                bounds,
+                painted: within(&report.painted),
+                floating: within(&report.floating),
+                scrims: report
+                    .scrims
+                    .iter()
+                    .filter_map(|scrim| {
+                        let rect = scrim.rect.translate(to_host).intersect(bounds);
+                        let color = &scrim.color;
+                        rect.is_positive().then(|| {
+                            (
+                                rect,
+                                beui::color::Color32::from_rgba_unmultiplied(
+                                    color.red,
+                                    color.green,
+                                    color.blue,
+                                    color.alpha,
+                                ),
+                            )
+                        })
+                    })
+                    .collect(),
+                surface: anchored.surface,
+                pixels_per_point,
+                dismiss_on_outside_press: placement.dismiss_on_outside_press,
+                keyboard: placement.keyboard,
+                blocks_owner: placement.blocks_owner,
+                edge: matches!(placement.anchor, ViewAnchor::Edge(_)),
+            })
+        })
+        .collect()
 }
 
 #[derive(Default, PartialEq)]
@@ -687,7 +813,8 @@ impl Instances {
             }
             match &message {
                 Outbound::Plugin(PluginCall::Input(batch))
-                    if !self.announced.contains(&batch.screen) => {}
+                    if !self.announced.contains(&batch.screen)
+                        && !self.is_anchored_screen(batch.screen) => {}
                 _ => allowed.push(message),
             }
         }
@@ -792,7 +919,7 @@ impl Instances {
     pub(super) fn report(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        shown: View,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<crate::PluginCatalog>,
@@ -816,41 +943,23 @@ impl Instances {
             }
         }
         let next_screen = &mut self.next_screen;
-        let screen = entry.screens.entry(region).or_insert_with(|| {
+        let screen = entry.screens.entry(shown.id).or_insert_with(|| {
             *next_screen += 1;
-            Screen {
-                input: InputForwarder::default(),
-                placement: None,
-                request: ScreenRequest {
+            Screen::new(
+                ScreenRequest {
                     screen: ScreenId(*next_screen),
                     instance,
-                    region,
+                    view: shown.id,
+                    placement: shown.placement,
                     metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
                     windows: false,
-                    placement: None,
+                    host_place: None,
                     docked: false,
+                    anchor_space: None,
                 },
-                last_seen: pass,
-                mounted: 0,
-                presented: None,
-                holding: false,
-                used: None,
-                report: None,
-                accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
-                focus_requested: false,
-                dragging: false,
-                file_dropping: false,
-                window: WindowRequests::default(),
-                stopped: None,
-                children: ChildTable::default(),
-                reported_statuses: HashMap::new(),
-                revoked: HashSet::new(),
-                frame_revoked: HashSet::new(),
-                scales: Sent::default(),
-                serial: 0,
-                kept: None,
-            }
+                pass,
+            )
         });
         screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
         screen.request.frame = frame;
@@ -861,14 +970,14 @@ impl Instances {
     pub(super) fn mount(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        shown: View,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<crate::PluginCatalog>,
     ) {
         self.report(
             instance,
-            region,
+            shown,
             client_id,
             role,
             block_types,
@@ -878,12 +987,12 @@ impl Instances {
             1.0,
             0,
         );
-        if let Some(screen) = self.screen_mut(instance, region) {
+        if let Some(screen) = self.screen_mut(instance, shown.id) {
             screen.mounted += 1;
         }
     }
 
-    pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.mounted = screen.mounted.saturating_sub(1);
             if screen.mounted == 0 {
@@ -892,7 +1001,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.unplace();
         }
@@ -918,9 +1027,15 @@ impl Instances {
             entry.screens.values().any(|screen| screen.mounted > 0)
                 || entry
                     .screens
-                    .get(&EditorRegion::Frame)
+                    .get(&ViewId::MAIN)
                     .is_some_and(|screen| screen.kept.is_some() && super::docks::docked(*instance))
         })
+    }
+
+    pub(super) fn on_screen(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.screens.values().any(|screen| screen.mounted > 0))
     }
 
     pub(super) fn docked_children(
@@ -957,39 +1072,72 @@ impl Instances {
     pub(super) fn place_mounted(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
         raster: f32,
         windows: bool,
-        placement: Option<String>,
+        host_place: Option<String>,
+        anchor_space: Option<AnchorSpace>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
+        screen.fresh_space = anchor_space;
+        if !only_moved(screen.request.anchor_space, anchor_space) {
+            screen.request.anchor_space = anchor_space;
+        }
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
-        if region == EditorRegion::Frame && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
+        if region == ViewId::MAIN && metrics.pixel_width > 0 && metrics.pixel_height > 0 {
             screen.kept = Some(metrics);
         }
         if screen.request.metrics != metrics
             || screen.request.frame != frame
             || screen.request.windows != windows
-            || screen.request.placement != placement
+            || screen.request.host_place != host_place
         {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
             screen.request.windows = windows;
-            screen.request.placement = placement;
+            screen.request.host_place = host_place;
         }
     }
 
-    pub(super) fn stopped(
-        &self,
+    pub(super) fn refresh_anchoring_views(&mut self) -> bool {
+        let hosting: Vec<(EditorInstanceId, ViewId)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry
+                    .anchored
+                    .iter()
+                    .map(move |anchored| (*instance, anchored.root))
+            })
+            .collect();
+        hosting
+            .into_iter()
+            .fold(false, |refreshed, (instance, region)| {
+                self.refresh_anchor_space(instance, region) || refreshed
+            })
+    }
+
+    pub(super) fn refresh_anchor_space(
+        &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&Stopped> {
+        region: ViewId,
+    ) -> bool {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return false;
+        };
+        let fresh = screen.fresh_space;
+        let changed = screen.request.anchor_space != fresh;
+        screen.request.anchor_space = fresh;
+        changed
+    }
+
+    pub(super) fn stopped(&self, instance: EditorInstanceId, region: ViewId) -> Option<&Stopped> {
         self.entries
             .get(&instance)?
             .screens
@@ -1001,16 +1149,12 @@ impl Instances {
     pub(super) fn placement(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<Placement> {
         self.entries.get(&instance)?.screens.get(&region)?.placement
     }
 
-    pub(super) fn screen_id(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<ScreenId> {
+    pub(super) fn screen_id(&self, instance: EditorInstanceId, region: ViewId) -> Option<ScreenId> {
         Some(
             self.entries
                 .get(&instance)?
@@ -1024,7 +1168,7 @@ impl Instances {
     pub(super) fn back(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         gesture: beui::BackGesture,
     ) -> Vec<PluginCall> {
         let announced = &self.announced;
@@ -1040,13 +1184,14 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::Back(gesture).into()],
+            dismissed: Vec::new(),
         })]
     }
 
     pub(super) fn intercepted(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         press: Option<beui::KeyPress>,
         modifiers: beui::Modifiers,
     ) -> Vec<PluginCall> {
@@ -1067,13 +1212,14 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events,
+            dismissed: Vec::new(),
         })]
     }
 
     pub(super) fn intercepted_tap(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         key: beui::Key,
     ) -> Vec<PluginCall> {
         let announced = &self.announced;
@@ -1093,21 +1239,33 @@ impl Instances {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::InterceptedTap(key).into()],
+            dismissed: Vec::new(),
         })]
     }
 
-    pub(super) fn mounted(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+    pub(super) fn mounted(&self, instance: EditorInstanceId, region: ViewId) -> bool {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
             .is_some_and(|screen| screen.mounted > 0)
     }
 
-    fn screen_mut(
-        &mut self,
+    pub(super) fn view_placement(
+        &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&mut Screen> {
+        view: ViewId,
+    ) -> Option<ViewPlacement> {
+        Some(
+            self.entries
+                .get(&instance)?
+                .screens
+                .get(&view)?
+                .request
+                .placement,
+        )
+    }
+
+    fn screen_mut(&mut self, instance: EditorInstanceId, region: ViewId) -> Option<&mut Screen> {
         self.entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
@@ -1116,12 +1274,12 @@ impl Instances {
     pub(super) fn forward(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         input: &beui::ForwardedInput,
         aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
-        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
+        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
     ) -> (Vec<Outbound>, bool) {
-        let screens: Vec<(EditorInstanceId, EditorRegion, ScreenId)> = self
+        let screens: Vec<(EditorInstanceId, ViewId, ScreenId)> = self
             .entries
             .iter()
             .flat_map(|(instance, entry)| {
@@ -1177,7 +1335,258 @@ impl Instances {
         (messages, revoked)
     }
 
-    pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn shown_anchored(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> Vec<HostAnchored> {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| {
+                let root = entry.screens.get(&region)?;
+                Some(host_anchored(root, &entry.anchored, region))
+            })
+            .unwrap_or_default()
+    }
+
+    pub(super) fn adopt_anchored(&mut self, reports: &[FrameReport], layout: &ScreenLayout) {
+        for report in reports {
+            let Some(placement) = report.anchored else {
+                continue;
+            };
+            let Some(placed) = layout.placement(report.screen).copied() else {
+                continue;
+            };
+            let Some(entry) = self.entries.get_mut(&placed.instance) else {
+                continue;
+            };
+            if let Some(held) = entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.screen.request.screen == report.screen)
+            {
+                held.placement = placement;
+                held.surface = placed.surface;
+                continue;
+            }
+            let root = match entry
+                .anchored
+                .iter()
+                .find(|held| held.view == placement.parent)
+            {
+                Some(parent) => parent.root,
+                None if entry.screens.contains_key(&placement.parent) => placement.parent,
+                None => continue,
+            };
+            if placed.view == root
+                || entry.screens.contains_key(&placed.view)
+                || entry.anchored.iter().any(|held| held.view == placed.view)
+            {
+                continue;
+            }
+            let size = placement.rect.size();
+            let opened = LAYERS_OPENED.with(|opened| {
+                opened.set(opened.get() + 1);
+                opened.get()
+            });
+            entry.anchored.push(AnchoredScreen {
+                view: placed.view,
+                root,
+                opened,
+                placement,
+                surface: placed.surface,
+                screen: Screen::new(
+                    ScreenRequest {
+                        screen: report.screen,
+                        instance: placed.instance,
+                        view: placed.view,
+                        placement: ViewPlacement::Anchored,
+                        metrics: viewport_metrics(
+                            size,
+                            Rect::from_min_size(beui::Pos2::ZERO, size),
+                            placed.scale_factor(),
+                            placed.raster(),
+                        ),
+                        frame: None,
+                        windows: false,
+                        host_place: None,
+                        docked: false,
+                        anchor_space: None,
+                    },
+                    0,
+                ),
+            });
+        }
+    }
+
+    pub(super) fn keep_anchored(&mut self, layout: &ScreenLayout) {
+        for (instance, entry) in &mut self.entries {
+            entry.anchored.retain_mut(|held| {
+                let Some(placed) = layout.placement(held.screen.request.screen) else {
+                    return false;
+                };
+                held.surface = placed.surface;
+                placed.instance == *instance && placed.view == held.view
+            });
+            let screens = &entry.screens;
+            let mut kept: Vec<ViewId> = Vec::new();
+            entry.anchored.retain(|held| {
+                let hangs = screens.contains_key(&held.root)
+                    && (held.placement.parent == held.root
+                        || kept.contains(&held.placement.parent));
+                if hangs {
+                    kept.push(held.view);
+                }
+                hangs
+            });
+        }
+    }
+
+    pub(super) fn anchored_views(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> Vec<(ViewId, Rect, Rect)> {
+        self.shown_anchored(instance, region)
+            .into_iter()
+            .map(|layer| (layer.id, layer.rect, layer.bounds))
+            .collect()
+    }
+
+    fn is_anchored_screen(&self, screen: ScreenId) -> bool {
+        self.entries.values().any(|entry| {
+            entry
+                .anchored
+                .iter()
+                .any(|held| held.screen.request.screen == screen)
+        })
+    }
+
+    fn any_screen(&self, instance: EditorInstanceId, view: ViewId) -> Option<&Screen> {
+        let entry = self.entries.get(&instance)?;
+        entry.screens.get(&view).or_else(|| {
+            entry
+                .anchored
+                .iter()
+                .find(|held| held.view == view)
+                .map(|held| &held.screen)
+        })
+    }
+
+    fn any_screen_mut(&mut self, instance: EditorInstanceId, view: ViewId) -> Option<&mut Screen> {
+        let entry = self.entries.get_mut(&instance)?;
+        match entry.screens.get_mut(&view) {
+            Some(screen) => Some(screen),
+            None => entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.view == view)
+                .map(|held| &mut held.screen),
+        }
+    }
+
+    pub(super) fn forward_anchored(
+        &mut self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        layer: ViewId,
+        input: &beui::ForwardedInput,
+    ) -> Vec<Outbound> {
+        let Some(rect) = self
+            .shown_anchored(instance, region)
+            .into_iter()
+            .find(|held| held.id == layer)
+            .map(|held| held.rect)
+        else {
+            return Vec::new();
+        };
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.anchored.iter_mut().find(|held| held.view == layer))
+            .map(|held| &mut held.screen)
+        else {
+            return Vec::new();
+        };
+        let events = input
+            .events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    beui::Forwarded::Pointer { .. } | beui::Forwarded::Left
+                )
+            })
+            .cloned()
+            .collect();
+        let input = beui::ForwardedInput {
+            events,
+            rect,
+            focused: false,
+            ..input.clone()
+        };
+        let every_sample = screen.window.every_sample;
+        let id = screen.request.screen;
+        screen
+            .input
+            .forward(
+                &input,
+                id,
+                1.0,
+                every_sample,
+                &|_, _| beui::Aim::Own,
+                &|_| None,
+            )
+            .into_iter()
+            .map(Outbound::from)
+            .collect()
+    }
+
+    pub(super) fn dismiss_anchored_views(
+        &mut self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        dismissed: Vec<ViewId>,
+    ) -> Vec<Outbound> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
+            return Vec::new();
+        };
+        let open: Vec<ViewId> = self
+            .entries
+            .get(&instance)
+            .map(|entry| {
+                entry
+                    .anchored
+                    .iter()
+                    .filter(|held| held.root == region)
+                    .map(|held| held.view)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let dismissed: Vec<ViewId> = dismissed
+            .into_iter()
+            .filter(|id| open.contains(id))
+            .collect();
+        if dismissed.is_empty() {
+            return Vec::new();
+        }
+        vec![Outbound::from(PluginCall::Input(
+            block_plugin_api::InputBatch {
+                screen: screen.request.screen,
+                every_sample: false,
+                events: Vec::new(),
+                dismissed,
+            },
+        ))]
+    }
+
+    pub(super) fn hold(&mut self, instance: EditorInstanceId, region: ViewId) {
         if let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -1190,7 +1599,7 @@ impl Instances {
     pub(super) fn held(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Option<Rect>,
         clip: Rect,
         drawn: Option<((u32, u32), f32)>,
@@ -1282,28 +1691,43 @@ impl Instances {
     pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<block_plugin_api::MenuEntry> {
         self.entries
             .get(&instance)
-            .map(|entry| entry.menu.clone())
+            .and_then(|entry| {
+                entry
+                    .menus
+                    .get(&self.content_view(instance))
+                    .or_else(|| entry.menus.get(&ViewId::MAIN))
+                    .cloned()
+            })
             .unwrap_or_default()
     }
 
-    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Outbound> {
+    pub(super) fn menu_pick(
+        &mut self,
+        instance: EditorInstanceId,
+        id: String,
+        anchor: Option<Rect>,
+    ) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Outbound::Editor(instance, EditorCall::MenuPick(id))]
+        let view = entry_menu_holds(self, instance).unwrap_or(ViewId::MAIN);
+        vec![Outbound::Editor(
+            instance,
+            EditorCall::MenuPick { view, id, anchor },
+        )]
     }
 
     pub(super) fn take_child_menu_picks(
         &mut self,
         instance: EditorInstanceId,
         children: &[ChildId],
-    ) -> Vec<(ChildId, String)> {
+    ) -> Vec<(ChildId, String, Option<Rect>)> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
         let (taken, kept) = std::mem::take(&mut entry.child_menu_picks)
             .into_iter()
-            .partition(|(child, _)| children.contains(child));
+            .partition(|(child, _, _)| children.contains(child));
         entry.child_menu_picks = kept;
         taken
     }
@@ -1487,7 +1911,7 @@ impl Instances {
                     let shown = (screen.mounted > 0 || screen.last_seen >= pass)
                         && screen.request.metrics.pixel_width > 0
                         && screen.request.metrics.pixel_height > 0;
-                    let frame = screen.request.region == EditorRegion::Frame;
+                    let frame = screen.request.view.is_main();
                     let mut request = screen.request.clone();
                     request.docked = frame && docked;
                     match (shown, screen.kept) {
@@ -1535,12 +1959,21 @@ impl Instances {
                             editor: editor.into_bytes(),
                             filter: picker.filter,
                             parent: picker.parent,
-                            touch: picker.touch,
+                            sheet: picker.sheet,
                             account_id,
                             organization_id,
                             client_id,
                         })
                     }
+                    InstanceRole::Rename(editor, block, sheet) => Opening::Rename(OpenRename {
+                        instance,
+                        editor: editor.into_bytes(),
+                        block_id: block.into_bytes(),
+                        sheet,
+                        account_id,
+                        organization_id,
+                        client_id,
+                    }),
                     InstanceRole::Creation(editor, template) => Opening::Creation(OpenCreation {
                         instance,
                         editor: editor.into_bytes(),
@@ -1687,6 +2120,12 @@ impl Instances {
                     for request in screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
                             screen.scales.push(serial, request.metrics.scale_factor);
+                            screen.spaces.push(
+                                serial,
+                                request
+                                    .anchor_space
+                                    .map(|layers| (layers, request.metrics.raster)),
+                            );
                         }
                     }
                 }
@@ -1746,6 +2185,7 @@ impl Instances {
             let oldest = entry.screens.values().map(|screen| screen.serial).min();
             for screen in entry.screens.values_mut() {
                 screen.scales.confirm(screen.serial);
+                screen.spaces.confirm(screen.serial);
             }
             if let Some(oldest) = oldest {
                 entry.views.confirm(oldest);
@@ -1753,7 +2193,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn set_region_sizes(&mut self, sizes: Vec<RegionSize>) -> bool {
+    pub(super) fn set_view_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
             if let Some(screen) = self.screen_by_id(size.screen) {
@@ -1779,7 +2219,7 @@ impl Instances {
     pub(super) fn drag(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         event: Option<BlockDragEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -1797,7 +2237,7 @@ impl Instances {
                 vec![Outbound::Editor(
                     instance,
                     EditorCall::DragOver(block_plugin_api::shell_types::DragOver {
-                        region,
+                        view: region,
                         pos: event.position,
                         block_id: event.drag.block_id.into_bytes(),
                         block_type: event.drag.block_type.into_bytes(),
@@ -1817,7 +2257,7 @@ impl Instances {
     pub(super) fn file_drop(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         event: Option<FileDropEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -1832,7 +2272,7 @@ impl Instances {
                 vec![Outbound::Editor(
                     instance,
                     EditorCall::FileDrop(block_plugin_api::shell_types::FileDrop {
-                        region,
+                        view: region,
                         pos: event.position,
                         files: event.files,
                         dropped: event.dropped,
@@ -1847,7 +2287,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn dragging(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+    pub(super) fn dragging(&self, instance: EditorInstanceId, region: ViewId) -> bool {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
@@ -1863,15 +2303,11 @@ impl Instances {
     pub(super) fn set_children(&mut self, placements: ChildPlacements) -> bool {
         let ChildPlacements {
             instance,
-            region,
+            view: region,
             children,
             occluders,
         } = placements;
-        let Some(screen) = self
-            .entries
-            .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&region))
-        else {
+        let Some(screen) = self.any_screen_mut(instance, region) else {
             return false;
         };
         screen.revoked.retain(|child| {
@@ -1895,11 +2331,7 @@ impl Instances {
     }
 
     pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
-        let Some(screen) = self
-            .entries
-            .get(&placements.instance)
-            .and_then(|entry| entry.screens.get(&placements.region))
-        else {
+        let Some(screen) = self.any_screen(placements.instance, placements.view) else {
             return false;
         };
         let current = &screen.children.children;
@@ -1929,7 +2361,7 @@ impl Instances {
     pub(super) fn host_children(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Rect,
         clip: Rect,
         view: Option<EditorView>,
@@ -1944,15 +2376,12 @@ impl Instances {
         let table = &screen.children;
         let origin = rect.min.to_vec2();
         let scale = screen.shown_scale(rect);
-        let laid_view = entry
-            .views
-            .at(screen.serial)
-            .copied()
-            .filter(|_| region == EditorRegion::Frame);
+        let laid_view = entry.views.at(screen.serial).copied();
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
         let mut shown_tabs = HashSet::new();
+        let layers = host_anchored(screen, &entry.anchored, region);
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report
                 .painted
@@ -1968,7 +2397,28 @@ impl Instances {
                 }
             }
         }
-        for (index, child) in table.children.iter().enumerate() {
+        let in_layers = entry.anchored.iter().filter_map(|held| {
+            let layer = layers.iter().find(|layer| layer.id == held.view)?;
+            let from = layer.rect.min.to_vec2();
+            let moved = layer.rect.min - held.placement.rect.min;
+            Some(held.screen.children.children.iter().map(move |child| {
+                let mut child = child.clone();
+                child.rect = child.rect.translate(from);
+                child.clip = child.clip.translate(from);
+                child.anchor = child.anchor.map(|anchor| anchor.translate(moved));
+                (usize::MAX, child, Some(layer))
+            }))
+        });
+        let placed: Vec<(usize, ChildPlacement, Option<&HostAnchored>)> = table
+            .children
+            .iter()
+            .enumerate()
+            .map(|(index, child)| (index, child.clone(), None))
+            .chain(in_layers.flatten())
+            .collect();
+        let mut keyboards = Vec::new();
+        for (index, child, layer) in placed {
+            let child = &child;
             if self
                 .entries
                 .get(&instance)
@@ -2030,22 +2480,18 @@ impl Instances {
                     }
                     _ => continue,
                 },
-                ChildContent::Picker {
-                    filter,
-                    parent,
-                    touch,
-                } => super::HostContent::Picker {
+                ChildContent::Picker { filter, parent } => super::HostContent::Picker {
                     filter: filter.clone(),
                     parent: *parent,
-                    touch: *touch,
                 },
+                ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
                 ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() {
                 continue;
             }
             let requested = match (region, child.mode) {
-                (EditorRegion::Preview, _) => ChildMode::Preview,
+                (ViewId::PREVIEW, _) => ChildMode::Preview,
                 (_, ChildMode::Active) if screen.revoked.contains(&child.child) => {
                     ChildMode::Passive
                 }
@@ -2061,25 +2507,40 @@ impl Instances {
                     }
                 }
             };
-            let child_rect = host_rect(child.rect, origin, scale);
-            let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
-                (true, Some(laid_view), Some(view)) => (
-                    host_rect(through(child.rect, laid_view, view), origin, scale),
-                    host_rect(followed_clip(child, laid_view, view), origin, scale),
-                ),
-                _ => (child_rect, host_rect(child.clip, origin, scale)),
+            let anchor = child.anchor.map(|anchor| match layer {
+                Some(_) => anchor,
+                None => host_rect(anchor, origin, scale),
+            });
+            let (child_rect, view_rect, child_clip, occluders) = match layer {
+                Some(layer) => {
+                    let rect = child.rect;
+                    let clip = child.clip.intersect(layer.rect).intersect(layer.bounds);
+                    (rect, rect, clip, Vec::new())
+                }
+                None => {
+                    let child_rect = host_rect(child.rect, origin, scale);
+                    let (view_rect, child_clip) = match (child.follows_view, laid_view, view) {
+                        (true, Some(laid_view), Some(view)) => (
+                            host_rect(through(child.rect, laid_view, view), origin, scale),
+                            host_rect(followed_clip(child, laid_view, view), origin, scale),
+                        ),
+                        _ => (child_rect, host_rect(child.clip, origin, scale)),
+                    };
+                    let occluders: Vec<Rect> = table
+                        .occluders
+                        .iter()
+                        .filter(|occluder| occluder.after as usize > index)
+                        .map(|occluder| host_rect(occluder.rect, origin, scale))
+                        .collect();
+                    (child_rect, view_rect, child_clip.intersect(clip), occluders)
+                }
             };
-            let child_clip = child_clip.intersect(clip);
-            let occluders: Vec<Rect> = table
-                .occluders
-                .iter()
-                .filter(|occluder| occluder.after as usize > index)
-                .map(|occluder| host_rect(occluder.rect, origin, scale))
-                .collect();
-            if matches!(
-                mode,
-                ChildMode::Active | ChildMode::Live | ChildMode::InPlace
-            ) {
+            if layer.is_none()
+                && matches!(
+                    mode,
+                    ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+                )
+            {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {
@@ -2105,16 +2566,22 @@ impl Instances {
                 rotation: child.rotation,
                 opacity: child.opacity,
                 dialog: child.dialog,
+                anchored: layer.map(|layer| layer.id),
+                keyboard: layer.is_some_and(|layer| {
+                    layer.keyboard && {
+                        let first = !keyboards.contains(&layer.id);
+                        keyboards.push(layer.id);
+                        first
+                    }
+                }),
+                sheet: layer.is_some_and(|layer| layer.edge),
+                anchor,
             });
         }
         (children, holes)
     }
 
-    pub(super) fn revoke_active(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> bool {
+    pub(super) fn revoke_active(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -2137,12 +2604,38 @@ impl Instances {
             .is_some_and(|entry| std::mem::take(&mut entry.leaving))
     }
 
-    pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        let screen = self
-            .entries
-            .get(&instance)?
+    pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
+        let Some(entry) = self.entries.get(&instance) else {
+            return ViewId::MAIN;
+        };
+        let holds = |view: &ViewId| {
+            entry.screens.get(view).is_some_and(|screen| {
+                screen.mounted > 0
+                    && screen
+                        .report
+                        .as_ref()
+                        .is_some_and(|report| report.content.is_some())
+            })
+        };
+        if holds(&ViewId::MAIN) {
+            return ViewId::MAIN;
+        }
+        entry
             .screens
-            .get(&EditorRegion::Frame)?;
+            .iter()
+            .filter(|(_, screen)| screen.request.placement == ViewPlacement::Dock)
+            .map(|(view, _)| *view)
+            .find(holds)
+            .unwrap_or(ViewId::MAIN)
+    }
+
+    pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
+        self.framing(instance).map(|(_, _, block)| block)
+    }
+
+    fn framing(&self, instance: EditorInstanceId) -> Option<(ViewId, ChildId, Uuid)> {
+        let view = self.content_view(instance);
+        let screen = self.entries.get(&instance)?.screens.get(&view)?;
         screen
             .children
             .children
@@ -2154,15 +2647,39 @@ impl Instances {
                     && !screen.revoked.contains(&child.child)
                     && child.rect.is_positive()
             })
-            .find_map(|child| child.content.block_id())
-            .map(Uuid::from_bytes)
+            .find_map(|child| {
+                Some((
+                    view,
+                    child.child,
+                    Uuid::from_bytes(child.content.block_id()?),
+                ))
+            })
+    }
+
+    pub(super) fn frame_children(
+        &self,
+    ) -> Vec<(EditorInstanceId, Option<super::docks::DockedChild>)> {
+        self.entries
+            .keys()
+            .map(|instance| {
+                let framed =
+                    self.framing(*instance)
+                        .map(|(view, child, block)| super::docks::DockedChild {
+                            child,
+                            tab: view.0,
+                            block,
+                        });
+                (*instance, framed)
+            })
+            .collect()
     }
 
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {
+        let view = self.content_view(instance);
         let Some(screen) = self
             .entries
             .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&EditorRegion::Frame))
+            .and_then(|entry| entry.screens.get_mut(&view))
         else {
             return;
         };
@@ -2176,7 +2693,7 @@ impl Instances {
     pub(super) fn set_child_statuses(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         statuses: Vec<HostChildStatus>,
     ) -> Vec<Outbound> {
         let Some(screen) = self
@@ -2191,7 +2708,7 @@ impl Instances {
         for status in statuses {
             let status = ChildStatus {
                 instance,
-                region,
+                view: region,
                 child: status.child,
                 available: status.available,
                 intrinsic: status.intrinsic.map(|size| Size {
@@ -2272,7 +2789,7 @@ impl Instances {
                             });
                         super::ScreenStatus {
                             screen: screen.request.screen,
-                            region: screen.request.region,
+                            view: screen.request.view,
                             logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
@@ -2293,6 +2810,7 @@ impl Instances {
                         InstanceRole::Editor(..) => "editor",
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Picker(..) => "picker",
+                        InstanceRole::Rename(..) => "rename",
                         InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
@@ -2360,12 +2878,48 @@ impl Instances {
         self.entries.get(&instance)?.intrinsic
     }
 
-    pub(super) fn region_size(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<Vec2> {
+    pub(super) fn view_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
         self.entries.get(&instance)?.screens.get(&region)?.used
+    }
+
+    pub(super) fn adopt_window(&mut self, open: &WindowOpen, layout: &ScreenLayout) {
+        let instance = open.opener.instance;
+        let Some(placed) = layout
+            .placement(open.screen)
+            .filter(|placed| placed.instance == instance && placed.view == open.view)
+        else {
+            return;
+        };
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return;
+        };
+        if entry
+            .screens
+            .get(&open.view)
+            .is_some_and(|screen| screen.request.screen == open.screen || screen.mounted > 0)
+        {
+            return;
+        }
+        let size = vec2(open.size.width, open.size.height);
+        let shown = Rect::from_min_size(beui::Pos2::ZERO, size);
+        entry.screens.insert(
+            open.view,
+            Screen::new(
+                ScreenRequest {
+                    screen: open.screen,
+                    instance,
+                    view: open.view,
+                    placement: ViewPlacement::Host(HostView::Window),
+                    metrics: viewport_metrics(size, shown, placed.scale_factor(), placed.raster()),
+                    frame: None,
+                    windows: true,
+                    host_place: None,
+                    docked: false,
+                    anchor_space: None,
+                },
+                0,
+            ),
+        );
     }
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {
@@ -2377,9 +2931,11 @@ impl Instances {
                 .and_then(|description| description.tree.take())
                 .map(beui::accesskit::TreeUpdate::from);
             for entry in self.entries.values_mut() {
+                let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
                 if let Some(screen) = entry
                     .screens
                     .values_mut()
+                    .chain(anchored)
                     .find(|screen| screen.request.screen == report.screen)
                 {
                     if let Some(tree) = tree.take() {
@@ -2397,7 +2953,7 @@ impl Instances {
     pub(super) fn frame_report(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<&FrameReport> {
         self.entries
             .get(&instance)?
@@ -2410,9 +2966,9 @@ impl Instances {
     pub(super) fn described(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<Described<'_>> {
-        let screen = self.entries.get_mut(&instance)?.screens.get_mut(&region)?;
+        let screen = self.any_screen_mut(instance, region)?;
         let description = screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
@@ -2435,7 +2991,7 @@ impl Instances {
     pub(super) fn take_focus_request(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> bool {
         self.entries
             .get_mut(&instance)
@@ -2479,7 +3035,7 @@ impl Instances {
     pub(super) fn child_bar_actions(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         actions: Vec<(ChildId, block_plugin_api::BarAction)>,
     ) -> Vec<Outbound> {
         actions
@@ -2488,7 +3044,7 @@ impl Instances {
                 Outbound::Editor(
                     instance,
                     EditorCall::ChildBar {
-                        region,
+                        view: region,
                         child,
                         action,
                     },
@@ -2546,7 +3102,7 @@ impl Instances {
     pub(super) fn ime(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         rect: Rect,
     ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
@@ -2564,7 +3120,7 @@ impl Instances {
     pub(super) fn window(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<&WindowRequests> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         Some(&screen.window)
@@ -2573,7 +3129,7 @@ impl Instances {
     pub(super) fn cursor(
         &self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         Some(screen.window.cursor)
@@ -2587,7 +3143,7 @@ impl Instances {
     pub(super) fn place(
         &mut self,
         instance: EditorInstanceId,
-        region: EditorRegion,
+        region: ViewId,
         placement: Placement,
     ) {
         if let Some(screen) = self
@@ -2682,7 +3238,7 @@ impl Instances {
                     | ShellCall::WebViewNew { .. }
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
-                    | ShellCall::RegionStopped { .. }
+                    | ShellCall::ViewStopped { .. }
                     | ShellCall::CopyText { .. }
                     | ShellCall::CopyImage { .. }
             )
@@ -2701,11 +3257,19 @@ impl Instances {
                     entry.bar_actions.push(action);
                 }
             }
-            ShellCall::Menu { items, .. } => match MenuEntry::nest(items) {
-                Ok(menu) => entry.menu = menu,
+            ShellCall::Menu { view, items, .. } => match MenuEntry::nest(items.clone()) {
+                Ok(menu) => {
+                    match menu.is_empty() {
+                        true => entry.menus.remove(&view),
+                        false => entry.menus.insert(view, menu),
+                    };
+                    super::docks::set_menu(instance, view, items);
+                }
                 Err(_) => return false,
             },
-            ShellCall::ChildMenuPick { child, id, .. } => entry.child_menu_picks.push((child, id)),
+            ShellCall::ChildMenuPick {
+                child, id, anchor, ..
+            } => entry.child_menu_picks.push((child, id, anchor)),
             ShellCall::CopyText { text, .. } => {
                 host::copy_text(text);
                 return false;
@@ -2746,10 +3310,8 @@ impl Instances {
                 .shell_commands
                 .push((Uuid::from_bytes(block), command)),
             ShellCall::LeaveFrame { .. } => entry.leaving = true,
-            ShellCall::RegionStopped {
-                region, stopped, ..
-            } => {
-                let Some(screen) = entry.screens.get_mut(&region) else {
+            ShellCall::ViewStopped { view, stopped, .. } => {
+                let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
                 };
                 screen.stopped = Some(stopped);
@@ -2976,14 +3538,6 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        let mut dialog = dialog;
-        if let block_plugin_api::ShellDialog::Rename {
-            within: Some(within),
-            ..
-        } = &mut dialog
-        {
-            *within = self.local(instance, *within);
-        }
         let block = self.local(instance, block.into_bytes());
         vec![Outbound::Editor(
             instance,
@@ -3089,5 +3643,24 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     hosts.iter().any(|allowed| allowed == host)
 }
 
+fn only_moved(sent: Option<AnchorSpace>, now: Option<AnchorSpace>) -> bool {
+    match (sent, now) {
+        (Some(sent), Some(now)) => {
+            sent.bounds == now.bounds && sent.to_host.scale == now.to_host.scale
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+fn entry_menu_holds(instances: &Instances, instance: EditorInstanceId) -> Option<ViewId> {
+    let view = instances.content_view(instance);
+    instances
+        .entries
+        .get(&instance)?
+        .menus
+        .contains_key(&view)
+        .then_some(view)
+}

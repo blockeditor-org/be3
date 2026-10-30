@@ -8,8 +8,8 @@
       "edits": "73657474-696e-6773-2d62-6c6f636b3032",
       "display_name": "Settings",
       "icon": "\ue154",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "profile": {
@@ -17,8 +17,8 @@
       "edits": "73657474-696e-6773-2d70-726f66696c65",
       "display_name": "Settings Profile",
       "icon": "\ue154",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "display": {
@@ -26,8 +26,8 @@
       "edits": "64697370-6c61-792d-7365-7474696e6773",
       "display_name": "Display",
       "icon": "\ue603",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "input": {
@@ -35,8 +35,8 @@
       "edits": "696e7075-742d-7365-7474-696e67732d31",
       "display_name": "Input",
       "icon": "\ue284",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "remaps": {
@@ -44,8 +44,8 @@
       "edits": "696e7075-742d-7265-6d61-702d626c6f31",
       "display_name": "Input Remaps",
       "icon": "\ue284",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "tags": {
@@ -53,8 +53,8 @@
       "edits": "74616773-2d6b-696e-642d-626533643031",
       "display_name": "Tags",
       "icon": "\ue154",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "prefixes": {
@@ -62,8 +62,8 @@
       "edits": "70726566-6978-6573-2d6b-696e642d3031",
       "display_name": "Database prefixes",
       "icon": "\ue154",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "home": {
@@ -71,8 +71,8 @@
       "edits": "686f6d65-2d6b-696e-642d-626533643031",
       "display_name": "Home",
       "icon": "\ue154",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     },
     "defaults": {
@@ -80,8 +80,8 @@
       "edits": "65646974-6f72-2d64-6566-61756c747331",
       "display_name": "Default editors",
       "icon": "\ue603",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

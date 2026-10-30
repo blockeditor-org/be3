@@ -18,6 +18,7 @@ fn batch(events: Vec<TimedInput>, every_sample: bool) -> InputBatch {
         screen: crate::ScreenId(7),
         events,
         every_sample,
+        dismissed: Vec::new(),
     }
 }
 
@@ -35,6 +36,7 @@ fn pen(x: f32, time_micros: u64) -> TimedInput {
     )
 }
 
+mod a_dismissal_never_merges_into_the_batch_before_it;
 mod coalesced_zoom_gestures_multiply;
 mod every_sample_of_a_backed_up_stroke_is_kept;
 mod input_merged_while_queued_keeps_its_order;

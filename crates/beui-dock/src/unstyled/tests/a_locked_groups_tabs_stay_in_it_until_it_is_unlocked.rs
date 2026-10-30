@@ -13,6 +13,7 @@ fn a_locked_groups_tabs_stay_in_it_until_it_is_unlocked() {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     let place = DockHome::Group(group);

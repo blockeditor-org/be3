@@ -22,7 +22,7 @@ use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use block_editor_beui::beui::{PenPhase, PointerButton};
 use infinite_canvas_types::CanvasContent;
 
-mod a_bottom_dock_builds_its_tools_only_once_it_opens;
+mod a_card_on_the_canvas_points_its_dialogs_at_itself;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
 mod a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place;
@@ -143,6 +143,9 @@ mod the_preview_shows_the_first_frame;
 mod the_style_popover_fits_a_phone_above_the_dock;
 mod the_style_popover_restyles_the_selection;
 mod the_text_tool_writes_its_box_while_it_is_dragged;
+mod the_tool_bar_docked_along_the_bottom_takes_room_from_the_stage;
+mod the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column;
+mod the_tool_bar_pops_out_of_the_canvas_into_a_window;
 mod the_transform_fields_edit_the_selected_entity;
 mod turned_text_is_drawn_turned_as_it_is_exported;
 mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;

@@ -24,8 +24,7 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, RenameDialog, Workspace,
-    WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -172,7 +171,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         }
     });
     let dialog_windows = workspace.dialogs();
-    let rename_dialogs = workspace.rename_dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
@@ -210,9 +208,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
-                    </ForEach>
-                    <ForEach keys={rename_dialogs}>|(block, tab): (Uuid, TabId)|
-                        <RenameDialog workspace block tab />
                     </ForEach>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />

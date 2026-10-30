@@ -8,14 +8,13 @@ use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
-mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
-mod a_card_keeps_inside_a_small_window;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
 mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
 mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
 mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
+mod a_dialog_from_a_shortcut_points_at_its_tab_and_in_fullscreen_opens_at_the_top;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_on_a_narrow_screen_is_a_sheet_with_its_buttons_stacked;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
@@ -25,6 +24,7 @@ mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
+mod a_menu_and_a_card_escape_the_frame_given_a_layer_space;
 mod a_menu_grid_ticks_the_layout_last_picked;
 mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
@@ -46,6 +46,7 @@ mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
 mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
@@ -93,6 +94,7 @@ mod the_window_sample_floats_beside_its_button_where_nothing_opens_windows;
 mod the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows;
 mod tile_buttons_pick_one_of_a_row_of_pictures;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
+mod two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
 mod waiting_for_data_shows_progress_until_it_arrives;
 
@@ -143,7 +145,7 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
     test.click("demo.dialog.pointing");
     test.frame(Vec::new());
     test.settle();
-    (button, test.rect_of(&dialog_id(0)))
+    (button, test.rect_of("demo.pointing.card"))
 }
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {

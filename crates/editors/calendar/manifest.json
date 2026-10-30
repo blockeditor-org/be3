@@ -13,8 +13,8 @@
       },
       "interaction": "Preview",
       "resize": "None",
-      "regions": [
-        "Frame"
+      "views": [
+        "Main"
       ]
     }
   },

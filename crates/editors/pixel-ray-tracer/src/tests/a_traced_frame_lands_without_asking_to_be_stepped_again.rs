@@ -28,7 +28,7 @@ fn a_traced_frame_lands_without_asking_to_be_stepped_again() {
         "the lighting the tracer finished was never shown"
     );
     assert!(
-        host.take_frame_request(block_editor_beui::EditorRegion::Frame)
+        host.take_frame_request(block_editor_beui::ViewId::MAIN)
             .is_none(),
         "the editor asked to be stepped again instead of waiting to be woken"
     );

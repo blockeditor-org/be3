@@ -1,4 +1,3 @@
-use beui_components_unstyled::DialogLayout;
 use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
@@ -12,39 +11,29 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::PointerPress;
+use beui_view::types::Vec2;
 use beui_view::types::window::{WindowPlacement, WindowReport};
 use beui_view::types::{Dismiss, LayerPolicy};
-use beui_view::types::{Rect, Vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows};
 
-use super::{DockMode, DockState, DockTabControl, State, TabId};
+use super::{DockState, DockTabControl, State, TabId};
 use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum DockDialogPresentation {
-    #[default]
-    Window,
-    Card,
-}
-
 #[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
-    pub(crate) presentation: DockDialogPresentation,
     pub(crate) title: Memo<String>,
     pub(crate) icon: Memo<Option<Glyph>>,
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
-    pub(crate) anchor: Memo<Option<Rect>>,
     pub(crate) on_close: Option<ClickCallback>,
     pub(crate) content: RenderFn<()>,
 }
 
 pub struct DockDialogHandle {
     pub tab: TabId,
-    pub presentation: DockDialogPresentation,
     pub title: Memo<String>,
     pub notice: Memo<Option<String>>,
     pub icon: Memo<Option<Glyph>>,
@@ -55,14 +44,6 @@ pub struct DockDialogHandle {
     pub closable: bool,
     pub close: ClickCallback,
     pub begin_move: Callback<()>,
-    pub pointer: NodeRef,
-    pub body: NodeId,
-}
-
-pub struct DockSheetHandle {
-    pub tab: TabId,
-    pub open: Memo<bool>,
-    pub close: ClickCallback,
     pub body: NodeId,
 }
 
@@ -242,17 +223,14 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         };
     };
     let DialogParts {
-        presentation,
         title,
         icon,
         size,
         modal,
         dismiss_on_outside_press,
-        anchor: asked_from,
         on_close,
         content,
     } = parts;
-    let card = presentation == DockDialogPresentation::Card;
     let frame = NodeRef::new();
     dock.dialog_frames.value().borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
@@ -271,12 +249,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let shown = create_memo(move || dock.dialog_shown(tab));
-    let mode = dock.mode;
-    let fallback = dock.dialog_sheet;
-    let stacked =
-        create_memo(move || card && fallback.is_some() && mode.get() == DockMode::Stacked);
-    let anchored = create_memo(move || shown.get() && !stacked.get());
-    let in_sheet = create_memo(move || shown.get() && stacked.get());
     let anchor = create_signal(NodeRef::new());
     create_effect(move || {
         if !shown.get() {
@@ -312,23 +284,11 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let control = DockTabControl::local(tab, dock.state, dock);
     let body = scope.context().run(|| {
         provide_context(control);
-        provide_context(DialogLayout {
-            narrow: stacked,
-            sheet: stacked,
-            bottom_inset: create_memo(|| 0.0),
-        });
         content.call(())
     });
     store(scope);
-    let width = create_memo(move || match (card, stacked.get()) {
-        (true, true) => Extent::fraction(1.0),
-        (true, false) => Extent::at_most(size.get().x),
-        (false, _) => Extent::px(size.get().x),
-    });
-    let height = create_memo(move || match card {
-        true => Extent::at_most(size.get().y),
-        false => Extent::px(size.get().y),
-    });
+    let width = create_memo(move || Extent::px(size.get().x));
+    let height = create_memo(move || Extent::px(size.get().y));
     let body = view! {
         <Frame
             @node_ref=&inside
@@ -344,8 +304,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             close.call();
         }
     });
-    let held = create_memo(move || (!stacked.get()).then_some(body));
-    let pointer = NodeRef::new();
     let closable = on_close.is_some();
     let opened = StoredCell::new(None::<WindowHandle>);
     let begin_move = Callback::new(move |()| {
@@ -358,7 +316,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let face = Render::new(move |()| {
         chrome.call(DockDialogHandle {
             tab,
-            presentation,
             title,
             notice,
             icon,
@@ -369,56 +326,18 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             closable,
             close,
             begin_move,
-            pointer,
-            body: view! {
-                <Portal node={held} />
-            },
+            body,
         })
     })
     .once();
-    let lent = create_memo(move || stacked.get().then_some(body));
-    let fallback = fallback.map(|render| {
-        render.call(DockSheetHandle {
-            tab,
-            open: in_sheet,
-            close,
-            body: view! {
-                <Portal node={lent} />
-            },
-        })
-    });
     let call_attention = move || {
         dock.focus_dialog(tab);
         dock.focus_into_dialog();
         dock.call_attention();
     };
-    let (margin, gap, dims) = (dock.dialog_margin, dock.dialog_gap, dock.dialog_scrim);
-    let placed = create_memo(move || {
-        let anchor = anchor.get();
-        match (card, asked_from.get()) {
-            (true, Some(rect)) => (
-                OverlayAnchor::Pinned { node: anchor, rect },
-                Placement::Popover { gap, margin },
-                Color::TRANSPARENT,
-            ),
-            (true, None) => (
-                OverlayAnchor::Node(anchor),
-                Placement::HangFrom(margin),
-                dims.get(),
-            ),
-            (false, _) => (
-                OverlayAnchor::Node(anchor),
-                Placement::CenterOn,
-                Color::TRANSPARENT,
-            ),
-        }
-    });
-    let at = create_memo(move || placed.get().0);
-    let placement = create_memo(move || placed.get().1);
-    let scrim = create_memo(move || placed.get().2);
     let overlay = NodeRef::new();
     let hosted = opens_windows();
-    let windowed = create_memo(move || !card && hosted.get());
+    let windowed = create_memo(move || hosted.get());
     let face = view! {
         <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
             {face.call(())}
@@ -426,8 +345,8 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     };
     let overlaid = create_memo(move || (!windowed.get()).then_some(face));
     let in_window = create_memo(move || windowed.get().then_some(face));
-    let floating = create_memo(move || anchored.get() && !windowed.get());
-    let windowed_open = create_memo(move || anchored.get() && windowed.get());
+    let floating = create_memo(move || shown.get() && !windowed.get());
+    let windowed_open = create_memo(move || shown.get() && windowed.get());
     let outset = dock.dialog_outset;
     let window_size = create_memo(move || size.get() + outset);
     let window_placement = create_memo(move || {
@@ -450,11 +369,8 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         <List spacing=0.0>
             <Overlay
                 @node_ref=&overlay
-                anchor={at}
-                placement
-                pointer
-                beak={dock.dialog_beak}
-                scrim
+                anchor={create_memo(move || OverlayAnchor::Node(anchor.get()))}
+                placement=Placement::CenterOn
                 policy
                 traps_focus=false
                 open={floating}
@@ -493,7 +409,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 }
                 .child()
             }</Window>
-            {fallback}
         </List>
     };
     create_effect(move || {

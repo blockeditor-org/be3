@@ -25,7 +25,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
                 interaction: Default::default(),
                 capabilities: Default::default(),
                 resize: Default::default(),
-                regions: Vec::new(),
+                views: Vec::new(),
                 accepts: Vec::new(),
             }],
             block_types: Vec::new(),

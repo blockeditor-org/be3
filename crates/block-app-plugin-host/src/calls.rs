@@ -1,7 +1,7 @@
 use block_plugin_api::{
     AudioStatus, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
-    EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch, Opening,
-    PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
+    EditorInstanceId, Failure, Fonts, FrameCommit, Hello, InputBatch, Opening, PickedBlock,
+    Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     shell_types::{DragOver, FileDrop, Focus},
@@ -43,15 +43,19 @@ pub(super) enum PluginCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorCall {
-    MenuPick(String),
+    MenuPick {
+        view: ViewId,
+        id: String,
+        anchor: Option<beui::Rect>,
+    },
     Dismiss,
     ChildBar {
-        region: EditorRegion,
+        view: ViewId,
         child: ChildId,
         action: BarAction,
     },
     ChildFocused {
-        region: EditorRegion,
+        view: ViewId,
         child: ChildId,
     },
     SetEditable(bool),
@@ -154,7 +158,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::IntrinsicSize { instance, .. }
         | ShellCall::Act { instance, .. }
         | ShellCall::LeaveFrame { instance }
-        | ShellCall::RegionStopped { instance, .. }
+        | ShellCall::ViewStopped { instance, .. }
         | ShellCall::Present { instance, .. }
         | ShellCall::ChangeView { instance, .. }
         | ShellCall::Focused { instance, .. }

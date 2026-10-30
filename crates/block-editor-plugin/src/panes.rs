@@ -1,4 +1,4 @@
-use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenDamage, SurfaceRect};
+use block_plugin_api::{EditorInstanceId, ScreenDamage, SurfaceRect, ViewId};
 use block_plugin_api::{ScreenLayout, ScreenPlacement};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -75,7 +75,7 @@ impl Panes {
             })
             .collect();
         let frames = screens.frame(&shown);
-        for (placement, frame) in layout.screens.iter().zip(frames) {
+        for (placement, frame) in &frames {
             if screens.session(placement.instance).is_none() {
                 continue;
             }
@@ -95,10 +95,10 @@ impl Panes {
                 self.repainting.insert(placement.instance);
                 continue;
             }
-            let shown = seen || placement.region == EditorRegion::Preview;
+            let shown = seen || placement.view == ViewId::PREVIEW;
             match (changed, shown) {
                 (true, true) => {
-                    if placement.region == EditorRegion::Preview {
+                    if placement.view == ViewId::PREVIEW {
                         self.previews.painted(placement.surface, now, fresh);
                     }
                     painting.push(*placement);
@@ -117,8 +117,8 @@ impl Panes {
     }
 
     fn cooling(&self, placement: &ScreenPlacement, now: Duration) -> Option<Duration> {
-        match placement.region {
-            EditorRegion::Preview => self.previews.wait(placement.surface, now),
+        match placement.view {
+            ViewId::PREVIEW => self.previews.wait(placement.surface, now),
             _ => None,
         }
     }
@@ -151,7 +151,7 @@ impl Panes {
                 height: placement.height,
                 age,
             };
-            let drawn = session.paint(placement.region, &target);
+            let drawn = session.paint(placement.view, &target);
             block_gpu_guest::present_surface(placement.surface);
             let drawn = match age {
                 0 => target.whole(),

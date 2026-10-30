@@ -2,7 +2,7 @@ use super::*;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Pos2;
 use block_editor_beui::{
-    ChildStatus, EditorCapabilities, EditorRegion, InteractionMode, ResizeMode, Size,
+    ChildStatus, EditorCapabilities, InteractionMode, ResizeMode, Size, ViewId,
 };
 
 #[test]
@@ -30,7 +30,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
     let report = |editor: &mut BeuiTest<CanvasApp>| {
         editor.report_children(|placement| ChildStatus {
             instance: block_editor_beui::EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             child: placement.child,
             available: true,
             intrinsic: Some(Size {

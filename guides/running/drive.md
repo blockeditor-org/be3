@@ -157,7 +157,10 @@ block-app (guides/testing_a_gui.md, 6).
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
 out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
-so dialogs, the file tree and every editor read like the host's own controls.
+so dialogs, the file tree and every editor read like the host's own controls. A plugin's menu,
+tooltip or popover that reaches past its frame (an anchored view, crates/block-plugin-api/PROTOCOL.md,
+Anchored views) is described on its own, as an untitled container beside the plugin's `Pane`s at the
+place it is drawn, so `find` and `click` reach its rows like any other.
 
 - `drive ids` lists every test id in the tree with where it is, the plugins' included (with
   the bodies of a docked plugin's tabs, each a `Pane` of its own wherever the workspace dock
@@ -292,7 +295,7 @@ plugin is starting, owes a frame, holds unanswered input or has yet to answer a 
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a
-driven app asks for at once unless `hurry` is off, below) or is
+driven app asks for at once unless `hurry` is off, below) or sealed edits it is still sending, or is
 still loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone

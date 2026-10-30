@@ -17,7 +17,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         screens: vec![ScreenPlacement {
             screen: ScreenId(1),
             instance: EditorInstanceId(1),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             surface: 1,
             width: 200,
             height: 100,
@@ -41,6 +41,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         drawn: None,
         requested: None,
         placed: None,
+        layer: None,
     };
     let left = SurfaceRect {
         x: 0,

@@ -1,7 +1,7 @@
 use super::*;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{
-    ChildMode, ChildStatus, EditorCapabilities, EditorRegion, InteractionMode, ResizeMode,
+    ChildMode, ChildStatus, EditorCapabilities, InteractionMode, ResizeMode, ViewId,
 };
 use counter_types::CounterContent;
 
@@ -25,7 +25,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
     let live = |editor: &mut BeuiTest<CanvasApp>, pan_and_zoom: bool| {
         editor.report_children(|placement| ChildStatus {
             instance: block_editor_beui::EditorInstanceId(0),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             child: placement.child,
             available: true,
             intrinsic: None,

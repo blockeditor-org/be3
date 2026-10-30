@@ -4,7 +4,7 @@ use super::*;
 fn creation_children_round_trip() {
     let message = committed(ChildPlacements {
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         children: vec![ChildPlacement {
             child: ChildId(6),
             content: ChildContent::Creation {
@@ -27,6 +27,7 @@ fn creation_children_round_trip() {
                 bottom_inset: 0.0,
             }),
             docks: None,
+            anchor: None,
         }],
         occluders: Vec::new(),
     });

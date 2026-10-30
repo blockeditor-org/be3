@@ -25,6 +25,7 @@ fn ime_messages_round_trip() {
     round_trips(&InputBatch {
         screen: ScreenId(2),
         every_sample: false,
+        dismissed: Vec::new(),
         events: vec![
             Input::Ime(ImeEvent::Enabled).into(),
             Input::Ime(ImeEvent::SetComposingText("か".into())).into(),

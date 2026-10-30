@@ -66,7 +66,11 @@ impl Runtime {
         if let Some(surfaces) = &mut self.surfaces {
             if draw || (replaced && self.told && wire.drawing()) {
                 self.asked = false;
-                if let Some(commit) = surfaces.render(&mut self.screens)? {
+                let commit = surfaces.render(&mut self.screens)?;
+                if surfaces.take_relaid() {
+                    block_plugin_api::guest::host::layout(surfaces.layout().clone());
+                }
+                if let Some(commit) = commit {
                     wire.drawn(commit);
                 }
             } else if (changed || replaced) && !self.asked {

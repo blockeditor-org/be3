@@ -7,11 +7,13 @@ use block_plugin_api::ScreenDamage;
 use block_plugin_manifest::PluginManifest;
 
 mod canvases;
+mod overlay;
 pub(super) mod presenter;
 mod worker;
 
 use super::backend::ShownFrame;
 pub(super) use canvases::{Placement, placement, set_background};
+pub(super) use overlay::{Overlay, overlays};
 use worker::WorkerChannel;
 pub(super) use worker::{PresentedBitmap, WorkerChannel as Channel};
 

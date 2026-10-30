@@ -1,8 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use beui_view::types::Rect;
+use serde::{Deserialize, Serialize};
+
 use super::{
-    DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node, Split,
-    SplitId, TabId, Tree,
+    Bar, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
+    Split, SplitId, TabId, Tree,
 };
 
 const JOINED: &str = "joined:";
@@ -19,6 +22,24 @@ pub fn joined_prefix(host: TabId) -> String {
     format!("{}/", joined_key(host))
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DockOutside {
+    pub tab: TabId,
+    pub place: DockOutsidePlace,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum DockOutsidePlace {
+    Pane {
+        key: String,
+        index: usize,
+    },
+    Window {
+        #[serde(with = "rect")]
+        rect: Rect,
+    },
+}
+
 pub struct DockMapping<'a> {
     pub tab: &'a dyn Fn(TabId) -> Option<TabId>,
     pub key: &'a dyn Fn(&str) -> Option<String>,
@@ -32,6 +53,77 @@ struct Copied {
 }
 
 impl DockState {
+    pub fn outside(&self) -> &[DockOutside] {
+        &self.outside
+    }
+
+    pub fn set_outside(&mut self, outside: Vec<DockOutside>) {
+        self.outside = outside;
+    }
+
+    pub fn outside_of(
+        &self,
+        group: GroupId,
+        inner: &dyn Fn(TabId) -> Option<TabId>,
+    ) -> Vec<DockOutside> {
+        let inside = self.group_tabs(group);
+        self.all_tabs()
+            .into_iter()
+            .filter(|tab| !inside.contains(tab))
+            .filter_map(|tab| {
+                let held = inner(tab)?;
+                let position = self.find(tab)?;
+                let place = match self.pane_key(position.leaf) {
+                    Some(key) => DockOutsidePlace::Pane {
+                        key: key.to_owned(),
+                        index: position.index,
+                    },
+                    None if !self.is_nested(position.leaf) => DockOutsidePlace::Window {
+                        rect: self.window_rect(position.surface)?,
+                    },
+                    None => return None,
+                };
+                Some(DockOutside { tab: held, place })
+            })
+            .collect()
+    }
+
+    fn put_outside(&mut self, group: GroupId, from: &DockState, map: &DockMapping<'_>) {
+        let focus = self.focus;
+        for outside in &from.outside {
+            let Some(tab) = (map.tab)(outside.tab) else {
+                continue;
+            };
+            match &outside.place {
+                DockOutsidePlace::Pane { key, index } => {
+                    let Some(leaf) = self
+                        .leaf_by_key(key)
+                        .filter(|leaf| !self.contains_leaf(Entry::Group(group), *leaf))
+                    else {
+                        continue;
+                    };
+                    self.take(Entry::Tab(tab));
+                    if self.leaf(leaf).is_some() {
+                        self.insert_entry(leaf, *index, Entry::Tab(tab));
+                    }
+                }
+                DockOutsidePlace::Window { rect } => {
+                    self.take(Entry::Tab(tab));
+                    self.open_window_with(*rect, vec![Entry::Tab(tab)]);
+                }
+            }
+            if self.contains(tab) {
+                self.homes.retain(|home| home.tab != tab);
+                self.homes.push(Home {
+                    tab,
+                    place: DockHome::Group(group),
+                    within: None,
+                });
+            }
+        }
+        self.focus = focus.filter(|leaf| self.leaf(*leaf).is_some());
+    }
+
     pub fn find_group(&self, key: &str) -> Option<GroupId> {
         self.group_by_key(key)
     }
@@ -54,7 +146,7 @@ impl DockState {
         let focused = self.focused_tab() == Some(tab);
         let held: HashSet<TabId> = self.all_tabs().into_iter().collect();
         let group = self.build_group(key, true, root, &|inner| !held.contains(&inner))?;
-        self.forget_tab(tab);
+        self.forget_hosting_tab(tab);
         if let Some(holder) = self.leaf_mut(leaf) {
             holder.entries[index] = Entry::Group(group);
         }
@@ -134,6 +226,30 @@ impl DockState {
         self.settle_focus();
     }
 
+    fn forget_hosting_tab(&mut self, tab: TabId) {
+        self.recent.retain(|other| *other != tab);
+        self.forget_visits(tab);
+        if self.fullscreen.is_some_and(|shown| shown.tab == tab) {
+            self.fullscreen = None;
+        }
+    }
+
+    pub fn hosted_by(&self, tab: TabId) -> Option<GroupId> {
+        let key = joined_key(tab);
+        self.groups
+            .iter()
+            .find(|group| group.key.as_deref() == Some(key.as_str()))
+            .map(|group| group.id)
+    }
+
+    pub fn stands_for(&self, group: GroupId) -> Option<TabId> {
+        let host = joined_host(self.group(group)?.key.as_deref()?)?;
+        let [leaf] = self.tree_leaves(Tree::Group(group))[..] else {
+            return None;
+        };
+        self.is_bare(leaf).then_some(host)
+    }
+
     fn forget_tab(&mut self, tab: TabId) {
         self.homes.retain(|home| home.tab != tab);
         self.recent.retain(|other| *other != tab);
@@ -192,6 +308,17 @@ impl DockState {
                 });
             }
         }
+        out.bars = self
+            .bars
+            .iter()
+            .filter_map(|bar| {
+                Some(Bar {
+                    bar: (map.tab)(bar.bar)?,
+                    owner: (map.tab)(bar.owner)?,
+                    placement: bar.placement,
+                })
+            })
+            .collect();
         out.unlocked = self
             .unlocked
             .iter()
@@ -290,6 +417,14 @@ impl DockState {
             };
             self.homes.push(home);
         }
+        self.put_outside(group, from, map);
+        for bar in &from.bars {
+            let (Some(moved), Some(owner)) = ((map.tab)(bar.bar), (map.tab)(bar.owner)) else {
+                continue;
+            };
+            self.add_bar(moved, owner, bar.placement);
+            self.set_bar_placement(moved, bar.placement);
+        }
         let unlocked: Vec<DockHome> = from
             .unlocked
             .iter()
@@ -356,6 +491,7 @@ impl DockState {
                 copy.key = key;
                 copy.keep = keep;
                 copy.area = leaf.area.as_deref().and_then(map.key);
+                copy.bare = leaf.bare;
                 copied.leaves.insert(leaf.id, copy.id);
                 Some(Node::Leaf(copy))
             }
@@ -449,5 +585,24 @@ impl DockState {
                 self.pinned_group_of(leaf)
             }
         }
+    }
+}
+
+mod rect {
+    use beui_view::types::{Pos2, Rect};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(rect: &Rect, serializer: S) -> Result<S::Ok, S::Error> {
+        [rect.min.x, rect.min.y, rect.max.x, rect.max.y].serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Rect, D::Error> {
+        let [left, top, right, bottom] = <[f32; 4]>::deserialize(deserializer)?;
+        Ok(Rect::from_min_max(
+            Pos2::new(left, top),
+            Pos2::new(right, bottom),
+        ))
     }
 }

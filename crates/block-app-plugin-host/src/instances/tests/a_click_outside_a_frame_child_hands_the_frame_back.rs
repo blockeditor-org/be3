@@ -8,7 +8,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
     instances.screen_set(screens);
     instances.set_children(ChildPlacements {
         instance: INSTANCE,
-        region: REGION,
+        view: REGION,
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -30,6 +30,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             follows_view: false,
             dialog: None,
             docks: None,
+            anchor: None,
         }],
         occluders: Vec::new(),
     });

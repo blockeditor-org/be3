@@ -79,21 +79,13 @@ interface types {
         version: string,
     }
 
-    /// Where an instance is shown. `display(n)` is a further display of a host
-    /// that shows the frame on its first display and one region on each of
-    /// the others, numbered from 1 in the order the host lists its displays.
-    /// `window(w)` is a window the plugin asked for with
-    /// `window-request.open` and the host shows as one of its own.
-    /// `tab(t)` is the body of the instance's own dock tab `t` (a
-    /// `dock-tab-path` with no `via`), which the dock that hosts the
-    /// instance's dock shows: see `dock-message`.
-    variant editor-region {
-        frame,
+    /// The views of an instance its placer places: its main view, where it
+    /// is edited, its preview and its artifact settings. A manifest lists the
+    /// ones its editor draws (`views`), the main view always.
+    enum parent-view {
+        main,
         preview,
         artifact-settings,
-        display(u32),
-        window(u64),
-        tab(u64),
     }
 }
 

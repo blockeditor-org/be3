@@ -62,7 +62,7 @@ the work.
   `Limits::downlevel_defaults()` (`objects.rs` around line 160).
 - **The editor stack.**
   - `block-plugin-api` (wire types) and `block-editor-plugin` (`Plugin`,
-    `Instance`, `Regions`, `Frame`, `EditorHost`) know nothing of beui, but
+    `Instance`, `ViewHandler`, `Frame`, `EditorHost`) know nothing of beui, but
     block-editor-plugin is built on `reactive`, the signal graph under beui,
     and re-exports it. Its content API (`ContentProjection` in `content.rs`:
     `project`, `field`, `object`, `objects`, `project_keyed`) hands out
@@ -72,7 +72,7 @@ the work.
     scope re-runs when they change. About 49 files in `crates/editors` use the
     content projections.
   - `beui-platform-plugin` (about 1.4k lines) runs beui's `Runner` behind
-    `Regions`: input, per-region surfaces, the `Frame` accounting (windows,
+    `ViewHandler`: input, per-view surfaces, the `Frame` accounting (windows,
     floats, scrims, claims, descriptions), and host services in `platform.rs`
     (clipboard, paste, file pick and save).
   - `block-editor-beui` (about 7.5k lines) is the `BeuiApp` trait, `Editor`

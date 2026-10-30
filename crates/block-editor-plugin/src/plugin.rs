@@ -3,7 +3,8 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests,
+    AnchorSpace, AnchoredPlacement, EditorInstanceId, FrameChrome, FrameSpec, TimedInput, View,
+    ViewId, ViewRef, WindowRequests,
 };
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
@@ -51,39 +52,39 @@ pub trait Instance: std::any::Any {
         false
     }
 
-    fn open_region(&mut self, _region: EditorRegion) {}
+    fn open_view(&mut self, _view: View) {}
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct RegionId {
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-}
+pub trait ViewHandler: std::any::Any {
+    fn input(&mut self, region: &ShownView, event: &TimedInput, over: Option<ViewRef>);
 
-pub trait Regions: std::any::Any {
-    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<RegionId>);
+    fn dismiss_anchored(&mut self, _region: &ShownView, _views: &[ViewId]) {}
 
-    fn run_action(&mut self, _region: &Region, _id: &str) {}
+    fn run_action(&mut self, _region: &ShownView, _id: &str) {}
 
     fn node_action(
         &mut self,
-        _region: &Region,
+        _region: &ShownView,
         _request: block_plugin_api::accesskit::ActionRequest,
     ) {
     }
 
-    fn frame(&mut self, regions: &[Region]) -> Vec<Frame>;
+    fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame>;
 
-    fn painting(&mut self, _region: RegionId) -> Option<paint_format::Painting> {
+    fn frame_opened(&mut self, regions: &[ShownView]) -> Vec<Frame> {
+        regions.iter().map(|_| Frame::default()).collect()
+    }
+
+    fn painting(&mut self, _region: ViewRef) -> Option<paint_format::Painting> {
         None
     }
 
-    fn overflows(&mut self, _region: RegionId) -> Vec<String> {
+    fn overflows(&mut self, _region: ViewRef) -> Vec<String> {
         Vec::new()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+    fn paint(&mut self, region: ViewRef, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -93,9 +94,9 @@ pub struct SettingsDraft {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Region {
+pub struct ShownView {
     pub instance: EditorInstanceId,
-    pub region: EditorRegion,
+    pub view: View,
     pub block: Option<Uuid>,
     pub rect: Rect,
     pub visible: Vec2,
@@ -108,14 +109,15 @@ pub struct Region {
     pub seen: bool,
     pub windows: bool,
     pub docked: bool,
-    pub placement: Option<String>,
+    pub host_place: Option<String>,
+    pub anchor_space: Option<AnchorSpace>,
 }
 
-impl Region {
-    pub fn id(&self) -> RegionId {
-        RegionId {
+impl ShownView {
+    pub fn id(&self) -> ViewRef {
+        ViewRef {
             instance: self.instance,
-            region: self.region,
+            view: self.view.id,
         }
     }
 
@@ -140,6 +142,13 @@ pub struct Frame {
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
     pub asks: Vec<block_plugin_api::WindowRequest>,
+    pub anchored: Vec<Anchored>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Anchored {
+    pub view: ViewId,
+    pub placement: AnchoredPlacement,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -2,12 +2,12 @@ use std::cell::Cell;
 
 use beui::reactive::*;
 use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
-use block_plugin_api::{EditorInstanceId, EditorRegion};
+use block_plugin_api::{EditorInstanceId, ViewId};
 
 pub(super) fn intercept_keys(
     plugin_id: Stored<String>,
     instance: EditorInstanceId,
-    region: EditorRegion,
+    region: ViewId,
     chords: Memo<Vec<KeyChord>>,
     allowed: impl Fn() -> bool + 'static,
 ) {
@@ -36,7 +36,7 @@ pub(super) fn intercept_keys(
             }
             held.with(|held| held.set(press.modifiers));
         }
-        block_app_plugin_host::intercept_region(
+        block_app_plugin_host::intercept_view(
             &plugin_id.value(),
             instance,
             region,
@@ -60,6 +60,6 @@ pub(super) fn intercept_keys(
                 logo: was.logo && now.logo,
             })
         });
-        block_app_plugin_host::intercept_region(&plugin_id.value(), instance, region, None, now);
+        block_app_plugin_host::intercept_view(&plugin_id.value(), instance, region, None, now);
     });
 }

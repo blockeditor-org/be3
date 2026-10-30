@@ -5,7 +5,7 @@ fn host_panel_messages_round_trip() {
     for panel in HostPanel::ALL {
         let message = committed(ChildPlacements {
             instance: EditorInstanceId(3),
-            region: EditorRegion::Frame,
+            view: ViewId::MAIN,
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::Host(panel),
@@ -22,6 +22,7 @@ fn host_panel_messages_round_trip() {
                 follows_view: false,
                 dialog: None,
                 docks: None,
+                anchor: None,
             }],
             occluders: Vec::new(),
         });

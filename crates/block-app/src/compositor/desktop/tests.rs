@@ -1,5 +1,5 @@
 use super::*;
-mod a_popup_holds_its_own_popups_and_takes_them_when_dismissed;
+mod a_closed_window_takes_the_windows_it_opened_with_it;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
 mod a_window_opened_from_a_dock_tab_is_hosted_by_that_tab;
 mod a_window_shown_in_the_app_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener;

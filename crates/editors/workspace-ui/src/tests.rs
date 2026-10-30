@@ -12,7 +12,9 @@ use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
 use crate::picker::PickerApp;
+use crate::rename::RenameApp;
 
+mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
@@ -60,11 +62,10 @@ mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
 mod on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown;
 mod on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place;
-mod on_a_phone_tapping_a_files_name_opens_its_rename_sheet;
+mod on_a_phone_tapping_a_files_name_runs_its_rename;
 mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
 mod on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list;
 mod on_a_wide_phone_the_more_sheet_fills_the_screen_width;
-mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod revision_history_follows_the_active_file_and_previews_it;
 mod revision_history_has_no_file_for_a_native_window;
 mod revision_history_keeps_its_list_in_place_while_a_save_reloads_it;
@@ -80,6 +81,8 @@ mod the_link_card_shows_where_the_chosen_block_lives_and_links_it;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
+mod the_rename_form_opens_with_its_name_selected;
+mod the_rename_form_saves_a_typed_name_and_closes_on_enter;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
 mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
@@ -323,10 +326,23 @@ fn picking_with(
     let request = block_editor_beui::PickerRequest {
         filter,
         parent: BlockParent::decode(parent),
-        touch,
+        sheet: touch,
     };
     let test =
         BeuiTest::picker_beside(&beside.test, host.clone(), request).with_size(beside.test.size());
+    let mut fixture = Fixture { test, host };
+    fixture.settle();
+    fixture
+}
+
+fn renaming(beside: &Fixture, block: Uuid) -> Fixture<RenameApp> {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_client_id(Uuid::from_u128(0x3a_0004));
+    host.set_account_id(beside.host.account_id());
+    host.set_organization_id(beside.host.organization_id());
+    let test = BeuiTest::rename_beside(&beside.test, host.clone(), block)
+        .with_size(Vec2::new(392.0, 560.0));
     let mut fixture = Fixture { test, host };
     fixture.settle();
     fixture
@@ -511,7 +527,7 @@ fn report_creation_dialog<A: block_editor_beui::BeuiApp>(
         .test
         .report_children(|placement| block_editor_beui::ChildStatus {
             instance: block_editor_beui::EditorInstanceId(0),
-            region: block_editor_beui::EditorRegion::Frame,
+            view: block_editor_beui::ViewId::MAIN,
             child: placement.child,
             available: true,
             intrinsic: None,

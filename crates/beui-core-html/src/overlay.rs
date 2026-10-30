@@ -335,7 +335,7 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("max-height", "100vh".to_owned());
             return styles;
         }
-        Placement::Fill => {
+        Placement::Fill | Placement::Edge(_) => {
             for side in ["top", "left", "right", "bottom"] {
                 put(side, "0".to_owned());
             }
@@ -401,11 +401,6 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("bottom", "anchor(bottom)".to_owned());
             put("right", "anchor(right)".to_owned());
         }
-        Placement::HangFrom(gap) => {
-            put("top", format!("calc(anchor(top) + {gap}px)"));
-            put("left", "anchor(center)".to_owned());
-            put("translate", "-50% 0".to_owned());
-        }
         Placement::Popover { gap, margin } => {
             put("position-area", "bottom".to_owned());
             put("position-try-fallbacks", "flip-block".to_owned());
@@ -415,7 +410,7 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
                 format!("calc(100vw - {}px)", 2 * u32::from(margin)),
             );
         }
-        Placement::Center | Placement::Fill => {}
+        Placement::Center | Placement::Fill | Placement::Edge(_) => {}
     }
     styles
 }
@@ -678,7 +673,10 @@ mod web {
 
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
         let placement = layer.placement.get();
-        if matches!(placement, Placement::Center | Placement::Fill) {
+        if matches!(
+            placement,
+            Placement::Center | Placement::Fill | Placement::Edge(_)
+        ) {
             return;
         }
         let Some(anchor) = anchor_rect(layer) else {

@@ -2,10 +2,10 @@ package be3:plugin@0.1.0;
 
 /// What the host and an editor plugin share.
 interface types {
-    use be3:manifest/types@0.1.0.{plugin-identity, editor-region};
+    use be3:manifest/types@0.1.0.{plugin-identity, parent-view};
     use accessibility.{color, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, input, window-requests, window-role,
+        key-chord, modifiers, pos2, rect, vec2, input, window-requests,
     };
     use be3:preferences/types@0.1.0.{preferences};
 
@@ -78,8 +78,42 @@ interface types {
     /// An open editor instance, numbered by the host.
     type editor-instance-id = u64;
 
-    /// A screen the host asked a plugin to draw, numbered by the host.
+    /// A screen a plugin draws: one the host asked for, numbered by the host
+    /// below 2^63, or the screen of a view the plugin created itself (a
+    /// window it opened, `window-open.screen`, or a view it anchored,
+    /// `frame-report.anchored`), numbered by the plugin from 2^63.
     type screen-id = u64;
+
+    /// A view of an editor instance: a surface it draws, unique among the
+    /// instance's views. View 0 is its main view, where it is edited. The
+    /// host numbers the other views it asks for from the top: the preview
+    /// 2^63, the artifact settings 2^63 + 1, the view on further display `n`
+    /// 2^63 + 1 + n. The instance numbers the views it makes itself (its
+    /// windows, the bodies of its dock's tabs and bars, its anchored views),
+    /// never 0 and below 2^63.
+    type view-id = u64;
+
+    /// A view the host places itself: a window the instance opened
+    /// (`window-request.open`), or a further display of a host that shows the
+    /// main view on its first display, numbered from 1 in the order the host
+    /// lists its displays.
+    variant host-view {
+        window,
+        display(u32),
+    }
+
+    /// Who places a view: the instance's placer (its main view, preview or
+    /// artifact settings), the root dock (the body of one of the instance's
+    /// own dock tabs, bars or dialogs, or of an empty pane: a `dock-tab-path`
+    /// with no `via` names it by its view), the host, or the view itself,
+    /// `anchored` against its parent view (`frame-report.anchored`), which
+    /// the host never asks for: the instance creates it.
+    variant view-placement {
+        parent(parent-view),
+        dock,
+        host(host-view),
+        anchored,
+    }
 
     record size {
         width: f32,
@@ -163,6 +197,13 @@ interface types {
         top-bar: top-bar,
         /// Set when the frame is shown as a dialog.
         dialog: option<dialog-frame>,
+        /// What the frame shows as to the user, in the view's points: the
+        /// tab that shows it, or the rect its parent placed it at when it
+        /// has no tab (`child-placement.anchor`); `none` when nothing of it
+        /// is visible, as in a fullscreen tab. A dialog the editor opens
+        /// with no control of its own, from a shortcut or the palette,
+        /// points at it.
+        anchor: option<rect>,
     }
 
     record viewport-metrics {
@@ -179,30 +220,52 @@ interface types {
         raster: f32,
     }
 
-    /// `windows` says the host shows the windows the plugin opens from this
-    /// screen as windows of its own (`window-request`); otherwise the plugin
-    /// draws them inside the screen. `placement` is, for a `window` region,
+    /// The host asking for one of an instance's views: `view` placed at
+    /// `placement`. `windows` says the host shows the windows the plugin opens
+    /// from this view as windows of its own (`window-request`); otherwise the
+    /// plugin draws them inside the screen. `host-place` is, for a window,
     /// where the host last put it, a value only the host reads, which the
     /// plugin keeps and hands back to open the window there again.
-    /// `docked` says the dock this region shows joins the dock of the
+    /// `docked` says the dock this view shows joins the dock of the
     /// instance that placed it (`child-placement.docks`): it declares itself
     /// (`dock-message.declare`) and draws no chrome, and the host shows each
-    /// of its tabs as a `tab(t)` region.
+    /// of its tabs' bodies as a view placed by the dock. `anchor-space` is where
+    /// the view may anchor views of its own (`frame-report.anchored`),
+    /// `none` where it may anchor none.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
-        region: editor-region,
+        view: view-id,
+        placement: view-placement,
         metrics: viewport-metrics,
         frame: option<frame-spec>,
         windows: bool,
-        placement: option<string>,
+        host-place: option<string>,
         docked: bool,
+        anchor-space: option<anchor-space>,
+    }
+
+    /// Maps a view's logical points to the app window's (host
+    /// coordinates): `host = origin + point * scale`, per axis.
+    record host-transform {
+        origin: pos2,
+        scale: vec2,
+    }
+
+    /// Where a view's anchored views go. `to-host` maps the view's points to
+    /// host coordinates at the camera this request lays the view out against.
+    /// `bounds`, in host coordinates, is where its anchored views may go: the
+    /// app window for a trusted plugin, the plugin's own box for a confined
+    /// one, and never more than the bounds of the view that placed this one.
+    record anchor-space {
+        to-host: host-transform,
+        bounds: rect,
     }
 
     record screen-placement {
         screen: screen-id,
         instance: editor-instance-id,
-        region: editor-region,
+        view: view-id,
         surface: surface-id,
         width: u32,
         height: u32,
@@ -230,13 +293,19 @@ interface types {
     /// the latest unless `every-sample`, which the host sets while the screen's
     /// `window-requests` ask for it, scrolls and zooms fold into the last of a
     /// run, and everything else stays, in order.
+    /// `dismissed` lists the views anchored to this screen's view (and to
+    /// each other) a press outside them closed
+    /// (`anchored-placement.dismiss-on-outside-press`), each heard before
+    /// the batch's events;
+    /// a batch that dismisses any never merges into the one before it.
     record input-batch {
         screen: screen-id,
         events: list<timed-input>,
         every-sample: bool,
+        dismissed: list<view-id>,
     }
 
-    record region-size {
+    record view-size {
         screen: screen-id,
         logical: size,
     }
@@ -251,6 +320,9 @@ interface types {
         block-stack,
         performance,
         plugins,
+        /// The app's menu, which an editor places in a view it anchored to
+        /// its menu button.
+        app-menu,
     }
 
     /// A child an editor placed, numbered by the editor.
@@ -323,12 +395,10 @@ interface types {
 
     /// A picker for a block: the host runs it in the editor whose manifest
     /// accepts `pick`, which makes new blocks in `parent` unless the filter
-    /// places them, and lays it out for touch when `touch` is set. Its answer
-    /// arrives as the child's `child-status.picked`.
+    /// places them. Its answer arrives as the child's `child-status.picked`.
     record picker-child {
         filter: block-filter,
         parent: block-location,
-        touch: bool,
     }
 
     /// What a child an editor placed shows.
@@ -339,11 +409,16 @@ interface types {
         window(host-window-id),
         creation(creation-child),
         artifact-settings(artifact-settings-child),
-        /// The body of a tab a descendant declared, as a `tab(t)` region of
-        /// the instance that owns it; `via` names at least one child. Only
-        /// the root of a dock places one.
+        /// The body of a tab a descendant declared: the view `tab` of the
+        /// instance that owns it, placed by the dock; `via` names at least
+        /// one child. Only the root of a dock places one.
         dock-tab(dock-tab-path),
         picker(picker-child),
+        /// A form renaming a block: the host runs it in the editor whose
+        /// manifest accepts `rename` (opened with `opening.rename`), which an
+        /// editor places in a view it anchored. The form says it is done with
+        /// `close-dialog`, which arrives as the child's `child-status.dialog`.
+        rename(block-id),
     }
 
     record child-placement {
@@ -367,6 +442,11 @@ interface types {
         /// child's frame is requested `docked`, and the host splices the
         /// child's dock in place of that tab.
         docks: option<u64>,
+        /// What the child shows as to the user, in the view's points: the
+        /// tab it is shown in, or its own rect when it has no tab; `none`
+        /// when nothing of it is visible (a fullscreen tab). The host passes
+        /// it on as the child's `frame-spec.anchor`.
+        anchor: option<rect>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -375,38 +455,98 @@ interface types {
         rect: rect,
     }
 
-    /// The children an instance placed in a region.
+    /// The children an instance placed in a view.
     record child-placements {
         instance: editor-instance-id,
-        region: editor-region,
+        view: view-id,
         children: list<child-placement>,
         occluders: list<occluder>,
     }
 
-    /// A dimming scrim of one of a region's overlays, for the host to draw.
+    /// A dimming scrim of one of a view's overlays, for the host to draw.
     record scrim {
         rect: rect,
         color: color,
     }
 
+    /// How far a rectangle sits inside a view, from each of its edges.
+    record insets {
+        left: f32,
+        top: f32,
+        right: f32,
+        bottom: f32,
+    }
+
+    /// An edge of an anchor space's bounds.
+    enum view-edge {
+        top,
+        bottom,
+        left,
+        right,
+    }
+
+    /// How a view that places itself hangs from its parent view: anchored to
+    /// a rectangle in the parent's coordinates (the parent's points, or host
+    /// coordinates when the parent is itself anchored), as a menu hangs from
+    /// its button, or attached to an edge of the anchor space's bounds, as a
+    /// sheet is.
+    variant view-anchor {
+        rect(rect),
+        edge(view-edge),
+    }
+
+    /// How a view the instance anchored places itself: a menu, popover,
+    /// tooltip or sheet, allowed outside its parent's rectangle. `parent` is
+    /// the view it hangs from: one the host asked for with an anchor space, or
+    /// another anchored view of the instance, as a submenu hangs from its
+    /// menu. `rect` is where the plugin laid it out, in host coordinates,
+    /// against `anchor-space.bounds` of the view the chain hangs from: the
+    /// view's own points are host points from `rect`'s top-left corner.
+    /// With `dismiss-on-outside-press`, a press outside the view's chain (it
+    /// and the views hanging from it) closes the chain: the instance hears
+    /// `input-batch.dismissed`, and the press still reaches what it landed
+    /// on. `keyboard` gives the instance the keyboard while the view is
+    /// open, or the first child the view places when it places one;
+    /// `blocks-owner` keeps presses on the view the chain hangs from from
+    /// reaching its content.
+    record anchored-placement {
+        parent: view-id,
+        anchor: view-anchor,
+        rect: rect,
+        dismiss-on-outside-press: bool,
+        keyboard: bool,
+        blocks-owner: bool,
+    }
+
     record frame-report {
         screen: screen-id,
-        content: rect,
+        /// The content area, as insets from the view's edges, so the host
+        /// finds it for the view's current size while that size changes.
+        /// `none` when the view holds none of the editor's content (a dock
+        /// bar of its tools, a window of its own): the view that reports
+        /// it is where the editor's camera, its active child taking the
+        /// frame, and its frame's features are.
+        content: option<insets>,
         painted: list<rect>,
-        /// Where the region's overlays take input: their content and the
+        /// Where the view's overlays take input: their content and the
         /// areas their scrims block, clear or not.
         floating: list<rect>,
         /// The parts of `floating` the overlays paint, which the host draws
-        /// above the region's children: their content. A scrim is never
-        /// painted into the region's surface: a clear one only blocks
+        /// above the view's children: their content. A scrim is never
+        /// painted into the view's surface: a clear one only blocks
         /// input, and the host draws each one that dims (`scrims`) over the
-        /// region's children and under the content, so the children show
+        /// view's children and under the content, so the children show
         /// dimmed through it.
         floating-painted: list<rect>,
         scrims: list<scrim>,
         drawing: list<rect>,
         claims: list<press-claim>,
         description: option<description>,
+        /// Set on the report of a screen the plugin opened for a view it
+        /// anchored: how that view hangs, which every report of it repeats.
+        /// The view closes when the plugin's layout no longer lists its
+        /// screen.
+        anchored: option<anchored-placement>,
     }
 
     record screen-window {
@@ -431,33 +571,37 @@ interface types {
         damage: list<screen-damage>,
     }
 
-    /// A region of the plugin: an instance and where it is shown.
-    record region-ref {
+    /// A view of the plugin: an instance and one of its views.
+    record view-ref {
         instance: editor-instance-id,
-        region: editor-region,
+        view: view-id,
     }
 
     record window-over {
-        region: region-ref,
+        view: view-ref,
         at: pos2,
     }
 
     /// Where a window opens: at the pointer, with its corner at `at` in a
-    /// region's points, or where a `placement` the host gave says.
+    /// view's points, or where a `host-place` the host gave says.
     variant window-placement {
         at-pointer,
         over(window-over),
         host(string),
     }
 
-    /// `role` says what the window is for, as beui's own windows do: a host
-    /// that shows windows in space never focuses a keyboard or a popup.
+    /// A window the instance opens as a view of its own: `view`, laid out at
+    /// `size` and painted in the same commit as `screen`, a screen the plugin
+    /// numbered itself and lists in its layout, so the host shows the window
+    /// in the frame that opens it. A window is always a window of its own:
+    /// what points back to where it came from (a menu, a picker, a popover)
+    /// is an anchored view.
     record window-open {
-        window: u64,
-        opener: region-ref,
+        view: view-id,
+        screen: screen-id,
+        opener: view-ref,
         placement: window-placement,
         size: size,
-        role: window-role,
     }
 
     enum window-edge {
@@ -472,34 +616,36 @@ interface types {
     }
 
     record window-resize-begin {
-        window: u64,
+        view: view-id,
         edge: window-edge,
     }
 
     record window-resize {
-        window: u64,
+        view: view-id,
         size: size,
     }
 
     /// What the plugin asks of the host about a window it shows: to open it
-    /// (as a `window` region of the instance it opened from), move or resize it
-    /// with the pointer as a window manager does, raise it in front of the
-    /// plugin's others, give it another size, or close it. The host answers through the window's screen: its size and
-    /// scale, its `placement`, focus as input, and closing as the screen going.
+    /// (as a view of the instance it opened from, which the host places and
+    /// shows from the screen the plugin opened it with),
+    /// move or resize it with the pointer as a window manager does, raise it
+    /// in front of the plugin's others, give it another size, or close it.
+    /// The host answers through the window's screen: its size and scale, its
+    /// `host-place`, focus as input, and closing as the screen going.
     variant window-request {
         open(window-open),
-        begin-move(u64),
-        raise(u64),
+        begin-move(view-id),
+        raise(view-id),
         begin-resize(window-resize-begin),
         resize(window-resize),
-        close(u64),
+        close(view-id),
     }
 
     /// What a plugin drew: the frame the host composites, with what each
     /// screen asks of its window and the children it placed.
     record frame-commit {
         serial: u64,
-        sizes: list<region-size>,
+        sizes: list<view-size>,
         reports: list<frame-report>,
         windows: list<screen-window>,
         children: list<child-placements>,
@@ -552,22 +698,39 @@ interface types {
         editor: editor-id,
         filter: block-filter,
         parent: block-location,
-        touch: bool,
+        /// Placed in a view attached to an edge: the picker draws itself as
+        /// a sheet, laid out for touch.
+        sheet: bool,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+    }
+
+    /// A form renaming a block another editor placed as a child
+    /// (`child-content.rename`).
+    record open-rename {
+        instance: editor-instance-id,
+        editor: editor-id,
+        block-id: block-id,
+        /// Placed in a view attached to an edge: the form draws itself as a
+        /// sheet.
+        sheet: bool,
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,
     }
 
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, or as a picker.
+    /// artifact's settings, as a picker, or as a form renaming a block.
     variant opening {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
+        rename(open-rename),
     }
 
-    // Docking across plugins. A docked region declares its own tree; the
+    // Docking across plugins. A docked view declares its own tree; the
     // host splices each declaration into the one of the instance that placed
     // it, in place of the tab the child is in, up to the root: the outermost
     // instance, whose dock is not docked, which holds the only state and
@@ -577,7 +740,8 @@ interface types {
     /// when `via` is empty, or else a tab of a docked child's declaration,
     /// through the children that lead to its owner, outermost first. Each
     /// child is numbered by the instance before it (the first by the instance
-    /// that names the path), and `tab` by the owner.
+    /// that names the path), and `tab` by the owner: the id of the view
+    /// (`view-id`) that is the tab's body.
     record dock-tab-path {
         via: list<child-id>,
         tab: u64,
@@ -602,8 +766,9 @@ interface types {
     /// what the holder shows. `area` is the locked area the pane belongs to,
     /// whose tabs stay in it: in a declaration the pane's own key, which
     /// locks it; in a layout also a pane split off a locked one. `empty`, in
-    /// a declaration, names a body that is no tab of the tree: the `tab(t)`
-    /// region its owner draws in the pane while the pane holds no tab.
+    /// a declaration, names a body that is no tab of the tree: the view its
+    /// owner draws in the pane while the pane holds no tab. A
+    /// `bare` pane shows its one tab with no tab bar and takes no other.
     record dock-pane {
         key: string,
         active: option<u32>,
@@ -613,6 +778,7 @@ interface types {
         keep: bool,
         area: option<string>,
         empty: option<dock-tab-path>,
+        bare: bool,
     }
 
     /// A group of tabs shown as one entry of a pane, whose root (a split or
@@ -625,7 +791,7 @@ interface types {
         child: option<child-id>,
     }
 
-    /// A floating window of the dock, in the points of the region that
+    /// A floating window of the dock, in the points of the view that
     /// declares it; its root, if any, follows it one level deeper.
     record dock-window {
         key: string,
@@ -665,16 +831,18 @@ interface types {
         title: string,
         glyph: string,
         closable: bool,
-        /// The tab's own menu, which the root shows on the tab's bar; a pick
-        /// reaches the tab's owner as a `dock-update.pick` of the tab.
+        /// The menu of the tab's view (`shell.menu` of that view), which the
+        /// root shows on the tab's bar. The host fills it in as it splices a
+        /// declaration; a declaring instance leaves it empty. A pick reaches
+        /// the owner as its `menu-pick` of that view.
         menu: list<menu-item>,
     }
 
     /// A dialog of the dock, which the root presents as it presents its own,
-    /// over `parent` (a tab of the tree or another dialog): a window, or a
-    /// `card` hung from the parent's place (from `anchor`, in the points of
-    /// the region showing the parent's body, if any), modal when `modal`.
-    /// Its body is the owner's `tab(t)` region for `tab`, which is no tab of
+    /// over `parent` (a tab of the tree or another dialog): a window, modal
+    /// when `modal`. A popover-style dialog (a card pointing at a control or
+    /// a tab) is no dock dialog: its owner draws it as an anchored view of
+    /// its own. Its body is the owner's view `tab`, which is no tab of
     /// the tree; closing it reaches the owner as a `close` of `tab`.
     record dock-dialog {
         tab: dock-tab-path,
@@ -683,20 +851,78 @@ interface types {
         glyph: string,
         size: size,
         modal: bool,
-        card: bool,
         dismiss-on-outside-press: bool,
-        anchor: option<rect>,
         closable: bool,
     }
 
-    /// The dock a region declares, which its holder shows in place of the
-    /// tab the region's instance was placed in, as a pinned group. Every tab
+    /// An edge of a pane's body.
+    enum dock-edge {
+        top,
+        bottom,
+        left,
+        right,
+    }
+
+    /// A bar popped out into a window of the dock, its top-left corner at
+    /// `origin` in the points of the root's dock, laid out as if along `edge`.
+    record dock-bar-window {
+        edge: dock-edge,
+        origin: pos2,
+    }
+
+    /// Where along its edge a floating bar sits: at the edge's start (its
+    /// left, or its top), its centre or its end.
+    enum dock-align {
+        start,
+        center,
+        end,
+    }
+
+    /// A bar floating over `edge` of its owner's body at `align` along it.
+    /// Bars at one edge and alignment stack; bars at different alignments
+    /// sit side by side.
+    record dock-bar-over {
+        edge: dock-edge,
+        align: dock-align,
+    }
+
+    /// Where a bar sits: floating `over` an edge of its owner's body, in a
+    /// band `beside` the body inside its pane along the whole edge, or in a
+    /// window.
+    variant dock-bar-placement {
+        over(dock-bar-over),
+        beside(dock-edge),
+        window(dock-bar-window),
+    }
+
+    /// A bar of the dock: an entry that belongs to the tab `owner` and shows
+    /// while it does, at `placement` (in a declaration the one it starts at).
+    /// Its body is the owner's view `tab`, which is no tab of
+    /// the tree, laid out along its placement's edge; `size` is that body's
+    /// size as its owner last laid it out, which the root gives it. `key`
+    /// names it for good, as a tab's does. `kind` says which bars are the
+    /// same bar of different tabs: the declaring editor's block type and the
+    /// bar's own key (`{block type}/{key}`), which the host passes on
+    /// unchanged. The root places every bar of one kind the same way and
+    /// shows the popped-out ones in one window.
+    record dock-bar {
+        tab: dock-tab-path,
+        key: string,
+        kind: string,
+        owner: dock-tab-path,
+        placement: dock-bar-placement,
+        size: size,
+    }
+
+    /// The dock a view declares, which its holder shows in place of the
+    /// tab the view's instance was placed in, as a pinned group. Every tab
     /// of the tree is described in `tabs`, and only those. A plugin declares
     /// only its own tabs; the root hears declarations the host spliced.
     record dock-declaration {
         tree: dock-tree,
         tabs: list<dock-tab>,
         dialogs: list<dock-dialog>,
+        bars: list<dock-bar>,
     }
 
     /// Where a tab moved out of its area belongs: a locked area, by its
@@ -711,12 +937,41 @@ interface types {
         place: dock-place,
     }
 
+    /// Where a bar of the layout sits now.
+    record dock-placed-bar {
+        bar: dock-tab-path,
+        owner: dock-tab-path,
+        placement: dock-bar-placement,
+    }
+
+    /// A pane of the root's outside the declaration's group, by its key, and
+    /// the index among its entries.
+    record dock-outside-pane {
+        key: string,
+        index: u32,
+    }
+
+    variant dock-outside-place {
+        pane(dock-outside-pane),
+        /// A floating window of its own, in the points of the root's dock.
+        window(rect),
+    }
+
+    /// A tab of the layout the user moved out of the declaration's group,
+    /// and where it went, so a `restore` moves it back there.
+    record dock-outside {
+        tab: dock-tab-path,
+        place: dock-outside-place,
+    }
+
     /// A dock as its holder holds it, which it hands back to `restore`.
     /// `unlocked` names the areas and pinned groups the user unlocked: their
     /// tabs may leave and, for an area, other tabs may come in.
     record dock-layout {
         tree: dock-tree,
         homes: list<dock-home>,
+        bars: list<dock-placed-bar>,
+        outside: list<dock-outside>,
         unlocked: list<dock-place>,
     }
 
@@ -724,7 +979,7 @@ interface types {
     /// paths and keys. `layout` is the declaration's group as it now is;
     /// `tabs` every declared tab it holds, in the group or moved out of it;
     /// `visible` the tabs whose bodies are on screen, the only `tab(t)`
-    /// regions the host shows; `shown` the tab a stacked dock shows. The
+    /// views the host shows; `shown` the tab a stacked dock shows. The
     /// host splits what the root hosts into each instance's own part, where
     /// a spliced child's group is the tab it was placed in again.
     record dock-hosted {
@@ -735,31 +990,65 @@ interface types {
         visible: list<dock-tab-path>,
         fullscreen: option<dock-tab-path>,
         stacked: bool,
+        /// What the root draws over each tab's body, such as a bar floating
+        /// over an edge, in the points of the view that shows the body, so
+        /// the editor keeps what it reveals clear of it.
+        covers: list<dock-cover>,
     }
 
-    /// `area` is the rectangle the tab covers, in the points of the region
+    record dock-cover {
+        tab: dock-tab-path,
+        rect: rect,
+    }
+
+    /// `area` is the rectangle the tab covers, in the points of the view
     /// that shows the tab's body; `none` covers the whole dock.
     record dock-fullscreen {
         tab: dock-tab-path,
         area: option<rect>,
     }
 
+    /// `none` pops the bar out into a window where it now is.
+    record dock-bar-place {
+        bar: dock-tab-path,
+        placement: option<dock-bar-placement>,
+    }
+
+    enum dock-drag-stage {
+        move,
+        drop,
+        cancel,
+    }
+
+    /// The user dragging bar `bar` by a grip in its body: `at` is the
+    /// pointer in the points of the view showing the body. The first
+    /// `move` begins the drag, which the root carries, showing where the bar
+    /// would go; `drop` puts it there and `cancel` leaves it.
+    record dock-bar-move {
+        bar: dock-tab-path,
+        at: pos2,
+        stage: dock-drag-stage,
+    }
+
     /// What a hosted dock asks of its holder: to show a tab, to replace the
     /// group with a layout (restoring one saved, or a fresh one to reset),
-    /// or to show a tab full screen (`none` leaves full screen).
+    /// to show a tab full screen (`none` leaves full screen), or to place or
+    /// move one of its bars.
     variant dock-request {
         show(dock-tab-path),
         restore(dock-layout),
         fullscreen(option<dock-fullscreen>),
+        place-bar(dock-bar-place),
+        move-bar(dock-bar-move),
     }
 
     record dock-declare {
-        region: region-ref,
+        view: view-ref,
         declaration: option<dock-declaration>,
     }
 
-    record dock-region-request {
-        region: region-ref,
+    record dock-view-request {
+        view: view-ref,
         request: dock-request,
     }
 
@@ -769,9 +1058,21 @@ interface types {
         child: child-id,
     }
 
+    /// What the root does with a docked child's tab.
+    variant dock-hold {
+        /// It hosts the child's dock in place of the tab: what it holds of
+        /// it, replacing the last.
+        hosted(dock-hosted),
+        /// It stopped hosting the dock and shows the tab's body again, where
+        /// it places the child: the child stays docked until it is placed.
+        placing,
+        /// It let the tab go.
+        released,
+    }
+
     record dock-child-hosted {
         child: dock-child,
-        hosted: option<dock-hosted>,
+        hold: dock-hold,
     }
 
     /// `tab` is in the child's paths; the host closes it at its owner.
@@ -781,22 +1082,25 @@ interface types {
     }
 
     /// The user picked command `id` of the menu `tab` carries; `tab` is in
-    /// the child's paths, and the host hands the pick to its owner.
+    /// the child's paths, and the host hands the pick to its owner, with
+    /// `anchor`, the tab's rect in host coordinates (`none` while it is not
+    /// shown, as in a fullscreen tab), as its `menu-pick` anchor.
     record dock-child-pick {
         child: dock-child,
         tab: dock-tab-path,
         id: string,
+        anchor: option<rect>,
     }
 
-    /// What a plugin's docks say, in a frame. A docked region (one whose
+    /// What a plugin's docks say, in a frame. A docked view (one whose
     /// screen request is `docked`) declares its dock, replacing the last
     /// declaration, `none` withdrawing it, and asks of the root. The root
-    /// hosts each docked child's spliced declaration: it hands the child
-    /// what it holds of it, replacing the last, `none` letting go; and it
-    /// passes on the user closing a tab or picking from a tab's menu.
+    /// hosts each docked child's spliced declaration: it says what it does
+    /// with the child's tab (`dock-hold`); and it passes on the user closing
+    /// a tab or picking from a tab's menu.
     variant dock-message {
         declare(dock-declare),
-        request(dock-region-request),
+        request(dock-view-request),
         host(dock-child-hosted),
         close(dock-child-close),
         pick(dock-child-pick),

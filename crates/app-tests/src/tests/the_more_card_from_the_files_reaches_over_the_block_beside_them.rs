@@ -9,7 +9,7 @@ fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
     let (_, button_y, _, button_height) = app.place(ADD_TO_MY_FILES);
     app.click("#picker.more");
     app.wait("#picker.search");
-    let (files_x, files_y, files_width, _) = app.place("#workspace.files");
+    let (files_x, _, files_width, _) = app.place("#workspace.files");
     let (search_x, search_y, search_width, _) = app.place("#picker.search");
     assert!(
         search_y > button_y + button_height,
@@ -29,13 +29,6 @@ fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
         block_y + block_height - 24.0
     );
     app.run(&["click", &beside]);
-    assert!(
-        app.shown("#picker.search"),
-        "a press on the block beside the card leaves it open"
-    );
-
-    let above = format!("{},{}", files_x + files_width / 2.0, files_y + 8.0);
-    app.run(&["click", &above]);
     app.gone("#picker.search");
     app.close();
 }

@@ -29,5 +29,11 @@ fn the_rename_card_from_the_files_reaches_past_them() {
     );
     app.key("Escape");
     app.gone("#rename.search");
+
+    app.run(&["click", "TreeItem \"Text\"", "right"]);
+    app.click("#file-tree.appearance");
+    app.wait("#rename.search");
+    app.click("Tab \"Settings\"");
+    app.gone("#rename.search");
     app.close();
 }

@@ -14,7 +14,7 @@ fn resize(instances: &mut Instances, rect: Rect) {
     );
     instances.report(
         INSTANCE,
-        REGION,
+        View::MAIN,
         Uuid::nil(),
         role,
         &Arc::new(crate::PluginCatalog::default()),

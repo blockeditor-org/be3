@@ -43,12 +43,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
     let inspecting = create_signal(None::<Inspection>);
+    let inspected_from = NodeRef::new();
     let tools = RowTools {
         editor,
         tree,
         picker,
         exporter,
         inspect: inspecting,
+        inspected_from,
         zoom,
         renaming,
     };
@@ -112,13 +114,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.expand(focused.via.iter().rev().copied());
     };
     let (desktop_menu, phone_menu) = (NodeRef::new(), NodeRef::new());
-    let app_menu = move |button: NodeRef| {
-        move || {
-            editor
-                .host()
-                .show_app_menu(editor.block_id(), node_anchor(&button))
-        }
-    };
+    let app_menu = move |button: NodeRef| move || editor.show_app_menu(button);
     let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
@@ -279,7 +275,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     </Frame>
                 </BackSlide>
             </Frame>
-            <Inspector inspecting={inspecting} />
+            <Inspector inspecting={inspecting} opened_from={inspected_from} />
         </List>
     }
 }
@@ -320,7 +316,7 @@ fn PhoneTitle(
 }
 
 #[component]
-fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
+fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> NodeId {
     let open = create_memo(move || inspecting.get().is_some());
     let field = |read: fn(&Inspection) -> &String| {
         create_memo(move || {
@@ -342,6 +338,7 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
             open={open}
             title="Inspect"
             width=INSPECT_WIDTH
+            anchor={DialogAnchor::Control(opened_from)}
             id="file-tree.inspect"
             on_dismiss={dismiss}
         >

@@ -2,8 +2,8 @@ use beui_view::types::Direction;
 use beui_view::types::Rect;
 
 use super::{
-    DockHome, DockState, Entry, Group, GroupId, Home, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Split,
-    SplitId, Surface, SurfaceId, TabId,
+    Bar, DockBarPlacement, DockHome, DockOutside, DockState, Entry, Group, GroupId, Home,
+    MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Split, SplitId, Surface, SurfaceId, TabId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -12,7 +12,16 @@ pub struct DockPlain {
     pub windows: Vec<DockPlainWindow>,
     pub focus: Option<TabId>,
     pub homes: Vec<DockPlainHome>,
+    pub bars: Vec<DockPlainBar>,
+    pub outside: Vec<DockOutside>,
     pub unlocked: Vec<DockPlainPlace>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockPlainBar {
+    pub bar: TabId,
+    pub owner: TabId,
+    pub placement: DockBarPlacement,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,6 +48,7 @@ pub enum DockPlainNode {
         sidebar: f32,
         keep: bool,
         area: Option<String>,
+        bare: bool,
         entries: Vec<DockPlainEntry>,
     },
 }
@@ -95,6 +105,16 @@ impl DockState {
                 })
             })
             .collect();
+        plain.bars = self
+            .bars
+            .iter()
+            .map(|bar| DockPlainBar {
+                bar: bar.bar,
+                owner: bar.owner,
+                placement: bar.placement,
+            })
+            .collect();
+        plain.outside = self.outside.clone();
         plain.unlocked = self
             .unlocked
             .iter()
@@ -133,6 +153,7 @@ impl DockState {
                 sidebar: leaf.sidebar,
                 keep: leaf.keep,
                 area: leaf.area.clone(),
+                bare: leaf.bare,
                 entries: leaf
                     .entries
                     .iter()
@@ -193,6 +214,16 @@ impl DockState {
                 });
             }
         }
+        state.bars = plain
+            .bars
+            .iter()
+            .map(|bar| Bar {
+                bar: bar.bar,
+                owner: bar.owner,
+                placement: bar.placement,
+            })
+            .collect();
+        state.outside = plain.outside.clone();
         for place in &plain.unlocked {
             match state.place_of_plain(place) {
                 Some(place) => state.unlocked.push(place),
@@ -224,6 +255,7 @@ impl DockState {
                 sidebar,
                 keep,
                 area,
+                bare,
                 entries,
             } => {
                 let entries: Vec<Entry> = entries
@@ -251,6 +283,7 @@ impl DockState {
                 leaf.key = named(key);
                 leaf.keep = *keep && leaf.key.is_some();
                 leaf.area.clone_from(area);
+                leaf.bare = *bare;
                 Node::Leaf(leaf)
             }
             DockPlainNode::Split {

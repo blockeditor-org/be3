@@ -10,6 +10,7 @@ fn tabs(ids: &[u64]) -> DockTree {
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
+        bare: false,
     }
 }
 

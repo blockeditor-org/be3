@@ -23,13 +23,19 @@ const FORMAT_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
+    let tab = use_frame_anchor();
     let settings = create_signal(false);
     menu_actions(state, settings);
     let hex = state.hex_view;
     let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
     view! {
-        <Dialog open={settings} title="Text settings" on_dismiss={move || settings.set(false)}>
+        <Dialog
+            open={settings}
+            title="Text settings"
+            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            on_dismiss={move || settings.set(false)}
+        >
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
                     <TextSettings state={state} />

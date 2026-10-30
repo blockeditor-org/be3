@@ -112,8 +112,9 @@ impl HeadlessPlugin {
     }
 
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, Frame)> {
-        let layout = self.screens.layout().clone();
-        let shown: Vec<(ScreenPlacement, u32)> = layout
+        let shown: Vec<(ScreenPlacement, u32)> = self
+            .screens
+            .layout()
             .screens
             .iter()
             .map(|placement| (*placement, 0))
@@ -121,10 +122,8 @@ impl HeadlessPlugin {
         let screens = &mut self.screens;
         let frames = self.executor.enter(|| screens.frame(&shown));
         self.drawn = true;
-        layout
-            .screens
+        frames
             .into_iter()
-            .zip(frames)
             .filter(|(placement, _)| self.screens.get(placement.instance).is_some())
             .collect()
     }

@@ -1,7 +1,7 @@
 use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::{
-    EditorHost, EditorInstanceId, EditorRegion, FrameSpec, GraphCommand, Instance, Module, Rect,
-    Region, pos2, vec2,
+    EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View,
+    pos2, vec2,
 };
 use triangle_types::TriangleContent;
 
@@ -10,10 +10,10 @@ use crate::app::Triangle;
 mod a_triangle_asks_to_be_painted_until_it_has_been;
 mod creating_a_triangle_makes_a_block_with_no_state;
 
-fn region() -> Region {
-    Region {
+fn region() -> ShownView {
+    ShownView {
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: View::MAIN,
         block: None,
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
         visible: vec2(0.0, 0.0),
@@ -26,6 +26,7 @@ fn region() -> Region {
         seen: true,
         windows: false,
         docked: false,
-        placement: None,
+        host_place: None,
+        anchor_space: None,
     }
 }

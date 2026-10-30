@@ -2,8 +2,8 @@ use super::*;
 use block_editor_beui::beui::icons::ICON_SHAPES;
 use block_editor_beui::{
     BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, ChildMode, ChildOperations,
-    ChildPreview, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode,
-    Press, ResizeMode,
+    ChildPreview, ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, Press,
+    ResizeMode, ViewId,
 };
 
 const CANVAS: Uuid = Uuid::from_u128(0x0c);
@@ -43,7 +43,7 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
     test.run();
     test.report_children(|placement| ChildStatus {
         instance: EditorInstanceId(0),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         child: placement.child,
         available: true,
         intrinsic: None,

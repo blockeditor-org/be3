@@ -7,7 +7,7 @@ use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
 use beui_platform_plugin_api::{Report, View, Views};
-use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
+use block_editor_plugin::{EditorHost, EditorInstanceId, ViewPlacement, ViewRef};
 
 pub(crate) trait Shown {
     fn host(&self) -> EditorHost;
@@ -16,9 +16,9 @@ pub(crate) trait Shown {
 
     fn docked_key(&self, docked: bool) -> bool;
 
-    fn content(&self, region: EditorRegion, docked: bool) -> RenderFn<WindowHandle>;
+    fn content(&self, view: block_editor_plugin::View, docked: bool) -> RenderFn<WindowHandle>;
 
-    fn window_id(&self, region: EditorRegion) -> Option<WindowId>;
+    fn window_id(&self, view: block_editor_plugin::View) -> Option<WindowId>;
 
     fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document);
 
@@ -35,7 +35,7 @@ pub(crate) trait Shown {
 
 struct Registry {
     shown: RefCell<HashMap<EditorInstanceId, Rc<dyn Shown>>>,
-    windows: RefCell<HashMap<RegionId, WindowId>>,
+    windows: RefCell<HashMap<ViewRef, WindowId>>,
     revision: OwnedSignal<u64>,
 }
 
@@ -111,7 +111,7 @@ impl Module {
         self.registry.shown(instance)
     }
 
-    pub(crate) fn window(&self, region: RegionId) -> Option<WindowId> {
+    pub(crate) fn window(&self, region: ViewRef) -> Option<WindowId> {
         self.registry.windows.borrow().get(&region).copied()
     }
 }
@@ -158,7 +158,7 @@ impl beui::native::App for ModuleApp {
             if let Some(shown) = module.shown(view.id.instance) {
                 shown
                     .host()
-                    .in_region(view.id.region, || shown.before(view, context, document));
+                    .in_view(view.view(), || shown.before(view, context, document));
             }
         }
         document.show(context, rect);
@@ -168,9 +168,9 @@ impl beui::native::App for ModuleApp {
             else {
                 continue;
             };
-            let report = shown.host().in_region(view.id.region, || {
-                shown.after(view, context, document, window)
-            });
+            let report = shown
+                .host()
+                .in_view(view.view(), || shown.after(view, context, document, window));
             views.report(view.id, report);
         }
         for (id, window) in views.floated() {
@@ -180,7 +180,9 @@ impl beui::native::App for ModuleApp {
             let size = context.window_size(window).unwrap_or_default();
             let report = shown
                 .host()
-                .in_region(id.region, || shown.floated(document, window, size));
+                .in_view(block_editor_plugin::View::window(id.view), || {
+                    shown.floated(document, window, size)
+                });
             views.report(id, report);
         }
     }
@@ -201,36 +203,49 @@ fn ModuleWindows(
                 .iter()
                 .map(|view| {
                     let shown = generations.shown(view.id.instance);
-                    let generation = match view.id.region {
-                        EditorRegion::Tab(_) => 0,
+                    let generation = match view.placement {
+                        ViewPlacement::Dock => 0,
                         _ => shown.as_ref().map_or(0, |shown| shown.generation()),
                     };
-                    let docked = view.id.region == EditorRegion::Frame
+                    let docked = view.id.view.is_main()
                         && shown.is_some_and(|shown| shown.docked_key(view.docked));
-                    (view.id, generation, docked)
+                    (view.view(), view.id.instance, generation, docked)
                 })
                 .collect::<Vec<_>>()
         })
     });
     view! {
         <List spacing=Space::None>
-            <ForEach keys>|(id, _generation, _docked): (RegionId, u64, bool)|
-                <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
+            <ForEach
+                keys
+            >|(shown, instance, _generation, _docked): (block_editor_plugin::View, EditorInstanceId, u64, bool)|
+                <ViewWindow
+                    registry={Rc::clone(&registry)}
+                    shown
+                    instance
+                    requested
+                    views={views.clone()}
+                />
             </ForEach>
         </List>
     }
 }
 
 #[component]
-fn RegionWindow(
+fn ViewWindow(
     registry: Rc<Registry>,
-    id: RegionId,
+    shown: block_editor_plugin::View,
+    instance: EditorInstanceId,
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
+    let id = ViewRef {
+        instance,
+        view: shown.id,
+    };
     let window = registry
         .shown(id.instance)
-        .and_then(|shown| shown.window_id(id.region))
+        .and_then(|held| held.window_id(shown))
         .unwrap_or_else(WindowId::next);
     registry.windows.borrow_mut().insert(id, window);
     let held = Rc::clone(&registry);
@@ -257,7 +272,7 @@ fn RegionWindow(
     let docked = requested
         .with_untracked(|requested| requested.iter().any(|view| view.id == id && view.docked));
     let content = match registry.shown(id.instance) {
-        Some(shown) => shown.content(id.region, docked),
+        Some(held) => held.content(shown, docked),
         None => RenderFn::new(|_: WindowHandle| {
             view! {
                 <Frame />

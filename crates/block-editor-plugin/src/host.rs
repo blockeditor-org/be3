@@ -14,10 +14,10 @@ use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, EditorRegion, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
-    Revision, ShellCommand, ShellDialog, Size, ViewChange, Watched, WebViewCommand, WebViewEvent,
-    WebViewId,
+    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
+    HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView, PerformanceMeasurement,
+    Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId, ViewPlacement, Watched,
+    WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -132,7 +132,13 @@ pub(crate) struct ChildCommit {
 pub struct PickerRequest {
     pub filter: BlockFilter,
     pub parent: BlockParent,
-    pub touch: bool,
+    pub sheet: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenameRequest {
+    pub block: Uuid,
+    pub sheet: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -299,6 +305,7 @@ enum Identity {
     ArtifactSettings([u8; 16]),
     DockTab(block_plugin_api::DockTabPath),
     Picker(BlockFilter),
+    Rename([u8; 16]),
 }
 
 impl Identity {
@@ -314,13 +321,14 @@ impl Identity {
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
             ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
             ChildContent::Picker { filter, .. } => Self::Picker(filter.clone()),
+            ChildContent::Rename(block_id) => Self::Rename(*block_id),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum ChildScope {
-    Region(EditorRegion),
+    View(ViewId),
     DockTab(u64),
 }
 
@@ -336,27 +344,22 @@ struct Placing {
 
 #[derive(Default)]
 struct Children {
-    placing: HashMap<EditorRegion, Placing>,
+    placing: HashMap<ViewId, Placing>,
     identities: HashMap<ChildKey, ChildId>,
-    tab_regions: HashMap<u64, EditorRegion>,
+    tab_views: HashMap<u64, ViewId>,
     next: u64,
 }
 
 impl Children {
-    fn identify(
-        &mut self,
-        region: EditorRegion,
-        dock_tab: Option<u64>,
-        identity: Identity,
-    ) -> ChildId {
+    fn identify(&mut self, view: ViewId, dock_tab: Option<u64>, identity: Identity) -> ChildId {
         let scope = match dock_tab {
             Some(tab) => {
-                self.tab_regions.insert(tab, region);
+                self.tab_views.insert(tab, view);
                 ChildScope::DockTab(tab)
             }
-            None => ChildScope::Region(region),
+            None => ChildScope::View(view),
         };
-        let placing = self.placing.entry(region).or_default();
+        let placing = self.placing.entry(view).or_default();
         let ordinal = {
             let ordinal = placing
                 .ordinals
@@ -376,20 +379,20 @@ impl Children {
                 child
             }
         };
-        self.placing.entry(region).or_default().used.push(key);
+        self.placing.entry(view).or_default().used.push(key);
         child
     }
 
-    fn placed_in(&self, scope: ChildScope, region: EditorRegion) -> bool {
+    fn placed_in(&self, scope: ChildScope, view: ViewId) -> bool {
         match scope {
-            ChildScope::Region(held) => held == region,
-            ChildScope::DockTab(tab) => self.tab_regions.get(&tab) == Some(&region),
+            ChildScope::View(held) => held == view,
+            ChildScope::DockTab(tab) => self.tab_views.get(&tab) == Some(&view),
         }
     }
 }
 
 #[derive(Default)]
-struct RegionDrops {
+struct ViewDrops {
     drag: Option<BlockDrag>,
     files: Option<FileDrop>,
     content: Option<Rect>,
@@ -453,6 +456,7 @@ pub struct EditorHost {
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
+    renaming: Rc<Cell<Option<RenameRequest>>>,
     picked: Rc<RefCell<Option<BlockPick>>>,
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -497,8 +501,8 @@ pub struct EditorHost {
     dismiss_requested: Rc<Cell<bool>>,
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
-    region: Rc<Cell<Option<EditorRegion>>>,
-    drops: Rc<RefCell<HashMap<EditorRegion, RegionDrops>>>,
+    showing: Rc<Cell<Option<block_plugin_api::View>>>,
+    drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
     audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
@@ -510,16 +514,18 @@ pub struct EditorHost {
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
-    menu: Rc<RefCell<Vec<MenuEntry>>>,
-    menu_picks: Rc<RefCell<Vec<String>>>,
+    menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
+    menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
     placed_content: Rc<Cell<Option<Rect>>>,
+    frame_anchor: Rc<Cell<Option<Rect>>>,
+    spec_anchor: Rc<Cell<Option<Option<Rect>>>>,
     copied: Rc<RefCell<Vec<String>>>,
     copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
-    next_frame: Rc<RefCell<HashMap<Option<EditorRegion>, Duration>>>,
+    next_frame: Rc<RefCell<HashMap<Option<ViewId>, Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
     followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
     asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
@@ -621,6 +627,15 @@ impl EditorHost {
 
     pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
         self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
+    }
+
+    pub fn renaming(&self) -> Option<RenameRequest> {
+        self.renaming.get()
+    }
+
+    pub(crate) fn set_renaming(&self, rename: RenameRequest) {
+        self.renaming.set(Some(rename));
         self.push(Pushed::Shows);
     }
 
@@ -944,14 +959,6 @@ impl EditorHost {
 
     pub fn leave_block(&self, block_id: Uuid) {
         self.shell_command(block_id, ShellCommand::Leave);
-    }
-
-    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<Rect>) {
-        self.shell_command(block_id, ShellCommand::AppMenu { anchor });
-    }
-
-    pub fn rename_block(&self, block_id: Uuid, anchor: Option<Rect>) {
-        self.shell_command(block_id, ShellCommand::Rename { anchor });
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
@@ -1441,10 +1448,14 @@ impl EditorHost {
     }
 
     fn framed_view(&self) -> Option<View> {
-        let region = self.region.get();
+        let shown = self.showing.get().map(|shown| shown.placement);
         matches!(
-            region,
-            None | Some(EditorRegion::Frame | EditorRegion::Display(_))
+            shown,
+            None | Some(
+                ViewPlacement::Parent(ParentView::Main)
+                    | ViewPlacement::Host(HostView::Display(_))
+                    | ViewPlacement::Dock
+            )
         )
         .then(|| self.view.get())
         .flatten()
@@ -1475,17 +1486,21 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
-        let region = self.region.get()?;
-        self.drops.borrow().get(&region)?.drag
+        let view = self.shown_view()?;
+        self.drops.borrow().get(&view)?.drag
     }
 
     pub fn files(&self) -> Option<FileDrop> {
-        let region = self.region.get()?;
-        self.drops.borrow().get(&region)?.files.clone()
+        let view = self.shown_view()?;
+        self.drops.borrow().get(&view)?.files.clone()
     }
 
-    pub(crate) fn set_files(&self, region: EditorRegion, drop: Option<FileDrop>) {
-        self.drops.borrow_mut().entry(region).or_default().files = drop;
+    fn shown_view(&self) -> Option<ViewId> {
+        self.showing.get().map(|shown| shown.id)
+    }
+
+    pub(crate) fn set_files(&self, view: ViewId, drop: Option<FileDrop>) {
+        self.drops.borrow_mut().entry(view).or_default().files = drop;
         self.changed();
     }
 
@@ -1702,13 +1717,13 @@ impl EditorHost {
 
     pub fn request_frame_in(&self, delay: Duration) {
         let mut next = self.next_frame.borrow_mut();
-        let held = next.entry(self.region.get()).or_insert(delay);
+        let held = next.entry(self.shown_view()).or_insert(delay);
         *held = (*held).min(delay);
     }
 
-    pub fn take_frame_request(&self, region: EditorRegion) -> Option<Duration> {
+    pub fn take_frame_request(&self, view: ViewId) -> Option<Duration> {
         let mut next = self.next_frame.borrow_mut();
-        let own = next.remove(&Some(region));
+        let own = next.remove(&Some(view));
         let any = next.remove(&None);
         own.into_iter().chain(any).min()
     }
@@ -1768,13 +1783,13 @@ impl EditorHost {
             .map(crate::Module::from_state)
     }
 
-    pub fn handle_regions(&self, handler: Box<dyn crate::Regions>) {
+    pub fn handle_views(&self, handler: Box<dyn crate::ViewHandler>) {
         self.module()
             .expect("an editor host belongs to a module before a handler registers")
             .handle(handler);
     }
 
-    pub fn handles_regions(&self) -> bool {
+    pub fn handles_views(&self) -> bool {
         self.module().is_some_and(|module| module.handles())
     }
 
@@ -1816,25 +1831,74 @@ impl EditorHost {
         std::mem::take(&mut self.bar_actions.borrow_mut())
     }
 
-    pub fn set_menu(&self, entries: Vec<MenuEntry>) {
-        if *self.menu.borrow() == entries {
+    pub fn set_menu(&self, view: ViewId, entries: Vec<MenuEntry>) {
+        let mut menus = self.menus.borrow_mut();
+        if menus
+            .get(&view)
+            .map_or(entries.is_empty(), |held| *held == entries)
+        {
             return;
         }
-        *self.menu.borrow_mut() = entries;
+        match entries.is_empty() {
+            true => menus.remove(&view),
+            false => menus.insert(view, entries),
+        };
+        drop(menus);
         self.changed();
     }
 
-    pub(crate) fn menu(&self) -> Vec<MenuEntry> {
-        self.menu.borrow().clone()
+    pub(crate) fn menus(&self) -> std::collections::BTreeMap<ViewId, Vec<MenuEntry>> {
+        self.menus.borrow().clone()
     }
 
-    pub(crate) fn push_menu_pick(&self, id: String) {
-        self.menu_picks.borrow_mut().push(id);
-        self.changed();
+    pub fn frame_anchor(&self) -> Option<Rect> {
+        self.frame_anchor.get()
     }
 
-    pub fn take_menu_picks(&self) -> Vec<String> {
-        std::mem::take(&mut self.menu_picks.borrow_mut())
+    pub(crate) fn set_frame_anchor(&self, anchor: Option<Rect>) {
+        if self.spec_anchor.replace(Some(anchor)) == Some(anchor) {
+            return;
+        }
+        if self.frame_anchor.replace(anchor) != anchor {
+            self.changed();
+        }
+    }
+
+    pub(crate) fn push_menu_pick(&self, view: ViewId, id: String, anchor: Option<Rect>) {
+        if let Some(anchor) = anchor
+            && self.frame_anchor.replace(Some(anchor)) != Some(anchor)
+        {
+            self.changed();
+        }
+        self.menu_picks.borrow_mut().push((view, id));
+        match view.is_main() {
+            true => self.changed(),
+            false => self.push(Pushed::Docks),
+        }
+    }
+
+    pub fn take_menu_picks(&self, view: ViewId) -> Vec<String> {
+        let mut taken = Vec::new();
+        self.menu_picks.borrow_mut().retain(|(held, id)| {
+            let here = *held == view;
+            if here {
+                taken.push(id.clone());
+            }
+            !here
+        });
+        taken
+    }
+
+    pub fn take_view_menu_picks(&self) -> Vec<(ViewId, String)> {
+        let mut taken = Vec::new();
+        self.menu_picks.borrow_mut().retain(|(held, id)| {
+            let here = !held.is_main();
+            if here {
+                taken.push((*held, id.clone()));
+            }
+            !here
+        });
+        taken
     }
 
     pub fn pick_child_menu(&self, child: ChildId, id: String) {
@@ -1858,9 +1922,9 @@ impl EditorHost {
     }
 
     pub fn occlude(&self, rect: Rect) {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let mut children = self.children.borrow_mut();
-        let placing = children.placing.entry(region).or_default();
+        let placing = children.placing.entry(view).or_default();
         let after = placing.placements.len() as u32;
         placing.occluders.push(Occluder { after, rect });
     }
@@ -1881,8 +1945,9 @@ impl EditorHost {
         dialog: Option<DialogFrame>,
         dock_tab: Option<u64>,
         docks: bool,
+        anchor: Option<Rect>,
     ) -> ChildId {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let placed = rect;
         let clip =
             clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
@@ -1891,10 +1956,10 @@ impl EditorHost {
             self.mark_docks_used();
         }
         let mut children = self.children.borrow_mut();
-        let child = children.identify(region, dock_tab, Identity::of(&content));
+        let child = children.identify(view, dock_tab, Identity::of(&content));
         children
             .placing
-            .entry(region)
+            .entry(view)
             .or_default()
             .placements
             .push(ChildPlacement {
@@ -1916,6 +1981,7 @@ impl EditorHost {
                 follows_view,
                 dialog,
                 docks,
+                anchor,
             });
         child
     }
@@ -2031,20 +2097,20 @@ impl EditorHost {
     }
 
     pub fn report_content(&self, rect: Rect) {
-        let region = self.region.get().unwrap_or(EditorRegion::Frame);
-        self.drops.borrow_mut().entry(region).or_default().content = Some(rect);
+        let view = self.shown_view().unwrap_or(ViewId::MAIN);
+        self.drops.borrow_mut().entry(view).or_default().content = Some(rect);
     }
 
-    pub(crate) fn take_content(&self, region: EditorRegion) -> Option<Rect> {
-        self.drops.borrow_mut().get_mut(&region)?.content.take()
+    pub(crate) fn take_content(&self, view: ViewId) -> Option<Rect> {
+        self.drops.borrow_mut().get_mut(&view)?.content.take()
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {
         std::mem::take(&mut self.view_changes.borrow_mut())
     }
 
-    pub(crate) fn set_drag(&self, region: EditorRegion, drag: Option<BlockDrag>) {
-        self.drops.borrow_mut().entry(region).or_default().drag = drag;
+    pub(crate) fn set_drag(&self, view: ViewId, drag: Option<BlockDrag>) {
+        self.drops.borrow_mut().entry(view).or_default().drag = drag;
         self.changed();
     }
 
@@ -2052,28 +2118,33 @@ impl EditorHost {
         self.drag_accepted.take()
     }
 
-    pub fn in_region<R>(&self, region: EditorRegion, within: impl FnOnce() -> R) -> R {
-        let held = self.region.replace(Some(region));
+    pub fn in_view<R>(&self, view: block_plugin_api::View, within: impl FnOnce() -> R) -> R {
+        let held = self.showing.replace(Some(view));
         let done = within();
-        self.region.set(held);
+        self.showing.set(held);
         done
     }
 
-    pub(crate) fn begin_region(&self, region: EditorRegion) {
+    pub(crate) fn begin_view(&self, view: ViewId) {
         self.children
             .borrow_mut()
             .placing
-            .insert(region, Placing::default());
+            .insert(view, Placing::default());
     }
 
-    pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
+    pub(crate) fn end_view(&self, view: ViewId) -> (Vec<ChildPlacement>, Vec<Occluder>) {
+        let hosting = self.hosting_children();
         let mut children = self.children.borrow_mut();
-        let placing = children.placing.remove(&region).unwrap_or_default();
+        let placing = children.placing.remove(&view).unwrap_or_default();
         let gone: Vec<ChildKey> = children
             .identities
-            .keys()
-            .filter(|key| children.placed_in(key.0, region) && !placing.used.contains(key))
-            .cloned()
+            .iter()
+            .filter(|(key, child)| {
+                children.placed_in(key.0, view)
+                    && !placing.used.contains(key)
+                    && !hosting.contains(child)
+            })
+            .map(|(key, _)| key.clone())
             .collect();
         for key in gone {
             children.identities.remove(&key);

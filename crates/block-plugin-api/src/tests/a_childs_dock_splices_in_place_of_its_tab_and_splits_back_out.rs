@@ -21,6 +21,8 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
         layout: DockLayout {
             tree: spliced.tree.clone(),
             homes: Vec::new(),
+            bars: Vec::new(),
+            outside: Vec::new(),
             unlocked: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
@@ -29,6 +31,7 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
         visible: vec![DockTabPath::own(2), side.clone()],
         fullscreen: None,
         stacked: false,
+        covers: Vec::new(),
     };
     let own = hosted.own(&[(child, 3)]).unwrap();
     assert_eq!(own.layout.tree, declaration().tree);

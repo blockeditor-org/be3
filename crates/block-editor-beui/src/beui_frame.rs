@@ -96,6 +96,10 @@ pub(crate) fn FrameChrome(
     let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
     provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+    let anchor = editor.frame_anchor();
+    beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
+    let placed = editor.placed_content();
+    beui::dock::unstyled::provide_dock_shows_through(create_memo(move || placed.get().is_some()));
     let phone = create_memo(move || bar.get().on_phone);
     provide_density(create_memo(move || match phone.get() {
         true => Density::Comfortable,
@@ -119,6 +123,7 @@ pub(crate) fn FrameChrome(
         palette.get();
         docked.presenting(&host)
     });
+    provide_context(crate::popover::PopoverWindow(shown_in));
     let escaping = exit_writer.clone();
     on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
         let escaped = event
@@ -341,7 +346,8 @@ fn frame_actions(
         .enabled(can(|state| state.can_redo))
         .register(),
         rename: Action::new("editor.rename", "Rename", move || {
-            editor.host().rename_block(id, None)
+            let tab = editor.frame_anchor().get_untracked();
+            editor.rename_block(id, crate::PickAnchor::from(tab))
         })
         .glyph(ICON_PENCIL_LINE)
         .pin(Pin::Title)
@@ -438,7 +444,7 @@ pub(crate) fn FrameMenu(
         let entries = menu_entries(&menu);
         *published.borrow_mut() = menu.clone();
         untrack(|| listed.set(menu));
-        host.set_menu(entries);
+        host.set_menu(block_editor_plugin::ViewId::MAIN, entries);
     });
     view! {
         <List spacing=Space::None />

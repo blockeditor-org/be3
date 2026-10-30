@@ -6,12 +6,15 @@ impl InputBatch {
             screen,
             events: Vec::new(),
             every_sample,
+            dismissed: Vec::new(),
         }
     }
 
     pub fn queue(batches: &mut Vec<InputBatch>, incoming: InputBatch) {
         match batches.last_mut() {
-            Some(last) if last.screen == incoming.screen => last.merge(&incoming),
+            Some(last) if last.screen == incoming.screen && incoming.dismissed.is_empty() => {
+                last.merge(&incoming)
+            }
             _ => batches.push(incoming),
         }
     }

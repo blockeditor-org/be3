@@ -16,7 +16,7 @@ use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
-use crate::compositor::ShellDisplay;
+use crate::compositor::{AnchoredViews, ShellDisplay};
 use block_app_base::app_state::{SavedAccount, ServerLocation};
 use block_app_desktop::desktop_host::WindowActions;
 
@@ -294,12 +294,6 @@ pub(crate) struct AgentsView {
     pub(crate) created: Option<CreatedAgent>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct AppMenuView {
-    pub(crate) opened: u64,
-    pub(crate) at: Option<beui::Rect>,
-}
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DiscardView {
     pub(crate) title: String,
@@ -337,7 +331,6 @@ pub(crate) struct AppView {
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
     pub(crate) unsent: Option<UnsentView>,
-    pub(crate) app_menu: Option<AppMenuView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
     pub(crate) presenting: bool,
@@ -392,7 +385,6 @@ pub(crate) enum UiCommand {
     ConfirmDiscardUnsent,
     CancelDiscardUnsent,
     CloseApp,
-    AppMenu(bool),
     SendInvite(String, OrganizationRole),
     CloseInvite,
     OpenAgents,
@@ -447,7 +439,10 @@ pub(crate) fn Displays(view: AppViewStore) -> NodeId {
             <Dynamic value={windowed}>|windowed: bool| {
                 match windowed {
                     false => view! {
-                        <Root view />
+                        <Layers>
+                            <Root view />
+                            <AnchoredViews />
+                        </Layers>
                     },
                     true => {
                         let keys = create_memo(move || {
@@ -525,6 +520,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
                                 },
                             }
                         }</Dynamic>
+                        <AnchoredViews />
                     </Layers>
                 </beui::styled::Root>
             }

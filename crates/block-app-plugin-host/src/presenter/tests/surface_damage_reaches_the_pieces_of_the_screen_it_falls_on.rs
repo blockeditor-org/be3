@@ -5,7 +5,7 @@ fn surface_damage_reaches_the_pieces_of_the_screen_it_falls_on() {
     let placement = ScreenPlacement {
         screen: ScreenId(1),
         instance: EditorInstanceId(1),
-        region: EditorRegion::Frame,
+        view: ViewId::MAIN,
         surface: 1,
         width: 200,
         height: 100,

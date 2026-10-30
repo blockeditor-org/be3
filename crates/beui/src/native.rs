@@ -4,7 +4,7 @@ pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker}
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::clipboard::{PasteAnswer, PasteRequest};
 pub use beui_core::context::{
-    Context, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
+    Context, EscapedOutput, FrameOutput, InputSimulation, Moved, RendererInfo, WindowOutput,
 };
 pub use beui_core::current::{
     enter, last_pointer, try_with_document, with_document, with_reactive_scope,
@@ -18,6 +18,7 @@ pub use beui_core::document::{
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
 pub use beui_core::drawn_cursor;
+pub use beui_core::escape::composite_layers;
 pub use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 pub use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};

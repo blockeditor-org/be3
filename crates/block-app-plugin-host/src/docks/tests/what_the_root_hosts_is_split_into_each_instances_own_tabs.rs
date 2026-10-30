@@ -4,7 +4,7 @@ use super::*;
 fn what_the_root_hosts_is_split_into_each_instances_own_tabs() {
     let mut docks = nested();
     updates(&mut docks, "shell");
-    host(&mut docks, Some(hosted_by_root()));
+    host(&mut docks, DockHold::Hosted(hosted_by_root()));
     let outer = hosted(&mut docks, "outer", OUTER);
     assert_eq!(outer.layout.tree, self::outer().tree);
     assert_eq!(outer.visible, [path(&[], 1)]);
