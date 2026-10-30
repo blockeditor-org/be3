@@ -1034,16 +1034,13 @@ impl Editor {
             .borrow()
             .as_ref()
             .and_then(|(node, _)| node.try_get());
-        try_with_document(|document| {
-            node.map(|node| document.window_of(node))
-                .or_else(|| {
-                    use_context::<crate::popover::PopoverWindow>()?
-                        .0
-                        .get_untracked()
-                })
-                .or_else(|| document.focused_node().map(|node| document.window_of(node)))
-        })
-        .flatten()
+        try_with_document(|document| node.map(|node| document.window_of(node)))
+            .flatten()
+            .or_else(|| {
+                use_context::<crate::popover::PopoverWindow>()?
+                    .0
+                    .get_untracked()
+            })
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
