@@ -2550,7 +2550,9 @@ impl BlockApp {
             if let Some(handler) = self.handler_for(parent, ShellRequest::Dialog)
                 && handler != id
             {
-                self.with_editor(handler, |handler| handler.show_dialog(id, ShellDialog::Close));
+                self.with_editor(handler, |handler| {
+                    handler.show_dialog(id, ShellDialog::Close)
+                });
             }
             return;
         }

@@ -22,7 +22,9 @@ fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
     fixture.settle();
     let copied = fixture.test.take_copied_text();
     assert!(
-        copied.iter().any(|report| report.contains("could not be read")),
+        copied
+            .iter()
+            .any(|report| report.contains("could not be read")),
         "the report names the failure: {copied:?}"
     );
 
@@ -41,4 +43,3 @@ fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
         "exiting leaves the saved layout as it was"
     );
 }
-
