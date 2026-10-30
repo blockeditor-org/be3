@@ -17,13 +17,7 @@ fn walking_a_search_list_with_keys_under_a_resting_pointer_leaves_the_highlight_
         .collect();
     let document = build_node(move || {
         view! {
-            <SearchList
-                api={list}
-                items
-                query
-                list_height=200.0
-                on_choose={|_: String| {}}
-            />
+            <SearchList api={list} items query list_height=200.0 on_choose={|_: String| {}} />
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(300.0, 300.0));

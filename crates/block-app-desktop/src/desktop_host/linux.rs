@@ -456,34 +456,34 @@ impl Programs {
         let (sender, receiver) = block_app_base::host::waking_channel();
         self.scanning = Some(receiver);
         let spawned = spawn(Box::new(move || {
-                let environment = Environment::from_env();
-                let entries = environment.programs();
-                let globs = environment.mime_globs();
-                let named: Vec<(String, String)> = entries
-                    .iter()
-                    .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
-                    .collect();
-                if sender
-                    .send(Scanned::Entries(environment.clone(), entries, globs))
-                    .is_err()
-                {
-                    return;
-                }
-                let themes = IconThemes::new(&environment);
-                let icons = named
-                    .into_iter()
-                    .filter_map(|(id, name)| {
-                        let path = themes.find(&name, pixels)?;
-                        let icon = load_icon(&path, pixels)?;
-                        let image = HostImage {
-                            width: icon.width(),
-                            height: icon.height(),
-                            rgba: icon.pixels().to_vec(),
-                        };
-                        Some((id, image))
-                    })
-                    .collect();
-                let _ = sender.send(Scanned::Icons(icons));
+            let environment = Environment::from_env();
+            let entries = environment.programs();
+            let globs = environment.mime_globs();
+            let named: Vec<(String, String)> = entries
+                .iter()
+                .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
+                .collect();
+            if sender
+                .send(Scanned::Entries(environment.clone(), entries, globs))
+                .is_err()
+            {
+                return;
+            }
+            let themes = IconThemes::new(&environment);
+            let icons = named
+                .into_iter()
+                .filter_map(|(id, name)| {
+                    let path = themes.find(&name, pixels)?;
+                    let icon = load_icon(&path, pixels)?;
+                    let image = HostImage {
+                        width: icon.width(),
+                        height: icon.height(),
+                        rgba: icon.pixels().to_vec(),
+                    };
+                    Some((id, image))
+                })
+                .collect();
+            let _ = sender.send(Scanned::Icons(icons));
         }));
         if let Err(error) = spawned {
             self.scanning = None;

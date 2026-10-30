@@ -5436,7 +5436,7 @@ moved or the layout did. `on_pointed_change` is the stricter state, as a platfor
 menus and lists have it: a catcher is pointed once the pointer moves while it is on
 the path, so one that only scrolled or was laid out under a resting pointer is
 hovered but not pointed until the pointer moves. A list whose highlight follows the
-pointer (`SearchList`, menus) follows `ButtonHandle::pointed`, so keys walking it
+pointer (`SearchList`) follows `ButtonHandle::pointed`, so keys walking it
 under a resting pointer keep the highlight; hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned whose `on_wheel` takes it, unless

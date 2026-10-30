@@ -468,7 +468,7 @@ fn MenuBackRow(
     row: RenderFn<MenuRowHandle>,
 ) -> NodeId {
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, Focus::Back, handle.pointed);
+        watch_hover(state, Focus::Back, handle.hovered);
         row.call(MenuRowHandle {
             kind: MenuRowKind::Back,
             hovered: handle.hovered,
@@ -645,7 +645,7 @@ fn MenuTile(
     let test_id = item.test_id.clone();
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.pointed);
+        watch_hover(state, at, handle.hovered);
         row.call(item_handle(MenuRowKind::Tile, &face, &handle))
     };
     let accessibility = row_accessibility(&item);
@@ -701,7 +701,7 @@ fn MenuRow(
     let cascade = create_memo(move || cascades && has_children.get());
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.pointed);
+        watch_hover(state, at, handle.hovered);
         row.call(MenuRowHandle {
             has_submenu: has_children.into_prop(),
             glyphs: state.glyphs.into_prop(),
@@ -788,10 +788,10 @@ fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
     }
 }
 
-fn watch_hover(state: State, at: Focus, pointed: ReadSignal<bool>) {
+fn watch_hover(state: State, at: Focus, hovered: ReadSignal<bool>) {
     let mut was_hovered = false;
     create_effect(move || {
-        let hovering = pointed.get();
+        let hovering = hovered.get();
         match (was_hovered, hovering) {
             (_, true) => hover(state, at),
             (true, false) => leave(state, at),

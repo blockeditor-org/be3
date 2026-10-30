@@ -7,7 +7,10 @@ fn a_scan_that_could_not_run_lists_no_programs_and_says_why() {
         Err(std::io::Error::other("no threads left"))
     });
     assert!(programs.receive(), "the failed scan was not announced");
-    assert!(programs.scanned(), "a failed scan left the programs loading");
+    assert!(
+        programs.scanned(),
+        "a failed scan left the programs loading"
+    );
     assert!(programs.listed().is_empty());
     assert!(!programs.receive());
     assert!(
@@ -23,7 +26,10 @@ fn a_scan_that_could_not_run_lists_no_programs_and_says_why() {
         Ok(())
     });
     assert!(programs.receive(), "the stopped scan was not announced");
-    assert!(programs.scanned(), "a scan that stopped left the programs loading");
+    assert!(
+        programs.scanned(),
+        "a scan that stopped left the programs loading"
+    );
     assert!(
         block_app_base::notices::shown()
             .iter()
