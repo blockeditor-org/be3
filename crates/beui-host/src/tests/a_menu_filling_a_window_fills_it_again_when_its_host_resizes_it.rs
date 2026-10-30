@@ -14,14 +14,14 @@ fn a_menu_filling_a_window_fills_it_again_when_its_host_resizes_it() {
         view! {
             <Window id={window} size={vec2(120.0, 80.0)}>|_: WindowHandle|
                 <Frame width=20.0 height=10.0>
-                <Overlay
-                    anchor=OverlayAnchor::Point(Pos2::ZERO)
-                    placement=Placement::Fill
-                    open=true
-                    on_dismiss={|_: Dismiss| {}}
-                >
-                    <Frame @node_ref=&filled />
-                </Overlay>
+                    <Overlay
+                        anchor=OverlayAnchor::Point(Pos2::ZERO)
+                        placement=Placement::Fill
+                        open=true
+                        on_dismiss={|_: Dismiss| {}}
+                    >
+                        <Frame @node_ref=&filled />
+                    </Overlay>
                 </Frame>
             </Window>
         }
