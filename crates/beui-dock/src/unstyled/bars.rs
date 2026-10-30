@@ -394,12 +394,17 @@ impl State {
 
     fn bar_areas(&self, bar: TabId) -> Option<(Rect, Rect)> {
         let state = self.state.get_untracked();
-        let tab = state.bar_tab(bar)?;
-        let leaf = state.find(tab)?.leaf;
-        if !state.is_shown(tab, false) {
-            return None;
-        }
-        let (body, pane) = *self.bodies.value().borrow().get(&leaf)?;
+        let (body, pane) = match state.is_dock_bar(bar) {
+            true => (self.dock_body, self.dock_pane),
+            false => {
+                let tab = state.bar_tab(bar)?;
+                let leaf = state.find(tab)?.leaf;
+                if !state.is_shown(tab, false) {
+                    return None;
+                }
+                *self.bodies.value().borrow().get(&leaf)?
+            }
+        };
         let body = measure(body.try_get()?).get_untracked()?.rect;
         let pane = pane
             .try_get()
@@ -410,11 +415,8 @@ impl State {
 
     fn stacked_on(&self, bar: TabId, placement: DockBarPlacement) -> Vec<(TabId, Rect)> {
         let state = self.state.get_untracked();
-        let Some(tab) = state.bar_tab(bar) else {
-            return Vec::new();
-        };
         state
-            .pane_bars(tab)
+            .bars_with(bar)
             .into_iter()
             .filter(|other| *other != bar && state.bar_placement(*other) == Some(placement))
             .filter_map(|other| Some((other, self.bar_panel_rect(other)?)))
@@ -536,20 +538,24 @@ impl State {
 
     fn bars_at(
         &self,
-        tab: Memo<Option<TabId>>,
+        holder: BarHolder,
         edge: DockEdge,
         wanted: impl Fn(DockBarPlacement) -> bool + 'static,
     ) -> Memo<Vec<TabId>> {
         let state = self.state;
         let away = self.bars_away;
         create_memo(move || {
-            let Some(tab) = tab.get().filter(|_| !away.get()) else {
-                return Vec::new();
+            let held = match holder {
+                BarHolder::Tab { tab, .. } => {
+                    let Some(tab) = tab.get().filter(|_| !away.get()) else {
+                        return Vec::new();
+                    };
+                    state.with(|state| state.pane_bars(tab))
+                }
+                BarHolder::Dock => state.with(|state| state.bars_of(None)),
             };
             let mut bars: Vec<TabId> = state.with(|state| {
-                state
-                    .pane_bars(tab)
-                    .into_iter()
+                held.into_iter()
                     .filter(|bar| state.bar_placement(*bar).is_some_and(&wanted))
                     .collect()
             });
@@ -781,12 +787,13 @@ fn float_align(edge: DockEdge, align: DockAlign) -> Align2 {
 pub(super) fn DockBarred(
     dock: State,
     leaf: Option<LeafId>,
-    tab: Memo<Option<TabId>>,
-    stacked: bool,
+    holder: BarHolder,
     children: Child,
 ) -> NodeId {
-    let body = NodeRef::new();
-    let pane = NodeRef::new();
+    let (body, pane) = match holder {
+        BarHolder::Dock => (dock.dock_body, dock.dock_pane),
+        BarHolder::Tab { .. } => (NodeRef::new(), NodeRef::new()),
+    };
     if let Some(leaf) = leaf {
         dock.bodies.value().borrow_mut().insert(leaf, (body, pane));
         on_cleanup(move || {
@@ -805,118 +812,100 @@ pub(super) fn DockBarred(
     let [top, bottom, left, right] = ends;
     view! {
         <List @node_ref=&pane direction=Direction::Vertical spacing=0.0>
-            <DockBarBand dock tab edge=DockEdge::Top />
+            <DockBarBand dock holder edge=DockEdge::Top />
             <List direction=Direction::Horizontal spacing=0.0 @sizing=ItemSize::Percent(100.0)>
-                <DockBarBand dock tab edge=DockEdge::Left />
+                <DockBarBand dock holder edge=DockEdge::Left />
                 <Layers @node_ref=&body @sizing=ItemSize::Percent(100.0)>
                     {children}
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Top
                         align=DockAlign::Start
                         ends={top}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Top
                         align=DockAlign::Center
                         ends={top}
-                        stacked
                     />
+                    <DockBarFloat dock holder edge=DockEdge::Top align=DockAlign::End ends={top} />
                     <DockBarFloat
                         dock
-                        tab
-                        edge=DockEdge::Top
-                        align=DockAlign::End
-                        ends={top}
-                        stacked
-                    />
-                    <DockBarFloat
-                        dock
-                        tab
+                        holder
                         edge=DockEdge::Bottom
                         align=DockAlign::Start
                         ends={bottom}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Bottom
                         align=DockAlign::Center
                         ends={bottom}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Bottom
                         align=DockAlign::End
                         ends={bottom}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Left
                         align=DockAlign::Start
                         ends={left}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Left
                         align=DockAlign::Center
                         ends={left}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Left
                         align=DockAlign::End
                         ends={left}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Right
                         align=DockAlign::Start
                         ends={right}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Right
                         align=DockAlign::Center
                         ends={right}
-                        stacked
                     />
                     <DockBarFloat
                         dock
-                        tab
+                        holder
                         edge=DockEdge::Right
                         align=DockAlign::End
                         ends={right}
-                        stacked
                     />
                 </Layers>
-                <DockBarBand dock tab edge=DockEdge::Right />
+                <DockBarBand dock holder edge=DockEdge::Right />
             </List>
-            <DockBarBand dock tab edge=DockEdge::Bottom />
+            <DockBarBand dock holder edge=DockEdge::Bottom />
         </List>
     }
 }
 
 #[component]
-fn DockBarBand(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge) -> NodeId {
-    let bars = dock.bars_at(tab, edge, move |placement| {
+fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
+    let bars = dock.bars_at(holder, edge, move |placement| {
         placement == DockBarPlacement::Beside(edge)
     });
     view! {
@@ -935,16 +924,20 @@ fn DockBarBand(dock: State, tab: Memo<Option<TabId>>, edge: DockEdge) -> NodeId 
 #[component]
 fn DockBarFloat(
     dock: State,
-    tab: Memo<Option<TabId>>,
+    holder: BarHolder,
     edge: DockEdge,
     align: DockAlign,
     ends: Signal<[f32; 2]>,
-    stacked: bool,
 ) -> NodeId {
-    let bars = dock.bars_at(tab, edge, move |placement| match placement {
+    let mode = dock.mode;
+    let stacked = move || match holder {
+        BarHolder::Tab { stacked, .. } => stacked,
+        BarHolder::Dock => mode.get() == DockMode::Stacked,
+    };
+    let bars = dock.bars_at(holder, edge, move |placement| match placement {
         DockBarPlacement::Over(held, at) => held == edge && at == align,
         DockBarPlacement::Window { edge: held, .. } => {
-            stacked && held == edge && align == DockAlign::Center
+            held == edge && align == DockAlign::Center && stacked()
         }
         DockBarPlacement::Beside(_) => false,
     });
@@ -1015,6 +1008,9 @@ fn DockBarFloat(
                 .unwrap_or_default()
         }),
     );
+    let BarHolder::Tab { tab, .. } = holder else {
+        return built;
+    };
     let covers = dock.covers;
     let held_tab = StoredCell::new(None::<TabId>);
     let forget = move || {
@@ -1291,6 +1287,15 @@ pub(super) fn DockBarTargets(dock: State) -> NodeId {
             </Overlay>
         </List>
     }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum BarHolder {
+    Tab {
+        tab: Memo<Option<TabId>>,
+        stacked: bool,
+    },
+    Dock,
 }
 
 pub(super) type BarPanels = RefCell<HashMap<TabId, (NodeId, Scope)>>;

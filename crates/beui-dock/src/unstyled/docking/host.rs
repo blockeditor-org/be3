@@ -42,7 +42,7 @@ pub struct DockDeclaredBar {
     pub tab: TabId,
     pub key: String,
     pub kind: String,
-    pub owner: TabId,
+    pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
 }
 

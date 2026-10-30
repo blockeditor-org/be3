@@ -308,13 +308,20 @@ impl DockState {
                 });
             }
         }
+        let host = self
+            .group(group)
+            .and_then(|held| joined_host(held.key.as_deref()?));
         out.bars = self
             .bars
             .iter()
             .filter_map(|bar| {
+                let owner = match bar.owner? {
+                    owner if Some(owner) == host => None,
+                    owner => Some((map.tab)(owner)?),
+                };
                 Some(Bar {
                     bar: (map.tab)(bar.bar)?,
-                    owner: (map.tab)(bar.owner)?,
+                    owner,
                     placement: bar.placement,
                 })
             })
@@ -418,11 +425,18 @@ impl DockState {
             self.homes.push(home);
         }
         self.put_outside(group, from, map);
+        let host = self
+            .group(group)
+            .and_then(|held| joined_host(held.key.as_deref()?));
         for bar in &from.bars {
-            let (Some(moved), Some(owner)) = ((map.tab)(bar.bar), (map.tab)(bar.owner)) else {
+            let owner = match bar.owner {
+                Some(owner) => (map.tab)(owner),
+                None => host,
+            };
+            let (Some(moved), Some(owner)) = ((map.tab)(bar.bar), owner) else {
                 continue;
             };
-            self.add_bar(moved, owner, bar.placement);
+            self.add_bar(moved, Some(owner), bar.placement);
             self.set_bar_placement(moved, bar.placement);
         }
         let unlocked: Vec<DockHome> = from

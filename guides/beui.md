@@ -3014,6 +3014,25 @@ body's points wherever the pointer goes; such a handle calls `end_move` when its
 bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
 asks the root the same way.
 
+A `DockBar` declared without a `parent` belongs to the dock itself (`DockState::bars_of(None)`,
+`is_dock_bar`): `<DockBar id placement>body</DockBar>`. It shows whichever tab is
+shown (`is_bar_shown` is always true for it; `bar_tab` is none) and wraps the whole dock
+rather than a pane: `Beside(edge)` is a band along that edge of the dock that every pane and
+the area floating dock windows live in give up room for (the dock's `rect`, which windows
+open in and are clamped to, is what is left; a fullscreen tab and the stacked/tiled switch
+still use the dock's whole rect), `Over(edge, align)` floats over the whole dock's edge
+under its floating windows, and `Window` pops out as any bar's does (in a stacked dock it
+floats over the dock's edge). Its drag targets, its slot among the dock's other bars and
+its menu are the same as a tab's bar's, measured against the dock; the dock's bars lie
+outside every pane's bars. They are saved in `DockState` with the rest. A `Docking` that
+joins another declares its own dock bars up with no owner (`DockDeclaredBar::owner` is
+`None`) and the root gives them to the tab hosting it, so they behave as that tab's bars
+(lent to the joined dock's first pane); the joined dock sees them as its own again
+(`subtree`/`graft` map the host to none). A dock that only declares its bars up
+(`DockHostSlot::bars`) keeps its dock bars and draws them itself, and a plugin's dock
+joined across the plugin protocol leaves them out, since `dock-bar.owner` cannot name the
+dock there yet.
+
 A dock that joins none (the root, or a standalone dock) places bars by key: a
 bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it
 was declared with (`DockDeclaredBar::kind`: in-process, the declaring dock's own

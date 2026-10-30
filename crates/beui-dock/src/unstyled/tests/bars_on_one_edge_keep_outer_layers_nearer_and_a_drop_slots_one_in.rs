@@ -6,7 +6,7 @@ const TOP: DockBarPlacement = DockBarPlacement::Over(DockEdge::Top, DockAlign::C
 fn bar(bar: u64, owner: u64) -> DockSpecBar {
     DockSpecBar {
         bar: TabId::new(bar),
-        owner: TabId::new(owner),
+        owner: Some(TabId::new(owner)),
         placement: TOP,
     }
 }
@@ -57,8 +57,8 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
             Some(TabId::new(10)),
         )
         .expect("the hosted dock declares tabs");
-    state.add_bar(TabId::new(30), TabId::new(10), TOP);
-    state.add_bar(TabId::new(31), TabId::new(10), TOP);
+    state.add_bar(TabId::new(30), Some(TabId::new(10)), TOP);
+    state.add_bar(TabId::new(31), Some(TabId::new(10)), TOP);
     assert_eq!(
         state.pane_bars(TabId::new(10)),
         tabs(&[21, 20, 30, 31]),

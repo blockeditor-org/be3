@@ -20,7 +20,7 @@ pub struct DockPlain {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockPlainBar {
     pub bar: TabId,
-    pub owner: TabId,
+    pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
 }
 

@@ -106,7 +106,7 @@ enum NodeKind<K: 'static> {
     },
     Bar {
         id: K,
-        parent: K,
+        parent: Option<K>,
         placement: DockBarPlacement,
         content: RenderFn<()>,
     },
@@ -236,7 +236,7 @@ where
 #[component]
 pub fn DockBar<K>(
     id: K,
-    parent: K,
+    parent: Option<K>,
     #[prop(default = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))]
     placement: DockBarPlacement,
     #[prop(children)] content: RenderFn<()>,
@@ -648,9 +648,11 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn bar_placement(&self, key: &K) -> Option<DockBarPlacement> {
         let bar = self.tab_of(key)?;
+        let own = self.state.with(|state| state.is_dock_bar(bar));
         let hosted = self.inner().bars_hosted.with(|hosted| {
             hosted
                 .as_ref()
+                .filter(|_| !own)
                 .map(|hosted| hosted.state.bar_placement(bar))
         });
         match hosted {
@@ -663,7 +665,9 @@ impl<K: DockKey> DockingLayout<K> {
         let Some(bar) = self.tab_of(key) else {
             return;
         };
-        if let Some(host) = self.host().or_else(|| self.bars_host()) {
+        let own = self.state.with_untracked(|state| state.is_dock_bar(bar));
+        let bars_host = self.bars_host().filter(|_| !own);
+        if let Some(host) = self.host().or(bars_host) {
             host.request(DockRequest::PlaceBar(bar, Some(placement)));
             return;
         }
@@ -815,7 +819,11 @@ impl<K: DockKey> DockingLayout<K> {
                 .iter()
                 .flat_map(|(dialog, parent)| [*dialog, *parent]),
         );
-        kept.extend(spec.bars.iter().flat_map(|bar| [bar.bar, bar.owner]));
+        kept.extend(
+            spec.bars
+                .iter()
+                .flat_map(|bar| std::iter::once(bar.bar).chain(bar.owner)),
+        );
         self.retain_keys(&kept);
         registry
             .foreign
@@ -845,7 +853,11 @@ impl<K: DockKey> DockingLayout<K> {
                 .flat_map(|(dialog, parent)| [*dialog, *parent]),
         );
         kept.extend(hosts.iter().copied());
-        kept.extend(spec.bars.iter().flat_map(|bar| [bar.bar, bar.owner]));
+        kept.extend(
+            spec.bars
+                .iter()
+                .flat_map(|bar| std::iter::once(bar.bar).chain(bar.owner)),
+        );
         self.retain_keys(&kept);
         self.inner()
             .registry
@@ -990,7 +1002,7 @@ impl<K: DockKey> DockingLayout<K> {
                 if found.bars.contains_key(&bar) {
                     continue;
                 }
-                let owner = self.mint(parent);
+                let owner = parent.as_ref().map(|parent| self.mint(parent));
                 found.bars.insert(bar, (id.key(), *content));
                 found.spec_bars.push(DockSpecBar {
                     bar,
@@ -1175,7 +1187,9 @@ impl<K: DockKey> DockingLayout<K> {
             .unwrap_or_default();
         for declared in &declared_bars {
             let bar = self.mint_foreign(host, declared.tab);
-            let owner = self.mint_foreign(host, declared.owner);
+            let owner = declared
+                .owner
+                .map_or(host, |owner| self.mint_foreign(host, owner));
             if found.spec_bars.iter().any(|held| held.bar == bar) {
                 continue;
             }
@@ -1184,7 +1198,7 @@ impl<K: DockKey> DockingLayout<K> {
                 .insert(bar, (Rc::clone(&joined), declared.tab));
             found.spec_bars.push(DockSpecBar {
                 bar,
-                owner,
+                owner: Some(owner),
                 placement: declared.placement,
             });
         }
@@ -1794,9 +1808,13 @@ fn join_bars<K: DockKey>(
     });
     let declaring = Rc::clone(&link);
     create_effect(move || {
-        let Some(spec) = declared.get().filter(|spec| !spec.bars.is_empty()) else {
+        let Some(mut spec) = declared.get() else {
             return;
         };
+        spec.bars.retain(|bar| bar.owner.is_some());
+        if spec.bars.is_empty() {
+            return;
+        }
         untrack(|| declaring.declare(layout.declaration(spec, found)));
     });
     let body = RenderFn::new(move |bar: TabId| {

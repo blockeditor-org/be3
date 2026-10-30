@@ -51,7 +51,7 @@ use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
 pub(crate) use bars::BarCovers;
-use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
+use bars::{BarHolder, BarPanels, DockBarTargets, DockBarWindows, DockBarred};
 pub use bars::{DockBarBandHandle, DockBarControl, DockBarTargetHandle, use_dock_bar};
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
@@ -551,6 +551,9 @@ struct State {
     back_shade: Memo<Color>,
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
+    outer: ReadSignal<Rect>,
+    dock_body: NodeRef,
+    dock_pane: NodeRef,
     opens: ReadSignal<bool>,
     home: Option<WindowHandle>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
@@ -1753,8 +1756,10 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     } = config;
     let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
+    let outer_held = create_signal(Rect::ZERO);
+    let outer = outer_held.read_only();
     let mode = create_memo(move || {
-        let width = dock_rect.get().width();
+        let width = outer.get().width();
         let stacks = !state.with(DockState::is_one_bare_pane);
         match stacks && width > 0.0 && width < stack_below {
             true => DockMode::Stacked,
@@ -1833,6 +1838,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         back_shade,
         icon_sidebar_width,
         rect: dock_rect,
+        outer,
+        dock_body: NodeRef::new(),
+        dock_pane: NodeRef::new(),
         opens: opens_windows(),
         home: use_window(),
         placements: create_signal(HashMap::default()),
@@ -1929,31 +1937,41 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     });
     let built = view! {
         <List spacing=0.0>
-            <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
-                <List spacing=0.0>
-                    <Dynamic value={mode}>|mode: DockMode| {
-                        match mode {
-                            DockMode::Tiled => view! {
-                                <DockTiles dock @sizing=ItemSize::Percent(100.0) />
-                            },
-                            DockMode::Stacked => view! {
-                                <DockStack dock @sizing=ItemSize::Percent(100.0) />
-                            },
-                        }
-                    }</Dynamic>
-                </List>
-            </Frame>
+            <DockBarred dock leaf={None} holder={BarHolder::Dock} @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=inset>
+                    <List spacing=0.0>
+                        <Dynamic value={mode}>|mode: DockMode| {
+                            match mode {
+                                DockMode::Tiled => view! {
+                                    <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                                DockMode::Stacked => view! {
+                                    <DockStack dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                            }
+                        }</Dynamic>
+                    </List>
+                </Frame>
+            </DockBarred>
             <DockFullscreenView dock={dock} />
             <DockDialogs dock={dock} />
             <DockSwitchView dock={dock} />
         </List>
     };
-    let dock_rect_measured = measure(built);
+    let outer_measured = measure(built);
     create_effect(move || {
-        if let Some(measured) = dock_rect_measured.get() {
-            dock_rect_held.set(measured.rect);
+        if let Some(measured) = outer_measured.get() {
+            outer_held.set(measured.rect);
         }
     });
+    if let Some(body) = dock.dock_body.try_get() {
+        let body_measured = measure(body);
+        create_effect(move || {
+            if let Some(measured) = body_measured.get() {
+                dock_rect_held.set(measured.rect);
+            }
+        });
+    }
     built
 }
 
@@ -1999,7 +2017,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
     let shown = create_memo(move || {
         area.get()
-            .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, dock.rect.get().size()))
+            .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, dock.outer.get().size()))
     });
     let window_size = create_memo(move || shown.get().size());
     let window_placement = create_memo(move || WindowPlacement::Over {
@@ -2115,8 +2133,7 @@ fn DockStack(dock: State) -> NodeId {
                     <DockBarred
                         dock
                         leaf={None}
-                        tab={shown}
-                        stacked=true
+                        holder={BarHolder::Tab { tab: shown, stacked: true }}
                         @sizing=ItemSize::Percent(100.0)
                     >
                         <Portal node={panel} />
@@ -2795,8 +2812,7 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
                 <DockBarred
                     dock
                     leaf={Some(leaf)}
-                    tab={shown}
-                    stacked=false
+                    holder={BarHolder::Tab { tab: shown, stacked: false }}
                     @sizing=ItemSize::Percent(100.0)
                 >
                     <Portal node={panel} />

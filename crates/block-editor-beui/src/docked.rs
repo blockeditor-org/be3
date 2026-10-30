@@ -1132,7 +1132,7 @@ pub(crate) fn declaration_to_api(
                     tab: path(bar.tab)?,
                     key: bar.key.clone(),
                     kind: kind(&bar.kind),
-                    owner: path(bar.owner)?,
+                    owner: path(bar.owner?)?,
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
                 })
@@ -1245,7 +1245,7 @@ fn declaration_from_api(
             tab: paths.tab(&bar.tab),
             key: bar.key.clone(),
             kind: bar.kind.clone(),
-            owner: paths.tab(&bar.owner),
+            owner: Some(paths.tab(&bar.owner)),
             placement: placement_from_api(&bar.placement),
         })
         .collect();
@@ -1357,7 +1357,7 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
             .filter_map(|bar| {
                 Some(api::DockPlacedBar {
                     bar: path(bar.bar)?,
-                    owner: path(bar.owner)?,
+                    owner: path(bar.owner?)?,
                     placement: placement_to_api(bar.placement),
                 })
             })
@@ -1477,7 +1477,7 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
             .filter_map(|bar| {
                 Some(DockPlainBar {
                     bar: tab(&bar.bar)?,
-                    owner: tab(&bar.owner)?,
+                    owner: Some(tab(&bar.owner)?),
                     placement: placement_from_api(&bar.placement),
                 })
             })
