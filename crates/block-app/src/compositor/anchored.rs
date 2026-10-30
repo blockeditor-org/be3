@@ -180,11 +180,9 @@ fn route(
                     }
                     _ => (held.get().or_else(|| topmost(shown, pointer.pos)), false),
                 };
-                let left = over.replace(match pointer.phase {
-                    PointerPhase::Gone => None,
-                    _ => target,
-                });
-                if let Some(left) = left.filter(|left| Some(*left) != target) {
+                let gone = pointer.phase == PointerPhase::Gone;
+                let left = over.replace(target.filter(|_| !gone));
+                if let Some(left) = left.filter(|left| gone || Some(*left) != target) {
                     push(&mut runs, left, Forwarded::Left, false);
                 }
                 (target, pressed)

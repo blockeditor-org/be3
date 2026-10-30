@@ -1469,8 +1469,13 @@ impl Document {
         if !repaints.is_empty() || self.paint_revision != self.arena.revision || rescrimmed {
             measurement.painted = true;
             let verifying = verifying_paint();
-            let previous =
-                verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
+            let previous = verifying.then(|| {
+                (
+                    self.painting.clone(),
+                    self.windows.paintings.clone(),
+                    self.escapes.paintings.clone(),
+                )
+            });
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1484,6 +1489,14 @@ impl Document {
                 false => self.settle_moves(WindowId::MAIN, &moves, &stale, region, rect),
             };
             if !everything {
+                let escaped = stale
+                    .iter()
+                    .map(|stale| (stale.window, stale.rect))
+                    .chain(moves.iter().map(|moved| (moved.window, moved.viewport)))
+                    .filter(|(window, _)| self.escapes.paints_into(*window));
+                for (window, rect) in escaped {
+                    taken.add(window, rect);
+                }
                 for window in self.open_windows() {
                     let Some(viewport) = self.window_rect(window) else {
                         continue;
@@ -1497,7 +1510,7 @@ impl Document {
                     }
                 }
             }
-            if let Some((painting, windows)) = previous {
+            if let Some((painting, windows, escaped)) = previous {
                 let mut checks = vec![verify::Check {
                     window: WindowId::MAIN,
                     viewport: rect,
@@ -1519,6 +1532,17 @@ impl Document {
                             .find(|(held, _)| *held == window)
                             .map(|(_, moved)| *moved),
                     });
+                }
+                for (window, painting) in escaped {
+                    if self.escapes.paints_into(window) {
+                        checks.push(verify::Check {
+                            window,
+                            viewport: Rect::EVERYTHING,
+                            previous: painting,
+                            region: taken.of(window, Rect::EVERYTHING),
+                            moved: None,
+                        });
+                    }
                 }
                 self.verify_paint(ctx, &checks, everything);
             }
@@ -1774,7 +1798,7 @@ impl Document {
         ctx.verifying_paint(true);
         self.paint(ctx);
         ctx.verifying_paint(false);
-        self.escapes.paintings = escaped;
+        let fresh_escaped = std::mem::replace(&mut self.escapes.paintings, escaped);
         let fresh_main = std::mem::replace(&mut self.painting, painting);
         let fresh_windows = std::mem::replace(&mut self.windows.paintings, windows);
         self.paint_cache.replace(retained);
@@ -1791,6 +1815,10 @@ impl Document {
         for check in checks {
             let (fresh, retained) = match check.window.is_main() {
                 true => (fresh_main.clone(), self.painting.clone()),
+                false if self.escapes.paints_into(check.window) => (
+                    of(&fresh_escaped, check.window),
+                    of(&self.escapes.paintings, check.window),
+                ),
                 false => (
                     of(&fresh_windows, check.window),
                     of(&self.windows.paintings, check.window),
@@ -1835,6 +1863,14 @@ impl Document {
         let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
         let new = verify::Seen::of(retained, moved.map(|moved| moved.to()));
         let changes = verify::changes(&old, &new, moved);
+        if self.escapes.paints_into(window) {
+            assert!(
+                everything || changes.needed.is_empty() || !region.is_empty(),
+                "the painting of the escaped layer {window:?} changed with nothing damaged, so its host keeps showing the old one: {:?}",
+                changes.needed,
+            );
+            return;
+        }
         if !everything && moved.is_none() && detecting_over_repaint() {
             let area = |region: &Region| {
                 region
