@@ -34,7 +34,7 @@ pub(crate) fn zooms(row: &Row) -> bool {
 
 impl Zoom {
     pub(crate) fn new(editor: Editor, tree: FileTree) -> Self {
-        let zoomed = create_signal(None::<RowKey>);
+        let zoomed = tree.entered();
         let rows = tree.rows();
         let focus = create_memo(move || {
             let key = zoomed.get()?;
@@ -105,10 +105,6 @@ impl Zoom {
 
     pub(crate) fn focus(&self) -> Memo<Option<Focus>> {
         self.focus
-    }
-
-    pub(crate) fn zoomed(&self) -> ReadSignal<Option<RowKey>> {
-        self.zoomed.read_only()
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {

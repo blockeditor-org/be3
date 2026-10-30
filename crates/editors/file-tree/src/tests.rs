@@ -51,6 +51,7 @@ mod the_first_add_menu_shows_once_the_picker_has_said_how_big_it_is;
 mod the_folder_zoomed_into_is_kept_in_the_view_and_reopens_zoomed;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 mod the_new_menu_offers_each_workspace_then_a_new_workspace;
+mod zoom_in_is_offered_on_every_row_even_one_with_nothing_inside;
 mod zoomed_into_a_folder_new_adds_straight_into_it;
 
 struct Fixture {
