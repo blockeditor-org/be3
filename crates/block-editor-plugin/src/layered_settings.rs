@@ -46,22 +46,33 @@ where
         self.blocks.borrow().layer_blocks(graph, client)
     }
 
-    pub fn ensure(&self, layers: Layers, layer: SettingsLayer) -> Option<Uuid> {
+    pub fn ensure(
+        &self,
+        graph: &dyn SettingsGraph,
+        layers: Layers,
+        layer: SettingsLayer,
+    ) -> Option<Uuid> {
         layers
             .block(layer)
-            .or_else(|| self.create(layer, Document::new(&R::default())))
+            .or_else(|| self.create(graph, layer, Document::new(&R::default())))
     }
 
-    pub fn create(&self, layer: SettingsLayer, content: Document<R>) -> Option<Uuid> {
+    pub fn create(
+        &self,
+        graph: &dyn SettingsGraph,
+        layer: SettingsLayer,
+        content: Document<R>,
+    ) -> Option<Uuid> {
         let client = self.core.host().client_id();
         let mut blocks = self.blocks.take();
-        let block = blocks.create_layer(&self.core, client, layer, content);
+        let block = blocks.create_layer(graph, client, layer, content);
         self.blocks.replace(blocks);
         block
     }
 
     pub fn write<V: Clone>(
         &self,
+        graph: &dyn SettingsGraph,
         layers: Layers,
         layer: SettingsLayer,
         setting: &Setting<R, V>,
@@ -73,7 +84,7 @@ where
         }
         let mut content = Document::new(&R::default());
         content.apply(&setting.set(&R::default(), value.clone()));
-        if self.create(layer, content).is_none()
+        if self.create(graph, layer, content).is_none()
             && let Some(block) = layers.top()
         {
             self.write_block(block, setting, value);

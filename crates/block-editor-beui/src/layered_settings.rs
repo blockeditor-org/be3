@@ -378,14 +378,14 @@ where
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
         let layers = self.layers.get_untracked();
-        untrack(|| self.blocks.with(|blocks| blocks.ensure(layers, layer)))
+        untrack(|| self.blocks.with(|blocks| blocks.ensure(&self.editor, layers, layer)))
     }
 
     fn write<V: Clone>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
         let layers = self.layers.get_untracked();
         untrack(|| {
             self.blocks
-                .with(|blocks| blocks.write(layers, layer, setting, value))
+                .with(|blocks| blocks.write(&self.editor, layers, layer, setting, value))
         });
     }
 

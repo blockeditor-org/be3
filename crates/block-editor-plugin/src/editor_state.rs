@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::state::{Callbacks, Subscription};
 use crate::{
-    BlockFilter, BlockGraph, BlockParent, BlockQuery, BlockWatch, EditorHost, FileDrop,
+    BlockFilter, BlockGraph, BlockParent, EditorHost, FileDrop,
     LiveContent, Waker,
 };
 
@@ -233,7 +233,6 @@ struct Inner {
     children: children::Children,
     wakes: Rc<RefCell<Vec<Wake>>>,
     next_wake: Cell<u64>,
-    roots: RefCell<Option<BlockWatch>>,
 }
 
 impl EditorCore {
@@ -265,7 +264,6 @@ impl EditorCore {
             children: children::Children::default(),
             wakes: Rc::default(),
             next_wake: Cell::new(0),
-            roots: RefCell::new(None),
         }))
     }
 
@@ -546,12 +544,6 @@ impl EditorCore {
         self.pan(self.0.content_rect.get().center() - shown);
     }
 
-    pub fn root_blocks(&self) -> Option<Vec<crate::BlockInfo>> {
-        let mut roots = self.0.roots.borrow_mut();
-        let watch = roots.get_or_insert_with(|| self.graph().watch(BlockQuery::Roots));
-        watch.read().ok()
-    }
-
     pub fn begin_frame(&self) {
         let inner = &self.0;
         let ratio = self.ratio();
@@ -638,51 +630,6 @@ impl EditorCore {
         on_focus: impl Fn() + 'static,
     ) -> PlacedChild {
         self.0.children.add(on_state, on_bar, on_focus)
-    }
-}
-
-impl crate::root_settings::SettingsGraph for EditorCore {
-    fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
-        self.root_blocks().map(|list| {
-            list.into_iter()
-                .filter_map(|info| Some((info.id, info.block_type, info.author?)))
-                .collect()
-        })
-    }
-
-    fn account(&self) -> Uuid {
-        self.0.host.account_id()
-    }
-
-    fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
-        self.content_of::<be_block::SettingsContent>(block)
-            .read(|settings| settings.root())
-            .ok()
-    }
-
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.graph().create_with(
-            block_type,
-            Some(content),
-            parent,
-            be_block::BlockMetadata::default(),
-        )
-    }
-
-    fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {
-        self.content_of::<be_block::SettingsProfileContent>(block)
-            .read(|profile| profile.root())
-            .ok()
-    }
-
-    fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
-        self.content_of::<be_block::SettingsContent>(block)
-            .operate(edit);
-    }
-
-    fn edit_settings_profile(&self, block: Uuid, edit: be_block::Edit) {
-        self.content_of::<be_block::SettingsProfileContent>(block)
-            .operate(edit);
     }
 }
 
