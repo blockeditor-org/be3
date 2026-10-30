@@ -34,7 +34,13 @@ cargo_test(
     run_env = test_environment,
 )
 
-cargo_binary()
+# ./scripts/deploy sets be3.lto: fat LTO over one codegen unit takes a tenth off
+# the app's code and two thirds off its symbols (159 MB to 113 in October 2026),
+# but its link takes ten minutes, which every other release build, such as the
+# build helper's for be-launcher, would wait on.
+cargo_binary(
+    rustc_flags = ["-Clto=fat", "-Ccodegen-units=1"] if read_config("be3", "lto", "false") == "true" else [],
+)
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
