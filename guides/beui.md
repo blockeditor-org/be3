@@ -304,7 +304,7 @@ apps, demos, test harnesses and the plugin runtime. It re-exports beui
 `beui::native` plus the engine: `build` (a document with the inspector and the
 on-screen keyboard installed), `context()` and the fonts, `testing`, `drive`,
 `Headless`, the renderer's `Renderer`, `GpuSetup` and `OpenDevice`, and the
-runners (`run`, `run_with`, `run_on`, `run_web`, ...). Its features pick the
+runners (`run`, `run_with`, `run_with_platforms`, `run_web`, ...). Its features pick the
 runner: `window` (the default: winit, Android, space and headsets) or `web`. A
 host still depends on beui too, since `view!` names it, and imports only the
 engine through beui-host. An editor's tests reach the engine through
@@ -335,7 +335,7 @@ one direction:
 | `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing}`: the interface a gpu drawing implements, which the renderer runs (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui_host::native::run_on` |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers offer it with `beui_host::native::run_with_platforms`, and `BEUI_PLATFORM=drm` picks it |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
 | `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
@@ -2382,7 +2382,7 @@ window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
 `Center` and `Fill` take that whole area, one anchored to a node, a point or a
 rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
 and kept inside the window. Where an app shows one window per monitor (block-app
-under `--session`, one per display), each window is a monitor, so a dialog opened
+in a login session, one per display), each window is a monitor, so a dialog opened
 in it stays on it. `use_viewport_size()` is the size of the window the
 caller is built in: the hosted window around it (a plugin region is one), or else
 the main window the document is shown in (a `Dialog` reads it to become a sheet on
@@ -3521,9 +3521,11 @@ focused field into what is left, through every scroll it sits in.
 `beui_host::native::run` takes only the app; both load wgpu, and
 `beui_host::native::run_with_device` takes the `beui_host::native::OpenDevice` to open wgpu's device
 with instead (block-app's opens its device itself, to import Wayland clients' buffers), and
-`beui_host::native::run_on` runs on a platform of the caller's choosing, such as
-`beui_platform_drm::Drm`, which drives the displays and input devices itself, or
-`beui_host::native::Headless`, which draws offscreen with no window or display server. The rest of
+`beui_host::native::run_with_platforms` also offers platforms of the caller's choosing, such as
+`beui_platform_drm::Drm`, which drives the displays and input devices itself, for `BEUI_PLATFORM`
+to pick by name (`beui_runner::environment::choose` takes every name a program offers; the first,
+the native one, is the default), beside `beui_host::native::Headless`, which draws offscreen with no
+window or display server. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -3870,7 +3872,7 @@ plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_runner::Layer` is middleware between a platform and the app's
 runner. `Launch::layers` is the stack, the layer nearest the platform first;
-the native run functions (`beui_host::native::run_with`, `run_on`) build it from
+the native run functions (`beui_host::native::run_with`, `run_with_platforms`) build it from
 `BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui-host/src/runner.rs`).
 Input goes up the stack, from the platform through each layer to the app, and
 the app's output and its calls on the platform go down it. Every hook has a
@@ -4557,7 +4559,7 @@ it, and all its 3D (`glam`) stays in the crate.
 ### The on-screen keyboard
 
 beui has an on-screen keyboard of its own, modelled on Android's Unexpected
-Keyboard, for a screen with no keyboard attached (`block-app --session` on a
+Keyboard, for a screen with no keyboard attached (a login session on a
 tablet) and for anything a person wants to type with a pointer. Each key types
 its middle when tapped and what its corners show when dragged toward them; a
 few keys also take the four straight directions (the arrows on Compose, the

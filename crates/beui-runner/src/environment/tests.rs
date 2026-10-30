@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_program_with_several_native_platforms_takes_any_of_them;
 mod an_unknown_layer_is_refused;
 mod an_unknown_platform_or_renderer_names_the_valid_ones;
 mod drive_stacks_a_tap_under_each_layer_and_needs_its_socket;
@@ -25,7 +26,7 @@ fn with(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
 }
 
 const NATIVE: Choice = Choice {
-    platform: Base::Native,
+    platform: Base::Native(0),
     layers: Vec::new(),
     render: true,
 };

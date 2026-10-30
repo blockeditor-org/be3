@@ -12,7 +12,7 @@ mod local_settings;
 mod members;
 mod root_settings;
 #[cfg(target_os = "linux")]
-mod session;
+mod login_session;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -87,18 +87,19 @@ fn storage_dir() -> Option<PathBuf> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let arguments = arguments::parse(&arguments, arguments::LINUX)?;
+    let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
+    let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
     #[cfg(target_os = "linux")]
-    if let Some(prefix) = &arguments.install_session {
-        return session::install(prefix.as_deref());
+    if let Some(prefix) = &arguments.install_login_session {
+        return login_session::install(prefix.as_deref());
     }
     #[cfg(target_os = "linux")]
-    if arguments.session {
-        let console = session::start_log();
+    if arguments.drm {
+        let console = login_session::start_log();
         let ran = run_app(arguments);
         if let (Err(error), Some(mut console)) = (&ran, console) {
             use std::io::Write;
-            let _ = writeln!(console, "block-app: the session ended: {error}");
+            let _ = writeln!(console, "block-app: the login session ended: {error}");
         }
         return ran;
     }
@@ -109,7 +110,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
-    app.session_mode = arguments.session;
+    app.login_session_mode = arguments.drm;
     let options = run_options();
     if arguments.dev_workspace {
         app.open_dev_workspace(None);
@@ -117,31 +118,21 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     if arguments.desktop {
         app.run_as_desktop();
     }
-    run_shell(options, Shell::new(app), arguments.session)
+    run_shell(options, Shell::new(app))
 }
 
 #[cfg(target_os = "linux")]
-fn run_shell(
-    options: beui_host::native::RunOptions,
-    shell: Shell,
-    session: bool,
-) -> Result<(), Box<dyn Error>> {
-    if session {
-        return beui_host::native::run_on(Box::new(beui_platform_drm::Drm), options, shell);
-    }
+fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
     let open_device = beui_host::native::OpenDevice {
         extensions: &be_dmabuf::DEVICE_EXTENSIONS,
         gpu: None,
     };
-    beui_host::native::run_with_device(options, open_device, shell)
+    let others: Vec<Box<dyn beui_host::native::Platform>> = vec![Box::new(beui_platform_drm::Drm)];
+    beui_host::native::run_with_platforms(options, open_device, others, shell)
 }
 
 #[cfg(windows)]
-fn run_shell(
-    options: beui_host::native::RunOptions,
-    shell: Shell,
-    _session: bool,
-) -> Result<(), Box<dyn Error>> {
+fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
     let open_device = beui_host::native::OpenDevice {
         extensions: &be_win32_capture::DEVICE_EXTENSIONS,
         gpu: None,
@@ -155,11 +146,7 @@ fn run_shell(
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
-fn run_shell(
-    options: beui_host::native::RunOptions,
-    shell: Shell,
-    _session: bool,
-) -> Result<(), Box<dyn Error>> {
+fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
     beui_host::native::run_with(options, shell)
 }
 
@@ -337,9 +324,9 @@ impl beui::native::App for Shell {
             problems.listen(notices::report);
         }
         #[cfg(target_os = "linux")]
-        if self.app.desktop.is_none() && session::owns_a_seat(setup) {
-            self.app.desktop = Some(session::DesktopSession::start());
-            session::export_environment(block_app_desktop::desktop_host::environment());
+        if self.app.login_session.is_none() && login_session::owns_a_seat(setup) {
+            self.app.login_session = Some(login_session::LoginSession::start());
+            login_session::export_environment(block_app_desktop::desktop_host::environment());
         }
         display::start(setup);
         block_app_desktop::remap::load_cached(self.app.app_state.remapper().unwrap_or_else(
@@ -481,7 +468,7 @@ impl beui::native::App for Shell {
             self.app.media = None;
             self.app.notifications = None;
             self.app.tray = None;
-            self.app.desktop = None;
+            self.app.login_session = None;
         }
         block_app_stack::flush();
         block_app_stack::stop_and_wait();
@@ -499,7 +486,7 @@ struct BlockApp {
     add_account_generation: u64,
     pending_account_request: Option<PendingAccountRequest>,
     #[cfg(not(target_arch = "wasm32"))]
-    session_mode: bool,
+    login_session_mode: bool,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -574,9 +561,9 @@ struct BlockApp {
     keys: keys::KeyState,
     identity: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
-    desktop: Option<session::DesktopSession>,
+    login_session: Option<login_session::LoginSession>,
     #[cfg(target_os = "linux")]
-    screen_lock: Option<session::ScreenLock>,
+    screen_lock: Option<login_session::ScreenLock>,
     #[cfg(target_os = "linux")]
     published_power: Option<block_plugin_api::PowerAvailability>,
     #[cfg(target_os = "linux")]
@@ -764,7 +751,7 @@ impl BlockApp {
             add_account_generation: 0,
             pending_account_request: None,
             #[cfg(not(target_arch = "wasm32"))]
-            session_mode: false,
+            login_session_mode: false,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -833,7 +820,7 @@ impl BlockApp {
             keys: keys::KeyState::default(),
             identity,
             #[cfg(target_os = "linux")]
-            desktop: None,
+            login_session: None,
             #[cfg(target_os = "linux")]
             screen_lock: None,
             #[cfg(target_os = "linux")]
@@ -856,7 +843,7 @@ impl BlockApp {
         self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
         {
-            self.screen_lock = Some(session::ScreenLock::start());
+            self.screen_lock = Some(login_session::ScreenLock::start());
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());
             }
@@ -884,7 +871,7 @@ impl BlockApp {
                 .published_power
                 .is_some_and(|power| power.allows(action))
         {
-            self.request_power(action, session::Trigger::Menu);
+            self.request_power(action, login_session::Trigger::Menu);
         }
         self.run_media();
         self.run_wifi();
@@ -892,7 +879,7 @@ impl BlockApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: session::Trigger) {
+    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: login_session::Trigger) {
         match action {
             block_plugin_api::PowerAction::Lock => {
                 if let Some(lock) = &mut self.screen_lock {
@@ -900,8 +887,8 @@ impl BlockApp {
                 }
             }
             action => {
-                if let Some(desktop) = &mut self.desktop {
-                    desktop.request(action);
+                if let Some(login_session) = &mut self.login_session {
+                    login_session.request(action);
                     host::request_repaint();
                 }
             }
@@ -909,25 +896,25 @@ impl BlockApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn run_session(&mut self, context: &beui::native::Context) {
+    fn run_screen_lock(&mut self, context: &beui::native::Context) {
         let Some(lock) = &mut self.screen_lock else {
             return;
         };
         lock.frame();
         if block_app_desktop::desktop_host::take_lock_due() {
-            lock.lock(session::Trigger::Idle);
+            lock.lock(login_session::Trigger::Idle);
         }
-        if let Some(desktop) = &mut self.desktop {
-            desktop.frame(context, lock);
+        if let Some(login_session) = &mut self.login_session {
+            login_session.frame(context, lock);
         }
         let locked = lock.locked();
         block_app_desktop::desktop_host::set_locked(locked);
         block_app_desktop::remap::set_locked(locked);
         block_app_base::watches::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         let mut availability = self
-            .desktop
+            .login_session
             .as_ref()
-            .map(session::DesktopSession::availability)
+            .map(login_session::LoginSession::availability)
             .unwrap_or_default();
         availability.lock = !locked;
         if self.published_power != Some(availability) {
@@ -943,9 +930,9 @@ impl BlockApp {
         };
         let state = lock.state();
         let offered = self
-            .desktop
+            .login_session
             .as_ref()
-            .map(session::DesktopSession::availability)
+            .map(login_session::LoginSession::availability)
             .unwrap_or_default();
         ui::LockView {
             available: true,
@@ -1187,7 +1174,7 @@ impl BlockApp {
         let result = match event {
             accounts::LoginEvent::Browser(browser) => {
                 #[cfg(not(target_arch = "wasm32"))]
-                if !self.session_mode {
+                if !self.login_session_mode {
                     self.account_error = platform::open_browser(&browser.url).err();
                 }
                 self.pending_account_request.as_mut().unwrap().browser = Some(browser);
@@ -2622,7 +2609,7 @@ impl BlockApp {
         }
         self.run_display_prompt();
         #[cfg(target_os = "linux")]
-        self.run_session(context);
+        self.run_screen_lock(context);
     }
 
     fn run_display_prompt(&mut self) {
@@ -2660,7 +2647,7 @@ impl BlockApp {
     fn crashed(&mut self, report: String) {
         let _ = self.app_state.clear_active_account();
         #[cfg(target_os = "linux")]
-        if self.desktop.is_some() {
+        if self.login_session.is_some() {
             panic_guard::persist(&report);
             std::panic::resume_unwind(Box::new(panic_guard::summary(&report).to_owned()));
         }
@@ -2670,7 +2657,7 @@ impl BlockApp {
 
     fn crashed_before(&mut self, report: String) {
         #[cfg(target_os = "linux")]
-        if self.desktop.is_some() {
+        if self.login_session.is_some() {
             let summary = panic_guard::summary(&report);
             let message = match summary.lines().skip(1).collect::<Vec<_>>().join(" ") {
                 message if message.is_empty() => summary.to_owned(),
@@ -3037,7 +3024,7 @@ impl BlockApp {
             #[cfg(target_os = "linux")]
             UiCommand::LockScreen => {
                 if let Some(lock) = &mut self.screen_lock {
-                    lock.lock(session::Trigger::Shortcut);
+                    lock.lock(login_session::Trigger::Shortcut);
                 }
             }
             #[cfg(target_os = "linux")]
@@ -3051,9 +3038,9 @@ impl BlockApp {
                 if self
                     .screen_lock
                     .as_ref()
-                    .is_some_and(session::ScreenLock::locked)
+                    .is_some_and(login_session::ScreenLock::locked)
                 {
-                    self.request_power(action, session::Trigger::Menu);
+                    self.request_power(action, login_session::Trigger::Menu);
                 }
             }
             #[cfg(not(target_os = "linux"))]
@@ -3379,7 +3366,7 @@ impl BlockApp {
                 fresh.root_settings = RootSettings::new(self.root_settings.shell());
                 #[cfg(target_os = "linux")]
                 {
-                    fresh.desktop = self.desktop.take();
+                    fresh.login_session = self.login_session.take();
                     fresh.screen_lock = self.screen_lock.take();
                     fresh.media = self.media.take();
                     fresh.wifi = self.wifi.take();

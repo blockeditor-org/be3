@@ -41,12 +41,12 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_on`) read these
+beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_with_platforms`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
-- `BEUI_PLATFORM` picks the platform: the platform's own (`winit`, or the one the program hands
-  `run_on`, such as block-app's `drm`) by default, or `headless`. A
+- `BEUI_PLATFORM` picks the platform: the platform's own (`winit`) by default, one of the others
+  the program hands `run_with_platforms` (block-app's `drm`), or `headless`. A
   name it does not know is an error that lists the ones it takes
   (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):
@@ -201,7 +201,7 @@ place it is drawn, so `find` and `click` reach its rows like any other.
 - An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
   with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
   nodes only, and its input goes to that window, in its points. That is how to reach a window
-  other than the main one, such as one display's window under `--session`, where every display
+  other than the main one, such as one display's window in a login session, where every display
   shows its own lock screen and bar with the same test ids:
   `drive click '#lock.password' in 3`.
 - `drive paint FILE.paint [TARGET] [in WINDOW]` writes what the app's main window (or the

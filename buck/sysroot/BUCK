@@ -19,7 +19,7 @@ wanted = [
     # What third-party crates link.
     "libasound2-dev",
     "libxkbcommon-dev",
-    # beui-platform-drm, which block-app's --session runs on: displays through GBM, input through
+    # beui-platform-drm, which block-app's login session (BEUI_PLATFORM=drm) runs on: displays through GBM, input through
     # libinput, a seat through libseat, and devices found through udev.
     "libgbm-dev",
     "libinput-dev",

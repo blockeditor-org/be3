@@ -5,7 +5,7 @@ id `be3.desktop`) instead of workspace-ui, on a session of its own, and the host
 programs' windows inside it. This guide is what every host shares; each host has its own:
 
 - guides/desktop/linux.md: the Linux host, a Wayland compositor (be-wayland) that also runs
-  on the displays themselves under `--session` and installs as a login session.
+  on the displays themselves as a login session (`BEUI_PLATFORM=drm`) and installs as one.
 - guides/desktop/windows.md: the Windows host, which shows Windows' monitors and windows.
 
 `--desktop` (every native platform) starts the desktop shell in a normal window. On Linux
@@ -14,7 +14,7 @@ monitors and windows, launches Start Menu programs and offers power (guides/desk
 on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
 windows, notification server, tray, media, power, lock screen or launcher.
 The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless
-and closes it. `--session` and `--install-session` are Linux's (guides/desktop/linux.md).
+and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
 
 Everything the desktop gets from the host comes through `be3:desktop`, a WIT package
 beside the core plugin protocol rather than in it
@@ -85,7 +85,7 @@ A hidden window shown again opens at its default place, not where it was.
 
 ## Displays
 
-The host shows each display in a window of its own (under `--session`, guides/desktop/linux.md,
+The host shows each display in a window of its own (in a login session, guides/desktop/linux.md,
 Displays). The desktop is one space in points: the displays side by side along their bottom edges. Each
 display's window shows its own view of the shell, macOS-like: the first display the shell's
 main view (`ui::Root`'s `MainSurface`), each further one a display view (`HostView::Display(n)`) of the same instance

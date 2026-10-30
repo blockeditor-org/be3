@@ -4,7 +4,7 @@ use super::*;
 fn the_headless_platform_takes_its_window_and_screen() {
     assert_eq!(
         choose(
-            "winit",
+            &["winit"],
             with(&[
                 (PLATFORM, "headless"),
                 (HEADLESS_WINDOW, "800x600@2"),
@@ -24,14 +24,14 @@ fn the_headless_platform_takes_its_window_and_screen() {
     );
     assert_eq!(
         choose(
-            "winit",
+            &["winit"],
             with(&[(PLATFORM, "headless"), (HEADLESS_WINDOW, "big")])
         ),
         Err("BEUI_HEADLESS_WINDOW takes WIDTHxHEIGHT[@SCALE], not big".to_owned())
     );
     assert_eq!(
         choose(
-            "winit",
+            &["winit"],
             with(&[(PLATFORM, "headless"), (HEADLESS_SCREEN, "8000x8000")])
         ),
         Ok(Choice {
@@ -44,7 +44,7 @@ fn the_headless_platform_takes_its_window_and_screen() {
     );
     assert_eq!(
         choose(
-            "winit",
+            &["winit"],
             with(&[
                 (PLATFORM, "headless"),
                 (HEADLESS_WINDOW, "800x600@2"),

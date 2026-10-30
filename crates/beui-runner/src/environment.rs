@@ -30,7 +30,7 @@ pub struct Choice {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Base {
-    Native,
+    Native(usize),
     Headless {
         window: WindowSize,
         screen: Option<Vec2>,
@@ -69,11 +69,15 @@ pub fn drive_taps(layers: &[Stacked]) -> Vec<Option<Stacked>> {
         .collect()
 }
 
-pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
+pub fn choose(natives: &[&str], var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
+    let mut native = 0;
     let headless = match var(PLATFORM).as_deref() {
         None => false,
-        Some(name) if name == native => false,
         Some("headless") => true,
+        Some(name) if natives.contains(&name) => {
+            native = natives.iter().position(|known| *known == name).unwrap_or(0);
+            false
+        }
         Some(other) => {
             let hint = match Stacked::named(other) {
                 Some(layer) => format!("; {} is a layer: {LAYERS}={}", layer.name(), layer.name()),
@@ -81,7 +85,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
             };
             return Err(format!(
                 "{PLATFORM} takes {}, not {other}{hint}",
-                list(&[native, "headless"])
+                list(&[natives, &["headless"]].concat())
             ));
         }
     };
@@ -166,7 +170,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
                 return Err(format!("{variable} is for the headless platform only"));
             }
         }
-        Base::Native
+        Base::Native(native)
     };
     let render = match var(RENDERER).as_deref() {
         None | Some("wgpu") => true,

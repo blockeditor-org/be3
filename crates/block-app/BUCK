@@ -231,13 +231,14 @@ export_file(
 )
 
 # The app with its plugins installed under /usr/local (or the prefix given after
-# `--`), with a wayland-sessions entry that runs it with --session, for a
-# display manager to offer on its login screen: guides/desktop/linux.md.
+# `--`), with a wayland-sessions entry that runs it as a login session
+# (BEUI_PLATFORM=drm and --desktop), for a display manager to offer on its login
+# screen: guides/desktop/linux.md.
 command_alias(
-    name = "install-session",
+    name = "install-login-session",
     args = [
         "$(location :native)/block-app",
-        "--install-session",
+        "--install-login-session",
     ],
 )
 

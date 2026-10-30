@@ -40,7 +40,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
                 .map(|entry| entry.display().to_string())
                 .collect();
             println!(
-                "Installed the app in {}, linked it from {} and added the session {}.",
+                "Installed the app in {}, linked it from {} and added the login session {}.",
                 installed.home.display(),
                 installed.link.display(),
                 entries.join(" and ")
@@ -59,11 +59,11 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
             }
             match place_greetd(Path::new(GREETD_ENVIRONMENTS), &installed.link) {
                 Ok(true) => println!(
-                    "Added the session to {GREETD_ENVIRONMENTS}, which greetd's greeters list."
+                    "Added the login session to {GREETD_ENVIRONMENTS}, which greetd's greeters list."
                 ),
                 Ok(false) => {}
                 Err(error) => println!(
-                    "Could not add the session to {GREETD_ENVIRONMENTS} ({error}), so greetd's greeters do not list it."
+                    "Could not add the login session to {GREETD_ENVIRONMENTS} ({error}), so greetd's greeters do not list it."
                 ),
             }
             println!("Log out and pick Block from the session menu on the login screen.");
@@ -76,7 +76,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
             );
             let status = Command::new("sudo")
                 .arg(&executable)
-                .arg("--install-session")
+                .arg("--install-login-session")
                 .arg(&prefix)
                 .status()?;
             match status.success() {
@@ -205,7 +205,7 @@ pub(crate) fn place_greetd(environments: &Path, link: &Path) -> io::Result<bool>
     if path.contains(char::is_whitespace) {
         return Ok(false);
     }
-    let command = format!("{path} --session");
+    let command = command(&path);
     if listed.lines().any(|line| line.trim() == command) {
         return Ok(false);
     }
@@ -269,15 +269,26 @@ pub(crate) fn session_entry(executable: &Path) -> String {
     ENTRY
         .lines()
         .map(|line| match line.split_once('=') {
-            Some(("Exec", command)) => match command.strip_prefix(EXECUTABLE) {
-                Some(arguments) => format!("Exec={}{arguments}", exec_argument(&path)),
-                None => line.to_owned(),
-            },
+            Some(("Exec", _)) => format!("Exec={}", command(&exec_argument(&path))),
             Some(("TryExec", _)) => format!("TryExec={}", path.replace('\\', "\\\\")),
             _ => line.to_owned(),
         })
         .map(|line| line + "\n")
         .collect()
+}
+
+fn command(executable: &str) -> String {
+    let exec = ENTRY
+        .lines()
+        .find_map(|line| line.strip_prefix("Exec="))
+        .unwrap_or(EXECUTABLE);
+    exec.split(' ')
+        .map(|word| match word {
+            EXECUTABLE => executable,
+            word => word,
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn exec_argument(path: &str) -> String {

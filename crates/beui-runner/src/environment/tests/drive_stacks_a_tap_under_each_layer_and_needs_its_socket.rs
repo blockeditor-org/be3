@@ -4,7 +4,7 @@ use super::*;
 fn drive_stacks_a_tap_under_each_layer_and_needs_its_socket() {
     let socket = |layers| {
         choose(
-            "winit",
+            &["winit"],
             with(&[(LAYERS, layers), (DRIVE_SOCKET, "/tmp/d.sock")]),
         )
     };
@@ -21,11 +21,11 @@ fn drive_stacks_a_tap_under_each_layer_and_needs_its_socket() {
         "each tap is named by the layer just above it, and the top one is the app's"
     );
     assert!(
-        choose("winit", with(&[(LAYERS, "drive")]))
+        choose(&["winit"], with(&[(LAYERS, "drive")]))
             .is_err_and(|error| error.contains(DRIVE_SOCKET))
     );
     assert!(
-        choose("winit", with(&[(DRIVE_SOCKET, "/tmp/d.sock")]))
+        choose(&["winit"], with(&[(DRIVE_SOCKET, "/tmp/d.sock")]))
             .is_err_and(|error| error.contains("add drive"))
     );
     assert!(

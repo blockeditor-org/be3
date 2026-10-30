@@ -289,8 +289,8 @@ button.
 
 ## One input path
 
-Every embedded editor - a plugin's view, and in `block-app --session` and
-`--desktop` each Wayland program's window - is a forwarding catcher: an
+Every embedded editor - a plugin's view, and in `block-app --desktop` each
+Wayland program's window - is a forwarding catcher: an
 `Interactive` with `on_forward` (and `hit_area` for the points it takes),
 handed what beui routes to it as a `ForwardedInput`: the pointer events beui
 resolved for it (`Forwarded::Pointer`, with `over`, the catcher under the

@@ -1352,7 +1352,7 @@ when it is not open, into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
-pointer settings for every pointer with per-device overrides) to the `--session`
+pointer settings for every pointer with per-device overrides) to the login session's
 seat through `beui_platform_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
@@ -1505,9 +1505,9 @@ device is the one to pick, named Landscape, Portrait and their flipped turns fro
 whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
 with the desktop plugin's bar), a Screens section with the switch for the bar's rotate
 button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
-once it offers `Power`, which only a `--session` publishes. Its Input page
+once it offers `Power`, which only a login session publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
-likewise only a `--session` publishes, and says so otherwise.
+likewise only a login session publishes, and says so otherwise.
 
 Each kind of setting (`InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
@@ -1636,7 +1636,7 @@ device when there is none yet (`RootSetting::ensure`).
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
 workspace-ui (`WORKSPACE_EDITOR`), or the desktop plugin (`DESKTOP_EDITOR`) for
-a client run as the desktop with `block-app --session`. `Settings::sessions`
+a client run as the desktop with `block-app --desktop`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the app each keep their own while
 sharing the device's settings profile. The host opens the shell on that session,

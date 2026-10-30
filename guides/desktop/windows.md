@@ -4,7 +4,7 @@
 (guides/desktop.md). XR is the main target: each shown entry is a panel of its own, as program
 windows are where `opens_windows()` is true. A windowed `--desktop` is a development view: there
 is no virtual display, so a focused window comes up on the real monitor above block-app.
-`--session` and `--install-session` are refused (`src/arguments.rs`).
+`BEUI_PLATFORM=drm` and `--install-login-session` are refused (`src/arguments.rs`).
 
 All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-win32,
 be-win32-capture, be-win32-input, beui and block-app for `windows_x86_64`, and the logic behind

@@ -33,7 +33,7 @@ pub use beui_runner::{
 };
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use crate::runner::{native_platform, run_on, run_with, run_with_device};
+pub use crate::runner::{native_platform, run_with, run_with_device, run_with_platforms};
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use crate::web::{run_web, web_platform};
 

@@ -165,7 +165,7 @@ impl Authenticate for Pam {
     }
 }
 
-pub(crate) struct DesktopSession {
+pub(crate) struct LoginSession {
     logind: Logind,
     power: Power,
     sleep: SleepGuard,
@@ -173,7 +173,7 @@ pub(crate) struct DesktopSession {
     hinted: Option<bool>,
 }
 
-impl DesktopSession {
+impl LoginSession {
     pub(crate) fn start() -> Self {
         let logind = Logind::connect();
         let mut sleep = SleepGuard::default();

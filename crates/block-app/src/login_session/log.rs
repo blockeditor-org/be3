@@ -6,12 +6,12 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const LOG: &str = "session.log";
-const PREVIOUS_LOG: &str = "session.previous.log";
+const LOG: &str = "login-session.log";
+const PREVIOUS_LOG: &str = "login-session.previous.log";
 
 pub(crate) fn start_log() -> Option<File> {
     let Some(directory) = log_directory() else {
-        eprintln!("block-app: no directory for the session log; set XDG_STATE_HOME or HOME");
+        eprintln!("block-app: no directory for the login session's log; set XDG_STATE_HOME or HOME");
         return None;
     };
     let path = directory.join(LOG);
@@ -28,7 +28,7 @@ pub(crate) fn start_log() -> Option<File> {
         Ok(file) => file,
         Err(error) => {
             eprintln!(
-                "block-app: the session log {} did not open: {error}",
+                "block-app: the login session's log {} did not open: {error}",
                 path.display()
             );
             return None;
@@ -40,10 +40,10 @@ pub(crate) fn start_log() -> Option<File> {
         .as_secs();
     let _ = writeln!(
         file,
-        "Block {} started a session at {started} seconds after the Unix epoch.",
+        "Block {} started a login session at {started} seconds after the Unix epoch.",
         crate::build()
     );
-    eprintln!("block-app: the session logs to {}", path.display());
+    eprintln!("block-app: the login session logs to {}", path.display());
     let console = std::io::stderr()
         .as_fd()
         .try_clone_to_owned()

@@ -204,7 +204,7 @@ Remote accounts are added through the server's `/auth` portal. The app begins a
 short-lived authorization request over its gateway-authorized connection and opens
 `/auth?code=...`. The user signs in or registers and verifies email, then approves the
 matching code. A remembered browser session usually needs only approval. The portal
-also accepts manually entered codes for another browser profile or `--session` mode.
+also accepts manually entered codes for another browser profile or a login session.
 The app keeps its URL and code visible even when browser launch appears successful.
 The page uses server-rendered forms, same-origin POST checks and single-use form tokens
 bound to the browser credential. Field validation happens on submission; browser
@@ -237,7 +237,7 @@ then run the staged `be-server --allow-login --allow-registration` and open
 http://127.0.0.1:9090/auth; verification and reset links are in its log.
 
 The browser is assumed to already have the API host's gateway cookie. No gateway or
-account token is put in the device URL. `--session` does not launch a browser automatically.
+account token is put in the device URL. A login session does not launch a browser automatically.
 The portal authenticates the account; encryption unlocking and pairing stay in Block.
 
 The browser transport uses WebSockets, whose handshake includes the API host's

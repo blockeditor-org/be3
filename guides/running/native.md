@@ -9,10 +9,10 @@ guide is for what that does not cover.
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last organization, or the first one (the server's personal organization, which
   registering joins), on the account's My files workspace. `:dev` passes it.
-- `--desktop` (every native platform): the desktop shell in a window; `--session` (Linux):
-  on the displays themselves (guides/desktop/linux.md).
+- `--desktop` (every native platform): the desktop shell in a window; with `BEUI_PLATFORM=drm`
+  (Linux), a login session on the displays themselves (guides/desktop/linux.md).
   `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
-- `--install-session [PREFIX]` (Linux): install the app as a login session
+- `--install-login-session [PREFIX]` (Linux): install the app as a login session
   (guides/desktop/linux.md).
 
 `./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
