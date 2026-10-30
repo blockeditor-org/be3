@@ -61,6 +61,7 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
     surface.frame(&[frame.clone(), window.clone()]);
     surface.frame(&[frame.clone(), window.clone()]);
     let shown = surface
+        .regions()
         .window(window.id())
         .expect("the host's window region shows the app's window");
     assert_eq!(

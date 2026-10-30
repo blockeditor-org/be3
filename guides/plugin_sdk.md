@@ -9,7 +9,7 @@ it to the SDK when it loads it, on wasmtime and in the browser alike, from the s
 
 `crates/block-plugin-sdk` is a crate that depends on what the plugins have in common: beui,
 block-editor-beui, beui-platform-plugin (the runtime block-editor-beui reaches through a symbol
-rather than a dependency, which brings beui-host: the renderer, fonts and inspector), block-editor-plugin, serde, serde_json and uuid, and through them
+rather than a dependency, which brings beui-host: the renderer, fonts and inspector; it is beui's half of the region driver), block-editor-plugin (with the framework-neutral half, `block_editor_plugin::driver`), serde, serde_json and uuid, and through them
 everything underneath. block-editor-plugin itself does not depend on `reactive` or beui: its
 state (content, the graph, host values) is read as plain values and announces changes through
 callbacks, and block-editor-beui turns those into beui's signals (guides/the_new_block_stack.md,

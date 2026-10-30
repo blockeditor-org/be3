@@ -1,11 +1,13 @@
 use super::*;
 use beui_core::painter::Shape;
 
-fn rasters(surface: &ModuleRunner, region: &ShownView) -> (f32, Vec<f32>) {
+fn rasters(surface: &Driver<ModuleRunner>, region: &ShownView) -> (f32, Vec<f32>) {
     let window = surface
+        .regions()
         .window(region.id())
         .expect("the region is a window of the app");
     let output = surface
+        .regions()
         .runner
         .output()
         .and_then(|output| output.window(window))

@@ -21,6 +21,7 @@ fn every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
         "a region is drawn in the frame that first shows it"
     );
     let framed = surface
+        .regions()
         .window(frame.id())
         .expect("the app opened a window for the region in that same frame");
     assert!(surface.painting(frame.id()).is_some());
@@ -31,10 +32,11 @@ fn every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
         "a region shown beside another is drawn in the frame that first shows it"
     );
     let previewed = surface
+        .regions()
         .window(preview.id())
         .expect("the second region is a window of the same app");
     assert_ne!(framed, previewed);
-    assert_eq!(surface.window(frame.id()), Some(framed));
+    assert_eq!(surface.regions().window(frame.id()), Some(framed));
     let painting = surface
         .painting(preview.id())
         .expect("the second region paints at once");
@@ -42,9 +44,9 @@ fn every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
 
     surface.frame(std::slice::from_ref(&frame));
     assert_eq!(
-        surface.window(preview.id()),
+        surface.regions().window(preview.id()),
         None,
         "a region the host stops showing closes its window"
     );
-    assert_eq!(surface.window(frame.id()), Some(framed));
+    assert_eq!(surface.regions().window(frame.id()), Some(framed));
 }

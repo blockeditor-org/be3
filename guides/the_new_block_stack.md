@@ -1244,6 +1244,36 @@ ignores them and rereads on the wake, and block-editor-beui's
 (one per thing a view reads), so editors read signals and never see the
 callbacks.
 
+### The region driver
+
+What a framework does with the views the host shows is split the same way.
+`block_editor_plugin::driver` holds the framework-neutral half: `Driver<R>`
+implements `ViewHandler` for any `R: Regions`, and is what the framework
+registers with `EditorHost::handle_views`. The driver keeps:
+
+- each view's `Surface` (its size, age and visible offset from the
+  `ShownView`, created when the host first shows the view and dropped when a
+  frame no longer lists it), the damage the framework reports into it
+  (`Surface::damage`, a `Damage` of a `geometry::Region` or everything), and on
+  wasm the damage of the last presents, so `paint` repaints only what the
+  target's age needs; `Frame::changed` is set while a surface has damage not
+  yet painted;
+- the `Frame` accounting that does not depend on the framework: a framework
+  that stopped reports `Stopped` on every view, each window ask goes on the
+  first shown view of the instance that made it, and only the view with the
+  keyboard carries `repaint_after`;
+- `HostServices`: copy, paste, and the file pick and save dialogs, through the
+  `EditorHost` of the instance whose view last took input.
+
+A framework implements `Regions`: `input` for one view, `frame` over every
+shown view (returning `Ran`: the keyboard's view, the asks, the repaint wait,
+or `Err` when it stopped), `framed` for one view's rects, window requests,
+description and anchored views, and `paint` of its per-surface `Painter` into
+a `PaintTarget`. beui's half is `ModuleRunner` in beui-platform-plugin.
+Anchored views, floated windows and scrims are the overlay API and stay the
+framework's: `Regions::anchored` hands the driver an anchored view's surface,
+whose lifetime the framework keeps.
+
 ### The graph on the plugin protocol
 
 A plugin asks about the graph with a `blocks-watch` resource per `BlockQuery`,

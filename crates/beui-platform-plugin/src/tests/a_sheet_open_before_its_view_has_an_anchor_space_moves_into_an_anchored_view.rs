@@ -67,7 +67,11 @@ fn sheet_app() -> Windowed {
     })
 }
 
-fn shown_spaced(surface: &mut ModuleRunner, spaced: &ShownView, main: &mut Tree) -> (Frame, Tree) {
+fn shown_spaced(
+    surface: &mut Driver<ModuleRunner>,
+    spaced: &ShownView,
+    main: &mut Tree,
+) -> (Frame, Tree) {
     let mut frame = one(surface, spaced);
     main.follow(&frame);
     let [layer] = frame.anchored.as_slice() else {

@@ -11,6 +11,8 @@ use beui_core::input::Event;
 use beui_core::node::NodeId;
 use block_editor_plugin::{EditorInstanceId, FrameSpec, Input, Module};
 
+use std::any::Any;
+
 use super::*;
 use beui_host::native::build;
 
@@ -83,14 +85,14 @@ fn anchored_shown(owner: &ShownView, anchored: &block_editor_plugin::Anchored) -
     }
 }
 
-fn one_anchored(surface: &mut ModuleRunner, region: &ShownView) -> Frame {
+fn one_anchored(surface: &mut Driver<ModuleRunner>, region: &ShownView) -> Frame {
     surface
         .frame_opened(std::slice::from_ref(region))
         .pop()
         .expect("one view framed gets one frame")
 }
 
-fn one(surface: &mut ModuleRunner, region: &ShownView) -> Frame {
+fn one(surface: &mut Driver<ModuleRunner>, region: &ShownView) -> Frame {
     surface
         .frame(std::slice::from_ref(region))
         .pop()
@@ -208,7 +210,7 @@ fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: C
     }
 }
 
-fn launched(host: &EditorHost, app: impl App + 'static) -> Box<ModuleRunner> {
+fn launched(host: &EditorHost, app: impl App + 'static) -> Box<Driver<ModuleRunner>> {
     let module = Module::default();
     host.join_module(&module);
     launch(
@@ -223,5 +225,5 @@ fn launched(host: &EditorHost, app: impl App + 'static) -> Box<ModuleRunner> {
         .expect("the platform registers its handler with the module");
     handler
         .downcast()
-        .expect("the plugin platform's handler is a ModuleRunner")
+        .expect("the plugin platform's handler drives a ModuleRunner")
 }
