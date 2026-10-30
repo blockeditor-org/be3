@@ -41,10 +41,6 @@ pub fn identity(bytes: &[u8]) -> String {
         .collect()
 }
 
-// The name a linked module imports or exports a symbol under. Rust's and C++'s
-// mangled names and LLVM's promoted constants average two hundred bytes, and a
-// library exports every symbol it has, so they were a third of a library's
-// module; every link and loader names a symbol only through this, so they agree.
 pub fn short_symbol(symbol: &str) -> Cow<'_, str> {
     let short_length = 1 + SHORT_SYMBOL_BYTES * 4 / 3;
     if symbol.len() <= short_length || !SHORTENED.iter().any(|prefix| symbol.starts_with(prefix)) {

@@ -8,7 +8,11 @@ fn a_linked_modules_mangled_symbols_are_shortened() {
         (ENV, mangled, module::FUNCTION),
         (GOT_MEMORY, constant, module::GLOBAL_KIND),
         (ENV, "__stack_pointer", module::GLOBAL_KIND),
-        ("wasi_snapshot_preview1", "_R_a_wasi_name_that_is_long_enough", module::FUNCTION),
+        (
+            "wasi_snapshot_preview1",
+            "_R_a_wasi_name_that_is_long_enough",
+            module::FUNCTION,
+        ),
     ]);
     let bytes =
         module::with_exported_globals(&bytes, &[(mangled.to_owned(), 0), ("plain".to_owned(), 1)])
@@ -22,8 +26,14 @@ fn a_linked_modules_mangled_symbols_are_shortened() {
     assert_eq!(
         imports,
         [
-            (ENV.to_owned(), wasm_dylink::short_symbol(mangled).into_owned()),
-            (GOT_MEMORY.to_owned(), wasm_dylink::short_symbol(constant).into_owned()),
+            (
+                ENV.to_owned(),
+                wasm_dylink::short_symbol(mangled).into_owned()
+            ),
+            (
+                GOT_MEMORY.to_owned(),
+                wasm_dylink::short_symbol(constant).into_owned()
+            ),
             (ENV.to_owned(), "__stack_pointer".to_owned()),
             (
                 "wasi_snapshot_preview1".to_owned(),
@@ -38,7 +48,10 @@ fn a_linked_modules_mangled_symbols_are_shortened() {
         .collect();
     assert_eq!(
         exports,
-        [wasm_dylink::short_symbol(mangled).into_owned(), "plain".to_owned()]
+        [
+            wasm_dylink::short_symbol(mangled).into_owned(),
+            "plain".to_owned()
+        ]
     );
     assert_eq!(module::exported_constant(&short, "plain"), Ok(Some(1)));
     assert!(short.len() < bytes.len());

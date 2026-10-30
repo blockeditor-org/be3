@@ -106,8 +106,8 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     for index, library in enumerate(libraries):
         command.add(cmd_args("--library=", library, delimiter = ""))
         if ctx.attrs.precompiler:
-            name = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
-            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, name), delimiter = ""))
+            artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
+            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, artifact), delimiter = ""))
     for module in ctx.attrs.linked:
         command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
