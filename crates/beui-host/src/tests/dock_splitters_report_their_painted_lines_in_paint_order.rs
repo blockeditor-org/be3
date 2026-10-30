@@ -10,22 +10,32 @@ fn dock_splitters_report_their_painted_lines_in_paint_order() {
             <dock::styled::Docking layout>
                 <DockSplit id="a" fraction=0.2>
                     <DockPane id="one">
-                        <DockTab id=1u64 title="One"><Embed slot={EmbedSlot::new()} /></DockTab>
+                        <DockTab id=1u64 title="One">
+                            <Embed slot={EmbedSlot::new()} />
+                        </DockTab>
                     </DockPane>
                     <DockSplit id="b" fraction=0.25>
                         <DockPane id="two">
-                            <DockTab id=2u64 title="Two"><Embed slot={EmbedSlot::new()} /></DockTab>
+                            <DockTab id=2u64 title="Two">
+                                <Embed slot={EmbedSlot::new()} />
+                            </DockTab>
                         </DockPane>
                         <DockSplit id="c" fraction=0.33>
                             <DockPane id="three">
-                                <DockTab id=3u64 title="Three"><Embed slot={EmbedSlot::new()} /></DockTab>
+                                <DockTab id=3u64 title="Three">
+                                    <Embed slot={EmbedSlot::new()} />
+                                </DockTab>
                             </DockPane>
                             <DockSplit id="d" fraction=0.5>
                                 <DockPane id="four">
-                                    <DockTab id=4u64 title="Four"><Embed slot={EmbedSlot::new()} /></DockTab>
+                                    <DockTab id=4u64 title="Four">
+                                        <Embed slot={EmbedSlot::new()} />
+                                    </DockTab>
                                 </DockPane>
                                 <DockPane id="five">
-                                    <DockTab id=5u64 title="Five"><Embed slot={EmbedSlot::new()} /></DockTab>
+                                    <DockTab id=5u64 title="Five">
+                                        <Embed slot={EmbedSlot::new()} />
+                                    </DockTab>
                                 </DockPane>
                             </DockSplit>
                         </DockSplit>
