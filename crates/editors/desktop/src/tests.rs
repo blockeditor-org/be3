@@ -59,24 +59,24 @@ mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settin
 mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
-mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
 mod the_power_row_asks_before_ending_the_session;
 mod the_power_row_locks_the_screen_without_asking;
 mod the_power_row_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
-mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_status_button_shows_the_volume_and_opens_its_controls;
+mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
-mod the_wifi_tile_lists_the_networks_the_host_reports;
 mod the_wifi_list_asks_the_host_to_connect;
+mod the_wifi_tile_lists_the_networks_the_host_reports;
 mod the_window_picker_lists_displays_then_windows_and_shows_or_hides_them;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
@@ -613,7 +613,11 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
 }
 
 fn accessible_under(document: &Document, id: NodeId) -> Option<String> {
-    if let Some(label) = document.accessibility.get(&id).and_then(|node| node.label()) {
+    if let Some(label) = document
+        .accessibility
+        .get(&id)
+        .and_then(|node| node.label())
+    {
         return Some(label.to_owned());
     }
     document

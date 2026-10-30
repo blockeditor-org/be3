@@ -23,7 +23,10 @@ fn the_wifi_tile_lists_the_networks_the_host_reports() {
     fixture.settle();
     assert!(fixture.test.shown("desktop.quick.wifi"));
     assert!(
-        fixture.test.take_host_calls(block_ui_test::requested::wifi).is_empty(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::wifi)
+            .is_empty(),
         "quick settings alone does not look for networks"
     );
     fixture.test.click("desktop.quick.wifi");
@@ -62,7 +65,10 @@ fn the_wifi_tile_lists_the_networks_the_host_reports() {
 
     fixture.test.click("desktop.quick.back");
     fixture.settle();
-    assert!(fixture.test.shown("desktop.quick.wifi"), "back leads to the tiles");
+    assert!(
+        fixture.test.shown("desktop.quick.wifi"),
+        "back leads to the tiles"
+    );
 
     fixture.wifi(WifiStatus::default());
     assert!(

@@ -52,7 +52,12 @@ pub(crate) fn NotificationList(
                 <Text style=TextStyle::CAPTION>"Nothing new."</Text>
             </Show>
             <Show condition={some}>
-                <NotificationRows notifications={notifications} listed={listed} height={height} popover={popover} />
+                <NotificationRows
+                    notifications={notifications}
+                    listed={listed}
+                    height={height}
+                    popover={popover}
+                />
             </Show>
         </List>
     }
@@ -69,9 +74,9 @@ fn NotificationRows(
     view! {
         <List spacing=Space::None>
             <Scroll @sizing={bounded} fit=true>
-            <ForEach keys={listed}>|shown: Listed|
-                <NotificationRow notifications={notifications} shown popover={popover} />
-            </ForEach>
+                <ForEach keys={listed}>|shown: Listed|
+                    <NotificationRow notifications={notifications} shown popover={popover} />
+                </ForEach>
             </Scroll>
         </List>
     }

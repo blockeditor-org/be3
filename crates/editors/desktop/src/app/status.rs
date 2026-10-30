@@ -8,12 +8,12 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::desktop;
 use block_editor_beui::{Editor, HostDisplay, MediaLevels, WifiLink, WifiStatus};
 
+use super::popup::BarPopup;
 use super::power::{PowerChoice, PowerDialog, PowerRow};
 use super::rotate::ScreenRotation;
 use super::volume::VolumePanel;
 use super::wifi::WifiPanel;
 use super::{volume, wifi};
-use super::popup::BarPopup;
 use beui::{Align, Direction, Overflow, TextAlign};
 use block_editor_beui::beui::reactive::toggle_keyboard;
 
@@ -167,7 +167,12 @@ fn QuickSettings(
 }
 
 #[component]
-fn QuickMain(status: Status, power: PowerChoice, page: Signal<Page>, close: Callback<()>) -> NodeId {
+fn QuickMain(
+    status: Status,
+    power: PowerChoice,
+    page: Signal<Page>,
+    close: Callback<()>,
+) -> NodeId {
     let Status {
         editor,
         wifi,
@@ -263,14 +268,7 @@ fn QuickTile(
     view! {
         <Frame width=TILE_WIDTH>
             <List spacing=CAPTION_SPACING align=Align::Center>
-                <TileButton
-                    @test_id={id}
-                    label
-                    selected
-                    outlined=true
-                    size=TILE
-                    on_click
-                >
+                <TileButton @test_id={id} label selected outlined=true size=TILE on_click>
                     <Text size=TextSize::Lg>
                         <Icon glyph />
                     </Text>

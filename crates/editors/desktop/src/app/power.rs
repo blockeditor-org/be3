@@ -1,3 +1,4 @@
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -7,7 +8,6 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::desktop;
 use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
-use beui::{Align, Direction, ItemSize};
 
 const DIALOG_SPACING: Space = Space::Xl;
 const ROW_SPACING: Space = Space::Xs;
@@ -93,7 +93,12 @@ impl PowerChoice {
 #[component]
 pub(crate) fn PowerRow(choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING @test_id={"desktop.power"}>
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=ROW_SPACING
+            @test_id={"desktop.power"}
+        >
             <PowerButton action=PowerAction::Lock choice={choice} on_chose={on_chose} />
             <PowerButton action=PowerAction::Suspend choice={choice} on_chose={on_chose} />
             <Spacer @sizing=ItemSize::Percent(100.0) />
