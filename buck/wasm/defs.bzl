@@ -135,9 +135,11 @@ wasi_app_flags = plugin_exports + [
 ]
 
 # The libraries every editor is linked against unless it names its own
-# (guides/plugin_sdk.md): today one, crates/block-plugin-sdk, the root that holds
-# std, wasi-libc, beui and the rest.
-DEFAULT_LIBRARIES = ["root//crates/block-plugin-sdk:module"]
+# (guides/plugin_sdk.md): base, the root that holds std, wasi-libc, wgpu and
+# block-editor-plugin, and beui above it.
+BASE_LIBRARY = "root//crates/plugin-library-base:module"
+
+DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/plugin-library-beui:module"]
 
 # What makes a module the root of every closure: wasi-libc's crt1-reactor.o,
 # whose _initialize sets up libc's main thread and runs the constructors. The

@@ -10,34 +10,44 @@ one file and one compiled module.
 
 ## What is in it
 
-Today there is one library, `crates/block-plugin-sdk`, and every editor is linked against it
-(`DEFAULT_LIBRARIES` in `buck/wasm/defs.bzl`). It is a crate that depends on what the plugins
-have in common: beui, block-editor-beui, beui-platform-plugin (the runtime block-editor-beui
-reaches through a symbol rather than a dependency, which brings beui-host: the renderer, fonts and
-inspector; it is beui's half of the region driver), block-editor-plugin (with the
-framework-neutral half, `block_editor_plugin::driver`), serde, serde_json and uuid, and through
-them everything underneath, std and wasi-libc included. block-editor-plugin itself does not depend
-on `reactive` or beui: its state (content, the graph, host values, and the editor, artifact and
-creation state) is read as plain values and announces changes through callbacks, and
-block-editor-beui turns those into beui's signals (guides/the_new_block_stack.md, "State and
-change callbacks"). plans/plugin_libraries.md splits it into base and beui.
+A Rust plugin is linked against two libraries, or one (`buck/wasm/defs.bzl`):
+- **base**, `crates/plugin-library-base`, the root: std, alloc, the allocator and the panic
+  runtime, wasi-libc, libc++ and libc++abi, setjmp, wgpu with its custom backend
+  (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin (with the framework-neutral
+  region driver, `block_editor_plugin::driver`, and editor state), geometry, serde, postcard,
+  serde_json and uuid, and what they depend on. Nothing in it depends on `reactive` or beui:
+  block-editor-plugin's state (content, the graph, host values, and the editor, artifact and
+  creation state) is read as plain values and announces changes through callbacks
+  (guides/the_new_block_stack.md, "State and change callbacks"), which any ui framework adapts.
+- **beui**, `crates/plugin-library-beui`, above base: `reactive`, beui and everything under it,
+  block-editor-beui, which turns those callbacks into beui's signals, and beui-platform-plugin
+  (the runtime block-editor-beui reaches through a symbol rather than a dependency, which brings
+  beui-host: the renderer, fonts and inspector; it is beui's half of the region driver), with
+  FreeType and HarfBuzz.
+
+Every editor is linked against both unless its `editor()` says otherwise (`DEFAULT_LIBRARIES`);
+an editor with no ui framework, such as triangle, names base alone (`BASE_LIBRARY`). Split base
+further only when a module needs part of it, such as a type module that wants std without wgpu.
 
 A library is linked whole and exports everything, since it cannot know what a plugin it has not
 seen will use. A crate only one or two plugins use stays in those plugins. To move one into a
 library, add it to the library crate's `Cargo.toml` (and its `lib.rs`) and run
 `./scripts/buck run //:buckify`.
 
-libc++ and libc++abi are linked whole too (`WHOLE_LIBRARIES` in `crates/wasm-link/src/lib.rs`).
-The other C libraries under the root (wasi-libc, libsetjmp) are linked for what it uses, and the C
-math library and the libc functions in `LIBC` are forced in (`MATH` and `LIBC` there). A plugin
-that calls a C function no library has fails to link, with the function named; add it there. A
+libc++ and libc++abi are linked whole into the root too (`WHOLE_LIBRARIES` in `crates/wasm-link/src/lib.rs`).
+wasi-libc is linked for what the root uses, and the C math library and the libc functions in
+`LIBC` are forced in (`MATH` and `LIBC` there), among them what FreeType and PDFium call. A
+module that calls a C function no library has fails to link, with the function named; add it
+there. A
 library none of them links, such as one of wasi-libc's emulations (`libwasi-emulated-mman.a`),
 stays in the plugin's own link.
 
 A C or C++ library a linked module links has to be compiled position-independent, as everything
-the plugins' toolchain compiles is: a shared module cannot take any other code. Build it from
-source on that toolchain, as third-party/pdfium builds PDFium, rather than linking an archive
-built elsewhere.
+the plugins' toolchain compiles is (`_wasi_flags` in `buck/toolchains/BUCK` gives a plugin's C
+`-fPIC`, which cc-rs leaves out on wasm, so a build script's C is too): a shared module cannot
+take any other code. Build it from source on that toolchain, as third-party/pdfium builds PDFium,
+rather than linking an archive built elsewhere. The C++ runtime and setjmp are base's even though
+nothing in base uses them, so every C++ library above it shares one copy (`crates/plugin-library-base/BUCK`).
 
 ## Identity
 

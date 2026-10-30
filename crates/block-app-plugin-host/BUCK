@@ -15,7 +15,7 @@ test_environment = {
 cargo_test(
     env = test_environment
     | {
-        "SDK_LIBRARY_WASM": "$(location //crates/block-plugin-sdk:module)",
+        "BASE_LIBRARY_WASM": "$(location //crates/plugin-library-base:module)",
         "TRIANGLE_STANDALONE_WASM": "$(location //crates/editors/triangle:standalone)",
         "TRIANGLE_WASM": "$(location //crates/editors/triangle:module)",
     },

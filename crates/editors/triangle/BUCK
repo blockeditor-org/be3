@@ -1,6 +1,8 @@
 load("@root//buck/wasm:defs.bzl", "editor", "editor_module")
 
+# Triangle draws with plain wgpu and no ui framework, so it needs base alone.
 editor(
+    libraries = ["//crates/plugin-library-base:module"],
     module = "triangle",
     types = "//crates/editors/triangle/types:module",
 )

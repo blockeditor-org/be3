@@ -2208,19 +2208,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-plugin-sdk"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-platform-plugin",
- "block-editor-beui",
- "block-editor-plugin",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "block-shell"
 version = "0.1.0"
 dependencies = [
@@ -6578,6 +6565,31 @@ name = "plain"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
+name = "plugin-library-base"
+version = "0.1.0"
+dependencies = [
+ "be-ops",
+ "block-editor-plugin",
+ "block-gpu-guest",
+ "block-plugin-api",
+ "geometry",
+ "postcard",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "plugin-library-beui"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-platform-plugin",
+ "block-editor-beui",
+]
 
 [[package]]
 name = "plugin-test-runner"

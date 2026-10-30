@@ -1,0 +1,8 @@
+load("@root//buck/wasm:defs.bzl", "wasm_library")
+
+# beui and everything under it, FreeType and HarfBuzz, above base
+# (guides/plugin_sdk.md).
+wasm_library(
+    libraries = ["//crates/plugin-library-base:module"],
+    module = "beui",
+)

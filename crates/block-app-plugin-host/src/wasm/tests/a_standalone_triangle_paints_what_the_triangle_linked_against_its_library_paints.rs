@@ -2,7 +2,7 @@ use super::*;
 
 const LINKED: &[u8] = include_bytes!(env!("TRIANGLE_WASM"));
 const STANDALONE: &[u8] = include_bytes!(env!("TRIANGLE_STANDALONE_WASM"));
-const LIBRARY: &[u8] = include_bytes!(env!("SDK_LIBRARY_WASM"));
+const LIBRARY: &[u8] = include_bytes!(env!("BASE_LIBRARY_WASM"));
 const TRIANGLE: &str = "5254d0a5-ae87-4afe-8458-50fde9cc0d2b";
 
 #[test]

@@ -197,13 +197,13 @@ crate with a library use only their root file, or the root's whole directory
 when it is a `main.rs` in a subdirectory below `src/` or `examples/`.
 Binary-only crates use the library's source rules.
 Roots come from `crates.bzl`, including block-app's `src/main.rs` library and
-`src/desktop.rs` binary. The wasm SDK and editors use the same library rules,
+`src/desktop.rs` binary. The plugin libraries and editors use the same library rules,
 and plugin tests use the test rules; editors also include `manifest.json`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
-libraries `DEFAULT_LIBRARIES` names unless `libraries` says otherwise
-(guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm `:test`. A
+libraries `DEFAULT_LIBRARIES` names (base and beui) unless `libraries` says
+otherwise (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm `:test`. A
 library is one `wasm_library(module, libraries)` call, which names every
 library under it. The app picks up every editor by itself.
 
@@ -300,7 +300,7 @@ turns.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
 | `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
-| `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
+| `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their libraries; C with `-fPIC`) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 | `wasi_html` | the WASI sysroot | rust-lld (crates on beui's HTML core, in the browser) |
 | `linux_x86_64_html` | `buck/sysroot:amd64` | lld (crates on beui's HTML core, on the host: server rendering, string tests) |

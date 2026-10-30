@@ -1,5 +1,5 @@
 // The standalone guest (src/tests/standalone.wat) in a browser: a plugin with
-// a memory of its own that is not shared, no SDK, no WASI and no threads,
+// a memory of its own that is not shared, no library, no WASI and no threads,
 // booted by block-app's plugin.js against block-gpu-shim in this worker, as
 // a plugin's worker boots one. It paints its surface orange, which the shim
 // exports as a bitmap that is read back here.

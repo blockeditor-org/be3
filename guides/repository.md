@@ -5,8 +5,9 @@ that build on it. VISION.md says why each part exists.
 
 ## The product
 
-- The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
-  SDK (`block-*`), with the vocabulary beui and the protocol share (`ui-types`,
+- The block stack (`be-*`), beui (`beui*`), block-app, the plugin API and
+  framework (`block-*`) and the libraries plugins are linked against
+  (`plugin-library-base` and `plugin-library-beui`), with the vocabulary beui and the protocol share (`ui-types`,
   and below it, with no geometry, `ui-keys` and `ui-preferences`).
 - block-app is the binary on top of its parts, each a crate of its own so they
   build in parallel: `block-app-base` (the frame host, notices, the panic guard,
