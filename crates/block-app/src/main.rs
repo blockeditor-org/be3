@@ -2539,8 +2539,30 @@ impl BlockApp {
         match command {
             ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
             ShellCommand::Leave => self.leaving = Some(id),
+            ShellCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             ShellCommand::CloseEditor => self.close_editor(id),
         }
+    }
+
+    fn close_itself(&mut self, id: Uuid) {
+        if self.shell != Some(id) {
+            let parent = self.editors.parent_of(id);
+            if let Some(handler) = self.handler_for(parent, ShellRequest::Dialog)
+                && handler != id
+            {
+                self.with_editor(handler, |handler| handler.show_dialog(id, ShellDialog::Close));
+            }
+            return;
+        }
+        #[cfg(target_os = "linux")]
+        if self.login_session.is_some() {
+            self.request_power(
+                block_plugin_api::PowerAction::LogOut,
+                login_session::Trigger::Menu,
+            );
+            return;
+        }
+        ui::send(ui::UiCommand::CloseApp);
     }
 
     fn simulate_access(&mut self, id: Uuid, access: AccessLevel) {

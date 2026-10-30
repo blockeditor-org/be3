@@ -78,8 +78,8 @@ pub fn saved_windows(state: &ViewState) -> Vec<KeptWindow> {
         .unwrap_or_default()
 }
 
-pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
-    let saved: SavedLayout = state.value()?;
+pub(crate) fn restore(state: &ViewState) -> Result<Restored, String> {
+    let saved: SavedLayout = state.read().map_err(|error| error.to_string())?;
     let referenced = |index: usize| state.refs.get(index).copied().filter(|id| !id.is_nil());
     let tabs = saved
         .tabs
@@ -89,7 +89,7 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
             Some((TabId::new(tab.tab), (item, referenced(tab.view)?)))
         })
         .collect();
-    Some(Restored {
+    Ok(Restored {
         dock: saved.dock,
         next_tab: saved.next_tab,
         files: referenced(saved.files),

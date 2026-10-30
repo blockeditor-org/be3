@@ -26,7 +26,11 @@ impl ViewState {
     }
 
     pub fn value<T: DeserializeOwned>(&self) -> Option<T> {
-        postcard::from_bytes(&self.bytes).ok()
+        self.read().ok()
+    }
+
+    pub fn read<T: DeserializeOwned>(&self) -> Result<T, postcard::Error> {
+        postcard::from_bytes(&self.bytes)
     }
 }
 

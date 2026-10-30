@@ -245,3 +245,13 @@ windows in `WindowsWatch` and shows them as it shows any window; the desktop plu
 names window tabs by `HostWindowId`, which the host keeps, so a restored layout puts
 each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
 panel from the Apps panel's Menu and press Crash beside `be3.desktop`.
+
+## A layout that cannot be read
+
+When the saved layout (the `layout` view state) does not decode, the desktop starts nothing from it
+and saves nothing over it: block-shell's notice (`workspace.layout`, see guides/the_new_block_stack.md,
+View state) offers Reset layout, Exit and Copy report, and every window and placeholder it named stays
+in the saved bytes until the person resets. Exit asks the host to close the shell itself; in a login
+session that is Log out (programs are asked to close, then block-app exits and the session ends),
+elsewhere block-app closes as its window's close button does. The programs already running are shown
+behind the notice as live windows, but are not saved until a reset.

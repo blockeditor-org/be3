@@ -51,6 +51,7 @@ mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens;
+mod an_unreadable_layout_is_kept_until_the_person_resets_it;
 mod back_asks_a_creation_dialog_to_dismiss_itself_first;
 mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
 mod block_type_colors_are_shown_on_a_phone;
@@ -67,6 +68,7 @@ mod on_a_phone_tapping_a_files_name_runs_its_rename;
 mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
 mod on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list;
 mod on_a_wide_phone_the_more_sheet_fills_the_screen_width;
+mod resetting_an_unreadable_layout_starts_afresh_and_saves_it;
 mod revision_history_follows_the_active_file_and_previews_it;
 mod revision_history_has_no_file_for_a_native_window;
 mod revision_history_keeps_its_list_in_place_while_a_save_reloads_it;
@@ -279,6 +281,13 @@ fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixtu
     }
     fixture.settle();
     (fixture, opened)
+}
+
+fn unreadable_layout() -> ViewState {
+    ViewState {
+        bytes: vec![0xff; 6],
+        refs: vec![Uuid::from_u128(0x3a_00f1)],
+    }
 }
 
 fn profile(fixture: &Fixture) -> EditorView {

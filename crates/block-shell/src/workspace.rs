@@ -93,6 +93,7 @@ pub struct Workspace {
     kept: Signal<Kept>,
     desk: Memo<kept::Desk>,
     held: Signal<bool>,
+    unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
@@ -156,6 +157,7 @@ impl Workspace {
             kept,
             desk,
             held,
+            unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
         };
@@ -437,6 +439,17 @@ impl Workspace {
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+                ShellDialog::Close => {
+                    let showing: Vec<TabId> = self.tabs.with_untracked(|tabs| {
+                        tabs.iter()
+                            .filter(|(_, item)| item.id == block)
+                            .map(|(tab, _)| *tab)
+                            .collect()
+                    });
+                    for tab in showing {
+                        self.close(tab);
+                    }
+                }
             }
         }
         for panel in self.editor.take_panel_requests() {
@@ -643,7 +656,33 @@ impl Workspace {
             .as_ref()
             .map(saved::restore_titles)
             .unwrap_or_default();
-        untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
+        match layout.as_ref().map(saved::restore).transpose() {
+            Ok(restored) => untrack(|| self.adopt(restored)),
+            Err(error) => {
+                let bytes = layout.map_or(0, |layout| layout.bytes.len());
+                self.unreadable.set(Some(format!(
+                    "The saved layout of session {} could not be read: {error}\n\nIt holds {bytes} bytes, kept unchanged until the layout is reset.",
+                    self.editor.block_id()
+                )));
+            }
+        }
+    }
+
+    pub fn unreadable_layout(&self) -> Memo<Option<String>> {
+        let unreadable = self.unreadable;
+        create_memo(move || unreadable.get())
+    }
+
+    pub fn reset_layout(&self) {
+        if self.unreadable.with_untracked(Option::is_none) {
+            return;
+        }
+        untrack(|| self.adopt(None));
+        self.unreadable.set(None);
+    }
+
+    pub fn exit(&self) {
+        self.host().close_editor(self.editor.block_id());
     }
 
     fn adopt(&self, restored: Option<saved::Restored>) {
@@ -723,7 +762,8 @@ impl Workspace {
             }),
             false => Vec::new(),
         };
-        if !inner.restored.get() || self.held.get() {
+        let unreadable = self.unreadable.with(Option::is_some);
+        if !inner.restored.get() || self.held.get() || unreadable {
             return;
         }
         let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);

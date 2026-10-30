@@ -1679,6 +1679,17 @@ workspace-ui lays them out as Files beside a pane of tabs, and the desktop plugi
 floats every block in a window of its own over an empty main pane, with a bar
 along the bottom for the app menu, the sessions to open and the time.
 
+The shell's layout is the `layout` view state of its session (`saved::SavedLayout`,
+postcard). One that does not decode is never replaced silently: `Workspace` builds
+nothing from it, saves nothing (`unreadable_layout()` holds the report), and
+`WorkspaceDialogs` shows an alert (`workspace.layout`) with Copy report, Exit and
+Reset layout. Reset starts a fresh layout and saves it over the old bytes. Exit
+(`Workspace::exit`) sends `close-editor` for the shell's own block: block-app
+closes the app for the session it shows itself (logging out in a login
+session), and for a session shown in a window of another shell routes
+`shell-dialog::close` to that shell, which closes the tab. Either way the saved
+bytes stay for a build that can read them.
+
 An editor learns its view block from `Open { view_block }`, which a parent sets
 with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
 `editor.set_view_state(key, state)` read and write it; writes skip the block's
