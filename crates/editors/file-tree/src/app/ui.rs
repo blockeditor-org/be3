@@ -129,7 +129,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             if place.closed {
                 tree.toggle(&place.key, Some(place.id), false);
             }
-            add_to_section(editor, picker, place.id, node_anchor(&button));
+            add_to_section(editor, picker, place.id, button);
         }
     };
     let folded = tree.nothing_open();
@@ -687,7 +687,7 @@ fn glyph_size() -> Memo<TextSize> {
     })
 }
 
-pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<Rect>) {
+pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: impl Into<block_editor_beui::PickAnchor>) {
     picker.open(
         editor,
         id,
