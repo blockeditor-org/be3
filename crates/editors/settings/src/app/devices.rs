@@ -114,6 +114,7 @@ fn described(screens: &BTreeSet<String>) -> Vec<Described> {
             format!("{percent}%")
         }),
         display(DisplaySettings::rotate_in_bar_setting(), on_off),
+        display(DisplaySettings::keyboard_in_bar_setting(), on_off),
         display(DisplaySettings::screen_off_setting(), |off| {
             screen_off_label(*off)
         }),

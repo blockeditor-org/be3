@@ -1503,8 +1503,8 @@ rotation: four tiles, each a little screen drawn turned by that rotation less th
 one the host reports now, so the tile that looks upright to the person holding the
 device is the one to pick, named Landscape, Portrait and their flipped turns from
 whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
-with the desktop plugin's bar), a Screens section with the switch for the bar's rotate
-button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
+with the desktop plugin's bar), a Screens section with the switches for the bar's rotate
+and on-screen keyboard buttons (`display.rotate-in-bar`, `display.keyboard-in-bar`) once the host offers `Displays`, and Power and lock only
 once it offers `Power`, which only a login session publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
 likewise only a login session publishes, and says so otherwise.
@@ -1608,8 +1608,10 @@ A device's class is known before its profile is made: block-app's
 `root_settings::device_class` says E-paper tablet when the session found an e-paper
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
-place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-paper theme,
-instant motion, 150% scale and rotate button; never when the screens go off, nor a rotation).
+place (`DeviceClass::display_defaults`: the touch classes Tablet and E-paper tablet put the
+rotate and keyboard buttons on the bar, and the E-paper tablet adds its E-paper theme, instant
+motion and 150% scale; Desktop and Phone have none, since a phone never shows the desktop's bar
+and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
 (the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and

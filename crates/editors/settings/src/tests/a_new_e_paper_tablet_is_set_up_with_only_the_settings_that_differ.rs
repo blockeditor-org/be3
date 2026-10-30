@@ -16,6 +16,7 @@ fn a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ() {
     );
     assert!(setup.shows("setup.differs.scale"));
     assert!(setup.shows("setup.differs.rotate-in-bar"));
+    assert!(setup.shows("setup.differs.keyboard-in-bar"));
     assert!(
         !setup.shows("setup.differs.theme"),
         "a default that matches every device is not listed"

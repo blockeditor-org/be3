@@ -15,6 +15,7 @@ fn using_my_usual_settings_removes_what_the_kind_kept_here() {
     let here = setup.here();
     assert_eq!(here.scale_percent, None);
     assert_eq!(here.rotate_in_bar, None);
+    assert_eq!(here.keyboard_in_bar, None);
     assert_eq!(
         here.theme,
         Some(ThemeKind::EPaper),
