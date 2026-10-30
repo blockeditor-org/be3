@@ -215,12 +215,59 @@ def linked_plugin(module, libraries, rustc_flags = []):
         visibility = ["PUBLIC"],
     )
 
+# How an editor's module is linked. libraries = None (the default) links it
+# against the plugin SDK; libraries = [] links every crate it uses into it, a
+# standalone plugin (guides/plugin_sdk.md, "The raw plugin interface"): a WASI
+# reactor, whose _initialize (wasi-libc's crt1-reactor.o) sets up libc's main
+# thread and runs the constructors, and which the host instantiates as it is.
+# Naming libraries is plans/plugin_libraries.md's next step.
+def _editor_link(libraries):
+    if libraries == None:
+        return ["--be3-plugin=$(location {})".format(PLUGIN_SDK)], []
+    if libraries:
+        fail("an editor is linked against the plugin SDK (libraries = None) or standalone (libraries = []); naming libraries is not built yet")
+    return [], [
+        "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/crt1-reactor.o",
+        "-Clink-arg=--export=_initialize",
+    ]
+
+# The package's editor linked as :<name>, its module named module.wasm: what
+# editor() makes :module with, and a second build of the same editor linked
+# another way, such as triangle's :standalone.
+def editor_module(name, module, libraries = None, extra_deps = [], visibility = ["PUBLIC"]):
+    facts = cargo_wasm_facts()
+    linker_flags, rustc_flags = _editor_link(libraries)
+    library = "wasm" if name == "module" else name + "-wasm"
+    native.rust_library(
+        name = library,
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps + extra_deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
+        linker_flags = linker_flags,
+        mapped_srcs = cargo_manifest_sources(),
+        preferred_linkage = "shared",
+        rustc_flags = plugin_exports + rustc_flags + dev_only(["-Copt-level=0"]),
+        srcs = cargo_library_sources() + ["manifest.json"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        visibility = visibility,
+    )
+    wasi_module(
+        name = name,
+        library = ":" + library,
+        module = module,
+        visibility = visibility,
+    )
+
 # An editor: the guest cdylib, :wasm (wasm32 only; a plugin is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
-# A plugin is linked against the plugin SDK. types is the plugin's type module
+# A plugin is linked against the plugin SDK, or as libraries says
+# (editor_module above). types is the plugin's type module
 # (a wasm32_module, such as checklist's //crates/editors/checklist/types:module),
 # which :types names for the app to stage beside :module.
 #
@@ -238,28 +285,12 @@ def linked_plugin(module, libraries, rustc_flags = []):
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through block-ui-test.
-def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None):
-    facts = cargo_wasm_facts()
-    native.rust_library(
-        name = "wasm",
-        crate = facts.crate,
-        crate_root = facts.crate_root,
-        deps = facts.deps + extra_deps,
-        edition = facts.edition,
-        env = facts.env,
-        features = facts.features,
-        linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)],
-        mapped_srcs = cargo_manifest_sources(),
-        preferred_linkage = "shared",
-        rustc_flags = plugin_exports + dev_only(["-Copt-level=0"]),
-        srcs = cargo_library_sources() + ["manifest.json"],
-        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
-        visibility = visibility,
-    )
-    wasi_module(
+def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+    editor_module(
         name = "module",
-        library = ":wasm",
         module = module,
+        libraries = libraries,
+        extra_deps = extra_deps,
         visibility = visibility,
     )
     native.export_file(

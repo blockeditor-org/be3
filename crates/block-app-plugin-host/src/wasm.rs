@@ -171,3 +171,6 @@ fn produced(plugin: &mut Plugin, took: StepTime) -> Produced<PresentedTexture> {
         took,
     }
 }
+
+#[cfg(test)]
+mod tests;

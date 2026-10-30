@@ -1,6 +1,15 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "editor", "editor_module")
 
 editor(
     module = "triangle",
     types = "//crates/editors/triangle/types:module",
+)
+
+# The same triangle with every crate it uses linked into it, a standalone
+# plugin (guides/plugin_sdk.md, "The raw plugin interface"), which
+# block-wasm-host's tests load and paint beside :module.
+editor_module(
+    name = "standalone",
+    libraries = [],
+    module = "triangle",
 )
