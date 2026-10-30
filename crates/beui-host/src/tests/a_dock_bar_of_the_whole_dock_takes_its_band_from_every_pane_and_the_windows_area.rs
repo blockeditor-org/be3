@@ -40,7 +40,10 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-                <DockBar id=9u64 placement={DockBarPlacement::Beside(DockEdge::Bottom)}>
+                <DockBar
+                    id=9u64
+                    placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
+                >
                     <TestToolBar />
                 </DockBar>
             </dock::styled::Docking>
@@ -51,7 +54,7 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
-    let bar = harness.rect(harness.find("bar.9"));
+    let bar = harness.rect(harness.find("dock.bar.band.bottom"));
     assert!(
         bar.left().abs() < 0.5
             && (bar.right() - WIDE_VIEWPORT.x).abs() < 0.5
@@ -107,10 +110,10 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
     harness.frame(Vec::new());
     assert_eq!(
         layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Left)),
+        Some(DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center)),
         "dragged to the dock's left edge, the bar docks beside it"
     );
-    let bar = harness.rect(harness.find("bar.9"));
+    let bar = harness.rect(harness.find("dock.bar.band.left"));
     let stage = harness.rect(harness.find("content.3"));
     assert!(
         stage.left() >= bar.right() - 0.5 && (bar.height() - WIDE_VIEWPORT.y).abs() < 0.5,
@@ -122,13 +125,16 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
     harness.frame(Vec::new());
     assert_eq!(
         layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Bottom))
+        Some(DockBarPlacement::Beside(
+            DockEdge::Bottom,
+            DockAlign::Center
+        ))
     );
     layout.restore(saved);
     harness.frame(Vec::new());
     assert_eq!(
         layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Left)),
+        Some(DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center)),
         "the dock's bar is saved and restored with the layout"
     );
 }

@@ -9,7 +9,10 @@ fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
     let requests = [
         DockRequest::PlaceBar(DockBarPlace {
             bar: DockTabPath::own(7),
-            placement: Some(DockBarPlacement::Beside(DockEdge::Right)),
+            placement: Some(DockBarPlacement::Beside(DockBarEdge {
+                edge: DockEdge::Right,
+                align: DockAlign::Center,
+            })),
         }),
         DockRequest::PlaceBar(DockBarPlace {
             bar: DockTabPath::own(7),

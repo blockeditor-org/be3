@@ -1,7 +1,8 @@
 use super::*;
-use beui::dock::styled::{DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::styled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use beui::dock::unstyled::DockOutsidePlace as Outside;
 use block_plugin_api::{
+    DockAlign, DockBarEdge,
     DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
     DockMessage, DockOutside, DockOutsidePlace, DockPane, DockPlacedBar, DockTabPath, DockTree,
     DockUpdate, Rect, ViewId,
@@ -73,7 +74,10 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: Some(DockTabPath::own(stage)),
-                    placement: DockBarPlacement::Beside(DockEdge::Left),
+                    placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ }),
                 }],
                 outside: vec![DockOutside {
                     tab: DockTabPath::own(notes),
@@ -95,7 +99,7 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
     let (_alone, _, layout) = standalone(kept, false);
     assert_eq!(
         layout.bar_placement(&3),
-        Some(Placement::Beside(Edge::Left)),
+        Some(Placement::Beside(Edge::Left, Align::Center)),
         "a bar moved while joined is where it was moved to"
     );
     let notes = layout.tab_of(&2).expect("the notes tab is declared");

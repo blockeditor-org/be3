@@ -1,5 +1,6 @@
 use super::*;
 use block_plugin_api::{
+    DockAlign, DockBarEdge,
     DockBar, DockBarPlacement, DockDeclaration, DockDeclaredChild, DockEdge, DockHold, DockItem,
     DockItemKind, DockMessage, DockPane, DockTab, DockTabPath, DockTree, DockUpdate, Size,
 };
@@ -43,7 +44,10 @@ fn declared() -> DockDeclaration {
             key: "apps".to_owned(),
             kind: "desktop/apps".to_owned(),
             owner: None,
-            placement: DockBarPlacement::Beside(DockEdge::Bottom),
+            placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Bottom,
+ align: DockAlign::Center,
+ }),
             size: Size {
                 width: 100.0,
                 height: 20.0,
@@ -82,8 +86,9 @@ fn a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it() {
     assert_eq!(
         state.bar_placement(*bar),
         Some(beui::dock::unstyled::DockBarPlacement::Beside(
-            beui::dock::unstyled::DockEdge::Bottom
-        ))
+ beui::dock::unstyled::DockEdge::Bottom,
+ beui::dock::unstyled::DockAlign::Center,
+ ))
     );
     let hosted = dock_messages(&mut session)
         .into_iter()

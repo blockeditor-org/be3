@@ -10,7 +10,10 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
         key: "apps".into(),
         kind: "desktop/apps".to_owned(),
         owner: None,
-        placement: DockBarPlacement::Beside(DockEdge::Bottom),
+        placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Bottom,
+ align: DockAlign::Center,
+ }),
         size: Size {
             width: 40.0,
             height: 40.0,
@@ -40,7 +43,10 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
             bars: vec![DockPlacedBar {
                 bar,
                 owner: Some(side),
-                placement: DockBarPlacement::Beside(DockEdge::Top),
+                placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Top,
+ align: DockAlign::Center,
+ }),
             }],
             outside: Vec::new(),
         },
@@ -62,7 +68,10 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
         [DockPlacedBar {
             bar: DockTabPath::own(6),
             owner: None,
-            placement: DockBarPlacement::Beside(DockEdge::Top),
+            placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Top,
+ align: DockAlign::Center,
+ }),
         }],
         "the child hears it back as its dock's own"
     );

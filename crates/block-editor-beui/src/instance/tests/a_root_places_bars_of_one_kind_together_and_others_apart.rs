@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarOver, DockBarPlace, DockBarPlacement, DockChildRequest,
+    DockAlign, DockBar, DockBarEdge, DockBarPlace, DockBarPlacement, DockChildRequest,
     DockDeclaration, DockDeclaredChild, DockEdge, DockItem, DockItemKind, DockPane, DockRequest,
     DockTab, DockTabPath, DockTree, DockUpdate, Size,
 };
@@ -11,7 +11,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
         key: key.to_owned(),
         kind: kind.to_owned(),
         owner: Some(DockTabPath::own(5)),
-        placement: DockBarPlacement::Over(DockBarOver {
+        placement: DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
@@ -86,7 +86,10 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
             owner: Vec::new(),
             request: DockRequest::PlaceBar(DockBarPlace {
                 bar: DockTabPath::own(7),
-                placement: Some(DockBarPlacement::Beside(DockEdge::Left)),
+                placement: Some(DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ })),
             }),
         })]);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
@@ -100,12 +103,12 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
         .into_iter()
         .map(|bar| state.bar_placement(bar))
         .collect();
-    use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
+    use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
     assert_eq!(
         placements,
         vec![
-            Some(Placement::Beside(Edge::Left)),
-            Some(Placement::Beside(Edge::Left)),
+            Some(Placement::Beside(Edge::Left, Align::Center)),
+            Some(Placement::Beside(Edge::Left, Align::Center)),
             Some(Placement::Over(
                 Edge::Top,
                 beui::dock::unstyled::DockAlign::Center

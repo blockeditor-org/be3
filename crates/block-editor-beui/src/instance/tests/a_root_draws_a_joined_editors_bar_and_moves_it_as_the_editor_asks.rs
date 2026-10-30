@@ -1,7 +1,7 @@
 use super::*;
-use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    ChildContent, ChildId, DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlace,
+    ChildContent, ChildId, DockAlign, DockBar, DockBarMove, DockBarEdge, DockBarPlace,
     DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild, DockDragStage,
     DockEdge, DockItem, DockItemKind, DockMessage, DockPane, DockRequest, DockTab, DockTabPath,
     DockTree, DockUpdate, Pos2, Rect, Size,
@@ -46,7 +46,7 @@ fn barred() -> DockDeclaration {
             key: "tools".to_owned(),
             kind: "canvas/tools".to_owned(),
             owner: Some(DockTabPath::own(5)),
-            placement: DockBarPlacement::Over(DockBarOver {
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
@@ -129,10 +129,13 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         child,
         DockRequest::PlaceBar(DockBarPlace {
             bar: DockTabPath::own(9),
-            placement: Some(DockBarPlacement::Beside(DockEdge::Left)),
+            placement: Some(DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ })),
         }),
     );
-    assert_eq!(placement(), Some(Placement::Beside(Edge::Left)));
+    assert_eq!(placement(), Some(Placement::Beside(Edge::Left, Align::Center)));
     let hosted = dock_messages(&mut session)
         .into_iter()
         .filter_map(|message| match message {
@@ -147,7 +150,10 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     assert_eq!(hosted.layout.bars[0].bar, DockTabPath::own(9));
     assert_eq!(
         hosted.layout.bars[0].placement,
-        DockBarPlacement::Beside(DockEdge::Left)
+        DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ })
     );
 
     let bar = body(&session, child, 9);
@@ -172,7 +178,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     );
     assert_eq!(
         placement(),
-        Some(Placement::Beside(Edge::Left)),
+        Some(Placement::Beside(Edge::Left, Align::Center)),
         "the bar stays put while the root carries it"
     );
     ask(
@@ -180,5 +186,5 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         child,
         moved(target - bar.min.to_vec2(), DockDragStage::Drop),
     );
-    assert_eq!(placement(), Some(Placement::Beside(Edge::Bottom)));
+    assert_eq!(placement(), Some(Placement::Beside(Edge::Bottom, Align::Center)));
 }

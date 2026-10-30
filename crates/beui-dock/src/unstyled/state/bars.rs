@@ -64,7 +64,7 @@ impl DockAlign {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DockBarPlacement {
     Over(DockEdge, DockAlign),
-    Beside(DockEdge),
+    Beside(DockEdge, DockAlign),
     Window {
         edge: DockEdge,
         #[serde(with = "pos")]
@@ -76,7 +76,7 @@ impl DockBarPlacement {
     pub fn edge(self) -> DockEdge {
         match self {
             DockBarPlacement::Over(edge, _)
-            | DockBarPlacement::Beside(edge)
+            | DockBarPlacement::Beside(edge, _)
             | DockBarPlacement::Window { edge, .. } => edge,
         }
     }
@@ -85,18 +85,30 @@ impl DockBarPlacement {
         self.edge().direction()
     }
 
+    pub fn align(self) -> DockAlign {
+        match self {
+            DockBarPlacement::Over(_, align) | DockBarPlacement::Beside(_, align) => align,
+            DockBarPlacement::Window { .. } => DockAlign::Center,
+        }
+    }
+
+    pub fn is_beside(self) -> bool {
+        matches!(self, DockBarPlacement::Beside(..))
+    }
+
     pub fn is_window(self) -> bool {
         matches!(self, DockBarPlacement::Window { .. })
     }
 
     pub fn name(self) -> String {
-        match self {
-            DockBarPlacement::Over(edge, align) => match align.side(edge) {
-                Some(side) => format!("over.{}.{side}", edge.name()),
-                None => format!("over.{}", edge.name()),
-            },
-            DockBarPlacement::Beside(edge) => format!("beside.{}", edge.name()),
-            DockBarPlacement::Window { .. } => "window".to_owned(),
+        let (kind, edge, align) = match self {
+            DockBarPlacement::Over(edge, align) => ("over", edge, align),
+            DockBarPlacement::Beside(edge, align) => ("beside", edge, align),
+            DockBarPlacement::Window { .. } => return "window".to_owned(),
+        };
+        match align.side(edge) {
+            Some(side) => format!("{kind}.{}.{side}", edge.name()),
+            None => format!("{kind}.{}", edge.name()),
         }
     }
 

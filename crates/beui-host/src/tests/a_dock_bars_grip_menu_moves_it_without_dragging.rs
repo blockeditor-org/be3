@@ -21,7 +21,10 @@ fn a_dock_bars_grip_menu_moves_it_without_dragging() {
     harness.frame(Vec::new());
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Bottom))
+        Some(DockBarPlacement::Beside(
+            DockEdge::Bottom,
+            DockAlign::Center
+        ))
     );
 
     harness.click(harness.center(harness.find("dock.bar.9.grip")));

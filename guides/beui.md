@@ -2961,16 +2961,21 @@ tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
 `DockEdge` and a `DockAlign` along it (its start, its centre or its end, so the
 corners too; Docking's `bar_margin` in from it, the body keeping its full size;
 bars at different alignments of one edge sit side by side, the centred ones
-moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge)`, a band the whole length of that edge of the
-pane that the body gives up room for (the styled Docking draws it with
-`bar_band`: the band's fill and one line on the side facing the body), or `Window { edge, origin }`, popped out into a dock window sized to
+moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge, align)`, docked in the band the whole length of
+that edge of the pane that the body gives up room for, which every bar beside that edge shares
+(as thick as its thickest bar; its bars sit along it by alignment as floating ones do, the
+centred ones moving aside only as far as the others need, and bars at one alignment line up
+along the edge, so a bar at the start sits right after another; the styled Docking draws the
+band with `bar_band`, which is handed the whole band: its fill and one line on the side facing
+the body), or `Window { edge, origin }`, popped out into a dock window sized to
 the bar, `origin` being relative to the dock. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
-its edge. Several bars on one edge of a pane stack away from it, the
-nearest first: a joined layer's bars after those of the layers around it (a tab
+its edge. Several bars at one placement of a pane's edge come in an order, which
+floating bars stack away from the edge in, the nearest first, and docked bars follow along
+the edge from its start: a joined layer's bars after those of the layers around it (a tab
 that hosts a joined dock lends its bars to the first pane of that dock, so the
-outer editor's bar sits nearer the edge than the inner one's), and one layer's
+outer editor's bar comes before the inner one's), and one layer's
 bars in the order kept in `DockState`, which starts as the order they were
 declared in and which a drop changes. The placements and that order are part of
 `DockState` (`bars`, `bars_of(owner)`, `bar_owner`, `bar_placement`,
@@ -2983,20 +2988,22 @@ items out, across for the top and bottom edges) are tracked reads, `place` and
 `pop_out` move it, `menu()` is the radio menu of every placement, and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
-carries the drag: over the tab's body it draws Docking's `bar_target` for the 16
-placements (the outer band of the pane, past any bars already beside that edge,
+carries the drag: over the tab's body it draws Docking's `bar_target` for the 24
+placements (the outer band of the pane, through any band already beside that edge,
 docks the bar beside it, the next band in, or any bar already floating there,
 floats it over it, at the start, centre or end by which third of the edge the
-pointer is over), and dropped away from the pane it pops out where it was let
-go. On an edge that already holds bars the drop slots the bar in among its own
-layer's bars by where the pointer is against their middles, and the highlight
-shows that slot. The bars floating over an edge are kept clear together
+pointer is over, or, docking, at the alignment of the bars on the band the pointer is
+over), and dropped away from the pane it pops out where it was let
+go. At a placement that already holds bars the drop slots the bar in among its own
+layer's bars by where the pointer is against their middles (across the edge for
+floating bars, along it for docked ones), and the highlight shows that slot. The bars floating over an edge are kept clear together
 (`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
 its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
-submenu `grip.dock.bar.over.ends` the ends of each edge, `over.top.left`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
+`over.top.left`, `beside.bottom.right`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
@@ -3019,7 +3026,7 @@ asks the root the same way.
 A `DockBar` declared without a `parent` belongs to the dock itself (`DockState::bars_of(None)`,
 `is_dock_bar`): `<DockBar id placement>body</DockBar>`. It shows whichever tab is
 shown (`is_bar_shown` is always true for it; `bar_tab` is none) and wraps the whole dock
-rather than a pane: `Beside(edge)` is a band along that edge of the dock that every pane and
+rather than a pane: `Beside(edge, align)` sits in a band along that edge of the dock that every pane and
 the area floating dock windows live in give up room for (the dock's `rect`, which windows
 open in and are clamped to, is what is left; a fullscreen tab and the stacked/tiled switch
 still use the dock's whole rect), `Over(edge, align)` floats over the whole dock's edge

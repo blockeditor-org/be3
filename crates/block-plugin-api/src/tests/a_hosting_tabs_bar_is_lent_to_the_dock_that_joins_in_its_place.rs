@@ -9,7 +9,10 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         key: "toolbar".into(),
         kind: "canvas/toolbar".to_owned(),
         owner: Some(DockTabPath::own(3)),
-        placement: DockBarPlacement::Beside(DockEdge::Top),
+        placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Top,
+ align: DockAlign::Center,
+ }),
         size: Size {
             width: 200.0,
             height: 40.0,
@@ -39,7 +42,10 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
             bars: vec![DockPlacedBar {
                 bar: DockTabPath::own(8),
                 owner: Some(side),
-                placement: DockBarPlacement::Beside(DockEdge::Left),
+                placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ }),
             }],
             outside: Vec::new(),
         },
@@ -56,7 +62,10 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         [DockPlacedBar {
             bar: DockTabPath::own(8),
             owner: Some(DockTabPath::own(3)),
-            placement: DockBarPlacement::Beside(DockEdge::Left),
+            placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ }),
         }],
         "its owner hears it back on its own tab"
     );

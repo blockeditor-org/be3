@@ -1638,16 +1638,17 @@ fn edge_from_api(edge: api::DockEdge) -> DockEdge {
 }
 
 fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
+    let at = |edge: DockEdge, align: DockAlign| api::DockBarEdge {
+        edge: edge_to_api(edge),
+        align: match align {
+            DockAlign::Start => api::DockAlign::Start,
+            DockAlign::Center => api::DockAlign::Center,
+            DockAlign::End => api::DockAlign::End,
+        },
+    };
     match placement {
-        DockBarPlacement::Over(edge, align) => api::DockBarPlacement::Over(api::DockBarOver {
-            edge: edge_to_api(edge),
-            align: match align {
-                DockAlign::Start => api::DockAlign::Start,
-                DockAlign::Center => api::DockAlign::Center,
-                DockAlign::End => api::DockAlign::End,
-            },
-        }),
-        DockBarPlacement::Beside(edge) => api::DockBarPlacement::Beside(edge_to_api(edge)),
+        DockBarPlacement::Over(edge, align) => api::DockBarPlacement::Over(at(edge, align)),
+        DockBarPlacement::Beside(edge, align) => api::DockBarPlacement::Beside(at(edge, align)),
         DockBarPlacement::Window { edge, origin } => {
             api::DockBarPlacement::Window(api::DockBarWindow {
                 edge: edge_to_api(edge),
@@ -1658,16 +1659,18 @@ fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
 }
 
 fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
+    let align = |at: &api::DockBarEdge| match at.align {
+        api::DockAlign::Start => DockAlign::Start,
+        api::DockAlign::Center => DockAlign::Center,
+        api::DockAlign::End => DockAlign::End,
+    };
     match placement {
-        api::DockBarPlacement::Over(over) => DockBarPlacement::Over(
-            edge_from_api(over.edge),
-            match over.align {
-                api::DockAlign::Start => DockAlign::Start,
-                api::DockAlign::Center => DockAlign::Center,
-                api::DockAlign::End => DockAlign::End,
-            },
-        ),
-        api::DockBarPlacement::Beside(edge) => DockBarPlacement::Beside(edge_from_api(*edge)),
+        api::DockBarPlacement::Over(at) => {
+            DockBarPlacement::Over(edge_from_api(at.edge), align(at))
+        }
+        api::DockBarPlacement::Beside(at) => {
+            DockBarPlacement::Beside(edge_from_api(at.edge), align(at))
+        }
         api::DockBarPlacement::Window(window) => DockBarPlacement::Window {
             edge: edge_from_api(window.edge),
             origin: window.origin,

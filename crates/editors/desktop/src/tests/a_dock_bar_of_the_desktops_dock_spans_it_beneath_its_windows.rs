@@ -1,5 +1,5 @@
 use block_editor_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockSplit, DockTab,
+    DockAlign, DockBar, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockSplit, DockTab,
     DockWindow, Docking, DockingLayout,
 };
 use block_editor_beui::beui::reactive::*;
@@ -49,7 +49,7 @@ impl BeuiApp for BandedApp {
                             </DockTab>
                         </DockPane>
                     </DockWindow>
-                    <DockBar id=9u64 placement={DockBarPlacement::Beside(DockEdge::Bottom)}>
+                    <DockBar id=9u64 placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}>
                         <DockBarSurface @test_id="banded.bar">
                             <DockBarGrip />
                             <Button
@@ -74,7 +74,7 @@ fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
     test.run();
     test.run();
 
-    let bar = test.rect_of("banded.bar");
+    let bar = test.rect_of("dock.bar.band.bottom");
     assert!(
         bar.left() < 0.5
             && (bar.right() - SIZE.x).abs() < 0.5
@@ -98,10 +98,10 @@ fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the app made its dock");
-    layout.place_bar(&9, DockBarPlacement::Beside(DockEdge::Left));
+    layout.place_bar(&9, DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center));
     test.run();
     test.run();
-    let bar = test.rect_of("banded.bar");
+    let bar = test.rect_of("dock.bar.band.left");
     let left = test.rect_of("banded.left");
     assert!(
         (bar.height() - SIZE.y).abs() < 0.5 && left.left() >= bar.right() - 0.5,

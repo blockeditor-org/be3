@@ -1,7 +1,7 @@
 use super::*;
 use crate::unstyled::state::{DockMapping, DockSpecBar, joined_key};
 
-const BOTTOM: DockBarPlacement = DockBarPlacement::Beside(DockEdge::Bottom);
+const BOTTOM: DockBarPlacement = DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center);
 
 fn bar(bar: u64, owner: Option<u64>) -> DockSpecBar {
     DockSpecBar {
@@ -101,7 +101,10 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
         group: &|_| None,
     };
     let mut joined = root.subtree(group, &out);
-    joined.set_bar_placement(TabId::new(21), DockBarPlacement::Beside(DockEdge::Left));
+    joined.set_bar_placement(
+        TabId::new(21),
+        DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center),
+    );
     assert_eq!(
         joined.bars_of(None),
         vec![TabId::new(21)],
@@ -121,7 +124,7 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
     );
     assert_eq!(
         root.bar_placement(TabId::new(31)),
-        Some(DockBarPlacement::Beside(DockEdge::Left))
+        Some(DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center))
     );
     assert_eq!(root.bars_of(None), vec![TabId::new(30)]);
 }

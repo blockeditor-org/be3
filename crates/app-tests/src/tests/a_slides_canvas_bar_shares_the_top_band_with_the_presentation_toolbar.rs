@@ -4,7 +4,7 @@ const TOOLBAR: &str = "GenericContainer #presentation.toolbar at";
 const CANVAS_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 
 #[test]
-fn a_slides_canvas_bar_stacks_with_the_presentation_toolbar() {
+fn a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Presentation");
     app.click("#presentation.add");
@@ -28,16 +28,20 @@ fn a_slides_canvas_bar_stacks_with_the_presentation_toolbar() {
         "and the filmstrip stays"
     );
 
+    app.run(&["resize", "1400x720"]);
     app.click("#infinite-canvas.dock.grip");
     app.click("#grip.dock.bar.beside.top");
     app.run(&["settle"]);
     let toolbar = app.place(TOOLBAR);
     let tools = app.place(CANVAS_BAR);
     assert!(
-        toolbar.1 + toolbar.3 <= tools.1 + 1.0 && tools.1 < toolbar.1 + 2.0 * toolbar.3,
-        "both stand on the top edge, the deck's toolbar (the outer editor's) nearer it, \
-         at {toolbar:?} over {tools:?}"
+        (tools.1 - toolbar.1).abs() < 1.0,
+        "both stand in the one band along the top edge, at {toolbar:?} and {tools:?}"
     );
-    app.snapshot("a_slides_canvas_bar_stacks_with_the_presentation_toolbar");
+    assert!(
+        toolbar.0 + toolbar.2 <= tools.0 + 1.0,
+        "the deck's toolbar, the outer editor's, comes first along it: {toolbar:?} then {tools:?}"
+    );
+    app.snapshot("a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar");
     app.close();
 }

@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlacement, DockCover, DockDragStage,
+    DockAlign, DockBar, DockBarMove, DockBarEdge, DockBarPlacement, DockCover, DockDragStage,
     DockEdge, Pos2, Rect, Size,
 };
 
@@ -75,13 +75,16 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     outer.bars.push(bar(
         3,
         1,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
     ));
     docks.heard("outer", vec![declare(OUTER, Some(outer))]);
-    let moved = DockBarPlacement::Beside(DockEdge::Left);
+    let moved = DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ });
     root_hosts(
         &mut docks,
         vec![DockPlacedBar {
@@ -95,7 +98,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     framer.bars.push(bar(
         8,
         7,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
@@ -140,7 +143,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         vec![DockPlacedBar {
             bar: path(&[FRAME_CHILD], 8),
             owner: Some(path(&[], 1)),
-            placement: DockBarPlacement::Over(DockBarOver {
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
@@ -156,7 +159,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         [DockPlacedBar {
             bar: path(&[], 8),
             owner: Some(path(&[], 7)),
-            placement: DockBarPlacement::Over(DockBarOver {
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center
             }),

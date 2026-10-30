@@ -1,6 +1,7 @@
 use super::*;
-use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
+    DockAlign, DockBarEdge,
     DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout,
     DockMessage, DockPane, DockPlacedBar, DockTabPath, DockTree, DockUpdate,
 };
@@ -39,7 +40,10 @@ fn hosted(bar: u64) -> DockUpdate {
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: None,
-                    placement: DockBarPlacement::Beside(DockEdge::Left),
+                    placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Left,
+ align: DockAlign::Center,
+ }),
                 }],
                 outside: Vec::new(),
             },
@@ -72,7 +76,10 @@ fn a_docked_editors_own_dock_bar_crosses_with_no_owner() {
         panic!("the dock declares its own bar, not {:?}", declaration.bars);
     };
     assert_eq!(bar.owner, None, "a bar of the dock itself names no tab");
-    assert_eq!(bar.placement, DockBarPlacement::Beside(DockEdge::Bottom));
+    assert_eq!(bar.placement, DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Bottom,
+ align: DockAlign::Center,
+ }));
     let id = bar.tab.tab;
 
     session.host().receive_dock_updates(vec![hosted(id)]);
@@ -84,7 +91,7 @@ fn a_docked_editors_own_dock_bar_crosses_with_no_owner() {
         .with(std::cell::Cell::get)
         .expect("the bar's body is built in its own region");
     assert!(control.is_hosted());
-    assert_eq!(control.placement(), Placement::Beside(Edge::Left));
+    assert_eq!(control.placement(), Placement::Beside(Edge::Left, Align::Center));
     assert_eq!(control.direction(), beui::Direction::Vertical);
     let layout = LAYOUT
         .with(std::cell::Cell::get)

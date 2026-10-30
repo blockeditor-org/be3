@@ -877,7 +877,7 @@ interface types {
         origin: pos2,
     }
 
-    /// Where along its edge a floating bar sits: at the edge's start (its
+    /// Where along its edge a bar sits: at the edge's start (its
     /// left, or its top), its centre or its end.
     enum dock-align {
         start,
@@ -885,20 +885,21 @@ interface types {
         end,
     }
 
-    /// A bar floating over `edge` of its owner's body at `align` along it.
-    /// Bars at one edge and alignment stack; bars at different alignments
-    /// sit side by side.
-    record dock-bar-over {
+    /// Which edge of its owner's body a bar sits at, and where along it:
+    /// bars at one edge and alignment line up (floating over it they stack
+    /// away from the edge, docked beside it they sit along it), and bars at
+    /// different alignments sit side by side.
+    record dock-bar-edge {
         edge: dock-edge,
         align: dock-align,
     }
 
-    /// Where a bar sits: floating `over` an edge of its owner's body, in a
-    /// band `beside` the body inside its pane along the whole edge, or in a
-    /// window.
+    /// Where a bar sits: floating `over` an edge of its owner's body, in the
+    /// band `beside` the body inside its pane along that edge, which every
+    /// bar docked there shares, or in a window.
     variant dock-bar-placement {
-        over(dock-bar-over),
-        beside(dock-edge),
+        over(dock-bar-edge),
+        beside(dock-bar-edge),
         window(dock-bar-window),
     }
 

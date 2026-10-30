@@ -18,7 +18,7 @@ fn dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window() {
     harness.frame(Vec::new());
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Right)),
+        Some(DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center)),
         "dropped right at the edge, the bar docks beside the body"
     );
 
@@ -58,7 +58,7 @@ fn dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window() {
     harness.frame(Vec::new());
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Left)),
+        Some(DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center)),
         "a popped out bar docks again when dragged back over its pane"
     );
 }

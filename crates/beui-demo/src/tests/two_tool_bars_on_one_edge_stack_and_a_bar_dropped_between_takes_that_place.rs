@@ -35,15 +35,19 @@ fn two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place() 
     let tools = test.rect_of("bars.tools");
     let style = test.rect_of("bars.style");
     assert!(
-        style.top() >= stage.bottom() && tools.top() >= style.bottom(),
-        "docked along the bottom, the first bar sits nearest the edge: {stage:?} {style:?} {tools:?}"
+        tools.top() >= stage.bottom() && (style.top() - tools.top()).abs() < 1.0,
+        "docked along the bottom, both bars share its one band: {stage:?} {tools:?} {style:?}"
+    );
+    assert!(
+        tools.right() <= style.left() + 0.5,
+        "side by side, the first bar first along the edge: {tools:?} {style:?}"
     );
     test.snapshot("two_tool_bars_docked_along_the_bottom_of_their_stage");
 
     let grip = test.rect_of("bars.style.grip").center();
     test.drag(
         Target::point(grip),
-        Target::point(pos2(stage.center().x, tools.bottom() - 2.0)),
+        Target::point(pos2(tools.left() + 8.0, tools.bottom() - 2.0)),
     );
     test.frame(Vec::new());
     test.settle();
@@ -51,8 +55,8 @@ fn two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place() 
     let tools = test.rect_of("bars.tools");
     let style = test.rect_of("bars.style");
     assert!(
-        tools.top() >= stage.bottom() && style.top() >= tools.bottom(),
-        "dropped past the first bar towards the edge, the second takes its place: {stage:?} {tools:?} {style:?}"
+        style.top() >= stage.bottom() && style.right() <= tools.left() + 0.5,
+        "dropped over the start of the first bar, the second takes its place: {stage:?} {style:?} {tools:?}"
     );
-    test.snapshot("a_tool_bar_dropped_nearer_the_edge_than_another_takes_its_place");
+    test.snapshot("a_tool_bar_dropped_before_another_along_the_edge_takes_its_place");
 }

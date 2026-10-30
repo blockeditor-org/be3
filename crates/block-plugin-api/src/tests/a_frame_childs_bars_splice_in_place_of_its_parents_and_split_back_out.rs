@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DockAlign, DockBarOver};
+use crate::{DockAlign, DockBarEdge};
 
 fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
     DockBar {
@@ -7,7 +7,7 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
         key: key.into(),
         kind: format!("canvas/{key}"),
         owner: Some(DockTabPath::own(owner)),
-        placement: DockBarPlacement::Over(DockBarOver {
+        placement: DockBarPlacement::Over(DockBarEdge {
             edge,
             align: DockAlign::Center,
         }),
@@ -72,7 +72,10 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
                 owner: Some(DockTabPath::own(2)),
-                placement: DockBarPlacement::Beside(DockEdge::Right),
+                placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Right,
+ align: DockAlign::Center,
+ }),
             }],
             outside: Vec::new(),
         },
@@ -102,7 +105,10 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
         [DockPlacedBar {
             bar: DockTabPath::own(7),
             owner: Some(DockTabPath::own(4)),
-            placement: DockBarPlacement::Beside(DockEdge::Right),
+            placement: DockBarPlacement::Beside(DockBarEdge {
+ edge: DockEdge::Right,
+ align: DockAlign::Center,
+ }),
         }]
     );
     assert_eq!(

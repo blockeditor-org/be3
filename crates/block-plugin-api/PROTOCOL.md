@@ -506,9 +506,10 @@ which the root presents as it presents its own dialogs, over the dialog's
 parent, closing it with a `close` of the dialog's `tab`; a popover-style
 dialog is no dock dialog, its owner draws it as an anchored view of its own), a pane's `empty` view, which the root shows
 while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
-(`owner`) and shows while it does, floating over an edge of its body at its
-start, centre or end (`dock-bar-over`), in a band along the whole edge beside
-it, or popped out (`dock-bar-placement`). A bar with no `owner` belongs to the
+(`owner`) and shows while it does, floating over an edge of its body or in
+the band along that edge beside it, at its start, centre or end
+(`dock-bar-edge`; the bars docked on one edge share its band side by side), or
+popped out (`dock-bar-placement`). A bar with no `owner` belongs to the
 declaring dock itself: the host splices it in as a bar of the first tab of the
 group that takes the hosting tab's place (where the hosting tab's own bars are
 lent, `DockDeclaration::splice`), the root gives a child's to the tab hosting it,

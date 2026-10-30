@@ -78,19 +78,23 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
     );
     state.place_bar_at(
         TabId::new(20),
-        DockBarPlacement::Beside(DockEdge::Bottom),
+        DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
         0,
     );
     state.place_bar_at(
         TabId::new(30),
-        DockBarPlacement::Beside(DockEdge::Bottom),
+        DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
         0,
     );
     let bottom: Vec<TabId> = state
         .pane_bars(TabId::new(10))
         .into_iter()
         .filter(|held| {
-            state.bar_placement(*held) == Some(DockBarPlacement::Beside(DockEdge::Bottom))
+            state.bar_placement(*held)
+                == Some(DockBarPlacement::Beside(
+                    DockEdge::Bottom,
+                    DockAlign::Center,
+                ))
         })
         .collect();
     assert_eq!(

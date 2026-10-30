@@ -4370,13 +4370,25 @@ pub(crate) fn DockBarsPage() -> NodeId {
                 <DockPane id="side">
                     <DockTab id=4u64 title="Layers" icon=beui::icons::ICON_LAYERS>
                         <NestedNote
-                            text="The status bar belongs to this page's dock rather than to a tab, so it shows whichever tab is shown. A dock standing alone gives it a band along the whole dock, out of every pane; joined into the demo's dock, as here, the page's tab holds it, and it sits beside the first pane."
+                            text="The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane."
                         />
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <DockBar id=5u64 placement={DockBarPlacement::Beside(DockEdge::Bottom)}>
+            <DockBar
+                id=5u64
+                placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start)}
+            >
                 <DemoToolBar name="status" tools={STATUS_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar
+                id=6u64
+                placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
+            >
+                <DemoToolBar name="pages" tools={PAGE_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar id=7u64 placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End)}>
+                <DemoToolBar name="zoom" tools={ZOOM_TOOLS.to_vec()} />
             </DockBar>
             <DockBar
                 id=2u64
@@ -4403,9 +4415,10 @@ fn BarsStage() -> NodeId {
             <Frame padding=PAGE_PADDING align=Align::Center>
                 <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
                     "This page is a Docking of its own with a bare stage with two tool bars, a side \
-                     pane and a status bar of the whole dock. Drag a bar by its grip to float it over an edge of the stage, to dock it along an edge \
-                     beside the stage, or away from the stage to pop it out into a window. Bars on \
-                     one edge stack, and a bar dropped between or beside them takes that place. The \
+                     pane and three status bars of the whole dock. Drag a bar by its grip to float it over an edge of the stage, to dock it along an edge \
+                     beside the stage, or away from the stage to pop it out into a window. Bars \
+                     floating over one edge stack, bars docked along one edge share its band side \
+                     by side, and a bar dropped between or beside them takes that place. The \
                      grip's menu moves it without dragging."
                 </Text>
             </Frame>
@@ -4422,8 +4435,14 @@ const DRAWING_TOOLS: [(&str, Glyph); 6] = [
     ("Eraser", beui::icons::ICON_ERASER),
 ];
 
-const STATUS_TOOLS: [(&str, Glyph); 3] = [
-    ("Grid", beui::icons::ICON_LAYOUT_GRID),
+const STATUS_TOOLS: [(&str, Glyph); 1] = [("Grid", beui::icons::ICON_LAYOUT_GRID)];
+
+const PAGE_TOOLS: [(&str, Glyph); 2] = [
+    ("Previous page", beui::icons::ICON_CHEVRON_LEFT),
+    ("Next page", beui::icons::ICON_CHEVRON_RIGHT),
+];
+
+const ZOOM_TOOLS: [(&str, Glyph); 2] = [
     ("Zoom out", beui::icons::ICON_ZOOM_OUT),
     ("Zoom in", beui::icons::ICON_ZOOM_IN),
 ];
