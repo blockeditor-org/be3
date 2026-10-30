@@ -24,10 +24,11 @@ pub fn WindowView(
     let rect = rect_held.read_only();
     let catcher = NodeRef::new();
     let popup_catcher = NodeRef::new();
-    let shown_in = use_window().and_then(WindowHandle::real_window);
+    let shown_in = use_window().map(WindowHandle::real);
     windows.mounted(id);
     create_effect(move || {
         let origin = shown_in
+            .and_then(|real| real.get())
             .and_then(|window| with_document(|document| document.context()?.window_origin(window)))
             .map_or(Vec2::ZERO, |origin| origin.to_vec2());
         windows.placed(id, rect.get().translate(origin));

@@ -93,7 +93,7 @@ fn owners_in(window: WindowId, host: Option<AnchorHost>) -> Vec<AnchorOwner> {
 
 pub(crate) fn host_window() -> WindowId {
     use_window()
-        .and_then(WindowHandle::real_window)
+        .and_then(|window| window.real().get_untracked())
         .unwrap_or(WindowId::MAIN)
 }
 
