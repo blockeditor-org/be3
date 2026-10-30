@@ -696,7 +696,10 @@ The contract both keep:
 Measurement is `measure(node) -> ReadSignal<Option<Measured>>` (`rect` in
 window space, `size` in the node's own units), `measure_text(node)` for a
 `Text`'s `TextGeometry`, and `lay_out_text(text, font, layout)` for text not in
-the tree, all described under [Measurement](#measurement). Colours are `Color`s
+the tree, all described under [Measurement](#measurement). On the HTML core
+`measure(node)` is `None` until the frame after the node is first measured, so
+a key handler that measures at event time fails the first time there; anchor an
+overlay to the node (`OverlayAnchor::Node`) instead. Colours are `Color`s
 that may reference declared variables, so both cores and a server-rendered page
 agree on them ([Colours](#colours)).
 

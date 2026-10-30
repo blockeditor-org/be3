@@ -457,17 +457,25 @@ impl Tree {
             .is_some_and(|node| route.nodes.first() == Some(&node));
         if !focused {
             let within = scattered(doc, route);
-            capture.retain(|placed| within(placed.node));
-            bubble.retain(|placed| within(placed.node));
+            capture.retain(|placed| !placed.control && within(placed.node));
+            bubble.retain(|placed| !placed.control && within(placed.node));
             return Self {
                 capture: capture.into_iter().map(|placed| placed.placed).collect(),
                 bubble: bubble.into_iter().map(|placed| placed.placed).collect(),
             };
         }
+        let target = route.nodes.first().copied();
         let along = |placed: Vec<AtNode>| {
             let mut at: HashMap<NodeId, Vec<Placed>> = HashMap::default();
             for placed in placed {
-                at.entry(placed.node).or_default().push(placed.placed);
+                let node = match placed.control && !route.nodes.contains(&placed.node) {
+                    true => match control_above(doc, placed.node) {
+                        Some(control) if Some(control) == target => control,
+                        _ => continue,
+                    },
+                    false => placed.node,
+                };
+                at.entry(node).or_default().push(placed.placed);
             }
             move |node: &NodeId| at.remove(node).unwrap_or_default()
         };
@@ -478,6 +486,17 @@ impl Tree {
             bubble: route.nodes.iter().flat_map(&mut bubble_at).collect(),
         }
     }
+}
+
+fn control_above(doc: &Document, node: NodeId) -> Option<NodeId> {
+    let mut next = doc.arena.parent(node);
+    while let Some(id) = next {
+        if crate::focus::focus_of(doc.arena.get(id)).is_some() {
+            return Some(id);
+        }
+        next = doc.arena.parent(id);
+    }
+    None
 }
 
 fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {

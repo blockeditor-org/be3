@@ -57,11 +57,11 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static MENU_KEYED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static MENU_KEYED: std::cell::RefCell<Option<web_sys::KeyboardEvent>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn watch_menu_key(document: &web_sys::Document) -> [crate::dom::Listener; 2] {
+pub(crate) fn watch_menu_key(document: &web_sys::Document) -> [crate::dom::Listener; 3] {
     let keyed = crate::dom::listen(
         document.as_ref(),
         "keydown",
@@ -72,21 +72,37 @@ pub(crate) fn watch_menu_key(document: &web_sys::Document) -> [crate::dom::Liste
                 Some(beui_types::input::Key::F10) => event.shift_key(),
                 _ => false,
             };
-            MENU_KEYED.with(|keyed| keyed.set(menu));
+            MENU_KEYED.with(|keyed| *keyed.borrow_mut() = menu.then_some(event));
         },
     );
     let pointed = crate::dom::listen(
         document.as_ref(),
         "pointerdown",
         true,
-        |_: web_sys::PointerEvent| MENU_KEYED.with(|keyed| keyed.set(false)),
+        |_: web_sys::PointerEvent| MENU_KEYED.with(|keyed| *keyed.borrow_mut() = None),
     );
-    [keyed, pointed]
+    let answered = crate::dom::listen(
+        document.as_ref(),
+        "contextmenu",
+        false,
+        |event: web_sys::MouseEvent| {
+            let taken = MENU_KEYED.with(|keyed| {
+                keyed
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|keyed| keyed.default_prevented())
+            });
+            if taken {
+                event.prevent_default();
+            }
+        },
+    );
+    [keyed, pointed, answered]
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn from_menu_key(event: &web_sys::MouseEvent) -> bool {
-    event.button() == -1 || MENU_KEYED.with(std::cell::Cell::get)
+    event.button() == -1 || MENU_KEYED.with(|keyed| keyed.borrow().is_some())
 }
 
 pub use beui_types::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyTarget};
@@ -119,7 +135,34 @@ mod web {
             KeyAt::Host | KeyAt::Window => crate::dom::window().map(Into::into),
             KeyAt::Root => crate::run::root().and_then(crate::dom::dom).map(Into::into),
             KeyAt::Node(node) => node.try_get().and_then(crate::dom::dom).map(Into::into),
+            KeyAt::Control(node) => {
+                let held = node.try_get().and_then(crate::dom::element)?;
+                let control = held
+                    .parent_element()
+                    .and_then(|parent| parent.closest("[tabindex]").ok().flatten());
+                Some(control.unwrap_or(held).into())
+            }
         }
+    }
+
+    fn admits(at: &KeyAt, event: &web_sys::KeyboardEvent) -> bool {
+        let KeyAt::Control(node) = at else {
+            return true;
+        };
+        let Some(held) = node.try_get().and_then(crate::dom::dom) else {
+            return false;
+        };
+        let Some(target) = event
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
+        else {
+            return false;
+        };
+        held.contains(Some(&target))
+            || event
+                .current_target()
+                .and_then(|current| current.dyn_into::<web_sys::Node>().ok())
+                .is_some_and(|current| current == target)
     }
 
     fn deliver(event: web_sys::KeyboardEvent, phase: KeyPhase, handler: &KeyHandler) {
@@ -178,8 +221,11 @@ mod web {
             *attached = wanted.map(|wanted| {
                 let listeners = ["keydown", "keyup"].map(|name| {
                     let handler = Rc::clone(&handler);
+                    let at = at.clone();
                     crate::dom::listen(&wanted, name, capture, move |event| {
-                        deliver(event, phase, &*handler)
+                        if admits(&at, &event) {
+                            deliver(event, phase, &*handler)
+                        }
                     })
                 });
                 (wanted, listeners)

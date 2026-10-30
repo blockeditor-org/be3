@@ -58,6 +58,12 @@ pub fn TreeFixture() -> NodeId {
                     }}
                     selected
                     row_test_id={|row: usize| format!("tree.{}", NODES[row].0)}
+                    menu={|_: usize| Some(TreeMenu {
+                        items: view! {
+                            <MenuItem label="Rename" />
+                            <MenuItem label="Delete" />
+                        },
+                    })}
                     on_select={move |row: usize| selected.set(Some(row))}
                     on_expand={move |(row, expanded): (usize, bool)| {
                         collapsed.update(|collapsed| {

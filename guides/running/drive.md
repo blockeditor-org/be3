@@ -300,7 +300,8 @@ still loading the organization's graph, and never while it shows its error scree
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
-`drive wait TEXT over X,Y` also asks that the line's node cover that point, for something that
+`drive wait TEXT over TARGET` also asks that the line's node cover that point (`X,Y`, or
+`#TEST_ID+X,Y` beside another node), for something that
 moves or grows, such as a stroke reaching the pen;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
 own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.

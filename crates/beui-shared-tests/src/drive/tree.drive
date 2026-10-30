@@ -1,5 +1,6 @@
 # A tree selects a clicked row, walks its rows with the arrow keys and selects
-# on Enter, and folds a folder from its chevron and the arrow keys.
+# on Enter, and folds a folder from its chevron and the arrow keys; the Menu key
+# and Shift+F10 open the focused row's menu beneath it, over the next row.
 clock stop
 wait 'value="Selected nothing rows 5"'
 click '#tree.lib.rs.row'
@@ -16,3 +17,11 @@ wait 'value="Selected main.rs rows 5"'
 wait '#tree.lib.rs.row'
 key left
 wait 'value="Selected main.rs rows 3"'
+key ContextMenu
+wait 'MenuItem "Rename"' over '#tree.docs.row+40,8'
+key Escape
+gone 'MenuItem "Rename"'
+key shift+F10
+wait 'MenuItem "Rename"' over '#tree.docs.row+40,8'
+key Escape
+gone 'MenuItem "Rename"'

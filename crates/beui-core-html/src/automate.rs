@@ -5,7 +5,7 @@ use beui_types::{Rect, Vec2, pos2};
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT [over X,Y], gone TEXT [over X,Y], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
@@ -573,9 +573,9 @@ mod web {
         loop {
             let lines = lines();
             let (wanted, over) = match text.rsplit_once(" over ") {
-                Some((wanted, point)) => match super::numbers(point).as_deref() {
-                    Some([x, y]) => (wanted, Some(beui_types::pos2(*x, *y))),
-                    _ => (text, None),
+                Some((wanted, at)) => match super::locate(at, &lines) {
+                    Ok(rect) => (wanted, Some(rect.center())),
+                    Err(_) => (text, None),
                 },
                 None => (text, None),
             };
