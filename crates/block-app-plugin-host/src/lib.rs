@@ -313,8 +313,8 @@ impl Default for PickerRequest {
 }
 
 thread_local! {
-    static PICKERS: std::cell::RefCell<std::collections::HashMap<EditorInstanceId, PickerRequest>> =
-        std::cell::RefCell::new(std::collections::HashMap::new());
+    static PICKERS: std::cell::RefCell<stable_hash::HashMap<EditorInstanceId, PickerRequest>> =
+        std::cell::RefCell::new(stable_hash::HashMap::default());
 }
 
 pub fn ask_picker(instance: EditorInstanceId, request: PickerRequest) {

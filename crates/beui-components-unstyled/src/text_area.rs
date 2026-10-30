@@ -9,8 +9,9 @@ pub mod look;
 pub mod rows;
 pub mod state;
 
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;

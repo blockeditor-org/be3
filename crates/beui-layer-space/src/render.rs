@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_core::color::Color32;
@@ -616,14 +616,14 @@ impl Gpu {
             blit_layout,
             blit_uniform,
             mip,
-            pipelines: HashMap::new(),
-            targets: HashMap::new(),
-            panels: HashMap::new(),
-            pending: HashMap::new(),
-            chrome: HashMap::new(),
-            chrome_pending: HashMap::new(),
-            versions: HashMap::new(),
-            fills: HashMap::new(),
+            pipelines: HashMap::default(),
+            targets: HashMap::default(),
+            panels: HashMap::default(),
+            pending: HashMap::default(),
+            chrome: HashMap::default(),
+            chrome_pending: HashMap::default(),
+            versions: HashMap::default(),
+            fills: HashMap::default(),
         }
     }
 

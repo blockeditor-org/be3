@@ -4,7 +4,7 @@ use reactive::{Get, ReadSignal, Set, Signal};
 use crate::css::literal_color;
 
 thread_local! {
-    static DEFINED: Signal<ColorDefinitions> = crate::global_signal(ColorDefinitions::new());
+    static DEFINED: Signal<ColorDefinitions> = crate::global_signal(ColorDefinitions::default());
 }
 
 fn defined() -> Signal<ColorDefinitions> {

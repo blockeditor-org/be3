@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::error::Error;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -279,7 +279,7 @@ impl Session {
             shown: 0,
             formats,
             allowance,
-            chains: HashMap::new(),
+            chains: HashMap::default(),
             retired: Vec::new(),
             layered: 0,
         })

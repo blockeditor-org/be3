@@ -7,8 +7,8 @@ pub mod responsive;
 pub mod screen_reader;
 pub mod tree;
 
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_core::base::embed::EmbedSlot;
@@ -116,7 +116,7 @@ enum Reveal {
 impl State {
     fn new(ctx: &Context) -> Self {
         Self {
-            expansion: RefCell::new(HashMap::new()),
+            expansion: RefCell::new(HashMap::default()),
             hovered: Cell::new(None),
             selected: Cell::new(None),
             selected_component: Cell::new(None),

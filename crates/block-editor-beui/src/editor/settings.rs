@@ -1,5 +1,6 @@
+use stable_hash::HashMap;
 use std::any::{Any, TypeId};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use be_block::be_model::{BlockRef, Document};
 use be_block::{

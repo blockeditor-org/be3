@@ -1,6 +1,6 @@
 use beui_view::types::LayerPolicy;
 use beui_view::types::Overflow;
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -746,7 +746,7 @@ enum PieceKey {
 }
 
 fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
-    let mut seen: HashMap<PieceKey, usize> = HashMap::new();
+    let mut seen: HashMap<PieceKey, usize> = HashMap::default();
     row.spans
         .iter()
         .map(|span| {

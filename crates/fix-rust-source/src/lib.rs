@@ -1,5 +1,6 @@
 mod beui_rules;
 mod core_api;
+mod hash_order;
 mod unsafe_tags;
 mod views;
 
@@ -380,6 +381,7 @@ fn inspect_file_queue(
         let text = std::str::from_utf8(&source).map_err(|error| error.to_string())?;
         violations.extend(beui_rules::beui_violations(&tree, text, &relative));
         violations.extend(core_api::core_api_violations(&tree, text, &relative));
+        violations.extend(hash_order::hash_order_violations(&tree, text, &relative));
         violations.extend(unsafe_tags::unsafe_violations(&tree, text, &relative));
         if path.file_name().is_some_and(|name| name == "mod.rs") {
             violations.push(format!("module file: {relative}"));

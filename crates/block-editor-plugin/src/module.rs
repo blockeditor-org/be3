@@ -1,6 +1,6 @@
+use stable_hash::HashMap;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::sync::{Arc, Mutex};
 

@@ -3,8 +3,8 @@ use beui::icons::Glyph;
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use block_plugin_api::{
     BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, DockTabPath, KeyChord,
@@ -358,7 +358,7 @@ impl MenuMirror {
         Self {
             editor,
             picks,
-            commands: HashMap::new(),
+            commands: HashMap::default(),
             shape: None,
         }
     }

@@ -2,9 +2,9 @@ use beui_view::types::icons::Glyph;
 mod host;
 mod switch;
 
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -332,8 +332,8 @@ struct KeyMap<K> {
 impl<K> Default for KeyMap<K> {
     fn default() -> Self {
         Self {
-            tabs: HashMap::new(),
-            keys: HashMap::new(),
+            tabs: HashMap::default(),
+            keys: HashMap::default(),
             next: 1,
         }
     }
@@ -427,7 +427,7 @@ impl<K: DockKey> DockingLayout<K> {
         let restores = create_signal(0);
         let hosted = create_signal(None);
         let bars_hosted = create_signal(None);
-        let covers = create_signal(BarCovers::new());
+        let covers = create_signal(BarCovers::default());
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -1273,16 +1273,16 @@ struct Found<K: 'static> {
 impl<K: 'static> Default for Found<K> {
     fn default() -> Self {
         Self {
-            bars: HashMap::new(),
+            bars: HashMap::default(),
             spec_bars: Vec::new(),
-            foreign: HashMap::new(),
+            foreign: HashMap::default(),
             hosts: Vec::new(),
             windows: Vec::new(),
-            tabs: HashMap::new(),
-            panes: HashMap::new(),
-            groups: HashMap::new(),
+            tabs: HashMap::default(),
+            panes: HashMap::default(),
+            groups: HashMap::default(),
             dialogs: Vec::new(),
-            parts: HashMap::new(),
+            parts: HashMap::default(),
         }
     }
 }

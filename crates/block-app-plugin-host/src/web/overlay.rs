@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use beui::{Rect, Vec2};
 use wasm_bindgen::JsCast;
@@ -22,8 +22,8 @@ pub fn overlays(
     scale: f32,
 ) -> HashMap<u32, Overlay> {
     let mut owners = Vec::<u32>::new();
-    let mut pieces = HashMap::<u32, Vec<f32>>::new();
-    let mut bounds = HashMap::<u32, Rect>::new();
+    let mut pieces = HashMap::<u32, Vec<f32>>::default();
+    let mut bounds = HashMap::<u32, Rect>::default();
     for blit in blits {
         let Some(layer) = blit.layer else {
             continue;

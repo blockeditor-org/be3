@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::context::Moved;
@@ -37,12 +37,12 @@ impl Seen {
     pub fn of(painting: &[(Rc<Display>, Vec2)], area: Option<Rect>) -> Self {
         let mut walk = Walk {
             seen: Self {
-                nodes: HashMap::new(),
+                nodes: HashMap::default(),
                 roots: Vec::new(),
                 cover: None,
             },
             area,
-            occurrences: HashMap::new(),
+            occurrences: HashMap::default(),
             count: 0,
         };
         for (display, at) in painting {
@@ -484,7 +484,7 @@ pub fn changed_area(old: &Seen, new: &Seen) -> Region {
             [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits),
         )
     };
-    let mut held: HashMap<_, Vec<&Shape>> = HashMap::new();
+    let mut held: HashMap<_, Vec<&Shape>> = HashMap::default();
     for shape in old.shapes() {
         held.entry(key(shape)).or_default().push(shape);
     }

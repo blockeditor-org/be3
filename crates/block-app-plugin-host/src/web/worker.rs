@@ -1,6 +1,7 @@
+use stable_hash::HashSet;
 use std::{
     cell::RefCell,
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     rc::Rc,
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
@@ -169,7 +170,7 @@ impl WorkerChannel {
             inbox,
             canvases: Canvases::default(),
             overlay: None,
-            exported: HashSet::new(),
+            exported: HashSet::default(),
             _onmessage: onmessage,
         })
     }

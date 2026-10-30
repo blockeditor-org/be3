@@ -16,6 +16,7 @@ paint-format = { path = "../paint-format" }
 reactive = { path = "../reactive" }
 serde_bytes = "0.11"
 serde_json = "1"
+stable-hash = { path = "../stable-hash" }
 uuid = { version = "1", features = ["v7"] }
 
 # A plugin is a wasm guest wherever it runs, so it links wgpu with only the

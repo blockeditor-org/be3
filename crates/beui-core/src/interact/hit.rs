@@ -1,4 +1,4 @@
-use foldhash::HashSet;
+use stable_hash::HashSet;
 
 use crate::base::embed::EmbedNode;
 use crate::base::interactive::{InteractiveNode, local_in};

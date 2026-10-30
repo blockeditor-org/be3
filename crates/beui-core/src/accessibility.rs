@@ -1,6 +1,6 @@
 use std::cell::Ref;
 
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{

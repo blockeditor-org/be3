@@ -1,6 +1,7 @@
+use stable_hash::HashMap;
 use std::{
     cell::Cell,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     rc::{Rc, Weak},
 };
 

@@ -1,6 +1,7 @@
+use stable_hash::HashMap;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, VecDeque},
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -74,7 +75,7 @@ impl Host {
             deadline: None,
             waited: Duration::ZERO,
             over_budget: 0,
-            runtimes: HashMap::new(),
+            runtimes: HashMap::default(),
             focus: Focus::default(),
             shell: None,
             grabbed: false,
@@ -222,7 +223,7 @@ impl Laid {
         self.sizes.is_empty() && self.windows.is_empty() && self.children.is_empty()
     }
 
-    fn screens(&self, instances: &Instances) -> std::collections::HashSet<ScreenId> {
+    fn screens(&self, instances: &Instances) -> stable_hash::HashSet<ScreenId> {
         self.sizes
             .iter()
             .map(|size| size.screen)
@@ -351,8 +352,8 @@ impl Runtime {
             fonts_sent: false,
             described: false,
             painting: false,
-            placements: HashMap::new(),
-            offers: HashMap::new(),
+            placements: HashMap::default(),
+            offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
@@ -893,7 +894,7 @@ impl Runtime {
         (commit, (!later.is_empty()).then_some(later))
     }
 
-    fn held_screens(&self) -> std::collections::HashSet<ScreenId> {
+    fn held_screens(&self) -> stable_hash::HashSet<ScreenId> {
         self.held
             .iter()
             .filter_map(|held| match held {
@@ -930,7 +931,7 @@ impl Runtime {
     }
 
     fn report_docked(&self) {
-        let mut framed: std::collections::HashMap<_, _> =
+        let mut framed: stable_hash::HashMap<_, _> =
             self.instances.frame_children().into_iter().collect();
         for (placer, children) in self.instances.docked_children() {
             let frame = framed.remove(&placer).flatten();
@@ -1153,7 +1154,7 @@ pub fn place_screens(
 ) {
     super::web::set_background(background);
     let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
-    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
+    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
     for (order, blit) in blits.iter().enumerate() {
         if let Some(placement) = super::web::placement(blit, order, scale) {
             placed.entry(blit.surface).or_default().push(placement);
@@ -1967,8 +1968,8 @@ fn session() -> Session {
 }
 
 thread_local! {
-    static CHANGED: RefCell<std::collections::HashSet<String>> =
-        RefCell::new(std::collections::HashSet::new());
+    static CHANGED: RefCell<stable_hash::HashSet<String>> =
+        RefCell::new(stable_hash::HashSet::default());
     static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 

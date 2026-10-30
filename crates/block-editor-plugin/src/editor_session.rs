@@ -12,8 +12,8 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
+use stable_hash::{HashMap, HashSet};
 use std::{
-    collections::{HashMap, HashSet},
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -147,9 +147,9 @@ impl EditorSession {
         Self {
             app,
             module,
-            opened: HashSet::new(),
+            opened: HashSet::default(),
             instance,
-            views: HashMap::new(),
+            views: HashMap::default(),
             host,
             own_block: None,
             drag: None,
@@ -161,7 +161,7 @@ impl EditorSession {
             sent_card: false,
             audio_watched: false,
             docks_watched: false,
-            web_views: HashMap::new(),
+            web_views: HashMap::default(),
             link: crate::link::Link::default(),
             asks: Vec::new(),
         }

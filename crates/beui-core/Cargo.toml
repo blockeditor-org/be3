@@ -16,6 +16,7 @@ lyon_tessellation = "1"
 paint-format = { path = "../paint-format" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }
 reactive = { path = "../reactive" }
+stable-hash = { path = "../stable-hash" }
 thumbhash = "0.1"
 ui-types = { path = "../ui-types" }
 lucide = { path = "../lucide" }

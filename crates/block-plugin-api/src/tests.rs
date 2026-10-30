@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::HashSet;
+use stable_hash::HashSet;
 
 fn round_trips<T>(value: &T)
 where

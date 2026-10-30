@@ -1,7 +1,7 @@
+use stable_hash::{HashMap, HashSet};
 use std::{
     any::{Any, TypeId},
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},

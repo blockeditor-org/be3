@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use stable_hash::HashSet;
 
 use crate::{
     ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
@@ -403,7 +403,7 @@ impl DockDeclaration {
             return Err(DecodeError::MalformedPayload);
         }
         collection(self.dialogs.len())?;
-        let mut bodies: HashSet<&DockTabPath> = HashSet::new();
+        let mut bodies: HashSet<&DockTabPath> = HashSet::default();
         for dialog in &self.dialogs {
             dialog.tab.validate()?;
             dialog.parent.validate()?;
@@ -423,7 +423,7 @@ impl DockDeclaration {
             }
         }
         collection(self.bars.len())?;
-        let mut bar_keys: HashSet<&str> = HashSet::new();
+        let mut bar_keys: HashSet<&str> = HashSet::default();
         for bar in &self.bars {
             bar.validate()?;
             string(&bar.key)?;

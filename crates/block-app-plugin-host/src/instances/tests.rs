@@ -319,7 +319,7 @@ fn layered(origin: Pos2) -> Instances {
 fn lay_out(instances: &mut Instances) {
     configure(instances);
     let serial = instances.serial();
-    instances.confirm(serial, &HashSet::new());
+    instances.confirm(serial, &HashSet::default());
 }
 
 struct Layer {

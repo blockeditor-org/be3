@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use foldhash::HashMap;
+use stable_hash::HashMap;
 
 use crate::base::overlay::OverlayNode;
 use crate::color::Color32;

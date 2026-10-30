@@ -34,6 +34,7 @@ beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
+stable-hash = { path = "../stable-hash" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-layer-space = { path = "../beui-layer-space", optional = true }

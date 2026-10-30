@@ -1,4 +1,5 @@
-use std::{cell::RefCell, collections::HashMap};
+use stable_hash::HashMap;
+use std::cell::RefCell;
 
 use beui::{Color32, pos2};
 use block_plugin_api::ScreenId;
@@ -112,8 +113,8 @@ impl Canvases {
         channel: &WorkerChannel,
         placements: Vec<Placement>,
     ) -> Result<(), String> {
-        let mut seen = HashMap::<ScreenId, usize>::new();
-        let mut kept = HashMap::with_capacity(placements.len());
+        let mut seen = HashMap::<ScreenId, usize>::default();
+        let mut kept = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
         let mut result = Ok(());
         for placement in placements {
             let occurrence = seen.entry(placement.screen).or_default();

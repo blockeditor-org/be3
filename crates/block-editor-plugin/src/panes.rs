@@ -1,6 +1,6 @@
 use block_plugin_api::{EditorInstanceId, ScreenDamage, SurfaceRect, ViewId};
 use block_plugin_api::{ScreenLayout, ScreenPlacement};
-use std::collections::HashSet;
+use stable_hash::HashSet;
 use std::time::Duration;
 
 use crate::cooldown::Cooldown;
@@ -37,7 +37,7 @@ impl Panes {
         let repainting = std::mem::take(&mut self.repainting);
         let unpainted = match seen {
             true => std::mem::take(&mut self.unpainted),
-            false => HashSet::new(),
+            false => HashSet::default(),
         };
         let mut painting = Vec::new();
         let now = crate::clock::frame_now();

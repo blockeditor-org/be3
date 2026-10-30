@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 
 use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect};
@@ -260,7 +260,7 @@ impl DockState {
     }
 
     pub fn reconcile(&mut self, spec: &DockSpec) {
-        self.reconcile_keeping(spec, &HashSet::new());
+        self.reconcile_keeping(spec, &HashSet::default());
     }
 
     pub fn reconcile_keeping(&mut self, spec: &DockSpec, kept: &HashSet<TabId>) {

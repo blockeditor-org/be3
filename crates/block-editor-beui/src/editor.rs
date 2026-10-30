@@ -375,8 +375,8 @@ type Pump = Rc<dyn Fn()>;
 
 #[derive(Default)]
 pub(crate) struct Contents {
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
+    projections: RefCell<stable_hash::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    pumps: RefCell<stable_hash::HashMap<Option<Uuid>, Pump>>,
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
 }
 
@@ -528,7 +528,7 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
+    watches: RefCell<stable_hash::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
@@ -1417,7 +1417,7 @@ impl Editor {
         let pumps: Vec<_> = {
             let state = self.state();
             let held = state.contents.pumps.borrow();
-            let mut pumped = std::collections::HashSet::new();
+            let mut pumped = stable_hash::HashSet::default();
             blocks
                 .into_iter()
                 .filter(|block| pumped.insert(*block))

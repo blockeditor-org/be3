@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::Cell;
-use std::collections::HashMap;
 
 use beui_macros::{component, view};
 use beui_view::primitives::*;

@@ -213,8 +213,8 @@ impl Region {
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
-    pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
-    pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
+    pub(super) paintings: stable_hash::HashMap<ScreenId, Painting>,
+    pub(super) overflows: stable_hash::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
 }
 
@@ -675,8 +675,8 @@ impl Paints for AnchoredDrawing {
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static SHOWN: RefCell<std::collections::HashMap<u64, (u64, Vec<Blit>)>> =
-        RefCell::new(std::collections::HashMap::new());
+    static SHOWN: RefCell<stable_hash::HashMap<u64, (u64, Vec<Blit>)>> =
+        RefCell::new(stable_hash::HashMap::default());
     static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 

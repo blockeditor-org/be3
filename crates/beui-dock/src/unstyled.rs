@@ -12,8 +12,8 @@ mod switch;
 mod tests;
 
 use beui_view::types::{AboveEmbeds, LayerPolicy};
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -1765,9 +1765,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dialog_focus = create_signal(None);
     let attention = create_signal((0, None));
     let given = create_signal((0, None));
-    let menus = create_signal(DockMenus::new());
-    let notices = create_signal(DockNotices::new());
-    let offers = create_signal(HashMap::new());
+    let menus = create_signal(DockMenus::default());
+    let notices = create_signal(DockNotices::default());
+    let offers = create_signal(HashMap::default());
     let drag = create_signal(None);
     let dock = State {
         state,
@@ -1775,7 +1775,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
-        handles: create_signal(HashMap::new()),
+        handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
         drag,
@@ -1809,7 +1809,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
         bar_windows: store(RefCell::default()),
-        bar_placements: create_signal(HashMap::new()),
+        bar_placements: create_signal(HashMap::default()),
         bar_key,
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
@@ -1835,7 +1835,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         rect: dock_rect,
         opens: opens_windows(),
         home: use_window(),
-        placements: create_signal(HashMap::new()),
+        placements: create_signal(HashMap::default()),
         panes: store(RefCell::default()),
         bars: store(RefCell::default()),
         tab,

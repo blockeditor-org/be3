@@ -13,6 +13,7 @@ beui-runner = { path = "../beui-runner" }
 bytemuck = { version = "1", features = ["derive"] }
 rustix = { version = "1", features = ["event"] }
 smithay = { version = "0.7", default-features = false, features = ["backend_drm", "backend_gbm", "backend_libinput", "backend_session_libseat", "backend_udev"] }
+stable-hash = { path = "../stable-hash" }
 ui-types = { path = "../ui-types" }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 xcursor = "0.3"

@@ -13,10 +13,8 @@ use block_plugin_api::{
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
 };
 use block_type_guest::editor::{FromEditor, Gesture};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    sync::Arc,
-};
+use stable_hash::{HashMap, HashSet};
+use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
 use super::{
@@ -36,7 +34,7 @@ mod services;
 
 thread_local! {
     static LAYERS_OPENED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
+    static PRESENCE_WANTED: std::cell::RefCell<stable_hash::HashSet<EditorInstanceId>> =
         std::cell::RefCell::default();
 }
 
@@ -141,7 +139,7 @@ struct Instance {
     leaving: bool,
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
-    shown: std::collections::HashSet<(Uuid, Uuid)>,
+    shown: stable_hash::HashSet<(Uuid, Uuid)>,
     replicas: HashMap<Uuid, block_plugin_api::ops::OpId>,
     watches: HashMap<block_plugin_api::ops::OpId, blocks::Watch>,
     shows: Vec<block_plugin_api::blocks::ShowRequest>,
@@ -254,7 +252,7 @@ impl Instance {
             dialog: DialogStatus::default(),
             child_dismissals: Vec::new(),
             created: None,
-            screens: HashMap::new(),
+            screens: HashMap::default(),
             anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
@@ -268,7 +266,7 @@ impl Instance {
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
-            revision_previews: HashSet::new(),
+            revision_previews: HashSet::default(),
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
@@ -290,13 +288,13 @@ impl Instance {
             published: Watched::default(),
             unshown_web_views: Vec::new(),
             presence_visible: None,
-            replacements: HashMap::new(),
+            replacements: HashMap::default(),
             next_replacement: 0,
             leaving: false,
-            watched: HashMap::new(),
-            shown: std::collections::HashSet::new(),
-            replicas: HashMap::new(),
-            watches: HashMap::new(),
+            watched: HashMap::default(),
+            shown: stable_hash::HashSet::default(),
+            replicas: HashMap::default(),
+            watches: HashMap::default(),
             shows: Vec::new(),
             blocks_seen: None,
             version_sent: None,
@@ -427,7 +425,7 @@ impl Instance {
         instance: EditorInstanceId,
         send: &mut impl FnMut(block_plugin_api::ops::OpId, &Vec<u8>) -> bool,
     ) {
-        let mut blocked = HashSet::new();
+        let mut blocked = HashSet::default();
         let mut kept = Vec::new();
         for (block, frame) in block_app_stack::take_editor_frames(instance.0) {
             if blocked.contains(&block) {
@@ -587,9 +585,9 @@ impl Screen {
             window: WindowRequests::default(),
             stopped: None,
             children: ChildTable::default(),
-            reported_statuses: HashMap::new(),
-            revoked: HashSet::new(),
-            frame_revoked: HashSet::new(),
+            reported_statuses: HashMap::default(),
+            revoked: HashSet::default(),
+            frame_revoked: HashSet::default(),
             scales: Sent::default(),
             spaces: Sent::default(),
             fresh_space: None,
@@ -745,7 +743,8 @@ impl Instances {
         if !carries {
             return;
         }
-        let mut scopes: HashMap<EditorInstanceId, Option<block_app_stack::Scope>> = HashMap::new();
+        let mut scopes: HashMap<EditorInstanceId, Option<block_app_stack::Scope>> =
+            HashMap::default();
         message.visit_block_ids(&mut |instance, _, _| {
             scopes.entry(instance).or_insert_with(|| {
                 let block = self.entries.get(&instance)?.role.block()?.id;
@@ -2392,7 +2391,7 @@ impl Instances {
         let mut children = Vec::new();
         let mut holes = Holes::default();
         let mut live = 0;
-        let mut shown_tabs = HashSet::new();
+        let mut shown_tabs = HashSet::default();
         let layers = host_anchored(screen, &entry.anchored, region);
         if let Some(report) = &screen.report {
             let painted: Vec<Rect> = report

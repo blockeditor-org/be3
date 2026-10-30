@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::{
@@ -55,7 +55,7 @@ impl Outputs {
             cursor_scale: scale,
             look: Look::Icon(CursorIcon::Default),
             placed: None,
-            shown: HashMap::new(),
+            shown: HashMap::default(),
         }
     }
 

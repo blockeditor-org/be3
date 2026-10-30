@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use foldhash::{HashMap, HashSet};
 use reactive::{Get, Set};
+use stable_hash::{HashMap, HashSet};
 
 use crate::base::overlay::OverlayNode;
 use crate::context::{Context, Moved};

@@ -13,6 +13,7 @@ beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-types = { path = "../beui-types" }
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.30"
+stable-hash = { path = "../stable-hash" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [dev-dependencies]

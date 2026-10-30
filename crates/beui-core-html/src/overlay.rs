@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;

@@ -1,6 +1,6 @@
-use foldhash::{HashMap, HashSet};
 use reactive::Get;
 use reactive::Set;
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -77,7 +77,7 @@ pub struct Document {
     pub last_pointer: Option<crate::input::PointerSample>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub portal_holders: stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
     pub(crate) focus_scopes: crate::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
@@ -311,7 +311,7 @@ impl Document {
             last_pointer: None,
             acted: Acted::Nothing,
             placement: None,
-            portal_holders: foldhash::HashMap::default(),
+            portal_holders: stable_hash::HashMap::default(),
             layer_state: Default::default(),
             focus_scopes: Default::default(),
             focus_dirty: false,

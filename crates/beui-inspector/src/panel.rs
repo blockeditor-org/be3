@@ -1,5 +1,5 @@
 use beui_core::font::Overflow;
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::time::Duration;
 
 use crate::screen_reader::Command;
@@ -184,7 +184,7 @@ impl TreeView {
     fn new() -> Self {
         Self {
             keys: create_signal(Vec::new()),
-            entries: create_signal(HashMap::new()),
+            entries: create_signal(HashMap::default()),
             selection: create_signal(Vec::new()),
             selection_text: create_signal(String::new()),
             total: create_signal(0),

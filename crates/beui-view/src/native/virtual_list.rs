@@ -18,9 +18,9 @@ use crate::reactive::untrack;
 use beui_core::base::list::Direction;
 use beui_core::current::with_document;
 use beui_core::node::NodeId;
+use stable_hash::HashMap;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::rc::Weak;
@@ -234,7 +234,8 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
     fn position(&self, key: &K) -> Option<usize> {
         let mut indices = self.indices.borrow_mut();
         let indices = indices.get_or_insert_with(|| {
-            let mut indices = HashMap::with_capacity(self.keys.borrow().len());
+            let mut indices =
+                HashMap::with_capacity_and_hasher(self.keys.borrow().len(), Default::default());
             for (index, key) in self.keys.borrow().iter().enumerate() {
                 indices.entry(key.clone()).or_insert(index);
             }

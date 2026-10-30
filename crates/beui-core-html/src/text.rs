@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -356,7 +356,7 @@ impl TextModel {
         if let Some(mirror) = mirror {
             let mut order = self.order.borrow_mut();
             order.fill(mirror, nodes.clone());
-            let kept: std::collections::HashSet<NodeId> = order.iter().copied().collect();
+            let kept: stable_hash::HashSet<NodeId> = order.iter().copied().collect();
             self.pieces
                 .borrow_mut()
                 .retain(|node, _| kept.contains(node));

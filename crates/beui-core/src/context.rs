@@ -1,5 +1,5 @@
 pub use beui_types::action::{ActionGroup, ActionInfo};
-use foldhash::HashSet;
+use stable_hash::HashSet;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
@@ -84,7 +84,7 @@ struct Inner {
     next_file_save: Cell<u64>,
     window: RefCell<WindowState>,
     window_requests: RefCell<Vec<WindowRequest>>,
-    windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
+    windows: RefCell<stable_hash::HashMap<WindowId, KnownWindow>>,
     window_reports: RefCell<Vec<WindowReport>>,
     shown_windows: RefCell<Vec<ShownWindow>>,
     drawing_into: Cell<WindowId>,
@@ -93,7 +93,7 @@ struct Inner {
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
     hosts_scrims: Cell<bool>,
-    layer_spaces: RefCell<foldhash::HashMap<WindowId, LayerSpace>>,
+    layer_spaces: RefCell<stable_hash::HashMap<WindowId, LayerSpace>>,
     layer_dismissals: RefCell<Vec<u64>>,
     escaped: RefCell<Vec<EscapedOutput>>,
     escaped_targets: RefCell<Vec<(u64, WindowId, HostTransform)>>,
@@ -376,7 +376,7 @@ impl Context {
                 next_file_save: Cell::new(0),
                 window: RefCell::new(WindowState::default()),
                 window_requests: RefCell::new(Vec::new()),
-                windows: RefCell::new(foldhash::HashMap::default()),
+                windows: RefCell::new(stable_hash::HashMap::default()),
                 window_reports: RefCell::new(Vec::new()),
                 shown_windows: RefCell::new(Vec::new()),
                 drawing_into: Cell::new(WindowId::MAIN),
@@ -385,7 +385,7 @@ impl Context {
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
                 hosts_scrims: Cell::new(false),
-                layer_spaces: RefCell::new(foldhash::HashMap::default()),
+                layer_spaces: RefCell::new(stable_hash::HashMap::default()),
                 layer_dismissals: RefCell::new(Vec::new()),
                 escaped: RefCell::new(Vec::new()),
                 escaped_targets: RefCell::new(Vec::new()),
@@ -1084,7 +1084,7 @@ impl Context {
         self.inner.layer_spaces.borrow().get(&window).copied()
     }
 
-    pub(crate) fn layer_spaces(&self) -> foldhash::HashMap<WindowId, LayerSpace> {
+    pub(crate) fn layer_spaces(&self) -> stable_hash::HashMap<WindowId, LayerSpace> {
         self.inner.layer_spaces.borrow().clone()
     }
 

@@ -3,7 +3,7 @@ pub mod grab;
 pub mod hit;
 pub mod pointer;
 
-use foldhash::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::base::overlay::OverlayNode;
