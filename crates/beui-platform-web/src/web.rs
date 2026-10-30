@@ -922,6 +922,9 @@ fn listen(
             event.prevent_default();
         }
     })?;
+    on(agent_target, "contextmenu", |event: web_sys::MouseEvent| {
+        event.prevent_default();
+    })?;
     on(agent_target, "keyup", |event: web_sys::KeyboardEvent| {
         if event.is_composing() {
             return;

@@ -55,6 +55,40 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
     listeners
 }
 
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static MENU_KEYED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn watch_menu_key(document: &web_sys::Document) -> [crate::dom::Listener; 2] {
+    let keyed = crate::dom::listen(
+        document.as_ref(),
+        "keydown",
+        true,
+        |event: web_sys::KeyboardEvent| {
+            let menu = match beui_web_input::keys::key(&event) {
+                Some(beui_types::input::Key::ContextMenu) => true,
+                Some(beui_types::input::Key::F10) => event.shift_key(),
+                _ => false,
+            };
+            MENU_KEYED.with(|keyed| keyed.set(menu));
+        },
+    );
+    let pointed = crate::dom::listen(
+        document.as_ref(),
+        "pointerdown",
+        true,
+        |_: web_sys::PointerEvent| MENU_KEYED.with(|keyed| keyed.set(false)),
+    );
+    [keyed, pointed]
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn from_menu_key(event: &web_sys::MouseEvent) -> bool {
+    event.button() == -1 || MENU_KEYED.with(std::cell::Cell::get)
+}
+
 pub use beui_types::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyTarget};
 
 pub fn listen(at: KeyAt, phase: KeyPhase, handler: Rc<KeyHandler>) {

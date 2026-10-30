@@ -49,11 +49,14 @@ pub fn ContextMenu(
 ) -> NodeId {
     let open = create_signal(false);
     let focusing = create_signal(true);
-    let position = create_signal(Pos2::ZERO);
+    let position: Signal<Option<Pos2>> = create_signal(None);
     let holder = NodeRef::new();
-    let anchor = create_memo(move || OverlayAnchor::Pinned {
-        node: holder,
-        rect: Rect::from_min_size(position.get(), Vec2::ZERO),
+    let anchor = create_memo(move || match position.get() {
+        Some(at) => OverlayAnchor::Pinned {
+            node: holder,
+            rect: Rect::from_min_size(at, Vec2::ZERO),
+        },
+        None => OverlayAnchor::Node(holder),
     });
     on_key(KeyAt::Node(holder), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {
@@ -68,15 +71,8 @@ pub fn ContextMenu(
         if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
             return false;
         }
-        let Some(rect) = holder
-            .try_get()
-            .and_then(|node| measure(node).get_untracked())
-            .map(|measured| measured.rect)
-        else {
-            return false;
-        };
         if press.pressed {
-            position.set(pos2(rect.min.x, rect.max.y));
+            position.set(None);
             focusing.set(true);
             open.set(true);
         }
@@ -96,7 +92,7 @@ pub fn ContextMenu(
         let Some(at) = open_at.get() else {
             return;
         };
-        requested_position.set(at);
+        requested_position.set(Some(at));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
@@ -118,7 +114,7 @@ pub fn ContextMenu(
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
     let more = Callback::new(move |at: Pos2| {
-        position.set(at);
+        position.set(Some(at));
         focusing.set(false);
         open.set(true);
         on_toolbar_close.call();
@@ -144,7 +140,7 @@ pub fn ContextMenu(
                 if disabled.get() || (press.touch && !opens_on_hold) {
                     return;
                 }
-                position.set(press.pos);
+                position.set(Some(press.pos));
                 focusing.set(true);
                 open.set(true);
             }}

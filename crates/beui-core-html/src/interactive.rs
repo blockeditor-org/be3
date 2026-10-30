@@ -880,9 +880,11 @@ mod web {
                 if held.handlers.on_secondary_press.is_empty() {
                     return;
                 }
-                held.handlers
-                    .on_secondary_press
-                    .call(press(&element, event));
+                if !crate::keys::from_menu_key(event) {
+                    held.handlers
+                        .on_secondary_press
+                        .call(press(&element, event));
+                }
                 handled(event, true);
             }),
         ));

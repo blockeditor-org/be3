@@ -169,6 +169,7 @@ mod web {
         held.push(Box::new(watch_changes(container)));
         held.push(Box::new(crate::focus::watch_document(document)));
         held.push(Box::new(crate::keys::watch_modifiers(document)));
+        held.push(Box::new(crate::keys::watch_menu_key(document)));
         RUNNING.with(|running| running.borrow_mut().extend(held));
         crate::frame::start();
     }

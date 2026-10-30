@@ -156,7 +156,10 @@ pub fn MenusFixture() -> NodeId {
                 on_select={choose}
             >
                 <Card @test_id="menus.card">
-                    <Text>"Right-click here"</Text>
+                    <List spacing=Space::Md>
+                        <Text>"Right-click here"</Text>
+                        <Button label="Focus me" @test_id="menus.card.focus" />
+                    </List>
                 </Card>
             </ContextMenu>
             <Text>{report}</Text>
