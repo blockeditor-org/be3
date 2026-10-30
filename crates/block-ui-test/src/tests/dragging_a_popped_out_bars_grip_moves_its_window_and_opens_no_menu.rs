@@ -68,7 +68,9 @@ fn dragging_a_popped_out_bars_grip_moves_its_window_and_opens_no_menu() {
         "the host moved the bar's window with the pointer"
     );
     assert!(
-        test.document().find_test_ids("grip.dock.bar.hide").is_empty(),
+        test.document()
+            .find_test_ids("grip.dock.bar.hide")
+            .is_empty(),
         "a press that became a drag opens no menu on release"
     );
 
@@ -78,7 +80,10 @@ fn dragging_a_popped_out_bars_grip_moves_its_window_and_opens_no_menu() {
     test.run();
     test.run();
     assert!(
-        !test.document().find_test_ids("grip.dock.bar.hide").is_empty(),
+        !test
+            .document()
+            .find_test_ids("grip.dock.bar.hide")
+            .is_empty(),
         "a click on the grip still opens its menu"
     );
 }

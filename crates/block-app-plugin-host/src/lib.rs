@@ -189,9 +189,9 @@ pub fn dismissed_by_press(
             .filter(|held| chain.contains(&held.id))
             .any(|held| {
                 held.takes(pos)
-                    || held.trigger.is_some_and(|rect| {
-                        rect.contains(pos) && (forwarded || !held.blocks_owner)
-                    })
+                    || held
+                        .trigger
+                        .is_some_and(|rect| rect.contains(pos) && (forwarded || !held.blocks_owner))
             });
         if !inside {
             for id in chain {
