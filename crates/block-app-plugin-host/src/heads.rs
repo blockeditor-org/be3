@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use be_commit::CommitId;
 use block_plugin_api::{EditorInstanceId, StoredHead};

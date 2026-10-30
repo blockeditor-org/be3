@@ -92,6 +92,7 @@ struct Inner {
     heads_sent: BTreeMap<Uuid, u64>,
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
+    left: BTreeSet<BlockQuery>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
@@ -125,6 +126,7 @@ impl Default for Inner {
             heads_sent: BTreeMap::new(),
             watched_queries: Vec::new(),
             answered: BTreeMap::new(),
+            left: BTreeSet::new(),
             deferred: None,
             known_elsewhere: None,
         };
@@ -1006,7 +1008,14 @@ impl ContentStore {
         self.0.borrow_mut().known_elsewhere = Some(Rc::new(known));
     }
 
+    pub fn leave_listing(&self, query: BlockQuery) {
+        self.0.borrow_mut().left.insert(query);
+    }
+
     fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
+        if self.0.borrow().left.contains(&query) {
+            return true;
+        }
         let (BlockQuery::Block(block) | BlockQuery::Parents(block)) = query else {
             return false;
         };

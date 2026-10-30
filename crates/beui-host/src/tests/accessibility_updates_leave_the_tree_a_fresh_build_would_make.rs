@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use accesskit::{Node as AccessNode, NodeId as AccessNodeId, TreeUpdate};
 
@@ -118,7 +118,7 @@ struct Mirror {
 fn apply(mirror: &mut Mirror, update: TreeUpdate) {
     mirror.focus = Some(update.focus);
     mirror.nodes.extend(update.nodes);
-    let mut kept = HashMap::new();
+    let mut kept = HashMap::default();
     let mut pending = vec![WINDOW_NODE];
     while let Some(id) = pending.pop() {
         if let Some(node) = mirror.nodes.remove(&id) {
@@ -166,7 +166,7 @@ fn assert_matches_fresh(harness: &Harness, mirror: &Mirror, step: &str) {
             "{id:?} in a full update after {step}"
         );
     }
-    let mut reachable = HashMap::new();
+    let mut reachable = HashMap::default();
     let mut pending = vec![window.children()[0]];
     while let Some(id) = pending.pop() {
         let node = mirror

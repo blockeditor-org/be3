@@ -9,6 +9,7 @@ pub fn Embed(
     slot: EmbedSlot,
     #[prop(default = true)] punch: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
+    #[prop(default = 0.0)] radius: Prop<f32>,
     children: Option<Child>,
 ) -> NodeId {
     let state = slot.0.value();
@@ -27,6 +28,10 @@ pub fn Embed(
     create_effect(move || {
         let rotation = rotation.get();
         with_document(|document| document.set_embed_rotation(embed, rotation));
+    });
+    create_effect(move || {
+        let radius = radius.get();
+        with_document(|document| document.set_embed_radius(embed, radius));
     });
     embed.id()
 }

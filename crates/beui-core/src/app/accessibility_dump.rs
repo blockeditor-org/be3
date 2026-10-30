@@ -1,4 +1,4 @@
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Write as _;
 use std::rc::Rc;

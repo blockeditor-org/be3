@@ -1,4 +1,5 @@
-use std::collections::{HashMap, VecDeque};
+use stable_hash::HashMap;
+use std::collections::VecDeque;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
@@ -118,7 +119,7 @@ pub struct Surfaces<P> {
 impl<P> Default for Surfaces<P> {
     fn default() -> Self {
         Self {
-            held: HashMap::new(),
+            held: HashMap::default(),
         }
     }
 }

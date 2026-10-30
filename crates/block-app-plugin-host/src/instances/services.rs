@@ -1,4 +1,5 @@
-use std::{collections::HashMap, marker::PhantomData};
+use stable_hash::HashMap;
+use std::marker::PhantomData;
 
 use block_plugin_api::{
     AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, SavedFile,
@@ -50,7 +51,7 @@ impl Default for Services {
         Self {
             sender,
             receiver,
-            serving: HashMap::new(),
+            serving: HashMap::default(),
             answers: Vec::new(),
         }
     }

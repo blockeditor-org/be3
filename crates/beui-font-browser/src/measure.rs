@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::error::Error;
 use std::rc::Rc;
 
@@ -88,8 +88,8 @@ impl Default for BrowserFonts {
             context,
             font: String::new(),
             generation: GENERATION.with(Cell::get),
-            segments: HashMap::new(),
-            metrics: HashMap::new(),
+            segments: HashMap::default(),
+            metrics: HashMap::default(),
         }
     }
 }

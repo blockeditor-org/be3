@@ -16,6 +16,7 @@ fn a_field_left_at_its_default_is_not_written() {
     let primitive = Primitive {
         clip: [0.0, 0.0, 8.0, 8.0],
         fade: Fade::NONE,
+        rounds: Vec::new(),
         content,
     };
 

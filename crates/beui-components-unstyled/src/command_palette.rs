@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};

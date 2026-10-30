@@ -12,6 +12,7 @@ pub(crate) struct Source {
     pub(crate) tracked_by: Cell<u64>,
     pub(crate) subscribers: RefCell<Subscribers>,
     pub(crate) producer: RefCell<Weak<Computation>>,
+    pub(crate) freed: Cell<bool>,
 }
 
 impl Default for Source {
@@ -21,6 +22,7 @@ impl Default for Source {
             tracked_by: Cell::default(),
             subscribers: RefCell::default(),
             producer: RefCell::new(no_computation()),
+            freed: Cell::new(false),
         }
     }
 }
@@ -187,7 +189,7 @@ pub struct ReadSignal<T> {
 }
 
 pub fn create_signal<T: 'static>(value: T) -> Signal<T> {
-    Signal::from_key(arena::insert_owned(Rc::new(Value::new(value))))
+    Signal::from_key(arena::insert_owned_tracked(Rc::new(Value::new(value))))
 }
 
 pub struct OwnedSignal<T: 'static> {
@@ -197,7 +199,7 @@ pub struct OwnedSignal<T: 'static> {
 impl<T: 'static> OwnedSignal<T> {
     pub fn new(value: T) -> Self {
         Self {
-            handle: Signal::from_key(arena::insert(Rc::new(Value::new(value)))),
+            handle: Signal::from_key(arena::insert_tracked(Rc::new(Value::new(value)))),
         }
     }
 

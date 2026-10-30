@@ -7,8 +7,12 @@ that build on it. VISION.md says why each part exists.
 
 - The block stack (`be-*`), beui (`beui*`), block-app, the plugin API and
   framework (`block-*`) and the libraries plugins are linked against
-  (`plugin-library-base` and `plugin-library-beui`), with the vocabulary beui and the protocol share (`ui-types`,
-  and below it, with no geometry, `ui-keys` and `ui-preferences`).
+  (`plugin-library-base` and `plugin-library-beui`), with the vocabulary beui
+  and the protocol share (`ui-types`, and below it, with no geometry, `ui-keys`
+  and `ui-preferences`), and `stable-hash`, the hash maps they use: seeded the
+  same on every run, so what is built by iterating one comes out the same each
+  time. fix-rust-source (`hash_order.rs`, which lists the crates) reports a
+  randomly seeded one there.
 - block-app is the binary on top of its parts, each a crate of its own so they
   build in parallel: `block-app-base` (the frame host, notices, the panic guard,
   platform requests, app state and the watches the host publishes; no beui),

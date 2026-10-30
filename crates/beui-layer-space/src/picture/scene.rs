@@ -136,6 +136,7 @@ impl Scene {
                                 source,
                                 corners,
                                 clip: bounds,
+                                corner_radius: 0.0,
                             })
                             .iter()
                             .any(overlaps)
@@ -370,6 +371,7 @@ impl Scene {
                 out.primitives.push(Primitive {
                     clip: whole,
                     fade: Fade::NONE,
+                    rounds: Vec::new(),
                     content: Content::Mesh(triangles),
                 });
             }
@@ -383,6 +385,7 @@ impl Scene {
                     source: piece.source,
                     corners: piece.corners,
                     clip,
+                    corner_radius: 0.0,
                 });
                 for mut primitive in placed {
                     if !overlaps(&primitive) {

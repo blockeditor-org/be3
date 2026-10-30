@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 
 use accesskit::{Node, Role};

@@ -1,6 +1,6 @@
+use stable_hash::HashMap;
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
     future::Future,
     pin::Pin,
     rc::Rc,
@@ -16,7 +16,7 @@ use block_plugin_api::{
 };
 
 thread_local! {
-    static EDITORS: RefCell<HashMap<EditorInstanceId, OpId>> = RefCell::new(HashMap::new());
+    static EDITORS: RefCell<HashMap<EditorInstanceId, OpId>> = RefCell::new(HashMap::default());
 }
 
 pub(crate) fn opened(instance: EditorInstanceId, editor: OpId) {

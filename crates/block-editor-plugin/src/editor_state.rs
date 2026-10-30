@@ -1,6 +1,6 @@
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -617,7 +617,7 @@ impl EditorCore {
     fn pump(&self, blocks: Vec<Option<Uuid>>) {
         let pumps: Vec<_> = {
             let held = self.0.contents.pumps.borrow();
-            let mut pumped = HashSet::new();
+            let mut pumped = HashSet::default();
             blocks
                 .into_iter()
                 .filter(|block| pumped.insert(*block))

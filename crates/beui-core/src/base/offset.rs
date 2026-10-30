@@ -124,7 +124,12 @@ impl OffsetNode {
                 doc,
                 &entered,
                 child,
-                item_rect(self.direction, rect, start, position.content),
+                item_rect(
+                    self.direction,
+                    rect,
+                    start,
+                    position.content.max(position.viewport),
+                ),
                 out,
             );
         }

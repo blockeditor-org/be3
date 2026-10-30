@@ -5,6 +5,7 @@ fn a_preview_keeps_the_glyphs_it_shows_where_they_were() {
     let glyph = Primitive {
         clip: [0.0, 0.0, 176.0, 99.0],
         fade: Fade::NONE,
+        rounds: Vec::new(),
         content: Content::Glyph(Glyph {
             rect: [78.0, 34.0, 85.0, 43.0],
             texture: 1,
@@ -41,6 +42,7 @@ fn a_preview_keeps_the_glyphs_it_shows_where_they_were() {
             primitives: vec![Primitive {
                 clip: [17.0, 16.0, 193.0, 115.0],
                 fade: Fade::NONE,
+                rounds: Vec::new(),
                 content: Content::Mesh(vec![
                     Triangle {
                         texture: key,

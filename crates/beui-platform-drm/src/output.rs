@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::os::fd::OwnedFd;
 
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
@@ -218,7 +218,7 @@ impl Output {
             swapchain,
             screen,
             clear: beui::Color32::BLACK,
-            targets: HashMap::new(),
+            targets: HashMap::default(),
             modes,
             candidates,
             chosen,

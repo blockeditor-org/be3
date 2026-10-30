@@ -291,7 +291,7 @@ mod bench {
             if std::env::var_os("UNPLACED").is_some() {
                 let document = self.app();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
-                let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
+                let mut found = stable_hash::HashMap::<String, (usize, usize)>::default();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
                     1 + document
                         .children(node)

@@ -180,6 +180,7 @@ members = [
     "crates/reactive-macros",
     "crates/sequence",
     "crates/sqlite-schema",
+    "crates/stable-hash",
     "crates/tabletop-games/api",
     "crates/tabletop-games/host",
     "crates/tabletop-games/pieces",

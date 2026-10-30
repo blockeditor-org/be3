@@ -10,6 +10,7 @@ beui-core = { path = "../beui-core" }
 beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 glam = "0.30"
+stable-hash = { path = "../stable-hash" }
 wgpu = { version = "29", default-features = false }
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]

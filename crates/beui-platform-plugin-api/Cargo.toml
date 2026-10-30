@@ -8,6 +8,7 @@ license.workspace = true
 beui = { path = "../beui" }
 beui-core = { path = "../beui-core" }
 block-editor-plugin = { path = "../block-editor-plugin" }
+stable-hash = { path = "../stable-hash" }
 uuid = "1"
 
 [lints]

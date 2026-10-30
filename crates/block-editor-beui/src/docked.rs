@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui::NodeId;
@@ -102,13 +102,13 @@ impl DockedTabs {
             bodies: RefCell::default(),
             placings: Cell::new(0),
             panels: RefCell::default(),
-            menus: OwnedSignal::new(DockMenus::new()),
+            menus: OwnedSignal::new(DockMenus::default()),
             frame,
             declared: RefCell::default(),
             watched: Cell::new(None),
             empties: RefCell::default(),
             asking: self.asking.handle(),
-            bar_sizes: OwnedSignal::new(HashMap::new()),
+            bar_sizes: OwnedSignal::new(HashMap::default()),
             declares: OwnedSignal::new(0),
             declaring: OwnedSignal::new(false),
             saving: saved::Saving::default(),

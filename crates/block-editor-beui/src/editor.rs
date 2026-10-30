@@ -116,7 +116,7 @@ enum Changed {
 struct Mirror {
     host: EditorHost,
     pushed: [Revision; Pushed::ALL.len()],
-    watches: RefCell<std::collections::HashMap<std::any::TypeId, (Subscription, Revision)>>,
+    watches: RefCell<stable_hash::HashMap<std::any::TypeId, (Subscription, Revision)>>,
     changed: Rc<RefCell<Vec<Changed>>>,
     _pushes: Vec<Subscription>,
 }
@@ -201,7 +201,7 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
 #[derive(Default)]
 pub(crate) struct Contents {
     live: Rc<ContentCache>,
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    projections: RefCell<stable_hash::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -735,6 +735,13 @@ impl Editor {
         picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
         let state = self.state();
+        let anchor = anchor.into();
+        if let Some(open) = state.picking.get_untracked() {
+            self.finish_pick(open.serial(), Ok(None));
+            if anchor.reopens(open.anchor()) && open.places_like(&filter) {
+                return;
+            }
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let mut filter = filter;
@@ -752,7 +759,7 @@ impl Editor {
             serial,
             filter,
             parent,
-            anchor.into(),
+            anchor,
             touch,
             Box::new(picked),
         )));
@@ -768,6 +775,14 @@ impl Editor {
 
     fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {
         let state = self.state();
+        if let Some(open) = state
+            .popped
+            .get_untracked()
+            .filter(|open| open.asked == asked && anchor.reopens(open.anchor))
+        {
+            self.close_popped(open.serial);
+            return;
+        }
         let serial = state.next_pick.get() + 1;
         state.next_pick.set(serial);
         let touch = beui::native::try_with_document(|document| document.touched()).unwrap_or(false);
@@ -834,6 +849,12 @@ impl Editor {
 
     pub(crate) fn remember_picker_size(&self, size: Vec2) {
         self.state().picker_size.set(Some(size));
+    }
+
+    pub fn cancel_pick(&self) {
+        if let Some(open) = self.state().picking.get_untracked() {
+            self.finish_pick(open.serial(), Ok(None));
+        }
     }
 
     pub(crate) fn picking(&self) -> ReadSignal<Option<crate::picking::Picking>> {
@@ -1144,6 +1165,11 @@ impl Editor {
                 record.top_bar.get_untracked(),
                 record.rotation.get_untracked(),
                 record.opacity.get_untracked(),
+                to_placed(Rect::from_min_size(
+                    rect.min,
+                    beui::Vec2::new(placement.radius, 0.0),
+                ))
+                .width(),
                 record.intrinsic.get_untracked(),
                 document.panned_by_canvas(node),
                 record.dialog.get_untracked().map(|dialog| DialogFrame {

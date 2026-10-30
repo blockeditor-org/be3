@@ -2,9 +2,9 @@ use beui_view::types::icons::Glyph;
 mod host;
 mod switch;
 
+use stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -27,8 +27,9 @@ use super::state::{
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
     DockBarTargetHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
-    DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
+    DockSplitterHandle, DockStackHandle, DockState, DockStripHandle, DockSwitchHandle,
+    DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
+    TabId,
 };
 use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
@@ -331,8 +332,8 @@ struct KeyMap<K> {
 impl<K> Default for KeyMap<K> {
     fn default() -> Self {
         Self {
-            tabs: HashMap::new(),
-            keys: HashMap::new(),
+            tabs: HashMap::default(),
+            keys: HashMap::default(),
             next: 1,
         }
     }
@@ -426,7 +427,7 @@ impl<K: DockKey> DockingLayout<K> {
         let restores = create_signal(0);
         let hosted = create_signal(None);
         let bars_hosted = create_signal(None);
-        let covers = create_signal(BarCovers::new());
+        let covers = create_signal(BarCovers::default());
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -1272,16 +1273,16 @@ struct Found<K: 'static> {
 impl<K: 'static> Default for Found<K> {
     fn default() -> Self {
         Self {
-            bars: HashMap::new(),
+            bars: HashMap::default(),
             spec_bars: Vec::new(),
-            foreign: HashMap::new(),
+            foreign: HashMap::default(),
             hosts: Vec::new(),
             windows: Vec::new(),
-            tabs: HashMap::new(),
-            panes: HashMap::new(),
-            groups: HashMap::new(),
+            tabs: HashMap::default(),
+            panes: HashMap::default(),
+            groups: HashMap::default(),
             dialogs: Vec::new(),
-            parts: HashMap::new(),
+            parts: HashMap::default(),
         }
     }
 }
@@ -1438,6 +1439,7 @@ pub fn Docking<K>(
     chrome: Option<RenderFn<DockChromeHandle>>,
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
+    strip: Option<RenderFn<DockStripHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
     highlight: Option<RenderFn<()>>,
     refused: Option<RenderFn<()>>,
@@ -1447,6 +1449,7 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
+    #[prop(default = 0.0)] window_border: f32,
     #[prop(default = 0.0)] bar_margin: f32,
     bar_target: Option<RenderFn<DockBarTargetHandle>>,
     bar_band: Option<RenderFn<DockBarBandHandle>>,
@@ -1669,12 +1672,29 @@ where
         if let Some(joined) = joined {
             return joined;
         }
-        let empty = key.and_then(|key| found.with_untracked(|found| found.empty(&key)));
-        match empty {
-            Some(empty) => empty.call(()),
-            None => view! {
+        let Some(key) = key else {
+            return view! {
                 <Frame />
-            },
+            };
+        };
+        if let Some(empty) = found.with_untracked(|found| found.empty(&key)) {
+            return empty.call(());
+        }
+        let declared = {
+            let key = key.clone();
+            create_memo(move || found.with(|found| found.empty(&key).is_some()))
+        };
+        view! {
+            <Layers>
+                <Dynamic value={declared}>|_: bool| {
+                    match found.with_untracked(|found| found.empty(&key)) {
+                        Some(empty) => empty.call(()),
+                        None => view! {
+                            <Frame />
+                        },
+                    }
+                }</Dynamic>
+            </Layers>
         }
     });
     let group_host = Func::new(move |group: GroupId| {
@@ -1734,6 +1754,7 @@ where
                 chrome,
                 bar,
                 splitter,
+                strip,
                 grip,
                 highlight,
                 refused,
@@ -1745,6 +1766,7 @@ where
                 dialog,
                 dialog_chrome,
                 dialog_outset,
+                window_border,
                 bar_margin,
                 bar_target,
                 bar_band,

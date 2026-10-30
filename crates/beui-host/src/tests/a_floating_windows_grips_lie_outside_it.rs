@@ -20,12 +20,12 @@ fn a_floating_windows_grips_lie_outside_it() {
     let before = placed(&harness);
     let corner = bounds.min + before.max.to_vec2();
 
-    let inside = corner - vec2(2.0, 2.0);
+    let inside = corner - vec2(4.0, 4.0);
     let output = harness.frame(vec![Input::PointerMoved(inside)]);
     assert_ne!(
         output.main().window.requests.cursor,
         CursorIcon::ResizeNwSe,
-        "the window's own content reaches right to its corner"
+        "the window's own content reaches right to its border"
     );
     harness.drag(inside, inside + vec2(40.0, 30.0));
     harness.frame(Vec::new());

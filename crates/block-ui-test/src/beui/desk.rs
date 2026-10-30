@@ -503,6 +503,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                         [at.min.x, at.max.y],
                     ],
                     clip: [0.0, 0.0, shown.rect.width(), shown.rect.height()],
+                    corner_radius: 0.0,
                 }));
             for (key, pixels) in drawn.textures {
                 painting.textures.entry(key).or_insert(pixels);

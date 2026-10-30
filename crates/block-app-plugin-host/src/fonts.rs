@@ -1,6 +1,7 @@
+use stable_hash::HashSet;
 #[cfg(not(target_arch = "wasm32"))]
 use std::cell::RefCell;
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 
 use block_plugin_api::{FontFace, FontRole, Fonts};
 
@@ -36,7 +37,7 @@ impl Fallbacks {
     pub(super) fn new() -> Self {
         Self {
             sent: Vec::new(),
-            asked: HashSet::new(),
+            asked: HashSet::default(),
         }
     }
 

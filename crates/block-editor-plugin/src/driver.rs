@@ -3,7 +3,7 @@ mod surface;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashSet;
+use stable_hash::HashSet;
 use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]

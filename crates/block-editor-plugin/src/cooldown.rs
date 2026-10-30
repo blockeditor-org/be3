@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::time::Duration;
 
 pub(crate) const PREVIEW_COOLDOWN: Duration = Duration::from_millis(500);

@@ -12,6 +12,12 @@ pub enum LayerPolicy {
     BlocksAll,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AboveEmbeds {
+    Reaches,
+    Paints,
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum LayerLevel {
     #[default]
@@ -151,6 +157,7 @@ pub struct EscapedLayer {
     pub floating: Vec<Rect>,
     pub scrims: Vec<(Rect, Color32)>,
     pub dismiss_on_outside_press: bool,
+    pub trigger: Option<Rect>,
     pub keyboard: bool,
     pub blocks_owner: bool,
 }

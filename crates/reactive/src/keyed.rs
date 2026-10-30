@@ -1,4 +1,4 @@
-use foldhash::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::hash::Hash;
 

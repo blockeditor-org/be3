@@ -1,5 +1,6 @@
+use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
 use be_block::{BlockMetadata, Definition, Entries};

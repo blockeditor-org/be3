@@ -14,6 +14,7 @@ pub(crate) struct Runtime {
     pub(crate) pending: RefCell<Weak<Computation>>,
     pub(crate) probe: RefCell<Option<Probe>>,
     pub(crate) queue: RefCell<VecDeque<Weak<Computation>>>,
+    pub(crate) late: RefCell<VecDeque<Weak<Computation>>>,
     pub(crate) depth: Cell<usize>,
     pub(crate) flushing: Cell<bool>,
     pub(crate) memo_depth: Cell<usize>,
@@ -37,6 +38,7 @@ impl Runtime {
             pending: RefCell::new(Weak::<Computation<fn() -> bool>>::new()),
             probe: RefCell::new(None),
             queue: RefCell::new(VecDeque::new()),
+            late: RefCell::new(VecDeque::new()),
             depth: Cell::new(0),
             flushing: Cell::new(false),
             memo_depth: Cell::new(0),
@@ -339,38 +341,65 @@ pub fn flush() {
     loop {
         let next = RUNTIME.with(|runtime| {
             runtime.removals.set(runtime.removals.get() + 1);
-            runtime.queue.borrow_mut().pop_front()
+            let next = runtime.queue.borrow_mut().pop_front();
+            match next {
+                Some(next) => Some((next, true)),
+                None => runtime
+                    .late
+                    .borrow_mut()
+                    .pop_front()
+                    .map(|late| (late, false)),
+            }
         });
-        let Some(next) = next else { break };
-        run_queued(next, flush);
+        let Some((next, may_defer)) = next else { break };
+        run_queued(next, flush, may_defer);
     }
 }
 
 pub(crate) fn flush_within(root: &Owner) {
-    let depth = RUNTIME.with(|runtime| runtime.depth.get());
-    let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
+    nested(|| run_within(root));
+    let requeued = RUNTIME.with(|runtime| {
+        if runtime.flushing.get() || runtime.late.borrow().is_empty() {
+            return false;
+        }
+        let late = std::mem::take(&mut *runtime.late.borrow_mut());
+        runtime.queue.borrow_mut().extend(late);
+        true
+    });
+    if requeued {
+        wake_if_pending();
+    }
+}
+
+fn run_within(root: &Owner) {
     let flush = next_flush();
     let mut checked = 0;
     let mut seen = RUNTIME.with(|runtime| runtime.removals.get());
+    let owned = |queued: &Weak<Computation>| {
+        queued
+            .upgrade()
+            .is_some_and(|computation| computation.owned_within(root))
+    };
     loop {
         let next = RUNTIME.with(|runtime| {
             if runtime.removals.get() != seen {
                 checked = 0;
             }
             let mut queue = runtime.queue.borrow_mut();
-            let at = checked
-                + queue.iter().skip(checked).position(|queued| {
-                    queued
-                        .upgrade()
-                        .is_some_and(|computation| computation.owned_within(root))
-                })?;
-            checked = at;
+            let found = queue.iter().skip(checked).position(owned);
             runtime.removals.set(runtime.removals.get() + 1);
             seen = runtime.removals.get();
-            queue.remove(at)
+            if let Some(at) = found {
+                checked += at;
+                return queue.remove(checked).map(|next| (next, true));
+            }
+            checked = queue.len();
+            let mut late = runtime.late.borrow_mut();
+            let at = late.iter().position(owned)?;
+            late.remove(at).map(|late| (late, false))
         });
-        let Some(next) = next else { break };
-        run_queued(next, flush);
+        let Some((next, may_defer)) = next else { break };
+        run_queued(next, flush, may_defer);
     }
 }
 
@@ -382,7 +411,7 @@ fn next_flush() -> u64 {
     })
 }
 
-fn run_queued(next: Weak<Computation>, flush: u64) {
+fn run_queued(next: Weak<Computation>, flush: u64, may_defer: bool) {
     let Some(computation) = next.upgrade() else {
         return;
     };
@@ -409,6 +438,10 @@ fn run_queued(next: Weak<Computation>, flush: u64) {
         if let Some(wake) = wake {
             wake();
         }
+        return;
+    }
+    if may_defer && computation.reads_freed() {
+        RUNTIME.with(|runtime| runtime.late.borrow_mut().push_back(next));
         return;
     }
     computation.queued.set(false);

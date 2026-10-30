@@ -1,5 +1,5 @@
+use stable_hash::HashSet;
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
 
 use block_plugin_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
@@ -65,7 +65,7 @@ impl Surfaces {
             gpu,
             panes: Panes::default(),
             layout: ScreenLayout::default(),
-            fresh: HashSet::new(),
+            fresh: HashSet::default(),
             relaid: false,
         })
     }

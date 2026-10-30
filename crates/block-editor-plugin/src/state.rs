@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -35,7 +35,7 @@ pub(crate) struct Callbacks<K, F: ?Sized> {
 impl<K, F: ?Sized> Default for Callbacks<K, F> {
     fn default() -> Self {
         Self {
-            held: Rc::new(RefCell::new((0, HashMap::new()))),
+            held: Rc::new(RefCell::new((0, HashMap::default()))),
         }
     }
 }

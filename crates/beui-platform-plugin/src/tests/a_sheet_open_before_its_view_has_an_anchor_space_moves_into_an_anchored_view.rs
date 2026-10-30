@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 
 use beui_core::accesskit::{Node, NodeId as AccessId, Role};
 use block_editor_plugin::{AnchorSpace, HostTransform, ViewAnchor};

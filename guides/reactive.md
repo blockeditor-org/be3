@@ -433,6 +433,15 @@ also disposes children, even when a child handle remains alive. A scope cannot
 be entered after disposal, and disposing it frees the signals, memos and
 selectors it owns. Disposal is idempotent.
 
+A computation may read a signal or memo another scope owns, such as a menu row
+showing the label of an item a `ForEach` made. When that scope is disposed partway
+through a flush, the reader is usually disposed later in the same flush, once the
+change reaches whatever built it. Until then a freed value never makes its readers
+run again: a reader that would run only because it changed stays as it is, and a
+queued effect or binding that reads one and must run for another reason waits until
+everything else queued has run. A reader still alive then panics when it reads the
+freed value, as it would at any other time.
+
 A scope has exactly one owner, and there are two kinds:
 
 - `child_scope(|| ...)` runs its closure in a new child of the current scope

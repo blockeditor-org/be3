@@ -4,7 +4,7 @@ use super::*;
 fn the_add_menu_fits_a_short_window_and_scrolls_inside_itself() {
     let mut app = AppTest::start();
     app.run(&["resize", "1100x220"]);
-    app.click(ADD_TO_MY_FILES);
+    open_add_to_my_files(&mut app);
     app.wait("#picker.more");
     let (_, y, _, height) = app.place("#picker.location");
     assert!(

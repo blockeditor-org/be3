@@ -1,6 +1,7 @@
+use stable_hash::HashMap;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, VecDeque},
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -74,7 +75,7 @@ impl Host {
             deadline: None,
             waited: Duration::ZERO,
             over_budget: 0,
-            runtimes: HashMap::new(),
+            runtimes: HashMap::default(),
             focus: Focus::default(),
             shell: None,
             grabbed: false,
@@ -162,6 +163,7 @@ pub(super) struct Runtime {
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+    steps: u64,
 }
 
 enum Answer {
@@ -221,7 +223,7 @@ impl Laid {
         self.sizes.is_empty() && self.windows.is_empty() && self.children.is_empty()
     }
 
-    fn screens(&self, instances: &Instances) -> std::collections::HashSet<ScreenId> {
+    fn screens(&self, instances: &Instances) -> stable_hash::HashSet<ScreenId> {
         self.sizes
             .iter()
             .map(|size| size.screen)
@@ -350,11 +352,12 @@ impl Runtime {
             fonts_sent: false,
             described: false,
             painting: false,
-            placements: HashMap::new(),
-            offers: HashMap::new(),
+            placements: HashMap::default(),
+            offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
+            steps: 0,
         }
     }
 
@@ -723,6 +726,7 @@ impl Runtime {
         }
         self.hear(forwarded);
         let (count, longest) = self.backend.stepped();
+        self.steps += count;
         if count > 0 {
             STEPS.with(|steps| {
                 steps
@@ -890,7 +894,7 @@ impl Runtime {
         (commit, (!later.is_empty()).then_some(later))
     }
 
-    fn held_screens(&self) -> std::collections::HashSet<ScreenId> {
+    fn held_screens(&self) -> stable_hash::HashSet<ScreenId> {
         self.held
             .iter()
             .filter_map(|held| match held {
@@ -927,7 +931,7 @@ impl Runtime {
     }
 
     fn report_docked(&self) {
-        let mut framed: std::collections::HashMap<_, _> =
+        let mut framed: stable_hash::HashMap<_, _> =
             self.instances.frame_children().into_iter().collect();
         for (placer, children) in self.instances.docked_children() {
             let frame = framed.remove(&placer).flatten();
@@ -1115,9 +1119,8 @@ impl Runtime {
             source: UNIT,
             drawn,
             requested: self
-                .sent
-                .iter()
-                .find(|request| request.screen == screen)
+                .instances
+                .request_of(screen)
                 .map(|request| match placement {
                     Some(placement) => {
                         super::input::requested_at(&request.metrics, super::input::finer(placement))
@@ -1151,7 +1154,7 @@ pub fn place_screens(
 ) {
     super::web::set_background(background);
     let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
-    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
+    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
     for (order, blit) in blits.iter().enumerate() {
         if let Some(placement) = super::web::placement(blit, order, scale) {
             placed.entry(blit.surface).or_default().push(placement);
@@ -1945,7 +1948,8 @@ pub fn running() -> Vec<RuntimeStatus> {
                         .sum(),
                     placements: runtime.layout.screens.len(),
                 },
-                pass: runtime.pass,
+                steps: runtime.steps,
+                frames: runtime.frames,
                 uptime: runtime.backend.uptime(),
                 instances: runtime.instances.statuses(&runtime.layout, runtime.pass),
             })
@@ -1964,8 +1968,8 @@ fn session() -> Session {
 }
 
 thread_local! {
-    static CHANGED: RefCell<std::collections::HashSet<String>> =
-        RefCell::new(std::collections::HashSet::new());
+    static CHANGED: RefCell<stable_hash::HashSet<String>> =
+        RefCell::new(stable_hash::HashSet::default());
     static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -2708,6 +2712,7 @@ pub fn view_drawing(
     pieces: &[Piece],
     rotation: f32,
     opacity: f32,
+    corner_radius: f32,
 ) -> Option<(beui::native::Drawing, super::presenter::Pieces)> {
     if view.loading {
         return None;
@@ -2716,9 +2721,21 @@ pub fn view_drawing(
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
+        template.quad.corner_radius = corner_radius;
+        let shown_once = region != ViewId::PREVIEW
+            && runtime
+                .offers
+                .get(&(instance, region))
+                .is_some_and(|offers| offers.len() == 1);
+        let made_for = runtime
+            .placements
+            .get(&(instance, region))
+            .filter(|_| shown_once)
+            .map(|placed| placed.rect.size());
         let shared = Rc::new(RefCell::new(pieces.to_vec()));
         let drawing = beui::native::painted_drawing(ViewDrawing::new(
             template,
+            made_for,
             Rc::clone(&shared),
             view.held,
             rotation,

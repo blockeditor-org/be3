@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui::{CursorIcon, Vec2, vec2};
@@ -106,7 +106,7 @@ impl Cursors {
         Self {
             theme,
             scale,
-            loaded: HashMap::new(),
+            loaded: HashMap::default(),
         }
     }
 

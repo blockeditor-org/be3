@@ -212,6 +212,7 @@ impl Size {
             Size::Row if comfortable => 44.0,
             Size::Row => 22.0,
             Size::Toolbar => 30.0,
+            Size::Field if comfortable => 42.0,
             Size::Field => 34.0,
             Size::TouchRow => 52.0,
             Size::Menu => 200.0,

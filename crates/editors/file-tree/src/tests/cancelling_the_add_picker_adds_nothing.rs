@@ -6,15 +6,14 @@ use super::*;
 fn cancelling_the_add_picker_adds_nothing() {
     let mut fixture = editor();
     containers_hold_blocks(&mut fixture);
-    let files = my_files(&mut fixture, Vec::new());
+    my_files(&mut fixture, Vec::new());
     fixture.settle();
 
-    fixture.test.click(format!("file-tree.{files}.add"));
-    fixture.settle();
+    fixture.new_in(MY_FILES);
     let picker = fixture
         .test
         .placed_picker()
-        .expect("the add button opens a picker");
+        .expect("the toolbar's new button opens a picker");
     assert!(matches!(picker.content, ChildContent::Picker { .. }));
 
     fixture.test.answer_picker(Ok(None));

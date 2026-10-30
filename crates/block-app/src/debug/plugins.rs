@@ -121,8 +121,9 @@ fn runtime_lines(runtime: &RuntimeStatus) -> Vec<Line> {
         LineStyle::Muted,
         1,
         format!(
-            "pass {}{}",
-            runtime.pass,
+            "{} steps, {} frames{}",
+            runtime.steps,
+            runtime.frames,
             runtime
                 .uptime
                 .map(|uptime| format!(" · up {}", elapsed(uptime)))

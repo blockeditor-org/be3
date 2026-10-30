@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_app_menu_opens_under_its_button() {
     let mut app = AppTest::start();
-    let button = "#file-tree.desktop-app-menu";
+    let button = "#file-tree.app-menu";
     app.click(button);
     app.wait("#app.menu.status");
     let (button_x, button_y, button_width, button_height) = app.place(button);
@@ -24,6 +24,14 @@ fn the_app_menu_opens_under_its_button() {
     app.snapshot("the_app_menu_opens_under_its_button");
     app.key("Escape");
     app.gone("#app.menu.status");
+
+    app.click(button);
+    app.wait("#app.menu.status");
+    app.click(button);
+    assert!(
+        !app.shown("#app.menu.status"),
+        "a second click on the button closes its menu rather than closing it and opening it again"
+    );
 
     app.click(button);
     app.wait("#app.menu.status");

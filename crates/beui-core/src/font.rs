@@ -1,4 +1,4 @@
-use foldhash::HashMap;
+use stable_hash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use foldhash::fast::FixedState;

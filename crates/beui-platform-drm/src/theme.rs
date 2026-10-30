@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use stable_hash::HashSet;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_SIZE: u32 = 24;
@@ -112,7 +112,7 @@ impl Theme {
         if cursor.is_empty() || cursor.contains('/') {
             return None;
         }
-        let mut walked = HashSet::new();
+        let mut walked = HashSet::default();
         self.find_in(&self.name, cursor, &mut walked)
             .or_else(|| self.find_in("default", cursor, &mut walked))
     }

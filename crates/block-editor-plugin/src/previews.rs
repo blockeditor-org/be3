@@ -1,9 +1,9 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 thread_local! {
-    static IMPORTED: RefCell<HashMap<u64, Weak<wgpu::Texture>>> = RefCell::new(HashMap::new());
+    static IMPORTED: RefCell<HashMap<u64, Weak<wgpu::Texture>>> = RefCell::new(HashMap::default());
 }
 
 pub fn preview_texture(image: u64) -> Option<Rc<wgpu::Texture>> {

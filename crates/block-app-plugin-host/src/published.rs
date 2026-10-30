@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::Arc};
+use stable_hash::HashMap;
+use std::sync::Arc;
 
 use block_plugin_api::{
     ContactsWatch, EditorInstanceId, Watched as _,

@@ -4,16 +4,13 @@ use std::collections::HashSet;
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use block_editor_beui::beui::icons::{
-    Glyph, ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SETTINGS,
-    ICON_SHARE_2, ICON_SPARKLES,
+    Glyph, ICON_DOWNLOAD, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{
-    AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
-};
+use block_editor_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
 use block_editor_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
@@ -21,9 +18,11 @@ use super::export::{Export, ExportFormat, Exporter};
 use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
-use super::zoom::{Zoom, ZoomBar, zooms};
+use super::toolbar::{Adding, FilesToolbar};
+use super::zoom::{Zoom, zooms};
 use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::Span;
 
 const PADDING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Sm;
@@ -113,9 +112,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.reveal_system(focused.via.last().copied().or(focused.block_id));
         tree.expand(focused.via.iter().rev().copied());
     };
-    let (desktop_menu, phone_menu) = (NodeRef::new(), NodeRef::new());
-    let app_menu = move |button: NodeRef| move || editor.show_app_menu(button);
-    let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
     let failed = create_memo(move || failure.get().is_some());
@@ -146,33 +142,31 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     };
 
     let narrow = phone_layout();
-    let wide = create_memo(move || !narrow.get());
     let chrome = editor.chrome_shown();
-    let toolbar = create_memo(move || chrome.get() && wide.get());
+    let toolbar = create_memo(move || chrome.get());
     let focus = zoom.focus();
     let zoomed = create_memo(move || focus.with(Option::is_some));
-    let titled = create_memo(move || narrow.get() && !zoomed.get());
     let swipes = create_memo(move || narrow.get() && zoomed.get());
-    let empty = create_memo(move || zoomed.get() && keys.with(Vec::is_empty));
-    let addable = create_memo(move || {
-        focus.with(|focus| {
-            focus
-                .as_ref()
-                .is_some_and(|focus| focus.row.id.is_some() && focus.row.can_add)
-        })
+    let query = create_signal(String::new());
+    let filter = create_memo(move || query.get().trim().to_lowercase());
+    let filtering = create_memo(move || !filter.with(String::is_empty));
+    let found = create_memo(move || filter.with(|filter| filtered(rows, keys, filter)));
+    let shown_keys = create_memo(move || found.get().keys);
+    let count = create_memo(move || {
+        let hits = found.with(|found| found.hits);
+        match hits {
+            0 => format!("Nothing matches \u{201c}{}\u{201d}", query.get().trim()),
+            1 => "1 match".to_owned(),
+            hits => format!("{hits} matches"),
+        }
     });
-    let new_button = NodeRef::new();
-    let adding = move || {
-        let Some(id) = focus.with_untracked(|focus| focus.as_ref().and_then(|focus| focus.row.id))
-        else {
-            return;
-        };
-        picker.open(
-            editor,
-            id,
-            [id].into_iter().collect::<HashSet<Uuid>>(),
-            node_anchor(&new_button),
-        );
+    let adding = Adding {
+        editor,
+        tree,
+        zoom,
+        picker,
+        renaming,
+        query,
     };
     let content = NodeRef::new();
     editor.content(&content);
@@ -182,37 +176,19 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     });
     view! {
         <List spacing=Space::None>
-            <Toolbar shown={toolbar}>
-                <Button
-                    icon_only=true
-                    glyph=ICON_BOXES
-                    label="New workspace"
-                    @test_id={"file-tree.new-workspace"}
-                    on_click={new_workspace}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Button
-                    icon_only=true
-                    @node_ref={&desktop_menu}
-                    glyph=ICON_CIRCLE_USER_ROUND
-                    label="Account and settings"
-                    @test_id={"file-tree.desktop-app-menu"}
-                    on_click={app_menu(desktop_menu)}
-                />
-            </Toolbar>
-            <Show condition={titled}>
-                <PhoneTitle
-                    on_new_workspace={new_workspace}
-                    menu_button={phone_menu}
-                    on_menu={app_menu(phone_menu)}
-                />
-            </Show>
+            <FilesToolbar adding shown={toolbar} />
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <BackSlide enabled={swipes} on_back={move || zoom.up()}>
                     <Frame fill=ColorRole::Background>
                         <List spacing=Space::None>
-                            <Show condition={zoomed}>
-                                <ZoomBar zoom addable new_button on_new={adding} />
+                            <Show condition={filtering}>
+                                <Frame
+                                    padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}
+                                >
+                                    <Text style=TextStyle::CAPTION @test_id={"file-tree.matches"}>
+                                        {count}
+                                    </Text>
+                                </Frame>
                             </Show>
                             <Show condition={failed}>
                                 <Frame padding=PADDING>
@@ -221,15 +197,10 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     </Text>
                                 </Frame>
                             </Show>
-                            <Show condition={empty}>
-                                <Frame padding=PADDING @test_id={"file-tree.empty"}>
-                                    <Text style=TextStyle::CAPTION>"Nothing here yet"</Text>
-                                </Frame>
-                            </Show>
                             <Tree
                                 @sizing=ItemSize::Percent(100.0)
                                 api=tree_ref
-                                keys={keys}
+                                keys={shown_keys}
                                 item={item}
                                 selected={focused}
                                 ancestors={move |key: RowKey| ancestors(&key)}
@@ -249,6 +220,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 on_edit={move |key: RowKey| renaming.start(key)}
                                 on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
                                 on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
+                                leading={move |face: TreeRowFace<RowKey>| view! {
+                                    <RowGlyph row={tree.row(face.key)} />
+                                }}
                             >|face: TreeRowFace<RowKey>| {
                                 let row = tree.row(face.key.clone());
                                 let workspace = row.get_untracked().is_some_and(|row| row.is_workspace());
@@ -256,18 +230,18 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     return view! {
                                         <SectionRow
                                             editor={editor}
-                                            picker={picker}
                                             row={row}
                                             face={face}
+                                            filter={filter}
                                         />
                                     };
                                 }
                                 view! {
                                     <TreeRow
                                         editor={editor}
-                                        picker={picker}
                                         row={row}
                                         face={face}
+                                        filter={filter}
                                     />
                                 }
                             }</Tree>
@@ -277,41 +251,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             </Frame>
             <Inspector inspecting={inspecting} opened_from={inspected_from} />
         </List>
-    }
-}
-
-#[component]
-fn PhoneTitle(
-    on_new_workspace: ClickCallback,
-    menu_button: NodeRef,
-    on_menu: ClickCallback,
-) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding={Padding::symmetric(PADDING, Space::Xs)}
-                >
-                    <Text style=TextStyle::TITLE>"Files"</Text>
-                </Frame>
-                <Button
-                    icon_only=true
-                    @test_id={"file-tree.new-workspace"}
-                    glyph=ICON_BOXES
-                    label="New workspace"
-                    on_click={on_new_workspace}
-                />
-                <Button
-                    icon_only=true
-                    @node_ref={&menu_button}
-                    @test_id={"file-tree.app-menu"}
-                    glyph=ICON_CIRCLE_USER_ROUND
-                    label="Account and settings"
-                    on_click={on_menu}
-                />
-            </List>
-        </Frame>
     }
 }
 
@@ -373,7 +312,7 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
     }
 }
 
-fn new_workspace(editor: Editor, renaming: Renaming) {
+pub(crate) fn new_workspace(editor: Editor, renaming: Renaming) {
     let id = editor.blocks().create_with(
         WORKSPACE_TYPE,
         None,
@@ -406,7 +345,7 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
     }
 }
 
-fn row_test_id(key: &RowKey) -> String {
+pub(crate) fn row_test_id(key: &RowKey) -> String {
     let named = match key {
         RowKey::Block(path) => path
             .last()
@@ -429,16 +368,13 @@ fn row_test_id(key: &RowKey) -> String {
 #[component]
 fn TreeRow(
     editor: Editor,
-    picker: Picker,
     row: Memo<Option<Row>>,
     face: TreeRowFace<RowKey>,
+    filter: Memo<String>,
 ) -> NodeId {
-    let named = format!("{}.add", row_test_id(&face.key));
-    let (hovered, row_focused) = (face.hovered, face.focused);
+    let row_focused = face.focused;
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
-    let add_label = create_memo(move || format!("Add to {}", label.get()));
-    let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
-    let has_glyph = create_memo(move || glyph.get().is_some());
+    let (before, hit, after) = highlighted(label, filter);
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
     let tag_keys = create_memo(move || {
         row.get()
@@ -457,39 +393,17 @@ fn TreeRow(
             .to_owned()
     });
     let restricted = create_memo(move || access.get().is_some());
-    let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
     let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let muted = create_memo(move || {
         row.get()
             .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
     });
-    let add_child = move || {
-        let Some(row) = row.get_untracked() else {
-            return;
-        };
-        let Some(id) = row.id else {
-            return;
-        };
-        picker.open(
-            editor,
-            id,
-            [id].into_iter().collect::<HashSet<Uuid>>(),
-            picker.row_anchor(&row.key),
-        );
-    };
     let weight = create_memo(move || match row.get().is_some_and(|row| row.section) {
         true => Weight::Bold,
         false => Weight::Normal,
     });
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
-    let glyph_color = create_memo(move || {
-        row.get()
-            .and_then(|row| row.icon_color)
-            .map_or(TextColor::Muted, |[r, g, b]| {
-                TextColor::Custom(Color32::from_rgb(r, g, b).into())
-            })
-    });
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
@@ -498,13 +412,12 @@ fn TreeRow(
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Show condition={has_glyph}>
-                <Text size={glyph_size} color={glyph_color} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-            </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>{label}</Text>
+                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
+                    {before}
+                    <Span background=ColorRole::AccentSoft>{hit}</Span>
+                    {after}
+                </Text>
                 <Show condition={detailed}>
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
@@ -538,19 +451,7 @@ fn TreeRow(
                     editor={editor}
                     row={row}
                     key={face.key.clone()}
-                    hovered={hovered}
                     row_focused={row_focused}
-                />
-            </Show>
-            <Show condition={can_add}>
-                <RowButton
-                    hovered={hovered}
-                    row_focused={row_focused}
-                    glyph=ICON_PLUS
-                    always=false
-                    label={add_label}
-                    named={named.clone()}
-                    on_click={add_child}
                 />
             </Show>
         </List>
@@ -558,38 +459,46 @@ fn TreeRow(
 }
 
 #[component]
-fn SectionRow(
-    editor: Editor,
-    picker: Picker,
-    row: Memo<Option<Row>>,
-    face: TreeRowFace<RowKey>,
-) -> NodeId {
-    let named = format!("{}.add", row_test_id(&face.key));
-    let (hovered, row_focused) = (face.hovered, face.focused);
-    let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
-    let add_label = create_memo(move || format!("Add to {}", label.get()));
+fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListChild> {
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
-    let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
-    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let glyph_size = glyph_size();
+    let glyph_color = create_memo(move || {
+        row.get()
+            .and_then(|row| row.icon_color)
+            .map_or(TextColor::Muted, |[r, g, b]| {
+                TextColor::Custom(Color32::from_rgb(r, g, b).into())
+            })
+    });
+    Children::from([into_segment(view! {
+        <Show condition={has_glyph}>
+            <Text size={glyph_size} color={glyph_color} align=TextAlign::Center>
+                <Icon glyph={glyph} />
+            </Text>
+        </Show>
+    })])
+}
+
+#[component]
+fn SectionRow(
+    editor: Editor,
+    row: Memo<Option<Row>>,
+    face: TreeRowFace<RowKey>,
+    filter: Memo<String>,
+) -> NodeId {
+    let row_focused = face.focused;
+    let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
+    let (before, hit, after) = highlighted(label, filter);
+    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let (detail, detailed) = detail(editor, row);
-    let add_child = move || {
-        if let Some(row) = row.get_untracked()
-            && let Some(id) = row.id
-        {
-            add_to_section(editor, picker, id, picker.row_anchor(&row.key));
-        }
-    };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Show condition={has_glyph}>
-                <Text size={glyph_size} color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-            </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>{label}</Text>
+                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>
+                    {before}
+                    <Span background=ColorRole::AccentSoft>{hit}</Span>
+                    {after}
+                </Text>
                 <Show condition={detailed}>
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
@@ -599,19 +508,7 @@ fn SectionRow(
                     editor={editor}
                     row={row}
                     key={face.key.clone()}
-                    hovered={hovered}
                     row_focused={row_focused}
-                />
-            </Show>
-            <Show condition={can_add}>
-                <RowButton
-                    hovered={hovered}
-                    row_focused={row_focused}
-                    glyph=ICON_PLUS
-                    always=false
-                    label={add_label}
-                    named={named.clone()}
-                    on_click={add_child}
                 />
             </Show>
         </List>
@@ -655,7 +552,12 @@ fn glyph_size() -> Memo<TextSize> {
     })
 }
 
-pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<Rect>) {
+pub(crate) fn add_to_section(
+    editor: Editor,
+    picker: Picker,
+    id: Uuid,
+    anchor: impl Into<block_editor_beui::PickAnchor>,
+) {
     picker.open(
         editor,
         id,
@@ -776,17 +678,14 @@ pub(crate) fn ExportAs(
 
 #[component]
 fn RowButton(
-    hovered: ReadSignal<bool>,
     row_focused: ReadSignal<bool>,
     glyph: Glyph,
-    always: bool,
     label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());
-    let shown = create_memo(move || always || hovered.get() || reachable.get());
     view! {
         <Button
             @test_id={named}
@@ -796,7 +695,6 @@ fn RowButton(
             variant=ButtonVariant::Ghost
             size=ButtonSize::Small
             tab_stop={reachable}
-            revealed={shown}
             capture_presses=true
             on_focus_change={focused}
             on_click={on_click}
@@ -813,7 +711,6 @@ fn RowActions(
     editor: Editor,
     row: Memo<Option<Row>>,
     key: RowKey,
-    hovered: ReadSignal<bool>,
     row_focused: ReadSignal<bool>,
 ) -> NodeId {
     let prefix = row_test_id(&key);
@@ -840,10 +737,8 @@ fn RowActions(
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
             <Show condition={shared}>
                 <RowButton
-                    hovered={hovered}
                     row_focused={row_focused}
                     glyph=ICON_SHARE_2
-                    always=true
                     label={share_label}
                     named={share_id.clone()}
                     on_click={share}
@@ -851,10 +746,8 @@ fn RowActions(
             </Show>
             <Show condition={has_settings}>
                 <RowButton
-                    hovered={hovered}
                     row_focused={row_focused}
                     glyph=ICON_SETTINGS
-                    always=true
                     label={settings_label}
                     named={settings_id.clone()}
                     on_click={open_settings}
@@ -941,7 +834,7 @@ impl Picker {
         editor: Editor,
         parent: Uuid,
         excluded: HashSet<Uuid>,
-        anchor: Option<Rect>,
+        anchor: impl Into<block_editor_beui::PickAnchor>,
     ) {
         self.error.set(None);
         let picked = std::rc::Rc::clone(&self.inner.value().picked);
@@ -1000,4 +893,75 @@ fn picker(
 pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
     let administrator = editor.watch::<AdministratorWatch>();
     create_memo(move || !administrator.get() && row.get().is_some_and(|row| row.can_leave))
+}
+
+#[derive(Clone, PartialEq)]
+struct Found {
+    keys: Vec<RowKey>,
+    hits: usize,
+}
+
+fn filtered(rows: Memo<Vec<Row>>, keys: Memo<Vec<RowKey>>, filter: &str) -> Found {
+    let keys = keys.get();
+    if filter.is_empty() {
+        return Found { keys, hits: 0 };
+    }
+    rows.with(|rows| {
+        let shown: HashSet<&RowKey> = keys.iter().collect();
+        let mut kept = HashSet::new();
+        let mut above: Vec<(usize, &RowKey)> = Vec::new();
+        let mut hits = 0;
+        for row in rows.iter().filter(|row| shown.contains(&row.key)) {
+            while above.last().is_some_and(|(depth, _)| *depth >= row.depth) {
+                above.pop();
+            }
+            if row.id.is_some() || row.section {
+                if row.label.to_lowercase().contains(filter) {
+                    hits += 1;
+                    kept.insert(&row.key);
+                    kept.extend(above.iter().map(|(_, key)| *key));
+                }
+            }
+            above.push((row.depth, &row.key));
+        }
+        Found {
+            keys: keys
+                .iter()
+                .filter(|key| kept.contains(key))
+                .cloned()
+                .collect(),
+            hits,
+        }
+    })
+}
+
+fn matched(label: &str, filter: &str) -> Option<(usize, usize)> {
+    if filter.is_empty() || label.to_lowercase().len() != label.len() {
+        return None;
+    }
+    let start = label.to_lowercase().find(filter)?;
+    let end = start + filter.len();
+    (label.is_char_boundary(start) && label.is_char_boundary(end)).then_some((start, end))
+}
+
+fn highlighted(
+    label: Memo<String>,
+    filter: Memo<String>,
+) -> (Memo<String>, Memo<String>, Memo<String>) {
+    let parts = create_memo(move || {
+        let label = label.get();
+        match filter.with(|filter| matched(&label, filter)) {
+            Some((start, end)) => (
+                label[..start].to_owned(),
+                label[start..end].to_owned(),
+                label[end..].to_owned(),
+            ),
+            None => (label, String::new(), String::new()),
+        }
+    });
+    (
+        create_memo(move || parts.get().0),
+        create_memo(move || parts.get().1),
+        create_memo(move || parts.get().2),
+    )
 }

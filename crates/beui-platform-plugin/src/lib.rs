@@ -4,7 +4,7 @@ mod input;
 mod platform;
 mod surface;
 
-use std::collections::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 use std::error::Error;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
@@ -72,16 +72,16 @@ impl Platform for PluginPlatform {
             let handler = ModuleRunner {
                 runner,
                 views,
-                windows: HashMap::new(),
-                sized: HashMap::new(),
+                windows: HashMap::default(),
+                sized: HashMap::default(),
                 described: Vec::new(),
-                focused: HashSet::new(),
-                toggles: HashMap::new(),
+                focused: HashSet::default(),
+                toggles: HashMap::default(),
                 overflows: Vec::new(),
-                floated: HashMap::new(),
+                floated: HashMap::default(),
                 asks: Vec::new(),
-                escaped: HashMap::new(),
-                placements: HashMap::new(),
+                escaped: HashMap::default(),
+                placements: HashMap::default(),
                 ratio: 1.0,
             };
             self.host

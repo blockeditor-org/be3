@@ -1241,6 +1241,7 @@ dependencies = [
  "foldhash 0.2.0",
  "memchr",
  "reactive",
+ "stable-hash",
  "text-editor-core",
 ]
 
@@ -1260,6 +1261,7 @@ dependencies = [
  "paint-format",
  "raw-window-handle",
  "reactive",
+ "stable-hash",
  "thumbhash",
  "ui-types",
 ]
@@ -1278,6 +1280,7 @@ dependencies = [
  "js-sys",
  "png",
  "reactive",
+ "stable-hash",
  "ttf-parser",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1299,6 +1302,7 @@ dependencies = [
  "beui_macros",
  "block-ui-test",
  "pollster",
+ "stable-hash",
  "text-editor-core",
 ]
 
@@ -1324,6 +1328,7 @@ dependencies = [
  "beui_macros",
  "reactive",
  "serde",
+ "stable-hash",
 ]
 
 [[package]]
@@ -1340,6 +1345,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "js-sys",
+ "stable-hash",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -1350,10 +1356,10 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "beui-fonts",
- "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
  "libloading 0.8.9",
+ "stable-hash",
  "unicode-script",
 ]
 
@@ -1398,6 +1404,7 @@ dependencies = [
  "raw-window-handle",
  "reactive",
  "serde_json",
+ "stable-hash",
  "text-editor-core",
  "wasm-bindgen",
  "web-sys",
@@ -1438,6 +1445,7 @@ dependencies = [
  "beui-view",
  "beui_macros",
  "reactive",
+ "stable-hash",
 ]
 
 [[package]]
@@ -1460,6 +1468,7 @@ dependencies = [
  "accesskit",
  "beui-core",
  "beui-runner",
+ "stable-hash",
 ]
 
 [[package]]
@@ -1480,6 +1489,7 @@ dependencies = [
  "glam",
  "paint-snapshot",
  "pollster",
+ "stable-hash",
  "wgpu",
 ]
 
@@ -1498,6 +1508,7 @@ dependencies = [
  "openxr",
  "pollster",
  "serde_json",
+ "stable-hash",
  "wgpu",
 ]
 
@@ -1529,6 +1540,7 @@ dependencies = [
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
+ "stable-hash",
  "ui-types",
  "wgpu",
  "xcursor",
@@ -1558,6 +1570,7 @@ dependencies = [
  "beui-runner",
  "block-editor-plugin",
  "block-plugin-api",
+ "stable-hash",
  "wgpu",
 ]
 
@@ -1568,6 +1581,7 @@ dependencies = [
  "beui",
  "beui-core",
  "block-editor-plugin",
+ "stable-hash",
  "uuid",
 ]
 
@@ -1617,6 +1631,7 @@ dependencies = [
  "beui_macros",
  "bytemuck",
  "pollster",
+ "stable-hash",
  "web-sys",
  "wgpu",
 ]
@@ -1652,6 +1667,7 @@ version = "0.1.0"
 dependencies = [
  "beui_macros",
  "reactive",
+ "stable-hash",
 ]
 
 [[package]]
@@ -1661,6 +1677,7 @@ dependencies = [
  "beui-tree",
  "geometry",
  "lucide",
+ "stable-hash",
  "thumbhash",
  "ui-types",
 ]
@@ -1678,6 +1695,7 @@ dependencies = [
  "beui_macros",
  "paint-snapshot",
  "reactive",
+ "stable-hash",
 ]
 
 [[package]]
@@ -1941,6 +1959,7 @@ dependencies = [
  "rodio",
  "serde",
  "serde_json",
+ "stable-hash",
  "text-block-types",
  "uuid",
  "wasm-bindgen",
@@ -2002,6 +2021,7 @@ dependencies = [
  "js-sys",
  "presentation-types",
  "serde_json",
+ "stable-hash",
  "terminal-types",
  "text-block-types",
  "tokio",
@@ -2059,6 +2079,7 @@ dependencies = [
  "presentation-types",
  "serde",
  "serde_json",
+ "stable-hash",
  "uuid",
 ]
 
@@ -2090,6 +2111,7 @@ dependencies = [
  "paint-format",
  "serde_bytes",
  "serde_json",
+ "stable-hash",
  "uuid",
  "wgpu",
 ]
@@ -2191,6 +2213,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "stable-hash",
  "ui-keys",
  "ui-preferences",
  "ui-types",
@@ -2258,6 +2281,7 @@ version = "0.1.0"
 dependencies = [
  "block-plugin-manifest",
  "lucide",
+ "stable-hash",
  "uuid",
 ]
 
@@ -7102,8 +7126,8 @@ dependencies = [
 name = "reactive"
 version = "0.1.0"
 dependencies = [
- "foldhash 0.2.0",
  "reactive_macros",
+ "stable-hash",
 ]
 
 [[package]]
@@ -7977,6 +8001,13 @@ name = "sqlite-schema"
 version = "0.1.0"
 dependencies = [
  "rusqlite",
+]
+
+[[package]]
+name = "stable-hash"
+version = "0.1.0"
+dependencies = [
+ "foldhash 0.2.0",
 ]
 
 [[package]]

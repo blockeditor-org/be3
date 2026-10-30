@@ -333,7 +333,7 @@ macro_rules! color_roles {
             pub fn definitions(light: &Theme, dark: &Theme) -> ColorDefinitions {
                 let syntax = |color: Color| color.as_literal().unwrap_or(Color32::TRANSPARENT);
                 let outline = |color: Option<Color32>| color.unwrap_or(Color32::TRANSPARENT);
-                ColorDefinitions::from([
+                ColorDefinitions::from_iter([
                     $((
                         role_vars::$role,
                         SchemeColors::new(light.$role, dark.$role),

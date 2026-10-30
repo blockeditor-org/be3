@@ -13,6 +13,7 @@ use crate::painter::Painter;
 pub struct EmbedPlacement {
     pub rect: Rect,
     pub clip: Rect,
+    pub radius: f32,
     pub raster: f32,
 }
 
@@ -98,6 +99,7 @@ pub struct EmbedNode {
     child: Option<NodeId>,
     punch: bool,
     rotation: f32,
+    radius: f32,
     state: Rc<EmbedState>,
     own: Option<NodeId>,
 }
@@ -135,6 +137,9 @@ impl Element for EmbedNode {
             clip: grid
                 .snap_rect(painter.to_screen(painter.clip_rect()))
                 .intersect(placed),
+            radius: painter
+                .to_screen(Rect::from_min_size(rect.min, Vec2::new(self.radius, 0.0)))
+                .width(),
             raster: self.own.map_or(1.0, |own| doc.raster_of(own)),
         }));
         if let Some(child) = self.child {
@@ -146,7 +151,7 @@ impl Element for EmbedNode {
         if self.punch {
             painter
                 .rotated(rect.center(), self.rotation)
-                .punch(rect, 0.0);
+                .punch(rect, self.radius);
         }
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
@@ -230,6 +235,7 @@ impl Document {
             child: None,
             punch: false,
             rotation: 0.0,
+            radius: 0.0,
             state,
             own: None,
         });
@@ -252,6 +258,12 @@ impl Document {
     pub fn set_embed_rotation(&mut self, embed: NodeOf<EmbedNode>, rotation: f32) {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
             self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
+        }
+    }
+
+    pub fn set_embed_radius(&mut self, embed: NodeOf<EmbedNode>, radius: f32) {
+        if self.arena.get_as::<EmbedNode>(embed).radius != radius {
+            self.arena.get_mut_as::<EmbedNode>(embed).radius = radius;
         }
     }
 }

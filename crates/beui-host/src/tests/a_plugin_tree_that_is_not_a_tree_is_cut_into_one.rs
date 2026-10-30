@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use stable_hash::{HashMap, HashSet};
 
 use accesskit::{Node, NodeId, Role, Tree, TreeId, TreeUpdate};
 
@@ -35,7 +35,7 @@ fn a_plugin_tree_that_is_not_a_tree_is_cut_into_one() {
         .map(|(id, node)| (*id, node))
         .collect();
     assert_eq!(nodes.len(), 4);
-    let mut parented = HashSet::new();
+    let mut parented = HashSet::default();
     for node in nodes.values() {
         for child in node.children() {
             assert!(

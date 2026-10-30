@@ -31,7 +31,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let block = Uuid::new_v4();
     let block_type = CounterContent::CONTENT_TYPE;
     let mut instances = placed_on(block, block_type);
-    let mut open = HashSet::new();
+    let mut open = HashSet::default();
     let opened = next_screens(&mut instances).opened;
     assert!(
         opened

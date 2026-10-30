@@ -1,7 +1,7 @@
+use stable_hash::{HashMap, HashSet};
 use std::{
     any::{Any, TypeId},
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
@@ -1980,6 +1980,7 @@ impl EditorHost {
         top_bar: TopBar,
         rotation: f32,
         opacity: f32,
+        corner_radius: f32,
         intrinsic: Option<Vec2>,
         follows_view: bool,
         dialog: Option<DialogFrame>,
@@ -2009,7 +2010,7 @@ impl EditorHost {
                 clip,
                 own_frame,
                 top_bar,
-                corner_radius: 0.0,
+                corner_radius: corner_radius.max(0.0),
                 layer,
                 mode,
                 intrinsic: intrinsic.map(|size| Size {

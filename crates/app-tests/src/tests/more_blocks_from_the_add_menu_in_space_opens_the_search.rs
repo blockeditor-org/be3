@@ -3,8 +3,9 @@ use super::*;
 #[test]
 fn more_blocks_from_the_add_menu_in_space_opens_the_search() {
     let mut app = AppTest::start_in_space();
-    app.wait(ADD_TO_MY_FILES);
-    app.run(&["--into=space", "click", ADD_TO_MY_FILES]);
+    app.wait(NEW);
+    app.run(&["--into=space", "click", NEW]);
+    app.run(&["--into=space", "click", NEW_IN_MY_FILES]);
     app.wait("#picker.more");
     app.key("Up");
     app.key("Up");

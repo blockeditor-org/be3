@@ -13,6 +13,7 @@ beui-dock = { path = "../beui-dock" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
+stable-hash = { path = "../stable-hash" }
 
 [lints]
 workspace = true

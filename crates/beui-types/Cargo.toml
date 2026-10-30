@@ -9,6 +9,7 @@ license.workspace = true
 beui-tree = { path = "../beui-tree" }
 geometry = { path = "../geometry" }
 lucide = { path = "../lucide" }
+stable-hash = { path = "../stable-hash" }
 thumbhash = "0.1"
 ui-types = { path = "../ui-types" }
 

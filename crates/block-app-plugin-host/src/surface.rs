@@ -1,4 +1,5 @@
-use std::{cell::RefCell, collections::HashMap};
+use stable_hash::HashMap;
+use std::cell::RefCell;
 
 use block_plugin_api::ScreenDamage;
 
@@ -93,7 +94,7 @@ pub fn presenter(
     });
     Ok(Presenter {
         pipeline: BlitPipeline::new(device, regions, format),
-        targets: HashMap::new(),
+        targets: HashMap::default(),
     })
 }
 

@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use beui_types::text::LineBox;
 use beui_types::{Measured, Pos2, Rect};

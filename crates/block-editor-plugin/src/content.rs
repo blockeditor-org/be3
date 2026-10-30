@@ -1,6 +1,6 @@
+use stable_hash::{HashMap, HashSet};
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -252,7 +252,7 @@ impl<T: Model> Objects<T> {
             })
             .collect();
         let kept: HashMap<ObjectId, Rc<T>> = match everything {
-            true => HashMap::new(),
+            true => HashMap::default(),
             false => held
                 .iter()
                 .filter(|(id, _)| !changed.contains(id))

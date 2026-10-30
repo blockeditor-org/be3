@@ -12,6 +12,7 @@ beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }
+stable-hash = { path = "../stable-hash" }
 
 [lints]
 workspace = true

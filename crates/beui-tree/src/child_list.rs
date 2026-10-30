@@ -1,5 +1,5 @@
+use stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SlotId(u32);
@@ -104,7 +104,7 @@ impl<T> ChildList<T> {
             .as_ref()
             .is_none_or(|(revision, _)| *revision != self.revision)
         {
-            let mut index = HashMap::new();
+            let mut index = HashMap::default();
             for (slot, held) in self.slots.iter().enumerate() {
                 for (position, item) in held.items.as_slice().iter().enumerate() {
                     if let Some(key) = key_of(item) {
@@ -194,7 +194,7 @@ impl<T> ChildList<T> {
                 continue;
             }
             let positions = positions.get_or_insert_with(|| {
-                let mut positions = HashMap::new();
+                let mut positions = HashMap::default();
                 for (position, old) in held.iter().enumerate() {
                     if let Some(old) = old.as_ref().and_then(&key) {
                         positions.entry(old).or_insert(position);

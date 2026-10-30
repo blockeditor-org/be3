@@ -380,7 +380,7 @@ pub struct Shared {
     pub locked: std::collections::HashSet<Uuid>,
     pub version_watch: std::collections::HashSet<Uuid>,
     pub versions: HashMap<Uuid, super::version::VersionState>,
-    pub touched: std::collections::HashSet<Uuid>,
+    pub touched: stable_hash::HashSet<Uuid>,
     pub pending: usize,
     pub typing: bool,
     pub uploading: usize,
