@@ -1,6 +1,5 @@
 pub use be_block;
 pub use geometry;
-pub use reactive;
 
 mod asked;
 mod clock;
@@ -26,6 +25,7 @@ pub mod root_settings;
 mod runtime;
 mod screens;
 pub mod session;
+mod state;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 mod wire;
@@ -67,9 +67,9 @@ pub use block_plugin_api::{
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
-pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
+pub use content::{LiveContent, Objects, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
-pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
+pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
@@ -84,6 +84,7 @@ pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use previews::preview_texture;
+pub use state::{Subscription, Unready};
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

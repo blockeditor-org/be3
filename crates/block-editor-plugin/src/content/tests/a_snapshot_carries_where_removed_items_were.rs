@@ -17,7 +17,7 @@ fn a_snapshot_carries_where_removed_items_were() {
     }
     content.apply(&Checklist::remove(removed));
     host.set_block_content(HostContent::of(&content));
-    let projection = OwnedContentProjection::<ChecklistContent>::new(host.clone(), None);
+    let projection = LiveContent::<ChecklistContent>::new(host.clone(), None);
     projection.pump();
     let (_, insert) = Checklist::ITEMS.insert(
         ObjectId::ROOT,

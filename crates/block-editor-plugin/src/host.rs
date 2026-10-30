@@ -9,6 +9,7 @@ use std::{
 
 use crate::asked::{Asked, Task, asking};
 use crate::graph::BlockParent;
+use crate::state::Subscription;
 use block_plugin_api::TopBar;
 use block_plugin_api::guest::host_services;
 use block_plugin_api::{
@@ -404,7 +405,7 @@ struct View {
     scale: f32,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Pushed {
     Peers,
     Histories,
@@ -446,6 +447,7 @@ struct Watches {
     values: HashMap<TypeId, Rc<dyn Any>>,
     revisions: HashMap<TypeId, u64>,
     watched: HashSet<TypeId>,
+    changed: crate::state::Callbacks<TypeId, dyn Fn()>,
     opening: Vec<Opening>,
     calls: Vec<Box<dyn FnOnce()>>,
 }
@@ -462,6 +464,8 @@ pub struct EditorHost {
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
+    on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
+    extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
     changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
@@ -574,6 +578,30 @@ impl EditorHost {
         let revision = &self.pushed[pushed as usize];
         revision.set(revision.get() + 1);
         self.changed();
+        for run in self.on_pushed.of([&pushed]) {
+            run();
+        }
+    }
+
+    pub fn on_pushed(&self, pushed: Pushed, run: impl Fn() + 'static) -> Subscription {
+        self.on_pushed.add(pushed, Rc::new(run))
+    }
+
+    pub fn extension<T: Default + 'static>(&self) -> Rc<T> {
+        let held = self
+            .extensions
+            .borrow()
+            .get(&TypeId::of::<T>())
+            .cloned()
+            .and_then(|held| held.downcast::<T>().ok());
+        if let Some(held) = held {
+            return held;
+        }
+        let made = Rc::new(T::default());
+        self.extensions
+            .borrow_mut()
+            .insert(TypeId::of::<T>(), Rc::clone(&made) as Rc<dyn Any>);
+        made
     }
 
     pub fn changes(&self) -> u64 {
@@ -740,8 +768,20 @@ impl EditorHost {
         }
         *watches.revisions.entry(key).or_default() += 1;
         watches.values.insert(key, Rc::new(value.clone()));
+        let runs = watches.changed.of([&key]);
         drop(watches);
         self.push(Pushed::Watches);
+        for run in runs {
+            run();
+        }
+    }
+
+    pub fn on_watched<W: Watched>(&self, run: impl Fn() + 'static) -> Subscription {
+        self.on_watched_of(TypeId::of::<W>(), run)
+    }
+
+    pub fn on_watched_of(&self, watch: TypeId, run: impl Fn() + 'static) -> Subscription {
+        self.watches.borrow().changed.add(watch, Rc::new(run))
     }
 
     pub fn watch_revision<W: Watched>(&self) -> u64 {
@@ -1285,12 +1325,12 @@ impl EditorHost {
             .insert(block, content_type);
     }
 
-    pub fn content_of<C>(&self, block: Uuid) -> crate::OwnedContentProjection<C>
+    pub fn content_of<C>(&self, block: Uuid) -> crate::LiveContent<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
         self.watch_content(block, C::CONTENT_TYPE);
-        crate::OwnedContentProjection::new(self.clone(), Some(block))
+        crate::LiveContent::new(self.clone(), Some(block))
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
@@ -2048,8 +2088,8 @@ impl EditorHost {
         self.organization.get()
     }
 
-    pub fn blocks(&self) -> crate::graph::Blocks {
-        crate::graph::Blocks {
+    pub fn graph(&self) -> crate::graph::BlockGraph {
+        crate::graph::BlockGraph {
             graph: Rc::clone(&self.graph),
             waker: self.waker.clone(),
             account: Rc::clone(&self.account),

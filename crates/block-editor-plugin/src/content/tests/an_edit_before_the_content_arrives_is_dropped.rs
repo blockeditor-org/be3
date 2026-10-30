@@ -1,11 +1,11 @@
 use super::*;
-use reactive::Pending;
+use crate::Unready;
 
 #[test]
 fn an_edit_before_the_content_arrives_is_dropped() {
     let host = EditorHost::default();
     host.set_editable(true);
-    let projection = OwnedContentProjection::<ChecklistContent>::new(host.clone(), None);
+    let projection = LiveContent::<ChecklistContent>::new(host.clone(), None);
     let (_, add) = Checklist::add("typed into nothing");
 
     projection.operate(add);
@@ -13,7 +13,7 @@ fn an_edit_before_the_content_arrives_is_dropped() {
     assert!(host.take_content_operations().is_empty());
     assert_eq!(
         projection.read(|content| content.root().items.len()),
-        Err(Pending::Loading)
+        Err(Unready::Loading)
     );
 
     let (_, kept) = Checklist::add("milk");

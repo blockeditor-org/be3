@@ -278,9 +278,14 @@ editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
 so an editor never pumps by hand. A
 projection is a `Copy` handle that the `Editor` owns and frees with itself, so
-closures take it with `move`. One made outside an editor, as
-`EditorHost::content_of` makes one for an artifact's regeneration, is an
+closures take it with `move`. One made outside an editor, as an artifact's
+regeneration makes one from `host.content_of::<C>(source).into()`, is an
 `OwnedContentProjection`, which frees it when it drops and derefs to the handle.
+Both are block-editor-beui's signals over block-editor-plugin's `LiveContent`,
+which has no signals of its own (guides/the_new_block_stack.md, "State and
+change callbacks"); the graph's `Blocks` and `BlockList` are the same over
+`BlockGraph` and `BlockWatch`, and `Blocks::of(&host)` is the handle for code
+that holds only an `EditorHost`.
 
 ```rust
 let checklist = editor.block_content::<ChecklistContent>();

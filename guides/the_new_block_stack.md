@@ -1192,7 +1192,7 @@ guides/type_modules.md.
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor, built on `block_type_guest::editor::EditorMirror<C>` (which keeps the
 settled content, the unsettled and pending operations, what an update touched,
-`revision()` and the `Projected` log `LiveText` reads), plus the reactive watchers. `operate` applies an operation to what the view sees and queues it
+`revision()` and the `Projected` log `LiveText` reads), plus the watchers. `operate` applies an operation to what the view sees and queues it
 for the host. An operation that comes back `mine` only confirms what is already
 shown; one from anyone else is applied on top of it, unless an edit of this
 instance's is still in flight, in which case it goes beneath that edit
@@ -1210,6 +1210,39 @@ PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
+
+### State and change callbacks
+
+block-editor-plugin holds the plugin's state as plain values and knows nothing of
+any UI framework or signal library: `LiveContent<C>` (the projection without
+signals: `read`, `ready`, `revision` and `visible`, which reads what the view
+sees even before the content arrived), `BlockGraph` (`EditorHost::graph()`:
+the commands, `info(id)`, and `watch(query)`, a `BlockWatch` whose `read` is
+the query's answer) and `EditorHost`'s pushed and watched values. A read that
+may not have arrived answers `Result<T, Unready>` (`Loading` or `Failed`).
+Every change is announced through a callback that returns a `Subscription`,
+which unregisters it when dropped:
+
+- content: `on_touched(key, run)` for one `Touched` key, `on_change(run)` for
+  any touch (both get the content and what was touched), `on_revision(run)`
+  when the revision `read` and `ready` answer from moves;
+- the graph: `BlockWatch::on_change` for one query, `BlockGraph::on_info(id)`
+  for one block's `BlockInfo`;
+- the host: `on_pushed(Pushed, run)` for one pushed kind, `on_watched::<W>(run)`
+  for one host watch.
+
+A callback runs once per change, after the whole operation, delivery or answer
+has been applied, so state read from inside it is consistent; callbacks run in
+the order they were registered. Graph callbacks wait while
+`EditorHost::defer_graph_changes_unless` says so, until `flush_graph`.
+Content callbacks run inside `pump` and `operate`, which the framework calls
+where it can take them; pushed and watched values change while the host's
+frames are delivered, so an adapter queues them and applies them when it next
+runs a frame. A framework adapts these and nothing else: an immediate-mode one
+ignores them and rereads on the wake, and block-editor-beui's
+`ContentProjection`, `Blocks`, `BlockList` and `Editor` turn each into a signal
+(one per thing a view reads), so editors read signals and never see the
+callbacks.
 
 ### The graph on the plugin protocol
 

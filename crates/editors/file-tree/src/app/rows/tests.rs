@@ -40,5 +40,5 @@ fn client() -> Blocks {
             vec![BlockInfo::new(id, LISTED, BlockParent::Root)],
         );
     }
-    host.blocks()
+    Blocks::of(&host)
 }

@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
-    OwnedContentProjection, PickedBlock, Task, Waker,
+    OwnedContentProjection, PickedBlock, Subscription, Task, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::{AudioStatus, FitArea};
@@ -93,7 +93,7 @@ impl Artifacts {
     }
 
     pub fn blocks(&self) -> Blocks {
-        self.0.host.blocks()
+        Blocks::of(&self.0.host)
     }
 
     pub fn block_id(&self) -> Uuid {
@@ -313,24 +313,89 @@ fn then<T: 'static>(
     })
 }
 
-struct Mirror([Revision; Pushed::ALL.len()]);
+#[derive(Clone, Copy)]
+enum Changed {
+    Pushed(Pushed),
+    Watch(std::any::TypeId),
+}
+
+struct Mirror {
+    host: EditorHost,
+    pushed: [Revision; Pushed::ALL.len()],
+    watches: RefCell<std::collections::HashMap<std::any::TypeId, (Subscription, Revision)>>,
+    changed: Rc<RefCell<Vec<Changed>>>,
+    _pushes: Vec<Subscription>,
+}
 
 impl Mirror {
     fn new(host: &EditorHost) -> Self {
-        Self(Pushed::ALL.map(|pushed| OwnedSignal::new(host.revision(pushed))))
+        let changed: Rc<RefCell<Vec<Changed>>> = Rc::default();
+        let pushes = Pushed::ALL
+            .into_iter()
+            .map(|pushed| {
+                let changed = Rc::downgrade(&changed);
+                host.on_pushed(pushed, move || {
+                    if let Some(changed) = changed.upgrade() {
+                        changed.borrow_mut().push(Changed::Pushed(pushed));
+                    }
+                })
+            })
+            .collect();
+        Self {
+            host: host.clone(),
+            pushed: Pushed::ALL.map(|pushed| OwnedSignal::new(host.revision(pushed))),
+            watches: RefCell::default(),
+            changed,
+            _pushes: pushes,
+        }
     }
 
     fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
-        self.0[pushed as usize].read_only()
+        self.pushed[pushed as usize].read_only()
     }
 
     fn track(&self, pushed: Pushed) {
-        self.0[pushed as usize].get();
+        self.pushed[pushed as usize].get();
     }
 
-    fn sync(&self, host: &EditorHost) {
-        for pushed in Pushed::ALL {
-            self.0[pushed as usize].set(host.revision(pushed));
+    fn watched(&self, watch: std::any::TypeId) -> ReadSignal<u64> {
+        self.watches
+            .borrow_mut()
+            .entry(watch)
+            .or_insert_with(|| {
+                let changed = Rc::downgrade(&self.changed);
+                let changes = self.host.on_watched_of(watch, move || {
+                    if let Some(changed) = changed.upgrade() {
+                        changed.borrow_mut().push(Changed::Watch(watch));
+                    }
+                });
+                (
+                    changes,
+                    OwnedSignal::new(self.host.watch_revision_of(watch)),
+                )
+            })
+            .1
+            .read_only()
+    }
+
+    fn sync(&self) {
+        let changed = std::mem::take(&mut *self.changed.borrow_mut());
+        for changed in changed {
+            match changed {
+                Changed::Pushed(pushed) => {
+                    self.pushed[pushed as usize].set(self.host.revision(pushed));
+                }
+                Changed::Watch(watch) => {
+                    let revision = self
+                        .watches
+                        .borrow()
+                        .get(&watch)
+                        .map(|(_, revision)| revision.handle());
+                    if let Some(revision) = revision {
+                        revision.set(self.host.watch_revision_of(watch));
+                    }
+                }
+            }
         }
     }
 }
@@ -460,7 +525,6 @@ impl OwnedEditor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
-            watches: RefCell::default(),
             files,
             placed,
             frame_children,
@@ -528,7 +592,6 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
@@ -544,7 +607,7 @@ impl Editor {
     }
 
     pub fn blocks(&self) -> Blocks {
-        self.state().host.blocks()
+        Blocks::of(&self.state().host)
     }
 
     pub fn block_id(&self) -> Uuid {
@@ -840,13 +903,7 @@ impl Editor {
     }
 
     fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
-        let host = &self.state().host;
-        self.state()
-            .watches
-            .borrow_mut()
-            .entry(std::any::TypeId::of::<W>())
-            .or_insert_with(|| OwnedSignal::new(host.watch_revision::<W>()))
-            .read_only()
+        self.state().pushed.watched(std::any::TypeId::of::<W>())
     }
 
     pub fn act(&self, call: impl FnOnce() + 'static) {
@@ -1333,17 +1390,8 @@ impl Editor {
         for (count, woken) in wakes {
             woken.set(count.load(Ordering::Acquire));
         }
+        state.pushed.sync();
         if pushed {
-            state.pushed.sync(&state.host);
-            let watches: Vec<_> = state
-                .watches
-                .borrow()
-                .iter()
-                .map(|(watch, revision)| (*watch, revision.handle()))
-                .collect();
-            for (watch, revision) in watches {
-                revision.set(state.host.watch_revision_of(watch));
-            }
             state
                 .files
                 .set(state.host.files().map(|files| crate::FileDrop {
@@ -1588,7 +1636,7 @@ impl Creation {
     }
 
     pub fn blocks(&self) -> Blocks {
-        self.0.host.blocks()
+        Blocks::of(&self.0.host)
     }
 
     pub fn create<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
@@ -1634,7 +1682,7 @@ impl Creation {
     pub fn begin_frame(&self) {
         let changes = Some(self.0.host.changes());
         if self.0.seen.replace(changes) != changes {
-            self.0.pushed.sync(&self.0.host);
+            self.0.pushed.sync();
         }
         self.0.children.begin_frame();
     }

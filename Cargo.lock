@@ -2088,7 +2088,6 @@ dependencies = [
  "geometry",
  "lucide",
  "paint-format",
- "reactive",
  "serde_bytes",
  "serde_json",
  "uuid",

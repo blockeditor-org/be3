@@ -1,12 +1,11 @@
-use reactive::Get;
 use std::cell::Cell;
 use std::rc::Rc;
 
 use be_block::{Edit, LiveEdit, ObjectId, Touched};
 use checklist_types::{Checklist, ChecklistContent};
-use reactive::Scope;
 
-use super::{ContentProjection, OwnedContentProjection};
+use super::LiveContent;
+use crate::Subscription;
 use crate::{EditorHost, HostContent};
 
 fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
@@ -31,11 +30,11 @@ mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {
     host: EditorHost,
-    projection: OwnedContentProjection<ChecklistContent>,
+    projection: LiveContent<ChecklistContent>,
     first: ObjectId,
     second: ObjectId,
     runs: [Rc<Cell<u32>>; 3],
-    _scope: Scope,
+    _watching: Vec<Subscription>,
 }
 
 impl Fixture {
@@ -48,25 +47,21 @@ impl Fixture {
         content.apply(&add_first);
         content.apply(&add_second);
         host.set_block_content(HostContent::of(&content));
-        let projection = OwnedContentProjection::<ChecklistContent>::new(host.clone(), None);
+        let projection = LiveContent::<ChecklistContent>::new(host.clone(), None);
         let runs = [
             Rc::new(Cell::new(0)),
             Rc::new(Cell::new(0)),
             Rc::new(Cell::new(0)),
         ];
-        let scope = Scope::new();
-        scope.run(|| {
-            for (key, count) in [
-                Touched::Subtree(first),
-                Touched::Subtree(second),
-                Touched::Field(ObjectId::ROOT, Checklist::ITEMS.index()),
-            ]
-            .into_iter()
-            .zip(runs.iter().cloned())
-            {
-                let _ = projection.project_on(key, move |_| count.set(count.get() + 1));
-            }
-        });
+        let watching = [
+            Touched::Subtree(first),
+            Touched::Subtree(second),
+            Touched::Field(ObjectId::ROOT, Checklist::ITEMS.index()),
+        ]
+        .into_iter()
+        .zip(runs.iter().cloned())
+        .map(|(key, count)| projection.on_touched(key, move |_, _| count.set(count.get() + 1)))
+        .collect();
         projection.pump();
         assert_eq!(host.take_content_resend_requests(), [None]);
         let fixture = Self {
@@ -75,7 +70,7 @@ impl Fixture {
             first,
             second,
             runs,
-            _scope: scope,
+            _watching: watching,
         };
         fixture.reset();
         fixture

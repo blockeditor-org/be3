@@ -2,7 +2,9 @@ use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 use block_editor_beui::be_block::{Artifact, BlockContent};
-use block_editor_beui::{Artifacts, BlockList, BlockQuery, EditorHost, OwnedContentProjection};
+use block_editor_beui::{
+    Artifacts, BlockList, BlockQuery, Blocks, EditorHost, OwnedContentProjection,
+};
 use logic_grid_types::CompiledLogic;
 use logic_grid_types::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use logicgame::grid::LogicGrid as Grid;
@@ -113,8 +115,8 @@ pub(super) fn regenerate(
     Ok(CompileRegeneration {
         host: host.clone(),
         source_id: source,
-        source: host.content_of::<LogicGridContent>(source),
-        source_block: host.blocks().watch(BlockQuery::Block(source)),
+        source: host.content_of::<LogicGridContent>(source).into(),
+        source_block: Blocks::of(host).watch(BlockQuery::Block(source)),
         target: target_id,
         settings,
     })
@@ -152,9 +154,7 @@ impl CompileRegeneration {
                 .and_then(|listed| listed.into_iter().next())
                 .and_then(|info| info.name())
                 .unwrap_or_else(|| "Logic Grid".to_owned());
-            self.host
-                .blocks()
-                .set_name(self.target, Some(artifact_name(&source_name)));
+            Blocks::of(&self.host).set_name(self.target, Some(artifact_name(&source_name)));
         }
         Some(Ok(()))
     }

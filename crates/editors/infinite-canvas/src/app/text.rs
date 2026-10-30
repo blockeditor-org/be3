@@ -363,7 +363,7 @@ fn live_text(
             };
             if !editing {
                 if adopted.replace(false) {
-                    document.sync(&content, &editor.host(), state.block_id(), false);
+                    document.sync(&content.live(), &editor.host(), state.block_id(), false);
                 }
                 let _ = content.read(|content| document.adopt(content));
                 if document.take_external_edit() {
@@ -372,7 +372,7 @@ fn live_text(
                 return;
             }
             let first = !adopted.get();
-            match document.sync(&content, &editor.host(), state.block_id(), first) {
+            match document.sync(&content.live(), &editor.host(), state.block_id(), first) {
                 Synced::Waiting => return,
                 Synced::External => area.external_edit(),
                 Synced::Unchanged => area.sync(),
