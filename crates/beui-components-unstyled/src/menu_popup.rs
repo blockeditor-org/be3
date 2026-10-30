@@ -82,6 +82,7 @@ pub fn MenuPopup(
     #[prop(default = true)] focusing: Prop<bool>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(default = NodeRef::new())] content: NodeRef,
+    trigger: Option<NodeRef>,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -119,6 +120,7 @@ pub fn MenuPopup(
             open
             sheet
             traps_focus={focusing}
+            trigger
             overlay
             on_dismiss={on_dismiss}
         >|handle: AnchoredHandle| {

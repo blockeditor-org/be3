@@ -118,6 +118,7 @@ pub fn hit(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2, touch
                 .is_some_and(|rect| rect.contains_half_open(pos));
             if inside && let Some(content) = layer.content {
                 let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                outside.retain(|overlay| !doc.on_overlay_trigger(*overlay, pos));
                 return settle(doc, index, hit, outside);
             }
             if !layer.blocks_all() {

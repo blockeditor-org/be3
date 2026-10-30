@@ -101,6 +101,7 @@ pub fn MenuButton(
                 items={items.into_run()}
                 menu
                 anchor={button}
+                trigger={button}
                 open={shown}
                 on_dismiss={move || open.set(false)}
                 on_select={on_select}

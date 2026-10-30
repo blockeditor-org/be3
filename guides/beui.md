@@ -2093,7 +2093,13 @@ dismissed. There is one request for each reason, sent to one layer:
   outside a submenu closes the whole menu). A layer that blocks everything
   still lets the pointer reach the blocking layers it is nested in, so the
   rows of a menu stay hovered and pressable under its open submenu, and a
-  press on one closes the submenu. Which layers the pointer can reach is one
+  press on one closes the submenu. A press that reaches such a layer on the
+  `trigger` of a layer above it is left to that trigger, as with a popover, so
+  a `MenuButton` (whose menu's trigger is its button) in a floating bar closes
+  its menu on a second click rather than reopening it. A host of escaped
+  layers does the same (`block_app_plugin_host::dismissed_by_press`), except
+  that a layer blocking its view (`blocks_owner`) whose trigger is in that
+  blocked view is closed by the press, which the view never hears. Which layers the pointer can reach is one
   rule (`Layers::reachable`) that the hit test and the forwarding of input to
   a forwarding catcher share. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
@@ -3014,7 +3020,8 @@ floating bars, along it for docked ones), and the highlight shows that slot. The
 (`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
-its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
+its menu when clicked or pressed with Enter, never on the release of a press that
+dragged it, wherever the drag went (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
 submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
 `over.top.left`, `beside.bottom.right`; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the

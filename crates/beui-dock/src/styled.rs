@@ -1109,6 +1109,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
         Direction::Vertical => ICON_GRIP_HORIZONTAL,
     });
     let menu = control.menu();
+    let open = create_signal(false);
     view! {
         <Interactive
             cursor=beui_view::types::CursorIcon::Grab
@@ -1144,6 +1145,13 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
                 arrow=false
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Toolbar
+                open
+                click_opens=false
+                on_click={move || {
+                    if !moved.get() {
+                        open.update(|open| *open = !*open);
+                    }
+                }}
                 items={view! {
                     <MenuNodes nodes={menu} test_prefix={"grip".to_owned()} />
                 }}
