@@ -10,7 +10,7 @@ use crate::window::WindowId;
 
 use crate::node::ANCESTOR_LIMIT;
 
-pub use beui_types::layer::{Dismiss, LayerLevel, LayerPolicy};
+pub use beui_types::layer::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy};
 
 #[derive(Default)]
 pub struct OpenLayers {
@@ -819,6 +819,7 @@ impl Document {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_covers(layer))
+            .chain(self.above_embeds_in(window, false).map(|(_, rect)| rect))
             .collect()
     }
 
@@ -826,7 +827,29 @@ impl Document {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_paints(layer))
+            .chain(self.above_embeds_in(window, true).map(|(_, rect)| rect))
             .collect()
+    }
+
+    pub fn set_above_embeds(&mut self, node: NodeId, above: Option<AboveEmbeds>) {
+        match above {
+            Some(above) => self.above_embeds.insert(node, above),
+            None => self.above_embeds.remove(&node),
+        };
+    }
+
+    fn above_embeds_in(
+        &self,
+        window: WindowId,
+        painted: bool,
+    ) -> impl Iterator<Item = (NodeId, Rect)> + '_ {
+        self.above_embeds
+            .iter()
+            .filter(move |(_, above)| !painted || **above == AboveEmbeds::Paints)
+            .filter(|(node, _)| self.arena.contains(**node))
+            .filter(move |(node, _)| self.window_of(**node) == window)
+            .filter_map(|(node, _)| Some((*node, self.node_rect(*node)?)))
+            .filter(|(_, rect)| rect.is_positive())
     }
 
     pub fn set_kept_clear(&mut self, node: NodeId, rects: Option<Vec<Rect>>) {
@@ -859,14 +882,21 @@ impl Document {
     }
 
     pub fn overlay_layers(&self, window: WindowId) -> Vec<(Vec<usize>, Rect)> {
-        self.window_overlays(window)
+        let mut layers: Vec<(Vec<usize>, Rect)> = self
+            .window_overlays(window)
             .iter()
             .flat_map(|(index, layer)| {
                 self.layer_covers(layer)
                     .into_iter()
                     .map(move |cover| (vec![*index], cover))
             })
-            .collect()
+            .chain(
+                self.above_embeds_in(window, false)
+                    .map(|(node, rect)| (self.paint_order(node), rect)),
+            )
+            .collect();
+        layers.sort_by(|(left, _), (right, _)| left.cmp(right));
+        layers
     }
 
     pub fn paint_order(&self, node: NodeId) -> Vec<usize> {

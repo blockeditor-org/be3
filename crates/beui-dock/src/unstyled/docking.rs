@@ -27,7 +27,8 @@ use super::state::{
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
     DockBarTargetHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
+    DockSplitterHandle, DockStackHandle, DockState, DockStripHandle, DockSwitchHandle,
+    DockSwitcherHandle,
     DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
 };
 use beui_components_unstyled::DialogLayout;
@@ -1438,6 +1439,7 @@ pub fn Docking<K>(
     chrome: Option<RenderFn<DockChromeHandle>>,
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
+    strip: Option<RenderFn<DockStripHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
     highlight: Option<RenderFn<()>>,
     refused: Option<RenderFn<()>>,
@@ -1735,6 +1737,7 @@ where
                 chrome,
                 bar,
                 splitter,
+                strip,
                 grip,
                 highlight,
                 refused,

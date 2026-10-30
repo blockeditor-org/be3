@@ -11,7 +11,7 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
-use beui_view::types::LayerPolicy;
+use beui_view::types::{AboveEmbeds, LayerPolicy};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -160,6 +160,11 @@ pub struct DockBarHandle {
     pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
     pub test_prefix: String,
+}
+
+pub struct DockStripHandle {
+    pub direction: Direction,
+    pub tabs: NodeId,
 }
 
 pub struct DockSplitterHandle {
@@ -565,6 +570,7 @@ struct State {
     chrome: RenderFn<DockChromeHandle>,
     bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
+    strip: RenderFn<DockStripHandle>,
     grip: RenderFn<DockGripHandle>,
     highlight: RenderFn<()>,
     refused: RenderFn<()>,
@@ -1671,6 +1677,7 @@ pub(crate) struct DockConfig {
     pub(crate) chrome: Option<RenderFn<DockChromeHandle>>,
     pub(crate) bar: Option<RenderFn<DockBarHandle>>,
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
+    pub(crate) strip: Option<RenderFn<DockStripHandle>>,
     pub(crate) grip: Option<RenderFn<DockGripHandle>>,
     pub(crate) highlight: Option<RenderFn<()>>,
     pub(crate) refused: Option<RenderFn<()>>,
@@ -1724,6 +1731,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         chrome,
         bar,
         splitter,
+        strip,
         grip,
         highlight,
         refused,
@@ -1859,6 +1867,14 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             RenderFn::new(|_| {
                 view! {
                     <Frame />
+                }
+            })
+        }),
+        strip: strip.unwrap_or_else(|| {
+            RenderFn::new(|handle: DockStripHandle| {
+                let DockStripHandle { direction, tabs } = handle;
+                view! {
+                    <Scroll direction>{tabs}</Scroll>
                 }
             })
         }),
@@ -2816,8 +2832,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
-    view! {
-        <Scroll direction @node_ref=&strip>
+    let tabs = view! {
             <Choice
                 @node_ref=&tab_list
                 options={view! {
@@ -2861,8 +2876,10 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     },
                 }
             }</Choice>
-        </Scroll>
-    }
+    };
+    let scroll = dock.strip.call(DockStripHandle { direction, tabs });
+    strip.fill(scroll);
+    scroll
 }
 
 #[component]
@@ -3226,7 +3243,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
     });
     let start = shown.clone();
-    view! {
+    let node = view! {
         <Interactive
             @test_id={dock.splitter_test_id(split)}
             capture_presses=true
@@ -3280,7 +3297,9 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         >
             <Frame>{face}</Frame>
         </Interactive>
-    }
+    };
+    above_embeds(node, Some(AboveEmbeds::Reaches));
+    node
 }
 
 fn fitted(size: Vec2, bounds: Vec2) -> Vec2 {
@@ -3319,7 +3338,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     });
     let held: Rc<Cell<Option<(f32, Pos2, f32)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    view! {
+    let node = view! {
         <Interactive
             @test_id={dock.pane_test_id("dock.sidebar", leaf)}
             focusable=true
@@ -3374,7 +3393,9 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             children={face}
         />
-    }
+    };
+    above_embeds(node, Some(AboveEmbeds::Reaches));
+    node
 }
 
 #[component]

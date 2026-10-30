@@ -1125,6 +1125,18 @@ window finer or coarser), announced again when a `WindowReport::Rastered`
 changes it, so whatever the host composites there can be drawn as sharp as
 the window around it. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
+What the host draws there covers the document, overlays aside. A node that
+must stay above the embeds painted before it marks itself with
+`above_embeds(node, Some(AboveEmbeds::Reaches))`, which keeps its rectangle
+for its own input (a dock splitter's reach over a child editor), or
+`AboveEmbeds::Paints`, which also has the host draw the document's pixels
+there over them (the splitter's line and focus ring). The marks join the
+overlays in `Document::overlay_layers` (by paint order, so only embeds painted
+earlier are covered), `overlay_rects` and, for `Paints`,
+`overlay_painted_rects`, which a plugin reports as occluders, floating and
+floating painted rectangles. Mark only what paints a few pixels: the host
+draws the document over the embed there, so a mark over a large empty area
+hides the embed under it.
 `Offset` takes exactly one child, lays it out at its full length along a
 `direction` and shows it from an offset; a run of rows goes in a `List` inside
 it. It answers no input at all, so nothing scrolls by putting one in a view

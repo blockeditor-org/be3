@@ -732,6 +732,11 @@ impl ApplicationHandler for Runner {
             WindowEvent::PinchGesture { delta, .. } => {
                 self.push(Input::Zoom(1.0 + delta as f32));
             }
+            WindowEvent::KeyboardInput {
+                is_synthetic: true,
+                event,
+                ..
+            } if event.state == ElementState::Pressed => {}
             WindowEvent::KeyboardInput { event, .. } => {
                 let evdev = evdev(event.physical_key);
                 let key = logical_key(

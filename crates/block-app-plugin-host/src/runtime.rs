@@ -1118,9 +1118,8 @@ impl Runtime {
             source: UNIT,
             drawn,
             requested: self
-                .sent
-                .iter()
-                .find(|request| request.screen == screen)
+                .instances
+                .request_of(screen)
                 .map(|request| match placement {
                     Some(placement) => {
                         super::input::requested_at(&request.metrics, super::input::finer(placement))

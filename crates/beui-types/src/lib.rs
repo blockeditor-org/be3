@@ -50,7 +50,7 @@ pub use input::{
 };
 pub use keys::{KeyAt, KeyEvent, KeyInput, KeyTarget};
 pub use layer::{
-    Dismiss, EscapedLayer, HostTransform, LayerEdge, LayerLevel, LayerPlacement, LayerPolicy,
+    AboveEmbeds, Dismiss, EscapedLayer, HostTransform, LayerEdge, LayerLevel, LayerPlacement, LayerPolicy,
     LayerSpace, OverlayAnchor, Placement,
 };
 pub use layout::{

@@ -1155,6 +1155,17 @@ impl Instances {
         self.entries.get(&instance)?.screens.get(&region)?.placement
     }
 
+    pub(super) fn request_of(&self, screen: ScreenId) -> Option<&ScreenRequest> {
+        self.entries.values().find_map(|entry| {
+            entry
+                .screens
+                .values()
+                .map(|held| &held.request)
+                .chain(entry.anchored.iter().map(|held| &held.screen.request))
+                .find(|request| request.screen == screen)
+        })
+    }
+
     pub(super) fn screen_id(&self, instance: EditorInstanceId, region: ViewId) -> Option<ScreenId> {
         Some(
             self.entries

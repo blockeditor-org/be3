@@ -1,4 +1,5 @@
 use beui_view::types::Overflow;
+use beui_view::types::AboveEmbeds;
 use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
@@ -16,7 +17,7 @@ pub use crate::unstyled::{
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle,
     DockDialogHandle, DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
@@ -26,7 +27,7 @@ use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::{BAND_FILL, ToolPill};
 use beui_components_styled::tooltip::Tooltip;
-use beui_components_styled::{Length, List, Separator};
+use beui_components_styled::{Length, List, Scroll, Separator};
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
 use beui_view::primitives::{Drawing, Interactive};
@@ -154,6 +155,12 @@ where
             }}
             splitter={move |handle: DockSplitterHandle| view! {
                 <DockSplitterFace handle />
+            }}
+            strip={move |handle: DockStripHandle| {
+                let DockStripHandle { direction, tabs } = handle;
+                view! {
+                    <Scroll direction>{tabs}</Scroll>
+                }
             }}
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
@@ -952,11 +959,19 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
             Direction::Vertical => Padding::vertical(Space::Custom(side)),
         }
     });
-    view! {
-        <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
-            <Frame fill={line} />
-        </Frame>
-    }
+    let border = focus_border(focused, Border::FOCUS);
+    let line = view! {
+        <Frame fill={line} />
+    };
+    above_embeds(line, Some(AboveEmbeds::Paints));
+    let ring = view! {
+        <Frame padding={padding} border={border}>{line}</Frame>
+    };
+    above_embeds(
+        ring,
+        create_memo(move || border.get().map(|_| AboveEmbeds::Paints)),
+    );
+    ring
 }
 
 #[component]

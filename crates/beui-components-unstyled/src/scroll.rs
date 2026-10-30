@@ -268,6 +268,27 @@ fn chaining(
     })
 }
 
+fn crosswise(
+    direction: Prop<Direction>,
+    wheel: Callback<WheelInput, bool>,
+) -> Callback<WheelInput, bool> {
+    Callback::new(move |input: WheelInput| match input {
+        WheelInput::Scroll(gesture)
+            if gesture.unclaimed
+                && direction.get_untracked() == Direction::Horizontal
+                && gesture.delta.x == 0.0
+                && gesture.fling.x == 0.0 =>
+        {
+            wheel.call(WheelInput::Scroll(ScrollGesture {
+                delta: Vec2::new(gesture.delta.y, 0.0),
+                fling: Vec2::new(gesture.fling.y, 0.0),
+                ..gesture
+            }))
+        }
+        input => wheel.call(input),
+    })
+}
+
 fn autoscroll_speed(distance: f32) -> f32 {
     let beyond = (distance.abs() - AUTOSCROLL_DEAD_ZONE).max(0.0);
     distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
@@ -728,15 +749,18 @@ fn Scrolling(
             move |gesture: DragGesture| motion.value().drag(gesture),
         ),
     ]);
-    let wheel = gestures::first_of([
-        autoscroll.wheel,
-        chaining(
-            motion,
-            gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
-                motion.value().wheel(gesture)
-            }),
-        ),
-    ]);
+    let wheel = crosswise(
+        direction,
+        gestures::first_of([
+            autoscroll.wheel,
+            chaining(
+                motion,
+                gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+                    motion.value().wheel(gesture)
+                }),
+            ),
+        ]),
+    );
     let cursor = create_memo(move || {
         autoscroll.active.get().then(|| match direction.get() {
             Direction::Vertical => CursorIcon::ResizeVertical,

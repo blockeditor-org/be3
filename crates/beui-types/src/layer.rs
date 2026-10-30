@@ -12,6 +12,12 @@ pub enum LayerPolicy {
     BlocksAll,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AboveEmbeds {
+    Reaches,
+    Paints,
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum LayerLevel {
     #[default]

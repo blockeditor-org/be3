@@ -109,6 +109,16 @@ pub(crate) fn keep_clear(node: NodeId, rects: Prop<Vec<crate::types::Rect>>) {
     });
 }
 
+pub(crate) fn above_embeds(node: NodeId, above: Prop<Option<crate::types::AboveEmbeds>>) {
+    create_effect(move || {
+        let above = above.get();
+        with_document(|document| document.set_above_embeds(node, above));
+    });
+    on_cleanup(move || {
+        try_with_document(|document| document.set_above_embeds(node, None));
+    });
+}
+
 pub(crate) fn window_point(
     pos: crate::types::Pos2,
     from: crate::types::WindowId,
