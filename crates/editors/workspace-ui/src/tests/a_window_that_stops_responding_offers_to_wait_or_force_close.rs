@@ -26,7 +26,11 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .set_watched::<WindowsWatch>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
     assert!(
-        fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| splitter(occluder.rect)),
         "a responding window is left alone"
     );
 
@@ -39,7 +43,11 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         "the tab says the window is not responding"
     );
     assert!(
-        !fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
+        !fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| splitter(occluder.rect)),
         "a banner covers part of the window"
     );
     fixture
@@ -49,7 +57,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     fixture.test.click("workspace.window.wait");
     fixture.settle();
     assert!(
-        fixture.test.occluders().is_empty(),
+        fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
         "waiting puts the banner away"
     );
     assert!(!force_closed(&fixture));
@@ -67,7 +75,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .set_watched::<WindowsWatch>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
-        !fixture.test.occluders().is_empty(),
+        !fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
         "freezing again brings the banner back"
     );
 

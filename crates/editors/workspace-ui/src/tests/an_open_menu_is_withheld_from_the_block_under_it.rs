@@ -10,7 +10,11 @@ fn an_open_menu_is_withheld_from_the_block_under_it() {
 
     show(&mut fixture, opened, None);
     assert!(
-        fixture.test.occluders().iter().all(|occluder| splitter(occluder.rect)),
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| splitter(occluder.rect)),
         "a workspace with no menu open withholds nothing from the block it shows but the reach of its splitters"
     );
 
