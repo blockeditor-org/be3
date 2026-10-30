@@ -138,6 +138,10 @@ fn a_surface_with_a_corner_radius_is_clipped_to_its_rounded_rect() {
     let red = |x: u32, y: u32| pixels[((y * SIZE + x) * 4) as usize];
     assert_eq!(red(0, 0), 0, "the corner outside the rounding stays black");
     assert_eq!(red(SIZE - 1, SIZE - 1), 0, "every corner is rounded");
-    assert_eq!(red(SIZE / 2, 0), 255, "the edge between the corners is covered");
+    assert_eq!(
+        red(SIZE / 2, 0),
+        255,
+        "the edge between the corners is covered"
+    );
     assert_eq!(red(8, 8), 255, "inside the rounding is covered");
 }
