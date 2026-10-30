@@ -276,6 +276,10 @@ impl Gpu {
 }
 
 impl Host for Gpu {
+    fn features(&mut self) -> Vec<abi::FeatureName> {
+        convert::features(self.device.features())
+    }
+
     fn limits(&mut self) -> abi::SupportedLimits {
         self.limits
     }

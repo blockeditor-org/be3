@@ -1,15 +1,26 @@
 use block_gpu_abi::device as abi;
 
 macro_rules! plain_map {
-    ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? }) => {
+    ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
         pub fn $function(value: $from) -> $to {
             use $from as From;
             use $to as To;
             match value {
                 $(From::$variant => To::$variant,)+
+                $($(From::$named => $value,)+)?
             }
         }
     };
+}
+
+const fn astc(block: wgpu::AstcBlock, srgb: bool) -> wgpu::TextureFormat {
+    wgpu::TextureFormat::Astc {
+        block,
+        channel: match srgb {
+            true => wgpu::AstcChannel::UnormSrgb,
+            false => wgpu::AstcChannel::Unorm,
+        },
+    }
 }
 
 plain_map!(texture_format, abi::TextureFormat, wgpu::TextureFormat, {
@@ -25,6 +36,42 @@ plain_map!(texture_format, abi::TextureFormat, wgpu::TextureFormat, {
     Rgba16Uint, Rgba16Sint, Rgba16Float,
     Rgba32Uint, Rgba32Sint, Rgba32Float,
     Stencil8, Depth16Unorm, Depth24Plus, Depth24PlusStencil8, Depth32Float, Depth32FloatStencil8,
+    Bc1RgbaUnorm, Bc1RgbaUnormSrgb, Bc2RgbaUnorm, Bc2RgbaUnormSrgb, Bc3RgbaUnorm, Bc3RgbaUnormSrgb,
+    Bc4RUnorm, Bc4RSnorm, Bc5RgUnorm, Bc5RgSnorm, Bc6hRgbUfloat, Bc6hRgbFloat,
+    Bc7RgbaUnorm, Bc7RgbaUnormSrgb,
+    Etc2Rgb8Unorm, Etc2Rgb8UnormSrgb, Etc2Rgba8Unorm, Etc2Rgba8UnormSrgb,
+    EacR11Unorm, EacR11Snorm, EacRg11Unorm, EacRg11Snorm,
+}, {
+    Etc2Rgb8a1Unorm = wgpu::TextureFormat::Etc2Rgb8A1Unorm,
+    Etc2Rgb8a1UnormSrgb = wgpu::TextureFormat::Etc2Rgb8A1UnormSrgb,
+    Astc4x4Unorm = astc(wgpu::AstcBlock::B4x4, false),
+    Astc4x4UnormSrgb = astc(wgpu::AstcBlock::B4x4, true),
+    Astc5x4Unorm = astc(wgpu::AstcBlock::B5x4, false),
+    Astc5x4UnormSrgb = astc(wgpu::AstcBlock::B5x4, true),
+    Astc5x5Unorm = astc(wgpu::AstcBlock::B5x5, false),
+    Astc5x5UnormSrgb = astc(wgpu::AstcBlock::B5x5, true),
+    Astc6x5Unorm = astc(wgpu::AstcBlock::B6x5, false),
+    Astc6x5UnormSrgb = astc(wgpu::AstcBlock::B6x5, true),
+    Astc6x6Unorm = astc(wgpu::AstcBlock::B6x6, false),
+    Astc6x6UnormSrgb = astc(wgpu::AstcBlock::B6x6, true),
+    Astc8x5Unorm = astc(wgpu::AstcBlock::B8x5, false),
+    Astc8x5UnormSrgb = astc(wgpu::AstcBlock::B8x5, true),
+    Astc8x6Unorm = astc(wgpu::AstcBlock::B8x6, false),
+    Astc8x6UnormSrgb = astc(wgpu::AstcBlock::B8x6, true),
+    Astc8x8Unorm = astc(wgpu::AstcBlock::B8x8, false),
+    Astc8x8UnormSrgb = astc(wgpu::AstcBlock::B8x8, true),
+    Astc10x5Unorm = astc(wgpu::AstcBlock::B10x5, false),
+    Astc10x5UnormSrgb = astc(wgpu::AstcBlock::B10x5, true),
+    Astc10x6Unorm = astc(wgpu::AstcBlock::B10x6, false),
+    Astc10x6UnormSrgb = astc(wgpu::AstcBlock::B10x6, true),
+    Astc10x8Unorm = astc(wgpu::AstcBlock::B10x8, false),
+    Astc10x8UnormSrgb = astc(wgpu::AstcBlock::B10x8, true),
+    Astc10x10Unorm = astc(wgpu::AstcBlock::B10x10, false),
+    Astc10x10UnormSrgb = astc(wgpu::AstcBlock::B10x10, true),
+    Astc12x10Unorm = astc(wgpu::AstcBlock::B12x10, false),
+    Astc12x10UnormSrgb = astc(wgpu::AstcBlock::B12x10, true),
+    Astc12x12Unorm = astc(wgpu::AstcBlock::B12x12, false),
+    Astc12x12UnormSrgb = astc(wgpu::AstcBlock::B12x12, true),
 });
 
 plain_map!(texture_dimension, abi::TextureDimension, wgpu::TextureDimension, {
@@ -84,6 +131,7 @@ plain_map!(blend_factor, abi::BlendFactor, wgpu::BlendFactor, {
     Zero, One, Src, OneMinusSrc, SrcAlpha, OneMinusSrcAlpha,
     Dst, OneMinusDst, DstAlpha, OneMinusDstAlpha,
     SrcAlphaSaturated, Constant, OneMinusConstant,
+    Src1, OneMinusSrc1, Src1Alpha, OneMinusSrc1Alpha,
 });
 
 plain_map!(blend_operation, abi::BlendOperation, wgpu::BlendOperation, {
@@ -217,18 +265,67 @@ pub(crate) fn limits(value: &wgpu::Limits) -> abi::SupportedLimits {
         max_vertex_buffer_array_stride: value.max_vertex_buffer_array_stride,
         min_uniform_buffer_offset_alignment: value.min_uniform_buffer_offset_alignment,
         min_storage_buffer_offset_alignment: value.min_storage_buffer_offset_alignment,
+        max_dynamic_uniform_buffers_per_pipeline_layout: value
+            .max_dynamic_uniform_buffers_per_pipeline_layout,
+        max_dynamic_storage_buffers_per_pipeline_layout: value
+            .max_dynamic_storage_buffers_per_pipeline_layout,
+        max_storage_buffers_per_shader_stage: value.max_storage_buffers_per_shader_stage,
+        max_storage_textures_per_shader_stage: value.max_storage_textures_per_shader_stage,
+        max_inter_stage_shader_variables: value.max_inter_stage_shader_variables,
+        max_color_attachments: value.max_color_attachments,
+        max_color_attachment_bytes_per_sample: value.max_color_attachment_bytes_per_sample,
+        max_compute_workgroup_storage_size: value.max_compute_workgroup_storage_size,
+        max_compute_invocations_per_workgroup: value.max_compute_invocations_per_workgroup,
+        max_compute_workgroup_size_x: value.max_compute_workgroup_size_x,
+        max_compute_workgroup_size_y: value.max_compute_workgroup_size_y,
+        max_compute_workgroup_size_z: value.max_compute_workgroup_size_z,
+        max_compute_workgroups_per_dimension: value.max_compute_workgroups_per_dimension,
     }
 }
 
+pub(crate) const FEATURES: [(wgpu::Features, abi::FeatureName); 17] = [
+    (wgpu::Features::DEPTH_CLIP_CONTROL, abi::FeatureName::DepthClipControl),
+    (wgpu::Features::DEPTH32FLOAT_STENCIL8, abi::FeatureName::Depth32floatStencil8),
+    (wgpu::Features::TEXTURE_COMPRESSION_BC, abi::FeatureName::TextureCompressionBc),
+    (wgpu::Features::TEXTURE_COMPRESSION_BC_SLICED_3D, abi::FeatureName::TextureCompressionBcSliced3d),
+    (wgpu::Features::TEXTURE_COMPRESSION_ETC2, abi::FeatureName::TextureCompressionEtc2),
+    (wgpu::Features::TEXTURE_COMPRESSION_ASTC, abi::FeatureName::TextureCompressionAstc),
+    (wgpu::Features::TEXTURE_COMPRESSION_ASTC_SLICED_3D, abi::FeatureName::TextureCompressionAstcSliced3d),
+    (wgpu::Features::TIMESTAMP_QUERY, abi::FeatureName::TimestampQuery),
+    (wgpu::Features::INDIRECT_FIRST_INSTANCE, abi::FeatureName::IndirectFirstInstance),
+    (wgpu::Features::SHADER_F16, abi::FeatureName::ShaderF16),
+    (wgpu::Features::RG11B10UFLOAT_RENDERABLE, abi::FeatureName::Rg11b10ufloatRenderable),
+    (wgpu::Features::BGRA8UNORM_STORAGE, abi::FeatureName::Bgra8unormStorage),
+    (wgpu::Features::FLOAT32_FILTERABLE, abi::FeatureName::Float32Filterable),
+    (wgpu::Features::FLOAT32_BLENDABLE, abi::FeatureName::Float32Blendable),
+    (wgpu::Features::DUAL_SOURCE_BLENDING, abi::FeatureName::DualSourceBlending),
+    (wgpu::Features::CLIP_DISTANCES, abi::FeatureName::ClipDistances),
+    (wgpu::Features::PRIMITIVE_INDEX, abi::FeatureName::PrimitiveIndex),
+];
+
+pub(crate) fn features(value: wgpu::Features) -> Vec<abi::FeatureName> {
+    FEATURES
+        .iter()
+        .filter(|(feature, _)| value.contains(*feature))
+        .map(|(_, name)| *name)
+        .collect()
+}
+
 macro_rules! reverse_map {
-    ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? }) => {
+    ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
         pub(crate) fn $function(value: $from) -> Option<$to> {
             use $from as From;
             use $to as To;
             #[allow(unreachable_patterns)]
             match value {
                 $(From::$variant => Some(To::$variant),)+
-                _ => None,
+                other => {
+                    $($(if other == $value {
+                        return Some(To::$named);
+                    })+)?
+                    let _ = other;
+                    None
+                }
             }
         }
     };
@@ -247,6 +344,42 @@ reverse_map!(abi_texture_format, wgpu::TextureFormat, abi::TextureFormat, {
     Rgba16Uint, Rgba16Sint, Rgba16Float,
     Rgba32Uint, Rgba32Sint, Rgba32Float,
     Stencil8, Depth16Unorm, Depth24Plus, Depth24PlusStencil8, Depth32Float, Depth32FloatStencil8,
+    Bc1RgbaUnorm, Bc1RgbaUnormSrgb, Bc2RgbaUnorm, Bc2RgbaUnormSrgb, Bc3RgbaUnorm, Bc3RgbaUnormSrgb,
+    Bc4RUnorm, Bc4RSnorm, Bc5RgUnorm, Bc5RgSnorm, Bc6hRgbUfloat, Bc6hRgbFloat,
+    Bc7RgbaUnorm, Bc7RgbaUnormSrgb,
+    Etc2Rgb8Unorm, Etc2Rgb8UnormSrgb, Etc2Rgba8Unorm, Etc2Rgba8UnormSrgb,
+    EacR11Unorm, EacR11Snorm, EacRg11Unorm, EacRg11Snorm,
+}, {
+    Etc2Rgb8a1Unorm = wgpu::TextureFormat::Etc2Rgb8A1Unorm,
+    Etc2Rgb8a1UnormSrgb = wgpu::TextureFormat::Etc2Rgb8A1UnormSrgb,
+    Astc4x4Unorm = astc(wgpu::AstcBlock::B4x4, false),
+    Astc4x4UnormSrgb = astc(wgpu::AstcBlock::B4x4, true),
+    Astc5x4Unorm = astc(wgpu::AstcBlock::B5x4, false),
+    Astc5x4UnormSrgb = astc(wgpu::AstcBlock::B5x4, true),
+    Astc5x5Unorm = astc(wgpu::AstcBlock::B5x5, false),
+    Astc5x5UnormSrgb = astc(wgpu::AstcBlock::B5x5, true),
+    Astc6x5Unorm = astc(wgpu::AstcBlock::B6x5, false),
+    Astc6x5UnormSrgb = astc(wgpu::AstcBlock::B6x5, true),
+    Astc6x6Unorm = astc(wgpu::AstcBlock::B6x6, false),
+    Astc6x6UnormSrgb = astc(wgpu::AstcBlock::B6x6, true),
+    Astc8x5Unorm = astc(wgpu::AstcBlock::B8x5, false),
+    Astc8x5UnormSrgb = astc(wgpu::AstcBlock::B8x5, true),
+    Astc8x6Unorm = astc(wgpu::AstcBlock::B8x6, false),
+    Astc8x6UnormSrgb = astc(wgpu::AstcBlock::B8x6, true),
+    Astc8x8Unorm = astc(wgpu::AstcBlock::B8x8, false),
+    Astc8x8UnormSrgb = astc(wgpu::AstcBlock::B8x8, true),
+    Astc10x5Unorm = astc(wgpu::AstcBlock::B10x5, false),
+    Astc10x5UnormSrgb = astc(wgpu::AstcBlock::B10x5, true),
+    Astc10x6Unorm = astc(wgpu::AstcBlock::B10x6, false),
+    Astc10x6UnormSrgb = astc(wgpu::AstcBlock::B10x6, true),
+    Astc10x8Unorm = astc(wgpu::AstcBlock::B10x8, false),
+    Astc10x8UnormSrgb = astc(wgpu::AstcBlock::B10x8, true),
+    Astc10x10Unorm = astc(wgpu::AstcBlock::B10x10, false),
+    Astc10x10UnormSrgb = astc(wgpu::AstcBlock::B10x10, true),
+    Astc12x10Unorm = astc(wgpu::AstcBlock::B12x10, false),
+    Astc12x10UnormSrgb = astc(wgpu::AstcBlock::B12x10, true),
+    Astc12x12Unorm = astc(wgpu::AstcBlock::B12x12, false),
+    Astc12x12UnormSrgb = astc(wgpu::AstcBlock::B12x12, true),
 });
 
 reverse_map!(abi_texture_dimension, wgpu::TextureDimension, abi::TextureDimension, {

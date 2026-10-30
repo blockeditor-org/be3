@@ -2,8 +2,10 @@ use std::pin::pin;
 use std::task::{Context, Poll, Waker};
 
 mod a_child_placed_in_an_anchored_view_is_placed_in_its_own_points;
+mod a_plugin_device_has_only_the_features_and_limits_it_requested;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
+mod a_texture_whose_format_needs_an_unrequested_feature_is_refused;
 mod a_view_without_an_anchor_space_anchors_no_views;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;

@@ -120,6 +120,29 @@ which `take-error` and the step both report; natively a plugin that reaches for 
 no device could be opened for stops with why. `example-gpu-calls` in block-wasm-host
 times the per-draw calls (guides/performance.md).
 
+The plugin GPU API is all of wgpu that browser WebGPU exposes, core and optional
+features, with the optional features and limits the host's device has. Anything missing
+from that set is a gap, and its `unimplemented!` in `block-gpu-guest/src/objects.rs`
+says "not yet". Plugins are untrusted, so whatever wgpu marks `unsafe` is refused for
+good: passthrough shaders and pipeline caches. Native-only extensions (mesh shaders, ray
+tracing, multi-draw-indirect with counts) are added only behind a feature the plugin
+checks, since the same plugin runs in a browser; until then their messages, and those
+of immediate data and `clear_texture`, say they are not in browser WebGPU.
+
+`features` and `limits` in the WIT are the host device's: its optional features that
+browser WebGPU has (`convert::FEATURES` in block-gpu-host, which leaves out immediate
+data), and its WebGPU limits. The app's device asks its adapter for those features
+(`browser_features` in beui-renderer-wgpu), as the shim's device does in a browser.
+`block_gpu_guest::features()` and `limits()` read them, and a plugin gets its device
+from `block_gpu_guest::request_device`, which refuses features and limits beyond them
+as wgpu's `request_device` does; block-editor-plugin requests every offered limit and no
+feature. The device then has only what it requested, and `features.rs` in the guest
+refuses, as a validation error, a texture format, storage format, blend or
+`unclipped_depth` that needs a feature it did not request, and a shader whose `enable`
+names one. The host refuses the rest against its own device. A query set, indirect draw
+or bind group gains the same check (timestamps, `indirect-first-instance`,
+`float32-filterable`) when it is added.
+
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
 own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A

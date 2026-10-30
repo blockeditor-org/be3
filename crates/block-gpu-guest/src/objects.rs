@@ -5,6 +5,7 @@ use block_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
 
 use crate::convert::{self, custom};
+use crate::features::Allowed;
 
 pub(crate) fn last_error() -> String {
     gpu::take_error().unwrap_or_default()
@@ -82,6 +83,12 @@ macro_rules! resource {
                     gpu::$name::from_handle(abi::$name(0))
                 }))
             }
+
+            #[allow(dead_code)]
+            fn refused(message: String) -> Self {
+                reject(message);
+                Self(gpu::$name::from_handle(abi::$name(0)))
+            }
         }
     };
 }
@@ -131,6 +138,7 @@ impl Drop for MappedRange {
 
 #[derive(Debug)]
 pub(crate) struct Device {
+    allowed: Allowed,
     limits: wgpu::Limits,
 }
 
@@ -138,41 +146,21 @@ pub(crate) struct Device {
 pub(crate) struct Queue;
 
 impl Device {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(features: wgpu::Features, offered: wgpu::Features, limits: wgpu::Limits) -> Self {
         Self {
-            limits: fetch_limits(),
+            allowed: Allowed {
+                requested: features,
+                offered,
+            },
+            limits,
         }
-    }
-}
-
-fn fetch_limits() -> wgpu::Limits {
-    let limits = gpu::limits();
-    wgpu::Limits {
-        max_texture_dimension_1d: limits.max_texture_dimension1d,
-        max_texture_dimension_2d: limits.max_texture_dimension2d,
-        max_texture_dimension_3d: limits.max_texture_dimension3d,
-        max_texture_array_layers: limits.max_texture_array_layers,
-        max_bind_groups: limits.max_bind_groups,
-        max_bindings_per_bind_group: limits.max_bindings_per_bind_group,
-        max_sampled_textures_per_shader_stage: limits.max_sampled_textures_per_shader_stage,
-        max_samplers_per_shader_stage: limits.max_samplers_per_shader_stage,
-        max_uniform_buffers_per_shader_stage: limits.max_uniform_buffers_per_shader_stage,
-        max_uniform_buffer_binding_size: limits.max_uniform_buffer_binding_size,
-        max_storage_buffer_binding_size: limits.max_storage_buffer_binding_size,
-        max_vertex_buffers: limits.max_vertex_buffers,
-        max_buffer_size: limits.max_buffer_size,
-        max_vertex_attributes: limits.max_vertex_attributes,
-        max_vertex_buffer_array_stride: limits.max_vertex_buffer_array_stride,
-        min_uniform_buffer_offset_alignment: limits.min_uniform_buffer_offset_alignment,
-        min_storage_buffer_offset_alignment: limits.min_storage_buffer_offset_alignment,
-        ..wgpu::Limits::downlevel_defaults()
     }
 }
 
 // unsafe(ffi)
 impl DeviceInterface for Device {
     fn features(&self) -> wgpu::Features {
-        wgpu::Features::empty()
+        self.allowed.requested
     }
 
     fn limits(&self) -> wgpu::Limits {
@@ -202,8 +190,11 @@ impl DeviceInterface for Device {
     ) -> DispatchShaderModule {
         let wgsl = match desc.source {
             wgpu::ShaderSource::Wgsl(source) => source.into_owned(),
-            _ => panic!("the plugin gpu abi only accepts wgsl shaders"),
+            _ => panic!("the plugin gpu abi only accepts wgsl shaders, as browser WebGPU does"),
         };
+        if let Err(message) = self.allowed.shader(&wgsl) {
+            return DispatchShaderModule::custom(ShaderModule::refused(message));
+        }
         let descriptor = abi::ShaderModuleDescriptor {
             label: convert::label(desc.label),
             wgsl,
@@ -217,13 +208,16 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::ShaderModuleDescriptorPassthrough<'_>,
     ) -> DispatchShaderModule {
-        unimplemented!("passthrough shaders are not available to plugins")
+        unimplemented!("passthrough shaders are refused: plugins are untrusted, and wgpu cannot validate them")
     }
 
     fn create_bind_group_layout(
         &self,
         desc: &wgpu::BindGroupLayoutDescriptor<'_>,
     ) -> DispatchBindGroupLayout {
+        if let Err(message) = self.allowed.group_layout(desc) {
+            return DispatchBindGroupLayout::custom(BindGroupLayout::refused(message));
+        }
         let descriptor = abi::BindGroupLayoutDescriptor {
             label: convert::label(desc.label),
             entries: desc
@@ -279,6 +273,9 @@ impl DeviceInterface for Device {
         &self,
         desc: &wgpu::RenderPipelineDescriptor<'_>,
     ) -> DispatchRenderPipeline {
+        if let Err(message) = self.allowed.render_pipeline(desc) {
+            return DispatchRenderPipeline::custom(RenderPipeline::refused(message));
+        }
         let descriptor = abi::RenderPipelineDescriptor {
             label: convert::label(desc.label),
             layout: desc.layout.map(convert::layout_handle),
@@ -365,21 +362,21 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::MeshPipelineDescriptor<'_>,
     ) -> DispatchRenderPipeline {
-        unimplemented!("mesh pipelines are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn create_compute_pipeline(
         &self,
         _desc: &wgpu::ComputePipelineDescriptor<'_>,
     ) -> DispatchComputePipeline {
-        unimplemented!("compute pipelines are not available to plugins")
+        unimplemented!("compute pipelines are not available to plugins yet")
     }
 
     unsafe fn create_pipeline_cache(
         &self,
         _desc: &wgpu::PipelineCacheDescriptor<'_>,
     ) -> DispatchPipelineCache {
-        unimplemented!("pipeline caches are not available to plugins")
+        unimplemented!("pipeline caches are refused: plugins are untrusted, and wgpu cannot validate a cache")
     }
 
     fn create_buffer(&self, desc: &wgpu::BufferDescriptor<'_>) -> DispatchBuffer {
@@ -393,6 +390,9 @@ impl DeviceInterface for Device {
     }
 
     fn create_texture(&self, desc: &wgpu::TextureDescriptor<'_>) -> DispatchTexture {
+        if let Err(message) = self.allowed.texture(desc) {
+            return DispatchTexture::custom(Texture::refused(message));
+        }
         let descriptor = abi::TextureDescriptor {
             label: convert::label(desc.label),
             size: convert::extent(desc.size),
@@ -415,7 +415,7 @@ impl DeviceInterface for Device {
         _desc: &wgpu::ExternalTextureDescriptor<'_>,
         _planes: &[&wgpu::TextureView],
     ) -> DispatchExternalTexture {
-        unimplemented!("external textures are not available to plugins")
+        unimplemented!("external textures are not available to plugins yet")
     }
 
     fn create_blas(
@@ -423,11 +423,11 @@ impl DeviceInterface for Device {
         _desc: &wgpu::CreateBlasDescriptor<'_>,
         _sizes: wgpu::BlasGeometrySizeDescriptors,
     ) -> (Option<u64>, DispatchBlas) {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 
     fn create_tlas(&self, _desc: &wgpu::CreateTlasDescriptor<'_>) -> DispatchTlas {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 
     fn create_sampler(&self, desc: &wgpu::SamplerDescriptor<'_>) -> DispatchSampler {
@@ -449,7 +449,7 @@ impl DeviceInterface for Device {
     }
 
     fn create_query_set(&self, _desc: &wgpu::QuerySetDescriptor<'_>) -> DispatchQuerySet {
-        unimplemented!("query sets are not available to plugins")
+        unimplemented!("query sets are not available to plugins yet")
     }
 
     fn create_command_encoder(
@@ -468,7 +468,7 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::RenderBundleEncoderDescriptor<'_>,
     ) -> DispatchRenderBundleEncoder {
-        unimplemented!("render bundles are not available to plugins")
+        unimplemented!("render bundles are not available to plugins yet")
     }
 
     fn set_device_lost_callback(&self, _device_lost_callback: BoxDeviceLostCallback) {}
@@ -579,7 +579,7 @@ impl QueueInterface for Queue {
         _dest: wgpu::CopyExternalImageDestInfo<&wgpu::Texture>,
         _size: wgpu::Extent3d,
     ) {
-        unimplemented!("external image copies are not available to plugins")
+        unimplemented!("external image copies are not available to plugins yet")
     }
 
     fn submit(&self, command_buffers: &mut dyn Iterator<Item = DispatchCommandBuffer>) -> u64 {
@@ -604,7 +604,7 @@ impl QueueInterface for Queue {
     }
 
     fn compact_blas(&self, _blas: &DispatchBlas) -> (Option<u64>, DispatchBlas) {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 }
 
@@ -625,7 +625,7 @@ impl CommandBufferInterface for CommandBuffer {}
 
 impl RenderPipelineInterface for RenderPipeline {
     fn get_bind_group_layout(&self, _index: u32) -> DispatchBindGroupLayout {
-        unimplemented!("implicit bind group layouts are not available to plugins")
+        unimplemented!("implicit bind group layouts are not available to plugins yet")
     }
 }
 
@@ -746,7 +746,7 @@ impl CommandEncoderInterface for CommandEncoder {
     }
 
     fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
-        unimplemented!("compute passes are not available to plugins")
+        unimplemented!("compute passes are not available to plugins yet")
     }
 
     fn begin_render_pass(&self, desc: &wgpu::RenderPassDescriptor<'_>) -> DispatchRenderPass {
@@ -806,7 +806,7 @@ impl CommandEncoderInterface for CommandEncoder {
         _texture: &DispatchTexture,
         _subresource_range: &wgpu::ImageSubresourceRange,
     ) {
-        unimplemented!("texture clears are not available to plugins yet")
+        unimplemented!("texture clears are not in browser WebGPU")
     }
 
     fn clear_buffer(
@@ -907,7 +907,7 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
-        unimplemented!("immediate data is not available to plugins yet")
+        unimplemented!("immediate data is not in browser WebGPU")
     }
 
     fn set_blend_constant(&mut self, color: wgpu::Color) {
@@ -955,7 +955,7 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn draw_mesh_tasks(&mut self, _x: u32, _y: u32, _z: u32) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn draw_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
@@ -967,7 +967,7 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn draw_mesh_tasks_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn multi_draw_indirect(
@@ -996,7 +996,7 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
     }
 
     fn multi_draw_mesh_tasks_indirect(
@@ -1005,7 +1005,7 @@ impl RenderPassInterface for RenderPass {
         _offset: wgpu::BufferAddress,
         _count: u32,
     ) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn multi_draw_indexed_indirect_count(
@@ -1016,7 +1016,7 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
     }
 
     fn multi_draw_mesh_tasks_indirect_count(
@@ -1027,7 +1027,7 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn insert_debug_marker(&mut self, _label: &str) {}
@@ -1055,6 +1055,6 @@ impl RenderPassInterface for RenderPass {
         &mut self,
         _render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>,
     ) {
-        unimplemented!("render bundles are not available to plugins")
+        unimplemented!("render bundles are not available to plugins yet")
     }
 }

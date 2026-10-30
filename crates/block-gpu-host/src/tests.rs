@@ -83,6 +83,7 @@ impl Caller for Guest {
 mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
 mod a_created_buffer_gets_a_live_handle;
+mod a_device_offers_only_the_features_browser_webgpu_has;
 mod a_dropped_handle_is_reported_not_reused;
 mod a_malformed_descriptor_is_refused;
 mod a_result_longer_than_its_room_waits_to_be_taken;
@@ -91,3 +92,4 @@ mod a_surface_of_no_size_is_reported;
 mod a_surface_reports_how_many_presents_ago_its_texture_was_drawn;
 mod a_texture_copy_is_recorded_on_its_encoder;
 mod an_unknown_pass_handle_is_reported;
+mod every_webgpu_limit_of_the_device_is_forwarded;

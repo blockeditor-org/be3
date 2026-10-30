@@ -1,5 +1,9 @@
 mod convert;
+mod features;
 mod objects;
+
+#[cfg(test)]
+mod tests;
 
 use std::{cell::RefCell, collections::HashMap};
 
@@ -9,11 +13,28 @@ thread_local! {
     static SURFACES: RefCell<HashMap<u32, gpu::Surface>> = RefCell::new(HashMap::new());
 }
 
-pub fn device_and_queue() -> (wgpu::Device, wgpu::Queue) {
-    (
-        wgpu::Device::from_custom(objects::Device::new()),
+pub fn features() -> wgpu::Features {
+    features::features(&gpu::features())
+}
+
+pub fn limits() -> wgpu::Limits {
+    features::limits(&gpu::limits())
+}
+
+pub fn request_device(
+    descriptor: &wgpu::DeviceDescriptor<'_>,
+) -> Result<(wgpu::Device, wgpu::Queue), String> {
+    let offered = features();
+    features::requested(descriptor, offered, &limits())?;
+    let device = objects::Device::new(
+        descriptor.required_features,
+        offered,
+        descriptor.required_limits.clone(),
+    );
+    Ok((
+        wgpu::Device::from_custom(device),
         wgpu::Queue::from_custom(objects::Queue),
-    )
+    ))
 }
 
 fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::Surface) -> R) -> R {

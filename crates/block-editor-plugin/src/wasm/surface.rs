@@ -21,8 +21,12 @@ fn gpu() -> Option<Gpu> {
     GPU.with(|gpu| {
         let mut gpu = gpu.borrow_mut();
         if gpu.is_none() && FORMAT.get().is_some() {
-            let (device, queue) = block_gpu_guest::device_and_queue();
-            *gpu = Some(Gpu { device, queue });
+            let requested = block_gpu_guest::request_device(&wgpu::DeviceDescriptor {
+                label: Some("plugin device"),
+                required_limits: block_gpu_guest::limits(),
+                ..Default::default()
+            });
+            *gpu = requested.ok().map(|(device, queue)| Gpu { device, queue });
         }
         gpu.clone()
     })

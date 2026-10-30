@@ -23,6 +23,19 @@ interface device {
         rgba32-uint, rgba32-sint, rgba32-float,
         stencil8, depth16-unorm, depth24-plus, depth24-plus-stencil8, depth32-float,
         depth32-float-stencil8,
+        bc1-rgba-unorm, bc1-rgba-unorm-srgb, bc2-rgba-unorm, bc2-rgba-unorm-srgb,
+        bc3-rgba-unorm, bc3-rgba-unorm-srgb, bc4-r-unorm, bc4-r-snorm, bc5-rg-unorm, bc5-rg-snorm,
+        bc6h-rgb-ufloat, bc6h-rgb-float, bc7-rgba-unorm, bc7-rgba-unorm-srgb,
+        etc2-rgb8-unorm, etc2-rgb8-unorm-srgb, etc2-rgb8a1-unorm, etc2-rgb8a1-unorm-srgb,
+        etc2-rgba8-unorm, etc2-rgba8-unorm-srgb, eac-r11-unorm, eac-r11-snorm, eac-rg11-unorm,
+        eac-rg11-snorm,
+        astc4x4-unorm, astc4x4-unorm-srgb, astc5x4-unorm, astc5x4-unorm-srgb, astc5x5-unorm,
+        astc5x5-unorm-srgb, astc6x5-unorm, astc6x5-unorm-srgb, astc6x6-unorm,
+        astc6x6-unorm-srgb, astc8x5-unorm, astc8x5-unorm-srgb, astc8x6-unorm,
+        astc8x6-unorm-srgb, astc8x8-unorm, astc8x8-unorm-srgb, astc10x5-unorm,
+        astc10x5-unorm-srgb, astc10x6-unorm, astc10x6-unorm-srgb, astc10x8-unorm,
+        astc10x8-unorm-srgb, astc10x10-unorm, astc10x10-unorm-srgb, astc12x10-unorm,
+        astc12x10-unorm-srgb, astc12x12-unorm, astc12x12-unorm-srgb,
     }
 
     enum texture-dimension { d1, d2, d3 }
@@ -68,6 +81,7 @@ interface device {
         zero, one, src, one-minus-src, src-alpha, one-minus-src-alpha,
         dst, one-minus-dst, dst-alpha, one-minus-dst-alpha,
         src-alpha-saturated, constant, one-minus-constant,
+        src1, one-minus-src1, src1-alpha, one-minus-src1-alpha,
     }
 
     enum blend-operation { add, subtract, reverse-subtract, min, max }
@@ -124,6 +138,40 @@ interface device {
         max-vertex-buffer-array-stride: u32,
         min-uniform-buffer-offset-alignment: u32,
         min-storage-buffer-offset-alignment: u32,
+        max-dynamic-uniform-buffers-per-pipeline-layout: u32,
+        max-dynamic-storage-buffers-per-pipeline-layout: u32,
+        max-storage-buffers-per-shader-stage: u32,
+        max-storage-textures-per-shader-stage: u32,
+        max-inter-stage-shader-variables: u32,
+        max-color-attachments: u32,
+        max-color-attachment-bytes-per-sample: u32,
+        max-compute-workgroup-storage-size: u32,
+        max-compute-invocations-per-workgroup: u32,
+        max-compute-workgroup-size-x: u32,
+        max-compute-workgroup-size-y: u32,
+        max-compute-workgroup-size-z: u32,
+        max-compute-workgroups-per-dimension: u32,
+    }
+
+    /// The optional features of browser WebGPU, under its names.
+    enum feature-name {
+        depth-clip-control,
+        depth32float-stencil8,
+        texture-compression-bc,
+        texture-compression-bc-sliced3d,
+        texture-compression-etc2,
+        texture-compression-astc,
+        texture-compression-astc-sliced3d,
+        timestamp-query,
+        indirect-first-instance,
+        shader-f16,
+        rg11b10ufloat-renderable,
+        bgra8unorm-storage,
+        float32-filterable,
+        float32-blendable,
+        dual-source-blending,
+        clip-distances,
+        primitive-index,
     }
 
     resource buffer {
@@ -489,6 +537,10 @@ interface device {
         present: func();
     }
 
+    /// The optional features the host's device has that browser WebGPU can
+    /// offer. A plugin asks for those it needs when it requests its device.
+    features: func() -> list<feature-name>;
+    /// The host device's limits.
     limits: func() -> supported-limits;
 
     create-buffer: func(descriptor: buffer-descriptor) -> option<buffer>;

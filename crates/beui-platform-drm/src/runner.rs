@@ -419,7 +419,7 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
     let adapter = adapter_for(node).ok_or("no Vulkan device was found")?;
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
-        required_features: wgpu::Features::empty(),
+        required_features: beui_host::native::browser_features(&adapter),
         required_limits: adapter.limits(),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,
