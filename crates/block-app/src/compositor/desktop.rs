@@ -458,10 +458,7 @@ pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
 pub(crate) fn reachable(rect: Rect, grab: Vec2, viewport: Vec2) -> Pos2 {
     let keep = vec2(KEEP_VISIBLE, grab.y + GRAB_MARGIN).min(rect.size());
     let room = (viewport - keep).max(Vec2::ZERO);
-    pos2(
-        rect.min.x.clamp(0.0, room.x),
-        rect.min.y.clamp(0.0, room.y),
-    )
+    pos2(rect.min.x.clamp(0.0, room.x), rect.min.y.clamp(0.0, room.y))
 }
 
 pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
@@ -492,7 +489,10 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
     let key = store(key);
     let place = move |origin: Pos2| {
         floated_signal().update(|held| {
-            if let Some(window) = held.iter_mut().find(|window| key.with(|key| window.key == *key)) {
+            if let Some(window) = held
+                .iter_mut()
+                .find(|window| key.with(|key| window.key == *key))
+            {
                 window.rect = Rect::from_min_size(origin, window.rect.size());
             }
         });
@@ -503,7 +503,8 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
                 return false;
             };
             let viewport = viewport.get_untracked();
-            let limit = |origin: Pos2| reachable(Rect::from_min_size(origin, rect.size()), grab, viewport);
+            let limit =
+                |origin: Pos2| reachable(Rect::from_min_size(origin, rect.size()), grab, viewport);
             let band = band.value();
             let mut band = band.borrow_mut();
             let mut origin = rect.min;
@@ -562,7 +563,13 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             let origin = reachable(rect, grab, viewport);
             let band = band.value();
             let mut band = band.borrow_mut();
-            band.stretch(origin, rect.min - origin, viewport, motion().animates(), now());
+            band.stretch(
+                origin,
+                rect.min - origin,
+                viewport,
+                motion().animates(),
+                now(),
+            );
             overshoot.set(band.offset);
         });
     });

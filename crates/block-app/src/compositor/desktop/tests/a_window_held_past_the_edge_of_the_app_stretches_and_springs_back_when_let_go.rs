@@ -18,11 +18,7 @@ fn a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go
         stretched.min.x < 0.0 && stretched.min.x > -250.0,
         "pulled past the left edge, the window follows the pointer only part of the way: {stretched:?}"
     );
-    assert_eq!(
-        stretched.size(),
-        vec2(300.0, 200.0),
-        "and keeps its size"
-    );
+    assert_eq!(stretched.size(), vec2(300.0, 200.0), "and keeps its size");
 
     window.release(pos2(-200.0, held.y));
     let released = window.shown().min.x;
@@ -43,9 +39,5 @@ fn a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go
         Rect::from_min_size(pos2(0.0, 100.0), vec2(300.0, 200.0)),
         "it comes to rest against the edge"
     );
-    assert_eq!(
-        window.placed().min,
-        pos2(0.0, 100.0),
-        "where it is kept"
-    );
+    assert_eq!(window.placed().min, pos2(0.0, 100.0), "where it is kept");
 }
