@@ -25,18 +25,32 @@ fn named(names: &ProgramNames, app_id: &str, origin: Origin) -> String {
 #[test]
 fn a_window_is_named_after_its_start_menu_program() {
     let names = ProgramNames::new(&[
-        program("Accessories/Paint", "Paint", "C:\\Windows\\System32\\mspaint.exe", None),
+        program(
+            "Accessories/Paint",
+            "Paint",
+            "C:\\Windows\\System32\\mspaint.exe",
+            None,
+        ),
         program(
             "Calculator",
             "Calculator",
             "C:\\Windows\\explorer.exe",
             Some("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"),
         ),
-        program("Paint Copy", "Paint again", "C:\\Windows\\System32\\mspaint.exe", None),
+        program(
+            "Paint Copy",
+            "Paint again",
+            "C:\\Windows\\System32\\mspaint.exe",
+            None,
+        ),
     ]);
     let none = Origin::default;
     assert_eq!(
-        named(&names, "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App", none()),
+        named(
+            &names,
+            "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+            none()
+        ),
         "Calculator",
         "by its AppUserModelID"
     );

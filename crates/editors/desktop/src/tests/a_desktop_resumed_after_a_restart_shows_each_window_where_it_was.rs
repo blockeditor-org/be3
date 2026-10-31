@@ -21,8 +21,8 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
     assert!(resumed.says("Foot"), "a program it knows is named");
     assert!(resumed.says("Terminal 1"), "with the window's old title");
     assert!(
-        resumed.says("org.example.Notes"),
-        "a program it does not know goes by its app id"
+        resumed.says("Notes") && !resumed.says("org.example.Notes"),
+        "a program it does not know goes by its app id's last part"
     );
     assert!(resumed.test.shown("desktop.windows.restore"));
     resumed.test.settle();

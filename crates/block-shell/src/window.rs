@@ -131,7 +131,8 @@ fn label(name: &str, title: &str, app_id: &str) -> String {
 }
 
 pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
-    let named = |window: &HostWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
+    let named =
+        |window: &HostWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
     let read =
         |window: &HostWindow| Some(readable_id(&window.app_id)).filter(|name| !name.is_empty());
     named(window)

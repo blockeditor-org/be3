@@ -253,9 +253,7 @@ impl ProgramNames {
     pub fn new(programs: &[Program]) -> Self {
         let mut names = Self::default();
         for program in programs {
-            names
-                .by_id
-                .insert(program.id.clone(), program.name.clone());
+            names.by_id.insert(program.id.clone(), program.name.clone());
             let shortcut = &program.shortcut;
             let target = shortcut
                 .target

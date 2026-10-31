@@ -372,7 +372,8 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
             .with(|entry| {
                 let entry = entry.as_ref()?;
                 let parent = entry.parent.and_then(|parent| {
-                    entries.with(|entries| entries.iter().find(|listed| listed.id == parent).cloned())
+                    entries
+                        .with(|entries| entries.iter().find(|listed| listed.id == parent).cloned())
                 });
                 Some(window_name(entry, parent.as_ref()))
             })

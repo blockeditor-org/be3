@@ -51,7 +51,13 @@ fn the_note_names_the_way_back_and_what_was_refused() {
 
     notes.hotkey = registered;
     let snapshot = snapshot(vec![display.clone(), entry.clone()]);
-    let listed = listed(&snapshot, &[], &Shaping::default(), &notes, &ProgramNames::default());
+    let listed = listed(
+        &snapshot,
+        &[],
+        &Shaping::default(),
+        &notes,
+        &ProgramNames::default(),
+    );
     assert_eq!(
         listed[1].note.as_deref(),
         Some("Ctrl+Alt+Space comes back to Block")
