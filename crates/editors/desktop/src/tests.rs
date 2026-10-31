@@ -5,7 +5,7 @@ use block_editor_beui::be_block::{
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::native::Document;
-use block_editor_beui::beui::{Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
+use block_editor_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
@@ -102,6 +102,7 @@ mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 mod the_wifi_list_asks_the_host_to_connect;
 mod the_wifi_tile_lists_the_networks_the_host_reports;
+mod the_windows_bar_shares_its_length_between_many_chips;
 mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
@@ -415,6 +416,18 @@ impl Fixture {
         self.test
             .desk_rect(node)
             .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
+    }
+
+    fn window_grip(&self, words: &str) -> Pos2 {
+        let title = self.desk_text(words);
+        let middle = title.center().y;
+        self.test
+            .desk_rects_of("dock.window.grip")
+            .into_iter()
+            .filter(|grip| grip.max.x <= title.min.x && grip.min.y <= middle && middle <= grip.max.y)
+            .max_by(|left, right| left.max.x.total_cmp(&right.max.x))
+            .unwrap_or_else(|| panic!("the window showing {words:?} has a grip"))
+            .center()
     }
 
     fn placed_blocks(&self) -> Vec<(Uuid, Option<Uuid>, Rect)> {

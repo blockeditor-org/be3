@@ -13,7 +13,7 @@ fn a_windows_tab_dragged_onto_a_window_on_another_display_joins_it() {
     assert_eq!(fixture.test.desk_windows().len(), 2, "a window each");
 
     let second = fixture.desk_text("todo-2.txt");
-    let grab = pos2(second.max.x + 80.0, second.center().y);
+    let grab = fixture.window_grip("todo-2.txt");
     fixture.test.desk_drag(
         grab,
         grab + vec2(right.min.x - second.min.x + 40.0, 40.0),

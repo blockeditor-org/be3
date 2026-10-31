@@ -1016,7 +1016,9 @@ last a weight in the bounded space left over - or a `Sizing` built from one:
 `.min(..)` and `.max(..)` bound its length, `.shrink(weight)` lets it give up
 length down to its `min` when the row overflows (the label beside a fixed-size
 button), and neither a shrinking child nor a `Percent` one in a row gets less
-than its own `Element::min_width` (wrapping text's longest word), `.align(..)` overrides the list's `align` for that child, and
+than its own `Element::min_width` (wrapping text's longest word; a row's is the sum
+of its children's, counting a child that neither shrinks nor is a `Percent` at its
+natural width), `.align(..)` overrides the list's `align` for that child, and
 `.gap(..)` replaces the list's `spacing` before it:
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
@@ -1474,6 +1476,13 @@ Content shorter than the scroll is laid out as long as the scroll, as a browser'
 `minmax(100%, max-content)` track is, so a percent-sized child of a scroll (a
 `Spacer`, a field filling a toolbar that scrolls when narrow) fills the rest of it
 whether or not the content overflows.
+Content longer than a horizontal scroll is laid out at the length it measures at
+when offered the scroll's length, as a flex row in a browser's `overflow: auto`
+box is: its shrinking children give up length first, down to their floors, and
+the scroll scrolls only what is left past that. `ToolPill` lets its content
+shrink this way, so a child sized `.shrink(..)` in a bar narrows before the bar
+scrolls (the desktop's window chips). A vertical scroll lays its content out at
+its full length, as nothing gives a height a floor.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 `max_length` (a `Prop<Option<Size>>`, so a signal or memo can move it) makes it fit

@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::button::ButtonFace;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::{Align, Direction, ItemSize, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2};
 use block_editor_beui::desktop;
 use block_editor_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_name, window_picture};
@@ -16,6 +16,7 @@ use super::placeholders::Placeholders;
 
 const CHIP_SPACING: Space = Space::Xs;
 const CHIP_WIDTH: Size = Size::Menu;
+const CHIP_LEAST: Size = Size::Custom(2.0 * Size::Xl2.px());
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ChipKey {
@@ -314,19 +315,54 @@ pub(crate) fn WindowChips(
     let launches = placeholders.launchable;
     let restoring = display.is_none_or(|display| display == 0);
     let waiting = create_memo(move || restoring && launches.get() && !kept.with(Vec::is_empty));
+    let widest = use_size(CHIP_WIDTH);
+    let least = use_size(CHIP_LEAST);
+    let spacing = use_space(CHIP_SPACING);
+    let count = create_memo(move || chips.with(Vec::len));
+    let gaps = move || spacing.get() * count.get().saturating_sub(1) as f32;
+    let wanted = create_memo(move || match vertical.get() {
+        true => Extent::px(0.0),
+        false => Extent::at_most(widest.get() * count.get() as f32 + gaps()),
+    });
+    let row = NodeRef::new();
+    let room = create_signal(None::<f32>);
+    let compact = create_memo(move || {
+        let Some(room) = room.get() else {
+            return false;
+        };
+        let count = count.get();
+        count > 0 && (room - gaps()) / (count as f32) < least.get()
+    });
+    let icons = create_memo(move || vertical.get() || compact.get());
+    let chip_size = create_memo(move || match icons.get() {
+        true => Sizing::from(ItemSize::Intrinsic),
+        false => ItemSize::Percent(1.0).max(widest.get()),
+    });
+    let chips_row = view! {
+        <List @node_ref=&row direction align=Align::Center spacing=CHIP_SPACING>
+            <ForEach keys={chips}>|chip: ChipKey|
+                <WindowChip @sizing={chip_size} windows chip icons count />
+            </ForEach>
+        </List>
+    };
+    let measured = measure(row.get());
+    create_effect(move || {
+        let width = measured.with(|measured| measured.map(|measured| measured.size.x));
+        if width != room.get_untracked() {
+            room.set(width);
+        }
+    });
     view! {
         <List direction align=Align::Center spacing=CHIP_SPACING @test_id={"desktop.windows"}>
             <Show condition={waiting}>
                 <RestoreChip placeholders vertical />
             </Show>
-            <ForEach keys={chips}>|chip: ChipKey|
-                <WindowChip
-                    @sizing={ItemSize::Intrinsic.max(CHIP_WIDTH.px()).shrink(1.0)}
-                    windows
-                    chip
-                    vertical
-                />
-            </ForEach>
+            <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction fit=true>
+                <Layers @sizing={ItemSize::Intrinsic.shrink(1.0)}>
+                    <Frame width={wanted} height=Extent::px(0.0) />
+                    {chips_row}
+                </Layers>
+            </Scroll>
         </List>
     }
 }
@@ -354,7 +390,7 @@ fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
 }
 
 #[component]
-fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> NodeId {
+fn WindowChip(windows: DeskWindows, chip: ChipKey, icons: Memo<bool>, count: Memo<usize>) -> NodeId {
     let workspace = windows.workspace;
     let entries = workspace.entries();
     let entry = create_memo(move || match chip {
@@ -411,6 +447,14 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
         true => Some(ICON_EYE_OFF),
         false => Some(ICON_EYE),
     });
+    let face = NodeRef::new();
+    create_effect(move || {
+        count.get();
+        icons.get();
+        if focused.get() {
+            untrack(|| face.get().reveal());
+        }
+    });
     let prefix = chip.test_id();
     let close_id = format!("{prefix}.close");
     let targets = windows.targets(chip);
@@ -449,8 +493,9 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
             <unstyled::Button
                 label={title}
                 glyph
-                icon_only={vertical}
+                icon_only={icons}
                 press_focus=false
+                @node_ref=&face
                 @test_id={prefix.clone()}
                 on_click={move || windows.choose(chip)}
             >|handle|

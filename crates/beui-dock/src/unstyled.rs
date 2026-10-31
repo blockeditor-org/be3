@@ -3800,9 +3800,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                     {grip_face}
                                                                 </GripMenu>
                                                             };
+                                                            let grip_id = hoisted.map_or_else(
+                                                                || "dock.window.grip".to_owned(),
+                                                                |leaf| dock.pane_test_id("dock.window.grip", leaf),
+                                                            );
                                                             let grip = view! {
                                                                 <Interactive
                                                                     @node_ref=&grip_ref
+                                                                    @test_id={grip_id}
                                                                     cursor=CursorIcon::Grab
                                                                     children={grip_face}
                                                                 />

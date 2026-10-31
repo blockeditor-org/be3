@@ -352,6 +352,10 @@ impl Element for ListNode {
                 ItemSize::Fixed(fixed) if self.direction == Direction::Horizontal => {
                     grid.snap(fixed.max(0.0))
                 }
+                ItemSize::Intrinsic if in_line && !size.yields() => {
+                    let unbounded = Vec2::splat(f32::INFINITY);
+                    crate::layout::measure(doc, painter, item.child, unbounded).x
+                }
                 _ => crate::layout::min_width(doc, painter, item.child),
             };
             let length = match self.direction {

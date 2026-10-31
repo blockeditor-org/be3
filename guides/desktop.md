@@ -190,7 +190,16 @@ The desktop plugin's Windows bar has a row of window chips (`WindowChips`, `desk
 `app/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
 order, then the block windows the shell opened itself (sessions and shown blocks), each with its
 icon (the window's own, else a display, block or window glyph) and its `window_name` (the program
-first, so a long title is what the ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). The focused chip (the dock's
+first, so a long title is what the ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). Along a horizontal bar the chips share the
+length the band gives the bar, like a taskbar's: the row asks for `CHIP_WIDTH` (`Size::Menu`) a
+chip, so the band gives it room as if every title were long, and the chips split what they get
+evenly up to that width, their titles ellipsised; once a chip would be narrower than `CHIP_LEAST`
+every chip shows only its icon, and past that the chips scroll inside the row (their own
+`Scroll`, so the bar's grip stays put) and the focused chip is revealed whenever the focus, the
+chip count or the icon-only switch changes. The row measures the room it was given
+(`measure` on the chip list), never its own content, so switching to icons does not shrink the
+room it asks for. Down a side the chips are icons already, and the whole bar scrolls, grip
+included, since a vertical scroll lays its content out at full length. The focused chip (the dock's
 focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
 focuses it (`focus`); a click on the focused chip hides it (`hide`, or for a block window the shell
 stops declaring it) and the next shown window in the dock's focus order takes the focus. Each chip

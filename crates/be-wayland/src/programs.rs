@@ -135,10 +135,17 @@ impl Environment {
             return None;
         }
         let id = format!("{app_id}.desktop");
+        let places = entry_places(app_id);
         self.data_dirs.iter().find_map(|dir| {
-            let path = dir.join("applications").join(&id);
-            let text = std::fs::read_to_string(&path).ok()?;
-            DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales)
+            let applications = dir.join("applications");
+            places.iter().find_map(|place| {
+                if !in_real_folders(&applications, place) {
+                    return None;
+                }
+                let path = applications.join(place);
+                let text = std::fs::read_to_string(&path).ok()?;
+                DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales)
+            })
         })
     }
 
@@ -170,6 +177,47 @@ fn executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path)
         .is_ok_and(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+}
+
+const MOST_FOLDER_SPLITS: usize = 8;
+
+fn entry_places(app_id: &str) -> Vec<PathBuf> {
+    let parts: Vec<&str> = app_id.split('-').collect();
+    let joins = (parts.len() - 1).min(MOST_FOLDER_SPLITS);
+    (0..1usize << joins)
+        .filter_map(|folders| {
+            let mut components = vec![String::from(parts[0])];
+            for (at, part) in parts.iter().enumerate().skip(1) {
+                match at <= joins && folders & (1 << (at - 1)) != 0 {
+                    true => components.push((*part).to_owned()),
+                    false => {
+                        let last = components.last_mut()?;
+                        last.push('-');
+                        last.push_str(part);
+                    }
+                }
+            }
+            let plain = components
+                .iter()
+                .all(|component| !matches!(component.as_str(), "" | "." | ".."));
+            if !plain {
+                return None;
+            }
+            components.last_mut()?.push_str(".desktop");
+            Some(components.iter().collect())
+        })
+        .collect()
+}
+
+fn in_real_folders(root: &Path, place: &Path) -> bool {
+    let mut folder = root.to_path_buf();
+    let Some(parent) = place.parent() else {
+        return true;
+    };
+    parent.components().all(|component| {
+        folder.push(component);
+        std::fs::symlink_metadata(&folder).is_ok_and(|metadata| metadata.is_dir())
+    })
 }
 
 fn collect(root: &Path, dir: &Path, found: &mut Vec<(String, PathBuf)>) {

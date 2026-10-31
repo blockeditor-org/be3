@@ -13,7 +13,7 @@ use block_editor_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
 use block_editor_beui::beui::reactive::toggle_keyboard;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Rect};
+use block_editor_beui::beui::{ItemSize, NodeId, Rect};
 use block_editor_beui::{
     DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
 };
@@ -233,7 +233,12 @@ pub(crate) fn WindowsBar(shell: Shell, display: u32) -> NodeId {
     view! {
         <DockBarSurface @test_id={"desktop.bar.windows"}>
             <DockBarGrip bounds={bar_bounds()} />
-            <WindowChips windows={shell.windows} direction display />
+            <WindowChips
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                windows={shell.windows}
+                direction
+                display
+            />
         </DockBarSurface>
     }
 }

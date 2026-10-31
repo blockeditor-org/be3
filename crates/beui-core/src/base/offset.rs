@@ -60,16 +60,26 @@ impl OffsetNode {
         }
     }
 
-    fn content_length(&self, doc: &mut Document, painter: &Painter, cross: f32) -> f32 {
+    fn content_length(&self, doc: &mut Document, painter: &Painter, main: f32, cross: f32) -> f32 {
         let Some(child) = self.child else {
             return 0.0;
         };
-        self.direction.main(crate::layout::measure(
+        let natural = self.direction.main(crate::layout::measure(
             doc,
             painter,
             child,
             self.direction.axes(f32::INFINITY, cross),
-        ))
+        ));
+        if self.direction == Direction::Vertical || natural <= main {
+            return natural;
+        }
+        let fitted = self.direction.main(crate::layout::measure(
+            doc,
+            painter,
+            child,
+            self.direction.axes(main, cross),
+        ));
+        fitted.min(natural)
     }
 
     fn snaps_to_end(&self) -> bool {
@@ -289,7 +299,7 @@ impl Element for OffsetNode {
         let snapping = self.snaps_to_end();
         let anchor = self.frame_anchor(doc, out, host, snapping);
         self.anchored = true;
-        let content = self.content_length(doc, painter, cross);
+        let content = self.content_length(doc, painter, main, cross);
         if snapping {
             self.offset = self.end(main, content);
         }
