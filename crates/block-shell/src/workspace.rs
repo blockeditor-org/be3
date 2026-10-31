@@ -34,8 +34,8 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, dialog_title, floating_window, kept_window, shown_size, shown_windows, tab_window,
-    window_picture, window_tab, window_title,
+    WindowPanel, floating_window, kept_window, program_name, shown_size, shown_windows,
+    tab_window, window_name, window_picture, window_tab,
 };
 use beui::ItemSize;
 
@@ -1244,15 +1244,16 @@ pub fn WindowTab(
         windows.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     });
     let name = create_memo(move || match info.get() {
-        Some(info) => window_title(&info),
+        Some(info) => window_name(&info, None),
         None => workspace
             .placeholder(key)
-            .map(|kept| match kept.title.is_empty() {
-                true => kept.app_id,
-                false => kept.title,
-            })
-            .filter(|title| !title.is_empty())
-            .unwrap_or_else(|| "Window".to_owned()),
+            .map_or_else(|| "Window".to_owned(), |kept| kept.window_name()),
+    });
+    let program = create_memo(move || {
+        let program = info.with(|info| info.as_ref().map(|info| program_name(info, None)));
+        program
+            .filter(|program| !program.is_empty())
+            .unwrap_or_else(|| name.get())
     });
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
     let title = create_memo(move || match responding.get() {
@@ -1283,7 +1284,7 @@ pub fn WindowTab(
                                 window
                                 offers_fullscreen
                                 fullscreen={fullscreen}
-                                name={name}
+                                name={program}
                                 responding={responding}
                                 focused={focused}
                                 size={size}
@@ -1336,8 +1337,17 @@ pub fn WindowDialog(
     };
     let info = create_memo(move || find(window));
     let title = create_memo(move || match info.get() {
-        Some(info) => dialog_title(&info, find(parent).as_ref()),
+        Some(info) => window_name(&info, find(parent).as_ref()),
         None => "Window".to_owned(),
+    });
+    let program = create_memo(move || {
+        let program = info.with(|info| {
+            info.as_ref()
+                .map(|info| program_name(info, find(parent).as_ref()))
+        });
+        program
+            .filter(|program| !program.is_empty())
+            .unwrap_or_else(|| title.get())
     });
     let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
     let followed = create_memo(|| None);
@@ -1361,7 +1371,7 @@ pub fn WindowDialog(
                 window
                 offers_fullscreen=false
                 fullscreen={fullscreen}
-                name={title}
+                name={program}
                 responding={responding}
                 focused={focused}
                 size={followed}

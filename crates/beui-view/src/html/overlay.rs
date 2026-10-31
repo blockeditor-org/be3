@@ -35,6 +35,7 @@ pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -49,7 +50,7 @@ pub(crate) fn overlay(
     presence: OverlayPresence,
     content: RenderFn<()>,
 ) -> NodeId {
-    let _ = (shown_in, window);
+    let _ = (shown_in, window, scrim_radius);
     let host = create("Overlay", "div");
     let dialog = create("OverlayLayer", "dialog");
     let proxy = create("OverlayAnchor", "div");

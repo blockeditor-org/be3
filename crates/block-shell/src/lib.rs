@@ -26,7 +26,7 @@ pub use picker_view::PickerView;
 pub use picking::Picker;
 pub use rename::RenameView;
 pub use saved::saved_windows;
-pub use window::{shown_windows, window_picture, window_tab, window_title};
+pub use window::{program_name, shown_windows, window_name, window_picture, window_tab};
 pub use workspace::{
     BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS, SETTINGS,
     SHELL_BARS, WindowDialog, WindowTab, Workspace,

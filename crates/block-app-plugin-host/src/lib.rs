@@ -145,7 +145,7 @@ pub struct HostAnchored {
     pub bounds: Rect,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
-    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub scrims: Vec<beui::layer::Scrim>,
     pub surface: u32,
     pub pixels_per_point: f32,
     pub dismiss_on_outside_press: bool,

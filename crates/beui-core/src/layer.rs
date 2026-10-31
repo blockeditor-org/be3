@@ -1,7 +1,6 @@
 use crate::back::BackHandlerId;
 use crate::base::overlay::OverlayNode;
 use crate::callback::Callback;
-use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
 use crate::input::BackGesture;
@@ -10,7 +9,7 @@ use crate::window::WindowId;
 
 use crate::node::ANCESTOR_LIMIT;
 
-pub use beui_types::layer::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy};
+pub use beui_types::layer::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy, Scrim};
 
 #[derive(Default)]
 pub struct OpenLayers {
@@ -791,19 +790,23 @@ impl Document {
         self.context().is_some_and(|ctx| ctx.hosts_scrims())
     }
 
-    pub fn overlay_scrims(&self, window: WindowId) -> Vec<(Rect, Color32)> {
+    pub fn overlay_scrims(&self, window: WindowId) -> Vec<Scrim> {
         self.window_overlays(window)
             .iter()
             .filter_map(|(_, layer)| self.layer_scrim(layer))
             .collect()
     }
 
-    pub(crate) fn layer_scrim(&self, layer: &Layer) -> Option<(Rect, Color32)> {
+    pub(crate) fn layer_scrim(&self, layer: &Layer) -> Option<Scrim> {
         layer.content?;
         let overlay = layer.overlay?;
         let node = self.arena.get_as::<OverlayNode>(overlay);
         let rect = self.node_rect(self.overlay_scrim(overlay))?;
-        (node.dims() && rect.is_positive()).then(|| (rect, self.resolve_color(node.scrim_color())))
+        (node.dims() && rect.is_positive()).then(|| Scrim {
+            rect,
+            color: self.resolve_color(node.scrim_color()),
+            radius: node.scrim_radius(),
+        })
     }
 
     fn window_overlays(&self, window: WindowId) -> Vec<(usize, Layer)> {

@@ -1,4 +1,6 @@
 use block_editor_beui::desktop;
+
+use crate::KeptWindow;
 use std::cell::Cell;
 
 use beui::{Align, Direction};
@@ -79,17 +81,18 @@ pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
         .collect()
 }
 
-pub fn window_title(window: &HostWindow) -> String {
-    match (window.title.is_empty(), window.app_id.is_empty()) {
-        (false, _) => window.title.clone(),
-        (true, false) => window.app_id.clone(),
-        (true, true) => "Window".to_owned(),
-    }
-}
-
 fn readable_id(app_id: &str) -> String {
     let id = app_id.trim();
-    let last = id.rsplit('.').next().unwrap_or(id);
+    let file = id.rsplit(['/', '\\']).next().unwrap_or(id);
+    let file = match file.len().checked_sub(4).and_then(|cut| file.get(cut..)) {
+        Some(extension) if extension.eq_ignore_ascii_case(".exe") => &file[..file.len() - 4],
+        _ => file,
+    };
+    let package = match file.split_once('!') {
+        Some((family, _)) => family.split('_').next().unwrap_or(family),
+        None => file,
+    };
+    let last = package.rsplit('.').next().unwrap_or(package);
     let words = last.replace(['-', '_'], " ");
     let mut letters = words.trim().chars();
     match letters.next() {
@@ -98,22 +101,60 @@ fn readable_id(app_id: &str) -> String {
     }
 }
 
-pub(crate) fn dialog_title(window: &HostWindow, parent: Option<&HostWindow>) -> String {
-    let named = |window: &HostWindow| Some(window.name.clone()).filter(|name| !name.is_empty());
-    let read =
-        |window: &HostWindow| Some(readable_id(&window.app_id)).filter(|name| !name.is_empty());
-    let name = named(window)
-        .or_else(|| parent.and_then(named))
-        .or_else(|| read(window))
-        .or_else(|| parent.and_then(read))
-        .unwrap_or_default();
-    let title = window.title.trim();
-    let titled = !title.is_empty() && title != name && title != window.app_id;
+fn without_name<'a>(title: &'a str, name: &str) -> &'a str {
+    if name.is_empty() {
+        return title;
+    }
+    for separator in [" - ", " \u{2014} ", " \u{2013} ", " | "] {
+        let Some(cut) = title.len().checked_sub(separator.len() + name.len()) else {
+            continue;
+        };
+        let (Some(kept), Some(tail)) = (title.get(..cut), title.get(cut..)) else {
+            continue;
+        };
+        if tail.starts_with(separator) && tail[separator.len()..].eq_ignore_ascii_case(name) {
+            return kept.trim();
+        }
+    }
+    title
+}
+
+fn label(name: &str, title: &str, app_id: &str) -> String {
+    let title = without_name(title.trim(), name);
+    let titled = !title.is_empty() && !title.eq_ignore_ascii_case(name) && title != app_id.trim();
     match (name.is_empty(), titled) {
         (true, false) => "Window".to_owned(),
         (true, true) => title.to_owned(),
-        (false, false) => name,
+        (false, false) => name.to_owned(),
         (false, true) => format!("{name} \u{2014} {title}"),
+    }
+}
+
+pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
+    let named = |window: &HostWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
+    let read =
+        |window: &HostWindow| Some(readable_id(&window.app_id)).filter(|name| !name.is_empty());
+    named(window)
+        .or_else(|| parent.and_then(named))
+        .or_else(|| read(window))
+        .or_else(|| parent.and_then(read))
+        .unwrap_or_default()
+}
+
+pub fn window_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
+    label(&program_name(window, parent), &window.title, &window.app_id)
+}
+
+impl KeptWindow {
+    pub fn program_name(&self) -> String {
+        match self.name.trim() {
+            "" => readable_id(&self.app_id),
+            name => name.to_owned(),
+        }
+    }
+
+    pub fn window_name(&self) -> String {
+        label(&self.program_name(), &self.title, &self.app_id)
     }
 }
 

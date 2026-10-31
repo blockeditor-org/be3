@@ -475,6 +475,8 @@ interface types {
     record scrim {
         rect: rect,
         color: color,
+        /// The radius of its corners, matching what it dims.
+        radius: f32,
     }
 
     /// How far a rectangle sits inside a view, from each of its edges.

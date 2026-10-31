@@ -56,6 +56,7 @@ use switch::DockSwitchPanel;
 const TAB_PADDING_HORIZONTAL: Space = Space::Md;
 const TAB_HEIGHT: Size = Size::Toolbar;
 const TAB_RADIUS: Radius = Radius::Tab;
+const DIALOG_RADIUS: Radius = Radius::Lg;
 const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
 const ROOMY_BAR: f32 = 400.0;
@@ -141,6 +142,7 @@ where
                 <DockDialogFace handle />
             }}
             dialog_beak=POINTER_REACH
+            dialog_radius={DIALOG_RADIUS.px()}
             dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER
             tab={move |handle: DockTabHandle| view! {
@@ -653,7 +655,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
             width=width
             fill=ColorRole::SurfaceRaised
             border={dialog_outline(focused, create_memo(move || attention.get()))}
-            radius=Radius::Lg
+            radius=DIALOG_RADIUS
             padding=CHROME_PADDING
         >
             <List spacing=Space::None>

@@ -70,6 +70,7 @@ fn frame_screens_and_reports_round_trip() {
                     blue: 0,
                     alpha: 96,
                 },
+                radius: 10.0,
             }],
             drawing: vec![Rect::from_min_size(
                 Pos2::new(0.0, 0.0),

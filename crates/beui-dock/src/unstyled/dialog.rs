@@ -286,6 +286,10 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         true => dims.get(),
         false => Color::TRANSPARENT,
     });
+    let scrim_radius = create_memo(move || match dock.is_dialog(parent) {
+        true => dock.dialog_radius,
+        false => 0.0,
+    });
     let focus = dock.dialog_focus;
     let focused = create_memo(move || focus.get() == Some(tab));
     let attention = create_signal(false);
@@ -427,6 +431,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             placement={placement}
             policy
             scrim={scrim}
+            scrim_radius={scrim_radius}
             pointer={card}
             beak={beak}
             shown_in={shown_in}

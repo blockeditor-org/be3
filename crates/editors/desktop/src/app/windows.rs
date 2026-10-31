@@ -9,7 +9,7 @@ use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{Align, Direction, ItemSize, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::desktop;
 use block_editor_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use block_shell::{Workspace, window_picture, window_title};
+use block_shell::{Workspace, window_name, window_picture};
 
 use super::placeholders::Placeholders;
 
@@ -369,7 +369,13 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
     let title = create_memo(move || match block {
         Some((title, _)) => title.get(),
         None => entry
-            .with(|entry| entry.as_ref().map(window_title))
+            .with(|entry| {
+                let entry = entry.as_ref()?;
+                let parent = entry.parent.and_then(|parent| {
+                    entries.with(|entries| entries.iter().find(|listed| listed.id == parent).cloned())
+                });
+                Some(window_name(entry, parent.as_ref()))
+            })
             .unwrap_or_default(),
     });
     let display = create_memo(move || {

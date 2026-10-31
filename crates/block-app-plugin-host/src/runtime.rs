@@ -2340,7 +2340,7 @@ pub struct PlacedView {
     pub base: Vec<Piece>,
     pub floating: Vec<Piece>,
     pub floating_rects: Vec<Rect>,
-    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<(beui::Modifiers, Rect)>,
     pub held: Option<Rect>,
@@ -2534,17 +2534,10 @@ fn shown_view(
                     report
                         .scrims
                         .iter()
-                        .map(|scrim| {
-                            let color = &scrim.color;
-                            (
-                                scrim.rect.translate(rect.min.to_vec2()),
-                                beui::color::Color32::from_rgba_unmultiplied(
-                                    color.red,
-                                    color.green,
-                                    color.blue,
-                                    color.alpha,
-                                ),
-                            )
+                        .map(|scrim| beui::layer::Scrim {
+                            rect: scrim.rect.translate(rect.min.to_vec2()),
+                            color: scrim_color(&scrim.color),
+                            radius: scrim.radius,
                         })
                         .collect()
                 })
@@ -2846,6 +2839,10 @@ pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> O
             .get_mut(plugin_id)?
             .contain(|runtime| Some(act(runtime)))
     })
+}
+
+pub(crate) fn scrim_color(color: &block_plugin_api::accessibility::Color) -> beui::color::Color32 {
+    beui::color::Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
 }
 
 #[cfg(test)]

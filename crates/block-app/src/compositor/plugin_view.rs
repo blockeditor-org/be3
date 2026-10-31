@@ -929,17 +929,20 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
             <ForEach keys={count}>|index: usize| {
                 let scrim = create_memo(move || {
                     state.with(|view| {
-                        view.scrims.get(index).map(|(rect, color)| {
-                            (rect.translate(-view.rect.min.to_vec2()), *color)
+                        view.scrims.get(index).map(|scrim| beui::layer::Scrim {
+                            rect: scrim.rect.translate(-view.rect.min.to_vec2()),
+                            ..*scrim
                         })
                     })
                 });
-                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |(rect, _)| rect));
+                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |scrim| scrim.rect));
                 let fill = create_memo(move || {
                     ColorRole::Custom(beui::color::Color::literal(
-                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |scrim| scrim.color),
                     ))
                 });
+                let radius =
+                    create_memo(move || Radius::Custom(scrim.get().map_or(0.0, |scrim| scrim.radius)));
                 view! {
                     <CanvasItem
                         x={create_memo(move || rect.get().min.x)}
@@ -947,7 +950,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
                         width={create_memo(move || rect.get().width())}
                         height={create_memo(move || rect.get().height())}
                     >
-                        <Frame fill={fill} />
+                        <Frame fill={fill} radius={radius} />
                     </CanvasItem>
                 }
             }</ForEach>

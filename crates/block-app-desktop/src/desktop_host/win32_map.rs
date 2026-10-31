@@ -239,11 +239,61 @@ pub fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
         .max(0.1)
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProgramNames {
+    by_id: HashMap<String, String>,
+    by_app: HashMap<String, String>,
+}
+
+fn app_key(app: &str) -> String {
+    app.trim().replace('/', "\\").to_lowercase()
+}
+
+impl ProgramNames {
+    pub fn new(programs: &[Program]) -> Self {
+        let mut names = Self::default();
+        for program in programs {
+            names
+                .by_id
+                .insert(program.id.clone(), program.name.clone());
+            let shortcut = &program.shortcut;
+            let target = shortcut
+                .target
+                .as_ref()
+                .map(|target| target.to_string_lossy().into_owned());
+            for app in shortcut.app_user_model_id.iter().chain(target.iter()) {
+                names
+                    .by_app
+                    .entry(app_key(app))
+                    .or_insert_with(|| program.name.clone());
+            }
+        }
+        names
+    }
+
+    pub fn name(&self, entry: &Entry) -> String {
+        let launched = entry
+            .origin
+            .program
+            .as_ref()
+            .and_then(|program| self.by_id.get(program));
+        let matched = || {
+            [entry.app_id.as_str()]
+                .into_iter()
+                .chain(entry.origin.command.first().map(String::as_str))
+                .filter(|app| !app.trim().is_empty())
+                .find_map(|app| self.by_app.get(&app_key(app)))
+        };
+        launched.or_else(matched).cloned().unwrap_or_default()
+    }
+}
+
 pub fn host_window(
     snapshot: &Snapshot,
     entry: &Entry,
     shaping: &Shaping,
     notes: &Notes,
+    names: &ProgramNames,
 ) -> HostWindow {
     let scale = scale_at(snapshot, entry.frame);
     let (width, height) = shaping.own_size(entry);
@@ -252,7 +302,10 @@ pub fn host_window(
         id: window_id(entry.id),
         title: entry.title.clone(),
         app_id: entry.app_id.clone(),
-        name: String::new(),
+        name: match entry.kind {
+            EntryKind::Window => names.name(entry),
+            EntryKind::Display => String::new(),
+        },
         parent: entry.parent.map(window_id),
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
@@ -284,13 +337,14 @@ pub fn listed(
     hidden: &[HostWindowId],
     shaping: &Shaping,
     notes: &Notes,
+    names: &ProgramNames,
 ) -> Vec<HostWindow> {
     snapshot
         .entries
         .iter()
         .filter(|entry| !hidden.contains(&window_id(entry.id)))
         .map(|entry| {
-            let mut window = host_window(snapshot, entry, shaping, notes);
+            let mut window = host_window(snapshot, entry, shaping, notes, names);
             window.parent = window.parent.filter(|parent| !hidden.contains(parent));
             window
         })

@@ -60,7 +60,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         .document()
         .overlay_scrims(crate::WindowId::MAIN)
         .into_iter()
-        .map(|(rect, _)| rect)
+        .map(|scrim| scrim.rect)
         .collect::<Vec<_>>();
     assert_eq!(
         dimmed,

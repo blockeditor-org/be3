@@ -60,8 +60,11 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
   each capture started, lost or stopped, focus mode starting and ending) and for every failure,
   toast or not, since nothing else shows what a first run on a new machine did.
-- `WindowsWatch` is the snapshot's entries (`kind`, `shown`); `show` and `hide` set `shown` in
-  be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
+- `WindowsWatch` is the snapshot's entries (`kind`, `shown`), each window's `name` that of its Start
+  menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
+  whose shortcut's AppUserModelID or target is its app id or first command word, ignoring case and
+  slash direction), known once the programs have been listed (the Apps panel asks for them);
+  `show` and `hide` set `shown` in be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive

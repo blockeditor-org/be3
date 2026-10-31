@@ -589,17 +589,12 @@ impl ModuleRunner {
             scrims: report
                 .scrims
                 .into_iter()
-                .map(|(rect, color)| {
-                    let [red, green, blue, alpha] = color.to_array();
-                    block_plugin_api::Scrim {
-                        rect: to_region(rect),
-                        color: block_plugin_api::accessibility::Color {
-                            red,
-                            green,
-                            blue,
-                            alpha,
-                        },
-                    }
+                .map(|shown| {
+                    escaped::scrim(beui_core::layer::Scrim {
+                        rect: to_region(shown.rect),
+                        radius: shown.radius / ratio,
+                        ..shown
+                    })
                 })
                 .collect(),
             drawing: report.drawing.into_iter().map(to_region).collect(),

@@ -168,6 +168,7 @@ pub struct OverlayNode {
     scrim: NodeOf<FrameNode>,
     dims: bool,
     scrim_color: Color,
+    scrim_radius: f32,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
@@ -198,6 +199,7 @@ impl OverlayNode {
             scrim,
             dims: false,
             scrim_color: Color::TRANSPARENT,
+            scrim_radius: 0.0,
             open: false,
             anchor,
             anchored: None,
@@ -427,6 +429,10 @@ impl OverlayNode {
 
     pub(crate) fn scrim_color(&self) -> Color {
         self.scrim_color
+    }
+
+    pub(crate) fn scrim_radius(&self) -> f32 {
+        self.scrim_radius
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -719,6 +725,22 @@ impl Document {
             self.layers_changed();
         }
         self.set_frame_color(scrim, color);
+    }
+
+    pub fn set_overlay_scrim_radius(&mut self, overlay: NodeOf<OverlayNode>, radius: f32) {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let scrim = node.scrim;
+        if node.scrim_radius != radius {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_radius = radius;
+        }
+        let style = self.arena.get_as::<FrameNode>(scrim).style;
+        self.set_frame_style(
+            scrim,
+            FrameStyle {
+                radius: Corners::all(radius),
+                ..style
+            },
+        );
     }
 
     pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {

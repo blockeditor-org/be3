@@ -33,6 +33,7 @@ pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -71,6 +72,10 @@ pub(crate) fn overlay(
     create_binding(move || {
         let window = window.get();
         with_document(|document| document.set_overlay_window(overlay, window))
+    });
+    create_binding(move || {
+        let radius = scrim_radius.get();
+        with_document(|document| document.set_overlay_scrim_radius(overlay, radius))
     });
     create_binding(move || {
         let shown_in = shown_in.get();

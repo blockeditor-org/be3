@@ -146,8 +146,9 @@ fn name(kept: &KeptWindow, program: Option<&HostProgram>) -> String {
             .unwrap_or(command.as_str())
             .to_owned()
     });
-    match (kept.app_id.is_empty(), command) {
-        (false, _) => kept.app_id.clone(),
+    let named = kept.program_name();
+    match (named.is_empty(), command) {
+        (false, _) => named,
         (true, Some(command)) => command,
         (true, None) => "Program".to_owned(),
     }

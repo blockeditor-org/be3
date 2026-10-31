@@ -2963,7 +2963,8 @@ restore). The content's `use_dock_tab()` is a `DockTabControl` for the
 dialog, whose `focused` follows that and whose `show` focuses the dialog.
 `modal` makes the dialog's layer `BlocksParent` until it closes or stops being
 modal, dimmed by the `dialog_scrim` over the parent's panel (styled: the `Scrim`
-colour role): a press on the parent's panel is shut out and asks the dialog to close,
+colour role), its corners `dialog_radius` when the parent is a dialog (styled: the card's radius
+token; `Overlay`'s `scrim_radius`, carried to a host that draws scrims as `Scrim::radius`): a press on the parent's panel is shut out and asks the dialog to close,
 which it answers by focusing the innermost modal dialog and flashing it (the
 handle's `attention`, and `DockTabControl::attention` for content in another
 document, such as a program's window, to take the keyboard itself); the focus
@@ -3885,7 +3886,7 @@ What a host is told about one window is asked of the document by window:
 cover the overlays opened in it (`overlay_rects` where they take input, scrims
 included; `overlay_painted_rects` only what they paint: their content, and a scrim
 that dims unless the host draws scrims; `overlay_scrims` the scrims that dim, each
-with its colour). Where `Context::hosts_scrims` (set by the plugin platform), the
+a `Scrim` with its colour and corner radius). Where `Context::hosts_scrims` (set by the plugin platform), the
 document paints no scrim at all and its host draws `overlay_scrims` between what it
 shows under the window and the overlays' content, so a host's own children under a
 dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,

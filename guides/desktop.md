@@ -117,12 +117,17 @@ window) is never a window of its own in either shell: block-shell's `WindowDialo
 `DockDialog` of its parent's tab, which the dock draws as the same anchored card as block-app's
 own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
 the parent dialog's header), escaping its pane as a layer, in space and outside it alike. Its
-header names the program: `HostWindow::name`, which the Linux host reads from the desktop entry
-named by the window's app id (`Environment::entry`), else the parent's, else the app id's last
-part made readable, followed by the window's title when it says more (`dialog_title` in
-`block-shell/src/window.rs`). It is the size the program drew (`HostWindow::size`, followed as the
+header, like a program window's tab and its chip, is `block_shell::window_name`, the one way to name
+a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
+app id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
+then " — " and the window's title when it says more (not the name or app id, a trailing
+" - name" cut off). The Linux host fills `name` from the desktop entry named by the window's app id
+(`Environment::entry`); the Windows host from the Start menu program whose AppUserModelID or
+shortcut target is the window's app id or command (guides/desktop/windows.md). A placeholder keeps
+the name (`KeptWindow::name`, `KeptWindow::window_name`), and the "not responding" banner says
+only the program's name. It is the size the program drew (`HostWindow::size`, followed as the
 program resizes itself) and can be dragged off by its header, which drops its beak. While it is
-modal, a scrim dims its parent's panel and a press there flashes the dialog and gives it the
+modal, a scrim dims its parent's panel (rounded as the card when the parent is a dialog) and a press there flashes the dialog and gives it the
 keyboard (see the dock in guides/beui.md); the parent's tab shows its waiting dot. A toplevel's
 popups are a `Window` of the `WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard
 and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be,
@@ -178,8 +183,8 @@ floating window and no saved window, and a dialog whose toplevel is hidden is hi
 The desktop plugin's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
 `app/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
 order, then the block windows the shell opened itself (sessions and shown blocks), each with its
-icon (the window's own, else a display, block or window glyph) and its title, ellipsised (icon only
-with the title as tooltip when the row is given `Direction::Vertical`). The focused chip (the dock's
+icon (the window's own, else a display, block or window glyph) and its `window_name` (the program
+first, so a long title is what the ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). The focused chip (the dock's
 focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
 focuses it (`focus`); a click on the focused chip hides it (`hide`, or for a block window the shell
 stops declaring it) and the next shown window in the dock's focus order takes the focus. Each chip

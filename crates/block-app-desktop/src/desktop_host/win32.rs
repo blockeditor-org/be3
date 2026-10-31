@@ -16,7 +16,9 @@ use beui::{
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
 use super::texture_draw::TextureDraw;
-use super::win32_map::{self, ContentPress, HotkeyState, Notes, Recovery, Refusal, entry_id};
+use super::win32_map::{
+    self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
+};
 use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
 
@@ -77,6 +79,7 @@ thread_local! {
     static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
     static CHANGES: Cell<u64> = const { Cell::new(0) };
     static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
+    static NAMES: RefCell<ProgramNames> = RefCell::new(ProgramNames::default());
 }
 
 fn edit_notes(change: impl FnOnce(&mut Notes)) {
@@ -447,7 +450,11 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         let snapshot = watcher.snapshot();
         SHAPING.with_borrow_mut(|shaping| {
             shaping.observe(&snapshot);
-            NOTES.with_borrow(|notes| win32_map::listed(&snapshot, hidden, shaping, notes))
+            NOTES.with_borrow(|notes| {
+                NAMES.with_borrow(|names| {
+                    win32_map::listed(&snapshot, hidden, shaping, notes, names)
+                })
+            })
         })
     })
 }
@@ -1002,6 +1009,10 @@ impl Programs {
         while let Some(receiver) = &self.scanning {
             match receiver.try_recv() {
                 Ok(Scanned::Programs(programs)) => {
+                    let names = ProgramNames::new(&programs);
+                    if NAMES.replace(names.clone()) != names {
+                        self::changed();
+                    }
                     self.programs = programs;
                     self.scanned = true;
                     changed = true;

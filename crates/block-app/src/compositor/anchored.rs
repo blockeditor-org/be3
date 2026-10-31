@@ -361,11 +361,11 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
                 .unwrap_or_default()
         });
         Rc::new(move |painter: &Painter, rect: Rect| {
-            for (scrim, color) in &scrims {
+            for scrim in &scrims {
                 painter.rect_filled(
-                    scrim.translate(rect.min.to_vec2()),
-                    0.0,
-                    beui::color::Color::literal(*color),
+                    scrim.rect.translate(rect.min.to_vec2()),
+                    scrim.radius,
+                    beui::color::Color::literal(scrim.color),
                 );
             }
         })

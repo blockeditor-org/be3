@@ -160,6 +160,13 @@ pub enum LayerPlacement {
     Edge(LayerEdge),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Scrim {
+    pub rect: Rect,
+    pub color: Color32,
+    pub radius: f32,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct EscapedLayer {
     pub id: u64,
@@ -169,7 +176,7 @@ pub struct EscapedLayer {
     pub rect: Rect,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
-    pub scrims: Vec<(Rect, Color32)>,
+    pub scrims: Vec<Scrim>,
     pub dismiss_on_outside_press: bool,
     pub trigger: Option<Rect>,
     pub keyboard: bool,

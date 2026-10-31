@@ -680,17 +680,10 @@ fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> 
                     .iter()
                     .filter_map(|scrim| {
                         let rect = scrim.rect.translate(to_host).intersect(bounds);
-                        let color = &scrim.color;
-                        rect.is_positive().then(|| {
-                            (
-                                rect,
-                                beui::color::Color32::from_rgba_unmultiplied(
-                                    color.red,
-                                    color.green,
-                                    color.blue,
-                                    color.alpha,
-                                ),
-                            )
+                        rect.is_positive().then(|| beui::layer::Scrim {
+                            rect,
+                            color: crate::runtime::scrim_color(&scrim.color),
+                            radius: scrim.radius,
                         })
                     })
                     .collect(),
