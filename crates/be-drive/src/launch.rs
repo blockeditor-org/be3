@@ -39,6 +39,7 @@ struct Launch {
     stop: bool,
     pin_clock: bool,
     space: bool,
+    unrendered: bool,
     arguments: Vec<String>,
 }
 
@@ -166,6 +167,9 @@ impl Launch {
                 .stdout(file.try_clone().map_err(|error| error.to_string())?)
                 .stderr(file);
         }
+        if self.unrendered {
+            command.env(environment::RENDERER, "none");
+        }
         if self.pin_clock {
             command
                 .env(environment::HEADLESS_CLOCK, "pinned")
@@ -240,6 +244,7 @@ pub(crate) fn start(
     size: &str,
     libraries: Option<String>,
     space: bool,
+    render: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
@@ -249,6 +254,7 @@ pub(crate) fn start(
         fresh: true,
         pin_clock: true,
         space,
+        unrendered: !render,
         libraries,
         size: Some(size.to_owned()),
         arguments,

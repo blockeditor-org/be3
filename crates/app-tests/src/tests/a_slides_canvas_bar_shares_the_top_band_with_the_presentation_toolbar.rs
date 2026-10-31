@@ -5,7 +5,7 @@ const CANVAS_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 
 #[test]
 fn a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar() {
-    let mut app = AppTest::start();
+    let mut app = AppTest::start_drawing_previews();
     add_to_my_files(&mut app, "Presentation");
     app.click("#presentation.add");
     app.wait("#picker.slides");

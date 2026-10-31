@@ -137,6 +137,7 @@ pub struct Frame {
     pub repaint: bool,
     pub repaint_after: Duration,
     pub animating: bool,
+    pub unpaced: bool,
 }
 
 impl Frame {
@@ -687,6 +688,7 @@ impl Runner {
             repaint: output.repaint,
             repaint_after: output.repaint_after,
             animating: output.animating,
+            unpaced: false,
         };
         Visit {
             layers: &mut self.layers,

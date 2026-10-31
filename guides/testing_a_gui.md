@@ -400,6 +400,8 @@ which close() checks, so a test that ends without calling it fails too.
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
   Keep it stopped: a closing menu or sheet goes only after a pause as long as its animation.
+  A pause costs only the frames it runs, not the real time it names (guides/running/drive.md,
+  `clock`).
   The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
   clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
   click() first waits for its target, and record() and snapshot() wait for every editor's
@@ -421,6 +423,10 @@ which close() checks, so a test that ends without calling it fails too.
 - `AppTest::start_in_space()` starts the app in the VR simulator (`BEUI_LAYERS=space` on the
   headless platform), where the painting is the 3D view and targets and points are the main
   panel's, so it shows what happens between panels, such as a plugin's window becoming one.
+- The app runs with no GPU renderer (`BEUI_RENDERER=none`), and plugins then draw nothing on
+  the GPU either, since a painting needs neither. The 3D view of space and the previews of
+  blocks (a slide in a deck's filmstrip) are textures, so `start_in_space()` and
+  `AppTest::start_drawing_previews()` start it with the renderer, drawing through lavapipe.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against

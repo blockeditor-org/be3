@@ -4,7 +4,7 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_slides_preview_catches_up_with_quick_changes_after_a_pause() {
-    let mut app = AppTest::start();
+    let mut app = AppTest::start_drawing_previews();
     add_to_my_files(&mut app, "Presentation");
     app.click("#presentation.add");
     app.wait("#picker.slides");

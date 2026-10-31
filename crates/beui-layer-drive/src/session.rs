@@ -718,10 +718,12 @@ impl Session {
             drawing: frame.app.drawing(),
         };
         self.settle(view, settled, output, &frame.above);
-        if let Some(after) = self.wants_frame(view.now) {
+        let wanted = self.wants_frame(view.now);
+        if let Some(after) = wanted {
             run.repaint |= after.is_zero();
             run.repaint_after = run.repaint_after.min(after);
         }
+        run.unpaced |= self.clock_stopped && (run.deferred || wanted == Some(Duration::ZERO));
         if let Some(window) = self.wants_painting() {
             let shown = match window {
                 PLATFORM => self.shown[0].as_ref(),

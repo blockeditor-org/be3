@@ -29,14 +29,18 @@ impl AppTest {
     }
 
     pub fn start_in_space() -> Self {
-        Self::launch(&[], "Pane \"Files\"", true)
+        Self::launch(&[], "Pane \"Files\"", true, true)
+    }
+
+    pub fn start_drawing_previews() -> Self {
+        Self::launch(&[], "Pane \"Files\"", false, true)
     }
 
     pub fn start_with(arguments: &[&str], ready: &str) -> Self {
-        Self::launch(arguments, ready, false)
+        Self::launch(arguments, ready, false, false)
     }
 
-    fn launch(arguments: &[&str], ready: &str, space: bool) -> Self {
+    fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
             .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
@@ -48,6 +52,7 @@ impl AppTest {
             SIZE,
             std::env::var("APP_LIBRARIES").ok(),
             space,
+            render,
         )
         .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {

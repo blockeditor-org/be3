@@ -31,8 +31,6 @@ fn main() -> ExitCode {
         }
         _ => {
             // unsafe(env)
-            unsafe { std::env::set_var("BEUI_RENDERER", "none") };
-            // unsafe(env)
             unsafe { std::env::set_var("BE_LATENCY", LATENCY) };
             run()
         }
@@ -338,6 +336,7 @@ impl App {
             &[],
             SIZE,
             settings.libraries.clone(),
+            false,
             false,
         )?;
         Ok(Self {

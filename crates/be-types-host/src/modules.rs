@@ -526,7 +526,7 @@ impl Modules {
         if self.modules[module].worker.is_none() {
             return;
         }
-        let now = self.clock.at(at).as_millis() as u64;
+        let now = self.clock.at(held().unwrap_or(at)).as_millis() as u64;
         self.advance(module, now);
         self.flush(module);
     }
