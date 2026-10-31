@@ -5,6 +5,8 @@ use geometry::{Pos2, Vec2};
 
 use crate::input::{MAX_TOUCH_VELOCITY, TOUCH_VELOCITY_WINDOW};
 
+const MIN_SPAN: f32 = 0.004;
+
 #[derive(Clone, Debug, Default)]
 pub struct Velocity {
     samples: VecDeque<(Instant, Pos2)>,
@@ -32,7 +34,7 @@ impl Velocity {
             return;
         };
         let elapsed = now.duration_since(then).as_secs_f32();
-        if elapsed <= f32::EPSILON {
+        if elapsed < MIN_SPAN {
             return;
         }
         let measured = (pos - origin) * elapsed.recip();
