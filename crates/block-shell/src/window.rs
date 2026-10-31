@@ -87,6 +87,36 @@ pub fn window_title(window: &HostWindow) -> String {
     }
 }
 
+fn readable_id(app_id: &str) -> String {
+    let id = app_id.trim();
+    let last = id.rsplit('.').next().unwrap_or(id);
+    let words = last.replace(['-', '_'], " ");
+    let mut letters = words.trim().chars();
+    match letters.next() {
+        Some(first) => first.to_uppercase().chain(letters).collect(),
+        None => String::new(),
+    }
+}
+
+pub(crate) fn dialog_title(window: &HostWindow, parent: Option<&HostWindow>) -> String {
+    let named = |window: &HostWindow| Some(window.name.clone()).filter(|name| !name.is_empty());
+    let read =
+        |window: &HostWindow| Some(readable_id(&window.app_id)).filter(|name| !name.is_empty());
+    let name = named(window)
+        .or_else(|| parent.and_then(named))
+        .or_else(|| read(window))
+        .or_else(|| parent.and_then(read))
+        .unwrap_or_default();
+    let title = window.title.trim();
+    let titled = !title.is_empty() && title != name && title != window.app_id;
+    match (name.is_empty(), titled) {
+        (true, false) => "Window".to_owned(),
+        (true, true) => title.to_owned(),
+        (false, false) => name,
+        (false, true) => format!("{name} \u{2014} {title}"),
+    }
+}
+
 #[component]
 pub(crate) fn WindowPanel(
     editor: Editor,

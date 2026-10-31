@@ -49,6 +49,9 @@ interface windows {
         shown: bool,
         title: string,
         app-id: string,
+        /// The program's name from its desktop entry, empty when the host
+        /// knows none.
+        name: string,
         parent: option<host-window-id>,
         modal: bool,
         size: vec2,

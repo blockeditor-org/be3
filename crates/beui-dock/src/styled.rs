@@ -77,8 +77,6 @@ const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_view::types::Vec2 =
     beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DIALOG_CHROME: beui_view::types::Vec2 =
-    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
@@ -140,9 +138,10 @@ where
                 <DockSwitchPanel handle />
             }}
             dialog_chrome={move |handle: DockDialogHandle| view! {
-                <DockWindowFace handle />
+                <DockDialogFace handle />
             }}
-            dialog_outset=DIALOG_CHROME
+            dialog_beak=POINTER_REACH
+            dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -619,7 +618,7 @@ fn draw_card_pointer(
 }
 
 #[component]
-fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
+fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         tab,
         title,
@@ -630,15 +629,18 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         attention,
         closable,
         close,
-        begin_move,
+        grab,
+        drag,
+        card,
+        header,
         body,
         ..
     } = handle;
     let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
-    let header = create_memo(move || match notice.with(Option::is_some) {
+    let header_fill = create_memo(move || match notice.with(Option::is_some) {
         true => ColorRole::AccentSoft,
-        false => ColorRole::Surface,
+        false => ColorRole::None,
     });
     let label = create_memo(move || match notice.with(Option::is_some) {
         true => TextColor::Accent,
@@ -647,16 +649,24 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <Frame
+            @node_ref=&card
             width=width
-            fill=ColorRole::Background
+            fill=ColorRole::SurfaceRaised
             border={dialog_outline(focused, create_memo(move || attention.get()))}
             radius=Radius::Lg
             padding=CHROME_PADDING
         >
             <List spacing=Space::None>
-                <Interactive on_press={move |_: PointerPress| begin_move.call(())}>
+                <Interactive
+                    @node_ref=&header
+                    @test_id={format!("dock.dialog.{}.header", tab.value())}
+                    cursor=beui_view::types::CursorIcon::Move
+                    on_press={move |press: PointerPress| grab.call(press.pos)}
+                    on_drag={move |press: PointerPress| drag.call(press.pos)}
+                >
                     <Frame
-                        fill={header}
+                        fill={header_fill}
+                        radius=Radius::Md
                         height=TAB_HEIGHT
                         padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
                     >

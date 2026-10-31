@@ -2458,8 +2458,10 @@ each after its parent, as `EscapedLayer`s: a stable `id`, `parent` (the escaped 
 nested in, for submenus), `placement` (`Anchored(rect)` in window points for a layer of the
 window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`, `painted`,
 `floating` (the content of every layer that takes input) and `scrims` in host coordinates, and
-`dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
-`blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
+`dismiss_on_outside_press` (dismissable and blocking everything or passing), `keyboard` (traps focus) and
+`blocks_owner` (blocks everything; a layer that blocks only its parent leaves the
+owner's view live and is blocked there by the document itself, which also never asks it to close
+on a press outside). Each frame's `FrameOutput::escaped` carries an
 `EscapedOutput` per layer: that record and a `WindowOutput` (clear colour transparent) painted in host units from the
 layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
 since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
@@ -2926,13 +2928,21 @@ neither the tabs nor the content see them. The code is
 `beui-dock/src/unstyled/modifier_drag.rs`; the desktop plugin sets Super, and the demo's Docking page
 has a switch for Alt.
 
-A `DockDialog`, declared beside the dock's other children, is a window attached
+A `DockDialog`, declared beside the dock's other children, is a dialog attached
 to a tab: `<DockDialog id parent title size modal on_close>content</DockDialog>`
-hangs over the tab named by `parent` (or over another dialog, so dialogs of
-dialogs stack), centred on the parent's panel at the `size` its content asks
-for and kept on the parent's screen (`Placement::CenterOn`), in the
-`dialog_chrome` render prop (styled: a bordered card with a title bar and a
-close button, `dock.dialog.<tab>` naming its body). It is not part of the
+hangs from the tab named by `parent` (or from another dialog, so dialogs of
+dialogs stack) as the same anchored card as the shared `Dialog` (above): its
+content at the `size` it asks for under a header in the `dialog_chrome` render
+prop (styled: a bordered card with a title row and a close button,
+`dock.dialog.<tab>` naming its body and `dock.dialog.<tab>.header` its header),
+placed `Popover` from the parent's handle with a beak pointing at it. A tab's
+handle is its entry in its strip (`DockTabControl::handle()`), and a dialog's is
+its header, so a dialog of a dialog points at the header of the one it came
+from. The overlay hangs from the parent's panel (`OverlayAnchor::Pinned`, the
+handle's rect pinned to the panel), so it escapes its pane as a layer and blocks
+only that panel; in space it is shown in the parent's window. With no handle to point at (a fullscreen tab) it is centred
+on the parent's panel with no beak. Dragging the header moves the card off its
+place, dropping the beak, until it closes. It is not part of the
 `DockState`: it is never a tab, nothing drags it into the dock, a key declared
 as both a dialog and a tab is only a dialog, and it is not saved with the
 layout. It shows exactly while its parent tab does (`DockState::is_shown`),
@@ -2945,7 +2955,8 @@ when a dialog closes the focus returns to its parent (the overlay's focus
 restore). The content's `use_dock_tab()` is a `DockTabControl` for the
 dialog, whose `focused` follows that and whose `show` focuses the dialog.
 `modal` makes the dialog's layer `BlocksParent` until it closes or stops being
-modal: a press on the parent's panel is shut out and asks the dialog to close,
+modal, dimmed by the `dialog_scrim` over the parent's panel (styled: the `Scrim`
+colour role): a press on the parent's panel is shut out and asks the dialog to close,
 which it answers by focusing the innermost modal dialog and flashing it (the
 handle's `attention`, and `DockTabControl::attention` for content in another
 document, such as a program's window, to take the keyboard itself); the focus
@@ -2957,14 +2968,15 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-A `DockDialog` is only ever a window or a modal (`dismiss_on_outside_press` lets a
-press on the blocked panel close a modal one instead of calling its attention).
-A small form that points at a control or at its tab is no dock dialog: it is
-the shared `Dialog` (above), which escapes its pane as a layer of its own
-(and, in a plugin, an anchored view of its owner) and finds its tab through
-`use_frame_anchor()`, which the dock provides in every tab body
-(`DockTabControl::anchor()`: the tab's entry in its strip, none while the tab
-is fullscreen; `DockTabControl::handle()` is that entry's node). A dialog's
+`dismiss_on_outside_press` lets a press on the blocked panel close a modal
+dialog instead of calling its attention. A small form opened from a control or
+an action of a tab's own body is no dock dialog: it is the shared `Dialog`
+(above), which escapes its pane as a layer of its own (and, in a plugin, an
+anchored view of its owner) and finds its tab through `use_frame_anchor()`,
+which the dock provides in every tab body (`DockTabControl::anchor()`: the tab's
+entry in its strip, none while the tab is fullscreen; `DockTabControl::handle()`
+is that entry's node). Both are drawn alike; a dock dialog is for content the
+dock must hold (a program's dialog, `block-shell`'s `WindowDialog`). A dialog's
 body is built once when it is declared and kept while its tab is hidden.
 
 A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a

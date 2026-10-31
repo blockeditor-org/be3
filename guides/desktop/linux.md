@@ -26,11 +26,11 @@ not running: the power actions start only when the DRM seat provides its `Displa
 
 be-wayland (`crates/be-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
 forwarding catcher the shell places like any other node. A floating window (every window under
-the desktop shell, and dialogs under workspace-ui) owns its size: a new one is configured 0×0,
+the desktop shell) and every dialog own their size: a new one is configured 0×0,
 `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
-size the compositor asked for), the shell's `DialogWindow` follows that size through
-`DockTabControl::resize_window`, and a window shown at its own size is never told a size, so it
-stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
+size the compositor asked for), a floating window follows that size through
+`DockTabControl::resize_window` and a dialog's card through its `DockDialog` size, and a window
+shown at its own size is never told a size, so it stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
 with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
@@ -413,7 +413,7 @@ program can also be started against a driven app directly: the app hands the sam
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry its app id names. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (the desktop plugin's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's

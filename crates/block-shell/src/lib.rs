@@ -28,6 +28,6 @@ pub use rename::RenameView;
 pub use saved::saved_windows;
 pub use window::{shown_windows, window_picture, window_tab, window_title};
 pub use workspace::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
-    SETTINGS, SHELL_BARS, WindowTab, Workspace,
+    BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS, SETTINGS,
+    SHELL_BARS, WindowDialog, WindowTab, Workspace,
 };

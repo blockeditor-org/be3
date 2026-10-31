@@ -29,7 +29,7 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, Workspace, WorkspaceDialogs,
+    BlockTab, Failure, FloatingWindow, PanelWindow, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -229,7 +229,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                         <FloatingWindow workspace key placeholder />
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
-                        <AttachedWindow workspace window parent />
+                        <WindowDialog workspace window parent />
                     </ForEach>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />

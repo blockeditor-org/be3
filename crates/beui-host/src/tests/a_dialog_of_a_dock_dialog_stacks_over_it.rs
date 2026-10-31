@@ -11,9 +11,10 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
 
     let outer = harness.rect(harness.find("dock.dialog.10"));
     let inner = harness.rect(harness.find("dock.dialog.11"));
+    let header = harness.rect(harness.find("dock.dialog.10.header"));
     assert!(
-        (inner.center().x - outer.center().x).abs() < 1.0,
-        "the nested dialog is centred over the dialog it belongs to"
+        inner.top() > header.bottom() && (inner.center().x - header.center().x).abs() < 1.0,
+        "the nested dialog hangs below the header of the dialog it belongs to, pointing at it: {inner:?} below {header:?}"
     );
     assert_eq!(
         harness.document().focused_node(),

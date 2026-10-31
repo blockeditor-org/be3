@@ -16,8 +16,8 @@ use block_editor_beui::{
     TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
-    RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
+    BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
+    RevisionHistoryPanel, SETTINGS, WindowDialog, WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -126,7 +126,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                         <FloatingWindow workspace key placeholder />
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
-                        <AttachedWindow workspace window parent />
+                        <WindowDialog workspace window parent />
                     </ForEach>
                 </Docking>
                 <WorkspaceDialogs workspace />

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab() {
+fn a_dock_dialog_hangs_from_its_parents_tab_and_hides_with_it() {
     let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], vec![(10, 1, false)]);
     let layout = dock.layout;
@@ -16,13 +16,16 @@ fn a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab() {
         dialog_size(10),
         "the dialog is the size it asked for"
     );
+    let tab = harness.rect(harness.find("dock.tab.1"));
     assert!(
-        (dialog.center().x - parent.center().x).abs() < 1.0,
-        "the dialog is centred over its parent: {dialog:?} over {parent:?}"
+        dialog.top() > tab.bottom()
+            && dialog.left() <= tab.center().x
+            && tab.center().x <= dialog.right(),
+        "the dialog hangs below its parent's tab, pointing at it: {dialog:?} below {tab:?}"
     );
     assert!(
         parent.contains_rect(dialog),
-        "the dialog sits inside its parent: {dialog:?} in {parent:?}"
+        "the dialog sits over its parent: {dialog:?} in {parent:?}"
     );
     assert_eq!(
         harness.document().focused_node(),

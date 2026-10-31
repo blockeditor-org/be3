@@ -509,10 +509,11 @@ root places a descendant's tab body as a child showing `child-content.dock-tab`
 with the full path, and the host shows the owner's view of that body there,
 placed by the dock,
 only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
-declaration names that are no tabs: a `dock-dialog`'s (a window or a modal,
-which the root presents as it presents its own dialogs, over the dialog's
-parent, closing it with a `close` of the dialog's `tab`; a popover-style
-dialog is no dock dialog, its owner draws it as an anchored view of its own), a pane's `empty` view, which the root shows
+declaration names that are no tabs: a `dock-dialog`'s (which the root presents
+as it presents its own dialogs, a card hanging from the dialog's parent and
+pointing at it, closing it with a `close` of the dialog's `tab`; a small form
+of a tab body's own is no dock dialog, its owner draws it as an anchored view
+of its own), a pane's `empty` view, which the root shows
 while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
 (`owner`) and shows while it does, floating over an edge of its body or in
 the band along that edge beside it, at its start, centre or end

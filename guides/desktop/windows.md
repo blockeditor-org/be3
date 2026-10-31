@@ -77,6 +77,9 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   and go with the snapshot; where windows are hosted (space) a popup is opened again when its
   corner moves. A press on one focuses its toplevel with the cursor at that point
   (`popup_point`); controllers do not inject into popups. Focus mode's clip already covers them.
+- Dialogs: an entry's owner is its `HostWindow::parent` and `modal` its dialog flag, so the shells
+  show an owned window as the anchored card guides/desktop.md describes (Program windows). The
+  Windows host leaves `HostWindow::name` empty, so the card's header falls back to the title.
 - Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
   does for floating windows: `HostWindow::size` is the size the window last chose itself (its
   frame bounds in its monitor's points), not one it took because block-app asked, so a window

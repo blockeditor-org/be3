@@ -37,6 +37,7 @@ thread_local! {
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
     static SHOWN: RefCell<Shown> = RefCell::new(Shown::default());
+    static NAMES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
 fn tag(program: Option<String>, launch: Option<u64>, block: Option<uuid::Uuid>) -> Option<u64> {
@@ -309,6 +310,7 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
                 id: HostWindowId(info.id.0),
                 kind: WindowKind::Window,
                 shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
+                name: program_name(&info.app_id),
                 title: info.title,
                 app_id: info.app_id,
                 parent: info
@@ -335,6 +337,23 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
             }
         })
         .collect()
+}
+
+fn program_name(app_id: &str) -> String {
+    NAMES.with(|names| {
+        names
+            .borrow_mut()
+            .entry(app_id.to_owned())
+            .or_insert_with(|| {
+                let environment = Environment::from_env();
+                environment
+                    .entry(app_id)
+                    .or_else(|| environment.entry(&app_id.to_lowercase()))
+                    .map(|entry| entry.name)
+                    .unwrap_or_default()
+            })
+            .clone()
+    })
 }
 
 pub fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {

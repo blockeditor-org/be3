@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab() {
+fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     let (mut fixture, _) = editor();
 
     fixture.host.set_watched::<WindowsWatch>(&vec![
@@ -24,9 +24,15 @@ fn a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab() {
         (320.0, 200.0),
         "the dialog is the size it drew rather than filling a pane"
     );
+    let parent_tab = fixture
+        .test
+        .rect_of(&format!("dock.tab.{}", (1u64 << 41) + 1));
     assert!(
-        (dialog.center().x - parent.center().x).abs() < 1.0 && parent.contains_rect(dialog),
-        "the dialog hangs in the middle of its parent: {dialog:?} over {parent:?}"
+        dialog.top() > parent_tab.bottom()
+            && dialog.left() <= parent_tab.center().x
+            && parent_tab.center().x <= dialog.right()
+            && dialog.top() < parent.center().y,
+        "the dialog hangs from its parent's tab, over the parent: {dialog:?} below {parent_tab:?} over {parent:?}"
     );
     let tab = (1u64 << 41) + 2;
     let document = fixture.test.document();

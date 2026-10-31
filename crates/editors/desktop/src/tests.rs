@@ -31,6 +31,7 @@ mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
 mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset;
+mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
 mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
 mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
@@ -43,6 +44,8 @@ mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
+mod a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab;
+mod a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it;
 mod a_query_no_program_matches_runs_as_a_command;
 mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
 mod a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard;
@@ -567,6 +570,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         shown: true,
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
+        name: String::new(),
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),

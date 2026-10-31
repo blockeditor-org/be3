@@ -9,7 +9,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let parent = harness.rect(harness.find("content.1"));
-    let corner = parent.min + vec2(12.0, 12.0);
+    let corner = parent.max - vec2(12.0, 12.0);
     harness.click(corner);
     let field = harness.find("content.1");
     assert_eq!(harness.document().focused_node(), Some(field));
@@ -40,6 +40,13 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         attended.with_untracked(|attended| attended.is_empty()),
         "without calling the dialog's attention"
     );
+    assert!(
+        harness
+            .document()
+            .overlay_scrims(crate::WindowId::MAIN)
+            .is_empty(),
+        "nor is it dimmed"
+    );
     pressed.update(|pressed| pressed.clear());
 
     dialogs.set(vec![(10, 1, true)]);
@@ -48,6 +55,17 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         harness.document().focused_node(),
         Some(dialog),
         "made modal, the dialog takes the focus back"
+    );
+    let dimmed = harness
+        .document()
+        .overlay_scrims(crate::WindowId::MAIN)
+        .into_iter()
+        .map(|(rect, _)| rect)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        dimmed,
+        vec![harness.rect(harness.find("content.1"))],
+        "a scrim dims the parent while the dialog blocks it"
     );
     let inside = harness.center(dialog);
     harness.click(inside);

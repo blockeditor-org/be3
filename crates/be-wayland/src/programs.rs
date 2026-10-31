@@ -130,6 +130,18 @@ impl Environment {
         out
     }
 
+    pub fn entry(&self, app_id: &str) -> Option<DesktopEntry> {
+        if app_id.is_empty() || app_id.contains('/') {
+            return None;
+        }
+        let id = format!("{app_id}.desktop");
+        self.data_dirs.iter().find_map(|dir| {
+            let path = dir.join("applications").join(&id);
+            let text = std::fs::read_to_string(&path).ok()?;
+            DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales)
+        })
+    }
+
     fn runs(&self, entry: &DesktopEntry) -> bool {
         entry
             .try_exec

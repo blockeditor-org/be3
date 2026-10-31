@@ -34,7 +34,7 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window,
+    WindowPanel, dialog_title, floating_window, kept_window, shown_size, shown_windows, tab_window,
     window_picture, window_tab, window_title,
 };
 use beui::ItemSize;
@@ -1325,18 +1325,19 @@ pub fn FloatingWindow(
 }
 
 #[component]
-pub fn AttachedWindow(
+pub fn WindowDialog(
     workspace: Workspace,
     window: HostWindowId,
     parent: HostWindowId,
 ) -> DockNode<TabId> {
     let listed = workspace.windows;
-    let info = create_memo(move || {
-        listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
-    });
-    let title = create_memo(move || {
-        info.get()
-            .map_or_else(|| "Window".to_owned(), |info| window_title(&info))
+    let find = move |id: HostWindowId| {
+        listed.with(|windows| windows.iter().find(|listed| listed.id == id).cloned())
+    };
+    let info = create_memo(move || find(window));
+    let title = create_memo(move || match info.get() {
+        Some(info) => dialog_title(&info, find(parent).as_ref()),
+        None => "Window".to_owned(),
     });
     let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
     let followed = create_memo(|| None);
@@ -1351,7 +1352,6 @@ pub fn AttachedWindow(
             id={window_tab(window)}
             parent={window_tab(workspace.window_key(parent))}
             title={title}
-            icon=ICON_APP_WINDOW
             size
             modal
             on_close={move || workspace.close(window_tab(window))}

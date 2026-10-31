@@ -108,15 +108,25 @@ drive like any other run (guides/running/drive.md).
 
 Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
 window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
-window (`FloatingWindow`) instead of a tab, as the desktop plugin always does, and the dock shows a
-window-presented dialog, which is how both shells show a program's dialogs (`AttachedWindow`), as
-a `Window` placed `Over` its parent's window, centred on it and `dialog_outset` (the chrome the
-styled dock draws around the body) larger than its body. A toplevel's popups are a `Window` of the
-`WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be, and opened
-again whenever the popups' corner moves, as when a submenu grows them leftward or upward. The
-compositor still places each toplevel at its rectangle in its own window's coordinates, the
-keyboard follows the document's focus as anywhere, and a modal dialog still turns presses on its
-parent into raising the dialog. Outside space all of this stays an overlay or a tab, as above.
+window (`FloatingWindow`) instead of a tab, as the desktop plugin always does. A program's dialog
+(a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned
+window) is never a window of its own in either shell: block-shell's `WindowDialog` declares it as a
+`DockDialog` of its parent's tab, which the dock draws as the same anchored card as block-app's
+own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
+the parent dialog's header), escaping its pane as a layer, in space and outside it alike. Its
+header names the program: `HostWindow::name`, which the Linux host reads from the desktop entry
+named by the window's app id (`Environment::entry`), else the parent's, else the app id's last
+part made readable, followed by the window's title when it says more (`dialog_title` in
+`block-shell/src/window.rs`). It is the size the program drew (`HostWindow::size`, followed as the
+program resizes itself) and can be dragged off by its header, which drops its beak. While it is
+modal, a scrim dims its parent's panel and a press there flashes the dialog and gives it the
+keyboard (see the dock in guides/beui.md); the parent's tab shows its waiting dot. A toplevel's
+popups are a `Window` of the `WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard
+and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be,
+and opened again whenever the popups' corner moves, as when a submenu grows them leftward or
+upward. The compositor still places each toplevel at its rectangle in its own window's
+coordinates, and the keyboard follows the document's focus as anywhere. Outside space top windows
+stay tabs, as above.
 
 A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
 texture back, opaque), so paintings and `drive paint` show what programs drew.

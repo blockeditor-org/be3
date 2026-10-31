@@ -22,7 +22,7 @@ fn a_modal_window_sends_presses_on_its_parent_to_itself() {
 
     fixture
         .test
-        .click(parent.min + block_editor_beui::vec2(12.0, 12.0));
+        .click(parent.max - block_editor_beui::vec2(12.0, 12.0));
     fixture.settle();
 
     let asked = fixture

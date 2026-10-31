@@ -267,15 +267,13 @@ impl Document {
                 painted,
                 floating,
                 scrims,
-                dismiss_on_outside_press: layer.dismissable && layer.policy != LayerPolicy::Inert,
+                dismiss_on_outside_press: layer.dismissable
+                    && matches!(layer.policy, LayerPolicy::BlocksAll | LayerPolicy::Pass),
                 trigger: self
                     .overlay_trigger_rect(overlay)
                     .map(|rect| to_host.rect(rect)),
                 keyboard: layer.traps,
-                blocks_owner: matches!(
-                    layer.policy,
-                    LayerPolicy::BlocksAll | LayerPolicy::BlocksParent
-                ),
+                blocks_owner: layer.policy == LayerPolicy::BlocksAll,
             });
         }
         escaped

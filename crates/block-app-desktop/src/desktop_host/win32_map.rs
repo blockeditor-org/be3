@@ -252,6 +252,7 @@ pub fn host_window(
         id: window_id(entry.id),
         title: entry.title.clone(),
         app_id: entry.app_id.clone(),
+        name: String::new(),
         parent: entry.parent.map(window_id),
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
