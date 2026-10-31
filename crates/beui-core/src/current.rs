@@ -81,7 +81,10 @@ pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
     result
 }
 
-pub(crate) fn enter_holding_removals<R>(document: &mut Document, f: impl FnOnce() -> R) -> (R, bool) {
+pub(crate) fn enter_holding_removals<R>(
+    document: &mut Document,
+    f: impl FnOnce() -> R,
+) -> (R, bool) {
     let context = document.reactive_scope().context();
     let guard = install(document);
     let result = context.run(f);

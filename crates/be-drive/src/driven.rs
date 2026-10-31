@@ -123,7 +123,10 @@ fn panic_end(lines: &[&str], start: usize) -> usize {
         .position(|line| {
             line.is_empty() || line.starts_with("note: run with") || *line == "stack backtrace:"
         })
-        .map_or_else(|| lines.len().min(start + 1 + PANIC_LINES), |end| start + 1 + end);
+        .map_or_else(
+            || lines.len().min(start + 1 + PANIC_LINES),
+            |end| start + 1 + end,
+        );
     let mut end = message;
     while end < lines.len() && (lines[end].is_empty() || lines[end] == "stack backtrace:") {
         end += 1;
@@ -151,9 +154,9 @@ fn backtrace_line(line: &str) -> bool {
         return false;
     }
     trimmed.starts_with("at ")
-        || trimmed
-            .split_once(": ")
-            .is_some_and(|(frame, _)| !frame.is_empty() && frame.bytes().all(|b| b.is_ascii_digit()))
+        || trimmed.split_once(": ").is_some_and(|(frame, _)| {
+            !frame.is_empty() && frame.bytes().all(|b| b.is_ascii_digit())
+        })
 }
 
 impl Drop for Driven {
