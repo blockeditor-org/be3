@@ -356,10 +356,12 @@ pub fn resolve_rect(
 
 pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Option<f32> {
     let room = match placement {
-        Placement::BelowStart => (viewport.bottom() - anchor_rect.bottom())
-            .max(anchor_rect.top() - viewport.top()),
-        Placement::RightStart => (viewport.bottom() - anchor_rect.top())
-            .max(anchor_rect.bottom() - viewport.top()),
+        Placement::BelowStart => {
+            (viewport.bottom() - anchor_rect.bottom()).max(anchor_rect.top() - viewport.top())
+        }
+        Placement::RightStart => {
+            (viewport.bottom() - anchor_rect.top()).max(anchor_rect.bottom() - viewport.top())
+        }
         _ => return None,
     };
     Some(room.clamp(0.0, viewport.height().max(0.0)))
