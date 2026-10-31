@@ -2028,6 +2028,7 @@ dependencies = [
  "block-plugin-manifest",
  "block-type-api",
  "block-type-guest",
+ "block-wasm-host",
  "build-id",
  "calendar-types",
  "checklist-types",

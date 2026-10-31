@@ -34,6 +34,7 @@ wasi-threads = { path = "../wasi-threads" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 be-server = { path = "../be-server" }
+block-wasm-host = { path = "../block-wasm-host" }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

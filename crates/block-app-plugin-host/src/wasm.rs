@@ -80,7 +80,7 @@ pub(super) fn spawn(
             contain: |run| block_app_base::panic_guard::contain(run),
         },
         move |wake| {
-            let plugin = host.load_from(&module, discovery::read)?;
+            let plugin = host.load_from(&module, discovery::open)?;
             plugin.on_wake(move || wake());
             Ok(Editor(plugin))
         },

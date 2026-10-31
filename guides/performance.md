@@ -253,6 +253,10 @@ session left, with every step that can overlap running at once. What keeps it th
 - The plugins whose editors were open are kept in app state too, and are started, with
   the shell's plugin, on the first frame (`block_app_plugin_host::warm`), before the shell asks
   for them. A plugin with no editors open idles once it has loaded.
+- On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
+  `Module::deserialize_file`) rather than read into memory and copied: the app's
+  plugins, libraries and type modules come to about 400 MB, and mapping them took about a
+  third of a second off the time to the workspace's Files pane (October 2026).
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.
 - The be worker joins every queued `Open` concurrently. Its loop still awaits listings
