@@ -146,8 +146,8 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
-        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
+        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
+        | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"

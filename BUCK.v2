@@ -29,12 +29,12 @@ command_alias(
     args = [
         "sh",
         "-c",
-        "./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null && exit 0; " +
-        "status=$?; " +
-        "if sh buck/cargo/update.sh --check 2> /dev/null | grep -q '^Out of date'; then " +
-        "echo 'buck/cargo/crates.bzl or Cargo.lock is out of date with the Cargo.toml files, so a crate may lack a dependency its manifest names: run ./scripts/buck run //:buckify.' >&2; " +
-        "fi; " +
-        "exit $status",
+        "./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null && exit 0; "
+        + "status=$?; "
+        + "if sh buck/cargo/update.sh --check 2> /dev/null | grep -q '^Out of date'; then "
+        + "echo 'buck/cargo/crates.bzl or Cargo.lock is out of date with the Cargo.toml files, so a crate may lack a dependency its manifest names: run ./scripts/buck run //:buckify.' >&2; "
+        + "fi; "
+        + "exit $status",
     ],
 )
 
