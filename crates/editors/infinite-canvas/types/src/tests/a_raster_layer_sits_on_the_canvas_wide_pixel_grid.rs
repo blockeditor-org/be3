@@ -36,14 +36,14 @@ fn a_raster_layer_sits_on_the_canvas_wide_pixel_grid() {
         entity.transform.pixel_at(
             3,
             2,
-            CanvasPoint::new(corner.x + size * 2.5, corner.y + 1.0)
+            CanvasPoint::new(corner.x + size * 2.5, corner.y + size * 0.5)
         ),
         (2, 0)
     );
     assert_eq!(
         entity
             .transform
-            .pixel_at(3, 2, CanvasPoint::new(corner.x - 1.0, corner.y)),
+            .pixel_at(3, 2, CanvasPoint::new(corner.x - size * 0.5, corner.y)),
         (-1, 0)
     );
 

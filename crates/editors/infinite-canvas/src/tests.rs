@@ -14,7 +14,7 @@ use infinite_canvas_types::{
     CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
     CanvasTransform, InfiniteCanvasOperation,
 };
-use infinite_canvas_types::{CanvasPixel, CanvasPixelUpdate, CanvasRaster, DEFAULT_PIXEL_SIZE};
+use infinite_canvas_types::{CanvasPixel, CanvasPixelUpdate, CanvasRaster};
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
@@ -76,6 +76,7 @@ mod a_view_the_host_sets_is_not_fitted_back;
 mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
 mod an_export_marks_the_list_markers_and_quote_bars_it_cannot_draw;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
+mod at_full_size_a_raster_pixel_is_one_screen_point;
 mod attaching_component_fills_only_missing_selected_entities;
 mod choosing_a_pixel_tool_marks_it_in_the_dock;
 mod clearing_a_raster_layer_needs_the_dialog;
@@ -430,14 +431,32 @@ fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
     to.run();
 }
 
+const TEST_PIXEL_SIZE: f32 = 8.0;
+
+fn raster_canvas(pixel_size: f32, entities: &[CanvasEntity]) -> Canvas {
+    let mut content = CanvasContent::new(&Canvas {
+        profile: CanvasProfile::Raster,
+        pixel_size,
+        ..Canvas::default()
+    });
+    for entity in entities {
+        let edit = Canvas::edit_in(
+            &content,
+            &InfiniteCanvasOperation::Add {
+                entity: Box::new(entity.clone()),
+            },
+        );
+        content.apply(&edit);
+    }
+    content.root()
+}
+
 fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
-    let mut canvas = Canvas::with_entities(entities.to_vec());
-    canvas.profile = CanvasProfile::Raster;
-    open(&canvas, false, &[])
+    open(&raster_canvas(TEST_PIXEL_SIZE, entities), false, &[])
 }
 
 fn raster_layer(id: u128, center: CanvasPoint, side: u16) -> CanvasEntity {
-    let mut layer = CanvasEntity::raster(DEFAULT_PIXEL_SIZE, center, side, side);
+    let mut layer = CanvasEntity::raster(TEST_PIXEL_SIZE, center, side, side);
     layer.id = Uuid::from_u128(id);
     layer
 }

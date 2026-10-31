@@ -6,7 +6,7 @@ use crate::canvas::{CanvasPoint, CanvasTransform, Entity};
 pub const DEFAULT_RASTER_SIZE: u16 = 32;
 pub const MAX_RASTER_SIZE: u16 = 2048;
 pub const MAX_RASTER_PALETTE_COLORS: usize = 32;
-pub const DEFAULT_PIXEL_SIZE: f32 = 8.0;
+pub const DEFAULT_PIXEL_SIZE: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Hash, PartialEq, Eq, Serialize)]
 pub struct CanvasPixel {
