@@ -12,7 +12,7 @@ fn a_windows_tab_dragged_onto_a_window_on_another_display_joins_it() {
     fixture.show_windows(&[host_window(1, false), host_window(2, true)]);
     assert_eq!(fixture.test.desk_windows().len(), 2, "a window each");
 
-    let second = fixture.desk_text("notes-2.txt");
+    let second = fixture.desk_text("todo-2.txt");
     let grab = pos2(second.max.x + 80.0, second.center().y);
     fixture.test.desk_drag(
         grab,
@@ -20,13 +20,13 @@ fn a_windows_tab_dragged_onto_a_window_on_another_display_joins_it() {
         6,
     );
     fixture.settle();
-    let moved = fixture.desk_text("notes-2.txt");
+    let moved = fixture.desk_text("todo-2.txt");
     assert!(
         right.contains_rect(moved),
         "the second window is on the second display: {moved:?}"
     );
 
-    let first = fixture.desk_text("notes-1.txt");
+    let first = fixture.desk_text("todo-1.txt");
     let onto = pos2(first.max.x + 60.0, first.center().y);
     let tab = moved.center();
     fixture.test.desk_press(tab);

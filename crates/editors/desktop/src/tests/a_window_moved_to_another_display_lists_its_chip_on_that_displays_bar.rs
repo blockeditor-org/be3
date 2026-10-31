@@ -50,7 +50,7 @@ fn a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar() {
         chips(&fixture)
     );
 
-    let title = fixture.desk_text("notes-1.txt");
+    let title = fixture.desk_text("todo-1.txt");
     let grab = pos2(title.max.x + 80.0, title.center().y);
     fixture.test.desk_drag(grab, grab - vec2(700.0, 100.0), 8);
     fixture.settle();

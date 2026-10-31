@@ -8,6 +8,7 @@ fn monitor_entry(id: u64, name: &str) -> HostWindow {
         shown: false,
         title: name.to_owned(),
         app_id: String::new(),
+        name: String::new(),
         size: Vec2::new(2560.0, 1440.0),
         ..host_window(id, false)
     }
