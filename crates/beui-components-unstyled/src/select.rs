@@ -156,12 +156,13 @@ pub fn Select(
                 accessibility={trigger_accessibility}
                 disabled={disabled}
                 content={trigger_content}
-                on_click={move || open(state)}
+                on_click={move || toggle(state)}
                 on_key={move |press: KeyPress| trigger_key(state, press)}
             />
             <Anchored
                 style={surface}
                 anchor={state.trigger}
+                trigger={state.trigger}
                 open={is_open}
                 on_dismiss={move || dismiss(state)}
             >|handle: AnchoredHandle| {
@@ -229,6 +230,13 @@ fn trigger_key(state: State, press: KeyPress) -> bool {
         state.highlighted.set((count > 0).then_some(next));
     }
     true
+}
+
+fn toggle(state: State) {
+    match state.open.get_untracked() {
+        true => dismiss(state),
+        false => open(state),
+    }
 }
 
 fn open(state: State) {

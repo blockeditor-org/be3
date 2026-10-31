@@ -2095,8 +2095,10 @@ dismissed. There is one request for each reason, sent to one layer:
   rows of a menu stay hovered and pressable under its open submenu, and a
   press on one closes the submenu. A press that reaches such a layer on the
   `trigger` of a layer above it is left to that trigger, as with a popover, so
-  a `MenuButton` (whose menu's trigger is its button) in a floating bar closes
-  its menu on a second click rather than reopening it. A host of escaped
+  a `MenuButton` or a `Select` in a floating bar closes its popup on a second
+  click rather than reopening it. Every component whose button opens an
+  overlay does it this way: the overlay names the button as its `trigger`, and
+  the button's click toggles the overlay. A host of escaped
   layers does the same (`block_app_plugin_host::dismissed_by_press`), except
   that a layer blocking its view (`blocks_owner`) whose trigger is in that
   blocked view is closed by the press, which the view never hears. Which layers the pointer can reach is one
