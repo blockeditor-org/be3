@@ -2044,8 +2044,10 @@ async fn apply(
                     None
                 }),
             };
-            let bytes =
-                bytes.or_else(|| super::types::kind_of(content_type).map(|kind| kind.blank));
+            let bytes = match bytes {
+                Some(bytes) => Some(bytes),
+                None => replicas.kind(content_type).await.map(|kind| kind.blank),
+            };
             if let Some(bytes) = bytes
                 && let Err(error) =
                     publish_bytes(peer, replicas, shared, to, content_type, bytes, true).await
@@ -2109,7 +2111,7 @@ async fn apply(
             mut metadata,
             bytes,
         } => {
-            let kind = super::types::kind_of(content_type);
+            let kind = replicas.kind(content_type).await;
             let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
             if metadata.derived.is_empty()
                 && let Some(kind) = kind
@@ -2262,7 +2264,9 @@ async fn plain_file(
     };
     let bytes = match content {
         Some(bytes) => bytes,
-        None => super::kind_of(content_type)
+        None => replicas
+            .kind(content_type)
+            .await
             .map(|kind| kind.blank)
             .ok_or("This block's type isn't known.")?,
     };

@@ -497,6 +497,13 @@ impl<H: Host> Replicas<H> {
         Some((ticket, answered))
     }
 
+    pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
+        if let Some(module) = self.modules.module_of(content_type) {
+            self.modules.load(module).await;
+        }
+        types::kind_of(content_type)
+    }
+
     pub fn is_open(&self, block: Uuid) -> bool {
         self.blocks.contains_key(&block)
     }
@@ -528,7 +535,7 @@ impl<H: Host> Replicas<H> {
             }
             return;
         }
-        let Some(kind) = types::kind_of(content_type) else {
+        let Some(kind) = self.kind(content_type).await else {
             return;
         };
         let owned = !kind.frozen && H::owned(shared, block);
@@ -1859,7 +1866,10 @@ impl<H: Host> Replicas<H> {
 
     async fn heard_from(&mut self, ctx: Ctx<'_, H>, module: usize, heard: Heard) -> bool {
         match heard {
-            Heard::Hello(_) => false,
+            Heard::Hello(types) => {
+                self.modules.hello(module, types).await;
+                false
+            }
             Heard::Canceled { op } => {
                 self.refuse(module, op);
                 false

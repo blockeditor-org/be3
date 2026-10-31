@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_declared_module_starts_only_when_its_type_is_first_needed;
 mod a_module_that_says_hello_while_another_is_asked_is_still_registered;
 
 const START: &str = "be3:block-type/replicas@0.1.0#start";

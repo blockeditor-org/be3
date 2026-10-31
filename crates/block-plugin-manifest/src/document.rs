@@ -67,6 +67,8 @@ pub struct BlockTypeDocument {
     pub module: String,
     #[serde(default)]
     pub exported_whole: bool,
+    #[serde(default)]
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,7 +215,7 @@ impl BlockTypeDocument {
                 icon_codepoint: self.icon,
                 children: self.children,
                 press: self.press,
-                plain_file: false,
+                plain_file: self.plain_file,
             },
             module: self.module,
             exported_whole: self.exported_whole,

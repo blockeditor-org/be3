@@ -1,9 +1,9 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     convert::Infallible,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::AtomicBool,
     },
     time::{Duration, Instant},
 };
@@ -42,28 +42,24 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
         .cloned()
 }
 
+static DECLARED: wasi_threads::Mutex<BTreeSet<Uuid>> = wasi_threads::Mutex::new(BTreeSet::new());
+
 pub fn is_known(content_type: Uuid) -> bool {
+    DECLARED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .contains(&content_type)
+        || REGISTRY
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains_key(&content_type)
+}
+
+pub fn register(kind: Kind) {
     REGISTRY
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .contains_key(&content_type)
-}
-
-static PLAIN_FORMS: AtomicU64 = AtomicU64::new(0);
-
-pub fn register(kind: Kind) {
-    let plain = kind.plain;
-    let before = REGISTRY
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
-    if before.is_none_or(|before| before.plain != plain) {
-        PLAIN_FORMS.fetch_add(1, Ordering::Relaxed);
-    }
-}
-
-pub fn plain_forms_revision() -> u64 {
-    PLAIN_FORMS.load(Ordering::Relaxed)
 }
 
 static HELD: wasi_threads::Mutex<Option<Instant>> = wasi_threads::Mutex::new(None);
@@ -168,6 +164,7 @@ struct Module {
     ticked: Option<u64>,
     sleeping: Option<(u64, Reply<()>)>,
     started: Option<Ticket<Vec<TypeInfo>>>,
+    launched: bool,
     hello: bool,
     failure: Option<String>,
     generation: u64,
@@ -197,6 +194,7 @@ pub struct Modules {
     backlog: VecDeque<(usize, Heard)>,
     restarted: Vec<usize>,
     routes: HashMap<Uuid, usize>,
+    described: HashSet<Uuid>,
     clock: Clock,
 }
 
@@ -248,6 +246,7 @@ impl Modules {
                     ticked: None,
                     sleeping: None,
                     started: None,
+                    launched: false,
                     hello: false,
                     failure: None,
                     generation: 0,
@@ -258,12 +257,45 @@ impl Modules {
             backlog: VecDeque::new(),
             restarted: Vec::new(),
             routes: HashMap::new(),
+            described: HashSet::new(),
             clock,
         };
         for module in 0..modules.modules.len() {
-            modules.launch(module);
+            match modules.modules[module].source.declared.clone() {
+                Some(declared) => {
+                    for content_type in declared {
+                        modules.routes.entry(content_type).or_insert(module);
+                        DECLARED
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .insert(content_type);
+                    }
+                }
+                None => modules.launch(module),
+            }
         }
         modules
+    }
+
+    pub fn launch_all(&mut self) {
+        for module in 0..self.modules.len() {
+            self.wake(module);
+        }
+    }
+
+    fn wake(&mut self, module: usize) {
+        if !self.modules[module].launched {
+            self.launch(module);
+        }
+    }
+
+    pub async fn load(&mut self, module: usize) {
+        self.wake(module);
+        self.until(|modules| {
+            let held = &modules.modules[module];
+            held.hello || held.worker.is_none()
+        })
+        .await;
     }
 
     fn launch(&mut self, module: usize) {
@@ -271,6 +303,7 @@ impl Modules {
         let wake: Wake = Arc::new(move || notify.notify_one());
         let waiting = Arc::new(AtomicBool::new(false));
         let held = &mut self.modules[module];
+        held.launched = true;
         held.generation += 1;
         held.hello = false;
         held.ticked = None;
@@ -346,6 +379,16 @@ impl Modules {
     }
 
     pub async fn ready(&mut self) {
+        self.until(|modules| {
+            modules
+                .modules
+                .iter()
+                .all(|module| module.hello || module.worker.is_none())
+        })
+        .await;
+    }
+
+    async fn until(&mut self, done: impl Fn(&Self) -> bool) {
         let mut kept = Vec::new();
         loop {
             let collected = self.collect();
@@ -357,11 +400,7 @@ impl Modules {
                     kept.push((module, heard));
                 }
             }
-            if self
-                .modules
-                .iter()
-                .all(|module| module.hello || module.worker.is_none())
-            {
+            if done(self) {
                 kept.extend(self.backlog.drain(..));
                 self.backlog = kept.into();
                 return;
@@ -372,12 +411,17 @@ impl Modules {
         }
     }
 
-    async fn hello(&mut self, module: usize, types: Vec<TypeInfo>) {
+    pub async fn hello(&mut self, module: usize, types: Vec<TypeInfo>) {
         self.modules[module].hello = true;
         let types: Vec<TypeInfo> = types
             .into_iter()
             .filter(|info| self.provides(module, info.content_type))
-            .filter(|info| self.routes.get(&info.content_type) != Some(&module))
+            .filter(|info| {
+                self.routes
+                    .get(&info.content_type)
+                    .is_none_or(|routed| *routed == module)
+            })
+            .filter(|info| !self.described.contains(&info.content_type))
             .collect();
         let blanks = self
             .ask_all(
@@ -413,6 +457,7 @@ impl Modules {
             .await;
         for ((info, blank), described) in blank.into_iter().zip(described) {
             self.routes.insert(info.content_type, module);
+            self.described.insert(info.content_type);
             register(Kind {
                 content_type: info.content_type,
                 frozen: info.frozen,
@@ -461,6 +506,7 @@ impl Modules {
     }
 
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
+        self.wake(module);
         self.modules[module].worker.as_ref()?;
         let now = self.now();
         self.advance(module, now);
@@ -850,6 +896,7 @@ pub fn plain_of(content_type: Uuid) -> Plain {
 
 pub async fn started(sources: Vec<Source>, clock: Clock) -> Modules {
     let mut modules = Modules::new(sources, clock);
+    modules.launch_all();
     modules.ready().await;
     modules
 }

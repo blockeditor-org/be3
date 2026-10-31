@@ -441,7 +441,16 @@ wasmtime and in process in tests:
   `web(name, url, tag)`) with a host `Connection` of its own, restarts one that
   stops, answers its clock and sleeps itself, and hands everything else on as
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
-  `started(sources)` waits for every `start`. Its stateless helpers (`ask`, `blank`,
+  A source that declares its types starts lazily: `Modules::new` routes and marks
+  known (`is_known`) what it declares and starts only sources that declare nothing,
+  and the first `call` to a module starts it, so the app runs only the modules of
+  types its blocks use. What a module's `start` answers (`kind_of`: frozen, schema,
+  plain form, blank, description) is there only once it ran: `load(module)` starts it
+  and awaits that, `Replicas::kind` does so for a content type, and a `Hello` heard
+  later (a module a `call` started) is registered as it is drained. What a host must
+  know without running a module comes from the manifest: names, icons and colors,
+  and `plain_file`. `started(sources)` starts every module and waits for every
+  `start`, as `be` and `be sync` do. Its stateless helpers (`ask`, `blank`,
   `merge3`, `to_files`, `claims`, `apply`, `describe`) are what a host that holds no
   replica uses.
 - `replicas`: `Replicas<H: Host>`, the replica IO of

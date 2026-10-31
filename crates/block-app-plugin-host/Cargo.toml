@@ -9,7 +9,6 @@ be-block = { path = "../be-block" }
 be-client = { path = "../be-client" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
-be-types-host = { path = "../be-types-host" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host", default-features = false }
 block-app-base = { path = "../block-app-base" }

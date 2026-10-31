@@ -77,7 +77,8 @@
       "display_name": "File",
       "icon": "\ue0c0",
       "color": [65, 145, 210],
-      "module": "workspace_ui_types.wasm"
+      "module": "workspace_ui_types.wasm",
+      "plain_file": true
     }
   },
   "extensions": ["be3:desktop"],
