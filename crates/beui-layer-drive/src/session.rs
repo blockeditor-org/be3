@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -19,7 +19,7 @@ use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
 
 use crate::gestures::{Frames, Gestures};
-use crate::target::{coordinates, describe, locate, node, point, scaled};
+use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
@@ -41,6 +41,9 @@ Reading the app:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  reveal TARGET             scroll TARGET into view when a scroll cuts or hides it, as input does, and say
+                            where it shows, ending in revealed when it scrolled
+  shown TARGET              where the part of TARGET that shows is, without scrolling
   comps [--internals]       component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
@@ -143,8 +146,8 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
-        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
+        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
+        | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
@@ -298,11 +301,38 @@ impl<'a> View<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
 struct Settled {
-    busy: bool,
-    again: bool,
+    busy: Vec<String>,
     drawing: bool,
+}
+
+fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if run.deferred {
+        reasons.push("input or events wait to be handled".to_owned());
+    }
+    if !clock_stopped && (run.repaint || run.repaint_after.is_zero()) {
+        reasons.push(
+            match run.animating {
+                true => "an animation runs",
+                false => "a frame asks for another",
+            }
+            .to_owned(),
+        );
+    }
+    reasons
+}
+
+fn frame_held(run: &Frame, clock_stopped: bool) -> Option<String> {
+    (clock_stopped && (run.repaint || run.repaint_after.is_zero())).then(|| {
+        format!(
+            "{} waits for the stopped clock: `pause` lets time pass",
+            match run.animating {
+                true => "an animation",
+                false => "a frame",
+            }
+        )
+    })
 }
 
 enum Phase {
@@ -357,6 +387,10 @@ enum Phase {
         pasted: std::sync::mpsc::Receiver<Pasted>,
         until: Instant,
     },
+    Revealing {
+        revealed: Vec<accesskit::NodeId>,
+        before: Rc<Rendered>,
+    },
 }
 
 struct Active {
@@ -365,6 +399,7 @@ struct Active {
     tap: usize,
     immediate: bool,
     changes: Option<usize>,
+    skipped: usize,
 }
 
 struct Pending {
@@ -373,6 +408,8 @@ struct Pending {
     immediate: bool,
     changes: Option<usize>,
     skipped: usize,
+    revealed: Vec<accesskit::NodeId>,
+    before: Option<Rc<Rendered>>,
 }
 
 enum Started {
@@ -544,6 +581,8 @@ impl Session {
                         immediate,
                         changes,
                         skipped,
+                        revealed: Vec::new(),
+                        before: None,
                     });
                     self.start_pending(0, view, frame);
                 }
@@ -557,15 +596,26 @@ impl Session {
             return;
         };
         let words = &pending.request.words[pending.skipped..];
-        match self.start(tap, words, view, frame) {
+        match self.start(tap, words, &pending.revealed, view, frame) {
             Ok(Started::Done(reply)) => (pending.request.reply)(reply),
-            Ok(Started::Phase(phase)) => {
+            Ok(Started::Phase(mut phase)) => {
+                match (&mut phase, pending.before) {
+                    (Phase::Revealing { revealed, before }, earlier) => {
+                        revealed.extend(pending.revealed);
+                        if let Some(earlier) = earlier {
+                            *before = earlier;
+                        }
+                    }
+                    (Phase::Input { before, .. }, Some(earlier)) => *before = earlier,
+                    _ => {}
+                }
                 self.active = Some(Active {
                     request: pending.request,
                     phase,
                     tap,
                     immediate: pending.immediate,
                     changes: pending.changes,
+                    skipped: pending.skipped,
                 });
             }
             Err(error) => (pending.request.reply)(Reply::Error(error)),
@@ -624,7 +674,7 @@ impl Session {
     fn wants_frame(&self, now: Instant) -> Option<Duration> {
         let stopped = self.clock_stopped;
         let Some(active) = &self.active else {
-            return self.inbox.waiting().then_some(Duration::ZERO);
+            return (self.pending.is_some() || self.inbox.waiting()).then_some(Duration::ZERO);
         };
         match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
@@ -659,13 +709,13 @@ impl Session {
         for (name, times) in frame.app.other_frames() {
             self.other_frames.entry(name).or_default().merge(times);
         }
+        let mut busy = frame_busy(run, self.clock_stopped);
+        busy.extend(frame.app.busy());
+        self.inbox
+            .note_busy(&busy, frame_held(run, self.clock_stopped));
         let settled = Settled {
-            busy: frame.app.busy(),
+            busy,
             drawing: frame.app.drawing(),
-            again: match self.clock_stopped {
-                true => run.deferred,
-                false => run.again(),
-            },
         };
         self.settle(view, settled, output, &frame.above);
         if let Some(after) = self.wants_frame(view.now) {
@@ -706,7 +756,30 @@ impl Session {
         output: &FrameOutput,
         above: &Above<'_>,
     ) {
-        let quiet = !settled.again && !settled.busy;
+        let quiet = settled.busy.is_empty();
+        if quiet
+            && let Some(Active {
+                request,
+                phase: Phase::Revealing { revealed, before },
+                tap,
+                immediate,
+                changes,
+                skipped,
+            }) = self
+                .active
+                .take_if(|active| matches!(active.phase, Phase::Revealing { .. }))
+        {
+            self.pending = Some(Pending {
+                request,
+                tap,
+                immediate,
+                changes,
+                skipped,
+                revealed,
+                before: Some(before),
+            });
+            return;
+        }
         let Some(active) = &mut self.active else {
             return;
         };
@@ -740,7 +813,7 @@ impl Session {
                 if *ready && let Some(target) = target {
                     let placed = match *window {
                         PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),
-                        _ => locate(target, view.rendered().lines()),
+                        _ => shown_part(target, view.rendered().lines()),
                     };
                     match placed {
                         Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
@@ -985,14 +1058,31 @@ impl Session {
         &mut self,
         tap: usize,
         words: &[String],
+        revealed: &[accesskit::NodeId],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
         let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        match kind(command) {
-            Some(Kind::Session) => self.session(command, arguments, view, frame),
-            _ => self.command(tap, command, arguments, view, frame),
+        if kind(command) == Some(Kind::Session) {
+            return self.session(command, arguments, view, frame);
         }
+        let reveal = Cell::new(None);
+        let started = self.command(tap, command, arguments, view, frame, revealed, &reveal);
+        let Some(id) = reveal.get() else {
+            return started;
+        };
+        frame
+            .context
+            .accessibility_action(accesskit::ActionRequest {
+                action: accesskit::Action::ScrollIntoView,
+                target_tree: accesskit::TreeId::ROOT,
+                target_node: id,
+                data: None,
+            });
+        Ok(Started::Phase(Phase::Revealing {
+            revealed: vec![id],
+            before: view.rendered(),
+        }))
     }
 
     fn session(
@@ -1060,6 +1150,8 @@ impl Session {
         arguments: &[String],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
     ) -> Result<Started, String> {
         let gesture = tap;
         let under = self.taps[tap].clone();
@@ -1098,7 +1190,17 @@ impl Session {
         let scale = view.pixels_per_point;
         let above = &frame.above;
         let entered = std::cell::Cell::new(None);
+        let reveal_first = |target: &str, lines: &[Rc<Line>]| -> Result<(), String> {
+            match hidden(target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => Ok(()),
+            }
+        };
         let at = |target: &str| -> Result<Pos2, String> {
+            reveal_first(target, lines)?;
             let Some(under) = &under else {
                 return point(target, lines, scale);
             };
@@ -1181,7 +1283,7 @@ impl Session {
                 let text = ids
                     .into_iter()
                     .map(|(id, line)| {
-                        let place = line.bounds.map(describe).unwrap_or_default();
+                        let place = line.bounds.map(place).unwrap_or_default();
                         let hidden = if line.visible { "" } else { " offscreen" };
                         format!("#{id} {place}{hidden}\n")
                     })
@@ -1190,7 +1292,19 @@ impl Session {
             }
             "find" => {
                 let rect = locate(argument(0)?, rendered.lines())?;
-                Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+                Ok(Started::Done(Reply::Text(format!("{}\n", place(rect)))))
+            }
+            "reveal" | "shown" => {
+                let target = argument(0)?;
+                if command == "reveal" {
+                    at(target)?;
+                }
+                let rect = shown_part(target, lines)?;
+                let scrolled = if revealed.is_empty() { "" } else { " revealed" };
+                Ok(Started::Done(Reply::Text(format!(
+                    "{}{scrolled}\n",
+                    place(rect)
+                ))))
             }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
@@ -1660,7 +1774,10 @@ impl Session {
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
-                    Some(target) => Some(shown_at(target, under.as_deref(), view, above)?),
+                    Some(target) => {
+                        reveal_first(target, rendered.lines())?;
+                        Some(shown_at(target, under.as_deref(), view, above)?)
+                    }
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing {
@@ -1689,9 +1806,12 @@ impl Session {
                     [target] => Some(target.clone()),
                     _ => return Err("usage: paint [TARGET] [in WINDOW|platform]".to_owned()),
                 };
+                if let Some(target) = &target {
+                    reveal_first(target, rendered.lines())?;
+                }
                 let crop = match (&target, window) {
                     (Some(target), window) if window != PLATFORM => Some(in_points(
-                        locate(target, rendered.lines())?,
+                        shown_part(target, rendered.lines())?,
                         view.pixels_per_point,
                     )),
                     _ => None,
@@ -1791,7 +1911,7 @@ impl Session {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
                 "the app asks for an input method, its caret {}, {}\n",
-                describe(scaled(area.cursor, scale)),
+                place(scaled(area.cursor, scale)),
                 match area.keyboard {
                     Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
                     Keyboard::Held => "its keyboard held back".to_owned(),
@@ -1805,6 +1925,13 @@ impl Session {
         }
         if self.clock_stopped {
             text.push_str("clock stopped: time passes only with pause\n");
+        }
+        match self.inbox.busy().as_slice() {
+            [] => text.push_str("settled\n"),
+            busy => text.push_str(&format!("busy: {}\n", busy.join("; "))),
+        }
+        if let Some(held) = self.inbox.held() {
+            text.push_str(&format!("{held}\n"));
         }
         if self.unhurried {
             text.push_str("hurry off: the app waits as it does for a person\n");
@@ -2120,12 +2247,12 @@ fn shown_at(
     above: &Above<'_>,
 ) -> Result<Rect, String> {
     let Some(under) = under else {
-        return locate(target, view.rendered().lines());
+        return shown_part(target, view.rendered().lines());
     };
     if let Some(rect) = coordinates(target) {
         return Ok(rect);
     }
-    let rect = locate(target, view.rendered().lines())?;
+    let rect = shown_part(target, view.rendered().lines())?;
     let scale = view.pixels_per_point;
     let corners = [
         rect.min,

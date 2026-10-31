@@ -54,6 +54,7 @@ pub fn ContextMenu(
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
@@ -69,6 +70,7 @@ pub fn ContextMenu(
             selection
             toolbar_at
             opens_on_hold
+            bounds
             on_close={on_close}
             on_select={on_select}
             on_toolbar_close={on_toolbar_close}
@@ -83,6 +85,7 @@ pub fn MenuPopup(
     items: Children<MenuItem>,
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
@@ -101,6 +104,7 @@ pub fn MenuPopup(
             menu={sized_menu_style(min_width.get_untracked())}
             anchor
             placement
+            bounds
             open={open}
             sheet={sheet}
             overlay
@@ -230,7 +234,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         depth,
         expanded,
         toggle,
-        hovered,
+        pointed,
         focused,
         ..
     } = handle;
@@ -260,7 +264,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
-    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     view! {
         <List spacing=MENU_PADDING>
             <Show condition={separated}>
@@ -442,7 +446,7 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Padding) -> NodeId {
         glyph_color,
         checked,
         disabled,
-        hovered,
+        pointed,
         focused,
         ..
     } = handle;
@@ -460,7 +464,7 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Padding) -> NodeId {
             .get()
             .map_or(TextColor::Default, TextColor::Custom),
     });
-    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     let border = create_memo(move || ticked.get().then_some(Border::new(ColorRole::Accent)));
     view! {
         <Frame fill={fill_color} border radius=Radius::Md padding>
@@ -513,7 +517,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         depth,
         expanded,
         toggle,
-        hovered,
+        pointed,
         active,
         focused,
         ..
@@ -535,7 +539,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <RowFace
-                hovered
+                hovered=pointed
                 active
                 focused
                 disabled
@@ -581,8 +585,8 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
     }
 }
 
-fn row_background(focused: bool, hovered: bool) -> ColorRole {
-    match (focused, hovered) {
+fn row_background(focused: bool, pointed: bool) -> ColorRole {
+    match (focused, pointed) {
         (true, _) => ColorRole::AccentSoft,
         (false, true) => ColorRole::Pressed,
         (false, false) => ColorRole::None,

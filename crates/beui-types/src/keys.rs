@@ -54,13 +54,14 @@ pub enum KeyAt {
     Window,
     Root,
     Node(NodeRef),
+    Control(NodeRef),
 }
 
 impl KeyAt {
     pub fn node(&self, root: Option<NodeId>) -> Option<NodeId> {
         match self {
             KeyAt::Root => root,
-            KeyAt::Node(node) => node.try_get(),
+            KeyAt::Node(node) | KeyAt::Control(node) => node.try_get(),
             KeyAt::Host | KeyAt::Window => None,
         }
     }

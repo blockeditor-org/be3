@@ -72,7 +72,7 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
-struct Enclosing(NodeRef);
+struct Enclosing(Memo<Option<NodeRef>>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
@@ -203,6 +203,7 @@ pub(crate) fn PluginView(
     #[prop(default = false)] offscreen: bool,
     #[prop(default = false)] nests_windows: bool,
     #[prop(default = None)] opens_at: Option<Memo<Rect>>,
+    #[prop(default = None)] shares: Option<ChildNodes>,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -232,6 +233,12 @@ pub(crate) fn PluginView(
     };
     let floated_rect = floated_key.clone().map(super::desktop::rect_of);
     let floated_placement = floated_key.clone().map(super::desktop::placement_memo);
+    let floated_origin = floated_key.clone().map(super::desktop::origin_memo);
+    let origin = create_memo(move || match floated_origin {
+        Some(origin) => origin.get(),
+        None if shows_desktop => Some(place.map_or(Pos2::ZERO, |place| place.display.get().min)),
+        None => None,
+    });
     let desktop_editor = store(editor.clone());
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{}.crashed", instance.0, region.id.0);
@@ -308,6 +315,7 @@ pub(crate) fn PluginView(
                 windows: hosts_windows || windowed,
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
+                origin: origin.get_untracked(),
                 anchor_bounds: (!offscreen && !region.is_preview())
                     .then(|| anchor_bounds.get_untracked()),
             },
@@ -339,13 +347,13 @@ pub(crate) fn PluginView(
         let _ = zoom.get();
         let _ = floated_rect.map(|rect| rect.get());
         let _ = floated_placement.map(|placement| placement.get());
+        let _ = origin.get();
         let _ = anchor_bounds.get();
         placer.call(placed.with(Cell::get));
     });
     if shows_desktop {
-        let origin = create_memo(move || place.map_or(Pos2::ZERO, |place| place.display.get().min));
         create_effect(move || {
-            let origin = origin.get();
+            let origin = origin.get().unwrap_or(Pos2::ZERO);
             untrack(|| {
                 super::desktop::note_origin(&plugin_id.value(), instance, region.id, origin)
             });
@@ -362,6 +370,17 @@ pub(crate) fn PluginView(
             view.get(),
         )
     });
+    if shows_desktop {
+        let key = (plugin_id.value().to_string(), instance, region.id);
+        let held = key.clone();
+        create_effect(move || {
+            let origin = origin.get().unwrap_or(Pos2::ZERO);
+            let area = state.with(|view| view.work_area);
+            let area = area.map(|area| area.translate(origin.to_vec2()));
+            untrack(|| super::desktop::note_work_area(held.clone(), area));
+        });
+        on_cleanup(move || super::desktop::note_work_area(key, None));
+    }
     create_effect(move || {
         revision.get();
         let actions = block_app_plugin_host::take_view_actions(&plugin_id.value(), instance);
@@ -390,6 +409,25 @@ pub(crate) fn PluginView(
         }
     });
     let rect = create_memo(move || state.with(|view| view.rect));
+    let catcher = NodeRef::new();
+    let enclosing = use_context::<Enclosing>();
+    let encloses = match (offscreen, enclosing) {
+        (false, _) => create_memo(move || Some(catcher)),
+        (true, Some(Enclosing(enclosing))) => enclosing,
+        (true, None) => create_memo(|| None),
+    };
+    let anchors = super::anchored::anchor_host();
+    let children = ChildNodes::joining(
+        shares,
+        Joined {
+            mount,
+            state,
+            rect,
+            child_view,
+            anchors,
+            encloses,
+        },
+    );
     let (reports, tick) = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
@@ -411,9 +449,9 @@ pub(crate) fn PluginView(
     if offscreen {
         return view! {
             <Layers>
-                <ViewChildren state={state} rect={rect} child_view below=true />
+                <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Embed slot={slot} punch=false />
-                <ViewChildren state rect child_view below=false />
+                <ViewChildren state rect nodes={children} below=false />
             </Layers>
         };
     }
@@ -549,9 +587,7 @@ pub(crate) fn PluginView(
     let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let every_sample = create_memo(move || state.with(|view| view.every_sample));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
-    let catcher = NodeRef::new();
-    let enclosing = use_context::<Enclosing>();
-    provide_context(Enclosing(catcher));
+    provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
     super::intercept::intercept_keys(plugin_id, instance, region.id, intercepted, move || {
@@ -578,7 +614,9 @@ pub(crate) fn PluginView(
                         region: region.id,
                         zoom,
                         rect,
-                        parent: enclosing.and_then(|Enclosing(parent)| parent.try_get()),
+                        parent: enclosing
+                            .and_then(|Enclosing(parent)| parent.get())
+                            .and_then(|parent| parent.try_get()),
                     },
                 )
             });
@@ -595,11 +633,10 @@ pub(crate) fn PluginView(
         instance,
         region: region.id,
         window,
-        host: super::anchored::anchor_host(),
+        host: anchors,
         state,
         revision,
-        child_view,
-        scope: reactive::current_scope(),
+        children,
         catcher,
     });
     let blocked = create_memo(move || state.with(|view| view.blocks_owner));
@@ -841,7 +878,7 @@ pub(crate) fn PluginView(
         let overlaid = (!shows_desktop).then(|| {
             let editor = editor.clone();
             view! {
-                <OverlaidWindows editor region />
+                <OverlaidWindows editor region nodes={children} />
             }
         });
         let panels = (!nests_windows).then(|| {
@@ -857,7 +894,7 @@ pub(crate) fn PluginView(
     let built = view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
-                <ViewChildren state={state} rect={rect} child_view below=true />
+                <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Interactive
                     @node_ref={&catcher}
                     focusable=true
@@ -889,7 +926,7 @@ pub(crate) fn PluginView(
                 <Show condition={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
-                <ViewChildren state rect child_view below=false />
+                <ViewChildren state rect nodes={children} below=false />
                 <Scrims state />
                 <Drawing draw={floating} />
                 <Show condition={blocked}>||
@@ -911,17 +948,20 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
             <ForEach keys={count}>|index: usize| {
                 let scrim = create_memo(move || {
                     state.with(|view| {
-                        view.scrims.get(index).map(|(rect, color)| {
-                            (rect.translate(-view.rect.min.to_vec2()), *color)
+                        view.scrims.get(index).map(|scrim| beui::layer::Scrim {
+                            rect: scrim.rect.translate(-view.rect.min.to_vec2()),
+                            ..*scrim
                         })
                     })
                 });
-                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |(rect, _)| rect));
+                let rect = create_memo(move || scrim.get().map_or(Rect::ZERO, |scrim| scrim.rect));
                 let fill = create_memo(move || {
                     ColorRole::Custom(beui::color::Color::literal(
-                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+                        scrim.get().map_or(beui::color::Color32::TRANSPARENT, |scrim| scrim.color),
                     ))
                 });
+                let radius =
+                    create_memo(move || Radius::Custom(scrim.get().map_or(0.0, |scrim| scrim.radius)));
                 view! {
                     <CanvasItem
                         x={create_memo(move || rect.get().min.x)}
@@ -929,7 +969,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
                         width={create_memo(move || rect.get().width())}
                         height={create_memo(move || rect.get().height())}
                     >
-                        <Frame fill={fill} />
+                        <Frame fill={fill} radius={radius} />
                     </CanvasItem>
                 }
             }</ForEach>
@@ -1005,7 +1045,7 @@ thread_local! {
 }
 
 #[component]
-fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
+fn OverlaidWindows(editor: ViewEditor, region: View, nodes: ChildNodes) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
@@ -1036,7 +1076,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
                     next.get()
                 })));
                 let window = {
-                    provide_context(host.expect("just made"));
+                    provide_context(super::anchored::HostOfAnchors(create_memo(move || host)));
                     view! {
                         <Overlay
                             anchor
@@ -1053,6 +1093,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
                                     region
                                     nests_windows=true
                                     opens_at={Some(shown)}
+                                    shares={Some(nodes)}
                                     child_view
                                     on_focus={Callback::new(|()| {})}
                                 />
@@ -1370,7 +1411,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
 fn ViewChildren(
     state: Memo<PlacedView>,
     rect: Memo<Rect>,
-    child_view: ChildView,
+    nodes: ChildNodes,
     below: bool,
 ) -> NodeId {
     let keys = create_memo(move || {
@@ -1401,12 +1442,197 @@ fn ViewChildren(
                 let y = create_memo(move || clip.get().min.y);
                 let width = create_memo(move || clip.get().width());
                 let height = create_memo(move || clip.get().height());
-                let built = child_view.with(|view| view(key, child, rect));
+                let built = nodes.node(key);
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
+                    <CanvasItem x={x} y={y} width={width} height={height}>
+                        <Portal node={Some(built)} />
+                    </CanvasItem>
                 }
             }</ForEach>
         </Canvas>
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Joined {
+    pub(crate) mount: u64,
+    pub(crate) state: Memo<PlacedView>,
+    pub(crate) rect: Memo<Rect>,
+    pub(crate) child_view: ChildView,
+    pub(crate) anchors: Memo<Option<super::anchored::AnchorHost>>,
+    pub(crate) encloses: Memo<Option<NodeRef>>,
+}
+
+impl Joined {
+    fn lists(&self, key: ChildId) -> bool {
+        self.state.is_alive()
+            && self
+                .state
+                .with(|view| view.children.iter().any(|child| child.child == key))
+    }
+}
+
+struct BuiltChild {
+    node: NodeId,
+    scope: Option<reactive::Scope>,
+    holder: Signal<u64>,
+}
+
+struct BuiltChildren {
+    region: Option<reactive::ScopeContext>,
+    views: Signal<Vec<Joined>>,
+    built: RefCell<HashMap<ChildId, BuiltChild>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ChildNodes {
+    shared: Stored<BuiltChildren>,
+    mount: u64,
+    child_view: ChildView,
+}
+
+impl ChildNodes {
+    pub(crate) fn joining(shares: Option<ChildNodes>, joined: Joined) -> Self {
+        let mount = joined.mount;
+        let child_view = joined.child_view;
+        let shared = match shares.filter(|shares| shares.shared.is_alive()) {
+            Some(shares) => {
+                let views = shares.shared.with(|held| held.views);
+                views.update(|views| views.push(joined));
+                on_cleanup(move || {
+                    if views.is_alive() {
+                        views.update(|views| views.retain(|view| view.mount != mount));
+                    }
+                });
+                shares.shared
+            }
+            None => Self::root(joined),
+        };
+        Self {
+            shared,
+            mount,
+            child_view,
+        }
+    }
+
+    fn root(joined: Joined) -> Stored<BuiltChildren> {
+        let views = create_signal(vec![joined]);
+        let shared = store(BuiltChildren {
+            region: reactive::current_scope(),
+            views,
+            built: RefCell::new(HashMap::new()),
+        });
+        create_effect(move || {
+            let shown: Vec<ChildId> = views.with(|views| {
+                views
+                    .iter()
+                    .filter(|view| view.state.is_alive())
+                    .flat_map(|view| {
+                        view.state.with(|view| {
+                            view.children
+                                .iter()
+                                .map(|child| child.child)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect()
+            });
+            untrack(|| keep(shared, &shown));
+        });
+        on_cleanup(move || keep(shared, &[]));
+        shared
+    }
+
+    pub(crate) fn node(self, key: ChildId) -> NodeId {
+        let held = self.shared.with(|held| {
+            held.built
+                .borrow()
+                .get(&key)
+                .map(|built| (built.node, built.holder))
+        });
+        if let Some((node, holder)) = held {
+            if holder.is_alive() && holder.get_untracked() != self.mount {
+                holder.set(self.mount);
+            }
+            return node;
+        }
+        let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));
+        let child_view = self.child_view;
+        let mount = self.mount;
+        let build = move || {
+            let holder = create_signal(mount);
+            let holding = create_memo(move || {
+                let mount = holder.get();
+                views.with(|views| {
+                    views
+                        .iter()
+                        .find(|view| view.mount == mount && view.lists(key))
+                        .or_else(|| views.iter().find(|view| view.lists(key)))
+                        .map(|view| view.mount)
+                })
+            });
+            let following = move || holding.get().and_then(|mount| joined(views, mount));
+            let child = create_memo(move || {
+                let view = following()?;
+                view.state.with(|view| {
+                    view.children
+                        .iter()
+                        .find(|child| child.child == key)
+                        .cloned()
+                })
+            });
+            let rect = create_memo(move || following().map_or(Rect::ZERO, |view| view.rect.get()));
+            let anchors = create_memo(move || following().and_then(|view| view.anchors.get()));
+            let encloses = create_memo(move || following().and_then(|view| view.encloses.get()));
+            provide_context(super::anchored::HostOfAnchors(anchors));
+            provide_context(Enclosing(encloses));
+            let node = child_view.with(|view| view(key, child, rect));
+            (node, holder)
+        };
+        let scope = region.as_ref().and_then(super::anchored::closed_with);
+        let (node, holder) = match &scope {
+            Some(scope) => scope.run(build),
+            None => build(),
+        };
+        self.shared.with(|held| {
+            held.built.borrow_mut().insert(
+                key,
+                BuiltChild {
+                    node,
+                    scope,
+                    holder,
+                },
+            )
+        });
+        node
+    }
+}
+
+fn joined(views: Signal<Vec<Joined>>, mount: u64) -> Option<Joined> {
+    if !views.is_alive() {
+        return None;
+    }
+    views.with(|views| views.iter().find(|view| view.mount == mount).copied())
+}
+
+fn keep(shared: Stored<BuiltChildren>, shown: &[ChildId]) {
+    if !shared.is_alive() {
+        return;
+    }
+    let gone: Vec<Option<reactive::Scope>> = shared.with(|held| {
+        let mut built = held.built.borrow_mut();
+        let stale: Vec<ChildId> = built
+            .keys()
+            .filter(|key| !shown.contains(key))
+            .copied()
+            .collect();
+        stale
+            .into_iter()
+            .filter_map(|key| built.remove(&key).map(|built| built.scope))
+            .collect()
+    });
+    for scope in gone.into_iter().flatten() {
+        scope.dispose();
     }
 }
 

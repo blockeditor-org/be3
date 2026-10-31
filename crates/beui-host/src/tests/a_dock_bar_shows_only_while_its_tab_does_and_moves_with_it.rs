@@ -1,10 +1,13 @@
 use super::*;
-use crate::dock::unstyled::{DockBarPlacement, DockDrop, DockEdge, TabId};
+use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockDrop, DockEdge, TabId};
 
 #[test]
 fn a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it() {
     let _root = crate::reactive::RootScope::new();
-    let (document, dock) = bar_dock(DockBarPlacement::Beside(DockEdge::Top), false);
+    let (document, dock) = bar_dock(
+        DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
+        false,
+    );
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     dock.shown.set(vec![1, 3]);
     harness.frame(Vec::new());
@@ -47,6 +50,6 @@ fn a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it() {
     );
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Top))
+        Some(DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center))
     );
 }

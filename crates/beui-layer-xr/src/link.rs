@@ -47,6 +47,7 @@ struct State {
     status: Status,
     waker: Option<Waker>,
     stopped: bool,
+    retry: bool,
 }
 
 impl Link {
@@ -59,6 +60,7 @@ impl Link {
                 status: Status::Missing(String::new()),
                 waker: None,
                 stopped: false,
+                retry: false,
             }),
             changed: Condvar::new(),
         });
@@ -118,6 +120,12 @@ impl Link {
         self.inner.changed.notify_all();
     }
 
+    #[cfg(test)]
+    pub(crate) fn retry_now(&self) {
+        self.state().retry = true;
+        self.inner.changed.notify_all();
+    }
+
     fn state(&self) -> MutexGuard<'_, State> {
         self.inner.lock()
     }
@@ -142,7 +150,14 @@ impl Link {
             let state = self.state();
             match state.found.as_ref().map(|xr| xr.runtime().to_owned()) {
                 Some(runtime) => eprintln!("beui-layer-xr: found a headset on {runtime}"),
-                None => drop(self.inner.changed.wait_timeout(state, RETRY)),
+                None => {
+                    let (mut state, _) = self
+                        .inner
+                        .changed
+                        .wait_timeout_while(state, RETRY, |state| !state.retry && !state.stopped)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    state.retry = false;
+                }
             }
         }
     }

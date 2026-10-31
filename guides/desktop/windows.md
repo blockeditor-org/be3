@@ -4,7 +4,7 @@
 (guides/desktop.md). XR is the main target: each shown entry is a panel of its own, as program
 windows are where `opens_windows()` is true. A windowed `--desktop` is a development view: there
 is no virtual display, so a focused window comes up on the real monitor above block-app.
-`--session` and `--install-session` are refused (`src/arguments.rs`).
+`BEUI_PLATFORM=drm` and `--install-login-session` are refused (`src/arguments.rs`).
 
 All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-win32,
 be-win32-capture, be-win32-input, beui and block-app for `windows_x86_64`, and the logic behind
@@ -60,8 +60,11 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
   each capture started, lost or stopped, focus mode starting and ending) and for every failure,
   toast or not, since nothing else shows what a first run on a new machine did.
-- `WindowsWatch` is the snapshot's entries (`kind`, `shown`); `show` and `hide` set `shown` in
-  be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
+- `WindowsWatch` is the snapshot's entries (`kind`, `shown`), each window's `name` that of its Start
+  menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
+  whose shortcut's AppUserModelID or target is its app id or first command word, ignoring case and
+  slash direction), known once the programs have been listed (the Apps panel asks for them);
+  `show` and `hide` set `shown` in be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
@@ -77,6 +80,9 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   and go with the snapshot; where windows are hosted (space) a popup is opened again when its
   corner moves. A press on one focuses its toplevel with the cursor at that point
   (`popup_point`); controllers do not inject into popups. Focus mode's clip already covers them.
+- Dialogs: an entry's owner is its `HostWindow::parent` and `modal` its dialog flag, so the shells
+  show an owned window as the anchored card guides/desktop.md describes (Program windows). The
+  Windows host leaves `HostWindow::name` empty, so the card's header falls back to the title.
 - Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
   does for floating windows: `HostWindow::size` is the size the window last chose itself (its
   frame bounds in its monitor's points), not one it took because block-app asked, so a window

@@ -97,4 +97,4 @@ wait 'Tab "Interaction" selected'
 key Tab Enter
 wait 'focused #demo.catalog.Layering'
 wait 'Tab "Layering" selected'
-wait 'value="Translate"'
+wait 'Heading "Translate"'

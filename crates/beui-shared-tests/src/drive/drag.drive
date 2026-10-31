@@ -3,3 +3,8 @@ clock stop
 wait 'value="Dropped nothing"'
 drag '#drag.apple' '#drag.basket' 4
 wait 'value="Dropped apple"'
+# A drag between two places in one scroll that cannot both show at once: the
+# box the scroll cuts is revealed, which cuts the pear, so the pear is
+# revealed in turn and the drag starts on what shows of it, not where it was.
+drag '#drag.pear' '#drag.box' 4
+wait 'value="Dropped pear"'

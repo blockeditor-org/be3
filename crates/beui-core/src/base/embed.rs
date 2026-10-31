@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use reactive::{Stored, on_cleanup, store};
 
+use crate::base::list::Direction;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
@@ -127,6 +128,18 @@ impl Element for EmbedNode {
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         self.child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

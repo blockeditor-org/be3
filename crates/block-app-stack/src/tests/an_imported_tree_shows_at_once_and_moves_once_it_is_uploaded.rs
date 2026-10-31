@@ -8,7 +8,7 @@ fn exported(block: Uuid) -> Vec<u8> {
         let _ = sender.send(exported);
     });
     receiver
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the export answers")
         .expect("the export succeeds")
         .1

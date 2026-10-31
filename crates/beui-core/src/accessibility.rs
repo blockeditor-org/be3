@@ -19,6 +19,7 @@ use crate::base::text::TextNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
+use crate::layer::LayerPolicy;
 use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId, SpaceTransform};
 use crate::window::WindowId;
 
@@ -274,8 +275,10 @@ pub struct AccessibilityTree {
     pass: u64,
     focus: Option<AccessNodeId>,
     changed: Vec<SpaceId>,
+    orphaned: Vec<AccessNodeId>,
     inspected: bool,
     scale: Option<f32>,
+    inert: HashSet<NodeId>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -365,7 +368,9 @@ impl AccessibilityTree {
 
     pub fn forget(&mut self, id: NodeId, arena: &Arena) {
         self.mark(id, arena);
-        self.entries.remove(&id);
+        if let Some(entry) = self.entries.remove(&id) {
+            self.orphaned.extend_from_slice(entry.node.children());
+        }
         self.parents.remove(&id);
         self.marks.remove(&id);
         self.reached.remove(&id);
@@ -373,7 +378,9 @@ impl AccessibilityTree {
         self.detached.remove(&id);
         if !self.spaces.is_empty() {
             for slot in 1..SPACE_SLOTS {
-                self.spaces.remove(&SpaceId::inside(id, slot as u8));
+                if let Some((entry, _)) = self.spaces.remove(&SpaceId::inside(id, slot as u8)) {
+                    self.orphaned.extend_from_slice(entry.node.children());
+                }
             }
         }
     }
@@ -561,13 +568,14 @@ impl Pass<'_> {
         }
         let layered = overlay.is_some();
 
+        let inert = self.tree.inert.contains(&id);
         let explicit = document.accessibility.get(&id);
         let text = element
             .as_any()
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
-        if explicit.is_none() && text.is_none() && !named && !force && !layered {
+        if explicit.is_none() && text.is_none() && !named && !force && !layered && !inert {
             if !self.tree.stale(id)
                 && let Some(held) = self.tree.gathered.get(&id)
                 && held.key == key
@@ -634,6 +642,10 @@ impl Pass<'_> {
         let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
         if layered {
             node.set_class_name(LAYER_CLASS);
+        }
+        if inert {
+            node.set_hidden();
+            node.clear_actions();
         }
         if focus.is_some() {
             out.focus = focus;
@@ -771,6 +783,12 @@ impl Document {
         for id in moved {
             tree.mark(id, &self.arena);
         }
+        let inert = self.inert_roots();
+        let held = std::mem::replace(&mut tree.inert, inert);
+        let toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
+        for id in toggled {
+            tree.mark(id, &self.arena);
+        }
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
 
@@ -783,8 +801,13 @@ impl Document {
         };
         let mut top = Gathered::default();
         pass.visit(root, None, Frame::SCREEN, true, &mut top);
-        let (dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
+        let (mut dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
         self.work.note_described(described, walked);
+        dropped.extend(
+            std::mem::take(&mut tree.orphaned)
+                .into_iter()
+                .filter_map(|child| self.local_key(child)),
+        );
         tree.purge(self, dropped);
         tree.follow_moved_spaces(self);
         tree.pass = tree.pass.wrapping_add(1);
@@ -797,6 +820,18 @@ impl Document {
             tree.changed.push(SpaceId::of(root));
         }
         Some(access)
+    }
+
+    fn inert_roots(&self) -> HashSet<NodeId> {
+        self.layers()
+            .iter()
+            .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
+            .filter_map(|layer| {
+                let blocked = layer.hangs_from?;
+                let overlay = layer.overlay?;
+                (!self.is_within(overlay.id(), blocked)).then_some(blocked)
+            })
+            .collect()
     }
 
     pub fn accessibility_update(&self, full: bool) -> Option<Fragment> {
@@ -942,7 +977,17 @@ impl Document {
     ) -> (Node, Option<AccessNodeId>) {
         let mut focus = inner.focus;
         let mut node = if let Some(node) = explicit {
-            node.clone()
+            let mut node = node.clone();
+            if let Some(text) = text
+                && node.label().is_none()
+                && node.value().is_none()
+            {
+                match node.role() {
+                    Role::Label => node.set_value(text),
+                    _ => node.set_label(text),
+                }
+            }
+            node
         } else if let Some(text) = text {
             let mut node = Node::new(Role::Label);
             node.set_value(text);
@@ -1004,6 +1049,10 @@ impl Document {
             return false;
         };
         if !self.contains(target) {
+            return true;
+        }
+        if request.action == Action::ScrollIntoView {
+            self.reveal_node(target);
             return true;
         }
         if self

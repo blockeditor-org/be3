@@ -8,6 +8,7 @@ use uuid::Uuid;
 struct Held {
     socket: String,
     token: String,
+    clock: Clock,
     link: Link,
 }
 
@@ -52,7 +53,7 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
     held.retain(|held| !held.link.connection.is_closed());
     if let Some(held) = held
         .iter()
-        .find(|held| held.socket == socket && held.token == token)
+        .find(|held| held.socket == socket && held.token == token && held.clock.same(clock))
     {
         return Ok(held.link.clone());
     }
@@ -74,6 +75,7 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
     held.push(Held {
         socket,
         token: token.to_owned(),
+        clock: clock.clone(),
         link: link.clone(),
     });
     Ok(link)
@@ -86,6 +88,7 @@ pub async fn adopt(server_url: &str, token: &str, account: Uuid, connection: Arc
     held.push(Held {
         socket,
         token: token.to_owned(),
+        clock: Clock::real(),
         link: Link {
             connection,
             account,

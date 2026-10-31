@@ -6,11 +6,20 @@
 // It serves DIR, and for each script opens DIR's index.html with
 // ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
-// automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
+// automate(words) (beui-core-html's automate: tree, ids, find, reveal, shown, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
-// place `find` answers, so the browser's own focus, key and text paths run.
+// place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
+// revealed it; after a reveal every target of the command is found again, as native drive
+// does), so the browser's own focus, key and text paths run.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
+// `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
+// visible element with that ARIA role and exact accessible name, in each STATE given (checked,
+// disabled, expanded, inert, modal, pressed, selected, each also as not-STATE, or level=N; inert
+// and modal read Chrome's own accessibility tree: modal as the dialog's aria-modal reaches it,
+// inert as an inert ancestor leaves the element out of it).
+// `roles ROLE COUNT` (browser only) waits until exactly COUNT visible elements have that ARIA
+// role, whatever their names.
 // After every command the document itself must not scroll or overflow the
 // viewport (a beui app owns its viewport, and only its Scrolls scroll), and the
 // browser must not draw its focus ring on what beui draws its own for.
@@ -26,7 +35,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { basename, extname, join, normalize, resolve } from "node:path";
 
-import { chord, commands, leadingOptions, wheelPixels } from "./drive-words.mjs";
+import { Failure, chord, commands, leadingOptions, shownPlaces, wheelPixels } from "./drive-words.mjs";
 
 const SIZE = { width: 1100, height: 720 };
 const TYPES = {
@@ -163,22 +172,24 @@ async function automate(page, words) {
     }, words);
 }
 
-class Failure extends Error {}
-
 async function answer(page, words) {
     const { text, error } = await automate(page, words);
     if (error !== undefined) throw new Failure(error);
     return text;
 }
 
-async function center(page, target, timeout) {
-    await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-    const reply = await answer(page, ["find", target]);
-    const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
-    if (!found) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
+async function centers(page, targets, timeout) {
     const ratio = await page.evaluate(() => devicePixelRatio);
-    const [x, y, width, height] = found.slice(1).map((value) => Number(value) / ratio);
-    return { x: x + width / 2, y: y + height / 2 };
+    const ask = async (command, target) => {
+        await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
+        return answer(page, [`--timeout=${timeout}`, command, target]);
+    };
+    const places = await shownPlaces(ask, targets, ratio);
+    return places.map(({ x, y, width, height }) => ({ x: x + width / 2, y: y + height / 2 }));
+}
+
+async function center(page, target, timeout) {
+    return (await centers(page, [target], timeout))[0];
 }
 
 const BUTTONS = { left: "left", right: "right", middle: "middle" };
@@ -204,8 +215,7 @@ async function step(page, words) {
             return settle();
         }
         case "drag": {
-            const from = await center(page, args[0], timeout);
-            const to = await center(page, args[1], timeout);
+            const [from, to] = await centers(page, args.slice(0, 2), timeout);
             let steps = 2;
             let button = "left";
             for (const extra of args.slice(2)) {
@@ -245,6 +255,12 @@ async function step(page, words) {
             await page.mouse.wheel(wheelPixels(args[2]), wheelPixels(args[1]));
             return settle();
         }
+        case "resize": {
+            const size = /^(\d+)x(\d+)$/.exec(args[0] ?? "");
+            if (!size) throw new Failure(`resize takes WIDTHxHEIGHT, not ${args[0]}`);
+            await page.setViewportSize({ width: Number(size[1]), height: Number(size[2]) });
+            return settle();
+        }
         case "type":
             await page.keyboard.type(args.join(" "));
             return settle();
@@ -260,8 +276,73 @@ async function step(page, words) {
             }
             return "";
         }
+        case "role": {
+            const [role, name, ...states] = args;
+            if (!role || name === undefined) throw new Failure("role takes a ROLE, a NAME and any STATEs");
+            const query = { name, exact: true };
+            const ax = {};
+            for (const state of states) {
+                const level = state.match(/^level=(\d+)$/);
+                const [key, value] = level ? ["level", Number(level[1])]
+                    : state.startsWith("not-") ? [state.slice(4), false] : [state, true];
+                if (!["checked", "disabled", "expanded", "inert", "modal", "pressed", "selected", "level"].includes(key)) {
+                    throw new Failure(`role takes checked, disabled, expanded, inert, modal, pressed, selected or level=N, not ${state}`);
+                }
+                if (key === "modal" || key === "inert") ax[key] = value;
+                else query[key] = value;
+            }
+            if (ax.inert) query.includeHidden = true;
+            const found = page.getByRole(role, query);
+            try {
+                await found.waitFor({ timeout: timeout * 1000 });
+            } catch (error) {
+                throw new Failure(`getByRole(${JSON.stringify(role)}, ${JSON.stringify(query)}): ${error.message.split("\n")[0]}`);
+            }
+            if (Object.keys(ax).length > 0) {
+                const node = await axNode(page, found);
+                const read = {
+                    modal: node?.properties?.find(property => property.name === "modal")?.value?.value === true,
+                    inert: (node?.ignoredReasons ?? []).some(reason => reason.name.startsWith("inert")),
+                };
+                for (const [key, wanted] of Object.entries(ax)) {
+                    if (read[key] !== wanted) {
+                        throw new Failure(`${role} ${JSON.stringify(name)} is ${wanted ? "not " : ""}${key} in Chrome's accessibility tree`);
+                    }
+                }
+            }
+            return "";
+        }
+        case "roles": {
+            const [role, wanted] = args;
+            const count = Number(wanted);
+            if (!role || !Number.isInteger(count) || count < 0) throw new Failure("roles takes a ROLE and a COUNT");
+            const found = page.getByRole(role);
+            try {
+                if (count > 0) await found.nth(count - 1).waitFor({ timeout: timeout * 1000 });
+                await found.nth(count).waitFor({ state: "hidden", timeout: timeout * 1000 });
+            } catch (error) {
+                const shown = await found.count();
+                throw new Failure(`getByRole(${JSON.stringify(role)}) found ${shown}, not ${count}: ${error.message.split("\n")[0]}`);
+            }
+            return "";
+        }
         default:
             return answer(page, [...options, `--timeout=${timeout}`, command, ...args]);
+    }
+}
+
+async function axNode(page, locator) {
+    const mark = "data-web-test-ax";
+    await locator.evaluate((element, mark) => element.setAttribute(mark, ""), mark);
+    const session = await page.context().newCDPSession(page);
+    try {
+        const { root } = await session.send("DOM.getDocument", { depth: 0 });
+        const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `[${mark}]` });
+        const { nodes } = await session.send("Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false });
+        return nodes[0];
+    } finally {
+        await session.detach();
+        await locator.evaluate((element, mark) => element.removeAttribute(mark), mark);
     }
 }
 

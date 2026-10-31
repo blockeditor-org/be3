@@ -51,9 +51,9 @@ pub use block_plugin_api::{
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder, PenPhase, PickedBlock,
     PlayerCommand, PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage,
-    ProgramAction, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation,
-    ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand, ShellDialog, Size, Stopped,
-    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
+    ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision,
+    Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand, ShellDialog, Size,
+    Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
     TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
     VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WifiLink,
@@ -69,7 +69,7 @@ pub use block_plugin_api::{
 };
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
-pub use clock::{frame_time, instant_at, pin_wall_clock, utc_offset, wall_clock};
+pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};
 pub use editor_state::{
     ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,

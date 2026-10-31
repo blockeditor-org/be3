@@ -145,7 +145,7 @@ pub struct HostAnchored {
     pub bounds: Rect,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
-    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub scrims: Vec<beui::layer::Scrim>,
     pub surface: u32,
     pub pixels_per_point: f32,
     pub dismiss_on_outside_press: bool,
@@ -177,6 +177,7 @@ pub fn dismissed_by_press(
         }
         chain
     };
+    let forwarded = layers.iter().any(|held| held.takes(pos));
     let mut dismissed = Vec::new();
     for layer in layers {
         if !layer.dismiss_on_outside_press || dismissed.contains(&layer.id) {
@@ -186,7 +187,12 @@ pub fn dismissed_by_press(
         let inside = layers
             .iter()
             .filter(|held| chain.contains(&held.id))
-            .any(|held| held.takes(pos) || held.trigger.is_some_and(|rect| rect.contains(pos)));
+            .any(|held| {
+                held.takes(pos)
+                    || held
+                        .trigger
+                        .is_some_and(|rect| rect.contains(pos) && (forwarded || !held.blocks_owner))
+            });
         if !inside {
             for id in chain {
                 if !dismissed.contains(&id) {

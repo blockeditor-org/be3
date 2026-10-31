@@ -105,8 +105,10 @@ pub fn BackSlideFixture() -> NodeId {
 fn edge_name(edge: Edge) -> &'static str {
     match edge {
         Edge::Top => "top",
+        Edge::TopStart => "top start",
         Edge::TopEnd => "top end",
         Edge::Bottom => "bottom",
+        Edge::BottomStart => "bottom start",
         Edge::BottomEnd => "bottom end",
     }
 }

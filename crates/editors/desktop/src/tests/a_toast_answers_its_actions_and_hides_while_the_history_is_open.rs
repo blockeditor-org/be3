@@ -31,7 +31,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         .test
         .take_host_calls(block_ui_test::requested::notification_report);
 
-    fixture.test.click("desktop.notifications");
+    fixture.test.click("desktop.clock");
     fixture.settle();
     assert!(
         !fixture.test.shown(&toast(1)),
@@ -83,7 +83,7 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         }]
     );
 
-    fixture.test.click("desktop.notifications");
+    fixture.test.click("desktop.clock");
     fixture.settle();
     assert!(
         fixture.says("Now playing"),

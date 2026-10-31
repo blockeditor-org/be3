@@ -11,10 +11,13 @@ use uuid::Uuid;
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
 pub(crate) const CALENDAR_WIDTH: f32 = 640.0;
 const HEIGHT: f32 = 600.0;
-const SCREEN_SHARE: f32 = 0.8;
+pub(crate) const SCREEN_SHARE: f32 = 0.8;
 
 #[component]
-pub(crate) fn DesktopCalendar(editor: Editor) -> NodeId {
+pub(crate) fn DesktopCalendar(
+    editor: Editor,
+    #[prop(default = SCREEN_SHARE)] share: Prop<f32>,
+) -> NodeId {
     let block = calendar_block(editor);
     let target = create_memo(move || {
         block
@@ -25,7 +28,7 @@ pub(crate) fn DesktopCalendar(editor: Editor) -> NodeId {
     let height = create_memo(move || {
         let room = screen
             .as_ref()
-            .map(|screen| screen.get().y * SCREEN_SHARE)
+            .map(|screen| screen.get().y * share.get())
             .filter(|room| *room > 0.0);
         Size::Custom(room.map_or(HEIGHT, |room| room.min(HEIGHT)))
     });

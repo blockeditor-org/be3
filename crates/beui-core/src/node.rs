@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
+use beui_types::layout::Direction;
 
 use crate::document::Document;
 
@@ -96,6 +97,16 @@ pub trait Element: Any {
 
     fn min_width(&self, _doc: &mut Document, _painter: &Painter) -> f32 {
         0.0
+    }
+
+    fn least_length(
+        &self,
+        _doc: &mut Document,
+        _painter: &Painter,
+        _direction: Direction,
+        _cross: f32,
+    ) -> Option<f32> {
+        None
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);

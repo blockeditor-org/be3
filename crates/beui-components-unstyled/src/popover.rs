@@ -1,5 +1,6 @@
 use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
+use beui_view::components::overlay::use_modal;
 use beui_view::types::LayerPolicy;
 use beui_view::types::icons::Glyph;
 
@@ -7,13 +8,16 @@ use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PopoverPlacement {
     #[default]
     Below,
+    Beside,
     Over(u16),
 }
 
@@ -42,7 +46,9 @@ pub fn Popover(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
-    #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
+    band: Option<NodeRef>,
+    #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -70,11 +76,16 @@ pub fn Popover(
             open.set(false);
         }
     });
-    let anchor = anchor.unwrap_or(trigger_ref);
-    let placement = match placement {
-        PopoverPlacement::Below => Placement::BelowStart,
-        PopoverPlacement::Over(inset) => Placement::Over(inset),
+    let node = anchor.unwrap_or(trigger_ref);
+    let anchor = match band {
+        Some(band) => OverlayAnchor::Band { node, band },
+        None => OverlayAnchor::Node(node),
     };
+    let placement = placement.map(|placement| match placement {
+        PopoverPlacement::Below => Placement::BelowStart,
+        PopoverPlacement::Beside => Placement::RightStart,
+        PopoverPlacement::Over(inset) => Placement::Over(inset),
+    });
     view! {
         <List spacing=0.0>
             <PopupTrigger
@@ -98,6 +109,7 @@ pub fn Popover(
                 style={surface}
                 anchor=anchor
                 placement
+                bounds
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
                 open={create_memo(move || open.get())}
@@ -123,11 +135,15 @@ pub fn Popover(
 
 #[component]
 fn PopoverSurface(label: Memo<String>, children: Child) -> NodeId {
+    let modal = use_modal();
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Dialog);
         let label = label.get();
         if !label.is_empty() {
             node.set_label(label);
+        }
+        if modal.get() {
+            node.set_modal();
         }
         node
     }));

@@ -9,7 +9,7 @@ use crate::damage::Region;
 use crate::display::{Display, Group, Layer as Shown};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
-use crate::layer::{Dismiss, LayerPolicy};
+use crate::layer::{Dismiss, LayerPolicy, Scrim};
 use crate::node::{NodeId, NodeOf};
 use crate::painter::{Corners, Shape};
 use crate::window::{WindowId, WindowState};
@@ -242,7 +242,11 @@ impl Document {
             };
             let scrims = self
                 .layer_scrim(layer)
-                .map(|(rect, color)| (to_host.rect(rect), color))
+                .map(|scrim| Scrim {
+                    rect: to_host.rect(scrim.rect),
+                    radius: scrim.radius * to_host.scale.x,
+                    ..scrim
+                })
                 .into_iter()
                 .collect();
             let drawn = painted.iter().fold(
@@ -267,15 +271,13 @@ impl Document {
                 painted,
                 floating,
                 scrims,
-                dismiss_on_outside_press: layer.dismissable && layer.policy != LayerPolicy::Inert,
+                dismiss_on_outside_press: layer.dismissable
+                    && matches!(layer.policy, LayerPolicy::BlocksAll | LayerPolicy::Pass),
                 trigger: self
                     .overlay_trigger_rect(overlay)
                     .map(|rect| to_host.rect(rect)),
                 keyboard: layer.traps,
-                blocks_owner: matches!(
-                    layer.policy,
-                    LayerPolicy::BlocksAll | LayerPolicy::BlocksParent
-                ),
+                blocks_owner: layer.policy == LayerPolicy::BlocksAll,
             });
         }
         escaped

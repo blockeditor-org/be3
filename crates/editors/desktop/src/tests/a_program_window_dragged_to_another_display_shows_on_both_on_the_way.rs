@@ -21,16 +21,13 @@ fn a_program_window_dragged_to_another_display_shows_on_both_on_the_way() {
     );
     assert_eq!(fixture.test.desk_window_scales(), [1.0]);
 
-    let tab = fixture.desk_text("Program 1");
-    let grab = pos2(tab.max.x + 80.0, tab.center().y);
+    let grab = fixture.window_grip(1);
     let seam = left.max.x - windows[0].center().x;
     let halfway = grab + vec2(seam, 200.0);
     fixture.test.desk_press(grab);
-    for step in 1..=4 {
-        fixture
-            .test
-            .desk_move(grab + (halfway - grab) * (step as f32 / 4.0));
-    }
+    fixture
+        .test
+        .desk_moves(grab, halfway, 4, std::time::Duration::ZERO);
     let moving = fixture.test.desk_windows()[0];
     assert!(
         moving.intersects(left) && moving.intersects(right),
@@ -44,11 +41,9 @@ fn a_program_window_dragged_to_another_display_shows_on_both_on_the_way() {
         .desk_snapshot("a_program_window_half_way_on_the_second_display", 1);
 
     let there = grab + vec2(seam + 500.0, 240.0);
-    for step in 1..=4 {
-        fixture
-            .test
-            .desk_move(halfway + (there - halfway) * (step as f32 / 4.0));
-    }
+    fixture
+        .test
+        .desk_moves(halfway, there, 4, std::time::Duration::ZERO);
     fixture.test.desk_release(there);
     fixture.settle();
     let placed = fixture.test.desk_windows()[0];

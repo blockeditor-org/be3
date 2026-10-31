@@ -45,6 +45,9 @@ the page under one drive layer, except those of the headless window: the browser
 platform here. Its own commands take their place (`drive` with no command lists them):
 - `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
 - `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
+
+Both aim where the app's own input does: they ask the app to `reveal` TARGET and use the part
+that shows, with web-test.mjs's lookup (`shownPlaces` in buck/app/drive-words.mjs).
 - `drive size W H` resizes the page. `drive reload` reloads it and returns once the app answers
   again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
@@ -57,10 +60,11 @@ the launcher's browser.
 A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
 than drawing them. Its bundle answers the reading commands of `drive` through
 `beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
-app's line format, `find`, `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
+app's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
+has revealed it, or as it is), `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
 not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
 does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
-shares its command parsing with web-drive.mjs (buck/app/drive-words.mjs).
+shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/app/drive-words.mjs).
 
 crates/beui-html-spike is block-app's account picker (crates/block-accounts-ui) on that core,
 rendered on the host and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`

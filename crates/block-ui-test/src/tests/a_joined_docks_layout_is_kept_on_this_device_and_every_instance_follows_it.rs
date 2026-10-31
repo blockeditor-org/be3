@@ -3,7 +3,7 @@ use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
 use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
 use block_plugin_api::{
-    DockAlign, DockBarOver, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
+    DockAlign, DockBarEdge, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
     DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace,
     DockPane as Pane, DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate, ViewId,
 };
@@ -87,8 +87,9 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
                 unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
-                    owner: DockTabPath::own(stage),
+                    owner: Some(DockTabPath::own(stage)),
                     placement,
+                    hidden: false,
                 }],
                 outside: vec![DockOutside {
                     tab: DockTabPath::own(stage),
@@ -139,7 +140,10 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     first.receive_dock_updates(vec![hosted(
         stage,
         bar,
-        DockBarPlacement::Beside(DockEdge::Left),
+        DockBarPlacement::Beside(DockBarEdge {
+            edge: DockEdge::Left,
+            align: DockAlign::Center,
+        }),
     )]);
     let (key, layout) = saved(&first, display);
     assert!(key.starts_with(&BARRED_TYPE.simple().to_string()));
@@ -149,7 +153,10 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     let layout_back = restored(&mut reopened);
     assert_eq!(
         layout_back.bars[0].placement,
-        DockBarPlacement::Beside(DockEdge::Left),
+        DockBarPlacement::Beside(DockBarEdge {
+            edge: DockEdge::Left,
+            align: DockAlign::Center,
+        }),
         "a moved bar survives reopening"
     );
     assert_eq!(
@@ -165,7 +172,7 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     first.receive_dock_updates(vec![hosted(
         stage,
         bar,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
@@ -178,7 +185,7 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
     );
     assert_eq!(
         restored(&mut reopened).bars[0].placement,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center
         }),

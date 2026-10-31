@@ -465,7 +465,8 @@ impl Element for CanvasNode {
             .unwrap_or_else(|| self.items.iter().copied().collect());
         let focused = doc
             .focused_node()
-            .and_then(|focused| item_holding(doc, host, focused));
+            .and_then(|focused| item_holding(doc, host, focused))
+            .filter(|item| self.index.order.contains_key(item));
         if let Some(focused) = focused
             && !near.contains(&focused)
         {

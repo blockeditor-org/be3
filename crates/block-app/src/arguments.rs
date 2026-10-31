@@ -2,40 +2,46 @@
 pub(crate) struct Arguments {
     pub(crate) dev_workspace: bool,
     pub(crate) desktop: bool,
-    pub(crate) session: bool,
-    pub(crate) install_session: Option<Option<String>>,
+    pub(crate) drm: bool,
+    pub(crate) install_login_session: Option<Option<String>>,
 }
 
 pub(crate) const LINUX: bool = cfg!(target_os = "linux");
 
-pub(crate) fn parse(arguments: &[String], linux: bool) -> Result<Arguments, String> {
+pub(crate) const DRM: &str = "drm";
+
+pub(crate) fn parse(
+    arguments: &[String],
+    platform: Option<&str>,
+    linux: bool,
+) -> Result<Arguments, String> {
     let mut parsed = Arguments::default();
-    if arguments.first().map(String::as_str) == Some("--install-session") {
+    if arguments.first().map(String::as_str) == Some("--install-login-session") {
         if !linux {
-            return Err(only_on_linux("--install-session"));
+            return Err(
+                "--install-login-session installs the app as a Linux login session, which only Linux has; --desktop runs the desktop shell in a window".to_owned(),
+            );
         }
-        parsed.install_session = Some(arguments.get(1).cloned());
+        parsed.install_login_session = Some(arguments.get(1).cloned());
         return Ok(parsed);
     }
     for argument in arguments {
         match argument.as_str() {
             "--dev-workspace" => parsed.dev_workspace = true,
             "--desktop" => parsed.desktop = true,
-            "--session" if linux => {
-                parsed.session = true;
-                parsed.desktop = true;
-            }
-            "--session" => return Err(only_on_linux("--session")),
             _ => return Err(format!("unknown argument {argument}")),
         }
     }
+    if platform == Some(DRM) {
+        if !linux {
+            return Err(format!(
+                "{}={DRM} runs the app on the displays and input devices themselves, which only Linux can; --desktop runs the desktop shell in a window",
+                beui_host::native::environment::PLATFORM
+            ));
+        }
+        parsed.drm = true;
+    }
     Ok(parsed)
-}
-
-fn only_on_linux(flag: &str) -> String {
-    format!(
-        "{flag} makes the app a Linux login session, which only Linux has; --desktop runs the desktop shell in a window"
-    )
 }
 
 #[cfg(test)]

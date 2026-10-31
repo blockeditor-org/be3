@@ -11,7 +11,7 @@ fn imported(name: &str, bytes: &[u8]) -> (Uuid, Uuid) {
         },
     );
     receiver
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the import answers")
         .expect("the import succeeds")
 }
@@ -22,7 +22,7 @@ fn read(block: Uuid) -> be_types_host::PlainFile {
         let _ = sender.send(read);
     });
     receiver
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the read answers")
         .expect("the block reads as a file")
 }

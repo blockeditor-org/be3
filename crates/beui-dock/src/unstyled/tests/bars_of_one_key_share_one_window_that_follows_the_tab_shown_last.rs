@@ -14,7 +14,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
     let mut state = DockState::default();
     let bar = |bar: u64, owner: u64| DockSpecBar {
         bar: TabId::new(bar),
-        owner: TabId::new(owner),
+        owner: Some(TabId::new(owner)),
         placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
     };
     let declared = DockSpec {
@@ -94,11 +94,14 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
         "a bar arriving later takes the placement of the bars of its key"
     );
 
-    state.set_bar_placement(TabId::new(21), DockBarPlacement::Beside(DockEdge::Left));
+    state.set_bar_placement(
+        TabId::new(21),
+        DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center),
+    );
     state.share_bar_placement(TabId::new(21), &key);
     assert_eq!(
         state.bar_placement(TabId::new(20)),
-        Some(DockBarPlacement::Beside(DockEdge::Left)),
+        Some(DockBarPlacement::Beside(DockEdge::Left, DockAlign::Center)),
         "docking one back docks them all"
     );
     assert!(state.bar_windows(&key).is_empty());

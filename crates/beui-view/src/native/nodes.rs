@@ -78,7 +78,7 @@ pub(crate) fn dismiss_overlay(node: NodeId, reason: Dismiss) {
 }
 
 pub(crate) fn close_overlay(node: NodeId) {
-    with_document(|document| {
+    try_with_document(|document| {
         if let Some(overlay) = document.arena.kind_of::<OverlayNode>(node) {
             document.close_overlay(overlay);
         }

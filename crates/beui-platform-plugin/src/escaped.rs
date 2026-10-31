@@ -1,4 +1,3 @@
-use beui_core::color::Color32;
 use beui_core::context::{Context, EscapedOutput};
 use beui_core::escape::{HostTransform, LayerEdge, LayerPlacement, LayerSpace};
 use beui_core::geometry::Pos2;
@@ -108,23 +107,29 @@ pub(crate) fn framed(
         scrims: layer
             .scrims
             .iter()
-            .map(|(rect, color)| scrim(rect.translate(-from), *color))
+            .map(|shown| {
+                scrim(beui_core::layer::Scrim {
+                    rect: shown.rect.translate(-from),
+                    ..*shown
+                })
+            })
             .collect(),
         description,
         ..Frame::default()
     }
 }
 
-fn scrim(rect: beui_core::geometry::Rect, color: Color32) -> Scrim {
-    let [red, green, blue, alpha] = color.to_array();
+pub(crate) fn scrim(shown: beui_core::layer::Scrim) -> Scrim {
+    let [red, green, blue, alpha] = shown.color.to_array();
     Scrim {
-        rect,
+        rect: shown.rect,
         color: Color {
             red,
             green,
             blue,
             alpha,
         },
+        radius: shown.radius,
     }
 }
 

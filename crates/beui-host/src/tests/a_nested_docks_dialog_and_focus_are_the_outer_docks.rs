@@ -76,8 +76,8 @@ fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
     let dialog = harness.rect(harness.find("content.12"));
     let parent = harness.rect(harness.find("content.11"));
     assert!(
-        (dialog.center().x - parent.center().x).abs() < 1.0 && parent.contains_rect(dialog),
-        "the outer dock presents the inner dock's dialog over its parent: {dialog:?} over {parent:?}"
+        parent.contains_rect(dialog) && dialog.top() < parent.center().y,
+        "the outer dock presents the inner dock's dialog hanging from its parent's tab, over its parent: {dialog:?} over {parent:?}"
     );
 
     let close = (1..32)

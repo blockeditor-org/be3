@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crate::core::reactive::{Timer, create_timer, now};
 use crate::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
-pub use crate::types::{Easing, Fling, Motion, Spring, tween};
+pub use crate::types::{Easing, Fling, Motion, Spring, Velocity, tween};
 
 pub fn motion() -> Motion {
     crate::core::animation::motion()

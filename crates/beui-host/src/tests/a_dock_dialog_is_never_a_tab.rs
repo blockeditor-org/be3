@@ -19,7 +19,7 @@ fn a_dock_dialog_is_never_a_tab() {
     let before = harness.document().api::<DockApi>(node).state();
 
     let dialog = harness.rect(harness.find("dock.dialog.10"));
-    let title = pos2(dialog.center().x, dialog.top() - 10.0);
+    let title = harness.center(harness.find("dock.dialog.10.header"));
     let pane = harness.rect(harness.find("content.1"));
     drag_with(
         &mut harness,
@@ -40,9 +40,9 @@ fn a_dock_dialog_is_never_a_tab() {
         before,
         "dragging the dialog leaves the dock as it was"
     );
-    assert_eq!(
-        harness.rect(harness.find("dock.dialog.10")),
-        dialog,
-        "the dialog stays over its parent"
+    let moved = harness.rect(harness.find("dock.dialog.10"));
+    assert!(
+        moved.center().x > dialog.center().x && moved.center().y > dialog.center().y,
+        "dragging its header moves the dialog rather than docking it: {moved:?} from {dialog:?}"
     );
 }

@@ -2486,7 +2486,10 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog with busy and nested actions" code={vec![InviteDialog::SOURCE]}>
                 <InviteDialog />
             </Sample>
-            <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
+            <Sample
+                title="Launcher"
+                code={vec![ProgramLauncher::SOURCE, programs::SOURCE, program::SOURCE]}
+            >
                 <ProgramLauncher />
             </Sample>
             <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
@@ -2750,11 +2753,8 @@ fn program(
 }
 
 #[sample]
-#[component]
-fn ProgramLauncher() -> NodeId {
-    let launcher = create_signal(false);
-    let outcome = create_signal("Nothing launched".to_owned());
-    let items = vec![
+fn programs() -> Vec<PaletteItem> {
+    vec![
         program(
             "calculator",
             "Calculator",
@@ -2790,7 +2790,15 @@ fn ProgramLauncher() -> NodeId {
             &["notepad"],
             Some(Color32::from_rgb(90, 180, 110)),
         ),
-    ];
+    ]
+}
+
+#[sample]
+#[component]
+fn ProgramLauncher() -> NodeId {
+    let launcher = create_signal(false);
+    let outcome = create_signal("Nothing launched".to_owned());
+    let items = programs();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -2811,6 +2819,35 @@ fn ProgramLauncher() -> NodeId {
                 id="launcher"
                 on_choose={move |key: String| outcome.set(format!("Launched {key}"))}
             />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ProgramGrid() -> NodeId {
+    let query = create_signal(String::new());
+    let outcome = create_signal("Nothing launched".to_owned());
+    let columns = create_memo(move || match query.with(|query| query.trim().is_empty()) {
+        true => 3,
+        false => 1,
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION>{outcome}</Text>
+            <Frame width={Extent::at_most(360.0)}>
+                <SearchList
+                    items={programs()}
+                    score={PaletteItem::fuzzy_score as PaletteScore}
+                    query
+                    columns
+                    list_height=240.0
+                    placeholder="Search programs"
+                    label="Search programs"
+                    id="demo.programs"
+                    on_choose={move |key: String| outcome.set(format!("Launched {key}"))}
+                />
+            </Frame>
         </List>
     }
 }
@@ -3045,6 +3082,12 @@ pub(crate) fn RowsPage() -> NodeId {
                 code={vec![SelectableServerLog::SOURCE, ServerLine::SOURCE]}
             >
                 <SelectableServerLog />
+            </Sample>
+            <Sample
+                title="Search list as a grid"
+                code={vec![ProgramGrid::SOURCE, programs::SOURCE, program::SOURCE]}
+            >
+                <ProgramGrid />
             </Sample>
         </ScrollPage>
     }
@@ -4318,11 +4361,39 @@ pub(crate) fn DockBarsPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
     view! {
         <Docking layout>
-            <DockPane id="stage" bare=true>
-                <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
-                    <BarsStage />
-                </DockTab>
-            </DockPane>
+            <DockSplit id="bars" fraction=0.75>
+                <DockPane id="stage" bare=true>
+                    <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
+                        <BarsStage layout />
+                    </DockTab>
+                </DockPane>
+                <DockPane id="side">
+                    <DockTab id=4u64 title="Layers" icon=beui::icons::ICON_LAYERS>
+                        <NestedNote
+                            @test_id="bars.note"
+                            text="The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane."
+                        />
+                    </DockTab>
+                </DockPane>
+            </DockSplit>
+            <DockBar
+                id=5u64
+                placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start)}
+            >
+                <DemoToolBar name="status" tools={STATUS_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar
+                id=6u64
+                placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
+            >
+                <DemoToolBar name="pages" tools={PAGE_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar id=7u64 placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End)}>
+                <DemoToolBar name="zoom" tools={ZOOM_TOOLS.to_vec()} />
+            </DockBar>
+            <DockBar id=8u64 placement={DockBarPlacement::Over(DockEdge::Right, DockAlign::Center)}>
+                <DemoToolBar name="history" tools={HISTORY_TOOLS.to_vec()} />
+            </DockBar>
             <DockBar
                 id=2u64
                 parent=1u64
@@ -4341,18 +4412,42 @@ pub(crate) fn DockBarsPage() -> NodeId {
     }
 }
 
+const BARS: [u64; 6] = [2, 3, 5, 6, 7, 8];
+
 #[component]
-fn BarsStage() -> NodeId {
+fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
+    let hidden = create_memo(move || BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
     view! {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
             <Frame padding=PAGE_PADDING align=Align::Center>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
-                    "This page is a Docking of its own with one bare pane and two tool bars. Drag a \
-                     bar by its grip to float it over an edge of the stage, to dock it along an edge \
-                     beside the stage, or away from the stage to pop it out into a window. Bars on \
-                     one edge stack, and a bar dropped between or beside them takes that place. The \
-                     grip's menu moves it without dragging."
-                </Text>
+                <List spacing=SECTION_SPACING>
+                    <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                        "This page is a Docking of its own with a bare stage with two tool bars, a side \
+                     pane, three status bars of the whole dock and a history bar floating over the \
+                     whole dock's right edge. A bar follows its grip as it is dragged: near an edge \
+                     it grows into the band along it, which opens to make room, and let go there it \
+                     springs into place; thrown, it floats over the edge it was thrown towards. Drag a bar to float \
+                     it over an edge of the stage, to dock it along an edge beside the stage, or \
+                     away from the stage to pop it out into a window. Bars \
+                     floating over one edge stack, bars docked along one edge share its band side \
+                     by side, and a bar dropped between or beside them takes that place. The \
+                     grip's menu moves it without dragging, or hides it: a hidden bar takes no \
+                     room until the button below shows it again. Bars floating over the whole \
+                     dock and popped-out bars stay above its floating windows."
+                    </Text>
+                    <Show condition={hidden}>
+                        <Button
+                            @test_id="bars.show"
+                            label="Show hidden bars"
+                            glyph={Some(beui::icons::ICON_EYE)}
+                            on_click={move || {
+                                for bar in BARS {
+                                    layout.show_bar(&bar);
+                                }
+                            }}
+                        />
+                    </Show>
+                </List>
             </Frame>
         </Frame>
     }
@@ -4365,6 +4460,23 @@ const DRAWING_TOOLS: [(&str, Glyph); 6] = [
     ("Shape", ICON_SQUARE),
     ("Text", beui::icons::ICON_TYPE),
     ("Eraser", beui::icons::ICON_ERASER),
+];
+
+const STATUS_TOOLS: [(&str, Glyph); 1] = [("Grid", beui::icons::ICON_LAYOUT_GRID)];
+
+const PAGE_TOOLS: [(&str, Glyph); 2] = [
+    ("Previous page", beui::icons::ICON_CHEVRON_LEFT),
+    ("Next page", beui::icons::ICON_CHEVRON_RIGHT),
+];
+
+const ZOOM_TOOLS: [(&str, Glyph); 2] = [
+    ("Zoom out", beui::icons::ICON_ZOOM_OUT),
+    ("Zoom in", beui::icons::ICON_ZOOM_IN),
+];
+
+const HISTORY_TOOLS: [(&str, Glyph); 2] = [
+    ("Undo", beui::icons::ICON_UNDO_2),
+    ("Redo", beui::icons::ICON_REDO_2),
 ];
 
 const STYLE_TOOLS: [(&str, Glyph); 3] = [

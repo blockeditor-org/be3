@@ -15,9 +15,9 @@ pub use crate::unstyled::{
     dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle,
-    DockDialogHandle, DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
+    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
@@ -56,6 +56,7 @@ use switch::DockSwitchPanel;
 const TAB_PADDING_HORIZONTAL: Space = Space::Md;
 const TAB_HEIGHT: Size = Size::Toolbar;
 const TAB_RADIUS: Radius = Radius::Tab;
+const CARD_RADIUS: Radius = Radius::Lg;
 const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
 const ROOMY_BAR: f32 = 400.0;
@@ -77,8 +78,6 @@ const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_view::types::Vec2 =
     beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DIALOG_CHROME: beui_view::types::Vec2 =
-    beui_view::types::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
@@ -140,9 +139,11 @@ where
                 <DockSwitchPanel handle />
             }}
             dialog_chrome={move |handle: DockDialogHandle| view! {
-                <DockWindowFace handle />
+                <DockDialogFace handle />
             }}
-            dialog_outset=DIALOG_CHROME
+            dialog_beak=POINTER_REACH
+            dialog_radius={CARD_RADIUS.px()}
+            dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -166,9 +167,6 @@ where
                 <DockDropHighlight />
             }}
             bar_margin={BAR_MARGIN.px()}
-            bar_target={move |handle: DockBarTargetHandle| view! {
-                <DockBarTargetFace handle />
-            }}
             bar_band={move |handle: DockBarBandHandle| view! {
                 <DockBarBandFace handle />
             }}
@@ -545,7 +543,7 @@ pub fn DockCard(
                 @node_ref=&pointer
                 fill=ColorRole::SurfaceRaised
                 border
-                radius=Radius::Lg
+                radius=CARD_RADIUS
                 padding=CHROME_PADDING
             >
                 {body}
@@ -584,7 +582,7 @@ fn draw_card_pointer(
     const TIP_RADIUS: f32 = 2.0;
     let reach = CARD_POINTER;
     let width = CHROME_BORDER;
-    let radius = Radius::Lg.px();
+    let radius = CARD_RADIUS.px();
     let (lowest, highest) = (
         rect.left() + radius + reach + width,
         rect.right() - radius - reach - width,
@@ -619,7 +617,7 @@ fn draw_card_pointer(
 }
 
 #[component]
-fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
+fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         tab,
         title,
@@ -630,15 +628,18 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         attention,
         closable,
         close,
-        begin_move,
+        grab,
+        drag,
+        card,
+        header,
         body,
         ..
     } = handle;
     let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
-    let header = create_memo(move || match notice.with(Option::is_some) {
+    let header_fill = create_memo(move || match notice.with(Option::is_some) {
         true => ColorRole::AccentSoft,
-        false => ColorRole::Surface,
+        false => ColorRole::None,
     });
     let label = create_memo(move || match notice.with(Option::is_some) {
         true => TextColor::Accent,
@@ -647,16 +648,24 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <Frame
+            @node_ref=&card
             width=width
-            fill=ColorRole::Background
+            fill=ColorRole::SurfaceRaised
             border={dialog_outline(focused, create_memo(move || attention.get()))}
-            radius=Radius::Lg
+            radius=CARD_RADIUS
             padding=CHROME_PADDING
         >
             <List spacing=Space::None>
-                <Interactive on_press={move |_: PointerPress| begin_move.call(())}>
+                <Interactive
+                    @node_ref=&header
+                    @test_id={format!("dock.dialog.{}.header", tab.value())}
+                    cursor=beui_view::types::CursorIcon::Move
+                    on_press={move |press: PointerPress| grab.call(press.pos)}
+                    on_drag={move |press: PointerPress| drag.call(press.pos)}
+                >
                     <Frame
-                        fill={header}
+                        fill={header_fill}
+                        radius=Radius::Md
                         height=TAB_HEIGHT
                         padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
                     >
@@ -1037,26 +1046,6 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 }
 
 #[component]
-fn DockBarTargetFace(handle: DockBarTargetHandle) -> NodeId {
-    let DockBarTargetHandle { placement, active } = handle;
-    let fill = create_memo(move || match active.get() {
-        true => ColorRole::Accent,
-        false => ColorRole::SurfaceRaised,
-    });
-    let border = create_memo(move || match active.get() {
-        true => Some(Border::FOCUS),
-        false => Some(Border::DEFAULT),
-    });
-    let marker = match placement {
-        DockBarPlacement::Window { .. } => String::new(),
-        placement => format!("dock.bar.target.{}", placement.name()),
-    };
-    view! {
-        <Frame @test_id={marker} fill={fill} border={border} radius=Radius::Sm />
-    }
-}
-
-#[component]
 fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
     let DockBarBandHandle { edge, body } = handle;
     let along = edge.direction();
@@ -1089,16 +1078,18 @@ pub fn DockBarSurface(
 ) -> NodeId {
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
-    let band = create_memo(move || {
-        bar.is_some_and(|bar| matches!(bar.placement(), DockBarPlacement::Beside(_)))
-    });
+    let band = create_memo(move || bar.is_some_and(|bar| bar.placement().is_beside()));
+    let surface = bar.map_or_else(NodeRef::new, |bar| bar.surface());
     view! {
-        <ToolPill direction={direction} band={band} spacing={spacing} children />
+        <ToolPill @node_ref=&surface direction={direction} band={band} spacing={spacing} children />
     }
 }
 
 #[component]
-pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> NodeId {
+pub fn DockBarGrip(
+    #[prop(default = None)] control: Option<DockBarControl>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+) -> NodeId {
     let Some(control) = control.or_else(use_dock_bar) else {
         return view! {
             <Frame />
@@ -1111,6 +1102,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
         Direction::Vertical => ICON_GRIP_HORIZONTAL,
     });
     let menu = control.menu();
+    let open = create_signal(false);
     view! {
         <Interactive
             cursor=beui_view::types::CursorIcon::Grab
@@ -1146,6 +1138,14 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
                 arrow=false
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Toolbar
+                open
+                bounds
+                click_opens=false
+                on_click={move || {
+                    if !moved.get() {
+                        open.update(|open| *open = !*open);
+                    }
+                }}
                 items={view! {
                     <MenuNodes nodes={menu} test_prefix={"grip".to_owned()} />
                 }}

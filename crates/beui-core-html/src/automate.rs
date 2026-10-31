@@ -1,11 +1,13 @@
 use std::fmt::Write as _;
 use std::time::Duration;
 
-use beui_types::{Rect, Vec2, pos2};
+use beui_types::Rect;
+use beui_types::target::TreeLine;
+pub use beui_types::target::{locate, place, shown_at};
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, wait TEXT [over X,Y], gone TEXT [over X,Y], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, reveal TARGET (scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input, ending in revealed when it scrolled), shown TARGET (says where a target shows, without scrolling), wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
@@ -14,6 +16,8 @@ pub struct Line {
     pub test_ids: Vec<String>,
     pub bounds: Option<Rect>,
     pub visible: bool,
+    pub shown: Option<Rect>,
+    pub node: Option<crate::node::NodeId>,
 }
 
 pub struct Description<'a> {
@@ -27,6 +31,7 @@ pub struct Description<'a> {
     pub test_ids: &'a [String],
     pub bounds: Option<Rect>,
     pub clip: Rect,
+    pub node: Option<crate::node::NodeId>,
 }
 
 pub fn describe(depth: usize, description: Description) -> Line {
@@ -53,14 +58,17 @@ pub fn describe(depth: usize, description: Description) -> Line {
         let _ = write!(text, " #{test_id}");
     }
     let mut visible = true;
+    let mut shown = description.bounds;
     if let Some(rect) = description.bounds {
         let _ = write!(text, " {}", place(rect));
-        let shown = area(description.clip.intersect(rect));
-        if shown <= 0.0 && area(rect) > 0.0 {
+        let part = description.clip.intersect(rect);
+        if area(part) <= 0.0 && area(rect) > 0.0 {
             text.push_str(" offscreen");
             visible = false;
-        } else if shown < area(rect) {
+            shown = None;
+        } else if area(part) < area(rect) {
             text.push_str(" partly offscreen");
+            shown = Some(part);
         }
     }
     Line {
@@ -69,21 +77,13 @@ pub fn describe(depth: usize, description: Description) -> Line {
         test_ids: description.test_ids.to_vec(),
         bounds: description.bounds,
         visible,
+        shown,
+        node: description.node,
     }
 }
 
 fn area(rect: Rect) -> f32 {
     rect.width().max(0.0) * rect.height().max(0.0)
-}
-
-pub fn place(rect: Rect) -> String {
-    format!(
-        "at {},{} size {}x{}",
-        rect.min.x.round(),
-        rect.min.y.round(),
-        rect.width().round(),
-        rect.height().round()
-    )
 }
 
 pub fn render(lines: &[Line]) -> String {
@@ -114,110 +114,37 @@ pub fn ids(lines: &[Line]) -> String {
         .collect()
 }
 
-fn numbers(text: &str) -> Option<Vec<f32>> {
-    text.split(',')
-        .map(|number| number.trim().parse::<f32>().ok())
-        .collect()
-}
-
-fn placed(line: &Line) -> Result<Rect, String> {
-    let rect = line
-        .bounds
-        .ok_or_else(|| format!("{:?} has no place on screen", line.text))?;
-    if !line.visible {
-        return Err(format!("{:?} is scrolled out of view", line.text));
+impl TreeLine for Line {
+    fn depth(&self) -> usize {
+        self.depth
     }
-    Ok(rect)
-}
-
-pub fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
-    if let Some(id) = target.strip_prefix('#') {
-        if let Some((id, offset)) = id.rsplit_once('+')
-            && let Some([x, y]) = numbers(offset).as_deref()
-        {
-            let rect = locate(&format!("#{id}"), lines)?;
-            return Ok(Rect::from_min_size(
-                rect.min + Vec2::new(*x, *y),
-                Vec2::ZERO,
-            ));
-        }
-        let named: Vec<&Line> = lines
-            .iter()
-            .filter(|line| line.test_ids.iter().any(|named| named == id))
-            .collect();
-        return match named.as_slice() {
-            [] => Err(format!(
-                "no node on screen has the test id {id}; `ids` lists them"
-            )),
-            [line] => placed(line),
-            _ => Err(format!(
-                "the test id {id} names {} nodes on screen",
-                named.len()
-            )),
-        };
+    fn text(&self) -> &str {
+        &self.text
     }
-    match numbers(target).as_deref() {
-        Some([x, y]) => return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
-        Some([x, y, width, height]) => {
-            return Ok(Rect::from_min_size(
-                pos2(*x, *y),
-                Vec2::new(*width, *height),
-            ));
-        }
-        _ => {}
+    fn test_ids(&self) -> &[String] {
+        &self.test_ids
     }
-    let found: Vec<usize> = (0..lines.len())
-        .filter(|index| lines[*index].text.contains(target))
-        .collect();
-    match pick(lines, &found) {
-        Some(index) => placed(&lines[index]),
-        None if found.is_empty() => Err(format!(
-            "no line of the tree contains {target:?}; `tree` prints it"
-        )),
-        None => {
-            let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
-            for index in &found {
-                message.push_str("  ");
-                message.push_str(&lines[*index].text);
-                message.push('\n');
-            }
-            message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
-            Err(message)
-        }
+    fn bounds(&self) -> Option<Rect> {
+        self.bounds
+    }
+    fn visible(&self) -> bool {
+        self.visible
+    }
+    fn shown(&self) -> Option<Rect> {
+        self.shown
     }
 }
 
-fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
-    if let [first, rest @ ..] = found
-        && rest.iter().all(|index| {
-            lines[*index].text == lines[*first].text && lines[*index].bounds == lines[*first].bounds
-        })
-    {
-        return Some(*first);
-    }
-    let within = |candidates: &[usize]| {
-        let first = *candidates.first()?;
-        let depth = lines[first].depth;
-        let end = lines[first + 1..]
-            .iter()
-            .position(|line| line.depth <= depth)
-            .map_or(lines.len(), |offset| first + 1 + offset);
-        candidates.iter().all(|index| *index < end).then_some(first)
-    };
-    within(found).or_else(|| {
-        let shown: Vec<usize> = found
-            .iter()
-            .copied()
-            .filter(|index| lines[*index].visible)
-            .collect();
-        within(&shown)
-    })
+pub fn hidden(target: &str, lines: &[Line]) -> Option<crate::node::NodeId> {
+    beui_types::target::hidden(target, lines).and_then(|line| line.node)
 }
 
 pub enum Command {
     Tree,
     Ids,
     Find(String),
+    Reveal(String),
+    Shown(String),
     Wait(String),
     Gone(String),
     Settle,
@@ -261,6 +188,8 @@ pub fn parse(words: &[String]) -> Result<Request, String> {
         "tree" => Command::Tree,
         "ids" => Command::Ids,
         "find" => Command::Find(named("a TARGET")?),
+        "reveal" => Command::Reveal(named("a TARGET")?),
+        "shown" => Command::Shown(named("a TARGET")?),
         "wait" => Command::Wait(named("TEXT")?),
         "gone" => Command::Gone(named("TEXT")?),
         "settle" => Command::Settle,
@@ -292,7 +221,9 @@ mod web {
     use beui_types::{Rect, pos2, vec2};
     use wasm_bindgen::JsCast;
 
-    use super::{Command, Description, Line, describe, ids, locate, parse, place, render};
+    use super::{
+        Command, Description, Line, describe, hidden, ids, locate, parse, place, render, shown_at,
+    };
     use crate::document::{About, about_elements};
 
     fn clip_everywhere() -> Rect {
@@ -349,6 +280,13 @@ mod web {
     }
 
     impl Walk<'_> {
+        fn within(&self, element: &web_sys::Element, clip: Rect) -> Rect {
+            match crate::dom::clips(element) {
+                true => clip.intersect(rect_of(element, self.ratio)),
+                false => clip,
+            }
+        }
+
         fn children(&mut self, dom: &web_sys::Node, depth: usize, clip: Rect) {
             let mut child = dom.first_child();
             while let Some(node) = child {
@@ -360,11 +298,11 @@ mod web {
         }
 
         fn element(&mut self, dom: &web_sys::Node, depth: usize, clip: Rect) {
-            let Some(about) = about(dom, &self.abouts, &self.keys) else {
-                self.children(dom, depth, clip);
+            let Some(element) = dom.dyn_ref::<web_sys::Element>() else {
                 return;
             };
-            let Some(element) = dom.dyn_ref::<web_sys::Element>() else {
+            let Some(about) = about(dom, &self.abouts, &self.keys) else {
+                self.children(dom, depth, self.within(element, clip));
                 return;
             };
             let rendered = crate::dom::call(element.as_ref(), "checkVisibility", &[])
@@ -392,18 +330,26 @@ mod web {
                 .then(|| text_of(dom, &self.abouts, &self.keys))
                 .filter(|text| !text.is_empty());
             let line = match (&about.accessibility, &text) {
-                (Some(node), _) => {
+                (Some(node), text) => {
                     let role = format!("{:?}", node.role());
                     let numeric = node
                         .numeric_value()
                         .map(|value| ((value * 1000.0).round() / 1000.0).to_string());
                     let value = node.value().map(str::to_owned).or(numeric);
+                    let unnamed = node.label().is_none() && value.is_none();
+                    let (label, value) = match (unnamed, text) {
+                        (true, Some(text)) if node.role() == accesskit::Role::Label => {
+                            (None, Some(text.clone()))
+                        }
+                        (true, Some(text)) => (Some(text.as_str()), None),
+                        _ => (node.label(), value),
+                    };
                     let toggled = node.toggled().map(|toggled| format!("{toggled:?}"));
                     Some(describe(
                         depth,
                         Description {
                             role: &role,
-                            label: node.label(),
+                            label,
                             value: value.as_deref(),
                             toggled: toggled.as_deref(),
                             disabled: node.is_disabled(),
@@ -412,6 +358,7 @@ mod web {
                             test_ids: &about.test_ids,
                             bounds: Some(rect),
                             clip,
+                            node: Some(about.node),
                         },
                     ))
                 }
@@ -428,6 +375,7 @@ mod web {
                         test_ids: &about.test_ids,
                         bounds: Some(rect),
                         clip,
+                        node: Some(about.node),
                     },
                 )),
                 (None, None) if !about.test_ids.is_empty() => Some(describe(
@@ -443,6 +391,7 @@ mod web {
                         test_ids: &about.test_ids,
                         bounds: Some(rect),
                         clip,
+                        node: Some(about.node),
                     },
                 )),
                 (None, None) => None,
@@ -452,10 +401,7 @@ mod web {
             if about.kinds.contains(&"Text") {
                 return;
             }
-            let clip = match about.kinds.contains(&"Offset") {
-                true => clip.intersect(rect),
-                false => clip,
-            };
+            let clip = self.within(element, clip);
             self.children(dom, depth + usize::from(shown), clip);
         }
     }
@@ -517,6 +463,7 @@ mod web {
                 test_ids: &[],
                 bounds: root_rect,
                 clip: clip_everywhere(),
+                node: None,
             },
         ));
         walk.children(&root_dom, 1, viewport);
@@ -573,9 +520,9 @@ mod web {
         loop {
             let lines = lines();
             let (wanted, over) = match text.rsplit_once(" over ") {
-                Some((wanted, point)) => match super::numbers(point).as_deref() {
-                    Some([x, y]) => (wanted, Some(beui_types::pos2(*x, *y))),
-                    _ => (text, None),
+                Some((wanted, at)) => match super::locate(at, &lines) {
+                    Ok(rect) => (wanted, Some(rect.center())),
+                    Err(_) => (text, None),
                 },
                 None => (text, None),
             };
@@ -612,6 +559,18 @@ mod web {
             Command::Tree => Ok(render(&lines())),
             Command::Ids => Ok(ids(&lines())),
             Command::Find(target) => Ok(format!("{}\n", place(locate(&target, &lines())?))),
+            Command::Reveal(target) => {
+                let Some(node) = hidden(&target, &lines()) else {
+                    return Ok(format!("{}\n", place(shown_at(&target, &lines())?)));
+                };
+                crate::scroll::reveal(node);
+                settle(timeout).await?;
+                Ok(format!(
+                    "{} revealed\n",
+                    place(shown_at(&target, &lines())?)
+                ))
+            }
+            Command::Shown(target) => Ok(format!("{}\n", place(shown_at(&target, &lines())?))),
             Command::Wait(text) => wait(&text, true, timeout).await,
             Command::Gone(text) => wait(&text, false, timeout).await,
             Command::Settle => settle(timeout).await.map(|()| String::new()),

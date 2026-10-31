@@ -2,6 +2,7 @@ pub mod share;
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
+use beui_types::layout::Direction;
 
 use crate::document::Document;
 use crate::node::{NodeId, Rects};
@@ -63,6 +64,36 @@ pub fn min_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
     let width = doc.pixel_grid().snap_up(width);
     doc.remember_min_width(id, width, watermark);
     width
+}
+
+pub fn least_length(
+    doc: &mut Document,
+    painter: &Painter,
+    id: NodeId,
+    direction: Direction,
+    cross: f32,
+) -> f32 {
+    if !doc.arena.contains(id) {
+        return 0.0;
+    }
+    if let Some(least) = doc.measured_least_length(id, direction, cross) {
+        doc.note_least_length(true);
+        return least;
+    }
+    doc.note_least_length(false);
+    let watermark = doc.arena.layout_revision;
+    let element = doc.arena.take(id);
+    let outer = doc.enter_measure(id);
+    let least = element.least_length(doc, painter, direction, cross);
+    doc.leave_measure(outer);
+    doc.arena.put_back(id, element);
+    let least = least.unwrap_or_else(|| {
+        let natural = measure(doc, painter, id, direction.axes(f32::INFINITY, cross));
+        direction.main(natural)
+    });
+    let least = doc.pixel_grid().snap_up(least);
+    doc.remember_least_length(id, direction, cross, least, watermark);
+    least
 }
 
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {

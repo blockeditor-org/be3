@@ -13,7 +13,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::dock::styled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::icons::ICON_APP_WINDOW;
+use block_editor_beui::beui::icons::{Glyph, ICON_APP_WINDOW};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
@@ -34,14 +34,15 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window,
-    window_picture, window_tab, window_title,
+    WindowPanel, floating_window, kept_window, program_name, shown_size, shown_windows, tab_window,
+    window_name, window_picture, window_tab,
 };
 use beui::ItemSize;
 
 pub const FILES: TabId = TabId::new(1);
 pub const SETTINGS: TabId = TabId::new(1 << 39);
 pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
+pub const SHELL_BARS: u64 = 1 << 42;
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: Space = Space::Lg;
@@ -92,6 +93,7 @@ pub struct Workspace {
     kept: Signal<Kept>,
     desk: Memo<kept::Desk>,
     held: Signal<bool>,
+    unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
@@ -155,6 +157,7 @@ impl Workspace {
             kept,
             desk,
             held,
+            unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
         };
@@ -235,6 +238,31 @@ impl Workspace {
 
     fn window_key(&self, window: HostWindowId) -> HostWindowId {
         self.desk.with_untracked(|desk| desk.key(window))
+    }
+
+    pub fn window_tab_of(&self, window: HostWindowId) -> TabId {
+        window_tab(self.desk.with(|desk| desk.key(window)))
+    }
+
+    pub fn tab_title(&self, tab: TabId) -> Memo<String> {
+        let titles = self.titles;
+        create_memo(move || {
+            titles.with(|titles| {
+                titles
+                    .get(&tab)
+                    .cloned()
+                    .unwrap_or_else(|| "Untitled".to_owned())
+            })
+        })
+    }
+
+    pub fn tab_glyph(&self, tab: TabId) -> Memo<Option<Glyph>> {
+        let workspace = *self;
+        create_memo(move || {
+            workspace.tab(tab).and_then(|item| {
+                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+            })
+        })
     }
 
     pub fn placeholders(&self) -> Memo<Vec<HostWindowId>> {
@@ -366,6 +394,11 @@ impl Workspace {
         })
     }
 
+    pub fn shows(&self, id: Uuid) -> bool {
+        self.tabs
+            .with(|tabs| tabs.values().any(|item| item.id == id))
+    }
+
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
         self.open(TabItem::new(id, block_type), None);
     }
@@ -406,6 +439,17 @@ impl Workspace {
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+                ShellDialog::Close => {
+                    let showing: Vec<TabId> = self.tabs.with_untracked(|tabs| {
+                        tabs.iter()
+                            .filter(|(_, item)| item.id == block)
+                            .map(|(tab, _)| *tab)
+                            .collect()
+                    });
+                    for tab in showing {
+                        self.close(tab);
+                    }
+                }
             }
         }
         for panel in self.editor.take_panel_requests() {
@@ -612,7 +656,33 @@ impl Workspace {
             .as_ref()
             .map(saved::restore_titles)
             .unwrap_or_default();
-        untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
+        match layout.as_ref().map(saved::restore).transpose() {
+            Ok(restored) => untrack(|| self.adopt(restored)),
+            Err(error) => {
+                let bytes = layout.map_or(0, |layout| layout.bytes.len());
+                self.unreadable.set(Some(format!(
+                    "The saved layout of session {} could not be read: {error}\n\nIt holds {bytes} bytes, kept unchanged until the layout is reset.",
+                    self.editor.block_id()
+                )));
+            }
+        }
+    }
+
+    pub fn unreadable_layout(&self) -> Memo<Option<String>> {
+        let unreadable = self.unreadable;
+        create_memo(move || unreadable.get())
+    }
+
+    pub fn reset_layout(&self) {
+        if self.unreadable.with_untracked(Option::is_none) {
+            return;
+        }
+        untrack(|| self.adopt(None));
+        self.unreadable.set(None);
+    }
+
+    pub fn exit(&self) {
+        self.host().close_editor(self.editor.block_id());
     }
 
     fn adopt(&self, restored: Option<saved::Restored>) {
@@ -692,7 +762,8 @@ impl Workspace {
             }),
             false => Vec::new(),
         };
-        if !inner.restored.get() || self.held.get() {
+        let unreadable = self.unreadable.with(Option::is_some);
+        if !inner.restored.get() || self.held.get() || unreadable {
             return;
         }
         let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);
@@ -950,7 +1021,7 @@ impl Workspace {
         })
     }
 
-    fn close(&self, tab: TabId) {
+    pub fn close(&self, tab: TabId) {
         if let Some(key) = tab_window(tab) {
             match self.desk.with_untracked(|desk| desk.window(key)) {
                 Some(window) => self
@@ -1150,20 +1221,8 @@ impl Workspace {
 
 #[component]
 pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
-    let titles = workspace.titles;
-    let title = create_memo(move || {
-        titles.with(|titles| {
-            titles
-                .get(&tab)
-                .cloned()
-                .unwrap_or_else(|| "Untitled".to_owned())
-        })
-    });
-    let icon = create_memo(move || {
-        workspace.tab(tab).and_then(|item| {
-            block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
-        })
-    });
+    let title = workspace.tab_title(tab);
+    let icon = workspace.tab_glyph(tab);
     view! {
         <DockTab id=tab title icon on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab />
@@ -1185,15 +1244,16 @@ pub fn WindowTab(
         windows.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     });
     let name = create_memo(move || match info.get() {
-        Some(info) => window_title(&info),
+        Some(info) => window_name(&info, None),
         None => workspace
             .placeholder(key)
-            .map(|kept| match kept.title.is_empty() {
-                true => kept.app_id,
-                false => kept.title,
-            })
-            .filter(|title| !title.is_empty())
-            .unwrap_or_else(|| "Window".to_owned()),
+            .map_or_else(|| "Window".to_owned(), |kept| kept.window_name()),
+    });
+    let program = create_memo(move || {
+        let program = info.with(|info| info.as_ref().map(|info| program_name(info, None)));
+        program
+            .filter(|program| !program.is_empty())
+            .unwrap_or_else(|| name.get())
     });
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
     let title = create_memo(move || match responding.get() {
@@ -1224,7 +1284,7 @@ pub fn WindowTab(
                                 window
                                 offers_fullscreen
                                 fullscreen={fullscreen}
-                                name={name}
+                                name={program}
                                 responding={responding}
                                 focused={focused}
                                 size={size}
@@ -1266,18 +1326,28 @@ pub fn FloatingWindow(
 }
 
 #[component]
-pub fn AttachedWindow(
+pub fn WindowDialog(
     workspace: Workspace,
     window: HostWindowId,
     parent: HostWindowId,
 ) -> DockNode<TabId> {
     let listed = workspace.windows;
-    let info = create_memo(move || {
-        listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
+    let find = move |id: HostWindowId| {
+        listed.with(|windows| windows.iter().find(|listed| listed.id == id).cloned())
+    };
+    let info = create_memo(move || find(window));
+    let title = create_memo(move || match info.get() {
+        Some(info) => window_name(&info, find(parent).as_ref()),
+        None => "Window".to_owned(),
     });
-    let title = create_memo(move || {
-        info.get()
-            .map_or_else(|| "Window".to_owned(), |info| window_title(&info))
+    let program = create_memo(move || {
+        let program = info.with(|info| {
+            info.as_ref()
+                .map(|info| program_name(info, find(parent).as_ref()))
+        });
+        program
+            .filter(|program| !program.is_empty())
+            .unwrap_or_else(|| title.get())
     });
     let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
     let followed = create_memo(|| None);
@@ -1292,7 +1362,6 @@ pub fn AttachedWindow(
             id={window_tab(window)}
             parent={window_tab(workspace.window_key(parent))}
             title={title}
-            icon=ICON_APP_WINDOW
             size
             modal
             on_close={move || workspace.close(window_tab(window))}
@@ -1302,7 +1371,7 @@ pub fn AttachedWindow(
                 window
                 offers_fullscreen=false
                 fullscreen={fullscreen}
-                name={title}
+                name={program}
                 responding={responding}
                 focused={focused}
                 size={followed}

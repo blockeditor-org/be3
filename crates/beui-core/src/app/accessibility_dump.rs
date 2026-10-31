@@ -153,7 +153,29 @@ pub struct Line {
     pub text: String,
     pub bounds: Option<crate::geometry::Rect>,
     pub visible: bool,
+    pub shown: Option<crate::geometry::Rect>,
     pub test_ids: Vec<String>,
+}
+
+impl beui_types::target::TreeLine for Line {
+    fn depth(&self) -> usize {
+        self.depth
+    }
+    fn text(&self) -> &str {
+        &self.text
+    }
+    fn test_ids(&self) -> &[String] {
+        &self.test_ids
+    }
+    fn bounds(&self) -> Option<crate::geometry::Rect> {
+        self.bounds
+    }
+    fn visible(&self) -> bool {
+        self.visible
+    }
+    fn shown(&self) -> Option<crate::geometry::Rect> {
+        self.shown
+    }
 }
 
 impl AccessibilityDump {
@@ -331,6 +353,13 @@ impl Walk<'_> {
     }
 }
 
+fn geometry_rect(rect: Rect) -> crate::geometry::Rect {
+    crate::geometry::Rect::from_min_max(
+        crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
+        crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
+    )
+}
+
 fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Option<Line> {
     let label = node.label().filter(|label| !label.is_empty());
     let numeric = node.numeric_value().map(|value| {
@@ -360,6 +389,7 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
     }
     let mut text = String::new();
     let mut visible_part = true;
+    let mut shown = rect;
     let _ = write!(text, "{:?}", node.role());
     if let Some(label) = label {
         let _ = write!(text, " {label:?}");
@@ -391,12 +421,15 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
             rect.width().round(),
             rect.height().round()
         );
-        let visible = placed.clip.intersect(rect).area();
+        let part = placed.clip.intersect(rect);
+        let visible = part.area();
         if visible <= 0.0 && rect.area() > 0.0 {
             text.push_str(" offscreen");
             visible_part = false;
+            shown = None;
         } else if visible < rect.area() {
             text.push_str(" partly offscreen");
+            shown = Some(part);
         }
     }
     Some(Line {
@@ -413,13 +446,9 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
         disabled: node.is_disabled(),
         focused: placed.focused,
         text,
-        bounds: rect.map(|rect| {
-            crate::geometry::Rect::from_min_max(
-                crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
-                crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
-            )
-        }),
+        bounds: rect.map(geometry_rect),
         visible: visible_part,
+        shown: shown.map(geometry_rect),
         test_ids,
     })
 }

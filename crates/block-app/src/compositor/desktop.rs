@@ -18,6 +18,7 @@ const PLACEMENT: &str = "desktop";
 const SHRINK_TO: f32 = 160.0;
 const GRAB_MARGIN: f32 = 24.0;
 const KEEP_VISIBLE: f32 = 96.0;
+const WALL: f32 = 0.5;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DesktopPlace {
@@ -105,6 +106,7 @@ type StatusKey = (String, EditorInstanceId, ViewId);
 thread_local! {
     static FLOATED: Cell<Option<Signal<Vec<Floated>>>> = const { Cell::new(None) };
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
+    static WORK_AREAS: Cell<Option<Signal<Vec<(StatusKey, Rect)>>>> = const { Cell::new(None) };
     static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, ViewId), Pos2>> =
@@ -117,8 +119,118 @@ thread_local! {
 }
 
 pub(crate) fn install() {
-    FLOATED.set(Some(create_signal(Vec::new())));
-    GESTURE.set(Some(create_signal(None)));
+    let floated = create_signal(Vec::new());
+    let gesture = create_signal(None);
+    let areas = create_signal(Vec::new());
+    FLOATED.set(Some(floated));
+    GESTURE.set(Some(gesture));
+    WORK_AREAS.set(Some(areas));
+    create_effect(move || {
+        areas.with(|_| ());
+        let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
+        let displays = crate::display::made().map_or_else(Vec::new, |shown| {
+            shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
+        });
+        untrack(|| {
+            let mut windows = floated.get();
+            if keep_in_work_areas(&mut windows, &displays, moving.as_ref()) {
+                floated.set(windows);
+            }
+        });
+    });
+}
+
+fn work_areas_signal() -> Signal<Vec<(StatusKey, Rect)>> {
+    WORK_AREAS
+        .get()
+        .expect("the compositor is installed while the document is built")
+}
+
+pub(crate) fn note_work_area(view: StatusKey, area: Option<Rect>) {
+    let Some(areas) = WORK_AREAS.get().filter(|areas| areas.is_alive()) else {
+        return;
+    };
+    let held = areas.with_untracked(|areas| {
+        areas
+            .iter()
+            .find(|(key, _)| *key == view)
+            .map(|(_, area)| *area)
+    });
+    if held == area {
+        return;
+    }
+    areas.update(|areas| {
+        areas.retain(|(key, _)| *key != view);
+        if let Some(area) = area {
+            areas.push((view, area));
+        }
+    });
+}
+
+pub(crate) fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
+    let mut min = rect.min;
+    if work.max.x < display.max.x - WALL {
+        min.x = min
+            .x
+            .min(work.max.x - rect.width())
+            .max(work.min.x.min(rect.min.x));
+    }
+    if work.max.y < display.max.y - WALL {
+        min.y = min
+            .y
+            .min(work.max.y - rect.height())
+            .max(work.min.y.min(rect.min.y));
+    }
+    if work.min.x > display.min.x + WALL {
+        min.x = min.x.max(work.min.x);
+    }
+    if work.min.y > display.min.y + WALL {
+        min.y = min.y.max(work.min.y);
+    }
+    min
+}
+
+fn work_area_on(plugin: &str, instance: EditorInstanceId, display: Rect) -> Option<Rect> {
+    work_areas_signal().with_untracked(|areas| {
+        areas
+            .iter()
+            .filter(|((held, from, _), _)| held == plugin && *from == instance)
+            .map(|(_, area)| (*area, display.intersect(*area)))
+            .filter(|(_, shared)| shared.is_positive())
+            .max_by(|(_, left), (_, right)| {
+                (left.width() * left.height()).total_cmp(&(right.width() * right.height()))
+            })
+            .map(|(area, _)| area)
+    })
+}
+
+fn keep_in_work_areas(
+    windows: &mut [Floated],
+    displays: &[Rect],
+    moving: Option<&FloatedKey>,
+) -> bool {
+    let mut moved = false;
+    for index in 0..windows.len() {
+        let window = &windows[index];
+        if window.panel.is_some() || Some(&window.key) == moving {
+            continue;
+        }
+        let Some(display) =
+            crate::display::owner(displays, window.rect).map(|owner| displays[owner])
+        else {
+            continue;
+        };
+        let Some(work) = work_area_on(&window.key.plugin, window.key.instance, display) else {
+            continue;
+        };
+        let rect = window.rect;
+        let to = walled(rect, display, work);
+        if to != rect.min {
+            windows[index].rect = Rect::from_min_size(to, rect.size());
+            moved = true;
+        }
+    }
+    moved
 }
 
 fn floated_signal() -> Signal<Vec<Floated>> {
@@ -294,19 +406,7 @@ pub(crate) fn apply() {
                     }),
                     (panel, _) => panel,
                 };
-                let origin = match open.placement {
-                    WindowPlacement::Over(over) => point_in(
-                        &plugin,
-                        over.view.instance,
-                        over.view.view,
-                        over.at,
-                        &windows,
-                    ),
-                    WindowPlacement::Host(placement) => {
-                        read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
-                    }
-                    WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
-                };
+                let origin = origin_of(&plugin, open.placement, &windows);
                 let opener = windows
                     .iter()
                     .find(|held| held.key.plugin == plugin && held.key.window == open.opener.view);
@@ -377,14 +477,45 @@ pub(crate) fn apply() {
                     windows.remove(index);
                 }
             }
+            WindowRequest::Place(place) => {
+                let origin = origin_of(&plugin, place.placement, &windows);
+                if let Some(index) = find(&windows, place.view)
+                    && windows[index].panel.is_none()
+                {
+                    let key = windows[index].key.clone();
+                    move_in(&mut windows, &key, origin);
+                }
+            }
         }
     }
+    let moving = gesture
+        .as_ref()
+        .map(|gesture: &Gesture| gesture.key.clone())
+        .or_else(|| {
+            gesture_signal().with_untracked(|held| held.as_ref().map(|held| held.key.clone()))
+        });
+    let displays = crate::display::made().map_or_else(Vec::new, |shown| {
+        shown.with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
+    });
+    keep_in_work_areas(&mut windows, &displays, moving.as_ref());
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
     }
     if let Some(mut gesture) = gesture {
         gesture.began_on = owner_index(&gesture.key);
         gesture_signal().set(Some(gesture));
+    }
+}
+
+fn origin_of(plugin: &str, placement: WindowPlacement, windows: &[Floated]) -> Pos2 {
+    match placement {
+        WindowPlacement::Over(over) => {
+            point_in(plugin, over.view.instance, over.view.view, over.at, windows)
+        }
+        WindowPlacement::Host(placement) => {
+            read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
+        }
+        WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
     }
 }
 
@@ -650,6 +781,17 @@ pub(crate) fn placement_memo(key: FloatedKey) -> Memo<Option<String>> {
     })
 }
 
+pub(crate) fn origin_memo(key: FloatedKey) -> Memo<Option<Pos2>> {
+    let floated = floated();
+    create_memo(move || {
+        floated.with(|held| {
+            held.iter()
+                .find(|window| window.key == key && window.panel.is_none())
+                .map(|window| window.rect.min)
+        })
+    })
+}
+
 pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
     let floated = floated();
     create_memo(move || {
@@ -811,6 +953,9 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
             Kind::Resize(edge) => resized(start_rect, edge, moved),
         };
         floated.update(|windows| {
+            if held.kind == Kind::Move {
+                move_in(windows, key, rect.min);
+            }
             if let Some(window) = windows.iter_mut().find(|window| window.key == *key) {
                 window.rect = rect;
                 if held.kind == Kind::Move {
@@ -865,23 +1010,48 @@ fn raise(key: &FloatedKey) {
     }
 }
 
-fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
-    let mut raised = vec![key.window];
+fn with_children(windows: &[Floated], key: &FloatedKey) -> Vec<ViewId> {
+    let mut family = vec![key.window];
     let mut index = 0;
-    while index < raised.len() {
-        let parent = raised[index];
+    while index < family.len() {
+        let parent = family[index];
         let children: Vec<ViewId> = windows
             .iter()
             .filter(|window| {
                 window.key.plugin == key.plugin
                     && window.parent == Some(parent)
-                    && !raised.contains(&window.key.window)
+                    && !family.contains(&window.key.window)
             })
             .map(|window| window.key.window)
             .collect();
-        raised.extend(children);
+        family.extend(children);
         index += 1;
     }
+    family
+}
+
+fn move_in(windows: &mut [Floated], key: &FloatedKey, to: Pos2) {
+    let Some(from) = windows
+        .iter()
+        .find(|window| window.key == *key)
+        .map(|window| window.rect.min)
+    else {
+        return;
+    };
+    let moved = to - from;
+    let family = with_children(windows, key);
+    for window in windows.iter_mut() {
+        if window.key.plugin == key.plugin
+            && window.panel.is_none()
+            && family.contains(&window.key.window)
+        {
+            window.rect = window.rect.translate(moved);
+        }
+    }
+}
+
+fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
+    let raised = with_children(windows, key);
     let (on_top, mut below): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
         .into_iter()
         .partition(|window| window.key.plugin == key.plugin && raised.contains(&window.key.window));

@@ -60,16 +60,22 @@ impl OffsetNode {
         }
     }
 
-    fn content_length(&self, doc: &mut Document, painter: &Painter, cross: f32) -> f32 {
+    fn content_length(&self, doc: &mut Document, painter: &Painter, main: f32, cross: f32) -> f32 {
         let Some(child) = self.child else {
             return 0.0;
         };
-        self.direction.main(crate::layout::measure(
+        let natural = self.direction.main(crate::layout::measure(
             doc,
             painter,
             child,
             self.direction.axes(f32::INFINITY, cross),
-        ))
+        ));
+        if natural <= main {
+            return natural;
+        }
+        crate::layout::least_length(doc, painter, child, self.direction, cross)
+            .max(main)
+            .min(natural)
     }
 
     fn snaps_to_end(&self) -> bool {
@@ -279,6 +285,22 @@ impl Element for OffsetNode {
         self.direction.axes(length, content)
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if direction == self.direction {
+            return Some(0.0);
+        }
+        let child = self.child?;
+        Some(crate::layout::least_length(
+            doc, painter, child, direction, cross,
+        ))
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
@@ -289,7 +311,7 @@ impl Element for OffsetNode {
         let snapping = self.snaps_to_end();
         let anchor = self.frame_anchor(doc, out, host, snapping);
         self.anchored = true;
-        let content = self.content_length(doc, painter, cross);
+        let content = self.content_length(doc, painter, main, cross);
         if snapping {
             self.offset = self.end(main, content);
         }
@@ -550,6 +572,16 @@ impl Document {
             current = self.arena.parent(id);
         }
         viewers
+    }
+
+    pub fn is_cut(&self, node: NodeId) -> bool {
+        let Some(rect) = self.node_rect(node) else {
+            return false;
+        };
+        self.enclosing_viewers(node).into_iter().any(|viewer| {
+            self.node_rect(viewer)
+                .is_some_and(|shown| !shown.expand(0.5).contains_rect(rect))
+        })
     }
 
     pub fn reveal_node(&mut self, node: NodeId) {

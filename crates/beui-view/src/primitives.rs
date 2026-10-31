@@ -6,7 +6,7 @@ pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::list::{List, Spacer};
 pub use crate::components::offset::Offset;
-pub use crate::components::overlay::Overlay;
+pub use crate::components::overlay::{Modality, Overlay, use_modal};
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
 pub use crate::components::selectable::Selectable;

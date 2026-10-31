@@ -1,7 +1,7 @@
 use super::*;
-use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    DockAlign, DockBarMove, DockBarOver, DockBarPlace, DockBarPlacement, DockDragStage, DockEdge,
+    DockAlign, DockBarEdge, DockBarMove, DockBarPlace, DockBarPlacement, DockDragStage, DockEdge,
     DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout, DockMessage, DockPane,
     DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate,
 };
@@ -39,8 +39,9 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
                 unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
-                    owner: stage.clone(),
+                    owner: Some(stage.clone()),
                     placement,
+                    hidden: false,
                 }],
                 outside: Vec::new(),
             },
@@ -108,10 +109,10 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         "a bar's kind is the editor's block type and the bar's key: {}",
         bar.kind
     );
-    assert_eq!(bar.owner, DockTabPath::own(1));
+    assert_eq!(bar.owner, Some(DockTabPath::own(1)));
     assert_eq!(
         bar.placement,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Top,
             align: DockAlign::Center
         })
@@ -120,9 +121,13 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
     let pane = declaration.nest().unwrap();
     assert!(pane.panes()[0].bare, "the bare pane says so");
 
-    session
-        .host()
-        .receive_dock_updates(vec![hosted(id, DockBarPlacement::Beside(DockEdge::Right))]);
+    session.host().receive_dock_updates(vec![hosted(
+        id,
+        DockBarPlacement::Beside(DockBarEdge {
+            edge: DockEdge::Right,
+            align: DockAlign::Center,
+        }),
+    )]);
     let shown = [(View::MAIN, 0), (View::dock(ViewId(id)), 1)];
     show_docked(&mut session, &shown, true);
     show_docked(&mut session, &shown, true);
@@ -131,7 +136,10 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         .with(std::cell::Cell::get)
         .expect("the bar's body is built in its own region");
     assert!(control.is_hosted());
-    assert_eq!(control.placement(), Placement::Beside(Edge::Right));
+    assert_eq!(
+        control.placement(),
+        Placement::Beside(Edge::Right, Align::Center)
+    );
     assert_eq!(control.direction(), beui::Direction::Vertical);
     let sized = dock_messages(&mut session)
         .into_iter()
@@ -144,7 +152,7 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
     let size = sized.bars[0].size;
     assert_eq!((size.width, size.height), (24.0, 120.0));
 
-    control.place(Placement::Beside(Edge::Bottom));
+    control.place(Placement::Beside(Edge::Bottom, Align::Center));
     control.pop_out();
     control.begin_move(press(beui::pos2(4.0, 6.0)));
     control.begin_move(press(beui::pos2(30.0, 60.0)));
@@ -162,7 +170,10 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         [
             DockRequest::PlaceBar(DockBarPlace {
                 bar: DockTabPath::own(id),
-                placement: Some(DockBarPlacement::Beside(DockEdge::Bottom)),
+                placement: Some(DockBarPlacement::Beside(DockBarEdge {
+                    edge: DockEdge::Bottom,
+                    align: DockAlign::Center,
+                })),
             }),
             DockRequest::PlaceBar(DockBarPlace {
                 bar: DockTabPath::own(id),

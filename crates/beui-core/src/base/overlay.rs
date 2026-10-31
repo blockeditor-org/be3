@@ -168,8 +168,10 @@ pub struct OverlayNode {
     scrim: NodeOf<FrameNode>,
     dims: bool,
     scrim_color: Color,
+    scrim_radius: f32,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
+    bounds: Option<Rect>,
     anchored: Option<Rect>,
     pub(crate) anchor_rect: Option<Rect>,
     escaped: Option<(LayerSpace, Vec2, Zoom)>,
@@ -198,8 +200,10 @@ impl OverlayNode {
             scrim,
             dims: false,
             scrim_color: Color::TRANSPARENT,
+            scrim_radius: 0.0,
             open: false,
             anchor,
+            bounds: None,
             anchored: None,
             anchor_rect: None,
             escaped: None,
@@ -237,10 +241,7 @@ impl OverlayNode {
     }
 
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
-        match &self.anchor {
-            OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. } => node.try_get(),
-            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
-        }
+        self.anchor.node().and_then(|node| node.try_get())
     }
 
     fn pinned_rect(&mut self, rect: Rect, within: Option<Rect>) -> Rect {
@@ -266,13 +267,22 @@ impl OverlayNode {
         self.anchored = anchored;
         let target = match self.anchor.clone() {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
+            OverlayAnchor::Band { band, .. } => anchored.map(|node| {
+                band.try_get()
+                    .and_then(|band| out.get(&band))
+                    .map_or(node, |band| {
+                        beui_types::layer::banded(node, band, self.placement)
+                    })
+            }),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
         let space = doc.escape_space(self.placement, doc.viewport_window());
         let outer = space.map_or(viewport, |space| space.area());
+        let centred = space.is_some() && self.placement == Placement::Center;
         let window_anchor = match &self.anchor {
+            _ if centred => viewport,
             OverlayAnchor::Node(_) => anchored.unwrap_or(outer),
-            OverlayAnchor::Pinned { .. } => target.unwrap_or(outer),
+            OverlayAnchor::Pinned { .. } | OverlayAnchor::Band { .. } => target.unwrap_or(outer),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
         };
@@ -300,12 +310,18 @@ impl OverlayNode {
                 (painter, viewport)
             }
         };
+        let area = match self.bounds.map(|bounds| area.intersect(self.inner(bounds))) {
+            Some(bounded) if bounded.is_positive() => bounded,
+            _ => area,
+        };
         let anchor_rect = self.inner(window_anchor);
         let inside = matches!(
             self.placement,
             Placement::InsideTop
+                | Placement::InsideTopStart
                 | Placement::InsideTopEnd
                 | Placement::InsideBottom
+                | Placement::InsideBottomStart
                 | Placement::InsideBottomEnd
         );
         let available = match (inside, self.placement) {
@@ -320,7 +336,11 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
-        let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
+        let placement = match centred {
+            true => Placement::CenterOn,
+            false => self.placement,
+        };
+        let rect = beui_types::layer::resolve_rect(area, anchor_rect, placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
         self.stand_off(doc, painter, content, rect, anchor_rect, out);
         self.point_at(doc, painter, anchor_rect, out);
@@ -415,6 +435,10 @@ impl OverlayNode {
 
     pub(crate) fn scrim_color(&self) -> Color {
         self.scrim_color
+    }
+
+    pub(crate) fn scrim_radius(&self) -> f32 {
+        self.scrim_radius
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -530,6 +554,7 @@ impl Element for OverlayNode {
                 "anchor",
                 match &self.anchor {
                     OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Band { .. } => "node, past its band".to_owned(),
                     OverlayAnchor::Pinned { rect, .. } => format!(
                         "pinned to a node from {}, {} to {}, {}",
                         rect.min.x, rect.min.y, rect.max.x, rect.max.y
@@ -676,6 +701,12 @@ impl Document {
         }
     }
 
+    pub fn set_overlay_bounds(&mut self, overlay: NodeOf<OverlayNode>, bounds: Option<Rect>) {
+        if self.arena.get_as::<OverlayNode>(overlay).bounds != bounds {
+            self.arena.get_mut_as::<OverlayNode>(overlay).bounds = bounds;
+        }
+    }
+
     pub fn set_overlay_pointer(&mut self, overlay: NodeOf<OverlayNode>, pointer: Option<NodeRef>) {
         if self.arena.get_as::<OverlayNode>(overlay).pointer != pointer {
             self.arena.get_mut_as::<OverlayNode>(overlay).pointer = pointer;
@@ -706,6 +737,22 @@ impl Document {
             self.layers_changed();
         }
         self.set_frame_color(scrim, color);
+    }
+
+    pub fn set_overlay_scrim_radius(&mut self, overlay: NodeOf<OverlayNode>, radius: f32) {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let scrim = node.scrim;
+        if node.scrim_radius != radius {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_radius = radius;
+        }
+        let style = self.arena.get_as::<FrameNode>(scrim).style;
+        self.set_frame_style(
+            scrim,
+            FrameStyle {
+                radius: Corners::all(radius),
+                ..style
+            },
+        );
     }
 
     pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {

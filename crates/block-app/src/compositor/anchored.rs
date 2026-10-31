@@ -10,7 +10,7 @@ use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, WindowId
 use block_app_plugin_host::{AnchoredBlits, HostAnchored, HostChild, PlacedView};
 use block_plugin_api::{ChildId, EditorInstanceId, ViewId};
 
-use super::plugin_view::ChildView;
+use super::plugin_view::ChildNodes;
 
 #[derive(Clone, Copy)]
 pub(crate) struct AnchorBounds(pub(crate) Memo<Rect>);
@@ -18,8 +18,14 @@ pub(crate) struct AnchorBounds(pub(crate) Memo<Rect>);
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AnchorHost(pub(crate) u64);
 
-pub(crate) fn anchor_host() -> Option<AnchorHost> {
-    use_context::<AnchorHost>()
+#[derive(Clone, Copy)]
+pub(crate) struct HostOfAnchors(pub(crate) Memo<Option<AnchorHost>>);
+
+pub(crate) fn anchor_host() -> Memo<Option<AnchorHost>> {
+    match use_context::<HostOfAnchors>() {
+        Some(HostOfAnchors(host)) => host,
+        None => create_memo(|| None),
+    }
 }
 
 #[derive(Clone)]
@@ -28,12 +34,11 @@ pub(crate) struct AnchorOwner {
     pub(crate) plugin: String,
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
-    pub(crate) window: WindowId,
-    pub(crate) host: Option<AnchorHost>,
+    pub(crate) window: Memo<WindowId>,
+    pub(crate) host: Memo<Option<AnchorHost>>,
     pub(crate) state: Memo<PlacedView>,
     pub(crate) revision: ReadSignal<u64>,
-    pub(crate) child_view: ChildView,
-    pub(crate) scope: Option<reactive::ScopeContext>,
+    pub(crate) children: ChildNodes,
     pub(crate) catcher: NodeRef,
 }
 
@@ -84,17 +89,22 @@ fn owners_in(window: WindowId, host: Option<AnchorHost>) -> Vec<AnchorOwner> {
         owners
             .borrow()
             .iter()
-            .filter(|owner| owner.window == window && owner.host == host)
-            .filter(|owner| owner.state.is_alive())
+            .filter(|owner| {
+                owner.state.is_alive() && owner.window.is_alive() && owner.host.is_alive()
+            })
+            .filter(|owner| owner.window.get() == window && owner.host.get() == host)
             .cloned()
             .collect()
     })
 }
 
-pub(crate) fn host_window() -> WindowId {
-    use_window()
-        .and_then(WindowHandle::real_window)
-        .unwrap_or(WindowId::MAIN)
+pub(crate) fn host_window() -> Memo<WindowId> {
+    let real = use_window().map(|window| window.real());
+    create_memo(move || {
+        real.filter(Memo::is_alive)
+            .and_then(|real| real.get())
+            .unwrap_or(WindowId::MAIN)
+    })
 }
 
 pub(crate) fn bounds_within(parent: Rect, own: Rect, confined: bool) -> Rect {
@@ -270,7 +280,7 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
     let window = host_window();
     let owners = create_memo(move || {
         watch_owners();
-        owners_in(window, host)
+        owners_in(window.get(), host)
             .into_iter()
             .map(|owner| owner.mount)
             .collect::<Vec<u64>>()
@@ -331,7 +341,7 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
                     <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0>
                         <Interactive
                             hit_area={beui::Area::Nowhere}
-                            on_press_outside={move |pos: Pos2| dismiss_outside(window, host, pos)}
+                            on_press_outside={move |pos: Pos2| dismiss_outside(window.get_untracked(), host, pos)}
                         />
                     </CanvasItem>
                 </Canvas>
@@ -358,11 +368,11 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
                 .unwrap_or_default()
         });
         Rc::new(move |painter: &Painter, rect: Rect| {
-            for (scrim, color) in &scrims {
+            for scrim in &scrims {
                 painter.rect_filled(
-                    scrim.translate(rect.min.to_vec2()),
-                    0.0,
-                    beui::color::Color::literal(*color),
+                    scrim.rect.translate(rect.min.to_vec2()),
+                    scrim.radius,
+                    beui::color::Color::literal(scrim.color),
                 );
             }
         })
@@ -429,7 +439,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     }
 }
 
-fn closed_with(region: &reactive::ScopeContext) -> Option<reactive::Scope> {
+pub(crate) fn closed_with(region: &reactive::ScopeContext) -> Option<reactive::Scope> {
     region.is_alive().then(|| region.run(reactive::Scope::new))
 }
 
@@ -450,27 +460,15 @@ fn AnchoredChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
                     })
                 });
                 let clip = create_memo(move || child.get().map_or(Rect::ZERO, |child: HostChild| child.clip));
-                let rect = create_memo(move || {
-                    owner(mount)
-                        .filter(|owner| owner.state.is_alive())
-                        .map_or(Rect::ZERO, |owner| owner.state.with(|view| view.rect))
-                });
-                let built = held
-                    .and_then(|owner| {
-                        let scope = closed_with(owner.scope.as_ref()?)?;
-                        let built = scope.run(|| owner.child_view.with(|view| view(id, child, rect)));
-                        on_cleanup(move || scope.dispose());
-                        Some(built)
-                    })
-                    .unwrap_or_else(|| view! {
-                        <Frame />
-                    });
+                let built = held.map(|owner| owner.children.node(id));
                 let x = create_memo(move || clip.get().min.x);
                 let y = create_memo(move || clip.get().min.y);
                 let width = create_memo(move || clip.get().width());
                 let height = create_memo(move || clip.get().height());
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
+                    <CanvasItem x={x} y={y} width={width} height={height}>
+                        <Portal node={built} />
+                    </CanvasItem>
                 }
             }</ForEach>
         </Canvas>

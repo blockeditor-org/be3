@@ -9,7 +9,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::desktop;
 use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
-use super::popup::BarPopup;
+use super::status::BackButton;
 use beui::{Align, Direction, ItemSize};
 
 const LIST_HEIGHT: Size = Size::Custom(360.0);
@@ -40,7 +40,7 @@ fn strength_of(status: &WifiStatus, ssid: &str) -> u8 {
         .map_or(100, |network| network.strength)
 }
 
-fn glyph(status: &WifiStatus) -> Glyph {
+pub(crate) fn glyph(status: &WifiStatus) -> Glyph {
     if !status.enabled {
         return ICON_WIFI_OFF;
     }
@@ -51,7 +51,7 @@ fn glyph(status: &WifiStatus) -> Glyph {
     }
 }
 
-fn summary(status: &WifiStatus) -> String {
+pub(crate) fn summary(status: &WifiStatus) -> String {
     if !status.enabled {
         return "Wi-Fi: off".to_owned();
     }
@@ -82,26 +82,12 @@ fn caption(status: &WifiStatus, network: &WifiNetwork) -> String {
     }
 }
 
-#[component]
-pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
-    let glyph = create_memo(move || status.with(glyph).to_owned());
-    let label = create_memo(move || status.with(summary));
-    let open = create_signal(false);
-    let open = Binding::new(open, move |next: bool| {
-        open.set(next);
-        if next {
-            editor.act(move || desktop::wifi::request(WifiRequest::Scan));
-        }
-    });
-    view! {
-        <BarPopup label glyph icon_only=true @test_id={"desktop.wifi"} open>|_: PopoverHandle|
-            <WifiPanel editor={editor} status={status} />
-        </BarPopup>
-    }
+pub(crate) fn scan(editor: Editor) {
+    editor.act(move || desktop::wifi::request(WifiRequest::Scan));
 }
 
 #[component]
-fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
+pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callback<()>) -> NodeId {
     let enabled = create_memo(move || status.with(|status| status.enabled));
     let off = create_memo(move || !enabled.get());
     let ssids = create_memo(move || {
@@ -119,6 +105,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     view! {
         <List spacing=SPACING @test_id={"desktop.wifi.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <BackButton on_click={on_back} />
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
                     on={Binding::new(enabled, move |on: bool| editor.act(move || desktop::wifi::request(WifiRequest::SetEnabled(on))))}

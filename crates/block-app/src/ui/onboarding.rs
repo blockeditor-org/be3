@@ -334,7 +334,7 @@ pub(super) fn AddAccountDialog(
                         </Show>
                         <Show condition={is_default}>
                             <List spacing=Space::Xs>
-                                <Text style=TextStyle::HEADING>{default_name}</Text>
+                                <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                         </Show>
@@ -387,10 +387,7 @@ pub(super) fn AddAccountDialog(
                                             @sizing=ItemSize::Percent(100.0)
                                             child_size=ItemSize::Percent(100.0)
                                         >
-                                            <Text
-                                                style=TextStyle::TITLE
-                                                @test_id="account.browser-code"
-                                            >
+                                            <Text size=TextSize::Xl @test_id="account.browser-code">
                                                 {browser_code}
                                             </Text>
                                         </SelectableText>
@@ -494,7 +491,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs>
-                        <Text style=TextStyle::HEADING>{name}</Text>
+                        <Text size=TextSize::Lg>{name}</Text>
                         <AccountDetails account />
                     </List>
                     <Button
@@ -582,7 +579,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                            <Text style=TextStyle::HEADING>{title}</Text>
+                            <Text size=TextSize::Lg>{title}</Text>
                             <Text style=TextStyle::CAPTION>{invited}</Text>
                         </List>
                         <Button

@@ -33,6 +33,7 @@ use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, Perfo
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 use crate::sight::Sight;
+use beui_types::layout::Direction;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
@@ -75,6 +76,7 @@ pub struct Document {
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     pub last_pointer: Option<crate::input::PointerSample>,
+    work_areas: HashMap<WindowId, Rect>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
@@ -130,6 +132,7 @@ pub struct Document {
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     min_widths: NodeMap<f32>,
+    least_lengths: NodeMap<Vec<(Direction, f32, f32)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -166,6 +169,7 @@ pub struct Document {
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
+    accessibility_ranks: NodeMap<u64>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
     pub work: WorkCounters,
@@ -232,6 +236,8 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
 pub struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
+    least_lengths: Cell<usize>,
+    reused_least_lengths: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
@@ -244,6 +250,8 @@ impl WorkCounters {
     fn reset(&self) {
         self.measured.set(0);
         self.reused_measurements.set(0);
+        self.least_lengths.set(0);
+        self.reused_least_lengths.set(0);
         self.placed.set(0);
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
@@ -261,6 +269,8 @@ impl WorkCounters {
         FrameWork {
             measured: self.measured.get(),
             reused_measurements: self.reused_measurements.get(),
+            least_lengths: self.least_lengths.get(),
+            reused_least_lengths: self.reused_least_lengths.get(),
             placed: self.placed.get(),
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
@@ -309,6 +319,7 @@ impl Document {
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
+            work_areas: HashMap::default(),
             acted: Acted::Nothing,
             placement: None,
             portal_holders: stable_hash::HashMap::default(),
@@ -363,6 +374,7 @@ impl Document {
             offer_dependent: false,
             baselines: NodeMap::default(),
             min_widths: NodeMap::default(),
+            least_lengths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -399,6 +411,7 @@ impl Document {
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_ranks: NodeMap::default(),
             accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
@@ -954,7 +967,15 @@ impl Document {
         !self.changes.is_empty() || !self.damage_flashes.is_empty()
     }
 
-    pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
+    pub fn set_accessibility(&mut self, id: NodeId, node: Node, rank: u64) {
+        if self
+            .accessibility_ranks
+            .get(&id)
+            .is_some_and(|held| *held > rank)
+        {
+            return;
+        }
+        self.accessibility_ranks.insert(id, rank);
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
             self.arena.touch(id);
@@ -1152,6 +1173,7 @@ impl Document {
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.min_widths.remove(&id);
+        self.least_lengths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1163,6 +1185,7 @@ impl Document {
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_ranks.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
@@ -1974,6 +1997,7 @@ impl Document {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
             self.min_widths.remove(&id);
+            self.least_lengths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -2069,6 +2093,51 @@ impl Document {
             return;
         }
         self.min_widths.insert(id, width);
+    }
+
+    pub fn measured_least_length(
+        &self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.least_lengths
+            .get(&id)?
+            .iter()
+            .find(|(held, offered, _)| *held == direction && offered.to_bits() == cross.to_bits())
+            .map(|(_, _, least)| *least)
+    }
+
+    pub fn remember_least_length(
+        &mut self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+        least: f32,
+        watermark: u64,
+    ) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        let held = self.least_lengths.get_or_default(id);
+        held.retain(|(held, offered, _)| {
+            *held != direction || offered.to_bits() != cross.to_bits()
+        });
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((direction, cross, least));
+    }
+
+    pub fn note_least_length(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.reused_least_lengths,
+            false => &self.work.least_lengths,
+        };
+        counter.set(counter.get() + 1);
     }
 
     pub fn note_measured(&self, reused: bool) {
@@ -2584,9 +2653,7 @@ impl Document {
 
     fn run_laid_out(&mut self) {
         if let Some(laid_out) = self.laid_out.clone() {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context.run(|| laid_out());
+            crate::current::enter(self, || laid_out());
         }
     }
 
@@ -2691,14 +2758,17 @@ impl Document {
         self.layout_pass = self.layout_pass.wrapping_add(1);
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
+        let mut removing = false;
         if let Some(root) = self.root {
             let painter = ctx.window_painter(ctx.drawing_window());
             let placed = &*rects;
             self.layout_parent = None;
-            crate::current::run_in(self, |document| {
-                layout::layout(document, &painter, root, rect, placed);
-                document.lay_out_boundaries(ctx, placed);
-                document.place_moved_overlays(ctx, placed);
+            ((), removing) = crate::current::enter_holding_removals(self, || {
+                crate::current::with_document(|document| {
+                    layout::layout(document, &painter, root, rect, placed);
+                    document.lay_out_boundaries(ctx, placed);
+                    document.place_moved_overlays(ctx, placed);
+                })
             });
         }
         self.placing.clear();
@@ -2706,6 +2776,9 @@ impl Document {
         self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
+        if removing {
+            self.drain_removals();
+        }
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }
 }
@@ -2774,6 +2847,17 @@ fn failing_unsettled_layout() -> bool {
 const LAYOUTS_PER_FRAME: usize = 8;
 
 impl Document {
+    pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {
+        match area {
+            Some(area) => self.work_areas.insert(window, area),
+            None => self.work_areas.remove(&window),
+        };
+    }
+
+    pub fn work_area(&self, window: WindowId) -> Option<Rect> {
+        self.work_areas.get(&window).copied()
+    }
+
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
             if !self.arena.contains(boundary)

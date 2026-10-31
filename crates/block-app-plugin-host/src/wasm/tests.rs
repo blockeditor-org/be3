@@ -130,6 +130,7 @@ fn screens() -> Vec<ScreenRequest> {
         host_place: None,
         docked: false,
         anchor_space: None,
+        origin: None,
     }]
 }
 
@@ -145,7 +146,7 @@ fn painted(
     let _editor = Editor::new(&mut session.connection, opening(editor));
     plugin::screens(&mut session.connection, screens());
     session.step(&mut plugin);
-    session.draw = Some(plugin::draw(&mut session.connection, 0, true).op());
+    session.draw = Some(plugin::draw(&mut session.connection, 0, 0, true).op());
     session.step(&mut plugin);
     assert!(session.drawn, "the plugin answered the draw with a frame");
     assert!(

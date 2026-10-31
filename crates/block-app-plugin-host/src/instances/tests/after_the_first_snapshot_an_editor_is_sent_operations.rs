@@ -1,18 +1,15 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::LiveEdit;
 use block_type_guest::editor::EditorOperation;
 use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
         let counter = <CounterContent as be_block::BlockContent>::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
-    })
-    .expect("the new stack never reached the expected count");
+    });
 }
 
 fn operations(sent: &[ToEditor]) -> Vec<EditorOperation> {

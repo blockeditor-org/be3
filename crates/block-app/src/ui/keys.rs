@@ -174,7 +174,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Show condition={waiting}>
                 <List spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
-                    <Text style=TextStyle::TITLE>{code}</Text>
+                    <Text size=TextSize::Xl>{code}</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>

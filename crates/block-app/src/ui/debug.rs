@@ -322,7 +322,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
         <Frame padding={Padding::vertical(Space::Sm)}>
             <List spacing=Space::Xs2>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::HEADING>{id}</Text>
+                    <Text size=TextSize::Lg>{id}</Text>
                     <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{state}</Text>
                     <Button
                         label="Kill"

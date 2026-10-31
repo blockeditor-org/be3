@@ -5,6 +5,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 use beui_view::types::{Dismiss, LayerPolicy};
 
 pub struct AnchoredSheetHandle {
@@ -50,6 +51,7 @@ pub fn Anchored(
     style: AnchoredStyle,
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] traps_focus: Prop<bool>,
@@ -87,6 +89,7 @@ pub fn Anchored(
                 @node_ref=&overlay
                 anchor
                 placement
+                bounds
                 policy
                 traps_focus
                 trigger={trigger}

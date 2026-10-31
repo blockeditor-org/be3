@@ -199,6 +199,7 @@ pub fn ButtonFace(
         glyph,
         icon_only,
         tooltip,
+        ..
     } = handle;
     let revealed = create_memo(move || revealed.get());
     let fill_color = create_memo(move || {

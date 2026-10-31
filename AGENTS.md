@@ -11,11 +11,12 @@ Guides:
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md
+- guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
 - guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
-- guides/desktop/linux.md: the Linux host: be-wayland, `--session` on the displays under DRM, installing the session, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
+- guides/desktop/linux.md: the Linux host: be-wayland, the login session on the displays under DRM (`BEUI_PLATFORM=drm`), installing it, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
 - guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/parallel_agents.md: coordinating subagents in worktrees on one cloud VM: landing, memory and disk limits, build server outages
@@ -37,8 +38,7 @@ Guides:
 - guides/type_modules.md: block types as plugin wasm modules: the host-to-type protocol (`block-type-api`) and the replica library types link (`block-type-guest`)
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
-- `./scripts/buck run //:check`: fast compile check of every first-party target on Linux and the plugins' wasm. Use this instead of cargo, which no longer builds the workspace.
-- `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
+- `./scripts/verify`: the check, and the compile check: always run it before you finish. It compiles every first-party target on Linux and the plugins' wasm, applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use it instead of cargo, which no longer builds the workspace. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/local-tools:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.

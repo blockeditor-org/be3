@@ -7,6 +7,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 
 #[derive(Clone, Copy)]
 pub struct MenuStyle {
@@ -77,16 +78,19 @@ pub fn MenuPopup(
     menu: MenuStyle,
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] focusing: Prop<bool>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(default = NodeRef::new())] content: NodeRef,
+    trigger: Option<NodeRef>,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
+    let bounds = create_memo(move || bounds.get());
     let (sheet_row, style, sheet) = match menu.sheet() {
         Some((sheet_row, sheet_panel)) => (
             sheet_row,
@@ -116,9 +120,11 @@ pub fn MenuPopup(
             style
             anchor
             placement
+            bounds
             open
             sheet
             traps_focus={focusing}
+            trigger
             overlay
             on_dismiss={on_dismiss}
         >|handle: AnchoredHandle| {
@@ -133,6 +139,7 @@ pub fn MenuPopup(
                         row
                         panel
                         active={create_memo(move || shown.get() && focusing.get())}
+                        bounds
                         on_select={choose}
                     />
                 },

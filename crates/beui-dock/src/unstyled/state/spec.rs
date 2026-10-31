@@ -23,7 +23,7 @@ pub struct DockSpec {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockSpecBar {
     pub bar: TabId,
-    pub owner: TabId,
+    pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
 }
 
@@ -310,6 +310,7 @@ impl DockState {
                     bar: declared.bar,
                     owner: declared.owner,
                     placement: declared.placement,
+                    hidden: false,
                 },
             );
         }

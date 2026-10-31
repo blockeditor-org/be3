@@ -28,7 +28,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#account.name");
     app.type_text("Ada");
     app.click("#account.confirm");
-    app.wait("Label value=\"Check that you saved them\"");
+    app.wait("Heading \"Check that you saved them\"");
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
     app.click("#file-tree.app-menu");
@@ -44,7 +44,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
 
     app.click("#file-tree.new");
     app.click("#file-tree.new-workspace");
-    app.wait("TextInput \"Name\"");
+    app.wait("TextInput \"Name\" value=\"New workspace\" focused");
     app.type_text("Team");
     app.key("Enter");
     app.wait("TreeItem \"Team\"");

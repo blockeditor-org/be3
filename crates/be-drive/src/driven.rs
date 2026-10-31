@@ -88,32 +88,75 @@ impl Driven {
 
 pub fn log_report(log: &str) -> String {
     let lines: Vec<&str> = log.lines().collect();
-    let tail = lines.len().saturating_sub(LOG_TAIL);
-    let panics: Vec<String> = lines[..tail]
+    let mut panics: Vec<(usize, usize)> = Vec::new();
+    for (start, line) in lines.iter().enumerate() {
+        if line.contains(" panicked") && panics.last().is_none_or(|(_, end)| *end <= start) {
+            panics.push((start, panic_end(&lines, start)));
+        }
+    }
+    let mut tail = lines.len().saturating_sub(LOG_TAIL);
+    if let Some(&(start, _)) = panics
         .iter()
-        .enumerate()
-        .filter(|(_, line)| line.contains(" panicked"))
-        .map(|(start, _)| {
-            let end = lines[start + 1..tail]
-                .iter()
-                .take(PANIC_LINES)
-                .position(|line| {
-                    line.is_empty()
-                        || line.starts_with("note: run with")
-                        || line.starts_with("stack backtrace:")
-                })
-                .map_or_else(|| tail.min(start + 1 + PANIC_LINES), |end| start + 1 + end);
-            lines[start..end].join("\n")
-        })
+        .find(|(start, end)| *start < tail && tail < *end)
+    {
+        tail = start;
+    }
+    let before: Vec<String> = panics
+        .iter()
+        .filter(|(start, _)| *start < tail)
+        .map(|&(start, end)| lines[start..end.min(tail)].join("\n"))
         .collect();
-    let tail = format!("The end of the app's log:\n{}", lines[tail..].join("\n"));
-    match panics.is_empty() {
-        true => tail,
+    let end = format!("The end of the app's log:\n{}", lines[tail..].join("\n"));
+    match before.is_empty() {
+        true => end,
         false => format!(
-            "The app's panics before that:\n{}\n\n{tail}",
-            panics.join("\n\n")
+            "The app's panics before that:\n{}\n\n{end}",
+            before.join("\n\n")
         ),
     }
+}
+
+fn panic_end(lines: &[&str], start: usize) -> usize {
+    let message = lines[start + 1..]
+        .iter()
+        .take(PANIC_LINES)
+        .position(|line| {
+            line.is_empty() || line.starts_with("note: run with") || *line == "stack backtrace:"
+        })
+        .map_or_else(
+            || lines.len().min(start + 1 + PANIC_LINES),
+            |end| start + 1 + end,
+        );
+    let mut end = message;
+    while end < lines.len() && (lines[end].is_empty() || lines[end] == "stack backtrace:") {
+        end += 1;
+    }
+    let frames = lines[end..]
+        .iter()
+        .take_while(|line| backtrace_line(line))
+        .count();
+    if frames == 0 {
+        return message;
+    }
+    end += frames;
+    if lines
+        .get(end)
+        .is_some_and(|line| line.starts_with("note: Some details are omitted"))
+    {
+        end += 1;
+    }
+    end
+}
+
+fn backtrace_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.len() == line.len() {
+        return false;
+    }
+    trimmed.starts_with("at ")
+        || trimmed.split_once(": ").is_some_and(|(frame, _)| {
+            !frame.is_empty() && frame.bytes().all(|b| b.is_ascii_digit())
+        })
 }
 
 impl Drop for Driven {

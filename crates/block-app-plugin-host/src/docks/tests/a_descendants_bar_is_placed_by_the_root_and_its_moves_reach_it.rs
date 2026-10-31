@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlacement, DockDragStage, DockEdge, Pos2,
+    DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockDragStage, DockEdge, Pos2,
     Size,
 };
 
@@ -12,8 +12,8 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
         tab: path(&[], 9),
         key: "tools".to_owned(),
         kind: "canvas/tools".to_owned(),
-        owner: path(&[], 5),
-        placement: DockBarPlacement::Over(DockBarOver {
+        owner: Some(path(&[], 5)),
+        placement: DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
@@ -37,7 +37,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
     let bar = delivered
         .bar(&path(&[INNER_CHILD], 9))
         .expect("the bar is spliced through the child that declared it");
-    assert_eq!(bar.owner, path(&[INNER_CHILD], 5));
+    assert_eq!(bar.owner, Some(path(&[INNER_CHILD], 5)));
     assert!(bar.key.ends_with("/tools"));
 
     updates(&mut docks, "shell");

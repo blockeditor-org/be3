@@ -948,7 +948,9 @@ The app holds one connection per signed-in account and server, in
 `crates/block-app-stack/src/link.rs`, and keeps it until it closes. Sign-in hands its
 connection over (`link::adopt`); the account requests in `accounts.rs` and the
 worker's `Peer` borrow it (`link::signed_in`), which reconnects and
-authenticates again only once it has closed. Natively it runs on a runtime of
+authenticates again only once it has closed. A connection keeps the clock it was
+opened on, so a worker on another clock (a test's `Clock::manual()`) opens its
+own. Natively it runs on a runtime of
 its own, so it outlives the request that opened it. The server keeps one open
 organization per connection, so only the worker opens one, and a worker waits
 for the last one to stop before it does (`Link::open_organization`). Opening it
@@ -1450,7 +1452,7 @@ when it is not open, into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
-pointer settings for every pointer with per-device overrides) to the `--session`
+pointer settings for every pointer with per-device overrides) to the login session's
 seat through `beui_platform_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
@@ -1601,11 +1603,11 @@ rotation: four tiles, each a little screen drawn turned by that rotation less th
 one the host reports now, so the tile that looks upright to the person holding the
 device is the one to pick, named Landscape, Portrait and their flipped turns from
 whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
-with the desktop plugin's bar), a Screens section with the switch for the bar's rotate
-button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
-once it offers `Power`, which only a `--session` publishes. Its Input page
+with the desktop plugin's bar), a Screens section with the switches for the bar's rotate
+and on-screen keyboard buttons (`display.rotate-in-bar`, `display.keyboard-in-bar`) once the host offers `Displays`, and Power and lock only
+once it offers `Power`, which only a login session publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
-likewise only a `--session` publishes, and says so otherwise.
+likewise only a login session publishes, and says so otherwise.
 
 Each kind of setting (`InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
@@ -1706,8 +1708,10 @@ A device's class is known before its profile is made: block-app's
 `root_settings::device_class` says E-paper tablet when the session found an e-paper
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
-place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-paper theme,
-instant motion, 150% scale and rotate button; never when the screens go off, nor a rotation).
+place (`DeviceClass::display_defaults`: the touch classes Tablet and E-paper tablet put the
+rotate and keyboard buttons on the bar, and the E-paper tablet adds its E-paper theme, instant
+motion and 150% scale; Desktop and Phone have none, since a phone never shows the desktop's bar
+and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
 (the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and
@@ -1734,7 +1738,7 @@ device when there is none yet (`RootSetting::ensure`).
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
 workspace-ui (`WORKSPACE_EDITOR`), or the desktop plugin (`DESKTOP_EDITOR`) for
-a client run as the desktop with `block-app --session`. `Settings::sessions`
+a client run as the desktop with `block-app --desktop`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the app each keep their own while
 sharing the device's settings profile. The host opens the shell on that session,
@@ -1774,6 +1778,17 @@ views, the saved layout, picks, dialogs, host panels and program windows;
 workspace-ui lays them out as Files beside a pane of tabs, and the desktop plugin
 floats every block in a window of its own over an empty main pane, with a bar
 along the bottom for the app menu, the sessions to open and the time.
+
+The shell's layout is the `layout` view state of its session (`saved::SavedLayout`,
+postcard). One that does not decode is never replaced silently: `Workspace` builds
+nothing from it, saves nothing (`unreadable_layout()` holds the report), and
+`WorkspaceDialogs` shows an alert (`workspace.layout`) with Copy report, Exit and
+Reset layout. Reset starts a fresh layout and saves it over the old bytes. Exit
+(`Workspace::exit`) sends `close-editor` for the shell's own block: block-app
+closes the app for the session it shows itself (logging out in a login
+session), and for a session shown in a window of another shell routes
+`shell-dialog::close` to that shell, which closes the tab. Either way the saved
+bytes stay for a build that can read them.
 
 An editor learns its view block from `Open { view_block }`, which a parent sets
 with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and

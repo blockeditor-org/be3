@@ -27,14 +27,14 @@ fn a_window_tab_shows_the_icon_its_program_set() {
     let (mut fixture, _) = editor();
     let iconed = block_editor_beui::HostWindow {
         icon: Some(icon()),
-        ..window(5, "Paint", None)
+        ..window(5, "Pinta", None)
     };
     fixture
         .host
         .set_watched::<WindowsWatch>(&vec![iconed, window(6, "Terminal", None)]);
     fixture.settle();
 
-    assert!(fixture.says("Paint"));
+    assert!(fixture.says("Pinta"));
     fixture
         .test
         .snapshot("a_window_tab_shows_the_icon_its_program_set");

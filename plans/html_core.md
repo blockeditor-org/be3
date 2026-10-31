@@ -411,7 +411,7 @@ differ.
   `[target.'cfg(beui_html)'.dependencies]` against RUSTFLAGS, so manifests
   say what each core links; `defs.bzl` adds `--cfg beui_html` to every
   first-party rustc under those plans; the workspace's `unexpected_cfgs`
-  lint gets `check-cfg = ["cfg(beui_html)"]`; `//:check` checks the HTML
+  lint gets `check-cfg = ["cfg(beui_html)"]`; `./scripts/verify` checks the HTML
   configurations too. If cargo's plans turn out to ignore the cfg, fall back
   to a `beui-view/html` feature in the separate plans, with
   `default-features = false` on every `beui-view` dependency.
@@ -430,7 +430,7 @@ differ.
   (`on_key`, `focus_ring`, `holds_focus`, `arrow_focus`, `copy_text`,
   `use_viewport_size`, `use_preferences`, timers, the `TreeNode` methods) and
   the measurement API dispatch the same way. Building the HTML configurations
-  in `//:check` is what keeps the two bodies' arguments in step.
+  in `./scripts/verify` is what keeps the two bodies' arguments in step.
 - **The `beui` facade.** Native: as today, except that `Document`,
   `with_document`, `try_with_document` and `enter` move from
   `beui_view::reactive` to a `beui::native` module (with `Embed`), so code
@@ -664,7 +664,7 @@ have landed; its tasks run in parallel unless marked.
 
 1. **Core selection.** The `html` constraint, `wasi_html` and
    `linux_x86_64_html` platforms, the two plans, the cfg flag, check-cfg,
-   `//:check` over the HTML configurations, `beui_view::CORE`, the
+   `./scripts/verify` over the HTML configurations, `beui_view::CORE`, the
    `fix-rust-source` lint; `beui-view` split into `components/` signatures
    with `native/` bodies (no HTML bodies yet). Files: `buck/constraints/BUCK`,
    `buck/platforms/{BUCK,cross.bzl}`, `buck/cargo/{buckify.sh,defs.bzl,crates.bzl}`,

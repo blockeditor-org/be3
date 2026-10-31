@@ -189,6 +189,10 @@ interface types {
         /// or a phone's gesture bar, which a footer pinned to the bottom stays
         /// above.
         bottom-inset: f32,
+        /// The dialog blocks everything else its host shows, so assistive
+        /// technology reads it as modal. A dialog that blocks only part of
+        /// the host, as one hanging from a tab does, is not.
+        modal: bool,
     }
 
     record frame-spec {
@@ -231,7 +235,11 @@ interface types {
     /// (`dock-message.declare`) and draws no chrome, and the host shows each
     /// of its tabs' bodies as a view placed by the dock. `anchor-space` is where
     /// the view may anchor views of its own (`frame-report.anchored`),
-    /// `none` where it may anchor none.
+    /// `none` where it may anchor none. `origin` is where the host shows the
+    /// view's top-left corner in the one space it places the plugin's windows
+    /// and views in (a desktop's points), for a window and for each view its
+    /// windows open from; `none` where the host does not say. The host asks
+    /// again when it changes, as when the user has moved a window.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
@@ -243,6 +251,7 @@ interface types {
         host-place: option<string>,
         docked: bool,
         anchor-space: option<anchor-space>,
+        origin: option<pos2>,
     }
 
     /// Maps a view's logical points to the app window's (host
@@ -470,6 +479,8 @@ interface types {
     record scrim {
         rect: rect,
         color: color,
+        /// The radius of its corners, matching what it dims.
+        radius: f32,
     }
 
     /// How far a rectangle sits inside a view, from each of its edges.
@@ -554,6 +565,13 @@ interface types {
         /// The view closes when the plugin's layout no longer lists its
         /// screen.
         anchored: option<anchored-placement>,
+        /// Where the windows the plugin opens from this view are kept, as
+        /// insets from the view's edges: the view less the bars it keeps
+        /// along them. The host keeps each window it shows for the plugin
+        /// wholly inside the work area of the display the window is on,
+        /// on the edges where that area is inset. `none` when the view
+        /// keeps no such area.
+        work-area: option<insets>,
     }
 
     record screen-window {
@@ -632,11 +650,19 @@ interface types {
         size: size,
     }
 
+    /// Moves an open window, keeping its size, to where `placement` says, as
+    /// `open` would have put it there.
+    record window-place {
+        view: view-id,
+        placement: window-placement,
+    }
+
     /// What the plugin asks of the host about a window it shows: to open it
     /// (as a view of the instance it opened from, which the host places and
     /// shows from the screen the plugin opened it with),
     /// move or resize it with the pointer as a window manager does, raise it
-    /// in front of the plugin's others, give it another size, or close it.
+    /// in front of the plugin's others, give it another size, put it
+    /// somewhere else, or close it.
     /// The host answers through the window's screen: its size and scale, its
     /// `host-place`, focus as input, and closing as the screen going.
     variant window-request {
@@ -646,6 +672,7 @@ interface types {
         begin-resize(window-resize-begin),
         resize(window-resize),
         close(view-id),
+        place(window-place),
     }
 
     /// What a plugin drew: the frame the host composites, with what each
@@ -877,7 +904,7 @@ interface types {
         origin: pos2,
     }
 
-    /// Where along its edge a floating bar sits: at the edge's start (its
+    /// Where along its edge a bar sits: at the edge's start (its
     /// left, or its top), its centre or its end.
     enum dock-align {
         start,
@@ -885,25 +912,30 @@ interface types {
         end,
     }
 
-    /// A bar floating over `edge` of its owner's body at `align` along it.
-    /// Bars at one edge and alignment stack; bars at different alignments
-    /// sit side by side.
-    record dock-bar-over {
+    /// Which edge of its owner's body a bar sits at, and where along it:
+    /// bars at one edge and alignment line up (floating over it they stack
+    /// away from the edge, docked beside it they sit along it), and bars at
+    /// different alignments sit side by side.
+    record dock-bar-edge {
         edge: dock-edge,
         align: dock-align,
     }
 
-    /// Where a bar sits: floating `over` an edge of its owner's body, in a
-    /// band `beside` the body inside its pane along the whole edge, or in a
-    /// window.
+    /// Where a bar sits: floating `over` an edge of its owner's body, in the
+    /// band `beside` the body inside its pane along that edge, which every
+    /// bar docked there shares, or in a window.
     variant dock-bar-placement {
-        over(dock-bar-over),
-        beside(dock-edge),
+        over(dock-bar-edge),
+        beside(dock-bar-edge),
         window(dock-bar-window),
     }
 
     /// A bar of the dock: an entry that belongs to the tab `owner` and shows
-    /// while it does, at `placement` (in a declaration the one it starts at).
+    /// while it does, or, with no `owner`, to the declaring dock itself,
+    /// showing whichever tab is shown and wrapping the whole dock (a docked
+    /// dock's own bars, which the root gives the tab that hosts it, so they
+    /// wrap its group's first pane), at `placement` (in a declaration the one
+    /// it starts at).
     /// Its body is the owner's view `tab`, which is no tab of
     /// the tree, laid out along its placement's edge; `size` is that body's
     /// size as its owner last laid it out, which the root gives it. `key`
@@ -916,7 +948,7 @@ interface types {
         tab: dock-tab-path,
         key: string,
         kind: string,
-        owner: dock-tab-path,
+        owner: option<dock-tab-path>,
         placement: dock-bar-placement,
         size: size,
     }
@@ -944,11 +976,14 @@ interface types {
         place: dock-place,
     }
 
-    /// Where a bar of the layout sits now.
+    /// Where a bar of the layout sits now; `owner` as in `dock-bar`.
+    /// A `hidden` bar takes no room and is not drawn until it is shown
+    /// again.
     record dock-placed-bar {
         bar: dock-tab-path,
-        owner: dock-tab-path,
+        owner: option<dock-tab-path>,
         placement: dock-bar-placement,
+        hidden: bool,
     }
 
     /// A pane of the root's outside the declaration's group, by its key, and
@@ -1037,16 +1072,23 @@ interface types {
         stage: dock-drag-stage,
     }
 
+    /// Hides bar `bar` (`hidden`) or shows it again.
+    record dock-bar-hide {
+        bar: dock-tab-path,
+        hidden: bool,
+    }
+
     /// What a hosted dock asks of its holder: to show a tab, to replace the
     /// group with a layout (restoring one saved, or a fresh one to reset),
-    /// to show a tab full screen (`none` leaves full screen), or to place or
-    /// move one of its bars.
+    /// to show a tab full screen (`none` leaves full screen), or to place,
+    /// move, hide or show one of its bars.
     variant dock-request {
         show(dock-tab-path),
         restore(dock-layout),
         fullscreen(option<dock-fullscreen>),
         place-bar(dock-bar-place),
         move-bar(dock-bar-move),
+        hide-bar(dock-bar-hide),
     }
 
     record dock-declare {

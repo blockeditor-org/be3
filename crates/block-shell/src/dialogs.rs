@@ -36,7 +36,42 @@ pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
             <ArtifactSettingsDialog workspace={workspace} />
             <UnlinkDialog workspace />
             <DetailsSheet workspace />
+            <UnreadableLayoutDialog workspace />
         </List>
+    }
+}
+
+#[component]
+fn UnreadableLayoutDialog(workspace: Workspace) -> NodeId {
+    let report = workspace.unreadable_layout();
+    let open = create_memo(move || report.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            kind=DialogKind::Alert
+            title="The layout of this session could not be read"
+            width=Size::Dialog
+            id="workspace.layout"
+            actions={vec![
+                DialogAction::secondary("Copy report", move || {
+                    if let Some(report) = report.get_untracked() {
+                        copy_text(report);
+                    }
+                })
+                .named("copy-report"),
+                DialogAction::secondary("Exit", move || workspace.exit()).named("exit"),
+                DialogAction::destructive("Reset layout", move || workspace.reset_layout())
+                    .named("reset"),
+            ]}
+            on_dismiss={|| {}}
+        >
+            <Text style=TextStyle::PARAGRAPH>
+                "Its windows, tabs and panels were saved in a form this version cannot read, so they are not shown."
+            </Text>
+            <Text style=TextStyle::PARAGRAPH>
+                "Reset layout starts the session with a fresh layout and saves it in place of the old one. Exit leaves the saved layout as it is."
+            </Text>
+        </Dialog>
     }
 }
 
@@ -514,7 +549,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             <Text align=TextAlign::Center>
                                 <Icon glyph=ICON_USER />
                             </Text>
-                            <Text style=TextStyle::HEADING>{name}</Text>
+                            <Text size=TextSize::Lg>{name}</Text>
                         </List>
                         <Text style=TextStyle::CAPTION>{email}</Text>
                         <Show condition={is_fixed}>

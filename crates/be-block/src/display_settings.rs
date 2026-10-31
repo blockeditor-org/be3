@@ -72,6 +72,7 @@ pub struct DisplaySettings {
     pub canvas_touch: Option<CanvasTouch>,
     pub keyboard_percent: Option<u32>,
     pub docks: Map<String, String>,
+    pub keyboard_in_bar: Option<bool>,
 }
 
 impl DisplaySettings {
@@ -150,6 +151,14 @@ impl DisplaySettings {
 
     pub fn set_rotate_in_bar(shown: Option<bool>) -> Edit {
         Self::ROTATE_IN_BAR.set(ObjectId::ROOT, &shown).into()
+    }
+
+    pub fn keyboard_in_bar(&self) -> bool {
+        self.keyboard_in_bar.unwrap_or(false)
+    }
+
+    pub fn set_keyboard_in_bar(shown: Option<bool>) -> Edit {
+        Self::KEYBOARD_IN_BAR.set(ObjectId::ROOT, &shown).into()
     }
 
     pub fn screen_off(&self) -> ScreenOff {
@@ -288,6 +297,16 @@ impl DisplaySettings {
         .with_default(Some(false))
     }
 
+    pub fn keyboard_in_bar_setting() -> Setting<Self, bool> {
+        Setting::new(
+            "keyboard-in-bar",
+            "The keyboard button",
+            |settings: &Self| settings.keyboard_in_bar,
+            |_, shown| Self::set_keyboard_in_bar(shown),
+        )
+        .with_default(Some(false))
+    }
+
     pub fn screen_off_setting() -> Setting<Self, ScreenOff> {
         Setting::new(
             "screen-off",
@@ -358,6 +377,7 @@ impl Layered for DisplaySettings {
                 .chain(self.docks.iter())
                 .map(|(id, layout)| (id.clone(), layout.clone()))
                 .collect(),
+            keyboard_in_bar: self.keyboard_in_bar.or(lower.keyboard_in_bar),
         }
     }
 }

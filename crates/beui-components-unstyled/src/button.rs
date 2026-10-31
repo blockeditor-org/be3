@@ -14,6 +14,7 @@ use beui_view::{CORE, Core};
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
+    pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -57,6 +58,7 @@ pub fn Button(
 ) -> NodeId {
     let focus_request = focused;
     let hovered = create_signal(false);
+    let pointed = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
     let key_active = create_signal(false);
@@ -96,6 +98,7 @@ pub fn Button(
     let content_node = content.map(|build| {
         build.call(ButtonHandle {
             hovered: hovered.read_only(),
+            pointed: pointed.read_only(),
             active: active.read_only(),
             focused: focused.read_only(),
             disabled,
@@ -187,6 +190,7 @@ pub fn Button(
             on_click_at={click_at}
             on_press={on_press}
             on_hover_change={hovered}
+            on_pointed_change={pointed}
             on_active_change={active}
             children={content_node}
         />

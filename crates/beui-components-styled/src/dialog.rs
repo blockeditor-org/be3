@@ -222,7 +222,7 @@ fn DialogBodyFace(
     };
     let below = create_memo(move || Padding::ZERO.bottom(Space::Custom(inset.get())));
     view! {
-        <Frame padding={below}>
+        <Frame padding={below} @test_id={id}>
             <Frame padding=PADDING>
                 <List spacing=SPACING>
                     <Show condition={titled}>

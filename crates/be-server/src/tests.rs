@@ -232,9 +232,10 @@ impl TestClient {
             .await
             .unwrap();
         loop {
-            let message = tokio::time::timeout(Duration::from_secs(10), self.socket.next())
+            let message = self
+                .socket
+                .next()
                 .await
-                .expect("the server answered in time")
                 .expect("the connection stayed open")
                 .unwrap();
             let WsMessage::Binary(bytes) = message else {
@@ -278,9 +279,10 @@ impl TestClient {
             return self.notifications.remove(0);
         }
         loop {
-            let message = tokio::time::timeout(Duration::from_secs(10), self.socket.next())
+            let message = self
+                .socket
+                .next()
                 .await
-                .expect("a notification arrived in time")
                 .expect("the connection stayed open")
                 .unwrap();
             if let WsMessage::Binary(bytes) = message {

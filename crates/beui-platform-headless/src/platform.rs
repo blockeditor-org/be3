@@ -19,6 +19,7 @@ pub struct Headless {
     pub screen: Option<Vec2>,
     pub open_device: OpenDevice,
     pub render: bool,
+    pub pinned_clock: bool,
 }
 
 impl Platform for Headless {
@@ -32,6 +33,9 @@ impl Platform for Headless {
 }
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
+    if headless.pinned_clock {
+        beui_core::timer::pin_wall_clock(Some((Instant::now(), beui_core::timer::TEST_WALL_CLOCK)));
+    }
     let mut runner = Runner::new(launch);
     runner.set_occluded(true);
     let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());

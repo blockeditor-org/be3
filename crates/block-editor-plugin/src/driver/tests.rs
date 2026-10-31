@@ -86,6 +86,7 @@ fn shown(instance: u64) -> ShownView {
         docked: false,
         host_place: None,
         anchor_space: None,
+        origin: None,
     }
 }
 

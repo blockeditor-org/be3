@@ -55,7 +55,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
         "a window the saved layout placed returns to its place"
     );
     assert!(
-        second.says("Program 2"),
+        second.says("todo-2.txt"),
         "and has its tab, as if it had just opened"
     );
     assert_eq!(

@@ -1,6 +1,8 @@
 # A button clicks by pointer and by the keyboard once focused, a disabled one
-# never does, and a toggle button flips its state.
+# never does, and a toggle button flips its state. A heading's text reads as a
+# heading.
 clock stop
+wait 'Heading "Actions"'
 wait 'value="Clicked 0"'
 click '#buttons.save'
 wait 'value="Clicked 1"'

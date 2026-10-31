@@ -6,9 +6,7 @@ fn request(block: Uuid, request: Asked) -> Answered {
     revisions::request(block, request, move |reply| {
         send.send(reply).unwrap();
     });
-    receive
-        .recv_timeout(PATIENCE)
-        .expect("revision request answers")
+    receive.recv().expect("revision request answers")
 }
 
 #[test]

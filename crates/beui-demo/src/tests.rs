@@ -8,6 +8,8 @@ use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
+mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
+mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
 mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
 mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
@@ -40,12 +42,14 @@ mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_
 mod a_selected_row_stays_selected_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_spacer_keeps_each_space_token_between_its_neighbours;
+mod a_status_bar_of_the_whole_dock_runs_under_every_pane;
 mod a_swatch_button_rings_the_colour_picked;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
 mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place;
 mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod animations_paint_their_progress_and_instant_targets;
@@ -151,6 +155,16 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
+}
+
+fn drop_bar(test: &mut DocumentTest, from: Pos2, to: Pos2) {
+    use beui_host::native::testing::Target;
+    test.down(Target::point(from), beui::PointerButton::Primary);
+    for step in 1..=8 {
+        test.hover(Target::point(from + (to - from) * (step as f32 / 8.0)));
+    }
+    test.pause(std::time::Duration::from_millis(200));
+    test.up(Target::point(to), beui::PointerButton::Primary);
 }
 
 fn open(test: &mut DocumentTest, page: Page) {

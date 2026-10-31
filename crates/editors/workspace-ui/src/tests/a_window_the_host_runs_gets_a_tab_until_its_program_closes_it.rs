@@ -25,9 +25,12 @@ fn a_window_the_host_runs_gets_a_tab_until_its_program_closes_it() {
 
     fixture
         .host
-        .set_watched::<WindowsWatch>(&vec![window(7, "Terminal - ~", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(7, "~ - Terminal", None)]);
     fixture.settle();
-    assert!(fixture.says("Terminal - ~"), "the tab follows the title");
+    assert!(
+        fixture.says("Terminal \u{2014} ~"),
+        "the tab follows the title"
+    );
 
     fixture.host.set_watched::<WindowsWatch>(&Vec::new());
     fixture.settle();

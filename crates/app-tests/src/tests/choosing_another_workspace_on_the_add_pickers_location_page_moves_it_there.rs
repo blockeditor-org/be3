@@ -5,7 +5,7 @@ fn choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there() 
     let mut app = AppTest::start();
     app.click(NEW);
     app.click("#file-tree.new-workspace");
-    app.wait("TextInput \"Name\"");
+    app.wait("TextInput \"Name\" value=\"New workspace\" focused");
     app.type_text("Team");
     app.key("Enter");
     app.wait("TreeItem \"Team\"");

@@ -94,7 +94,9 @@ nothing it does (a handler's effect, a row added, a dialog opened) shows in show
 or the model until the next run(). Call run() after every gesture — the view only sees an
 event on the frame it is delivered in — and click a text field before typing into it. click() first scrolls a target that is out of view into it
 (`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
-DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
+DocumentTest alike, also when a scroll only partly shows it, such as a row a menu's
+scroll cuts (`Document::is_cut`), so a test need not know how much fits on its screen; drive does the same
+for its targets (guides/running/drive.md, Targets). It panics when no
 node has that test id, which is usually a node that was never given one, or one a virtualized
 list has not built; shown() and label() ask about one without clicking it.
 
@@ -145,11 +147,18 @@ race with a wider margin, which is how one of these hid.
 
 The date and the time of day come from the harness too: an editor reads them from
 `block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
-`SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
+`SystemTime::now()`. That clock is the host's: each draw carries the host's wall clock beside
+its frame time (`wall-micros`), and the harness hands one fixed moment plus its frame clock, so
 a clock or a calendar paints the same on every run. beui's own date and time components (a
 calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
 pins to that clock each frame; a beui test without a plugin pins it with
-`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`.
+`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`. The fixed moment is
+`beui_core::timer::TEST_WALL_CLOCK` (2026-03-02 09:41 UTC). The app tests and every other test
+that starts a program through `be_drive::Driven` or `be-drive run` start it with its clock
+pinned (`be-drive launch --pin-clock`, guides/running/drive.md): the headless platform pins
+beui's wall clock to that moment as it starts and runs the app in UTC, so block-app hands every
+plugin that moment too. An agent's `:dev` runs on the real time unless started with
+`-- --pin-clock`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
@@ -390,6 +399,9 @@ which close() checks, so a test that ends without calling it fails too.
 
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
+  Keep it stopped: a closing menu or sheet goes only after a pause as long as its animation.
+  The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
+  clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
   click() first waits for its target, and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
 - Target nodes by test id or by a line of the tree, never by fixed coordinates: where a gesture needs a point, take it from `place(target)`, and send it with `run`, since `click` waits for its target first. Block ids are random,
@@ -413,7 +425,7 @@ which close() checks, so a test that ends without calling it fails too.
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
-  the end of the app's log, after every panic the app logged before it with its message. A step
+  the end of the app's log, after every panic the app logged before it, each whole with its message and backtrace. A step
   that times out while the tree shows nothing pending means the app never settled: something
   asks for a frame every frame.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running
@@ -458,7 +470,17 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
   commands through beui-core-html's `automate` (its tree is in native's line format, from the
   core's nodes and `getBoundingClientRect`); `click`, `move`, `down`, `up`, `drag`, `wheel` (a tick is a line, 40 pixels), `type` and `key` are real Playwright input
-  at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
+  at the place `reveal` answers (beui-core-html's: the part of the target that shows, once a
+  scroll that cuts it has revealed it, and after a reveal every target of the command is found
+  again, as native drive reruns the command), so the browser's own focus, key and IME paths run, and `resize WxH`
+  sets the page's viewport, as native `resize` sets the headless window. Three commands are browser
+  only, for scripts that run nowhere else (crates/beui-demo-html's): `selection none|some`,
+  `role ROLE NAME [STATE...]`, which waits for Playwright's `getByRole` to find exactly one
+  element with that ARIA role, exact name and states (`checked`, `selected`, `not-checked`,
+  `level=2`, ...; `modal`/`not-modal` and `inert`/`not-inert` (left out of the tree by an
+  inert ancestor) read Chrome's own accessibility tree over CDP, since Playwright has no such
+  query), and `roles ROLE COUNT`, which waits for exactly COUNT visible elements with
+  that role, whatever their names (`roles dialog 1` while one dialog is open). It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`

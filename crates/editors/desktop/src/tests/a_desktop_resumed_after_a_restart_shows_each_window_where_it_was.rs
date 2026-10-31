@@ -21,17 +21,17 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
     assert!(resumed.says("Foot"), "a program it knows is named");
     assert!(resumed.says("Terminal 1"), "with the window's old title");
     assert!(
-        resumed.says("org.example.Notes"),
-        "a program it does not know goes by its app id"
+        resumed.says("Notes") && !resumed.says("org.example.Notes"),
+        "a program it does not know goes by its app id's last part"
     );
-    assert!(resumed.test.shown("desktop.placeholders.open_all"));
+    assert!(resumed.test.shown("desktop.windows.restore"));
     resumed.test.settle();
     resumed
         .test
         .snapshot("a_resumed_desktop_shows_its_windows_from_last_time");
 
     resumed.test.clear_calls();
-    resumed.test.click("desktop.placeholders.open_all");
+    resumed.test.click("desktop.windows.restore");
     resumed.settle();
     assert_eq!(
         resumed
@@ -47,7 +47,7 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
                 launch: Some(6),
             },
         ],
-        "Open all starts every program: from its .desktop entry, else its command line"
+        "Restore starts every program: from its .desktop entry, else its command line"
     );
 
     resumed.test.click("desktop.placeholder.6.dismiss");

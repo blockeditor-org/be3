@@ -263,6 +263,7 @@ impl Rig {
             },
             windows: false,
             host_place: None,
+            origin: None,
             docked: false,
             anchor_space: layers,
         }];

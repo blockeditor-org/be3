@@ -72,7 +72,7 @@ impl Harness {
             display_name: "Counter".to_owned(),
             email: "counter@example.com".to_owned(),
             data_dir: self.directory.join("objects"),
-            clock: be_client::Clock::real(),
+            clock: be_client::Clock::manual(),
         });
     }
 }

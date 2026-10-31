@@ -32,7 +32,7 @@ pub fn ToolPill(
         <Frame fill={fill} border={border} radius={radius}>
             <List direction={direction} spacing=Space::None>
                 <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction={direction} fit=true>
-                    <Frame padding=Space::Xs>
+                    <Frame @sizing={ItemSize::Intrinsic.shrink(1.0)} padding=Space::Xs>
                         <List
                             @node_ref=&row
                             direction={direction}

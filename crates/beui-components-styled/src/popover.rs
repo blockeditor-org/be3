@@ -6,13 +6,16 @@ use crate::button::{ButtonSize, ButtonVariant};
 use crate::menu_button::PopupButtonFace;
 use crate::sheet::AnchoredSheet;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{AnchoredStyle, PopoverHandle, PopupTriggerHandle};
+use beui_components_unstyled::{
+    AnchoredStyle, PopoverHandle, PopoverPlacement, PopupTriggerHandle,
+};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::theme::Density;
 use crate::tokens::{Length, Size, Space};
 use beui_view::types::Extent;
+use beui_view::types::Rect;
 
 pub const PANEL_PADDING: Space = Space::Lg;
 pub const PANEL_MAX_WIDTH: Size = Size::Popover;
@@ -27,6 +30,10 @@ pub fn Popover(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
+    band: Option<NodeRef>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    leading: Option<Child>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     let max_width = create_memo(move || Some(max_width.get()));
@@ -38,9 +45,12 @@ pub fn Popover(
             icon_only
             disabled
             open
+            placement
+            band
+            bounds
             surface
             trigger={move |handle: PopupTriggerHandle| view! {
-                <PopupButtonFace handle variant size />
+                <PopupButtonFace handle variant size leading />
             }}
         >|handle: PopoverHandle| {
             content.call(handle)

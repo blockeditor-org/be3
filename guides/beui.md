@@ -304,7 +304,7 @@ apps, demos, test harnesses and the plugin runtime. It re-exports beui
 `beui::native` plus the engine: `build` (a document with the inspector and the
 on-screen keyboard installed), `context()` and the fonts, `testing`, `drive`,
 `Headless`, the renderer's `Renderer`, `GpuSetup` and `OpenDevice`, and the
-runners (`run`, `run_with`, `run_on`, `run_web`, ...). Its features pick the
+runners (`run`, `run_with`, `run_with_platforms`, `run_web`, ...). Its features pick the
 runner: `window` (the default: winit, Android, space and headsets) or `web`. A
 host still depends on beui too, since `view!` names it, and imports only the
 engine through beui-host. An editor's tests reach the engine through
@@ -335,7 +335,7 @@ one direction:
 | `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing}`: the interface a gpu drawing implements, which the renderer runs (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui_host::native::run_on` |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers offer it with `beui_host::native::run_with_platforms`, and `BEUI_PLATFORM=drm` picks it |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
 | `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
@@ -696,7 +696,10 @@ The contract both keep:
 Measurement is `measure(node) -> ReadSignal<Option<Measured>>` (`rect` in
 window space, `size` in the node's own units), `measure_text(node)` for a
 `Text`'s `TextGeometry`, and `lay_out_text(text, font, layout)` for text not in
-the tree, all described under [Measurement](#measurement). Colours are `Color`s
+the tree, all described under [Measurement](#measurement). On the HTML core
+`measure(node)` is `None` until the frame after the node is first measured, so
+a key handler that measures at event time fails the first time there; anchor an
+overlay to the node (`OverlayAnchor::Node`) instead. Colours are `Color`s
 that may reference declared variables, so both cores and a server-rendered page
 agree on them ([Colours](#colours)).
 
@@ -749,6 +752,18 @@ without the `gpu` feature). Text editing is not an escape hatch:
 through a hidden textarea on HTML. The one exception is a plain single-line
 `TextInput`, which is a real `<input>` on HTML ([Forms and text
 fields](#forms-and-text-fields)).
+
+On the HTML core a component's accessibility node (`component_accessibility`)
+becomes ARIA on its element: its role, name (`aria-label`) and states
+(checked or pressed, selected, expanded, disabled, a range's value, minimum and
+maximum, a heading's level, ...), all mapped by the one table in
+`beui-core-html`'s `aria.rs`. An element that already is the matching native
+element (the `<input>` of a plain `TextInput`, a `<button>`, an `<a>`, an
+overlay's `<dialog>`) keeps its own role. When one element holds several
+components' nodes (a component whose root is its child's), the outermost
+node describes it, in the DOM and in `automate`'s tree alike. The drive lines
+come from the accessibility nodes, not the ARIA, so they read the same on both
+cores; a web drive script checks the ARIA itself with `role` (guides/testing_a_gui.md).
 
 An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
@@ -979,7 +994,7 @@ browser's) keeps the galley as it is.
 and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
 its own accessibility node from them. Its content closure receives a
-`ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
+`ButtonHandle` of reactive `hovered`, `pointed`, `active`, `focused` and `disabled` state
 and the resolved `label`, `glyph`, `icon_only` and `tooltip`. `styled::Button` wraps it and
 uses that handle to choose fills and paint a focus outline, so every visual
 treatment sits on the same interaction behavior. A button that opens something
@@ -1115,7 +1130,11 @@ someone else: it takes a `NodeId`, lays it out and paints it where the portal
 stands, and leaves it alone when the portal goes away, so a subtree can move
 between places in the tree without being built again. Exactly one portal shows
 a given node - claiming it takes it from the portal that had it - and the
-subtree lives as long as the scope that built it. `Embed` reserves a rectangle
+subtree lives as long as the scope that built it. A node no portal shows keeps
+the arena parent of the portal that last showed it (`Arena::parent` is the last
+container that listed it), so code walking up from a node must check that each
+step still lists it: a `Canvas` lays out the item holding the focus only if it is
+one of its own items. `Embed` reserves a rectangle
 for something outside the document (`beui::native::Embed`, since only the
 native app composites anything) — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
@@ -1471,8 +1490,30 @@ Content shorter than the scroll is laid out as long as the scroll, as a browser'
 `minmax(100%, max-content)` track is, so a percent-sized child of a scroll (a
 `Spacer`, a field filling a toolbar that scrolls when narrow) fills the rest of it
 whether or not the content overflows.
+Content longer than a scroll is laid out as short as it can be
+without overflowing, down to the scroll's length, as a flex box in a browser's
+`overflow: auto` box is: its shrinking children give up length first, and the
+scroll scrolls only what is left past that. How short is `Element::least_length`
+(`layout::least_length(doc, painter, id, direction, cross)`, the length along
+`direction` when `cross` long the other way): a list's children along its own
+axis that neither shrink nor are a `Percent` count at their natural length, the
+rest at their own least length (a scroll along the same axis at nothing); across
+a column, the widest child's least width; text that wraps or ellipsises at its
+`min_width` for a width, at its height for a height; a frame adds its padding;
+and a node that does not say (a row asked for its height, a wrapping list) counts
+at its natural length. Unlike `min_width`, which floors a shrinking child and lets
+what will not fit overflow it, it never undercounts. It walks the subtree once,
+stopping at scrolls along the same axis, so a full layout stays linear, and it is
+memoised beside the measurements for each direction and cross length, so laying an
+overflowing scroll out again walks only what changed (`FrameWork::least_lengths`
+counts the nodes asked afresh, `reused_least_lengths` the answers reused). `ToolPill`
+lets its content shrink this way, so a child sized `.shrink(..)` in a bar of either
+direction narrows before the bar scrolls: the desktop's Windows bar scrolls only its
+chips, its grip staying put, along the bottom or down the side.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
+`max_length` (a `Prop<Option<Size>>`, so a signal or memo can move it) makes it fit
+and bounds it: as long as its content up to that length, then scrolling.
 With `max_length` the scroll is as long as what it holds, up to that length, and
 scrolls from there on, which is what a popup listing a few rows or many wants.
 With `follow_end` (a log, a terminal) the scroll starts at its end and stays
@@ -1989,7 +2030,11 @@ dispatch all walk that same list. Siblings that block everything sit above
 those that do not, and otherwise are ordered by when they were opened or raised
 (`Document::raise_overlay`), so raising a window never lifts it over a dialog;
 children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
-every layer of a lower level: `Top` for things that must float over every
+every layer of a lower level: `Raised` for things that stay over the windows
+they share a document with but under menus and dialogs, such as a dock's
+floating and popped-out tool bars (a layer that blocks everything at `Normal`
+counts as `Raised`, `LayerLevel::stacked`, so a menu or a modal still opens over
+them), `Top` for things that must float over every
 window and dialog, such as a drag preview, a volume OSD or `styled::Toasts` (so
 a toast stays readable and pressable while a dialog is open), and `Lock` for
 the lock screen.
@@ -2004,6 +2049,23 @@ rect pinned to a node (`OverlayAnchor::Pinned { node, rect }`): the rect is
 taken in document coordinates and, the first time the overlay is placed, held
 by its offset from the node's nearer edge on each axis, so it follows the node
 when it moves or resizes and the layer still hangs from the node.
+`OverlayAnchor::Band { node, band }` is the node pushed out to `band`'s edges on
+the axis the placement opens along (`layer::banded`): a button's panel in a bar
+opens just past the whole bar rather than over its padding, while it still lines
+up with the button along the bar. The unstyled and styled `Popover` take it as
+`band`, and `DockBarControl::surface()` is the node a `DockBarSurface` draws on.
+An overlay's `bounds` (a rect in the overlay's window coordinates; `Overlay`,
+`Anchored`, both `Popover`s, `MenuPopup`, `MenuButton` and `ContextMenu` take
+it, and a menu hands its own to its submenus) narrows the room it is placed and
+measured in, so it shifts, flips and shrinks within that rect rather than the
+whole screen; a panel or menu that must not cover a dock's bands takes the
+dock's area. The HTML core ignores it.
+A menu always fits its room: `BelowStart` opens below, else above, else on the
+roomier side shrunk to it; a submenu (`RightStart`) opens right, else left, and
+slides up or down to stay inside; a menu panel taller than that scrolls inside
+itself, and the arrow keys reveal the row they focus. The HTML core does the same
+with CSS anchor fallbacks (`flip-block`, `flip-inline`) and a `max-height` of the
+roomier side (`layer::room_beside`), set each frame.
 `Placement::Popover { gap, margin }` places content like a popover: centred on
 the anchor and `gap` below it, flipping above where only that side has room and
 shifting sideways to stay `margin` inside the screen (the vertical choice and
@@ -2048,7 +2110,10 @@ Each layer has one `policy` (`LayerPolicy`):
 - `BlocksParent` - modal to the node it hangs from alone. A press on that node
   is shut out and asks the layer to close, the focus cannot enter it (Tab skips
   it, and focusing something inside it focuses the layer's first focusable
-  instead), and everything else stays live. A modal `DockDialog` is one.
+  instead), and everything else stays live. Assistive technology skips the node
+  too (natively it is `hidden` in accesskit, on the HTML core `inert`), while the
+  layer itself, blocking only part of the app, is not `aria-modal`. A modal
+  `DockDialog` is one.
 - `Inert` - a tooltip, a drag preview. It takes no input at all, so the
   document underneath goes on answering the pointer and the keyboard as if it
   were not there.
@@ -2084,7 +2149,15 @@ dismissed. There is one request for each reason, sent to one layer:
   outside a submenu closes the whole menu). A layer that blocks everything
   still lets the pointer reach the blocking layers it is nested in, so the
   rows of a menu stay hovered and pressable under its open submenu, and a
-  press on one closes the submenu. Which layers the pointer can reach is one
+  press on one closes the submenu. A press that reaches such a layer on the
+  `trigger` of a layer above it is left to that trigger, as with a popover, so
+  a `MenuButton` or a `Select` in a floating bar closes its popup on a second
+  click rather than reopening it. Every component whose button opens an
+  overlay does it this way: the overlay names the button as its `trigger`, and
+  the button's click toggles the overlay. A host of escaped
+  layers does the same (`block_app_plugin_host::dismissed_by_press`), except
+  that a layer blocking its view (`blocks_owner`) whose trigger is in that
+  blocked view is closed by the press, which the view never hears. Which layers the pointer can reach is one
   rule (`Layers::reachable`) that the hit test and the forwarding of input to
   a forwarding catcher share. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
@@ -2187,7 +2260,7 @@ and it wraps rather than stacking. A narrow or touched one stacks its buttons fu
 primary first. `busy` disables an action and shows progress in its button
 (`Button`'s `busy`). With `id`, the buttons are `{id}.{name}`: `confirm` for the
 primary or destructive action, `cancel`, and what `named` gives a secondary one;
-the close button is `{id}.close` and the footer `{id}.actions`. A confirmation
+the close button is `{id}.close`, the footer `{id}.actions`, and the card itself `{id}`. A confirmation
 inside a dialog is an alert of its own, opened over it; a control or row action
 (a member's role, share's Add) stays in the content.
 
@@ -2382,7 +2455,7 @@ window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
 `Center` and `Fill` take that whole area, one anchored to a node, a point or a
 rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
 and kept inside the window. Where an app shows one window per monitor (block-app
-under `--session`, one per display), each window is a monitor, so a dialog opened
+in a login session, one per display), each window is a monitor, so a dialog opened
 in it stays on it. `use_viewport_size()` is the size of the window the
 caller is built in: the hosted window around it (a plugin region is one), or else
 the main window the document is shown in (a `Dialog` reads it to become a sheet on
@@ -2443,8 +2516,10 @@ each after its parent, as `EscapedLayer`s: a stable `id`, `parent` (the escaped 
 nested in, for submenus), `placement` (`Anchored(rect)` in window points for a layer of the
 window, in host coordinates for one nested in a layer; or `Edge(edge)`), `rect`, `painted`,
 `floating` (the content of every layer that takes input) and `scrims` in host coordinates, and
-`dismiss_on_outside_press` (dismissable and not inert), `keyboard` (traps focus) and
-`blocks_owner` (blocks everything or its parent). Each frame's `FrameOutput::escaped` carries an
+`dismiss_on_outside_press` (dismissable and blocking everything or passing), `keyboard` (traps focus) and
+`blocks_owner` (blocks everything; a layer that blocks only its parent leaves the
+owner's view live and is blocked there by the document itself, which also never asks it to close
+on a press outside). Each frame's `FrameOutput::escaped` carries an
 `EscapedOutput` per layer: that record and a `WindowOutput` (clear colour transparent) painted in host units from the
 layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
 since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
@@ -2911,13 +2986,21 @@ neither the tabs nor the content see them. The code is
 `beui-dock/src/unstyled/modifier_drag.rs`; the desktop plugin sets Super, and the demo's Docking page
 has a switch for Alt.
 
-A `DockDialog`, declared beside the dock's other children, is a window attached
+A `DockDialog`, declared beside the dock's other children, is a dialog attached
 to a tab: `<DockDialog id parent title size modal on_close>content</DockDialog>`
-hangs over the tab named by `parent` (or over another dialog, so dialogs of
-dialogs stack), centred on the parent's panel at the `size` its content asks
-for and kept on the parent's screen (`Placement::CenterOn`), in the
-`dialog_chrome` render prop (styled: a bordered card with a title bar and a
-close button, `dock.dialog.<tab>` naming its body). It is not part of the
+hangs from the tab named by `parent` (or from another dialog, so dialogs of
+dialogs stack) as the same anchored card as the shared `Dialog` (above): its
+content at the `size` it asks for under a header in the `dialog_chrome` render
+prop (styled: a bordered card with a title row and a close button,
+`dock.dialog.<tab>` naming its body and `dock.dialog.<tab>.header` its header),
+placed `Popover` from the parent's handle with a beak pointing at it. A tab's
+handle is its entry in its strip (`DockTabControl::handle()`), and a dialog's is
+its header, so a dialog of a dialog points at the header of the one it came
+from. The overlay hangs from the parent's panel (`OverlayAnchor::Pinned`, the
+handle's rect pinned to the panel), so it escapes its pane as a layer and blocks
+only that panel; in space it is shown in the parent's window. With no handle to point at (a fullscreen tab) it is centred
+on the parent's panel with no beak. Dragging the header moves the card off its
+place, dropping the beak, until it closes. It is not part of the
 `DockState`: it is never a tab, nothing drags it into the dock, a key declared
 as both a dialog and a tab is only a dialog, and it is not saved with the
 layout. It shows exactly while its parent tab does (`DockState::is_shown`),
@@ -2930,7 +3013,9 @@ when a dialog closes the focus returns to its parent (the overlay's focus
 restore). The content's `use_dock_tab()` is a `DockTabControl` for the
 dialog, whose `focused` follows that and whose `show` focuses the dialog.
 `modal` makes the dialog's layer `BlocksParent` until it closes or stops being
-modal: a press on the parent's panel is shut out and asks the dialog to close,
+modal, dimmed by the `dialog_scrim` over the parent's panel (styled: the `Scrim`
+colour role), its corners `dialog_radius` when the parent is a dialog (styled: the card's radius
+token; `Overlay`'s `scrim_radius`, carried to a host that draws scrims as `Scrim::radius`): a press on the parent's panel is shut out and asks the dialog to close,
 which it answers by focusing the innermost modal dialog and flashing it (the
 handle's `attention`, and `DockTabControl::attention` for content in another
 document, such as a program's window, to take the keyboard itself); the focus
@@ -2942,14 +3027,15 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-A `DockDialog` is only ever a window or a modal (`dismiss_on_outside_press` lets a
-press on the blocked panel close a modal one instead of calling its attention).
-A small form that points at a control or at its tab is no dock dialog: it is
-the shared `Dialog` (above), which escapes its pane as a layer of its own
-(and, in a plugin, an anchored view of its owner) and finds its tab through
-`use_frame_anchor()`, which the dock provides in every tab body
-(`DockTabControl::anchor()`: the tab's entry in its strip, none while the tab
-is fullscreen; `DockTabControl::handle()` is that entry's node). A dialog's
+`dismiss_on_outside_press` lets a press on the blocked panel close a modal
+dialog instead of calling its attention. A small form opened from a control or
+an action of a tab's own body is no dock dialog: it is the shared `Dialog`
+(above), which escapes its pane as a layer of its own (and, in a plugin, an
+anchored view of its owner) and finds its tab through `use_frame_anchor()`,
+which the dock provides in every tab body (`DockTabControl::anchor()`: the tab's
+entry in its strip, none while the tab is fullscreen; `DockTabControl::handle()`
+is that entry's node). Both are drawn alike; a dock dialog is for content the
+dock must hold (a program's dialog, `block-shell`'s `WindowDialog`). A dialog's
 body is built once when it is declared and kept while its tab is hidden.
 
 A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
@@ -2959,60 +3045,138 @@ tool bar that belongs to a tab: `<DockBar id parent placement>body</DockBar>`
 `DockEdge` and a `DockAlign` along it (its start, its centre or its end, so the
 corners too; Docking's `bar_margin` in from it, the body keeping its full size;
 bars at different alignments of one edge sit side by side, the centred ones
-moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge)`, a band the whole length of that edge of the
-pane that the body gives up room for (the styled Docking draws it with
-`bar_band`: the band's fill and one line on the side facing the body), or `Window { edge, origin }`, popped out into a dock window sized to
+moving aside only as far as the others need, and bars at one alignment stack), `Beside(edge, align)`, docked in the band the whole length of
+that edge of the pane that the body gives up room for, which every bar beside that edge shares
+(as thick as its thickest bar; its bars sit along it by alignment as floating ones do, the
+centred ones moving aside only as far as the others need, and bars at one alignment line up
+along the edge, so a bar at the start sits right after another; the styled Docking draws the
+band with `bar_band`, which is handed the whole band: its fill and one line on the side facing
+the body), or `Window { edge, origin }`, popped out into a dock window sized to
 the bar, `origin` being relative to the dock. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
-its edge. Several bars on one edge of a pane stack away from it, the
-nearest first: a joined layer's bars after those of the layers around it (a tab
+its edge. Several bars at one placement of a pane's edge come in an order, which
+floating bars stack away from the edge in, the nearest first, and docked bars follow along
+the edge from its start: a joined layer's bars after those of the layers around it (a tab
 that hosts a joined dock lends its bars to the first pane of that dock, so the
-outer editor's bar sits nearer the edge than the inner one's), and one layer's
+outer editor's bar comes before the inner one's), and one layer's
 bars in the order kept in `DockState`, which starts as the order they were
-declared in and which a drop changes. The placements and that order are part of
+declared in and which a drop changes. A bar can also be hidden: it then takes no
+room and draws nothing, wherever it is placed, while its body stays built (as a
+bar whose tab is hidden does, so a joined plugin's bar region keeps running), until
+its owner shows it again; the dock offers no way back itself, so an owner that lets a
+bar be hidden offers showing it. The placements, the hidden flags and that order are part of
 `DockState` (`bars`, `bars_of(owner)`, `bar_owner`, `bar_placement`,
-`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `pane_bars(tab)`,
-`bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`), so they are saved and restored
+`set_bar_placement`, `place_bar_at(bar, placement, slot)`, `is_bar_hidden`,
+`set_bar_hidden`, `pane_bars(tab)`, `bar_tab(bar)`, `bar_depth(bar)`, `is_bar_shown`,
+false for a hidden bar), so they are saved and restored
 with the layout; `DockingLayout::bar_placement` and
-`place_bar` read and set one by key. The body's `use_dock_bar()` is a
-`DockBarControl`: `placement()`, `edge()` and `direction()` (the way to lay its
-items out, across for the top and bottom edges) are tracked reads, `place` and
-`pop_out` move it, `menu()` is the radio menu of every placement, and
+`place_bar` read and set one by key, and `is_bar_hidden`, `hide_bar` and `show_bar`
+its hidden flag. The body's `use_dock_bar()` is a
+`DockBarControl`: `placement()`, `edge()`, `direction()` (the way to lay its
+items out, across for the top and bottom edges) and `is_hidden()` are tracked reads, `place` and
+`pop_out` move it, `hide` and `show` hide it and show it again, `menu()` is the radio menu of every placement
+with a last row that hides the bar, and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
-carries the drag: over the tab's body it draws Docking's `bar_target` for the 16
-placements (the outer band of the pane, past any bars already beside that edge,
-docks the bar beside it, the next band in, or any bar already floating there,
-floats it over it, at the start, centre or end by which third of the edge the
-pointer is over), and dropped away from the pane it pops out where it was let
-go. On an edge that already holds bars the drop slots the bar in among its own
-layer's bars by where the pointer is against their middles, and the highlight
-shows that slot. The bars floating over an edge are kept clear together
-(`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
-to move its window, and the menu docks it again. The styled `DockBarGrip`
+carries the drag, and the bar itself is what shows it: lifted out of its place into a
+layer of its own (`LayerPolicy::Inert`, at the bars' level), it follows the pointer exactly from
+where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too. A bar
+popped out into a window, local or carried, lifts out of it the same way whenever the dock can map
+that window into its own (`window_point`, which needs the window's layer space: the host draws
+the window in the dock's space, as block-app does for its plugins' windows, keeping a child's node
+while it moves between the views of one plugin instance, press and all); a local bar's window stays
+open, empty, until the lift ends, so the press it holds keeps steering the bar. Only a bar in a window the dock cannot map
+(an OS window of a native host) stays in it, and its grip asks the host to move that window
+(`WindowHandle::begin_move`; for a carried bar the root asks it of the window it opened). The dock
+reads every point in its own window (`window_point`), so a press that began in another layer
+(a bar floating over an edge escapes into one of its own) still steers it. Each move
+resolves where it would land as if it were let go there: the outer band of the pane
+(through any band already beside that edge) docks it beside that edge, the next band in, or
+any bar already floating there, floats it over it, at the start, centre or end by which third
+of the edge the pointer is over, or, docking, at the alignment of the bars on the band the
+pointer is over; further in it would land nowhere while it moves, and let go there at rest it
+floats over the pane's nearest edge, at the third the pointer is over; away from the pane it
+pops out where it is let go. The layout shows that landing place as if
+the bar were already there (a preview `DockState` with the bar placed, which `bars_at`, the
+bands and the bar windows read while a bar is lifted): its slot holds a gap of the bar's
+size that grows open over `GAP_SECONDS` (eased) while the gap it leaves closes up, so bars
+in that run slide aside, and a band that had no bars grows open from nothing, the panes and the
+windows' area giving it room as it does, and closes again when the bar is pulled away. While it
+would dock, the lifted bar's `DockBarControl::placement()` is that landing place, so its body
+turns to lie along that edge and its `DockBarSurface` takes the band's fill, and it is held
+in the band across the edge while it follows the pointer along it. At a placement that
+already holds bars the slot is chosen among its own layer's bars by where the pointer is
+against their middles (across the edge for floating bars, along it for docked ones). Let
+go while moving (the pointer's recent `Velocity`, the tracker scrolls use, at `THROW_SPEED` or
+more), it is thrown: it floats over the edge of the pane its path runs into, at the third of
+that edge where it would cross it, and a throw never docks it; docking takes letting go at rest
+near an edge. The placement is saved at once, and the bar springs from
+where it was let go into its gap (a softer `Spring`, starting at the pointer's velocity), then
+drops back into its place in the layout. Under `Motion::Instant` it is wherever the pointer is
+and in its place the moment it is let go. A bar popped out by being dropped away from the pane
+opens its window where it was let go, with no spring. The bars floating over an edge are kept clear together
+(`keep_clear` on their list). The menu docks a popped-out bar again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
-its menu when clicked or pressed with Enter (its rows are `grip.dock.bar.` and
+its menu when clicked or pressed with Enter, never on the release of a press that
+dragged it, wherever the drag went (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
-submenu `grip.dock.bar.over.ends` the ends of each edge, `over.top.left`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
+`over.top.left`, `beside.bottom.right`; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
 joins another is declared up to it (`DockDeclaration::bars`) and drawn by it. A
 platform that builds a joined bar's body itself provides
 `DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
-apart): its reads follow the hosted state, and `place`, `pop_out` and
-`begin_move` become `DockRequest::PlaceBar` and `DockRequest::MoveBar` (a
-`DockBarMove`: the pointer in the body's own coordinates and a
+apart): its reads follow the hosted state, and `place`, `pop_out`, `hide`, `show` and
+`begin_move` become `DockRequest::PlaceBar`, `DockRequest::HideBar` and `DockRequest::MoveBar` (a
+`DockBarMove`: the pointer in the body's own coordinates as they were when the press began,
+through `to_host` of the body's window then and now, and a
 `DockDragStage`), which the root's `Docking` carries as if its own grip were
-dragged, a popped-out bar from where its window is in the dock. A press held in
+dragged, from where the body was when the carry began (a popped-out bar from where its window
+is in the dock), so a body that moves under the pointer while the messages are on their way
+does not run away from it. A press held in
 one window that the pointer carries over another of the same program reports
 its position in that other window (`PointerPress::window`); `begin_move` turns
 it back into the bar's own window with `window_point(pos, from, to)`, which maps
-a point between windows through their layer spaces, so the move stays in the
+a point between windows through their layer spaces (`to_host(window)`), so the move stays in the
 body's points wherever the pointer goes; such a handle calls `end_move` when its press ends, which drops the
 bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
 asks the root the same way.
+
+A `DockBar` declared without a `parent` belongs to the dock itself (`DockState::bars_of(None)`,
+`is_dock_bar`): `<DockBar id placement>body</DockBar>`. It shows whichever tab is
+shown (`is_bar_shown` is always true for it; `bar_tab` is none) and wraps the whole dock
+rather than a pane: `Beside(edge, align)` sits in a band along that edge of the dock that every pane and
+the area floating dock windows live in give up room for (the dock's `rect`, which windows
+open in and are clamped to, is what is left; a fullscreen tab and the stacked/tiled switch
+still use the dock's whole rect), `Over(edge, align)` floats over the whole dock's edge
+above its floating windows, and `Window` pops out as any bar's does (in a stacked dock it
+floats over the dock's edge). Each run of dock bars floating over one place is a layer of
+its own, `Pass` and anchored `Placement::Over` (so in a plugin it escapes its frame and
+draws over the host's windows too), at `LayerLevel::Raised` like every popped-out bar's
+window, so floating dock windows pass under them while menus and modals open over them;
+while a fullscreen tab is in front they drop to `Normal` and it covers them (unless the
+tab is fullscreen over an area clear of the dock, such as another display), as they do while the owner
+says something outside the dock covers it (`DockingLayout::set_covered`). Where each run
+floating over the dock's edges is shown is `DockingLayout::over_bars_rect(edge, align)`, in the
+dock's coordinates, so its owner can keep things such as toasts clear of it. A tab's bars
+floating over its pane stay in that pane, under the windows that cover it. Floating dock
+windows (in a dock that draws its own) never cover a band: on an edge with a dock band
+beside it a window is kept wholly inside the area the bands leave, shrinking to fit, as it
+is on the dock's top and left; on an edge without one it may hang past the dock as far as
+its title strip and its left 96 points stay in view, the rule block-app's
+`desktop::reachable` keeps for windows it shows itself. Its drag targets, its slot among the dock's other bars and
+its menu are the same as a tab's bar's, measured against the dock; the dock's bars lie
+outside every pane's bars. They are saved in `DockState` with the rest. A `Docking` that
+joins another declares its own dock bars up with no owner (`DockDeclaredBar::owner` is
+`None`) and the root gives them to the tab hosting it, so they behave as that tab's bars
+(lent to the joined dock's first pane); the joined dock sees them as its own again
+(`subtree`/`graft` map the host to none). A dock that only declares its bars up
+(`DockHostSlot::bars`) keeps its dock bars and draws them itself, so a plugin whose dock is
+the root (the desktop's) draws its own. Across the plugin protocol a docked plugin's dock bars
+cross with no `owner` too (block-plugin-api PROTOCOL.md, "Docks cross plugins").
 
 A dock that joins none (the root, or a standalone dock) places bars by key: a
 bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it
@@ -3521,9 +3685,11 @@ focused field into what is left, through every scroll it sits in.
 `beui_host::native::run` takes only the app; both load wgpu, and
 `beui_host::native::run_with_device` takes the `beui_host::native::OpenDevice` to open wgpu's device
 with instead (block-app's opens its device itself, to import Wayland clients' buffers), and
-`beui_host::native::run_on` runs on a platform of the caller's choosing, such as
-`beui_platform_drm::Drm`, which drives the displays and input devices itself, or
-`beui_host::native::Headless`, which draws offscreen with no window or display server. The rest of
+`beui_host::native::run_with_platforms` also offers platforms of the caller's choosing, such as
+`beui_platform_drm::Drm`, which drives the displays and input devices itself, for `BEUI_PLATFORM`
+to pick by name (`beui_runner::environment::choose` takes every name a program offers; the first,
+the native one, is the default), beside `beui_host::native::Headless`, which draws offscreen with no
+window or display server. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -3663,7 +3829,9 @@ hosted window, as a dock does when one of its windows takes the focus, so the ho
 stacks its windows as the document does; the host keeps the windows opened over it,
 its dialogs and popups, in front of it; the document sends a frame's requests for windows already open
 before the `Open`s of new ones, so a window opened in that frame ends up in front), `Resize { window, size }` (the app wants another size; the
-host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
+host answers with the size it gives), `Close(window)` and `Place { window, placement }` (move an open
+window, keeping its size, to where the placement says, as `Open` would have put it;
+`WindowHandle::place`; hosts that have nowhere to put it, a space, ignore it). A `WindowPlacement` is `AtPointer`,
 `Over { window, at }` (its top-left corner at `at` in that window's points, where
 the app would draw it inside that window), or `Host(HostPlacement)`: a value only the host
 understands (a screen position, a 3D pose), which the app stores and hands
@@ -3674,7 +3842,11 @@ space all the host's windows share, as beui-platform-drm's desktop is), `Closed(
 window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
 lays out, and `Context::window_size`, `Context::window_placement` and
-`Context::window_origin` read them. `Context::window_hosting` says which windows a host opens, as a
+`Context::window_origin` read them (`beui::window::window_origin` in a component). The other way,
+`beui::set_work_area(window, area)` keeps on the document the part of a window its windows
+should stay in (`Document::work_area`); a root `Docking` whose windows the host opens sets it to its
+area inside its dock-level bands, and the plugin platform reports it to the host as the view's
+`work-area`. `Context::window_hosting` says which windows a host opens, as a
 `WindowHosting`: `None` (every platform on its own: a window is shown inside
 the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
@@ -3795,7 +3967,7 @@ What a host is told about one window is asked of the document by window:
 cover the overlays opened in it (`overlay_rects` where they take input, scrims
 included; `overlay_painted_rects` only what they paint: their content, and a scrim
 that dims unless the host draws scrims; `overlay_scrims` the scrims that dim, each
-with its colour). Where `Context::hosts_scrims` (set by the plugin platform), the
+a `Scrim` with its colour and corner radius). Where `Context::hosts_scrims` (set by the plugin platform), the
 document paints no scrim at all and its host draws `overlay_scrims` between what it
 shows under the window and the overlays' content, so a host's own children under a
 dimming overlay are dimmed with the rest rather than hidden; `drawing_rects(window)`,
@@ -3870,7 +4042,7 @@ plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_runner::Layer` is middleware between a platform and the app's
 runner. `Launch::layers` is the stack, the layer nearest the platform first;
-the native run functions (`beui_host::native::run_with`, `run_on`) build it from
+the native run functions (`beui_host::native::run_with`, `run_with_platforms`) build it from
 `BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui-host/src/runner.rs`).
 Input goes up the stack, from the platform through each layer to the app, and
 the app's output and its calls on the platform go down it. Every hook has a
@@ -4557,7 +4729,7 @@ it, and all its 3D (`glam`) stays in the crate.
 ### The on-screen keyboard
 
 beui has an on-screen keyboard of its own, modelled on Android's Unexpected
-Keyboard, for a screen with no keyboard attached (`block-app --session` on a
+Keyboard, for a screen with no keyboard attached (a login session on a
 tablet) and for anything a person wants to type with a pointer. Each key types
 its middle when tapped and what its corners show when dragged toward them; a
 few keys also take the four straight directions (the arrows on Compose, the
@@ -4637,7 +4809,7 @@ until it is closed; otherwise the platform answers the change in
 `Platform::show_window`: Android shows or hides its keyboard, the web focuses
 or blurs its hidden textarea, and a plugin passes it to its host as
 `WindowRequests::keyboard_toggles`, where block-app toggles its own. The
-desktop bar's keyboard button, the inspector's Sim tab button and the mouse
+desktop's Quick settings Keyboard tile, the inspector's Sim tab button and the mouse
 simulation's keyboard button all call it. While the platform reports that no keyboard is attached
 (`WindowReports::keyboard_attached`, which only `beui-platform-drm` sends, from
 libinput devices that have an A key; every other platform counts as attached,
@@ -5102,7 +5274,11 @@ in. A node with something to report queues it with
 laid out with `Document::invalidate_after_layout`. The reports run together in
 one entry; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
-never painted from a layout the tree no longer has. A frame lays out at most
+never painted from a layout the tree no longer has. Nodes whose scopes ended
+during a layout, its reports or `on_laid_out` leave the tree as soon as that
+step returns, before the next layout, and what leaving changes (the focus
+moving off a removed node, say) is laid out again in the same frame; only what
+the walk itself changes counts as laid out. A frame lays out at most
 eight times: when the reports after the seventh still change something, the
 eighth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
@@ -5400,7 +5576,13 @@ is taken). `gestures::autoscroll` grabs while it scrolls.
 
 Hover is the path under the mouse, worked out again every frame, so a catcher
 hears `on_hover_change` when it joins or leaves the path whether the pointer
-moved or the layout did. The cursor is the innermost armed catcher's, else the
+moved or the layout did. `on_pointed_change` is the stricter state, as a platform's
+menus and lists have it: a catcher is pointed once the pointer moves while it is on
+the path, so one that only scrolled or was laid out under a resting pointer is
+hovered but not pointed until the pointer moves. A list whose highlight follows the
+pointer (`SearchList`, and menus, whose `MenuRowHandle` carries `pointed`)
+follows `ButtonHandle::pointed`, so keys walking it under a resting pointer keep
+the highlight; other hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned whose `on_wheel` takes it, unless
 a forwarding catcher comes first (one with `forwards_wheel=false`, such as the
@@ -5530,7 +5712,7 @@ lists, `Regular` for settings (whose label wraps), `Large` for a picker with
 fills with `AccentSoft`, and with `AccentSoftHover` while the pointer is
 over it, so it stays visibly selected under the pointer. `ListRow` (selection
 and activation), `ActionRow` (an action, `Touch`), `SettingsLink` (a page of
-settings, with a chevron), the menu sheet's rows and the launcher's rows are all
+settings, with a chevron), the menu sheet's rows and the command palette's and search list's rows are all
 built on it.
 
 A pick among pictures is a row of `TileButton`s: a square tile (`size`, `Xl` by
@@ -5579,7 +5761,11 @@ resolve their tokens into a base `Text`'s `font` and `color`:
   returns a `TextColor`.
 - `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
   `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
-  (muted). A prop given beside a preset wins over it.
+  (muted). A prop given beside a preset wins over it. `TITLE` and `HEADING`
+  are headings, levels 1 and 2 (`TextStyle::heading(level)` makes any style
+  one): the text is an accessibility `Heading` on both cores, `role="heading"`
+  with `aria-level` on HTML. Unlike the rest of a style, a heading level is
+  not inherited from a `TextStyleProvider`.
 - `overflow`, as on the base `Text`: text wraps unless told otherwise, so a
   paragraph needs nothing, and a one-line label (a button's, a row's, a
   title in a bar) takes `overflow=Overflow::Ellipsis`.
@@ -5737,7 +5923,9 @@ offset and corrects by its drift, snaps to the end, and reveals), `rows`
 `data-beui-spacer` elements that anchoring skips), `canvas` (an inner element
 translated to the view's origin, with `--beui-scale` scaling item positions and
 `scales` items), `overlay` (a `<dialog>`: `showModal()` for `BlocksAll`, else
-`popover="manual"`; CSS anchor positioning, measured with `resolve_rect` where
+`popover="manual"`, whose `::backdrop` lets the pointer through; a `BlocksAll`
+dialog inside an open `BlocksAll` one, a submenu, is such a popover too, so the
+menu beneath it stays reachable as natively; CSS anchor positioning, measured with `resolve_rect` where
 unsupported; scrim on `::backdrop`; Escape, outside presses and focus traps),
 `portal`, and `text` (`Text`: a `div` with `white-space: pre-wrap` and a
 default `line-height` of 1.15, as native's; it keeps the order of its children
@@ -6017,12 +6205,10 @@ supports key presses, text, hover, pointer clicks, and touch gestures. See the
 From the workspace root, use:
 
 ```text
-./scripts/buck run //:check
 ./scripts/verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/verify`
-is the full check, and CI runs it on a pull request and pushes whatever it changes to
+`./scripts/verify` compiles the whole workspace and is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a

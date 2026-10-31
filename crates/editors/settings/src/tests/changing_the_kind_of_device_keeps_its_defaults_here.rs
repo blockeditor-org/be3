@@ -22,7 +22,8 @@ fn changing_the_kind_of_device_keeps_its_defaults_here() {
     assert_eq!(setup.profile().class, Some(DeviceClass::Tablet));
     assert_eq!(
         setup.here(),
-        DisplaySettings::default(),
-        "the defaults the old kind kept go with it"
+        DeviceClass::Tablet.display_settings(),
+        "the defaults the old kind kept go with it, and the new kind's take their place"
     );
+    assert!(setup.here().keyboard_in_bar() && setup.here().rotate_in_bar());
 }

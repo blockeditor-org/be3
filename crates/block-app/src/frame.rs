@@ -43,6 +43,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
     be_types_host::hold_clock(context.clock_stopped().then(|| context.now()));
     let mut frame = Frame {
         now: Some(context.now()),
+        wall: Some(beui::reactive::wall_clock()),
         seen: context.seen(),
         clock_stopped: context.clock_stopped(),
         ..Frame::default()

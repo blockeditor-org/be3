@@ -5,7 +5,7 @@ use block_editor_beui::beui::styled::*;
 
 use super::panel::Info;
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, ItemSize, Overflow};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;
@@ -48,12 +48,20 @@ pub(crate) fn DeletedBar(
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={"workspace.deleted"}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text size=TextSize::Xs align=TextAlign::Center>
-                        <Icon glyph=ICON_TRASH />
-                    </Text>
-                    <Text>"Deleted block"</Text>
-                    <Text style=TextStyle::CAPTION>{caption}</Text>
+                <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text size=TextSize::Xs align=TextAlign::Center>
+                            <Icon glyph=ICON_TRASH />
+                        </Text>
+                        <Text>"Deleted block"</Text>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            style=TextStyle::CAPTION
+                            overflow=Overflow::Ellipsis
+                        >
+                            {caption}
+                        </Text>
+                    </List>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"
@@ -66,7 +74,6 @@ pub(crate) fn DeletedBar(
                             }
                         }}
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
             </Frame>
         </Show>

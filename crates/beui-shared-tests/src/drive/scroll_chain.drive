@@ -1,6 +1,7 @@
 # A wheel gesture that starts with the inner scroll able to move scrolls only
 # it, even past its end; one that starts with it already at its end scrolls
 # the scroll around it, as browsers chain scrolling.
+clock stop
 wait 'value="Outer at the start, inner at the start"'
 wheel '#nest.inner2' 30
 wait 'value="Outer at the start, inner at the end"'

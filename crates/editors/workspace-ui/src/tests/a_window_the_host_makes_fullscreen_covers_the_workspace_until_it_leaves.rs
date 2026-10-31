@@ -6,12 +6,12 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
     let (mut fixture, _) = editor();
     fixture
         .host
-        .set_watched::<WindowsWatch>(&vec![window(3, "Player", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(3, "Videos", None)]);
     fixture.settle();
     let docked = placed_windows(&fixture)[0].1;
 
     let screen = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 600.0));
-    let mut fullscreen = window(3, "Player", None);
+    let mut fullscreen = window(3, "Videos", None);
     fullscreen.fullscreen = Some(screen);
     fixture.host.set_watched::<WindowsWatch>(&vec![fullscreen]);
     fixture.settle();
@@ -37,7 +37,7 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
 
     fixture
         .host
-        .set_watched::<WindowsWatch>(&vec![window(3, "Player", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(3, "Videos", None)]);
     fixture.settle();
     assert_eq!(
         placed_windows(&fixture),

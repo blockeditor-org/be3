@@ -12,6 +12,7 @@ use crate::reactive::owner_scope;
 use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
+use crate::types::Rect;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
 use beui_core::base::overlay::WindowSpec;
@@ -32,7 +33,9 @@ struct Mounted {
 pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
+    bounds: Prop<Option<Rect>>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -65,12 +68,20 @@ pub(crate) fn overlay(
         with_document(|document| document.set_overlay_anchor(overlay, anchor))
     });
     create_binding(move || {
+        let bounds = bounds.get();
+        with_document(|document| document.set_overlay_bounds(overlay, bounds))
+    });
+    create_binding(move || {
         let beak = beak.get();
         with_document(|document| document.set_overlay_beak(overlay, beak))
     });
     create_binding(move || {
         let window = window.get();
         with_document(|document| document.set_overlay_window(overlay, window))
+    });
+    create_binding(move || {
+        let radius = scrim_radius.get();
+        with_document(|document| document.set_overlay_scrim_radius(overlay, radius))
     });
     create_binding(move || {
         let shown_in = shown_in.get();
@@ -110,6 +121,7 @@ pub(crate) fn overlay(
                         });
                         let built = scope.context().run(|| {
                             provide_context(presence);
+                            provide_context(presence.modality());
                             content.call(())
                         });
                         *held = Some(Mounted {

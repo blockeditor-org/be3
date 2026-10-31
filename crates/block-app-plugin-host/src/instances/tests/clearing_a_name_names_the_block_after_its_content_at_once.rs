@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::{BlockContent, LiveEdit};
 use browser_tab_types::{BrowserTabContent, HistoryItem};
 
@@ -21,10 +19,9 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
         block,
         &block_type_guest::editor::FromEditor::Resend,
     );
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
-    })
-    .expect("the new stack never held the tab");
+    });
 
     block_app_stack::set_name(block, Some("Research".to_owned()));
     let shown = block_app_stack::content(block)
@@ -34,12 +31,11 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
         .root()
         .replace(&HistoryItem::new("https://example.com/", "Example Domain"));
     block_app_stack::operate(block, BrowserTabContent::encode_operation(&edit));
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == "Example Domain").then_some(())
-    })
-    .expect("the new stack never took the title");
+    });
     assert_eq!(name_of(block).as_deref(), Some("Research"));
 
     block_app_stack::set_name(block, None);

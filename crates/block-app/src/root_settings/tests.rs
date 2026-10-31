@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use super::*;
 
 mod a_new_profile_takes_this_devices_class_and_its_defaults;

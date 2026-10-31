@@ -1,0 +1,38 @@
+use super::*;
+
+#[test]
+fn a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard() {
+    let mut fixture = Fixture::with_windows(&[1]);
+    assert!(
+        fixture
+            .test
+            .intercepted_keys()
+            .contains(&KeyChord::tap(Key::Logo)),
+        "the desktop asks the host for a tap of Super"
+    );
+
+    assert!(fixture.test.app_tap(Key::Logo));
+    fixture.settle();
+    assert!(fixture.test.shown("desktop.apps.panel"));
+    assert!(fixture.test.wants_keyboard());
+    assert!(matches!(
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::program)[..],
+        [ProgramAction::List { .. }]
+    ));
+
+    assert!(fixture.test.app_tap(Key::Logo));
+    fixture.settle();
+    assert!(
+        !fixture.test.shown("desktop.apps.panel"),
+        "a second tap closes it"
+    );
+
+    fixture.test.key(Key::Logo, Modifiers::NONE);
+    fixture.settle();
+    assert!(
+        fixture.test.shown("desktop.apps.panel"),
+        "a tap the desktop hears itself opens it too"
+    );
+}

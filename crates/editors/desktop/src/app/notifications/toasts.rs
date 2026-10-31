@@ -1,42 +1,21 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Rect, pos2};
+use block_editor_beui::beui::{NodeId, Rect};
 
 use super::{DesktopNotifications, notification};
-
-pub(crate) fn above_bar(screen: Rect, bar: Rect) -> Rect {
-    let covers = bar.is_positive()
-        && bar.left() < screen.right()
-        && bar.right() > screen.left()
-        && bar.top() < screen.bottom()
-        && bar.bottom() > screen.top();
-    match covers {
-        true => Rect::from_min_max(
-            screen.min,
-            pos2(screen.right(), bar.top().max(screen.top())),
-        ),
-        false => screen,
-    }
-}
 
 #[component]
 pub(crate) fn DesktopToasts(
     notifications: DesktopNotifications,
-    bar: NodeRef,
     area: Memo<Rect>,
+    corner: Memo<Edge>,
 ) -> NodeId {
-    let bar = bar.try_get().map(measure);
-    let anchor = create_memo(move || {
-        let bar = bar
-            .as_ref()
-            .and_then(|bar| bar.get())
-            .map_or(Rect::ZERO, |bar| bar.rect);
-        OverlayAnchor::Rect(above_bar(area.get(), bar))
-    });
+    let anchor = create_memo(move || OverlayAnchor::Rect(area.get()));
     let toasts = notifications.toasts();
     view! {
         <Toasts
             anchor={anchor}
+            edge={corner}
             toasts={toasts}
             on_dismiss={move |toast: u64| {
                 if let Some(id) = notification(toast) {

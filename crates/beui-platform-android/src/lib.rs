@@ -853,6 +853,7 @@ fn key(code: jint) -> Option<Key> {
         74 => Key::Semicolon,
         75 => Key::Quote,
         76 | 154 => Key::Slash,
+        82 => Key::ContextMenu,
         92 => Key::PageUp,
         93 => Key::PageDown,
         111 => Key::Escape,

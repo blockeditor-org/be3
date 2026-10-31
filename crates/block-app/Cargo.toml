@@ -80,7 +80,7 @@ block-app-testing = { path = "../block-app-testing" }
 paint-snapshot = { path = "../paint-snapshot" }
 block-ui-test = { path = "../block-ui-test" }
 
-# Linux runs the app as a Wayland compositor, and --session runs it on the
+# Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 block-app-services = { path = "../block-app-services" }

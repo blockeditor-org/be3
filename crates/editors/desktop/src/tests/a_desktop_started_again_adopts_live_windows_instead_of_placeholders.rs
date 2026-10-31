@@ -21,7 +21,7 @@ fn a_desktop_started_again_adopts_live_windows_instead_of_placeholders() {
             "window {id} is back in place"
         );
     }
-    assert!(!again.test.shown("desktop.placeholders.open_all"));
+    assert!(!again.test.shown("desktop.windows.restore"));
 
     let mut late = Fixture::resumed(before.saved());
     assert!(late.placeholder_rect(1).is_some());

@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use block_plugin_api::BlockQuery;
 use counter_types::CounterContent;
 
@@ -11,7 +9,11 @@ enum Sent {
     Blocks,
 }
 
-fn sent_once(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
+fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
+    next_screens(instances);
+    block_app_stack::wait_until(|shared| {
+        (shared.blocks.contains_key(&block) && shared.busy().is_empty()).then_some(())
+    });
     next_screens(instances);
     let mut sent: Vec<Sent> = from_replica(instances, block)
         .into_iter()
@@ -20,15 +22,6 @@ fn sent_once(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
     let listed: Option<Result<Vec<block_plugin_api::BlockInfo>, String>> =
         answered(instances, watch);
     sent.extend(listed.map(|_| Sent::Blocks));
-    sent
-}
-
-fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
-    let mut sent = sent_once(instances, block, watch);
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
-        (shared.blocks.contains_key(&block) && !shared.editor_frames.is_empty()).then_some(())
-    });
-    sent.extend(sent_once(instances, block, watch));
     sent.sort();
     sent
 }

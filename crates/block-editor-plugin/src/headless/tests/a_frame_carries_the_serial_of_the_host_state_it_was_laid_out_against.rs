@@ -69,6 +69,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             },
             windows: false,
             host_place: None,
+            origin: None,
             docked: false,
             anchor_space: None,
         }])

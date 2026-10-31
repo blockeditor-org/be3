@@ -2,35 +2,42 @@ use block_editor_beui::desktop;
 use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
-use block_editor_beui::beui::NodeId;
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MENU, ICON_PLUS, ICON_REFRESH_CW,
+use block_editor_beui::beui::dock::styled::{
+    DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
+    DockingSnapshot, TabId, use_dock_bar,
 };
+use block_editor_beui::beui::dock::unstyled::DockState;
+use block_editor_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
+use block_editor_beui::beui::reactive::toggle_keyboard;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{ItemSize, NodeId, Rect};
 use block_editor_beui::{
-    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, WindowsWatch, utc_offset,
+    DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
 };
-use block_shell::Workspace;
+use block_shell::{SHELL_BARS, Workspace};
 
-use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
-use super::launcher::ProgramLauncher;
-use super::notifications::{DesktopNotifications, NotificationsButton};
-use super::placeholders::{OpenAllButton, Placeholders};
-use super::popup::BarPopup;
-use super::power::PowerMenu;
+use super::apps::{Apps, AppsButton};
+use super::clock::ClockButton;
+use super::notifications::DesktopNotifications;
 use super::rotate::RotateButton;
-use super::sessions::Sessions;
+use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
-use super::volume::VolumeButton;
-use super::wifi::WifiButton;
-use super::windows::WindowPicker;
-use beui::{Align, Direction, ItemSize};
-use block_editor_beui::beui::reactive::toggle_keyboard;
+use super::windows::{DeskWindows, WindowChips};
+use beui::{Align, Direction};
 
-const BAR_PADDING: Space = Space::Sm;
-const BAR_SPACING: Space = Space::Md;
+pub(crate) const APPS_PLACE: DockBarPlacement =
+    DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start);
+pub(crate) const WINDOWS_PLACE: DockBarPlacement =
+    DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center);
+pub(crate) const STATUS_PLACE: DockBarPlacement =
+    DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End);
+const PLACES: [DockBarPlacement; 3] = [APPS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
+const DISPLAY_BARS: &str = "display-bars";
+
+const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
 const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
@@ -41,9 +48,7 @@ pub(crate) fn local_minutes(unix: Duration) -> u32 {
 }
 
 fn wall_clock() -> ReadSignal<String> {
-    let started = block_editor_beui::wall_clock();
-    let anchor = now();
-    let unix = move || started + now().saturating_duration_since(anchor);
+    let unix = block_editor_beui::wall_clock;
     let shown = move || Time::from_minutes(local_minutes(unix())).format(HourCycle::H24);
     let until_next_minute = move || {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;
@@ -58,28 +63,205 @@ fn wall_clock() -> ReadSignal<String> {
     clock.read_only()
 }
 
-#[component]
-pub(crate) fn DesktopBar(
-    workspace: Workspace,
-    notifications: DesktopNotifications,
-    launcher: ProgramLauncher,
-    placeholders: Placeholders,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Bars {
+    pub(crate) apps: TabId,
+    pub(crate) windows: TabId,
+    pub(crate) status: TabId,
+}
+
+impl Bars {
+    pub(crate) const fn of(display: u32) -> Self {
+        let first = SHELL_BARS + 3 * display as u64;
+        Self {
+            apps: TabId::new(first),
+            windows: TabId::new(first + 1),
+            status: TabId::new(first + 2),
+        }
+    }
+
+    pub(crate) fn all(self) -> [TabId; 3] {
+        [self.apps, self.windows, self.status]
+    }
+}
+
+pub(crate) fn display_layout(
+    editor: Editor,
+    first: DockingLayout<TabId>,
     display: u32,
-) -> NodeId {
-    let clock = wall_clock();
-    let editor = workspace.editor();
+) -> DockingLayout<TabId> {
+    let layout = DockingLayout::new();
+    let saved = untrack(|| saved_bars(editor))
+        .into_iter()
+        .find(|(held, _)| *held == display)
+        .map(|(_, snapshot)| snapshot);
+    let snapshot = saved.unwrap_or_else(|| untrack(|| like_the_first(first, display)));
+    layout.restore(snapshot);
+    create_effect(move || {
+        let snapshot = layout.snapshot();
+        untrack(|| save_bars(editor, display, snapshot));
+    });
+    layout
+}
+
+fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<TabId> {
+    let mut state = DockState::default();
+    let bars = Bars::of(display).all();
+    for ((bar, from), placement) in bars.into_iter().zip(Bars::of(0).all()).zip(PLACES) {
+        state.add_bar(bar, None, first.bar_placement(&from).unwrap_or(placement));
+        state.set_bar_hidden(bar, first.is_bar_hidden(&from));
+    }
+    DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
+}
+
+fn saved_bars(editor: Editor) -> Vec<(u32, DockingSnapshot<TabId>)> {
+    editor
+        .view_state(DISPLAY_BARS)
+        .and_then(|state| state.value::<Vec<(u32, DockingSnapshot<TabId>)>>())
+        .unwrap_or_default()
+}
+
+fn save_bars(editor: Editor, display: u32, snapshot: DockingSnapshot<TabId>) {
+    let mut saved = saved_bars(editor);
+    match saved.iter_mut().find(|(held, _)| *held == display) {
+        Some((_, held)) if *held == snapshot => return,
+        Some((_, held)) => *held = snapshot,
+        None => saved.push((display, snapshot)),
+    }
+    saved.sort_by_key(|(held, _)| *held);
+    editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BarArea(pub(crate) Memo<Rect>);
+
+pub(crate) fn bar_bounds() -> Memo<Option<Rect>> {
+    let bar = use_dock_bar();
+    let area = use_context::<BarArea>();
+    create_memo(move || match (bar, area) {
+        (Some(bar), Some(BarArea(area))) if !bar.placement().is_window() => Some(area.get()),
+        _ => None,
+    })
+}
+
+pub(crate) fn bar_direction() -> Memo<Direction> {
+    let bar = use_dock_bar();
+    create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()))
+}
+
+pub(crate) fn toast_corner(placement: Option<DockBarPlacement>) -> Edge {
+    let Some(placement) = placement.filter(|placement| !placement.is_window()) else {
+        return Edge::BottomEnd;
+    };
+    match (placement.edge(), placement.align()) {
+        (DockEdge::Top | DockEdge::Left, DockAlign::Start) => Edge::TopStart,
+        (DockEdge::Top, DockAlign::Center) => Edge::Top,
+        (DockEdge::Top, DockAlign::End) | (DockEdge::Right, DockAlign::Start) => Edge::TopEnd,
+        (DockEdge::Bottom, DockAlign::Start) | (DockEdge::Left, _) => Edge::BottomStart,
+        (DockEdge::Bottom, DockAlign::Center) => Edge::Bottom,
+        (DockEdge::Bottom, DockAlign::End) | (DockEdge::Right, _) => Edge::BottomEnd,
+    }
+}
+
+pub(crate) fn clear_of_status(
+    layout: DockingLayout<TabId>,
+    status: Option<DockBarPlacement>,
+    area: Rect,
+) -> Rect {
+    let Some(DockBarPlacement::Over(edge, align)) = status else {
+        return area;
+    };
+    let Some(over) = layout.over_bars_rect(edge, align) else {
+        return area;
+    };
+    let mut clear = area;
+    match edge {
+        DockEdge::Top => clear.min.y = clear.min.y.max(over.bottom()),
+        DockEdge::Bottom => clear.max.y = clear.max.y.min(over.top()),
+        DockEdge::Left => clear.min.x = clear.min.x.max(over.right()),
+        DockEdge::Right => clear.max.x = clear.max.x.min(over.left()),
+    }
+    match clear.is_positive() {
+        true => clear,
+        false => area,
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Shell {
+    pub(crate) workspace: Workspace,
+    pub(crate) notifications: DesktopNotifications,
+    pub(crate) apps: Apps,
+    pub(crate) windows: DeskWindows,
+    pub(crate) clock: ReadSignal<String>,
+}
+
+impl Shell {
+    pub(crate) fn new(
+        workspace: Workspace,
+        notifications: DesktopNotifications,
+        apps: Apps,
+        windows: DeskWindows,
+    ) -> Self {
+        Self {
+            workspace,
+            notifications,
+            apps,
+            windows,
+            clock: wall_clock(),
+        }
+    }
+}
+
+#[component]
+pub(crate) fn AppsBar(shell: Shell, display: u32, layout: DockingLayout<TabId>) -> NodeId {
+    let bar = use_dock_bar();
+    let shown = create_memo(move || bar.is_none_or(|bar| !bar.is_hidden()));
+    view! {
+        <DockBarSurface @test_id={"desktop.bar.apps"}>
+            <DockBarGrip bounds={bar_bounds()} />
+            <Show condition={shown}>
+                <AppsButton apps={shell.apps} display layout />
+            </Show>
+        </DockBarSurface>
+    }
+}
+
+#[component]
+pub(crate) fn WindowsBar(shell: Shell, display: u32) -> NodeId {
+    let direction = bar_direction();
+    view! {
+        <DockBarSurface @test_id={"desktop.bar.windows"}>
+            <DockBarGrip bounds={bar_bounds()} />
+            <WindowChips
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                windows={shell.windows}
+                direction
+                display
+            />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+pub(crate) fn StatusBar(shell: Shell, display: u32) -> NodeId {
+    view! {
+        <DockBarSurface @test_id={"desktop.bar.status"}>
+            <DockBarGrip bounds={bar_bounds()} />
+            <StatusItems shell display />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+fn StatusItems(shell: Shell, display: u32) -> NodeId {
+    let direction = bar_direction();
+    let editor = shell.workspace.editor();
     let levels = editor.watch::<MediaWatch>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let wifi = editor.watch::<WifiWatch>();
     let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
-    let kept = placeholders.keys;
-    let launches = placeholders.launchable;
-    let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
-    let launchable = launcher.offered;
-    let launcher = move || launcher.show(true);
-    let notified = notifications.offered;
     let powered = editor.offered::<PowerWatch>();
-    let windowed = editor.offered::<WindowsWatch>();
     let epaper = editor.watch::<EpaperWatch>();
     let refresh = move || editor.act(desktop::epaper::refresh);
     let displays = editor.watch::<DisplaysWatch>();
@@ -89,131 +271,52 @@ pub(crate) fn DesktopBar(
     let rotatable = create_memo(move || {
         display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
     });
-    let menu_button = NodeRef::new();
-    let menu = move || editor.show_app_menu(menu_button);
-    let sessions = Sessions::new(workspace);
-    let listed = sessions.listed;
-    let keys = create_memo(move || {
-        listed.with(|sessions| {
-            sessions
-                .iter()
-                .map(|session| session.block)
-                .collect::<Vec<_>>()
-        })
-    });
-    let settings = sessions.settings;
-    let unready = create_memo(move || settings.get().is_none());
-    let listing = create_memo(move || !listed.with(Vec::is_empty));
-    let chose = move |path: Vec<usize>| {
-        let chosen = path
-            .first()
-            .and_then(|index| listed.with_untracked(|sessions| sessions.get(*index).cloned()));
-        if let Some(session) = chosen {
-            sessions.open(session.block);
-        }
+    let keyboard = create_memo(move || display_settings.with(DisplaySettings::keyboard_in_bar));
+    let status = Status {
+        editor,
+        wifi,
+        wireless,
+        levels,
+        audible,
+        powered,
+        epaper,
+        screen,
     };
     view! {
-        <List spacing=Space::None>
-            <Separator />
-            <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Button
-                        icon_only=true
-                        @node_ref={&menu_button}
-                        glyph=ICON_MENU
-                        label="Menu"
-                        @test_id={"desktop.menu"}
-                        on_click={menu}
-                    />
-                    <Show condition={launchable}>
-                        <Button
-                            icon_only=true
-                            glyph=ICON_LAYOUT_GRID
-                            label="Programs"
-                            @test_id={"desktop.launcher"}
-                            on_click={launcher}
-                        />
-                    </Show>
-                    <MenuButton
-                        label="Sessions"
-                        glyph=ICON_BOXES
-                        disabled={unready}
-                        @test_id={"desktop.sessions"}
-                        items={view! {
-                            <ForEach keys={keys}>|block: uuid::Uuid| {
-                                let label = create_memo(move || {
-                                    listed.with(|sessions| {
-                                        sessions
-                                            .iter()
-                                            .find(|session| session.block == block)
-                                            .map(|session| session.name.clone())
-                                            .unwrap_or_default()
-                                    })
-                                });
-                                view! {
-                                    <MenuItem label />
-                                }
-                            }</ForEach>
-                            <MenuItem
-                                row_test_id={"desktop.sessions.new".to_owned()}
-                                label="New session"
-                                glyph=ICON_PLUS
-                                separated={listing}
-                                on_click={move || sessions.create()}
-                            />
-                        }}
-                        on_select={chose}
-                    />
-                    <Show condition={windowed}>
-                        <WindowPicker workspace />
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Show condition={waiting}>
-                        <OpenAllButton placeholders />
-                    </Show>
-                    <TrayItems editor={editor} />
-                    <Show condition={wireless}>
-                        <WifiButton editor={editor} status={wifi} />
-                    </Show>
-                    <Show condition={audible}>
-                        <VolumeButton editor={editor} levels={levels} />
-                    </Show>
-                    <Show condition={notified}>
-                        <NotificationsButton notifications />
-                    </Show>
-                    <Show condition={epaper}>
-                        <Button
-                            icon_only=true
-                            glyph=ICON_REFRESH_CW
-                            label="Refresh the screen"
-                            @test_id={"desktop.refresh"}
-                            press_focus=false
-                            on_click={refresh}
-                        />
-                    </Show>
-                    <Show condition={rotatable}>
-                        <RotateButton editor={editor} display={screen} />
-                    </Show>
-                    <Button
-                        icon_only=true
-                        glyph=ICON_KEYBOARD
-                        label="On-screen keyboard"
-                        @test_id={"desktop.keyboard"}
-                        press_focus=false
-                        on_click={toggle_keyboard}
-                    />
-                    <BarPopup
-                        label={clock}
-                        width={Size::Custom(CALENDAR_WIDTH)}
-                        @test_id={"desktop.clock"}
-                    >|_: PopoverHandle|
-                        <DesktopCalendar editor={editor} />
-                    </BarPopup>
-                    <Show condition={powered}>
-                        <PowerMenu editor={editor} />
-                    </Show>
-                </List>
-            </Frame>
+        <List direction align=Align::Center spacing=STATUS_SPACING>
+            <TrayItems editor={editor} direction />
+            <Show condition={keyboard}>
+                <Button
+                    icon_only=true
+                    glyph=ICON_KEYBOARD
+                    label="On-screen keyboard"
+                    variant=ButtonVariant::Ghost
+                    @test_id={"desktop.keyboard"}
+                    press_focus=false
+                    on_click={toggle_keyboard}
+                />
+            </Show>
+            <Show condition={rotatable}>
+                <RotateButton editor={editor} display={screen} />
+            </Show>
+            <Show condition={epaper}>
+                <Button
+                    icon_only=true
+                    glyph=ICON_REFRESH_CW
+                    label="Refresh the screen"
+                    variant=ButtonVariant::Ghost
+                    @test_id={"desktop.refresh"}
+                    press_focus=false
+                    on_click={refresh}
+                />
+            </Show>
+            <StatusButton status direction />
+            <ClockButton
+                editor={editor}
+                notifications={shell.notifications}
+                clock={shell.clock}
+                direction
+            />
         </List>
     }
 }

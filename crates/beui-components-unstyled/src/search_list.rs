@@ -14,7 +14,7 @@ use beui_view::types::{Key, KeyPress};
 use crate::button::{Button, ButtonHandle};
 use crate::scroll::{Scroll, ScrollbarStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
-use beui_view::types::ItemSize;
+use beui_view::types::{ItemSize, Track};
 
 const EXACT: u32 = 100;
 const PREFIX: u32 = 90;
@@ -37,8 +37,10 @@ struct State<K: 'static> {
     shown: Memo<Vec<K>>,
     enabled: Func<K, bool>,
     highlighted: Signal<Option<K>>,
+    quiet: Stored<RefCell<Option<K>>>,
     rows: Stored<RefCell<HashMap<K, NodeRef>>>,
     page: usize,
+    columns: Memo<usize>,
     on_choose: Callback<K>,
 }
 
@@ -66,6 +68,23 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
         }
     }
 
+    fn highlight_quietly(&self, key: Option<K>) {
+        if self.highlighted.get_untracked() != key {
+            *self.quiet.value().borrow_mut() = key.clone();
+            self.highlighted.set(key);
+        }
+    }
+
+    fn reveal(&self, key: &K) {
+        let row = self.rows.try_value().and_then(|rows| {
+            let rows = rows.borrow();
+            rows.get(key).and_then(NodeRef::try_get)
+        });
+        if let Some(row) = row {
+            row.reveal();
+        }
+    }
+
     fn submit(&self) {
         if let Some(key) = self.highlighted.get_untracked() {
             self.choose(key);
@@ -76,10 +95,13 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
         if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let moves = matches!(
-            press.key,
-            Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp | Key::Home | Key::End
-        );
+        let columns = self.columns.get_untracked().max(1);
+        let sideways = columns > 1 && matches!(press.key, Key::ArrowLeft | Key::ArrowRight);
+        let moves = sideways
+            || matches!(
+                press.key,
+                Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp | Key::Home | Key::End
+            );
         let choosable = self.choosable();
         if !moves || choosable.is_empty() {
             return moves;
@@ -89,15 +111,20 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
             .get_untracked()
             .and_then(|key| choosable.iter().position(|other| *other == key));
         let last = choosable.len() - 1;
+        let page = self.page * columns;
         let next = match press.key {
-            Key::ArrowDown => at.map_or(0, |at| (at + 1).min(last)),
-            Key::ArrowUp => at.map_or(0, |at| at.saturating_sub(1)),
-            Key::PageDown => at.map_or(0, |at| (at + self.page).min(last)),
-            Key::PageUp => at.map_or(0, |at| at.saturating_sub(self.page)),
+            Key::ArrowRight => at.map_or(0, |at| (at + 1).min(last)),
+            Key::ArrowLeft => at.map_or(0, |at| at.saturating_sub(1)),
+            Key::ArrowDown => at.map_or(0, |at| (at + columns).min(last)),
+            Key::ArrowUp => at.map_or(0, |at| at.saturating_sub(columns)),
+            Key::PageDown => at.map_or(0, |at| (at + page).min(last)),
+            Key::PageUp => at.map_or(0, |at| at.saturating_sub(page)),
             Key::Home => 0,
             _ => last,
         };
-        self.highlighted.set(Some(choosable[next].clone()));
+        let key = choosable[next].clone();
+        self.highlight_quietly(Some(key.clone()));
+        self.reveal(&key);
         true
     }
 }
@@ -111,6 +138,7 @@ pub fn SearchList<K>(
     #[prop(default = None)] enabled: Option<Func<K, bool>>,
     #[prop(default = true)] highlight_first: bool,
     #[prop(default = 8)] page: usize,
+    #[prop(default = 1)] columns: Prop<usize>,
     on_choose: Callback<K>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
@@ -133,13 +161,18 @@ where
         let query = query.get();
         rank.call(query)
     });
+    let columns = create_memo(move || columns.get().max(1));
+    let gridded = create_memo(move || columns.get() > 1);
+    let listed = create_memo(move || !gridded.get());
     let state = State {
         search: NodeRef::new(),
         shown,
         enabled,
         highlighted,
+        quiet: store(RefCell::default()),
         rows: store(RefCell::default()),
         page,
+        columns,
         on_choose,
     };
     api.fill(SearchListApi(state));
@@ -157,18 +190,13 @@ where
                 return;
             }
             let first = shown.iter().find(|key| choosable(key)).cloned();
-            if current != first {
-                highlighted.set(first);
-            }
+            state.highlight_quietly(first);
         });
     });
 
     let highlight = create_selector(move || highlighted.get());
-    let reveal = create_memo(move || {
-        let highlighted = highlighted.get()?;
-        shown.with(|shown| shown.iter().position(|key| *key == highlighted))
-    });
-    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+    let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
+    on_scroll_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
         event.press().is_some_and(|press| state.navigate(press))
     });
     let search_accessibility = crate::labelled_node(
@@ -176,7 +204,7 @@ where
         search_accessibility,
         Prop::Static(String::new()),
     );
-    view! {
+    let list = view! {
         <List spacing>
             <TextInput
                 @node_ref={&state.search}
@@ -193,15 +221,33 @@ where
             <Scroll
                 @sizing={list_height.map(|height| ItemSize::Intrinsic.max(height).shrink(1.0))}
                 fit=true
-                reveal
                 scrollbar
             >
-                <ForEach keys={shown}>|key: K|
-                    <SearchRow state key accessibility row highlight />
-                </ForEach>
+                <Show condition={listed}>
+                    <ForEach keys={shown}>|key: K|
+                        <SearchRow state key accessibility row highlight />
+                    </ForEach>
+                </Show>
+                <Show condition={gridded}>
+                    <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
+                        <ForEach keys={shown}>|key: K|
+                            <SearchRow state key accessibility row highlight />
+                        </ForEach>
+                    </Grid>
+                </Show>
             </Scroll>
         </List>
-    }
+    };
+    create_effect(move || {
+        let Some(key) = highlighted.get() else {
+            return;
+        };
+        let quiet = state.quiet.value().borrow_mut().take();
+        if quiet.as_ref() != Some(&key) {
+            untrack(|| state.reveal(&key));
+        }
+    });
+    list
 }
 
 #[component]
@@ -221,7 +267,10 @@ where
         let key = key.clone();
         move || {
             if let Some(rows) = state.rows.try_value() {
-                rows.borrow_mut().remove(&key);
+                let mut rows = rows.borrow_mut();
+                if rows.get(&key) == Some(&button) {
+                    rows.remove(&key);
+                }
             }
         }
     });
@@ -242,11 +291,11 @@ where
             press_focus=false
             on_click={move || state.choose(click_key.clone())}
         >|handle: ButtonHandle| {
-            let hovered = handle.hovered;
+            let (hovered, pointed) = (handle.hovered, handle.pointed);
             let hover_key = hover_key.clone();
             create_effect(move || {
-                if hovered.get() && enabled.get_untracked() {
-                    state.highlighted.set(Some(hover_key.clone()));
+                if pointed.get() && enabled.get_untracked() {
+                    untrack(|| state.highlight_quietly(Some(hover_key.clone())));
                 }
             });
             row.call(SearchRowHandle {

@@ -118,6 +118,7 @@ pub fn hit(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2, touch
                 .is_some_and(|rect| rect.contains_half_open(pos));
             if inside && let Some(content) = layer.content {
                 let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                outside.retain(|overlay| !doc.on_overlay_trigger(*overlay, pos));
                 return settle(doc, index, hit, outside);
             }
             if !layer.blocks_all() {
@@ -495,7 +496,9 @@ fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
         ("wheel", !node.on_wheel.is_empty()),
         (
             "hover",
-            !node.on_hover_change.is_empty() || !node.on_hover_move.is_empty(),
+            !node.on_hover_change.is_empty()
+                || !node.on_hover_move.is_empty()
+                || !node.on_pointed_change.is_empty(),
         ),
         ("forwarded input", node.forwards()),
         ("focus", node.focus.is_some()),

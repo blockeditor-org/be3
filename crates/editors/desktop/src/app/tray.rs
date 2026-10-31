@@ -7,6 +7,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, NodeId, ScrollGesture};
 use block_editor_beui::desktop;
+
+use super::bar::bar_bounds;
 use block_editor_beui::{
     Editor, HostImage, HostTrayItem, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
 };
@@ -43,7 +45,10 @@ fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
 }
 
 #[component]
-pub(crate) fn TrayItems(editor: Editor) -> NodeId {
+pub(crate) fn TrayItems(
+    editor: Editor,
+    #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
+) -> NodeId {
     let listed = editor.watch::<TrayWatch>();
     let keys = create_memo(move || {
         listed.with(|items| {
@@ -55,12 +60,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
         })
     });
     view! {
-        <List
-            direction=Direction::Horizontal
-            align=Align::Center
-            spacing=TRAY_SPACING
-            @test_id={"desktop.tray"}
-        >
+        <List direction align=Align::Center spacing=TRAY_SPACING @test_id={"desktop.tray"}>
             <ForEach keys>|id: String|
                 <TrayButton editor={editor} listed={listed} id />
             </ForEach>
@@ -138,6 +138,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             glyph=ICON_BLOCKS
             click_opens
             secondary_opens={has_menu}
+            bounds={bar_bounds()}
             @test_id={prefix.clone()}
             items={view! {
                 <TrayEntries entries chosen prefix={prefix.clone()} />

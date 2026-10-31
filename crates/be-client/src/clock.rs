@@ -31,6 +31,14 @@ impl Clock {
         Self(Kind::Manual(Arc::default()))
     }
 
+    pub fn same(&self, other: &Clock) -> bool {
+        match (&self.0, &other.0) {
+            (Kind::Real, Kind::Real) => true,
+            (Kind::Manual(one), Kind::Manual(other)) => Arc::ptr_eq(one, other),
+            _ => false,
+        }
+    }
+
     pub fn now(&self) -> Duration {
         match &self.0 {
             Kind::Real => real::now(),

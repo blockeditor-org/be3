@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn closing_a_block_while_the_server_is_silent_holds_up_no_edit() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let closing = Uuid::new_v4();
     let editing = Uuid::new_v4();

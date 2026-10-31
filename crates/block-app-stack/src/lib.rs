@@ -755,17 +755,8 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> bool {
-    with_shared(|shared| {
-        shared.pending > 0
-            || shared.typing
-            || shared.draining
-            || shared.uploading > 0
-            || shared.listing_revisions > 0
-            || shared.owing > 0
-            || shared.graph.fetching()
-    })
-    .unwrap_or_default()
+pub fn busy() -> Vec<&'static str> {
+    with_shared(Shared::busy).unwrap_or_default()
 }
 
 pub fn seal_owed() {
@@ -781,26 +772,19 @@ pub fn backgrounded() {
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub fn wait_for<T>(timeout: std::time::Duration, read: impl Fn(&Shared) -> Option<T>) -> Option<T> {
+pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     let (shared, changed) = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
-        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))?;
-    let deadline = std::time::Instant::now() + timeout;
+        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
+        .expect("the stack is running");
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     loop {
         if let Some(value) = read(&held) {
-            return Some(value);
+            return value;
         }
-        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-        if remaining.is_zero() {
-            return None;
-        }
-        held = changed
-            .wait_timeout(held, remaining)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
+        held = changed.wait(held).unwrap_or_else(PoisonError::into_inner);
     }
 }
 

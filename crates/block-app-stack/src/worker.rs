@@ -368,6 +368,8 @@ pub struct Shared {
     pub connection: Option<Arc<be_client::connection::Connection>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
+    #[cfg(test)]
+    pub parked: Option<Option<Duration>>,
     pub reached: bool,
     pub draining: bool,
     pub error: Option<String>,
@@ -421,6 +423,30 @@ impl Wall {
 impl Shared {
     pub fn touch(&mut self, block: Uuid) {
         self.touched.insert(block);
+    }
+
+    pub fn busy(&self) -> Vec<&'static str> {
+        [
+            (
+                self.pending > 0,
+                "the block store has commands to carry out",
+            ),
+            (self.typing, "a block type module has yet to settle"),
+            (self.draining, "the block store sends sealed edits"),
+            (self.uploading > 0, "the block store uploads files"),
+            (
+                self.listing_revisions > 0,
+                "the block store lists a block's revisions",
+            ),
+            (self.owing > 0, "the block store owes edits a seal"),
+            (
+                self.graph.fetching(),
+                "the block store loads the organization's graph",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(busy, reason)| busy.then_some(reason))
+        .collect()
     }
 }
 
@@ -728,16 +754,19 @@ impl Session<'_> {
                     &mut self.tasks.1,
                     stopping
                 ));
-                match wake_at {
-                    Some(at) => {
-                        let timer = self.config.clock.sleep_until(at);
-                        match select(waited, timer).await {
+                let timer = wake_at.map(|at| self.config.clock.sleep_until(at));
+                let woken = async move {
+                    match timer {
+                        Some(timer) => match select(waited, timer).await {
                             Either::Left((woken, _)) => woken,
                             Either::Right(_) => Woken::Deadline,
-                        }
+                        },
+                        None => waited.await,
                     }
-                    None => waited.await,
-                }
+                };
+                #[cfg(test)]
+                let woken = parked(shared, self.changed, wake_at, woken);
+                woken.await
             };
             let handled = self.replicas.handled;
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
@@ -1210,6 +1239,27 @@ enum Woken {
     Reached(Result<crate::link::Link, ClientError>),
     Nudged,
     Stopped,
+}
+
+#[cfg(test)]
+async fn parked<T>(
+    shared: &Mutex<Shared>,
+    changed: &Condvar,
+    armed: Option<Duration>,
+    woken: impl std::future::Future<Output = T>,
+) -> T {
+    let mut woken = std::pin::pin!(woken);
+    let woken = std::future::poll_fn(|context| {
+        let polled = woken.as_mut().poll(context);
+        if polled.is_pending() {
+            shared.lock().unwrap_or_else(PoisonError::into_inner).parked = Some(armed);
+            changed.notify_all();
+        }
+        polled
+    })
+    .await;
+    shared.lock().unwrap_or_else(PoisonError::into_inner).parked = None;
+    woken
 }
 
 async fn wait(

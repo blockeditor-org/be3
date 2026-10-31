@@ -48,11 +48,13 @@ use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::types::{CanvasArrangement, Direction, ItemSize};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
+use beui_view::window::{
+    Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
+};
 
-pub(crate) use bars::BarCovers;
-use bars::{BarPanels, DockBarTargets, DockBarWindows, DockBarred};
-pub use bars::{DockBarBandHandle, DockBarControl, DockBarTargetHandle, use_dock_bar};
+pub(crate) use bars::{BarCovers, BarFloats};
+use bars::{BarHolder, BarPanels, DockBarLifted, DockBarWindows, DockBarred, Lifting};
+pub use bars::{DockBarBandHandle, DockBarControl, use_dock_bar};
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
@@ -522,7 +524,6 @@ struct TabBar {
 struct Drag {
     dragged: DockDragged,
     target: Option<DockDrop>,
-    bar_target: Option<DockBarPlacement>,
     highlight: Option<Rect>,
     refused: Option<(LeafId, Rect)>,
 }
@@ -551,6 +552,9 @@ struct State {
     back_shade: Memo<Color>,
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
+    outer: ReadSignal<Rect>,
+    dock_body: NodeRef,
+    dock_pane: NodeRef,
     opens: ReadSignal<bool>,
     home: Option<WindowHandle>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
@@ -582,7 +586,9 @@ struct State {
     dialogs: Memo<Vec<(TabId, TabId)>>,
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
-    dialog_outset: Vec2,
+    dialog_beak: f32,
+    dialog_radius: f32,
+    dialog_scrim: Memo<Color>,
     window_border: f32,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
@@ -598,9 +604,11 @@ struct State {
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
+    floats: Signal<BarFloats>,
+    covered: Signal<bool>,
     bars_away: Memo<bool>,
-    bar_target: RenderFn<DockBarTargetHandle>,
     bar_band: RenderFn<DockBarBandHandle>,
+    lifting: Lifting,
     dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
 
@@ -645,6 +653,7 @@ impl State {
     pub(crate) fn notice(&self, tab: TabId) -> Option<String> {
         self.notices
             .with(|notices| notices.get(&tab).map(|(_, notice)| *notice))
+            .filter(|notice| notice.is_alive())
             .and_then(|notice| notice.get())
     }
 
@@ -1066,8 +1075,16 @@ impl State {
 
     fn home(&self) -> WindowId {
         self.home
-            .and_then(|window| window.real_window())
+            .and_then(|window| window.real().get_untracked())
             .unwrap_or(WindowId::MAIN)
+    }
+
+    fn watch_home(&self) -> Memo<WindowId> {
+        let home = self.home;
+        create_memo(move || {
+            home.and_then(|window| window.real().get())
+                .unwrap_or(WindowId::MAIN)
+        })
     }
 
     fn float_origin(&self) -> Pos2 {
@@ -1221,7 +1238,6 @@ impl State {
         self.drag.set(Some(Drag {
             dragged,
             target: None,
-            bar_target: None,
             highlight: None,
             refused: None,
         }));
@@ -1231,15 +1247,9 @@ impl State {
         let Some(mut drag) = self.drag.get_untracked() else {
             return;
         };
-        if let DockDragged::Bar(bar) = drag.dragged {
-            let (target, highlight) = match point {
-                Some(point) => self.resolve_bar(point, bar),
-                None => (None, None),
-            };
-            drag.bar_target = target.map(|(placement, _)| placement);
-            drag.highlight = highlight;
-            if self.drag.get_untracked() != Some(drag) {
-                self.drag.set(Some(drag));
+        if let DockDragged::Bar(_) = drag.dragged {
+            if let Some(point) = point {
+                self.move_lift(point);
             }
             return;
         }
@@ -1254,6 +1264,7 @@ impl State {
     }
 
     fn end_drag(&self) {
+        self.drop_lift();
         self.drag.set(None);
     }
 
@@ -1688,11 +1699,15 @@ pub(crate) struct DockConfig {
     pub(crate) dialogs: Memo<Vec<(TabId, TabId)>>,
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
-    pub(crate) dialog_outset: Vec2,
+    pub(crate) dialog_beak: f32,
+    pub(crate) dialog_radius: f32,
+    pub(crate) dialog_scrim: Memo<Color>,
     pub(crate) window_border: f32,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
-    pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
+    pub(crate) floats: Signal<BarFloats>,
+    pub(crate) covered: Signal<bool>,
+    pub(crate) area: Signal<Rect>,
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
     pub(crate) bar_key: Func<TabId, Option<String>>,
@@ -1742,19 +1757,24 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialogs,
         dialog,
         dialog_chrome,
-        dialog_outset,
+        dialog_beak,
+        dialog_radius,
+        dialog_scrim,
         window_border,
         bar_margin,
-        bar_target,
         bar_band,
         covers,
+        floats,
+        covered,
+        area: dock_rect_held,
         bars_away,
         bar_key,
     } = config;
-    let dock_rect_held = create_signal(Rect::ZERO);
     let dock_rect = dock_rect_held.read_only();
+    let outer_held = create_signal(Rect::ZERO);
+    let outer = outer_held.read_only();
     let mode = create_memo(move || {
-        let width = dock_rect.get().width();
+        let width = outer.get().width();
         let stacks = !state.with(DockState::is_one_bare_pane);
         match stacks && width > 0.0 && width < stack_below {
             true => DockMode::Stacked,
@@ -1798,7 +1818,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
-        dialog_outset,
+        dialog_beak,
+        dialog_radius,
+        dialog_scrim,
         window_border,
         dialog_frames: store(RefCell::default()),
         dialog_bodies: store(RefCell::default()),
@@ -1814,16 +1836,12 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
+        floats,
+        covered,
         bars_away,
         bar_band: bar_band
             .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),
-        bar_target: bar_target.unwrap_or_else(|| {
-            RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
+        lifting: Lifting::new(state),
         dragged_edits: store(RefCell::default()),
         thickness: splitter_thickness,
         reach: splitter_reach,
@@ -1833,6 +1851,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         back_shade,
         icon_sidebar_width,
         rect: dock_rect,
+        outer,
+        dock_body: NodeRef::new(),
+        dock_pane: NodeRef::new(),
         opens: opens_windows(),
         home: use_window(),
         placements: create_signal(HashMap::default()),
@@ -1907,6 +1928,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             })
         }),
     };
+    dock.start_lifting();
     api.fill(DockApi(dock));
     on_shortcut(move |press: KeyPress| {
         if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {
@@ -1929,32 +1951,67 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     });
     let built = view! {
         <List spacing=0.0>
-            <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
-                <List spacing=0.0>
-                    <Dynamic value={mode}>|mode: DockMode| {
-                        match mode {
-                            DockMode::Tiled => view! {
-                                <DockTiles dock @sizing=ItemSize::Percent(100.0) />
-                            },
-                            DockMode::Stacked => view! {
-                                <DockStack dock @sizing=ItemSize::Percent(100.0) />
-                            },
-                        }
-                    }</Dynamic>
-                </List>
-            </Frame>
+            <DockBarred dock leaf={None} holder={BarHolder::Dock} @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=inset>
+                    <List spacing=0.0>
+                        <Dynamic value={mode}>|mode: DockMode| {
+                            match mode {
+                                DockMode::Tiled => view! {
+                                    <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                                DockMode::Stacked => view! {
+                                    <DockStack dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                            }
+                        }</Dynamic>
+                    </List>
+                </Frame>
+            </DockBarred>
             <DockFullscreenView dock={dock} />
             <DockDialogs dock={dock} />
             <DockSwitchView dock={dock} />
         </List>
     };
-    let dock_rect_measured = measure(built);
+    let outer_measured = measure(built);
     create_effect(move || {
-        if let Some(measured) = dock_rect_measured.get() {
-            dock_rect_held.set(measured.rect);
+        if let Some(measured) = outer_measured.get() {
+            outer_held.set(measured.rect);
         }
     });
+    if let Some(body) = dock.dock_body.try_get() {
+        let body_measured = measure(body);
+        create_effect(move || {
+            if let Some(measured) = body_measured.get() {
+                dock_rect_held.set(measured.rect);
+            }
+        });
+    }
+    share_work_area(dock);
     built
+}
+
+fn share_work_area(dock: State) {
+    let home = dock.watch_home();
+    let opens = dock.opens;
+    let area = dock.rect;
+    let shared = Rc::new(Cell::new(None::<WindowId>));
+    let held = Rc::clone(&shared);
+    create_effect(move || {
+        let window = home.get();
+        let area = area.get();
+        let shown = opens.get() && area.is_positive();
+        if let Some(was) = held.replace(shown.then_some(window))
+            && was != window
+        {
+            set_work_area(was, None);
+        }
+        set_work_area(window, shown.then_some(area));
+    });
+    on_cleanup(move || {
+        if let Some(window) = shared.take() {
+            set_work_area(window, None);
+        }
+    });
 }
 
 #[component]
@@ -1999,7 +2056,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
     let shown = create_memo(move || {
         area.get()
-            .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, dock.rect.get().size()))
+            .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, dock.outer.get().size()))
     });
     let window_size = create_memo(move || shown.get().size());
     let window_placement = create_memo(move || WindowPlacement::Over {
@@ -2115,8 +2172,7 @@ fn DockStack(dock: State) -> NodeId {
                     <DockBarred
                         dock
                         leaf={None}
-                        tab={shown}
-                        stacked=true
+                        holder={BarHolder::Tab { tab: shown, stacked: true }}
                         @sizing=ItemSize::Percent(100.0)
                     >
                         <Portal node={panel} />
@@ -2326,7 +2382,7 @@ fn DockTiles(dock: State) -> NodeId {
                     }</ForEach>
                     <DockBarWindows dock />
                     <DockDragLayer dock />
-                    <DockBarTargets dock />
+                    <DockBarLifted dock />
                 </List>
             }
         }</DropTarget>
@@ -2795,8 +2851,7 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
                 <DockBarred
                     dock
                     leaf={Some(leaf)}
-                    tab={shown}
-                    stacked=false
+                    holder={BarHolder::Tab { tab: shown, stacked: false }}
                     @sizing=ItemSize::Percent(100.0)
                 >
                     <Portal node={panel} />
@@ -3309,10 +3364,32 @@ fn fitted(size: Vec2, bounds: Vec2) -> Vec2 {
     }
 }
 
-fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
-    let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
-    let x = rect.min.x.clamp(0.0, (bounds.x - keep).max(0.0));
-    let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Walls {
+    right: bool,
+    bottom: bool,
+}
+
+impl Walls {
+    fn of(edges: &[DockEdge]) -> Self {
+        Self {
+            right: edges.contains(&DockEdge::Right),
+            bottom: edges.contains(&DockEdge::Bottom),
+        }
+    }
+}
+
+fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32, walls: Walls) -> Pos2 {
+    let keep_x = match walls.right {
+        true => rect.width(),
+        false => rect.width().min(WINDOW_KEEP_VISIBLE),
+    };
+    let keep_y = match walls.bottom {
+        true => rect.height().max(bar),
+        false => bar,
+    };
+    let x = rect.min.x.clamp(0.0, (bounds.x - keep_x).max(0.0));
+    let y = rect.min.y.clamp(0.0, (bounds.y - keep_y).max(0.0));
     pos2(x, y)
 }
 
@@ -3417,13 +3494,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let overshoot = create_signal(Vec2::ZERO);
     let grip_ref = NodeRef::new();
     let reach = move || grip_reach(&frame, &grip_ref);
+    let walls = create_memo(move || state.with(|state| Walls::of(&state.dock_band_edges())));
     let placed = create_memo(move || {
         if hosted.get() {
             return rect.get();
         }
         let bounds = area.get().size();
         let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
-        let origin = reachable_origin(rect, bounds, reach());
+        let origin = reachable_origin(rect, bounds, reach(), walls.get());
         Rect::from_min_size(origin, rect.size())
     });
     let outset = vec2(HANDLE_REACH, HANDLE_REACH);
@@ -3439,8 +3517,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             let window = placed.get_untracked();
             let bounds = area.get_untracked().size();
             let reach = reach();
+            let walls = walls.get_untracked();
             let limit = |origin: Pos2| {
-                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
+                reachable_origin(
+                    Rect::from_min_size(origin, window.size()),
+                    bounds,
+                    reach,
+                    walls,
+                )
             };
             let banding = motion().animates();
             let mut origin = window.min;
@@ -3504,8 +3588,29 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             })
             .and_then(|tab| dock.notice(tab))
     });
-    let parent = dock.home();
-    let placement = create_memo(move || dock.placement(surface, parent));
+    let parent = dock.watch_home();
+    let placement = create_memo(move || dock.placement(surface, parent.get()));
+    let shown_at = StoredCell::new(None::<Pos2>);
+    let area_was = StoredCell::new(None::<Pos2>);
+    create_effect(move || {
+        let corner = area.get().min;
+        let Some(was) = area_was.replace(Some(corner)) else {
+            return;
+        };
+        let Some(shown) = shown_at.get() else {
+            return;
+        };
+        if was == corner || !hosted.get_untracked() {
+            return;
+        }
+        let kept = was - corner;
+        shown_at.set(Some(shown + kept));
+        dock.edit(|state| {
+            if let Some(rect) = state.window_rect(surface) {
+                state.set_window_rect(surface, rect.translate(kept));
+            }
+        });
+    });
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -3547,8 +3652,32 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             placement={placement}
             title={window_title}
             notice={window_notice}
-            on_report={move |report: WindowReport| dock.window_reported(surface, report)}
+            on_report={move |report: WindowReport| {
+                if let WindowReport::Moved { origin, .. } = report
+                    && let Some(home) = window_origin(parent.get_untracked())
+                {
+                    let min = origin - home.to_vec2() + outset - area.get_untracked().min.to_vec2();
+                    shown_at.set(Some(min));
+                    dock.edit(|state| {
+                        if let Some(rect) = state.window_rect(surface) {
+                            state.set_window_rect(surface, Rect::from_min_size(min, rect.size()));
+                        }
+                    });
+                }
+                dock.window_reported(surface, report);
+            }}
         >|handle: WindowHandle| {
+            create_effect(move || {
+                let min = rect.get().min;
+                if !hosted.get() || shown_at.get().is_none_or(|shown| shown == min) {
+                    return;
+                }
+                shown_at.set(Some(min));
+                handle.place(WindowPlacement::Over {
+                    window: parent.get_untracked(),
+                    at: area.get_untracked().min + min.to_vec2() - outset,
+                });
+            });
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
             let resized = Callback::new(modifier_resize(dock, Resized::Window(surface, handle)));
             let catcher = NodeRef::new();
@@ -3619,7 +3748,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         let placed =
                                                             Rect::from_min_size(start.min + (press.pos - from), start.size());
                                                         let bounds = dock.rect.get_untracked().size();
-                                                        let origin = reachable_origin(placed, bounds, reach());
+                                                        let origin = reachable_origin(placed, bounds, reach(), walls.get_untracked());
                                                         let banding = motion().animates();
                                                         let band = band.value();
                                                         let mut band = band.borrow_mut();
@@ -3671,9 +3800,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                     {grip_face}
                                                                 </GripMenu>
                                                             };
+                                                            let grip_id = hoisted.map_or_else(
+                                                                || "dock.window.grip".to_owned(),
+                                                                |leaf| dock.pane_test_id("dock.window.grip", leaf),
+                                                            );
                                                             let grip = view! {
                                                                 <Interactive
                                                                     @node_ref=&grip_ref
+                                                                    @test_id={grip_id}
                                                                     cursor=CursorIcon::Grab
                                                                     children={grip_face}
                                                                 />
@@ -3826,8 +3960,7 @@ fn DockDragLayer(dock: State) -> NodeId {
         drag.with(|drag| {
             let drag = drag.as_ref()?;
             let floats = matches!(drag.target, Some(DockDrop::Window { .. }));
-            let bar = matches!(drag.dragged, DockDragged::Bar(_));
-            (floats || bar).then_some(drag.highlight).flatten()
+            floats.then_some(drag.highlight).flatten()
         })
     });
     let marking = create_memo(move || marked.get().is_some());

@@ -152,19 +152,49 @@ fn linked_plugin(identity: &str) -> String {
     .replace("{IDENTITY}", identity)
 }
 
-fn settled(plugin: &mut Plugin, wanted: u8) -> Result<bool, String> {
-    for _ in 0..500 {
+#[derive(Default)]
+struct Told {
+    woken: std::sync::Mutex<bool>,
+    changed: std::sync::Condvar,
+}
+
+impl Told {
+    fn listen(plugin: &Plugin) -> std::sync::Arc<Self> {
+        let told = std::sync::Arc::new(Self::default());
+        plugin.on_wake({
+            let told = std::sync::Arc::clone(&told);
+            move || {
+                *told.woken.lock().unwrap() = true;
+                told.changed.notify_all();
+            }
+        });
+        told
+    }
+
+    fn wait(&self) {
+        let mut woken = self.woken.lock().unwrap();
+        while !*woken {
+            woken = self.changed.wait(woken).unwrap();
+        }
+        *woken = false;
+    }
+}
+
+fn settled(plugin: &mut Plugin, wanted: u8) -> Result<(), String> {
+    let told = Told::listen(plugin);
+    loop {
         plugin.step()?;
         if plugin
             .take_outbound()
             .last()
             .is_some_and(|frame| frame == &[wanted])
         {
-            return Ok(true);
+            return Ok(());
         }
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        if !plugin.take_wake() {
+            told.wait();
+        }
     }
-    Ok(false)
 }
 
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));

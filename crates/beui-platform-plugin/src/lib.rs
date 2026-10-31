@@ -11,7 +11,7 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
-use beui_core::geometry::{Rect, Vec2, vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
     WindowRequest, WindowRequests, WindowState,
@@ -74,6 +74,7 @@ impl Platform for PluginPlatform {
                 views,
                 windows: HashMap::default(),
                 sized: HashMap::default(),
+                origins: HashMap::default(),
                 described: Vec::new(),
                 focused: HashSet::default(),
                 toggles: HashMap::default(),
@@ -81,6 +82,7 @@ impl Platform for PluginPlatform {
                 floated: HashMap::default(),
                 asks: Vec::new(),
                 escaped: HashMap::default(),
+                spaces: HashMap::default(),
                 placements: HashMap::default(),
                 ratio: 1.0,
             };
@@ -157,6 +159,7 @@ struct ModuleRunner {
     views: Views,
     windows: HashMap<ViewRef, WindowId>,
     sized: HashMap<WindowId, (Vec2, f32)>,
+    origins: HashMap<WindowId, Pos2>,
     described: Vec<(ViewRef, u64)>,
     focused: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
@@ -164,6 +167,7 @@ struct ModuleRunner {
     floated: HashMap<WindowId, Floated>,
     asks: Vec<(ViewRef, block_plugin_api::WindowRequest)>,
     escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
+    spaces: HashMap<ViewRef, block_plugin_api::AnchorSpace>,
     placements: HashMap<ViewRef, ViewPlacement>,
     ratio: f32,
 }
@@ -221,7 +225,12 @@ impl ModuleRunner {
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
+        self.origins.retain(|window, _| windows.contains(window));
         self.escaped.retain(|id, _| shown(id));
+        self.spaces = regions
+            .iter()
+            .filter_map(|region| Some((region.id(), region.anchor_space?)))
+            .collect();
         self.placements = regions
             .iter()
             .map(|region| (region.id(), region.view.placement))
@@ -244,6 +253,13 @@ impl ModuleRunner {
                         window,
                         pixels_per_point: sized.1,
                     }));
+                }
+                if let Some(origin) = region.origin {
+                    let origin = Pos2::ZERO + origin.to_vec2() * ratio;
+                    if self.origins.insert(window, origin) != Some(origin) {
+                        self.runner
+                            .push(Incoming::Window(WindowReport::Moved { window, origin }));
+                    }
                 }
             }
         }
@@ -328,21 +344,7 @@ impl ModuleRunner {
                 let Some(opener) = opener else {
                     return;
                 };
-                let placement = match placement {
-                    WindowPlacement::AtPointer => block_plugin_api::WindowPlacement::AtPointer,
-                    WindowPlacement::Over { window: over, at } => match self.region_of(over) {
-                        Some(region) => {
-                            block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
-                                view: region,
-                                at: beui_core::geometry::Pos2::new(at.x / ratio, at.y / ratio),
-                            })
-                        }
-                        None => block_plugin_api::WindowPlacement::AtPointer,
-                    },
-                    WindowPlacement::Host(HostPlacement(placement)) => {
-                        block_plugin_api::WindowPlacement::Host(placement)
-                    }
-                };
+                let placement = self.placement_of(placement, ratio);
                 let region = ViewRef {
                     instance: opener.instance,
                     view: window_view(window),
@@ -388,6 +390,38 @@ impl ModuleRunner {
             WindowRequest::Close(window) => {
                 self.push_ask(window, Ask::Close(window_view(window)));
                 self.floated.remove(&window);
+            }
+            WindowRequest::Place { window, placement } => {
+                let placement = self.placement_of(placement, ratio);
+                self.push_ask(
+                    window,
+                    Ask::Place(block_plugin_api::WindowPlace {
+                        view: window_view(window),
+                        placement,
+                    }),
+                );
+            }
+        }
+    }
+
+    fn placement_of(
+        &self,
+        placement: WindowPlacement,
+        ratio: f32,
+    ) -> block_plugin_api::WindowPlacement {
+        match placement {
+            WindowPlacement::AtPointer => block_plugin_api::WindowPlacement::AtPointer,
+            WindowPlacement::Over { window: over, at } => match self.region_of(over) {
+                Some(region) => {
+                    block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
+                        view: region,
+                        at: Pos2::new(at.x / ratio, at.y / ratio),
+                    })
+                }
+                None => block_plugin_api::WindowPlacement::AtPointer,
+            },
+            WindowPlacement::Host(HostPlacement(placement)) => {
+                block_plugin_api::WindowPlacement::Host(placement)
             }
         }
     }
@@ -546,17 +580,12 @@ impl ModuleRunner {
             scrims: report
                 .scrims
                 .into_iter()
-                .map(|(rect, color)| {
-                    let [red, green, blue, alpha] = color.to_array();
-                    block_plugin_api::Scrim {
-                        rect: to_region(rect),
-                        color: block_plugin_api::accessibility::Color {
-                            red,
-                            green,
-                            blue,
-                            alpha,
-                        },
-                    }
+                .map(|shown| {
+                    escaped::scrim(beui_core::layer::Scrim {
+                        rect: to_region(shown.rect),
+                        radius: shown.radius / ratio,
+                        ..shown
+                    })
                 })
                 .collect(),
             drawing: report.drawing.into_iter().map(to_region).collect(),
@@ -568,6 +597,7 @@ impl ModuleRunner {
                     rect: to_region(claim.rect),
                 })
                 .collect(),
+            work_area: report.work_area.map(to_region),
             window: self.requests(id, keyboard, ratio),
             description: region.describe.map(|_| self.describe(id, region, ratio)),
             anchored,
@@ -688,22 +718,28 @@ impl Regions for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
-        } else if region.view.is_anchored() {
-            if let (Some(space), Some(layer)) =
-                (region.anchor_space, anchored_layer(region.view.id))
-            {
-                let input = escaped::to_host(event.input.clone(), space.to_host);
-                self.runner.push(Incoming::layer(layer, input));
-            }
         } else {
-            let incoming = input::translate(event);
-            let window = over
-                .and_then(|over| self.windows.get(&over).copied())
-                .or(window);
-            self.runner.push(match window {
-                Some(window) => incoming.in_window(window),
-                None => incoming,
-            });
+            let target = over.unwrap_or(id);
+            match anchored_layer(target.view) {
+                Some(layer) => {
+                    let space = match target == id {
+                        true => region.anchor_space,
+                        false => self.spaces.get(&target).copied(),
+                    };
+                    if let Some(space) = space {
+                        let input = escaped::to_host(event.input.clone(), space.to_host);
+                        self.runner.push(Incoming::layer(layer, input));
+                    }
+                }
+                None => {
+                    let incoming = input::translate(event);
+                    let window = self.windows.get(&target).copied().or(window);
+                    self.runner.push(match window {
+                        Some(window) => incoming.in_window(window),
+                        None => incoming,
+                    });
+                }
+            }
         }
         if let Some(at) = input::time(event) {
             self.runner.push(Incoming::Time(at));

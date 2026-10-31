@@ -27,6 +27,8 @@ use block_plugin_api::ViewRef;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
+pub const FRAME_STEP: std::time::Duration = std::time::Duration::from_micros(16_667);
+
 static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
@@ -102,6 +104,7 @@ struct ViewState {
     docked: bool,
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
+    origin: Option<Pos2>,
     anchor_space: Option<AnchorSpace>,
     anchored: Option<AnchoredPlacement>,
 }
@@ -400,6 +403,7 @@ impl EditorSession {
             state.docked = request.docked;
             state.view_placement = Some(request.placement);
             state.host_place.clone_from(&request.host_place);
+            state.origin = request.origin;
             state.anchor_space.clone_from(&request.anchor_space);
         }
     }
@@ -820,6 +824,7 @@ impl EditorSession {
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
             anchor_space: state.and_then(|state| state.anchor_space.clone()),
+            origin: state.and_then(|state| state.origin),
         }
     }
 
@@ -828,6 +833,7 @@ impl EditorSession {
     }
 
     pub fn frame(&mut self, views: &[(ViewId, u32)]) -> Vec<Frame> {
+        crate::clock::step(FRAME_STEP);
         let begun: Vec<ShownView> = views
             .iter()
             .map(|(view, age)| self.begin(*view, *age))
@@ -989,6 +995,9 @@ impl EditorSession {
                     }
                 }),
                 anchored: state.anchored,
+                work_area: frame
+                    .work_area
+                    .map(|area| block_plugin_api::Insets::between(host, area)),
             });
         }
         frame

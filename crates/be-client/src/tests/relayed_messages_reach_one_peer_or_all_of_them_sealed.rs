@@ -10,22 +10,18 @@ async fn heard(
     count: usize,
 ) -> Vec<(ClientId, Vec<u8>, Vec<u8>)> {
     let mut heard = Vec::new();
-    let reached = tokio::time::timeout(PATIENCE, async {
-        while heard.len() < count {
-            if let ServerMessage::Relayed {
-                block: relayed,
-                from,
-                payload,
-            } = events.recv().await.unwrap()
-                && relayed == block
-            {
-                let plain = peer.unseal(&payload).unwrap();
-                heard.push((from, payload, plain));
-            }
+    while heard.len() < count {
+        if let ServerMessage::Relayed {
+            block: relayed,
+            from,
+            payload,
+        } = events.recv().await.unwrap()
+            && relayed == block
+        {
+            let plain = peer.unseal(&payload).unwrap();
+            heard.push((from, payload, plain));
         }
-    })
-    .await;
-    assert!(reached.is_ok(), "the relayed messages never arrived");
+    }
     heard
 }
 

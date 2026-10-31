@@ -22,8 +22,18 @@ pub enum AboveEmbeds {
 pub enum LayerLevel {
     #[default]
     Normal,
+    Raised,
     Top,
     Lock,
+}
+
+impl LayerLevel {
+    pub fn stacked(self, policy: LayerPolicy) -> LayerLevel {
+        match (self, policy) {
+            (LayerLevel::Normal, LayerPolicy::BlocksAll) => LayerLevel::Raised,
+            (level, _) => level,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -45,8 +55,10 @@ pub enum Placement {
     Center,
     Fill,
     InsideTop,
+    InsideTopStart,
     InsideTopEnd,
     InsideBottom,
+    InsideBottomStart,
     InsideBottomEnd,
     CenterOn,
     Popover { gap: u16, margin: u16 },
@@ -61,15 +73,17 @@ impl Placement {
             | Placement::Around
             | Placement::BelowStart
             | Placement::RightStart
+            | Placement::Center
             | Placement::CenterOn
             | Placement::Popover { .. }
             | Placement::Edge(_) => true,
             Placement::At
-            | Placement::Center
             | Placement::Fill
             | Placement::InsideTop
+            | Placement::InsideTopStart
             | Placement::InsideTopEnd
             | Placement::InsideBottom
+            | Placement::InsideBottomStart
             | Placement::InsideBottomEnd => false,
         }
     }
@@ -146,6 +160,13 @@ pub enum LayerPlacement {
     Edge(LayerEdge),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Scrim {
+    pub rect: Rect,
+    pub color: Color32,
+    pub radius: f32,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct EscapedLayer {
     pub id: u64,
@@ -155,7 +176,7 @@ pub struct EscapedLayer {
     pub rect: Rect,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
-    pub scrims: Vec<(Rect, Color32)>,
+    pub scrims: Vec<Scrim>,
     pub dismiss_on_outside_press: bool,
     pub trigger: Option<Rect>,
     pub keyboard: bool,
@@ -236,15 +257,20 @@ pub fn resolve_rect(
             content_size,
         );
     }
-    if let Placement::InsideTopEnd | Placement::InsideBottomEnd = placement {
+    if let Placement::InsideTopStart
+    | Placement::InsideTopEnd
+    | Placement::InsideBottomStart
+    | Placement::InsideBottomEnd = placement
+    {
         let y = match placement {
-            Placement::InsideTopEnd => anchor_rect.top(),
+            Placement::InsideTopStart | Placement::InsideTopEnd => anchor_rect.top(),
             _ => (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
         };
-        let origin = pos2(
-            (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
-            y,
-        );
+        let x = match placement {
+            Placement::InsideTopStart | Placement::InsideBottomStart => anchor_rect.left(),
+            _ => (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
+        };
+        let origin = pos2(x, y);
         return Rect::from_min_size(
             pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
             content_size,
@@ -294,8 +320,10 @@ pub fn resolve_rect(
         | Placement::Center
         | Placement::Fill
         | Placement::InsideTop
+        | Placement::InsideTopStart
         | Placement::InsideTopEnd
         | Placement::InsideBottom
+        | Placement::InsideBottomStart
         | Placement::InsideBottomEnd
         | Placement::CenterOn
         | Placement::Popover { .. }
@@ -315,9 +343,28 @@ pub fn resolve_rect(
             _ => (viewport.bottom() - content_size.y).max(viewport.top()),
         };
     }
-    origin.x = origin.x.max(viewport.left());
-    origin.y = origin.y.max(viewport.top());
+    origin.x = origin
+        .x
+        .min(viewport.right() - content_size.x)
+        .max(viewport.left());
+    origin.y = origin
+        .y
+        .min(viewport.bottom() - content_size.y)
+        .max(viewport.top());
     Rect::from_min_size(origin, content_size)
+}
+
+pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Option<f32> {
+    let room = match placement {
+        Placement::BelowStart => {
+            (viewport.bottom() - anchor_rect.bottom()).max(anchor_rect.top() - viewport.top())
+        }
+        Placement::RightStart => {
+            (viewport.bottom() - anchor_rect.top()).max(anchor_rect.bottom() - viewport.top())
+        }
+        _ => return None,
+    };
+    Some(room.clamp(0.0, viewport.height().max(0.0)))
 }
 
 #[derive(Clone, PartialEq)]
@@ -329,6 +376,45 @@ pub enum OverlayAnchor {
         node: crate::node::NodeRef,
         rect: Rect,
     },
+    Band {
+        node: crate::node::NodeRef,
+        band: crate::node::NodeRef,
+    },
+}
+
+impl OverlayAnchor {
+    pub fn node(&self) -> Option<crate::node::NodeRef> {
+        match self {
+            OverlayAnchor::Node(node)
+            | OverlayAnchor::Pinned { node, .. }
+            | OverlayAnchor::Band { node, .. } => Some(*node),
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
+        }
+    }
+}
+
+pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
+    match placement {
+        Placement::BelowStart | Placement::Above | Placement::Popover { .. } => {
+            Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
+        }
+        Placement::RightStart => {
+            Rect::from_min_max(pos2(band.min.x, node.min.y), pos2(band.max.x, node.max.y))
+        }
+        Placement::At
+        | Placement::Over(_)
+        | Placement::Around
+        | Placement::Center
+        | Placement::Fill
+        | Placement::InsideTop
+        | Placement::InsideTopStart
+        | Placement::InsideTopEnd
+        | Placement::InsideBottom
+        | Placement::InsideBottomStart
+        | Placement::InsideBottomEnd
+        | Placement::CenterOn
+        | Placement::Edge(_) => node,
+    }
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &crate::node::NodeRef {

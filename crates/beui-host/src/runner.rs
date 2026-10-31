@@ -17,18 +17,50 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
 
 pub fn run_with_device(
     options: RunOptions,
-    mut open_device: OpenDevice,
+    open_device: OpenDevice,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(NATIVE)?;
-    let link = link(choice.as_ref(), &application_name(&options));
+    run_with_platforms(options, open_device, Vec::new(), app)
+}
+
+pub fn run_with_platforms(
+    options: RunOptions,
+    mut open_device: OpenDevice,
+    mut others: Vec<Box<dyn Platform>>,
+    app: impl App + 'static,
+) -> Result<(), Box<dyn Error>> {
+    let mut natives = vec![NATIVE];
+    natives.extend(others.iter().map(|platform| platform.name()));
+    let choice = from_environment(&natives)?;
+    let other = match &choice {
+        Some(Choice {
+            platform: Base::Native(index),
+            ..
+        }) => index.checked_sub(1),
+        _ => None,
+    };
+    let link = match other {
+        None => link(choice.as_ref(), &application_name(&options)),
+        Some(index) => {
+            if choice
+                .as_ref()
+                .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
+            {
+                eprintln!(
+                    "beui: {} cannot show space on a headset",
+                    natives[index + 1]
+                );
+            }
+            None
+        }
+    };
     if let Some(link) = &link {
         open_device = link.open_device(open_device.extensions);
     }
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
-                platform: Base::Native,
+                platform: Base::Native(_),
                 ..
             })
             | None,
@@ -36,9 +68,13 @@ pub fn run_with_device(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let (platform, layers) = choose_platform(choice, link, open_device.clone(), || {
-        native_platform(open_device)
-    })?;
+    let (platform, layers) =
+        choose_platform(choice, link, open_device.clone(), |index| {
+            match index.checked_sub(1) {
+                Some(other) => others.remove(other),
+                None => native_platform(open_device),
+            }
+        })?;
     let launch = Launch {
         options,
         context: crate::native::system_context(),
@@ -54,13 +90,13 @@ const NATIVE: &str = "android";
 const NATIVE: &str = "winit";
 
 #[cfg(not(target_os = "android"))]
-fn from_environment(native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
-    let choice = beui_runner::environment::choose(native, |name| std::env::var(name).ok())?;
+fn from_environment(natives: &[&str]) -> Result<Option<Choice>, Box<dyn Error>> {
+    let choice = beui_runner::environment::choose(natives, |name| std::env::var(name).ok())?;
     Ok(Some(choice))
 }
 
 #[cfg(target_os = "android")]
-fn from_environment(_native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
+fn from_environment(_natives: &[&str]) -> Result<Option<Choice>, Box<dyn Error>> {
     Ok(None)
 }
 
@@ -85,24 +121,29 @@ fn choose_platform(
     choice: Option<Choice>,
     link: Option<Link>,
     open_device: OpenDevice,
-    native: impl FnOnce() -> Box<dyn Platform>,
+    native: impl FnOnce(usize) -> Box<dyn Platform>,
 ) -> Result<(Box<dyn Platform>, Vec<Box<dyn Layer>>), Box<dyn Error>> {
     let Some(choice) = choice else {
-        return Ok((native(), Vec::new()));
+        return Ok((native(0), Vec::new()));
     };
     let platform = match choice.platform {
-        Base::Native => native(),
+        Base::Native(index) => native(index),
         #[cfg(not(target_os = "android"))]
-        Base::Headless { window, screen } => Box::new(beui_platform_headless::Headless {
+        Base::Headless {
+            window,
+            screen,
+            pinned_clock,
+        } => Box::new(beui_platform_headless::Headless {
             window,
             screen,
             open_device,
             render: choice.render,
+            pinned_clock,
         }),
         #[cfg(target_os = "android")]
         Base::Headless { .. } => {
             let _ = open_device;
-            native()
+            native(0)
         }
     };
     let above = beui_runner::environment::drive_taps(&choice.layers);
@@ -191,26 +232,4 @@ pub fn native_platform(open_device: OpenDevice) -> Box<dyn Platform> {
     return Box::new(beui_platform_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
     return Box::new(beui_platform_winit::Winit::new(load));
-}
-
-pub fn run_on(
-    platform: Box<dyn Platform>,
-    options: RunOptions,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn Error>> {
-    let choice = from_environment(platform.name())?;
-    if choice
-        .as_ref()
-        .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
-    {
-        eprintln!("beui: {} cannot show space on a headset", platform.name());
-    }
-    let (platform, layers) = choose_platform(choice, None, OpenDevice::default(), || platform)?;
-    let launch = Launch {
-        options,
-        context: crate::native::system_context(),
-        app: Box::new(app),
-        layers,
-    };
-    pollster::block_on(platform.run(launch))
 }

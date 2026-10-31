@@ -16,7 +16,7 @@ fn drawn(plugin: &mut HeadlessPlugin) {
             preferences: block_plugin_api::Preferences::default(),
         })
         .unwrap();
-    plugin.draw_frame(0, true).unwrap();
+    plugin.draw_frame(0, 0, true).unwrap();
 }
 
 #[test]

@@ -23,8 +23,8 @@ fn on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_app() {
         "and its rows rise from the bottom of the window across its width"
     );
     app.snapshot("on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_app");
-    app.run(&["clock", "run"]);
     app.run(&["tap", "200,200"]);
+    app.run(&["pause", "600"]);
     app.gone("#file-tree.section.settings");
     app.close();
 }

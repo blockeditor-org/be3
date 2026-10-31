@@ -28,6 +28,7 @@ struct Running {
 #[derive(Clone, Default)]
 struct Launched {
     program: Option<String>,
+    name: String,
     launch: Option<u64>,
     block: Option<uuid::Uuid>,
 }
@@ -37,16 +38,22 @@ thread_local! {
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
     static SHOWN: RefCell<Shown> = RefCell::new(Shown::default());
+    static NAMES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
-fn tag(program: Option<String>, launch: Option<u64>, block: Option<uuid::Uuid>) -> Option<u64> {
+fn tag(
+    program: Option<&DesktopEntry>,
+    launch: Option<u64>,
+    block: Option<uuid::Uuid>,
+) -> Option<u64> {
     if program.is_none() && launch.is_none() {
         return None;
     }
     LAUNCHES.with(|launches| {
         let mut launches = launches.borrow_mut();
         launches.push(Launched {
-            program,
+            program: program.map(|entry| entry.id.clone()),
+            name: program.map(|entry| entry.name.clone()).unwrap_or_default(),
             launch,
             block,
         });
@@ -309,6 +316,10 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
                 id: HostWindowId(info.id.0),
                 kind: WindowKind::Window,
                 shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
+                name: match launched.name.is_empty() {
+                    true => program_name(&info.app_id),
+                    false => launched.name.clone(),
+                },
                 title: info.title,
                 app_id: info.app_id,
                 parent: info
@@ -335,6 +346,23 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
             }
         })
         .collect()
+}
+
+fn program_name(app_id: &str) -> String {
+    NAMES.with(|names| {
+        names
+            .borrow_mut()
+            .entry(app_id.to_owned())
+            .or_insert_with(|| {
+                let environment = Environment::from_env();
+                environment
+                    .entry(app_id)
+                    .or_else(|| environment.entry(&app_id.to_lowercase()))
+                    .map(|entry| entry.name)
+                    .unwrap_or_default()
+            })
+            .clone()
+    })
 }
 
 pub fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
@@ -431,60 +459,76 @@ pub struct Programs {
     rescan: Option<u32>,
     waiting: Vec<(String, Option<u64>)>,
     scanned: bool,
+    unannounced: bool,
 }
 
 impl Programs {
     pub fn scan(&mut self, pixels: u32) {
+        self.scan_on(pixels, |job| {
+            std::thread::Builder::new()
+                .name("programs".to_owned())
+                .spawn(job)
+                .map(drop)
+        });
+    }
+
+    fn scan_on(
+        &mut self,
+        pixels: u32,
+        spawn: impl FnOnce(Box<dyn FnOnce() + Send>) -> std::io::Result<()>,
+    ) {
         if self.scanning.is_some() {
             self.rescan = Some(pixels);
             return;
         }
         let (sender, receiver) = block_app_base::host::waking_channel();
         self.scanning = Some(receiver);
-        let spawned = std::thread::Builder::new()
-            .name("programs".to_owned())
-            .spawn(move || {
-                let environment = Environment::from_env();
-                let entries = environment.programs();
-                let globs = environment.mime_globs();
-                let named: Vec<(String, String)> = entries
-                    .iter()
-                    .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
-                    .collect();
-                if sender
-                    .send(Scanned::Entries(environment.clone(), entries, globs))
-                    .is_err()
-                {
-                    return;
-                }
-                let themes = IconThemes::new(&environment);
-                let icons = named
-                    .into_iter()
-                    .filter_map(|(id, name)| {
-                        let path = themes.find(&name, pixels)?;
-                        let icon = load_icon(&path, pixels)?;
-                        let image = HostImage {
-                            width: icon.width(),
-                            height: icon.height(),
-                            rgba: icon.pixels().to_vec(),
-                        };
-                        Some((id, image))
-                    })
-                    .collect();
-                let _ = sender.send(Scanned::Icons(icons));
-            });
+        let spawned = spawn(Box::new(move || {
+            let environment = Environment::from_env();
+            let entries = environment.programs();
+            let globs = environment.mime_globs();
+            let named: Vec<(String, String)> = entries
+                .iter()
+                .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
+                .collect();
+            if sender
+                .send(Scanned::Entries(environment.clone(), entries, globs))
+                .is_err()
+            {
+                return;
+            }
+            let themes = IconThemes::new(&environment);
+            let icons = named
+                .into_iter()
+                .filter_map(|(id, name)| {
+                    let path = themes.find(&name, pixels)?;
+                    let icon = load_icon(&path, pixels)?;
+                    let image = HostImage {
+                        width: icon.width(),
+                        height: icon.height(),
+                        rgba: icon.pixels().to_vec(),
+                    };
+                    Some((id, image))
+                })
+                .collect();
+            let _ = sender.send(Scanned::Icons(icons));
+        }));
         if let Err(error) = spawned {
-            eprintln!("block-app: the programs were not listed: {error}");
             self.scanning = None;
+            self.not_listed(error.to_string());
         }
     }
 
+    fn not_listed(&mut self, problem: String) {
+        eprintln!("block-app: the programs were not listed: {problem}");
+        block_app_base::notices::report(format!("Programs could not be listed: {problem}"));
+        self.scanned = true;
+        self.unannounced = true;
+    }
+
     pub fn receive(&mut self) -> bool {
-        let Some(receiver) = &self.scanning else {
-            return false;
-        };
         let mut changed = false;
-        loop {
+        while let Some(receiver) = &self.scanning {
             match receiver.try_recv() {
                 Ok(Scanned::Entries(environment, entries, globs)) => {
                     self.environment = environment;
@@ -500,6 +544,9 @@ impl Programs {
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.scanning = None;
+                    if !self.scanned {
+                        self.not_listed("the scan stopped".to_owned());
+                    }
                     if let Some(pixels) = self.rescan.take() {
                         self.scan(pixels);
                     }
@@ -512,7 +559,7 @@ impl Programs {
                 self.launch(&key, launch);
             }
         }
-        changed
+        changed | std::mem::take(&mut self.unannounced)
     }
 
     pub fn listed(&self) -> Vec<HostProgram> {
@@ -604,7 +651,7 @@ impl Programs {
         windows.run(Launch {
             arguments,
             working_dir: entry.working_dir.clone(),
-            tag: tag(Some(entry.id.clone()), launch, file.map(|(_, block)| block)),
+            tag: tag(Some(entry), launch, file.map(|(_, block)| block)),
         });
         block_app_base::host::wake();
         Ok(())

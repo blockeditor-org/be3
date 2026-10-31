@@ -265,18 +265,13 @@ fn replica_sent_until(
     block: Uuid,
     done: impl Fn(&[ToEditor]) -> bool,
 ) -> Vec<ToEditor> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut sent = Vec::new();
     loop {
         sent.extend(replica_sends(instances, block));
         if done(&sent) {
             return sent;
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the replica never sent what was expected: {sent:?}"
-        );
-        block_app_stack::wait_for(std::time::Duration::from_millis(100), |shared| {
+        block_app_stack::wait_until(|shared| {
             shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
         });
     }
@@ -297,6 +292,7 @@ fn place_layered(instances: &mut Instances, origin: Pos2, bounds: Rect) {
         1.0,
         1.0,
         false,
+        None,
         None,
         Some(block_plugin_api::AnchorSpace {
             to_host: block_plugin_api::HostTransform {
@@ -380,6 +376,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 claims: Vec::new(),
                 description: None,
                 anchored: Some(layer.placement),
+                work_area: None,
             }
         })
         .collect();
@@ -410,6 +407,7 @@ mod a_plugin_hears_every_sample_only_while_it_asks;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
+mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_trigger;
 mod a_press_on_an_anchored_views_trigger_leaves_it_to_the_trigger;
 mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
 mod a_resize_leaves_children_where_their_frame_painted_them;

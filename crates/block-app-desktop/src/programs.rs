@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramsWatch};
+use block_plugin_api::{
+    EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramCatalog, ProgramsWatch,
+};
 use uuid::Uuid;
 
 use crate::desktop_host;
@@ -254,7 +256,10 @@ impl Programs {
             self.programs.scan(WAITING_ICON_SIZE);
         }
         if self.programs.receive() || offering {
-            block_app_base::watches::publish::<ProgramsWatch>(&self.programs.listed());
+            block_app_base::watches::publish::<ProgramsWatch>(&ProgramCatalog {
+                listed: self.programs.scanned(),
+                programs: self.programs.listed(),
+            });
         }
         if self.programs.scanned() && !self.listed_editors {
             self.listed_editors = true;

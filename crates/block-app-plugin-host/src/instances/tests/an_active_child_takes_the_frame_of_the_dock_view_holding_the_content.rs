@@ -18,6 +18,7 @@ fn report(instances: &mut Instances, view: ViewId, content: Option<block_plugin_
         claims: Vec::new(),
         description: None,
         anchored: None,
+        work_area: None,
     }]);
 }
 

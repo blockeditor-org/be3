@@ -17,7 +17,7 @@ image = { version = "0.25", default-features = false, features = ["bmp", "gif", 
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wgpu = { version = "29", default-features = false }
 
-# Linux runs the app as a Wayland compositor, and --session runs it on the
+# Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 be-remap-host = { path = "../remap/host" }

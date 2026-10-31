@@ -31,6 +31,7 @@ fn placement(rect: Rect, clip: Rect) -> ViewPlace {
         raster: 1.0,
         windows: false,
         placement: None,
+        origin: None,
         anchor_bounds: None,
     }
 }

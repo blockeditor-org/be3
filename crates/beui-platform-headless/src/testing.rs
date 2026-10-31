@@ -242,7 +242,8 @@ impl Layer for TestHost {
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
                 WindowRequest::BeginMove(_)
                 | WindowRequest::BeginResize { .. }
-                | WindowRequest::Raise(_) => {}
+                | WindowRequest::Raise(_)
+                | WindowRequest::Place { .. } => {}
             }
         }
         for window in shown.windows.iter().filter(|window| !window.id.is_main()) {
@@ -539,7 +540,15 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn painting(&mut self) -> beui_core::painting::Painting {
-        let painted = match self.reply(&["paint", "in", "platform"]) {
+        self.painted_by(&["paint", "in", "platform"])
+    }
+
+    pub fn painting_of(&mut self, target: &str) -> beui_core::painting::Painting {
+        self.painted_by(&["paint", target])
+    }
+
+    fn painted_by(&mut self, words: &[&str]) -> beui_core::painting::Painting {
+        let painted = match self.reply(words) {
             Reply::Painting(bytes) => beui_core::painting::Painting::decode(&bytes),
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),

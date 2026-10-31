@@ -1235,6 +1235,7 @@ dependencies = [
  "beui_macros",
  "bytemuck",
  "reactive",
+ "stable-hash",
  "text-editor-core",
  "wgpu",
 ]
@@ -1335,6 +1336,7 @@ dependencies = [
  "beui-components-unstyled",
  "beui-view",
  "beui_macros",
+ "postcard",
  "reactive",
  "serde",
  "stable-hash",
@@ -1477,6 +1479,7 @@ dependencies = [
  "accesskit",
  "beui-core",
  "beui-runner",
+ "beui-types",
  "stable-hash",
 ]
 
@@ -2313,6 +2316,7 @@ dependencies = [
  "beui-core",
  "beui-host",
  "beui-platform-plugin",
+ "beui-platform-plugin-api",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",

@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlacement, DockCover, DockDragStage,
+    DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockCover, DockDragStage,
     DockEdge, Pos2, Rect, Size,
 };
 
@@ -13,7 +13,7 @@ fn bar(tab: u64, owner: u64, placement: DockBarPlacement) -> DockBar {
         tab: path(&[], tab),
         key: "tools".to_owned(),
         kind: "canvas/tools".to_owned(),
-        owner: path(&[], owner),
+        owner: Some(path(&[], owner)),
         placement,
         size: Size {
             width: 160.0,
@@ -45,7 +45,7 @@ fn root_hosts(docks: &mut Docks, bars: Vec<DockPlacedBar>, covers: Vec<DockCover
     );
 }
 
-fn delivered_bars(docks: &Docks) -> Vec<(DockTabPath, DockTabPath, DockBarPlacement)> {
+fn delivered_bars(docks: &Docks) -> Vec<(DockTabPath, Option<DockTabPath>, DockBarPlacement)> {
     docks
         .delivered
         .get(&(ROOT, OUTER_CHILD))
@@ -75,19 +75,23 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     outer.bars.push(bar(
         3,
         1,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
     ));
     docks.heard("outer", vec![declare(OUTER, Some(outer))]);
-    let moved = DockBarPlacement::Beside(DockEdge::Left);
+    let moved = DockBarPlacement::Beside(DockBarEdge {
+        edge: DockEdge::Left,
+        align: DockAlign::Center,
+    });
     root_hosts(
         &mut docks,
         vec![DockPlacedBar {
             bar: path(&[], 3),
-            owner: path(&[], 1),
+            owner: Some(path(&[], 1)),
             placement: moved.clone(),
+            hidden: false,
         }],
         Vec::new(),
     );
@@ -95,7 +99,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     framer.bars.push(bar(
         8,
         7,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
@@ -116,7 +120,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     assert!(!docks.docked(FRAMER), "its stage stays a frame child");
     assert_eq!(
         delivered_bars(&docks),
-        [(path(&[FRAME_CHILD], 8), path(&[], 1), moved.clone())],
+        [(path(&[FRAME_CHILD], 8), Some(path(&[], 1)), moved.clone())],
         "its bars join the taken tab's pane where its placer's bar of the same key was, \
          and its placer's bars go"
     );
@@ -139,11 +143,12 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         &mut docks,
         vec![DockPlacedBar {
             bar: path(&[FRAME_CHILD], 8),
-            owner: path(&[], 1),
-            placement: DockBarPlacement::Over(DockBarOver {
+            owner: Some(path(&[], 1)),
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
+            hidden: false,
         }],
         vec![DockCover {
             tab: path(&[], 1),
@@ -155,11 +160,12 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         framed.layout.bars,
         [DockPlacedBar {
             bar: path(&[], 8),
-            owner: path(&[], 7),
-            placement: DockBarPlacement::Over(DockBarOver {
+            owner: Some(path(&[], 7)),
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center
             }),
+            hidden: false,
         }],
         "it hears where its bar is, owned by its own tab"
     );
@@ -175,8 +181,9 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         kept.layout.bars,
         [DockPlacedBar {
             bar: path(&[], 3),
-            owner: path(&[], 1),
+            owner: Some(path(&[], 1)),
             placement: moved.clone(),
+            hidden: false,
         }],
         "its placer keeps its hidden bar where it was"
     );
@@ -210,7 +217,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
     docks.placed(OUTER, &[], None);
     assert_eq!(
         delivered_bars(&docks),
-        [(path(&[], 3), path(&[], 1), moved)],
+        [(path(&[], 3), Some(path(&[], 1)), moved)],
         "letting the frame go brings its placer's bar back where it was"
     );
     assert!(

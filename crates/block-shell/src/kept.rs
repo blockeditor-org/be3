@@ -8,6 +8,8 @@ pub struct KeptWindow {
     pub key: HostWindowId,
     pub window: Option<HostWindowId>,
     pub app_id: String,
+    #[serde(default)]
+    pub name: String,
     pub title: String,
     pub origin: WindowOrigin,
     pub fullscreen: bool,
@@ -19,6 +21,7 @@ impl KeptWindow {
             key,
             window: Some(window.id),
             app_id: window.app_id.clone(),
+            name: window.name.clone(),
             title: window.title.clone(),
             origin: window.origin.clone(),
             fullscreen: window.fullscreen.is_some(),

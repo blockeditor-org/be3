@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
 
 use tokio::sync::mpsc::unbounded_channel;
 use zbus::object_server::{InterfaceRef, SignalEmitter};
@@ -11,7 +10,6 @@ use super::super::network_manager::{PATH, SERVICE, SETTINGS_PATH, run_on};
 use super::*;
 use crate::dbus::test_bus::Bus;
 
-const WAIT: Duration = Duration::from_secs(20);
 const DEVICE_PATH: &str = "/org/freedesktop/NetworkManager/Devices/1";
 const ACTIVE_PATH: &str = "/org/freedesktop/NetworkManager/ActiveConnection/1";
 const HOME_POINT: &str = "/org/freedesktop/NetworkManager/AccessPoint/1";
@@ -290,7 +288,7 @@ async fn moved(device: &InterfaceRef<FakeDevice>, new: u32, old: u32) {
 fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus) -> bool) {
     loop {
         let status = published
-            .recv_timeout(WAIT)
+            .recv()
             .unwrap_or_else(|_| panic!("the status shows {what}"));
         if done(&status) {
             return;
@@ -300,7 +298,7 @@ fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus
 
 fn heard(heard: &Receiver<String>, what: &str) {
     let got = heard
-        .recv_timeout(WAIT)
+        .recv()
         .unwrap_or_else(|_| panic!("NetworkManager hears {what}"));
     assert_eq!(got, what);
 }

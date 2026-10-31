@@ -29,6 +29,7 @@ struct NodeBindings {
     target: Cell<Option<NodeId>>,
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
+    rank: Cell<u64>,
     placed: RefCell<Option<Signal<bool>>>,
     node: RefCell<Option<crate::callback::NodeRef>>,
 }
@@ -81,8 +82,11 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     let node = node.into_prop();
     create_effect(move || {
         let node = node.get();
+        let rank = bindings.rank.get();
         match bindings.target.get() {
-            Some(target) => with_document(|document| document.set_accessibility(target, node)),
+            Some(target) => with_document(|document| {
+                document.set_accessibility(target, node, rank);
+            }),
             None => {
                 bindings.accessibility.replace(Some(node));
             }
@@ -96,9 +100,11 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
         return;
     };
     bindings.target.set(Some(root));
+    bindings.rank.set(component.finish_order());
     let states = bindings.states.take();
     let accessibility = bindings.accessibility.take();
     let placed = bindings.placed.take();
+    let rank = bindings.rank.get();
     if let Some(node) = bindings.node.borrow().as_ref() {
         node.fill(root);
     }
@@ -112,7 +118,7 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
             document.set_component_state_dyn(root, state);
         }
         if let Some(node) = accessibility {
-            document.set_accessibility(root, node);
+            document.set_accessibility(root, node, rank);
         }
     });
 }

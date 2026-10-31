@@ -1,5 +1,5 @@
 use beui::native::accessibility::Embedded;
-use beui::{ImeArea, Rect, Vec2, pos2, vec2};
+use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
@@ -680,17 +680,10 @@ fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> 
                     .iter()
                     .filter_map(|scrim| {
                         let rect = scrim.rect.translate(to_host).intersect(bounds);
-                        let color = &scrim.color;
-                        rect.is_positive().then(|| {
-                            (
-                                rect,
-                                beui::color::Color32::from_rgba_unmultiplied(
-                                    color.red,
-                                    color.green,
-                                    color.blue,
-                                    color.alpha,
-                                ),
-                            )
+                        rect.is_positive().then(|| beui::layer::Scrim {
+                            rect,
+                            color: crate::runtime::scrim_color(&scrim.color),
+                            radius: scrim.radius,
                         })
                     })
                     .collect(),
@@ -955,6 +948,7 @@ impl Instances {
                     frame,
                     windows: false,
                     host_place: None,
+                    origin: None,
                     docked: false,
                     anchor_space: None,
                 },
@@ -1080,6 +1074,7 @@ impl Instances {
         raster: f32,
         windows: bool,
         host_place: Option<String>,
+        origin: Option<Pos2>,
         anchor_space: Option<AnchorSpace>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
@@ -1097,11 +1092,13 @@ impl Instances {
             || screen.request.frame != frame
             || screen.request.windows != windows
             || screen.request.host_place != host_place
+            || screen.request.origin != origin
         {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
             screen.request.windows = windows;
             screen.request.host_place = host_place;
+            screen.request.origin = origin;
         }
     }
 
@@ -1421,6 +1418,7 @@ impl Instances {
                         frame: None,
                         windows: false,
                         host_place: None,
+                        origin: None,
                         docked: false,
                         anchor_space: None,
                     },
@@ -2929,6 +2927,7 @@ impl Instances {
                     frame: None,
                     windows: true,
                     host_place: None,
+                    origin: None,
                     docked: false,
                     anchor_space: None,
                 },

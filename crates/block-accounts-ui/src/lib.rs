@@ -112,7 +112,7 @@ fn AccountCard(
         <Card>
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{name}</Text>
+                    <Text size=TextSize::Lg @sizing=ItemSize::Percent(100.0)>{name}</Text>
                     <MenuButton
                         label="Account options"
                         glyph=ICON_ELLIPSIS

@@ -785,11 +785,11 @@ fn RunSplit() -> NodeId {
 fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
         label,
-        hovered,
+        pointed,
         focused,
         ..
     } = handle;
-    let fill = create_memo(move || match hovered.get() || focused.get() {
+    let fill = create_memo(move || match pointed.get() || focused.get() {
         true => ColorRole::Hover,
         false => ColorRole::None,
     });

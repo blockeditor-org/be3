@@ -2,16 +2,15 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_BELL, ICON_BELL_RING, ICON_X};
+use block_editor_beui::beui::icons::ICON_X;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
-use crate::app::popup::BarPopup;
 use beui::{Align, Direction, ItemSize};
 
-const LIST_HEIGHT: Size = Size::Custom(420.0);
+pub(crate) const LIST_HEIGHT: f32 = 420.0;
 const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 
@@ -21,33 +20,10 @@ fn received_at(received: u64) -> String {
 }
 
 #[component]
-pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
-    let listed = notifications.listed();
-    let glyph = create_memo(move || match listed.with(Vec::is_empty) {
-        true => ICON_BELL,
-        false => ICON_BELL_RING,
-    });
-    let label = create_memo(move || match listed.with(Vec::len) {
-        0 => "Notifications".to_owned(),
-        count => format!("Notifications ({count})"),
-    });
-    view! {
-        <BarPopup
-            label
-            glyph
-            icon_only=true
-            @test_id={"desktop.notifications"}
-            open={notifications.browsing()}
-        >|handle: PopoverHandle|
-            <NotificationList notifications={notifications} listed={listed} popover={handle} />
-        </BarPopup>
-    }
-}
-
-#[component]
-fn NotificationList(
+pub(crate) fn NotificationList(
     notifications: DesktopNotifications,
     listed: Memo<Vec<Listed>>,
+    height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
     let empty = create_memo(move || listed.with(Vec::is_empty));
@@ -76,7 +52,12 @@ fn NotificationList(
                 <Text style=TextStyle::CAPTION>"Nothing new."</Text>
             </Show>
             <Show condition={some}>
-                <NotificationRows notifications={notifications} listed={listed} popover={popover} />
+                <NotificationRows
+                    notifications={notifications}
+                    listed={listed}
+                    height={height}
+                    popover={popover}
+                />
             </Show>
         </List>
     }
@@ -86,10 +67,12 @@ fn NotificationList(
 fn NotificationRows(
     notifications: DesktopNotifications,
     listed: Memo<Vec<Listed>>,
+    height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
+    let max_length = create_memo(move || Size::Custom(height.get()));
     view! {
-        <Scroll max_length=LIST_HEIGHT>
+        <Scroll max_length>
             <ForEach keys={listed}>|shown: Listed|
                 <NotificationRow notifications={notifications} shown popover={popover} />
             </ForEach>

@@ -43,6 +43,7 @@ const BASE_STYLES: &str = "\
 .beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; max-width: none; max-height: none; overflow: visible; }
 .beui-overlay:is([open], :popover-open) { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 .beui-overlay::backdrop { background: var(--beui-scrim, transparent); }
+.beui-overlay:popover-open::backdrop { pointer-events: none; }
 .beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }
 .beui-beak[hidden] { display: none; }
 @container anchored(fallback: flip-block) { .beui-beak { top: auto; bottom: calc(var(--beui-beak) / -2); } }
@@ -169,6 +170,7 @@ mod web {
         held.push(Box::new(watch_changes(container)));
         held.push(Box::new(crate::focus::watch_document(document)));
         held.push(Box::new(crate::keys::watch_modifiers(document)));
+        held.push(Box::new(crate::keys::watch_menu_key(document)));
         RUNNING.with(|running| running.borrow_mut().extend(held));
         crate::frame::start();
     }

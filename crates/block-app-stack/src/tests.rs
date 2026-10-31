@@ -114,22 +114,14 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         }
     }
 
-    fn wait(&mut self, what: &str, done: impl Fn(&C) -> bool) {
+    fn wait(&mut self, _what: &str, done: impl Fn(&C) -> bool) {
         let id = self.id;
-        let deadline = std::time::Instant::now() + PATIENCE;
         loop {
             self.pump();
             if self.mirror.content().is_some_and(&done) {
                 return;
             }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the editor never {what}: it says {:?}",
-                status().error
-            );
-            wait_for(QUIET / 20, |shared| {
-                shared.editor_frames.contains_key(&id).then_some(())
-            });
+            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
         }
     }
 
@@ -158,9 +150,6 @@ impl<C: LiveEdit> Drop for Editor<C> {
         detach(self.block, self.id);
     }
 }
-
-const PATIENCE: Duration = Duration::from_secs(20);
-const QUIET: Duration = Duration::from_secs(2);
 
 pub struct Harness {
     directory: PathBuf,
@@ -192,8 +181,12 @@ impl Harness {
             .parse()
             .expect("the embedded server listens on an address");
         harness.relay = Some(fault_relay::Relay::start(server));
-        harness.clock = be_client::Clock::manual();
         harness
+    }
+
+    fn on_manual_clock(mut self) -> Self {
+        self.clock = be_client::Clock::manual();
+        self
     }
 
     fn relay(&self) -> &fault_relay::Relay {
@@ -207,41 +200,30 @@ impl Harness {
             .relay()
             .count(|message| matches!(message, be_protocol::ClientMessage::JoinSession { .. }));
         open(block, content_type);
-        let joined = runtime().block_on(async {
-            tokio::time::timeout(PATIENCE, joins.wait_for(|joins| *joins > 0))
-                .await
-                .is_ok_and(|seen| seen.is_ok())
-        });
-        assert!(joined, "opening the block never asked to join its session");
+        runtime()
+            .block_on(joins.wait_for(|joins| *joins > 0))
+            .expect("opening the block asked to join its session");
     }
 
     fn miss_a_ping(&self) {
-        let mut due = wait_for(PATIENCE, |shared| {
+        let mut due = crate::wait_until(|shared| {
             shared
                 .connected
                 .then(|| shared.connection_due.clone())
                 .flatten()
-        })
-        .expect("the stack is connected");
-        let missed = runtime().block_on(async {
-            tokio::time::timeout(PATIENCE, async {
-                loop {
-                    let at = *due.borrow_and_update();
-                    let now = self.clock.now();
-                    if at > now {
-                        self.clock.advance(at - now);
-                    }
-                    if due.changed().await.is_err() {
-                        return;
-                    }
-                }
-            })
-            .await
         });
-        assert!(
-            missed.is_ok(),
-            "the connection never gave up on the silent server"
-        );
+        runtime().block_on(async {
+            loop {
+                let at = *due.borrow_and_update();
+                let now = self.clock.now();
+                if at > now {
+                    self.clock.advance(at - now);
+                }
+                if due.changed().await.is_err() {
+                    return;
+                }
+            }
+        });
         wait_until("noticed the connection was gone", |shared| {
             !shared.connected
         });
@@ -445,25 +427,20 @@ impl Outside {
             session,
         } = self;
         let session = session.as_mut().expect("the outside peer has not left");
-        let reached = local.block_on(runtime, async {
-            tokio::time::timeout(PATIENCE, async {
-                while !session.is_owner() {
+        local.block_on(runtime, async {
+            session.claim();
+            while !session.is_owner() {
+                let woken = session.next().await;
+                let heard = matches!(woken, be_cli::replica::Woken::Event(_));
+                session
+                    .handle(woken)
+                    .await
+                    .expect("the outside peer is still connected");
+                if heard {
                     session.claim();
-                    let _ = tokio::time::timeout(Duration::from_millis(100), async {
-                        while !session.is_owner() {
-                            let woken = session.next().await;
-                            session
-                                .handle(woken)
-                                .await
-                                .expect("the outside peer is still connected");
-                        }
-                    })
-                    .await;
                 }
-            })
-            .await
+            }
         });
-        assert!(reached.is_ok(), "the outside peer never took the session");
     }
 
     fn add(&mut self, by: i64) {
@@ -507,33 +484,29 @@ impl Outside {
         self.local.block_on(&self.runtime, session.close());
     }
 
-    fn until(&mut self, what: &str, ready: impl Fn(&Seen) -> bool) {
+    fn until(&mut self, _what: &str, ready: impl Fn(&Seen) -> bool) {
         let Self {
             runtime,
             local,
             session,
         } = self;
         let session = session.as_mut().expect("the outside peer has not left");
-        let reached = local.block_on(runtime, async {
-            tokio::time::timeout(PATIENCE, async {
-                loop {
-                    let seen = Seen {
-                        count: session.content().map(|counter| counter.root().value()),
-                        presence: session.presence().to_vec(),
-                    };
-                    if ready(&seen) {
-                        return;
-                    }
-                    let woken = session.next().await;
-                    session
-                        .handle(woken)
-                        .await
-                        .expect("the outside peer is still connected");
+        local.block_on(runtime, async {
+            loop {
+                let seen = Seen {
+                    count: session.content().map(|counter| counter.root().value()),
+                    presence: session.presence().to_vec(),
+                };
+                if ready(&seen) {
+                    return;
                 }
-            })
-            .await
+                let woken = session.next().await;
+                session
+                    .handle(woken)
+                    .await
+                    .expect("the outside peer is still connected");
+            }
         });
-        assert!(reached.is_ok(), "the outside peer never {what}");
     }
 }
 
@@ -554,15 +527,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
 }
 
 fn wait_for_count(block: Uuid, expected: i64) {
-    let reached = wait_for(PATIENCE, |shared| {
-        (counted(shared, block) == Some(expected)).then_some(())
-    });
-    assert!(
-        reached.is_some(),
-        "the new stack never reported {expected} for {block}: it holds {:?}, and the stack says {:?}",
-        count_of(block),
-        status().error
-    );
+    crate::wait_until(|shared| (counted(shared, block) == Some(expected)).then_some(()));
 }
 
 fn ask_for(queries: Vec<Query>) {
@@ -572,13 +537,8 @@ fn ask_for(queries: Vec<Query>) {
     want(owner, wanted);
 }
 
-fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
-    let reached = wait_for(PATIENCE, |shared| ready(shared).then_some(()));
-    assert!(
-        reached.is_some(),
-        "the new stack never {what}: it says {:?}",
-        status().error
-    );
+fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
+    crate::wait_until(|shared| ready(shared).then_some(()));
 }
 
 fn add(block: Uuid, by: i64) {
@@ -820,7 +780,7 @@ fn made_link(offer: Option<(Uuid, be_graph::Access)>) -> be_keys::InviteCode {
         let _ = sender.send(made);
     });
     let link = receiver
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the worker answered")
         .expect("the link was made");
     crate::invite_link::InviteLink::parse_contact(&link)

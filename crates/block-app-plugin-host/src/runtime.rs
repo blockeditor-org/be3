@@ -250,6 +250,7 @@ struct Pacing {
     unseen: bool,
     animating: bool,
     paint_at: Option<Duration>,
+    drawn_at: Duration,
     requested_at: Option<Duration>,
     animated: u64,
 }
@@ -264,10 +265,14 @@ impl Pacing {
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
-        (self.needed || (self.animated != pass && self.paint_at.is_some_and(|at| at <= now)))
+        (self.needed || (self.animated != pass && self.asked_by(now)))
             && self
                 .requested_at
                 .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
+    }
+
+    fn asked_by(&self, now: Duration) -> bool {
+        self.paint_at.is_some_and(|at| at <= now) && now > self.drawn_at
     }
 
     fn request(&mut self, now: Duration, pass: u64) {
@@ -278,6 +283,7 @@ impl Pacing {
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
         self.needed = false;
         self.requested_at = None;
+        self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
     }
 
@@ -318,6 +324,10 @@ impl Presents {
             .retain(|presented| presented.sequence > presents);
         (presents > since && found == presents - since).then_some(damage)
     }
+}
+
+fn frame_changed(damage: Option<&[ScreenDamage]>) -> bool {
+    damage.is_none_or(|damage| !damage.is_empty())
 }
 
 impl Runtime {
@@ -551,19 +561,27 @@ impl Runtime {
         host::request_repaint();
     }
 
-    fn busy(&mut self) -> bool {
+    fn busy(&mut self) -> Vec<&'static str> {
         if self.error.is_some() || !self.instances.has_mounted() {
-            return false;
+            return Vec::new();
         }
         let starting = matches!(
             self.session.state(),
             SessionState::Idle | SessionState::Starting
         );
-        starting
-            || self.painting
-            || self.drawing()
-            || !self.backend.settled()
-            || self.instances.awaiting_content()
+        [
+            (starting, "is starting"),
+            (self.painting, "has yet to answer a paint"),
+            (self.drawing(), "is drawing a frame"),
+            (!self.backend.settled(), "has input or a step in flight"),
+            (
+                self.instances.awaiting_content(),
+                "has an editor waiting for its block's content",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(busy, reason)| busy.then_some(reason))
+        .collect()
     }
 
     fn request_painting(&mut self) {
@@ -610,6 +628,7 @@ impl Runtime {
             self.pacing.unseen = !seen;
             self.send(vec![PluginCall::Draw {
                 now_micros: self.now().as_micros() as u64,
+                wall_micros: host::wall_clock().as_micros() as u64,
                 seen,
             }]);
         }
@@ -754,9 +773,11 @@ impl Runtime {
             self.backend.withdraw(image);
         }
         if let Some(mut frame) = self.backend.received_frame() {
-            self.export_previews(&frame);
+            let previewed = self.export_previews(&frame);
+            let mut changed = true;
             if frame.composited() {
                 frame.set_damage(self.presents.damage_through(frame.presents()));
+                changed = frame_changed(frame.damage());
                 self.shared.borrow_mut().publish(&self.layout, Some(frame));
                 self.frames += 1;
                 block_app_base::performance::record_group_count(
@@ -765,7 +786,9 @@ impl Runtime {
                     self.frames,
                 );
             }
-            mark(&self.plugin.identity.id);
+            if previewed || changed {
+                mark(&self.plugin.identity.id);
+            }
         }
     }
 
@@ -808,7 +831,7 @@ impl Runtime {
         self.answer();
     }
 
-    fn export_previews(&mut self, frame: &Frame) {
+    fn export_previews(&mut self, frame: &Frame) -> bool {
         let shown: Vec<ScreenPlacement> = self
             .layout
             .screens
@@ -817,7 +840,7 @@ impl Runtime {
             .copied()
             .collect();
         if shown.is_empty() {
-            return;
+            return false;
         }
         let surfaces: Vec<u32> = shown.iter().map(|placement| placement.surface).collect();
         let painted = Backend::pictures(frame, &surfaces)
@@ -833,8 +856,10 @@ impl Runtime {
                     size: [placement.width, placement.height],
                 })
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let exported = !painted.is_empty();
         previews::exported(&self.plugin.identity.id, &self.shared, painted);
+        exported
     }
 
     fn laid_out(&mut self, layout: ScreenLayout) {
@@ -954,7 +979,9 @@ impl Runtime {
         }
         let mut replies = Vec::new();
         let mut changed = false;
-        mark(&self.plugin.identity.id);
+        let heard = answers
+            .iter()
+            .any(|answer| !matches!(answer, Answer::Frame(_)));
         for answer in answers {
             changed |= match answer {
                 Answer::Layout(layout) => {
@@ -1005,6 +1032,9 @@ impl Runtime {
                     false
                 }
             };
+        }
+        if heard || changed {
+            mark(&self.plugin.identity.id);
         }
         self.send(replies);
         self.serve();
@@ -1469,12 +1499,21 @@ pub fn settle() {
     });
 }
 
-pub fn busy() -> bool {
+pub fn busy() -> Vec<String> {
     HOST.with(|host| {
-        host.borrow_mut()
+        let mut host = host.borrow_mut();
+        let mut reasons: Vec<String> = host
             .runtimes
-            .values_mut()
-            .any(|runtime| runtime.contain(Runtime::busy))
+            .iter_mut()
+            .flat_map(|(id, runtime)| {
+                runtime
+                    .contain(Runtime::busy)
+                    .into_iter()
+                    .map(move |reason| format!("the plugin {id} {reason}"))
+            })
+            .collect();
+        reasons.sort();
+        reasons
     })
 }
 
@@ -2082,6 +2121,7 @@ pub struct ViewPlace {
     pub raster: f32,
     pub windows: bool,
     pub placement: Option<String>,
+    pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
 }
 
@@ -2152,6 +2192,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .map(|offer| offer.placement.raster);
     let windows = chosen.placement.windows;
     let host_placement = chosen.placement.placement.clone();
+    let origin = chosen.placement.origin;
     let anchor_bounds = chosen.placement.anchor_bounds;
     let frame = chosen.frame;
     let view = chosen.view;
@@ -2207,6 +2248,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         raster,
         windows,
         host_placement,
+        origin,
         anchor_space,
     );
     if let Some(view) = view {
@@ -2336,7 +2378,7 @@ pub struct PlacedView {
     pub base: Vec<Piece>,
     pub floating: Vec<Piece>,
     pub floating_rects: Vec<Rect>,
-    pub scrims: Vec<(Rect, beui::color::Color32)>,
+    pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<(beui::Modifiers, Rect)>,
     pub held: Option<Rect>,
@@ -2354,6 +2396,7 @@ pub struct PlacedView {
     pub pastes: Vec<beui::PasteKind>,
     pub clipboard_keys: bool,
     pub every_sample: bool,
+    pub work_area: Option<Rect>,
 }
 
 impl PlacedView {
@@ -2384,6 +2427,7 @@ impl PlacedView {
             pastes: Vec::new(),
             clipboard_keys: false,
             every_sample: false,
+            work_area: None,
         }
     }
 
@@ -2528,17 +2572,10 @@ fn shown_view(
                     report
                         .scrims
                         .iter()
-                        .map(|scrim| {
-                            let color = &scrim.color;
-                            (
-                                scrim.rect.translate(rect.min.to_vec2()),
-                                beui::color::Color32::from_rgba_unmultiplied(
-                                    color.red,
-                                    color.green,
-                                    color.blue,
-                                    color.alpha,
-                                ),
-                            )
+                        .map(|scrim| beui::layer::Scrim {
+                            rect: scrim.rect.translate(rect.min.to_vec2()),
+                            color: scrim_color(&scrim.color),
+                            radius: scrim.radius,
                         })
                         .collect()
                 })
@@ -2634,6 +2671,9 @@ fn shown_view(
                 .unwrap_or_default(),
             clipboard_keys: window.is_some_and(|window| window.clipboard_keys),
             every_sample: window.is_some_and(|window| window.every_sample),
+            work_area: report
+                .and_then(|report| report.work_area)
+                .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
         }
     }
 }
@@ -2837,6 +2877,10 @@ pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> O
             .get_mut(plugin_id)?
             .contain(|runtime| Some(act(runtime)))
     })
+}
+
+pub(crate) fn scrim_color(color: &block_plugin_api::accessibility::Color) -> beui::color::Color32 {
+    beui::color::Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
 }
 
 #[cfg(test)]

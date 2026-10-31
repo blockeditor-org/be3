@@ -141,6 +141,36 @@ pub fn DragFixture() -> NodeId {
                     <Text>"Basket"</Text>
                 </Frame>
             </DropTarget>
+            <Frame width=Size::Custom(200.0) height=Size::Custom(120.0)>
+                <Scroll>
+                    <Draggable
+                        payload={create_memo(|| Some("pear".to_owned()))}
+                        preview={|fruit: String| view! {
+                            <Text>{fruit}</Text>
+                        }}
+                    >|_: DragHandle|
+                        <Frame
+                            height=Size::Custom(60.0)
+                            fill=ColorRole::Surface
+                            @test_id="drag.pear"
+                        >
+                            <Text>"Pear"</Text>
+                        </Frame>
+                    </Draggable>
+                    <Frame height=Size::Custom(40.0) />
+                    <DropTarget
+                        on_drop={move |(fruit, _): (String, DragPoint)| dropped.set(fruit)}
+                    >|_: DropHandle|
+                        <Frame
+                            height=Size::Custom(60.0)
+                            fill=ColorRole::Surface
+                            @test_id="drag.box"
+                        >
+                            <Text>"Box"</Text>
+                        </Frame>
+                    </DropTarget>
+                </Scroll>
+            </Frame>
             <Text>{report}</Text>
         </List>
     }

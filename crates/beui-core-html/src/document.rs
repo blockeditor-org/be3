@@ -16,6 +16,8 @@ pub(crate) struct Shared {
     style: Vec<(&'static str, String)>,
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
+    described: Option<(u64, accesskit::Node)>,
+    aria: Vec<(&'static str, String)>,
 }
 
 pub(crate) struct Entry {
@@ -26,7 +28,6 @@ pub(crate) struct Entry {
     pub(crate) owner: Option<ScopeContext>,
     pub(crate) direction: Direction,
     pub(crate) states: Vec<Box<dyn Any>>,
-    pub(crate) accessibility: Option<accesskit::Node>,
     refs: Vec<Weak<NodeCell>>,
 }
 
@@ -113,7 +114,6 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         owner: reactive::current_scope(),
         direction: Direction::Vertical,
         states: Vec::new(),
-        accessibility: None,
         refs: Vec::new(),
     };
     let node = ARENA.with(|arena| {
@@ -277,6 +277,9 @@ pub fn append(parent: NodeId, child: NodeId) {
 }
 
 pub fn add_test_id(node: NodeId, id: String) {
+    if id.is_empty() {
+        return;
+    }
     let ids = with_entry(node, |entry| {
         let mut shared = entry.shared.borrow_mut();
         if !shared.test_ids.contains(&id) {
@@ -356,8 +359,31 @@ pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
     .flatten()
 }
 
-pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
-    with_entry(node, |entry| entry.accessibility = Some(accessibility));
+pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64) {
+    let Some((element, shared)) =
+        with_entry(node, |entry| (entry.element.clone(), entry.shared.clone()))
+    else {
+        return;
+    };
+    let mut shared = shared.borrow_mut();
+    if shared
+        .described
+        .as_ref()
+        .is_some_and(|(held, _)| *held > rank)
+    {
+        return;
+    }
+    let attributes = crate::aria::attributes(&accessibility, element.tag());
+    shared.described = Some((rank, accessibility));
+    for (name, _) in &shared.aria {
+        if !attributes.iter().any(|(set, _)| set == name) {
+            element.set_attribute(name, None);
+        }
+    }
+    for (name, value) in &attributes {
+        element.set_attribute(name, Some(value.clone()));
+    }
+    shared.aria = attributes;
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
@@ -415,7 +441,12 @@ pub fn about_elements() -> Vec<About> {
                             element: entry.element.clone(),
                             kinds: Vec::new(),
                             test_ids: entry.shared.borrow().test_ids.clone(),
-                            accessibility: None,
+                            accessibility: entry
+                                .shared
+                                .borrow()
+                                .described
+                                .as_ref()
+                                .map(|(_, described)| described.clone()),
                         },
                         entry.wraps,
                     ));
@@ -427,11 +458,8 @@ pub fn about_elements() -> Vec<About> {
                 *wraps = entry.wraps;
             }
             about.kinds.push(entry.kind);
-            if about.accessibility.is_none() {
-                about.accessibility = entry.accessibility.clone();
-            }
         }
-        found.into_iter().map(|(about, _)| about).collect()
+        found.into_iter().map(|(about, ..)| about).collect()
     })
 }
 

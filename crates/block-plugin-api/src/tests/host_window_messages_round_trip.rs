@@ -8,6 +8,7 @@ fn host_window_messages_round_trip() {
         shown: false,
         title: "Terminal".into(),
         app_id: "foot".into(),
+        name: "Foot".into(),
         parent: Some(HostWindowId(3)),
         modal: true,
         size: Vec2::new(640.0, 480.0),

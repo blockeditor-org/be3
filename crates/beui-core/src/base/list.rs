@@ -366,6 +366,49 @@ impl Element for ListNode {
         total
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if self.wrap {
+            return None;
+        }
+        let along = direction == self.direction;
+        if !along && direction == Direction::Vertical {
+            return None;
+        }
+        let grid = doc.pixel_grid();
+        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let mut total = 0.0f32;
+        for (item, gap) in self.items.iter().zip(gaps) {
+            let size = item.size;
+            if !along {
+                let least =
+                    crate::layout::least_length(doc, painter, item.child, direction, f32::INFINITY);
+                total = total.max(least);
+                continue;
+            }
+            let length = match size.size {
+                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
+                _ if size.yields() => {
+                    let least =
+                        crate::layout::least_length(doc, painter, item.child, direction, cross);
+                    size.clamp(least)
+                }
+                _ => {
+                    let offered = direction.axes(f32::INFINITY, cross);
+                    let natural = crate::layout::measure(doc, painter, item.child, offered);
+                    size.clamp(direction.main(natural))
+                }
+            };
+            total += gap + length;
+        }
+        Some(total)
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let (available_main, available_cross) = self.main_and_cross(available);
         let grid = doc.pixel_grid();

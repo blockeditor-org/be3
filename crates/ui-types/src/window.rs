@@ -49,7 +49,8 @@ impl WindowRequest {
         match self {
             Self::Open { window, .. }
             | Self::BeginResize { window, .. }
-            | Self::Resize { window, .. } => *window,
+            | Self::Resize { window, .. }
+            | Self::Place { window, .. } => *window,
             Self::BeginMove(window) | Self::Raise(window) | Self::Close(window) => *window,
         }
     }

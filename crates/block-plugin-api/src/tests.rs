@@ -57,6 +57,7 @@ fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameRepor
         claims: Vec::new(),
         description: None,
         anchored: Some(placement),
+        work_area: None,
     }
 }
 
@@ -116,6 +117,7 @@ fn view_screen(
         },
         windows: false,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: None,
     }
@@ -130,6 +132,7 @@ mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_host_transform_maps_region_points_to_host_coordinates;
 mod a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest;
 mod a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place;
+mod a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;

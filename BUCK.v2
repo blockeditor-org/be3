@@ -13,22 +13,11 @@ export_file(
 # each names. ./scripts/verify and ./scripts/ci are scripts rather than targets,
 # so that each is one buck2 command.
 #
-#   ./scripts/buck run //:check
 #   ./scripts/buck run //:fuzz
 #   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:pdfium -- REVISION
 #   ./scripts/buck run //:rust-project
-
-# rustc's check pass over every first-party target in every configuration.
-command_alias(
-    name = "check",
-    args = [
-        "sh",
-        "-c",
-        "exec ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null",
-    ],
-)
 
 # Every fuzz target, taking turns, until it is stopped (crates/local-tools).
 command_alias(

@@ -5,82 +5,114 @@ use block_editor_beui::be_block::{
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::native::Document;
-use block_editor_beui::beui::{Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
+use block_editor_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
     MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
-    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind, WindowOrigin,
-    WindowsWatch,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
+    WindowOrigin, WindowsWatch,
 };
 
 use block_editor_beui::be_block::{EditorView, EditorViewContent};
-use block_shell::{KeptWindow, saved_windows};
+use block_shell::{KeptWindow, SHELL_BARS, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::DesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
+mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
+mod a_bar_moved_on_one_display_stays_put_on_the_others;
+mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
+mod a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it;
+mod a_bar_thrown_up_from_its_band_floats_over_the_top;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
 mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
+mod a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset;
+mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
+mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
+mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
+mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
+mod a_fullscreen_window_covers_the_bars;
+mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
 mod a_held_volume_key_keeps_turning_the_volume;
+mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
 mod a_locked_screen_shows_no_notification_toasts;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
+mod a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab;
+mod a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it;
 mod a_query_no_program_matches_runs_as_a_command;
-mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
-mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
+mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
+mod a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_launched_from_a_placeholder_takes_its_place;
+mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
+mod a_window_on_the_second_display_is_kept_above_its_bars;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
+mod a_windows_tab_menu_shows_whole_past_its_window;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
+mod arrow_keys_walk_the_status_bar_item_by_item;
+mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
-mod each_display_shows_its_own_bar_at_its_own_foot;
-mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
+mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
+mod each_display_has_its_own_three_bars_along_its_foot;
+mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
+mod floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar;
 mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
 mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
+mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
+mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
+mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_desktops_three_bars_share_one_band_along_its_foot;
+mod the_keyboard_button_shows_when_the_display_settings_ask_for_it;
+mod the_layout_notice_shows_above_the_desktops_windows;
 mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
-mod the_notifications_button_lists_what_arrived_and_answers_it;
-mod the_power_menu_asks_before_ending_the_session;
-mod the_power_menu_locks_the_screen_without_asking;
-mod the_power_menu_offers_only_what_the_host_allows;
-mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
+mod the_power_row_asks_before_ending_the_session;
+mod the_power_row_locks_the_screen_without_asking;
+mod the_power_row_offers_only_what_the_host_allows;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
+mod the_restore_chip_leads_the_windows_bar_while_windows_from_last_time_wait;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
+mod the_status_button_shows_the_volume_and_opens_its_controls;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
-mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
-mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
+mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
-mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
-mod the_wifi_popup_asks_the_host_to_connect;
-mod the_window_picker_lists_displays_then_windows_and_shows_or_hides_them;
+mod the_wifi_list_asks_the_host_to_connect;
+mod the_wifi_tile_lists_the_networks_the_host_reports;
+mod the_windows_bar_shares_its_length_between_many_chips;
+mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const MAX_TAB: u64 = 64;
+const APPS_BAR: u64 = 0;
+const WINDOWS_BAR: u64 = 1;
+const STATUS_BAR: u64 = 2;
 const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
     lock: true,
@@ -152,7 +184,9 @@ impl Fixture {
 
     fn holding(view: EditorViewContent) -> Self {
         let mut fixture = Self::unserved(view);
-        fixture.test.set_watched::<ProgramsWatch>(&Vec::new());
+        fixture
+            .test
+            .set_watched::<ProgramsWatch>(&ProgramCatalog::default());
         fixture
             .test
             .set_watched::<NotificationsWatch>(&NotificationInbox::default());
@@ -327,11 +361,26 @@ impl Fixture {
             .collect()
     }
 
+    fn status_label(&self) -> String {
+        let document = self.test.document();
+        document
+            .find_test_id("desktop.status")
+            .and_then(|status| accessible_under(&document, status))
+            .unwrap_or_default()
+    }
+
     fn says(&self, words: &str) -> bool {
         let document = self.test.document();
         document
             .root()
             .is_some_and(|root| text_within(&document, root, words).is_some())
+    }
+
+    fn times_said(&self, words: &str) -> usize {
+        let document = self.test.document();
+        document
+            .root()
+            .map_or(0, |root| texts_within(&document, root, words))
     }
 
     fn click_text(&mut self, words: &str) {
@@ -371,6 +420,15 @@ impl Fixture {
             .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
     }
 
+    fn window_grip(&self, window: u64) -> Pos2 {
+        let id = format!("dock.window.grip.window.{window}");
+        self.test
+            .desk_rects_of(&id)
+            .first()
+            .unwrap_or_else(|| panic!("window {window} shows its grip"))
+            .center()
+    }
+
     fn placed_blocks(&self) -> Vec<(Uuid, Option<Uuid>, Rect)> {
         self.test
             .children()
@@ -396,6 +454,45 @@ impl Fixture {
             [(block, _, _)] => Some(block),
             ref placed => panic!("only the calendar is placed: {placed:?}"),
         }
+    }
+
+    fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
+        self.test
+            .click(&format!("dock.bar.{}.grip", SHELL_BARS + bar));
+        self.settle();
+        for row in rows {
+            self.test.click(&format!("grip.dock.bar.{row}"));
+            self.settle();
+        }
+    }
+
+    fn desk_click(&mut self, test_id: &str, on: Rect) {
+        let rect = self
+            .test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .find(|rect| on.contains_rect(*rect))
+            .unwrap_or_else(|| panic!("{test_id} is shown on {on:?}"));
+        self.test.click(rect.center());
+        self.settle();
+    }
+
+    fn display_bar_menu(&mut self, display: u64, bar: u64, on: Rect, rows: &[&str]) {
+        self.desk_click(
+            &format!("dock.bar.{}.grip", SHELL_BARS + 3 * display + bar),
+            on,
+        );
+        for row in rows {
+            self.desk_click(&format!("grip.dock.bar.{row}"), on);
+        }
+    }
+
+    fn shown_on(&self, test_id: &str, on: Rect) -> Vec<Rect> {
+        self.test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .filter(|rect| on.contains_rect(*rect))
+            .collect()
     }
 
     fn close_a_tab(&mut self) {
@@ -489,8 +586,9 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         id: HostWindowId(id),
         kind: WindowKind::Window,
         shown: true,
-        title: format!("Program {id}"),
-        app_id: "test".to_owned(),
+        title: format!("todo-{id}.txt"),
+        app_id: "org.kde.kate".to_owned(),
+        name: "Kate".to_owned(),
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),
@@ -508,13 +606,14 @@ fn program_window(id: u64, app_id: &str, title: &str, origin: WindowOrigin) -> H
     HostWindow {
         title: title.to_owned(),
         app_id: app_id.to_owned(),
+        name: String::new(),
         origin,
         ..host_window(id, false)
     }
 }
 
 fn foot(id: u64) -> HostWindow {
-    program_window(
+    let window = program_window(
         id,
         "foot",
         &format!("Terminal {id}"),
@@ -523,7 +622,11 @@ fn foot(id: u64) -> HostWindow {
             command: vec!["foot".to_owned()],
             launch: None,
         },
-    )
+    );
+    HostWindow {
+        name: "Foot".to_owned(),
+        ..window
+    }
 }
 
 fn notes(id: u64) -> HostWindow {
@@ -539,13 +642,13 @@ fn notes(id: u64) -> HostWindow {
     )
 }
 
-fn programs() -> Vec<HostProgram> {
+fn programs() -> ProgramCatalog {
     const SIDE: u32 = 32;
     let icon = (0..SIDE * SIDE).flat_map(|at| match (at % SIDE + at / SIDE) % 8 < 4 {
         true => [0x2e, 0x7d, 0x32, 0xff],
         false => [0x1b, 0x5e, 0x20, 0xff],
     });
-    vec![
+    let programs = vec![
         HostProgram {
             id: "files.desktop".to_owned(),
             name: "Files".to_owned(),
@@ -568,7 +671,11 @@ fn programs() -> Vec<HostProgram> {
                 rgba: icon.collect(),
             }),
         },
-    ]
+    ];
+    ProgramCatalog {
+        listed: true,
+        programs,
+    }
 }
 
 fn kept_keys(fixture: &Fixture) -> Vec<u64> {
@@ -593,6 +700,19 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .find_map(|child| text_within(&document, child, words))
 }
 
+fn texts_within(document: &Document, id: NodeId, words: &str) -> usize {
+    let own = document
+        .arena
+        .kind_of(id)
+        .is_some_and(|node| document.text(node).contains(words));
+    usize::from(own)
+        + document
+            .children(id)
+            .into_iter()
+            .map(|child| texts_within(document, child, words))
+            .sum::<usize>()
+}
+
 fn text_under(document: &Document, id: NodeId) -> Option<String> {
     if let Some(node) = document.arena.kind_of(id) {
         return Some(document.text(node).to_owned());
@@ -601,6 +721,20 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
         .children(id)
         .into_iter()
         .find_map(|child| text_under(&document, child))
+}
+
+fn accessible_under(document: &Document, id: NodeId) -> Option<String> {
+    if let Some(label) = document
+        .accessibility
+        .get(&id)
+        .and_then(|node| node.label())
+    {
+        return Some(label.to_owned());
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| accessible_under(document, child))
 }
 
 fn toast(id: u32) -> String {

@@ -53,7 +53,7 @@ fn main() {
     let _editor = Editor::new(&mut session.connection, opening(editor));
     plugin::screens(&mut session.connection, screens());
     session.step("open", &mut plugin);
-    session.draw = Some(plugin::draw(&mut session.connection, 0, true).op());
+    session.draw = Some(plugin::draw(&mut session.connection, 0, 0, true).op());
     session.step("draw", &mut plugin);
     match plugin.surface(SCREENS_SURFACE) {
         Some((texture, generation)) => println!(
@@ -192,6 +192,7 @@ fn screens() -> Vec<ScreenRequest> {
             metrics: metrics(),
             windows: false,
             host_place: None,
+            origin: None,
             docked: false,
             anchor_space: None,
         },
@@ -204,6 +205,7 @@ fn screens() -> Vec<ScreenRequest> {
             metrics: metrics(),
             windows: false,
             host_place: None,
+            origin: None,
             docked: false,
             anchor_space: None,
         },

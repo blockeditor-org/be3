@@ -158,7 +158,10 @@ asks for by placing a child with `dialog` set) gets the whole area inside the
 card or sheet, with no padding and no title bar of the host's: it draws the
 title, the content and the actions, and reports the height it wants as its
 content (the host passes the size it got as the frame's, and how much of its
-bottom is covered as `bottom-inset`). Escape, back and a press outside it go to
+bottom is covered as `bottom-inset`). Nothing in the instance's own tree
+blocks anything around its dialog, so the host says as `modal` whether the
+dialog blocks everything else it shows, and the instance tells assistive
+technology that the dialog is modal only then. Escape, back and a press outside it go to
 the instance first, so a form with unsaved changes can ask before closing: the
 editor showing it calls `dismiss-child`, the host calls the instance's
 `dismiss`, and the instance answers with `close-dialog`, which reaches the
@@ -457,12 +460,20 @@ host gave says). A window is always a window of its own; what points back to
 where it came from (a menu, a picker, a popover) is an anchored view. The host shows the window from that
 screen in the frame that commits it, where the placement says, moved back
 inside its bounds, and from then on asks for the view with that same screen,
-placed by the host, whose size, scale and `host-place` are the host's answer,
+placed by the host, whose size, scale, `host-place` and `origin` (its corner
+in the one space the host places the plugin's windows and views in, sent too for
+the views windows open from) are the host's answer,
 whose focus arrives as input, and whose going away closes it; the plugin
 draws the screen as it opened it until the host's screens name it or it
 closes the window. The other requests, `begin-move` and `begin-resize`, which
-hand the pointer to the host until the press is let go, `raise`, `resize`
-and `close`, each name the window's view. block-app says `windows` for every
+hand the pointer to the host until the press is let go, `raise`, `resize`,
+`place` (put it, at the size it has, where a placement says) and `close`, each
+name the window's view. A view that windows open from may report a
+`work-area` (insets) in its frame report: the part of it the plugin keeps clear
+of its own bars. The host keeps each of the plugin's windows on a display
+wholly inside the work area reported there, on the edges where it is inset,
+and leaves other edges open, so a window still crosses onto another display.
+block-app says `windows` for every
 main view it shows and, where it opens no windows of its own, draws each one
 over its own window at the point asked for, moved back inside it, or shrunk
 to the room below that point when there is enough. Without `windows` the plugin draws its
@@ -501,24 +512,32 @@ root places a descendant's tab body as a child showing `child-content.dock-tab`
 with the full path, and the host shows the owner's view of that body there,
 placed by the dock,
 only for tabs the owner's `dock-hosted.visible` lists, and for the bodies a
-declaration names that are no tabs: a `dock-dialog`'s (a window or a modal,
-which the root presents as it presents its own dialogs, over the dialog's
-parent, closing it with a `close` of the dialog's `tab`; a popover-style
-dialog is no dock dialog, its owner draws it as an anchored view of its own), a pane's `empty` view, which the root shows
+declaration names that are no tabs: a `dock-dialog`'s (which the root presents
+as it presents its own dialogs, a card hanging from the dialog's parent and
+pointing at it, closing it with a `close` of the dialog's `tab`; a small form
+of a tab body's own is no dock dialog, its owner draws it as an anchored view
+of its own), a pane's `empty` view, which the root shows
 while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
-(`owner`) and shows while it does, floating over an edge of its body at its
-start, centre or end (`dock-bar-over`), in a band along the whole edge beside
-it, or popped out (`dock-bar-placement`); the root gives its body the `size` the owner
+(`owner`) and shows while it does, floating over an edge of its body or in
+the band along that edge beside it, at its start, centre or end
+(`dock-bar-edge`; the bars docked on one edge share its band side by side), or
+popped out (`dock-bar-placement`). A bar with no `owner` belongs to the
+declaring dock itself: the host splices it in as a bar of the first tab of the
+group that takes the hosting tab's place (where the hosting tab's own bars are
+lent, `DockDeclaration::splice`), the root gives a child's to the tab hosting it,
+and each level hears its own back with no owner again (`DockHosted::own`,
+`own_dock_bars`); a root's own dock bars never cross, it draws them itself. The root gives its body the `size` the owner
 declares, measured as the owner last laid it out along the bar's edge, and
-the layout says where each bar is (`dock-layout.bars`). Its owner draws the
-grip too: placing it is a `place-bar` request, and dragging it a run of
+the layout says where each bar is and whether it is hidden (`dock-layout.bars`;
+a hidden bar takes no room and is not drawn). Its owner draws the
+grip too: placing it is a `place-bar` request, hiding or showing it a `hide-bar`, and dragging it a run of
 `move-bar` requests with the pointer in the bar body's own points (`move`,
 then `drop` or `cancel`; while the pointer is over another view of the owner,
 the owner maps the position it hears there back into the bar's view through
 the views' anchor spaces), which the root carries as a drag of its own, showing
 where the bar would land. A bar's `kind` (`{block type}/{key}`, set by the
 declaring editor and passed on unchanged by the host) says which bars are one
-bar of different tabs: the root places every bar of a kind the same way and
+bar of different tabs: the root places and hides every bar of a kind the same way and
 shows the popped-out ones in one window. A `bare` pane shows its one tab with no tab bar. A
 layout also names where each tab moved out of the declaration's group went
 (`dock-layout.outside`: a pane of the root's by key and index, or a window of

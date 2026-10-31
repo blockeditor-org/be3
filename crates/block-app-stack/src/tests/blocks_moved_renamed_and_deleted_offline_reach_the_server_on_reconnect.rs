@@ -58,12 +58,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         Some(be_graph::BlockParent::Detached),
         Some("Renamed".to_owned()),
     );
-    let listed = wait_for(PATIENCE, |shared| (seen(shared) == expected).then_some(()));
-    assert!(
-        listed.is_some(),
-        "this device did not list its offline changes: it shows {:?}",
-        with_shared(seen)
-    );
+    crate::wait_until(|shared| (seen(shared) == expected).then_some(()));
 
     harness.start_server(&address);
     retry_now();

@@ -31,13 +31,25 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     assert_eq!(beating.clean_at, Some(first.0));
 
     let token = phone.token.clone();
-    drop(phone);
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
     let mut laptop = harness.second_connection(&token, organization).await;
-    let (_, taken) = laptop.join_session(block).await;
-    assert!(
-        taken.owner.is_some() && taken.owner != Some(owner),
+    let (on_laptop, joined) = laptop.join_session(block).await;
+    assert_eq!(joined.owner, Some(owner));
+    drop(phone);
+
+    let taken = loop {
+        if let ServerMessage::SessionChanged {
+            block: changed,
+            state,
+        } = laptop.notification().await
+            && changed == block
+            && state.owner != Some(owner)
+        {
+            break state;
+        }
+    };
+    assert_eq!(
+        taken.owner,
+        Some(on_laptop),
         "the session kept a disconnected owner: {taken:?}"
     );
     assert_eq!(taken.clean_at, Some(first.0));

@@ -31,6 +31,10 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
     let show_in_bar = settings.setter(&rotate_in_bar);
+    let keyboard_shown = create_memo(move || merged.with(DisplaySettings::keyboard_in_bar));
+    let keyboard_in_bar = DisplaySettings::keyboard_in_bar_setting();
+    let keyboard_row = settings.row(&keyboard_in_bar);
+    let show_keyboard = settings.setter(&keyboard_in_bar);
     let power = editor.offered::<PowerWatch>();
     let page = NodeRef::new();
     view! {
@@ -55,6 +59,22 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             label="Rotate button in the bar"
                             disabled={read_only}
                             @test_id={"display.rotate-in-bar"}
+                        />
+                    </LayeredSettingsRow>
+                    <LayeredSettingsRow
+                        setting={keyboard_row}
+                        label="Keyboard button in the bar"
+                        description="A button in the desktop's bar that opens the on-screen keyboard."
+                        separated=true
+                        compact=true
+                        locked={read_only}
+                        id={"display.keyboard-in-bar".to_owned()}
+                    >
+                        <Switch
+                            on={Binding::new(keyboard_shown, move |on: bool| show_keyboard.call(Some(on)))}
+                            label="Keyboard button in the bar"
+                            disabled={read_only}
+                            @test_id={"display.keyboard-in-bar"}
                         />
                     </LayeredSettingsRow>
                 </SettingsSection>

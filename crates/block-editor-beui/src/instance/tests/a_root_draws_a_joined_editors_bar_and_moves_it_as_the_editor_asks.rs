@@ -1,7 +1,7 @@
 use super::*;
-use beui::dock::unstyled::{DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    ChildContent, ChildId, DockAlign, DockBar, DockBarMove, DockBarOver, DockBarPlace,
+    ChildContent, ChildId, DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlace,
     DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild, DockDragStage,
     DockEdge, DockItem, DockItemKind, DockMessage, DockPane, DockRequest, DockTab, DockTabPath,
     DockTree, DockUpdate, Pos2, Rect, Size,
@@ -45,8 +45,8 @@ fn barred() -> DockDeclaration {
             tab: DockTabPath::own(9),
             key: "tools".to_owned(),
             kind: "canvas/tools".to_owned(),
-            owner: DockTabPath::own(5),
-            placement: DockBarPlacement::Over(DockBarOver {
+            owner: Some(DockTabPath::own(5)),
+            placement: DockBarPlacement::Over(DockBarEdge {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
@@ -129,10 +129,16 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         child,
         DockRequest::PlaceBar(DockBarPlace {
             bar: DockTabPath::own(9),
-            placement: Some(DockBarPlacement::Beside(DockEdge::Left)),
+            placement: Some(DockBarPlacement::Beside(DockBarEdge {
+                edge: DockEdge::Left,
+                align: DockAlign::Center,
+            })),
         }),
     );
-    assert_eq!(placement(), Some(Placement::Beside(Edge::Left)));
+    assert_eq!(
+        placement(),
+        Some(Placement::Beside(Edge::Left, Align::Center))
+    );
     let hosted = dock_messages(&mut session)
         .into_iter()
         .filter_map(|message| match message {
@@ -147,12 +153,15 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     assert_eq!(hosted.layout.bars[0].bar, DockTabPath::own(9));
     assert_eq!(
         hosted.layout.bars[0].placement,
-        DockBarPlacement::Beside(DockEdge::Left)
+        DockBarPlacement::Beside(DockBarEdge {
+            edge: DockEdge::Left,
+            align: DockAlign::Center,
+        })
     );
 
     let bar = body(&session, child, 9);
     let stage = body(&session, child, 5);
-    let target = beui::pos2(stage.center().x, stage.max.y - 4.0);
+    let target = beui::pos2(stage.center().x, stage.max.y - stage.height() * 0.3);
     let moved = |at: beui::Pos2, stage| {
         DockRequest::MoveBar(DockBarMove {
             bar: DockTabPath::own(9),
@@ -163,7 +172,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     ask(
         &mut session,
         child,
-        moved(beui::pos2(2.0, 2.0), DockDragStage::Move),
+        moved(beui::pos2(target.x - bar.min.x, 2.0), DockDragStage::Move),
     );
     ask(
         &mut session,
@@ -172,13 +181,20 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
     );
     assert_eq!(
         placement(),
-        Some(Placement::Beside(Edge::Left)),
-        "the bar stays put while the root carries it"
+        Some(Placement::Beside(Edge::Left, Align::Center)),
+        "the root keeps the bar where it was until it is dropped"
     );
+    for _ in 0..8 {
+        show_docked(&mut session, &[(View::MAIN, 6)], false);
+    }
     ask(
         &mut session,
         child,
         moved(target - bar.min.to_vec2(), DockDragStage::Drop),
     );
-    assert_eq!(placement(), Some(Placement::Beside(Edge::Bottom)));
+    assert_eq!(
+        placement(),
+        Some(Placement::Over(Edge::Bottom, Align::Center)),
+        "let go above the bottom, thrown down or at rest, the bar floats over the bottom"
+    );
 }

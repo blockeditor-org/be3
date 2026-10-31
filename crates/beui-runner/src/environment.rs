@@ -6,6 +6,7 @@ pub const LAYERS: &str = "BEUI_LAYERS";
 pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
+pub const HEADLESS_CLOCK: &str = "BEUI_HEADLESS_CLOCK";
 pub const DRIVE_SOCKET: &str = "BEUI_DRIVE_SOCKET";
 pub const DRIVE_LISTENER: &str = "BEUI_DRIVE_LISTENER";
 
@@ -15,6 +16,7 @@ pub const VARIABLES: &[&str] = &[
     RENDERER,
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
+    HEADLESS_CLOCK,
     DRIVE_SOCKET,
     DRIVE_LISTENER,
 ];
@@ -30,10 +32,11 @@ pub struct Choice {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Base {
-    Native,
+    Native(usize),
     Headless {
         window: WindowSize,
         screen: Option<Vec2>,
+        pinned_clock: bool,
     },
 }
 
@@ -69,11 +72,15 @@ pub fn drive_taps(layers: &[Stacked]) -> Vec<Option<Stacked>> {
         .collect()
 }
 
-pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
+pub fn choose(natives: &[&str], var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
+    let mut native = 0;
     let headless = match var(PLATFORM).as_deref() {
         None => false,
-        Some(name) if name == native => false,
         Some("headless") => true,
+        Some(name) if natives.contains(&name) => {
+            native = natives.iter().position(|known| *known == name).unwrap_or(0);
+            false
+        }
         Some(other) => {
             let hint = match Stacked::named(other) {
                 Some(layer) => format!("; {} is a layer: {LAYERS}={}", layer.name(), layer.name()),
@@ -81,7 +88,7 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
             };
             return Err(format!(
                 "{PLATFORM} takes {}, not {other}{hint}",
-                list(&[native, "headless"])
+                list(&[natives, &["headless"]].concat())
             ));
         }
     };
@@ -159,14 +166,27 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
                 window.scale,
             ));
         }
-        Base::Headless { window, screen }
+        let pinned_clock = match var(HEADLESS_CLOCK).as_deref() {
+            None | Some("real") => false,
+            Some("pinned") => true,
+            Some(other) => {
+                return Err(format!(
+                    "{HEADLESS_CLOCK} takes real or pinned, not {other}"
+                ));
+            }
+        };
+        Base::Headless {
+            window,
+            screen,
+            pinned_clock,
+        }
     } else {
         for variable in [HEADLESS_WINDOW, HEADLESS_SCREEN] {
             if var(variable).is_some() {
                 return Err(format!("{variable} is for the headless platform only"));
             }
         }
-        Base::Native
+        Base::Native(native)
     };
     let render = match var(RENDERER).as_deref() {
         None | Some("wgpu") => true,

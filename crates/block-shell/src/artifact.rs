@@ -7,7 +7,7 @@ use super::dialogs::OpenDialog;
 use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, ItemSize, Overflow};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -103,62 +103,78 @@ pub(crate) fn ArtifactBar(
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List spacing=PADDING_VERTICAL>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                            <Icon glyph=ICON_SPARKLES />
-                        </Text>
-                        <Text>"Dynamic artifact"</Text>
-                        <Show condition={waiting}>
-                            <Text style=TextStyle::CAPTION>"Loading…"</Text>
-                        </Show>
-                        <Show condition={described}>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=SPACING
-                            >
-                                <Text style=TextStyle::CAPTION>"Generated from"</Text>
-                                <Button
-                                    @test_id={"workspace.artifact.source"}
-                                    label={source_name}
-                                    variant=ButtonVariant::Ghost
-                                    on_click={move || {
-                                        if let Some(source) = source.get_untracked() {
-                                            workspace.open(source, None);
-                                        }
-                                    }}
-                                />
-                                <Text style=TextStyle::CAPTION>{summary}</Text>
-                            </List>
-                        </Show>
+                    <List
+                        direction=Direction::Horizontal
+                        wrap=true
+                        align=Align::Center
+                        spacing=SPACING
+                    >
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
+                                <Icon glyph=ICON_SPARKLES />
+                            </Text>
+                            <Text>"Dynamic artifact"</Text>
+                            <Show condition={waiting}>
+                                <Text style=TextStyle::CAPTION>"Loading…"</Text>
+                            </Show>
+                            <Show condition={described}>
+                                <List
+                                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=SPACING
+                                >
+                                    <Text style=TextStyle::CAPTION>"Generated from"</Text>
+                                    <Button
+                                        @test_id={"workspace.artifact.source"}
+                                        label={source_name}
+                                        variant=ButtonVariant::Ghost
+                                        on_click={move || {
+                                            if let Some(source) = source.get_untracked() {
+                                                workspace.open(source, None);
+                                            }
+                                        }}
+                                    />
+                                    <Text
+                                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                        style=TextStyle::CAPTION
+                                        overflow=Overflow::Ellipsis
+                                    >
+                                        {summary}
+                                    </Text>
+                                </List>
+                            </Show>
+                        </List>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <Show condition={running}>
-                            <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
-                        </Show>
-                        <Button
-                            icon_only=true
-                            @test_id={"workspace.artifact.settings"}
-                            glyph=ICON_SETTINGS
-                            label="Settings"
-                            disabled={settings_off}
-                            on_click={settings}
-                        />
-                        <Button
-                            icon_only=true
-                            @test_id={"workspace.artifact.regenerate"}
-                            glyph=ICON_REFRESH_CW
-                            label="Regenerate"
-                            disabled={regenerate_off}
-                            on_click={regenerate}
-                        />
-                        <Button
-                            icon_only=true
-                            @test_id={"workspace.artifact.unlink"}
-                            glyph=ICON_UNLINK
-                            label="Unlink from the source block"
-                            disabled={unlink_off}
-                            on_click={unlink}
-                        />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Show condition={running}>
+                                <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
+                            </Show>
+                            <Button
+                                icon_only=true
+                                @test_id={"workspace.artifact.settings"}
+                                glyph=ICON_SETTINGS
+                                label="Settings"
+                                disabled={settings_off}
+                                on_click={settings}
+                            />
+                            <Button
+                                icon_only=true
+                                @test_id={"workspace.artifact.regenerate"}
+                                glyph=ICON_REFRESH_CW
+                                label="Regenerate"
+                                disabled={regenerate_off}
+                                on_click={regenerate}
+                            />
+                            <Button
+                                icon_only=true
+                                @test_id={"workspace.artifact.unlink"}
+                                glyph=ICON_UNLINK
+                                label="Unlink from the source block"
+                                disabled={unlink_off}
+                                on_click={unlink}
+                            />
+                        </List>
                     </List>
                     <Show condition={failed}>
                         <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>

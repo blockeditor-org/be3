@@ -32,6 +32,7 @@ pub mod root;
 pub mod row;
 pub mod scroll;
 pub mod scrollbar;
+pub mod search_list;
 pub mod segmented_control;
 pub mod select;
 pub mod selectable_text;
@@ -68,16 +69,16 @@ pub use beui_components_unstyled::{
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
     Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom, PanZoomHandle,
-    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, Prose, ProseLine,
-    RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState, TextWidget,
-    TreeItem, container_size, narrower_than,
+    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement, Pressable, Prose,
+    ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState,
+    TextWidget, TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Offset, Overlay,
-    Portal, SystemBars, TextChild, TextItem, VirtualList,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Modality, Offset,
+    Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList, use_modal,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;
@@ -110,6 +111,7 @@ pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};
 pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
+pub use search_list::SearchList;
 pub use segmented_control::SegmentedControl;
 pub use select::Select;
 pub use selectable_text::SelectableText;

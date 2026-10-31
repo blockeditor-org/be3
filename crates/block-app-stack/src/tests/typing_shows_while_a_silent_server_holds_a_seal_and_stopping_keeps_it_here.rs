@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
     open(block, CounterContent::CONTENT_TYPE);
@@ -24,12 +24,9 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     harness
         .clock
         .advance(Duration::from_millis(block_type_guest::SEAL_INTERVAL));
-    let sent = runtime().block_on(async {
-        tokio::time::timeout(PATIENCE, sending.wait_for(|sent| *sent > 0))
-            .await
-            .is_ok_and(|seen| seen.is_ok())
-    });
-    assert!(sent, "the counter's owner never sent its seal");
+    runtime()
+        .block_on(sending.wait_for(|sent| *sent > 0))
+        .expect("the counter's owner sent its seal");
     add(block, 4);
     wait_for_count(block, 7);
     assert!(
@@ -42,10 +39,9 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
         stop_and_wait();
         let _ = stopped.send(());
     });
-    assert!(
-        stopping.recv_timeout(PATIENCE).is_ok(),
-        "stopping waited on the silent server"
-    );
+    stopping
+        .recv()
+        .expect("stopping returned without waiting on the silent server");
 
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);

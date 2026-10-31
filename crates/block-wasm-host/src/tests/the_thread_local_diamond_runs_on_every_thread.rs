@@ -1,8 +1,5 @@
 use super::*;
 
-use std::sync::mpsc;
-use std::time::Duration;
-
 const BASE: &[u8] = include_bytes!(env!("TLS_DIAMOND_BASE_WASM"));
 const LEFT: &[u8] = include_bytes!(env!("TLS_DIAMOND_LEFT_WASM"));
 const RIGHT: &[u8] = include_bytes!(env!("TLS_DIAMOND_RIGHT_WASM"));
@@ -35,13 +32,9 @@ fn the_thread_local_diamond_runs_on_every_thread() {
                 .ok_or_else(|| format!("no library is {identity}"))
         })
         .unwrap();
-    let (woken, wake) = mpsc::channel();
-    plugin.on_wake(move || {
-        let _ = woken.send(());
-    });
+    let told = Told::listen(&plugin);
     plugin.start().unwrap();
-    wake.recv_timeout(Duration::from_secs(60))
-        .expect("the spawned thread never woke the plugin");
+    told.wait();
     plugin.step().unwrap();
     assert_eq!(plugin.take_outbound(), [[1]]);
 }

@@ -27,6 +27,7 @@ fn region() -> ShownView {
         windows: false,
         docked: false,
         host_place: None,
+        origin: None,
         anchor_space: None,
     }
 }

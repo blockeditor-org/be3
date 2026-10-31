@@ -94,8 +94,14 @@ pub fn Fixture(name: String) -> Root {
         "menus" => view! {
             <controls::MenusFixture />
         },
+        "long_menus" => view! {
+            <controls::LongMenusFixture />
+        },
         "popups" => view! {
             <controls::PopupsFixture />
+        },
+        "described" => view! {
+            <controls::DescribedFixture />
         },
         "fields" => view! {
             <controls::FieldsFixture />

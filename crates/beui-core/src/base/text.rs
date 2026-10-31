@@ -11,6 +11,7 @@ use crate::font::{Overflow, TextAlign, WrapAt};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
+use crate::base::list::Direction;
 use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
@@ -810,6 +811,21 @@ impl Element for TextNode {
         }
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        _cross: f32,
+    ) -> Option<f32> {
+        match (direction, self.overflow) {
+            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => {
+                Some(self.min_width(doc, painter))
+            }
+            _ => None,
+        }
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let layout = self.rich_layout(doc, painter, available.x);
         layout.lines.first().map(|line| line.top + line.baseline)
@@ -1147,6 +1163,18 @@ impl Element for TextItemNode {
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         self.child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

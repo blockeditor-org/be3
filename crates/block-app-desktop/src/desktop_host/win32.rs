@@ -16,7 +16,9 @@ use beui::{
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
 use super::texture_draw::TextureDraw;
-use super::win32_map::{self, ContentPress, HotkeyState, Notes, Recovery, Refusal, entry_id};
+use super::win32_map::{
+    self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
+};
 use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
 
@@ -77,6 +79,7 @@ thread_local! {
     static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
     static CHANGES: Cell<u64> = const { Cell::new(0) };
     static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
+    static NAMES: RefCell<ProgramNames> = RefCell::new(ProgramNames::default());
 }
 
 fn edit_notes(change: impl FnOnce(&mut Notes)) {
@@ -447,7 +450,11 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         let snapshot = watcher.snapshot();
         SHAPING.with_borrow_mut(|shaping| {
             shaping.observe(&snapshot);
-            NOTES.with_borrow(|notes| win32_map::listed(&snapshot, hidden, shaping, notes))
+            NOTES.with_borrow(|notes| {
+                NAMES.with_borrow(|names| {
+                    win32_map::listed(&snapshot, hidden, shaping, notes, names)
+                })
+            })
         })
     })
 }
@@ -933,6 +940,7 @@ pub struct Programs {
     rescan: Option<u32>,
     waiting: Vec<(String, Option<u64>)>,
     scanned: bool,
+    unannounced: bool,
 }
 
 impl Programs {
@@ -984,19 +992,27 @@ impl Programs {
                 let _ = sender.send(Scanned::Icons(icons));
             });
         if let Err(error) = spawned {
-            eprintln!("block-app: the programs were not listed: {error}");
             self.scanning = None;
+            self.not_listed(error.to_string());
         }
     }
 
+    fn not_listed(&mut self, problem: String) {
+        eprintln!("block-app: the programs were not listed: {problem}");
+        block_app_base::notices::report(format!("Programs could not be listed: {problem}"));
+        self.scanned = true;
+        self.unannounced = true;
+    }
+
     pub fn receive(&mut self) -> bool {
-        let Some(receiver) = &self.scanning else {
-            return false;
-        };
         let mut changed = false;
-        loop {
+        while let Some(receiver) = &self.scanning {
             match receiver.try_recv() {
                 Ok(Scanned::Programs(programs)) => {
+                    let names = ProgramNames::new(&programs);
+                    if NAMES.replace(names.clone()) != names {
+                        self::changed();
+                    }
                     self.programs = programs;
                     self.scanned = true;
                     changed = true;
@@ -1008,6 +1024,9 @@ impl Programs {
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.scanning = None;
+                    if !self.scanned {
+                        self.not_listed("the scan stopped".to_owned());
+                    }
                     if let Some(pixels) = self.rescan.take() {
                         self.scan(pixels);
                     }
@@ -1020,7 +1039,7 @@ impl Programs {
                 self.launch(&key, launch);
             }
         }
-        changed
+        changed | std::mem::take(&mut self.unannounced)
     }
 
     pub fn listed(&self) -> Vec<HostProgram> {

@@ -1,6 +1,6 @@
 # The PineNote
 
-block-app runs as the desktop (`--session`, guides/desktop/linux.md) on a Pine64 PineNote with
+block-app runs as the desktop in a login session (`BEUI_PLATFORM=drm block-app --desktop`, guides/desktop/linux.md) on a Pine64 PineNote with
 hrdl's Arch Linux (https://git.sr.ht/~hrdl/pinenote-dist): hrdl's kernel with its `rockchip_ebc`
 e-paper driver, greetd with gtkgreet as the login screen, and sway as the session it ships.
 
@@ -49,7 +49,7 @@ Fast waveforms leave ghosts. The platform provides `beui_platform_drm::Epaper`, 
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the
 `Epaper` host value (`true`) when the platform provides one and turns each `EpaperRequest::Refresh`
 into a refresh (`display/linux.rs`); the desktop plugin shows a refresh button (`desktop.refresh`)
-beside the keyboard button while the value is true.
+on the Status bar, and a Refresh tile in Quick settings, while the value is true.
 
 ## Input
 
@@ -80,12 +80,12 @@ Build the app with its plugins for arm64 here, copy the directory to the PineNot
 it there as a session:
 
     ./scripts/buck build -m release //crates/block-app:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
-    DIR/block-app --install-session
+    DIR/block-app --install-login-session
 
-`--install-session` also lists the session in `/etc/greetd/environments`, which gtkgreet offers
+`--install-login-session` also lists the login session in `/etc/greetd/environments`, which gtkgreet offers
 on its session menu. The first time the app signs in on the PineNote it finds the e-paper panel, so
 the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
-the bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
+the Status bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 
 `devices/pinenote/vulkan-panfrost-26.3` is an optional PKGBUILD that builds panvk alone from
 Mesa 26.3 and replaces the `vulkan-panfrost` package. It exposes Vulkan 1.3 on the G52;

@@ -20,6 +20,7 @@ use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
 use crate::types::Placement;
+use crate::types::Rect;
 use crate::types::WindowId;
 use crate::types::WindowSpec;
 use beui_core_html::document::create;
@@ -34,7 +35,9 @@ struct Mounted {
 pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
+    bounds: Prop<Option<Rect>>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -49,7 +52,7 @@ pub(crate) fn overlay(
     presence: OverlayPresence,
     content: RenderFn<()>,
 ) -> NodeId {
-    let _ = (shown_in, window);
+    let _ = (shown_in, window, scrim_radius, bounds);
     let host = create("Overlay", "div");
     let dialog = create("OverlayLayer", "dialog");
     let proxy = create("OverlayAnchor", "div");
@@ -111,6 +114,7 @@ pub(crate) fn overlay(
                         });
                         let built = scope.context().run(|| {
                             provide_context(presence);
+                            provide_context(presence.modality());
                             content.call(())
                         });
                         layered.fill(slot, vec![built]);

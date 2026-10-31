@@ -2,7 +2,7 @@ use super::*;
 use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
 use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
 use block_plugin_api::{
-    DockAlign, DockBarOver, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
+    DockAlign, DockBarEdge, DockBarPlacement, DockEdge, DockHosted, DockHostedView, DockItem,
     DockItemKind, DockLayout, DockMessage, DockPane as Pane, DockPlacedBar, DockRequest,
     DockTabPath, DockTree, DockUpdate, ViewId,
 };
@@ -110,8 +110,9 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
                 unlocked: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
-                    owner: DockTabPath::own(stage),
+                    owner: Some(DockTabPath::own(stage)),
                     placement,
+                    hidden: false,
                 }],
                 outside: Vec::new(),
             },
@@ -149,7 +150,10 @@ fn a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept() {
         .copied()
         .flatten()
         .expect("the docked editor declares its dock");
-    let moved = DockBarPlacement::Beside(DockEdge::Left);
+    let moved = DockBarPlacement::Beside(DockBarEdge {
+        edge: DockEdge::Left,
+        align: DockAlign::Center,
+    });
     test.receive_dock_updates(vec![hosted(stage, bar, moved)]);
     let saved = kept(&test, display);
 
@@ -186,7 +190,7 @@ fn a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept() {
     test.receive_dock_updates(vec![hosted(
         stage,
         bar,
-        DockBarPlacement::Over(DockBarOver {
+        DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),

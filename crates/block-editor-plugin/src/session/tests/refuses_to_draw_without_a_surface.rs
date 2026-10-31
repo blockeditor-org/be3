@@ -8,6 +8,7 @@ fn refuses_to_draw_without_a_surface() {
     assert_eq!(session.surface(), None);
     let draw = Delivery::Draw {
         now_micros: 0,
+        wall_micros: 0,
         seen: true,
     };
     assert!(session.receive(&draw).is_err());

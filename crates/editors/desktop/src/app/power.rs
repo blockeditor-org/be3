@@ -1,3 +1,4 @@
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -9,6 +10,7 @@ use block_editor_beui::desktop;
 use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
 const DIALOG_SPACING: Space = Space::Xl;
+const ROW_SPACING: Space = Space::Xs;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -54,81 +56,106 @@ fn consequence(action: PowerAction) -> &'static str {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct PowerChoice {
+    editor: Editor,
+    available: Memo<PowerAvailability>,
+    confirming: Signal<PowerAction>,
+    asking: Signal<bool>,
+}
+
+impl PowerChoice {
+    pub(crate) fn new(editor: Editor) -> Self {
+        Self {
+            editor,
+            available: editor.watch::<PowerWatch>(),
+            confirming: create_signal(PowerAction::LogOut),
+            asking: create_signal(false),
+        }
+    }
+
+    fn choose(self, action: PowerAction) {
+        if !self.available.get_untracked().allows(action) {
+            return;
+        }
+        match action {
+            PowerAction::Lock | PowerAction::Suspend => {
+                self.editor.act(move || desktop::power::request(action))
+            }
+            _ => {
+                self.confirming.set(action);
+                self.asking.set(true);
+            }
+        }
+    }
+}
+
 #[component]
-fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuItem {
+pub(crate) fn PowerRow(choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
+    view! {
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=ROW_SPACING
+            @test_id={"desktop.power"}
+        >
+            <PowerButton action=PowerAction::Lock choice={choice} on_chose={on_chose} />
+            <PowerButton action=PowerAction::Suspend choice={choice} on_chose={on_chose} />
+            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <PowerButton action=PowerAction::LogOut choice={choice} on_chose={on_chose} />
+            <PowerButton action=PowerAction::Restart choice={choice} on_chose={on_chose} />
+            <PowerButton action=PowerAction::PowerOff choice={choice} on_chose={on_chose} />
+        </List>
+    }
+}
+
+#[component]
+fn PowerButton(action: PowerAction, choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
+    let available = choice.available;
     let disabled = create_memo(move || !available.get().allows(action));
     view! {
-        <MenuItem
+        <Button
+            icon_only=true
+            glyph={glyph(action)}
             label={label(action).to_owned()}
-            glyph={glyph(action).to_owned()}
             disabled
-            row_test_id={format!("desktop.power.{}", key(action))}
+            @test_id={format!("desktop.power.{}", key(action))}
+            on_click={move || {
+                on_chose.call(());
+                choice.choose(action);
+            }}
         />
     }
 }
 
 #[component]
-pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
-    let available = editor.watch::<PowerWatch>();
-    let confirming = create_signal(PowerAction::LogOut);
-    let open = create_signal(false);
-    let chose = move |path: Vec<usize>| {
-        let Some(action) = path
-            .first()
-            .and_then(|index| PowerAction::ALL.get(*index).copied())
-        else {
-            return;
-        };
-        if !available.get_untracked().allows(action) {
-            return;
-        }
-        match action {
-            PowerAction::Lock | PowerAction::Suspend => {
-                editor.act(move || desktop::power::request(action))
-            }
-            _ => {
-                confirming.set(action);
-                open.set(true);
-            }
-        }
-    };
+pub(crate) fn PowerDialog(choice: PowerChoice) -> NodeId {
+    let PowerChoice {
+        editor,
+        confirming,
+        asking,
+        ..
+    } = choice;
     let title = create_memo(move || question(confirming.get()));
     let explained = create_memo(move || consequence(confirming.get()).to_owned());
     let verb = create_memo(move || label(confirming.get()).to_owned());
-    let dismiss = move || open.set(false);
+    let dismiss = move || asking.set(false);
     let confirm = move || {
-        open.set(false);
+        asking.set(false);
         editor.act(move || desktop::power::request(confirming.get_untracked()));
     };
     view! {
-        <List spacing=Space::None>
-            <MenuButton
-                label="Power"
-                glyph=ICON_POWER
-                icon_only=true
-                arrow=false
-                @test_id={"desktop.power"}
-                items={view! {
-                    <PowerItem action=PowerAction::Lock available={available} />
-                    <PowerItem action=PowerAction::Suspend available={available} />
-                    <PowerItem action=PowerAction::Restart available={available} />
-                    <PowerItem action=PowerAction::PowerOff available={available} />
-                    <PowerItem action=PowerAction::LogOut available={available} />
-                }}
-                on_select={chose}
-            />
-            <Dialog
-                open
-                title
-                kind=DialogKind::Alert
-                id="desktop.power"
-                actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
-                on_dismiss={dismiss}
-            >
-                <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH>{explained}</Text>
-                </List>
-            </Dialog>
-        </List>
+        <Dialog
+            open={asking}
+            title
+            kind=DialogKind::Alert
+            id="desktop.power"
+            actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
+            on_dismiss={dismiss}
+        >
+            <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
+                <Text style=TextStyle::PARAGRAPH>{explained}</Text>
+            </List>
+        </Dialog>
     }
 }

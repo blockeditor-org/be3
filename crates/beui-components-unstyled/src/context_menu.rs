@@ -10,6 +10,7 @@ use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
+use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -18,6 +19,7 @@ use beui_view::types::PointerPress;
 use beui_view::types::icons::ICON_ELLIPSIS;
 use beui_view::types::{Align, Direction, ItemSize};
 use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::{Key, KeyPhase};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
 #[derive(Clone, Copy)]
@@ -41,17 +43,41 @@ pub fn ContextMenu(
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
     let open = create_signal(false);
     let focusing = create_signal(true);
-    let position = create_signal(Pos2::ZERO);
+    let position: Signal<Option<Pos2>> = create_signal(None);
     let holder = NodeRef::new();
-    let anchor = create_memo(move || OverlayAnchor::Pinned {
-        node: holder,
-        rect: Rect::from_min_size(position.get(), Vec2::ZERO),
+    let anchor = create_memo(move || match position.get() {
+        Some(at) => OverlayAnchor::Pinned {
+            node: holder,
+            rect: Rect::from_min_size(at, Vec2::ZERO),
+        },
+        None => OverlayAnchor::Node(holder),
+    });
+    on_key(KeyAt::Control(holder), KeyPhase::Bubble, move |event| {
+        let Some(press) = event.press() else {
+            return false;
+        };
+        let held = press.modifiers;
+        let menu_key = match press.key {
+            Key::F10 => held.shift && !held.ctrl && !held.alt,
+            Key::ContextMenu => !held.ctrl && !held.alt,
+            _ => false,
+        };
+        if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
+            return false;
+        }
+        if press.pressed {
+            position.set(None);
+            focusing.set(true);
+            open.set(true);
+        }
+        true
     });
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
@@ -67,7 +93,7 @@ pub fn ContextMenu(
         let Some(at) = open_at.get() else {
             return;
         };
-        requested_position.set(at);
+        requested_position.set(Some(at));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
@@ -89,7 +115,7 @@ pub fn ContextMenu(
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
     let more = Callback::new(move |at: Pos2| {
-        position.set(at);
+        position.set(Some(at));
         focusing.set(false);
         open.set(true);
         on_toolbar_close.call();
@@ -115,7 +141,7 @@ pub fn ContextMenu(
                 if disabled.get() || (press.touch && !opens_on_hold) {
                     return;
                 }
-                position.set(press.pos);
+                position.set(Some(press.pos));
                 focusing.set(true);
                 open.set(true);
             }}
@@ -141,6 +167,7 @@ pub fn ContextMenu(
                         items={items.clone()}
                         menu={menu}
                         anchor
+                        bounds
                         open={shown}
                         sheet
                         focusing

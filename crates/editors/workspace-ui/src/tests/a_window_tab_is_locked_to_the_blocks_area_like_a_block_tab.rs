@@ -12,7 +12,7 @@ fn a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab() {
     let (mut fixture, _) = editor_sized(Some(WIDE));
     fixture.host.set_watched::<WindowsWatch>(&vec![
         window(7, "Terminal", None),
-        window(8, "Browser", None),
+        window(8, "Firefox", None),
     ]);
     fixture.settle();
 

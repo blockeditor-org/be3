@@ -41,16 +41,16 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_on`) read these
+beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_with_platforms`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
-- `BEUI_PLATFORM` picks the platform: the platform's own (`winit`, or the one the program hands
-  `run_on`, such as block-app's `drm`) by default, or `headless`. A
+- `BEUI_PLATFORM` picks the platform: the platform's own (`winit`) by default, one of the others
+  the program hands `run_with_platforms` (block-app's `drm`), or `headless`. A
   name it does not know is an error that lists the ones it takes
   (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):
-  names separated by commas, the one nearest the platform first: `space` and `drive`; an
+  names separated by commas, the one nearest the platform first: `space`, `xr` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
 - `BEUI_PLATFORM=headless` runs it on `beui_host::native::Headless` (crates/beui-platform-headless), which draws
@@ -116,6 +116,11 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   reads, so a program started any other way can set it too. `settle` waits only until nothing
   is left to draw, not for the server, so wait for what should appear with `wait`, or poll
   `tree` after an input sent with `--no-settle`.
+- `--pin-clock` starts the program's wall clock (the date and time of day beui and every plugin
+  read) at the moment tests use, 2026-03-02 09:41 UTC (`beui_core::timer::TEST_WALL_CLOCK`), in
+  the UTC time zone, and moves it on with the app's clock, so `clock stop` stops it too.
+  Without it the program runs on the real time in the machine's time zone. It sets
+  `BEUI_HEADLESS_CLOCK=pinned` and `TZ=UTC`.
 - Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
@@ -134,11 +139,11 @@ tells drive the variables a program needs to open its windows inside it (`App::e
 terminal (end the line with `&` to go on driving), and `eval "$(drive env)"` sets them in the
 shell.
 
-`be-drive run` takes the same options and is for tests: it starts the program with fresh data
-and its output on its own, runs the commands on its standard input as `drive -` does, then
+`be-drive run` takes the same options and is for tests: it starts the program with fresh data,
+its clock pinned as `--pin-clock` pins it, and its output on its own, runs the commands on its standard input as `drive -` does, then
 waits for the program to exit, and fails unless every command succeeded and the program exited
-cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data in a
-directory of its own, sends it commands and closes it, which is how crates/app-tests drives
+cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data and
+its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/app-tests drives
 block-app (guides/testing_a_gui.md, 6).
 
 ## Reading the screen
@@ -168,7 +173,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
   too, as `#id` after a node's state, and a node with nothing else to show reads as a
   `GenericContainer`.
-- `drive find TARGET` says where a target is.
+- `drive find TARGET` says where a target is. `drive reveal TARGET` first scrolls it into view as
+  input does (below) and says where it shows, ending in `revealed` when it scrolled; `drive shown
+  TARGET` says where it shows without scrolling.
 - `drive hit TARGET` says what a press there would reach without pressing: the `Interactive`s
   along the hit path, innermost first, each with its kind, rect, test ids, the components it was
   made in and what it handles, then what forwarded input goes to and which overlays the press
@@ -183,8 +190,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition or where the app asks for one and whether it shows the on-screen
-  keyboard or holds it back, a back gesture under way, files being dragged in, and any open file
-  dialog.
+  keyboard or holds it back, a back gesture under way, files being dragged in, any open file
+  dialog, and `settled` or `busy:` followed by why the app is not, as of its last frame, and
+  whether an animation waits for a stopped clock.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the app ran elsewhere and reports through `App::other_frames`, which in block-app is
@@ -196,12 +204,13 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
 - `drive shot FILE.png [TARGET]` writes a PNG of what the platform shows (under space, the 3D
-  view), or of one target, where that target shows in the frame it captures.
+  view), or of one target: it reveals the target as input does (below) and crops to the part of
+  it that shows in the frame it captures.
 - `drive windows` lists the app's windows, each one's number and size in pixels.
 - An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
   with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
   nodes only, and its input goes to that window, in its points. That is how to reach a window
-  other than the main one, such as one display's window under `--session`, where every display
+  other than the main one, such as one display's window in a login session, where every display
   shows its own lock screen and bar with the same test ids:
   `drive click '#lock.password' in 3`.
 - `drive paint FILE.paint [TARGET] [in WINDOW]` writes what the app's main window (or the
@@ -211,8 +220,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   instead, which is how to see the app's own window flat when a layer such as space is
   between it and the platform. `./scripts/buck run //crates/local-tools:bin -- rasterize
   SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and `example-dump`
-  lists its shapes. It waits until the app settles and crops to where TARGET is
-  in the frame it paints, then asks every running
+  lists its shapes. It reveals TARGET as `shot` does, waits until the app settles and crops to
+  the part of TARGET that shows in the frame it paints, then asks every running
   plugin for what it last painted, through the plugin's `paintings` export (paint-format's
   `ScreenPaintings`). What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
@@ -233,6 +242,13 @@ A command that acts on something takes a TARGET:
 - text found in one line of the tree, such as `'"Send invitation"'` or `'Button "Create"'`.
   A match inside another match counts as that one, so a button and its own label are one
   target; when several unrelated lines match, the error lists them.
+
+A command that presses, points or types at a target first scrolls it into view when a scroll
+hides it or cuts part of it, as a person would (the accessibility action `ScrollIntoView`,
+which a beui document answers by revealing the node in every scroll around it), waits for that
+to settle, and then aims at the middle of the part that shows, never at a hidden part, where
+whatever is beneath would take the press. Its reply's changes include the scroll. `shot` and
+`paint` reveal their target the same way and crop to the part that shows.
 
 ## Acting
 
@@ -290,7 +306,7 @@ Every command that gives input waits until the app has settled and prints what c
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The app
-has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
+has settled once a frame asks for no other and `App::busy` gives no reason; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
@@ -300,14 +316,24 @@ still listing a file's revisions or loading the organization's graph, and never 
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
-`drive wait TEXT over X,Y` also asks that the line's node cover that point, for something that
+`drive wait TEXT over TARGET` also asks that the line's node cover that point (`X,Y`, or
+`#TEST_ID+X,Y` beside another node), for something that
 moves or grows, such as a stroke reaching the pen;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
-own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
+own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`, and names
+what kept the app busy then, as `drive state` does: input waiting, a frame that asks for
+another or an animation running (while the clock runs), and each reason `App::busy` gives, such
+as a plugin drawing or the compositor owing a frame for a plugin's change after layout. A
+plugin's frame counts as a change only when it damaged what the host draws, so a plugin that
+animates without changing anything lets the app settle with the clock running.
 
 `drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
-every run, and an app that animates forever still settles. `drive clock run` starts it again.
+every run, and an app that animates forever still settles. A plugin that asks to be drawn again
+is drawn again only once the clock has moved, so an animating plugin settles too. `drive clock run` starts it again.
+A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
+animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
+when an animation was waiting for the stopped clock, as `drive state` does.
 Anything else waiting on time, such as a plugin's frame timeout or a type module's clock (which
 groups quick edits into one undo step), waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 

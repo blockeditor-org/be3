@@ -1,10 +1,18 @@
-# A menu button opens its menu and a submenu, chooses by pointer and by keys;
-# a select picks an option; a context menu opens on a right click.
+# A menu button opens its menu and a submenu, whose menu stays under the
+# pointer: moving onto another row closes the submenu. It chooses by pointer
+# and by keys;
+# a select picks an option; a context menu opens on a right click, and on the
+# Menu key or Shift+F10 beneath its card, around the focused button, and only
+# there: the browser's own contextmenu for the key adds no second opening.
 clock stop
 wait 'value="Chose nothing fruit Some(0)"'
 click 'Button "Actions"'
 wait 'MenuItem "Copy"'
 click 'MenuItem "Share"'
+wait 'MenuItem "Email"'
+move 'MenuItem "Delete"'
+gone 'MenuItem "Email"'
+move 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 click 'MenuItem "Email"'
 wait 'value="Chose Email fruit Some(0)"'
@@ -30,3 +38,12 @@ wait 'MenuItem "Email" focused'
 key Enter
 wait 'value="Chose Email fruit Some(2)"'
 gone 'MenuItem "Share"'
+click '#menus.card.focus'
+key ContextMenu
+wait 'MenuItem "Copy"' over 30,160
+key Escape
+gone 'MenuItem "Copy"'
+key shift+F10
+wait 'MenuItem "Copy"' over 30,160
+key Escape
+gone 'MenuItem "Copy"'

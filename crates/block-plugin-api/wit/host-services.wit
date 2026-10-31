@@ -12,10 +12,12 @@ interface host-services {
     use types.{block-location, failure};
     use be3:ui/types@0.1.0.{file-filter, file-pick, saved-file, file-save};
 
-    /// A dialog of the instance that draws the window, asked for a block:
-    /// sharing it.
+    /// What the instance that draws the window does for a block it shows:
+    /// shows its sharing dialog, or closes it (the editor showing the block
+    /// asked to close itself).
     variant shell-dialog {
         share,
+        close,
     }
 
     /// A saved revision of a block: its commit, when it was saved in

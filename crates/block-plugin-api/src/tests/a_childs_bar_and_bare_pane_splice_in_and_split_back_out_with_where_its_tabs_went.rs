@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DockAlign, DockBarOver};
+use crate::{DockAlign, DockBarEdge};
 
 fn barred() -> DockDeclaration {
     let mut declaration = child_declaration();
@@ -10,8 +10,8 @@ fn barred() -> DockDeclaration {
         tab: DockTabPath::own(7),
         key: "tools".into(),
         kind: "canvas/tools".to_owned(),
-        owner: DockTabPath::own(4),
-        placement: DockBarPlacement::Over(DockBarOver {
+        owner: Some(DockTabPath::own(4)),
+        placement: DockBarPlacement::Over(DockBarEdge {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
@@ -33,7 +33,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
     round_trips(&inner);
 
     let mut orphaned = barred();
-    orphaned.bars[0].owner = DockTabPath::own(5);
+    orphaned.bars[0].owner = Some(DockTabPath::own(5));
     assert_eq!(orphaned.validate(), Err(DecodeError::MalformedPayload));
     let mut clashing = barred();
     clashing.bars[0].key = "side-tab".into();
@@ -46,7 +46,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
     let tools = DockTabPath::own(7).through(child);
     let bar = spliced.bar(&tools).expect("the child's bar is spliced in");
     assert_eq!(bar.key, format!("{prefix}/tools"));
-    assert_eq!(bar.owner, side);
+    assert_eq!(bar.owner.as_ref(), Some(&side));
     let bare = spliced.nest().unwrap();
     assert!(
         bare.panes()
@@ -62,11 +62,12 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
             unlocked: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
-                owner: side.clone(),
+                owner: Some(side.clone()),
                 placement: DockBarPlacement::Window(DockBarWindow {
                     edge: DockEdge::Left,
                     origin: Pos2::new(40.0, 60.0),
                 }),
+                hidden: false,
             }],
             outside: vec![DockOutside {
                 tab: moved,
@@ -97,11 +98,12 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
         part.layout.bars,
         [DockPlacedBar {
             bar: DockTabPath::own(7),
-            owner: DockTabPath::own(4),
+            owner: Some(DockTabPath::own(4)),
             placement: DockBarPlacement::Window(DockBarWindow {
                 edge: DockEdge::Left,
                 origin: Pos2::new(40.0, 60.0),
             }),
+            hidden: false,
         }]
     );
     assert_eq!(part.layout.outside[0].tab, DockTabPath::own(5));

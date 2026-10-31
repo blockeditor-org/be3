@@ -1132,7 +1132,10 @@ pub(crate) fn declaration_to_api(
                     tab: path(bar.tab)?,
                     key: bar.key.clone(),
                     kind: kind(&bar.kind),
-                    owner: path(bar.owner)?,
+                    owner: match bar.owner {
+                        Some(owner) => Some(path(owner)?),
+                        None => None,
+                    },
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
                 })
@@ -1245,7 +1248,7 @@ fn declaration_from_api(
             tab: paths.tab(&bar.tab),
             key: bar.key.clone(),
             kind: bar.kind.clone(),
-            owner: paths.tab(&bar.owner),
+            owner: bar.owner.as_ref().map(|owner| paths.tab(owner)),
             placement: placement_from_api(&bar.placement),
         })
         .collect();
@@ -1357,8 +1360,12 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
             .filter_map(|bar| {
                 Some(api::DockPlacedBar {
                     bar: path(bar.bar)?,
-                    owner: path(bar.owner)?,
+                    owner: match bar.owner {
+                        Some(owner) => Some(path(owner)?),
+                        None => None,
+                    },
                     placement: placement_to_api(bar.placement),
+                    hidden: bar.hidden,
                 })
             })
             .collect(),
@@ -1477,8 +1484,12 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
             .filter_map(|bar| {
                 Some(DockPlainBar {
                     bar: tab(&bar.bar)?,
-                    owner: tab(&bar.owner)?,
+                    owner: match &bar.owner {
+                        Some(owner) => Some(tab(owner)?),
+                        None => None,
+                    },
                     placement: placement_from_api(&bar.placement),
+                    hidden: bar.hidden,
                 })
             })
             .collect(),
@@ -1570,6 +1581,10 @@ fn request_to_api(request: &DockRequest, path: PathOf<'_>) -> Option<api::DockRe
             bar: path(*bar)?,
             placement: placement.map(placement_to_api),
         }),
+        DockRequest::HideBar(bar, hidden) => api::DockRequest::HideBar(api::DockBarHide {
+            bar: path(*bar)?,
+            hidden: *hidden,
+        }),
         DockRequest::MoveBar(bar, moved) => api::DockRequest::MoveBar(api::DockBarMove {
             bar: path(*bar)?,
             at: moved.at,
@@ -1596,6 +1611,7 @@ fn request_from_api(request: &api::DockRequest, paths: &mut Paths) -> Option<Doc
             paths.tab(&place.bar),
             place.placement.as_ref().map(placement_from_api),
         ),
+        api::DockRequest::HideBar(hide) => DockRequest::HideBar(paths.tab(&hide.bar), hide.hidden),
         api::DockRequest::MoveBar(moved) => DockRequest::MoveBar(
             paths.tab(&moved.bar),
             DockBarMove {
@@ -1629,16 +1645,17 @@ fn edge_from_api(edge: api::DockEdge) -> DockEdge {
 }
 
 fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
+    let at = |edge: DockEdge, align: DockAlign| api::DockBarEdge {
+        edge: edge_to_api(edge),
+        align: match align {
+            DockAlign::Start => api::DockAlign::Start,
+            DockAlign::Center => api::DockAlign::Center,
+            DockAlign::End => api::DockAlign::End,
+        },
+    };
     match placement {
-        DockBarPlacement::Over(edge, align) => api::DockBarPlacement::Over(api::DockBarOver {
-            edge: edge_to_api(edge),
-            align: match align {
-                DockAlign::Start => api::DockAlign::Start,
-                DockAlign::Center => api::DockAlign::Center,
-                DockAlign::End => api::DockAlign::End,
-            },
-        }),
-        DockBarPlacement::Beside(edge) => api::DockBarPlacement::Beside(edge_to_api(edge)),
+        DockBarPlacement::Over(edge, align) => api::DockBarPlacement::Over(at(edge, align)),
+        DockBarPlacement::Beside(edge, align) => api::DockBarPlacement::Beside(at(edge, align)),
         DockBarPlacement::Window { edge, origin } => {
             api::DockBarPlacement::Window(api::DockBarWindow {
                 edge: edge_to_api(edge),
@@ -1649,16 +1666,18 @@ fn placement_to_api(placement: DockBarPlacement) -> api::DockBarPlacement {
 }
 
 fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
+    let align = |at: &api::DockBarEdge| match at.align {
+        api::DockAlign::Start => DockAlign::Start,
+        api::DockAlign::Center => DockAlign::Center,
+        api::DockAlign::End => DockAlign::End,
+    };
     match placement {
-        api::DockBarPlacement::Over(over) => DockBarPlacement::Over(
-            edge_from_api(over.edge),
-            match over.align {
-                api::DockAlign::Start => DockAlign::Start,
-                api::DockAlign::Center => DockAlign::Center,
-                api::DockAlign::End => DockAlign::End,
-            },
-        ),
-        api::DockBarPlacement::Beside(edge) => DockBarPlacement::Beside(edge_from_api(*edge)),
+        api::DockBarPlacement::Over(at) => {
+            DockBarPlacement::Over(edge_from_api(at.edge), align(at))
+        }
+        api::DockBarPlacement::Beside(at) => {
+            DockBarPlacement::Beside(edge_from_api(at.edge), align(at))
+        }
         api::DockBarPlacement::Window(window) => DockBarPlacement::Window {
             edge: edge_from_api(window.edge),
             origin: window.origin,

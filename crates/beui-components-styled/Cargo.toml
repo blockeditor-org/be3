@@ -13,6 +13,7 @@ beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
+stable-hash = { path = "../stable-hash" }
 text-editor-core = { path = "../text-editor-core" }
 
 [target.'cfg(not(beui_html))'.dependencies]

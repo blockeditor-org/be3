@@ -73,6 +73,7 @@ fn a_headset_found_after_the_start_is_shown_and_waited_for_again_when_its_runtim
     );
 
     let monado = Monado::start(&directory);
+    link.retry_now();
     found(&link, &woken);
     connect(&mut host, &mut gpu, &waker, &output);
 
@@ -96,6 +97,7 @@ fn a_headset_found_after_the_start_is_shown_and_waited_for_again_when_its_runtim
     assert!(!waiting(&host).is_empty());
 
     let monado = Monado::start(&directory);
+    link.retry_now();
     found(&link, &woken);
     connect(&mut host, &mut gpu, &waker, &output);
     drop(host);

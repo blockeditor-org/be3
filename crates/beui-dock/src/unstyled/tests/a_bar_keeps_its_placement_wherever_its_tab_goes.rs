@@ -7,13 +7,13 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     let bars = vec![
         DockSpecBar {
             bar: TabId::new(20),
-            owner: TabId::new(1),
+            owner: Some(TabId::new(1)),
             placement: DockBarPlacement::Over(DockEdge::Left, DockAlign::Center),
         },
         DockSpecBar {
             bar: TabId::new(21),
-            owner: TabId::new(1),
-            placement: DockBarPlacement::Beside(DockEdge::Bottom),
+            owner: Some(TabId::new(1)),
+            placement: DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
         },
     ];
     let declared = DockSpec {
@@ -28,7 +28,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     };
     state.reconcile(&declared);
     assert_eq!(
-        state.bars_of(TabId::new(1)),
+        state.bars_of(Some(TabId::new(1))),
         vec![TabId::new(20), TabId::new(21)]
     );
     assert_eq!(
@@ -37,7 +37,10 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
         "a bar starts where it is declared"
     );
 
-    state.set_bar_placement(TabId::new(20), DockBarPlacement::Beside(DockEdge::Right));
+    state.set_bar_placement(
+        TabId::new(20),
+        DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center),
+    );
     state.show(TabId::new(1));
     assert!(state.is_bar_shown(TabId::new(20), false));
     state.show(TabId::new(2));
@@ -51,16 +54,22 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     state.reconcile(&declared);
     assert_eq!(
         state.bar_placement(TabId::new(20)),
-        Some(DockBarPlacement::Beside(DockEdge::Right)),
+        Some(DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center)),
         "the bar keeps the placement it was moved to when its tab moves and the code declares it again"
     );
     assert!(state.is_bar_shown(TabId::new(20), false));
 
     let plain = DockState::from_plain(&state.plain());
-    assert_eq!(plain.bars_of(TabId::new(1)), state.bars_of(TabId::new(1)));
+    assert_eq!(
+        plain.bars_of(Some(TabId::new(1))),
+        state.bars_of(Some(TabId::new(1)))
+    );
     assert_eq!(
         plain.bar_placement(TabId::new(21)),
-        Some(DockBarPlacement::Beside(DockEdge::Bottom))
+        Some(DockBarPlacement::Beside(
+            DockEdge::Bottom,
+            DockAlign::Center
+        ))
     );
 
     state.reconcile(&DockSpec {

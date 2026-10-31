@@ -8,8 +8,11 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         tab: DockTabPath::own(8),
         key: "toolbar".into(),
         kind: "canvas/toolbar".to_owned(),
-        owner: DockTabPath::own(3),
-        placement: DockBarPlacement::Beside(DockEdge::Top),
+        owner: Some(DockTabPath::own(3)),
+        placement: DockBarPlacement::Beside(DockBarEdge {
+            edge: DockEdge::Top,
+            align: DockAlign::Center,
+        }),
         size: Size {
             width: 200.0,
             height: 40.0,
@@ -24,8 +27,10 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
     assert_eq!(spliced.validate(), Ok(()));
     let side = DockTabPath::own(4).through(child);
     assert_eq!(
-        spliced.bar(&DockTabPath::own(8)).map(|bar| &bar.owner),
-        Some(&side),
+        spliced
+            .bar(&DockTabPath::own(8))
+            .map(|bar| bar.owner.as_ref()),
+        Some(Some(&side)),
         "the bar stays, on the pane of the first tab that joined in its tab's place"
     );
 
@@ -36,8 +41,12 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
             unlocked: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: DockTabPath::own(8),
-                owner: side,
-                placement: DockBarPlacement::Beside(DockEdge::Left),
+                owner: Some(side),
+                placement: DockBarPlacement::Beside(DockBarEdge {
+                    edge: DockEdge::Left,
+                    align: DockAlign::Center,
+                }),
+                hidden: false,
             }],
             outside: Vec::new(),
         },
@@ -53,8 +62,12 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         hosted.own(&[(child, 3)]).unwrap().layout.bars,
         [DockPlacedBar {
             bar: DockTabPath::own(8),
-            owner: DockTabPath::own(3),
-            placement: DockBarPlacement::Beside(DockEdge::Left),
+            owner: Some(DockTabPath::own(3)),
+            placement: DockBarPlacement::Beside(DockBarEdge {
+                edge: DockEdge::Left,
+                align: DockAlign::Center,
+            }),
+            hidden: false,
         }],
         "its owner hears it back on its own tab"
     );

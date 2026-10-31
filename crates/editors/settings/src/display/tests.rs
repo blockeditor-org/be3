@@ -30,13 +30,14 @@ mod keeping_makes_this_devices_display_block_when_it_has_none;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
 mod resetting_a_kept_setting_clears_it_here;
+mod the_keyboard_button_in_the_bar_is_turned_on_and_reset;
 mod the_lock_follows_the_screens_until_given_a_time_of_its_own;
 mod the_rotate_button_in_the_bar_is_turned_on_and_reset;
 mod the_rotations_are_named_from_how_the_panel_is_built;
 mod the_toast_keeps_every_change_on_this_device_only;
 mod the_toast_undoes_every_change;
 
-const SESSION_HEIGHT: f32 = 1000.0;
+const SESSION_HEIGHT: f32 = 1100.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
 const THEME: &str = "display.theme";
 const SCALE: &str = "display.scale";
@@ -46,6 +47,7 @@ const REFRESH: &str = "display.DP-1.refresh";
 const SCREEN: &str = "display.DP-1";
 const ROTATION: &str = "display.DP-1.rotation";
 const ROTATE_IN_BAR: &str = "display.rotate-in-bar";
+const KEYBOARD_IN_BAR: &str = "display.keyboard-in-bar";
 const SCREEN_OFF: &str = "display.screen-off";
 const LOCK_AFTER: &str = "display.lock-after";
 

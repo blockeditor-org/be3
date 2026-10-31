@@ -442,8 +442,15 @@ impl Screens {
                 self.serial = serial;
                 return false;
             }
-            Delivery::Draw { now_micros, seen } => {
-                crate::clock::set_frame_time(std::time::Duration::from_micros(now_micros));
+            Delivery::Draw {
+                now_micros,
+                wall_micros,
+                seen,
+            } => {
+                crate::clock::set_frame_time(
+                    std::time::Duration::from_micros(now_micros),
+                    std::time::Duration::from_micros(wall_micros),
+                );
                 SEEN.store(seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }
@@ -788,6 +795,7 @@ fn anchored_request(
         frame: None,
         windows: false,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: Some(AnchorSpace {
             to_host: HostTransform {
@@ -830,6 +838,7 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size)
         frame: None,
         windows: true,
         host_place: None,
+        origin: None,
         docked: false,
         anchor_space: None,
     }

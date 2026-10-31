@@ -21,7 +21,7 @@ fn the_screen_reader_follows_focus_that_tab_moves() {
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.frame(Vec::new());
-    assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
+    assert_eq!(harness.reading().as_deref(), Some("Settings, heading"));
 
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(

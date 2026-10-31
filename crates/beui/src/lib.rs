@@ -9,7 +9,9 @@ pub use beui_view::components::selectable;
 pub use beui_view::escape;
 pub use beui_view::primitives;
 pub use beui_view::types::*;
-pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
+pub use beui_view::window::{
+    Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
+};
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_dock as dock;

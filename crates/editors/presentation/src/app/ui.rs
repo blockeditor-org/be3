@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
 };
-use block_editor_beui::beui::dock::unstyled::{DockBarPlacement, DockEdge};
+use block_editor_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
 };
@@ -121,7 +121,11 @@ fn DeckDock(
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <DockBar id=TOOLBAR parent=STAGE placement={DockBarPlacement::Beside(DockEdge::Top)}>
+            <DockBar
+                id=TOOLBAR
+                parent=STAGE
+                placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+            >
                 <Toolbar editor={editor} slides={slides} />
             </DockBar>
         </Docking>

@@ -4,7 +4,7 @@ use super::*;
 fn moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_plugin() {
     let mut app = AppTest::start();
     app.wait("Pane \"Files\"");
-    let (x, y, width, height) = app.place("Label value=\"No file open\"");
+    let (x, y, width, height) = app.place("Heading \"No file open\"");
     let x = x + width / 2.0;
     let y = y + height * 10.0;
     app.run(&["move", &format!("{x},{y}")]);

@@ -33,6 +33,7 @@ fn frame_screens_and_reports_round_trip() {
         dialog: Some(DialogFrame {
             narrow: true,
             bottom_inset: 24.0,
+            modal: false,
         }),
         anchor: Some(Rect::from_min_size(
             Pos2::new(40.0, -28.0),
@@ -70,6 +71,7 @@ fn frame_screens_and_reports_round_trip() {
                     blue: 0,
                     alpha: 96,
                 },
+                radius: 10.0,
             }],
             drawing: vec![Rect::from_min_size(
                 Pos2::new(0.0, 0.0),
@@ -94,6 +96,7 @@ fn frame_screens_and_reports_round_trip() {
                 }],
             }),
             anchored: None,
+            work_area: None,
         }],
         ..frame(1)
     };

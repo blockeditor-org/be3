@@ -30,11 +30,13 @@ pub struct InteractiveNode {
     pub armed: bool,
     pub hovered: bool,
     pub hover_pos: Option<Pos2>,
+    pub pointed: bool,
     pub active: bool,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
+    pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
     pub on_middle_click: ClickCallback,
@@ -78,11 +80,13 @@ impl InteractiveNode {
             armed: false,
             hovered: false,
             hover_pos: None,
+            pointed: false,
             active: false,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
             on_hover_move: Callback::empty(),
+            on_pointed_change: Callback::empty(),
             on_active_change: Callback::empty(),
             on_cancel: ClickCallback::empty(),
             on_middle_click: ClickCallback::empty(),
@@ -226,6 +230,18 @@ impl Element for InteractiveNode {
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         crate::layout::baseline(doc, painter, self.child?, available)
     }
@@ -280,6 +296,7 @@ impl Element for InteractiveNode {
             (self.on_cancel.is_empty(), "cancel"),
             (self.on_hover_change.is_empty(), "hover"),
             (self.on_hover_move.is_empty(), "hover move"),
+            (self.on_pointed_change.is_empty(), "pointed"),
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
             (self.on_pointer.is_empty(), "pointer"),
@@ -291,6 +308,7 @@ impl Element for InteractiveNode {
         .collect();
         let states: Vec<&str> = [
             (self.hovered, "hovered"),
+            (self.pointed, "pointed"),
             (self.active, "active"),
             (self.armed, "armed"),
             (self.key_active, "key active"),

@@ -71,7 +71,6 @@ thread_local! {
 
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
-const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
 pub struct BeuiTest<A: BeuiApp> {
     plugin: HeadlessPlugin,
@@ -247,7 +246,6 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::native::verify_paint(true);
         beui::native::fail_unsettled_layout(true);
-        block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
             Adopted::Creation(creation) => creation.host().clone(),
@@ -355,7 +353,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
-                dialog: Some(block_plugin_api::DialogFrame::default()),
+                dialog: Some(block_plugin_api::DialogFrame {
+                    modal: true,
+                    ..block_plugin_api::DialogFrame::default()
+                }),
                 anchor: None,
             }),
             _ => None,
@@ -466,6 +467,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 frame: self.frame,
                 windows: false,
                 host_place: None,
+                origin: None,
                 docked: self.docked,
                 anchor_space: None,
             }]
@@ -1089,8 +1091,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
         let now_micros = self.clock.as_micros() as u64;
+        let wall_micros = (beui_core::timer::TEST_WALL_CLOCK + self.clock).as_micros() as u64;
         inbox.push(Inbound::pushed(move |plugin| {
-            plugin.draw_frame(now_micros, true)
+            plugin.draw_frame(now_micros, wall_micros, true)
         }));
         for message in inbox {
             self.deliver(message);
@@ -1114,6 +1117,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.output = Some(output);
             self.shown_window = Some(window);
         }
+        self.desk_escaped();
         if let Some(commit) = self.plugin.outbound() {
             self.committed(roundtrip(commit, "the plugin's frame"));
         }
@@ -1138,6 +1142,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.docks.extend(commit.docks);
         let view = self.view().id;
         let asked = commit.window_requests;
+        let reports = commit.reports.clone();
         if let Some(placements) = commit
             .children
             .into_iter()
@@ -1154,6 +1159,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.report = Some(report);
         }
+        self.desk_intercepts(&commit.windows);
         if let Some(window) = commit
             .windows
             .into_iter()
@@ -1162,7 +1168,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.window = window.window;
         }
-        self.desk_asked(asked);
+        self.desk_asked(asked, &reports);
     }
 
     fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {
@@ -1786,6 +1792,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn app_tap(&mut self, key: Key) -> bool {
+        if let Some(tapped) = self.desk_tap(key) {
+            return tapped;
+        }
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }
@@ -1854,7 +1863,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        if self.rect().contains_rect(self.rect_of(test_id)) {
+        let cut = crate::document::scroll_cuts(&self.document(), test_id);
+        if !cut && (self.desk.is_some() || self.rect().contains_rect(self.rect_of(test_id))) {
             return;
         }
         {
@@ -1921,24 +1931,40 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn hover(&mut self, target: impl Into<Target>) {
         let at = self.locate("move", &[target.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_move(at[0]);
+            return;
+        }
         let frames = self.gestures.hover(at[0]);
         self.perform(frames);
     }
 
     pub fn click(&mut self, target: impl Into<Target>) {
         let at = self.locate("click", &[target.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], PointerButton::Primary, 1);
+            return;
+        }
         let frames = self.gestures.click(at[0], PointerButton::Primary, 1);
         self.perform(frames);
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("click", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], button, 1);
+            return;
+        }
         let frames = self.gestures.click(at[0], button, 1);
         self.perform(frames);
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) {
         let at = self.locate("click", &[target.into()], &["double".to_owned()]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], PointerButton::Primary, 2);
+            return;
+        }
         let frames = self.gestures.click(at[0], PointerButton::Primary, 2);
         self.perform(frames);
     }
@@ -1951,18 +1977,30 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("down", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_button(at[0], button, true);
+            return;
+        }
         let frames = self.gestures.down(at[0], button);
         self.perform(frames);
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("up", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_button(at[0], button, false);
+            return;
+        }
         let frames = self.gestures.up(Some(at[0]), button);
         self.perform(frames);
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
         let at = self.locate("drag", &[from.into(), to.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_drag(at[0], at[1], 2);
+            return;
+        }
         let frames = self.gestures.drag(at[0], at[1], 2, PointerButton::Primary);
         self.perform(frames);
     }
@@ -2073,6 +2111,15 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn point(&mut self, target: Target) -> Pos2 {
         match target {
+            Target::Id(id, offset) if self.desk.is_some() => {
+                self.reveal(&id);
+                self.desk_point(&id, offset).unwrap_or_else(|| {
+                    panic!(
+                        "no element with test id {id:?} on the desk\n{}",
+                        self.replay()
+                    )
+                })
+            }
             Target::Id(id, offset) => {
                 self.reveal(&id);
                 match offset {

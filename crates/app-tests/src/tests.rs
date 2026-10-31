@@ -8,6 +8,7 @@ mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_canvas_popped_out_into_a_window_hides_the_files_behind_it;
 mod a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there;
 mod a_canvas_tool_bar_goes_where_its_grip_menu_puts_it;
+mod a_canvas_tool_bar_popped_out_lifts_out_of_its_window_and_follows_its_grip;
 mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;
 mod a_contact_link_asks_before_connecting_two_accounts;
 mod a_deleted_joined_block_says_so_on_each_of_its_tabs;
@@ -36,7 +37,7 @@ mod a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu;
 mod a_second_finger_turns_a_pen_stroke_into_a_pinch;
 mod a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions;
 mod a_setting_opens_from_the_settings_tab_beside_the_files;
-mod a_slides_canvas_bar_stacks_with_the_presentation_toolbar;
+mod a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar;
 mod a_slides_preview_catches_up_with_quick_changes_after_a_pause;
 mod a_tab_keeps_its_view_through_a_resize;
 mod a_tab_popped_out_in_space_is_a_panel_of_its_own;
@@ -50,6 +51,7 @@ mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
 mod closing_a_tab_shuts_its_editor_down;
 mod fit_on_an_active_child_fits_its_content_in_its_view;
 mod going_back_from_the_add_pickers_location_page_grows_the_menu_again;
+mod in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice;
 mod leaving_a_workspace_someone_shared_asks_first;
 mod more_blocks_from_the_add_menu_in_space_opens_the_search;
 mod moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_plugin;
@@ -102,6 +104,21 @@ fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
     app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
 }
 
+fn drag_bar(app: &mut AppTest, grip: &str, to: (f32, f32)) {
+    let from = app.place(grip);
+    let start = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
+    app.run(&["down", grip]);
+    for step in 1..=4 {
+        let share = step as f32 / 4.0;
+        let x = start.0 + (to.0 - start.0) * share;
+        let y = start.1 + (to.1 - start.1) * share;
+        app.run(&["move", &format!("{x},{y}")]);
+    }
+    app.run(&["pause", "200"]);
+    app.run(&["up"]);
+    app.run(&["pause", "1000"]);
+}
+
 fn add_to_canvas(app: &mut AppTest, label: &str) {
     app.click("#infinite-canvas.dock.block");
     choose_type(app, label);
@@ -139,12 +156,10 @@ fn row_menu(app: &mut AppTest, title: &str) -> String {
 }
 
 fn open_beui_demo(app: &mut AppTest) {
-    open_add_to_my_files(app);
-    choose_type(app, "beui demo");
+    add_to_my_files(app, "beui demo");
     app.wait("Tab \"Components\"");
     app.wait("Tab \"Docking\"");
     app.gone("#editor.loading");
-    app.key("Enter");
     app.run(&["settle"]);
 }
 

@@ -49,6 +49,9 @@ interface windows {
         shown: bool,
         title: string,
         app-id: string,
+        /// The program's name from its desktop entry, empty when the host
+        /// knows none.
+        name: string,
         parent: option<host-window-id>,
         modal: bool,
         size: vec2,
@@ -378,6 +381,13 @@ interface programs {
         icon: option<host-image>,
     }
 
+    /// The programs the host found. `listed` is false until it has looked
+    /// for them once, so an empty list can mean "not yet" or "none".
+    record program-catalog {
+        listed: bool,
+        programs: list<host-program>,
+    }
+
     record program-list {
         /// The icons' size in pixels, at most 256.
         icon-size: u32,
@@ -404,7 +414,7 @@ interface programs {
 
     resource programs-watch {
         constructor();
-        next: async func() -> list<host-program>;
+        next: async func() -> program-catalog;
     }
 
     request: func(action: program-action);

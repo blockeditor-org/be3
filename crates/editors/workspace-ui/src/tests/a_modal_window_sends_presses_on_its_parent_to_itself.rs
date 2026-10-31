@@ -9,7 +9,7 @@ fn a_modal_window_sends_presses_on_its_parent_to_itself() {
     };
     fixture
         .host
-        .set_watched::<WindowsWatch>(&vec![window(1, "Editor", None), modal]);
+        .set_watched::<WindowsWatch>(&vec![window(1, "Text Editor", None), modal]);
     fixture.settle();
     let parent = placed_windows(&fixture)
         .into_iter()
@@ -22,7 +22,7 @@ fn a_modal_window_sends_presses_on_its_parent_to_itself() {
 
     fixture
         .test
-        .click(parent.min + block_editor_beui::vec2(12.0, 12.0));
+        .click(parent.max - block_editor_beui::vec2(12.0, 12.0));
     fixture.settle();
 
     let asked = fixture

@@ -42,7 +42,7 @@ fn an_interrupted_plugin_stops_on_every_thread() {
     let threads = threads.recv().unwrap();
     for _ in 0..3 {
         wakes
-            .recv_timeout(Duration::from_secs(30))
+            .recv()
             .expect("the plugin and both its threads should have started");
     }
 

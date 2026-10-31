@@ -50,6 +50,7 @@ pub(crate) struct Placed {
 
 pub(crate) struct AtNode {
     pub node: NodeId,
+    pub control: bool,
     pub placed: Placed,
 }
 
@@ -111,6 +112,7 @@ impl KeyListeners {
             .filter_map(|listener| {
                 Some(AtNode {
                     node: listener.at.node(root)?,
+                    control: matches!(listener.at, KeyAt::Control(_)),
                     placed: Placed {
                         handler: Handler::Listening(listener.handler.clone()),
                         reveal: listener.reveal,

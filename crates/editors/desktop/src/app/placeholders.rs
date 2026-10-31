@@ -24,7 +24,8 @@ pub(crate) struct Placeholders {
 impl Placeholders {
     pub(crate) fn new(workspace: Workspace) -> Self {
         let editor = workspace.editor();
-        let programs = editor.watch::<ProgramsWatch>();
+        let catalog = editor.watch::<ProgramsWatch>();
+        let programs = create_memo(move || catalog.with(|catalog| catalog.programs.clone()));
         let keys = workspace.placeholders();
         let scale = pixels_per_point();
         let listed = StoredCell::new(false);
@@ -145,8 +146,9 @@ fn name(kept: &KeptWindow, program: Option<&HostProgram>) -> String {
             .unwrap_or(command.as_str())
             .to_owned()
     });
-    match (kept.app_id.is_empty(), command) {
-        (false, _) => kept.app_id.clone(),
+    let named = kept.program_name();
+    match (named.is_empty(), command) {
+        (false, _) => named,
         (true, Some(command)) => command,
         (true, None) => "Program".to_owned(),
     }
@@ -254,23 +256,5 @@ fn PlaceholderBody(
                 </List>
             </List>
         </Frame>
-    }
-}
-
-#[component]
-pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
-    let keys = placeholders.keys;
-    let label = create_memo(move || match keys.with(Vec::len) {
-        1 => "Open the window from last time".to_owned(),
-        count => format!("Open the {count} windows from last time"),
-    });
-    view! {
-        <Button
-            icon_only=true
-            glyph=ICON_APP_WINDOW
-            label={label}
-            @test_id={"desktop.placeholders.open_all"}
-            on_click={move || placeholders.open_all()}
-        />
     }
 }

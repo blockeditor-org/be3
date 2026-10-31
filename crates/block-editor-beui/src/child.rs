@@ -91,11 +91,13 @@ pub fn Subregion(
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let layout = use_context::<DialogLayout>();
+    let modal = use_modal();
     let dialog = match dialog {
         true => Prop::dynamic(move || {
             Some(DialogFrame {
                 narrow: layout.is_some_and(|layout| layout.narrow.get()),
                 bottom_inset: layout.map_or(0.0, |layout| layout.bottom_inset.get()),
+                modal: modal.get(),
             })
         }),
         false => Prop::Static(None),

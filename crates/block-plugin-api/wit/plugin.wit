@@ -96,7 +96,10 @@ interface plugin {
     configure: func(serial: u64);
 
     /// Draws a frame of every screen and answers with what it drew.
-    draw: async func(now-micros: u64, seen: bool) -> frame-commit;
+    /// `wall-micros` is the host's wall clock at `now-micros`, in
+    /// microseconds since the Unix epoch: the plugin's wall clock, so a host
+    /// that pins its own (a test) pins every plugin's too.
+    draw: async func(now-micros: u64, wall-micros: u64, seen: bool) -> frame-commit;
 
     /// Stops the plugin; it answers once it saved what it holds.
     shutdown: async func();

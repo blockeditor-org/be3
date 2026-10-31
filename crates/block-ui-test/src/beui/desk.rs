@@ -1,8 +1,8 @@
-use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
-    InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics, WindowEdge, WindowPlacement,
-    WindowRequest,
+    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics,
+    WindowEdge, WindowPlacement, WindowRequest,
 };
 
 use super::{BeuiTest, INSTANCE, SCREEN};
@@ -10,12 +10,14 @@ use super::{BeuiTest, INSTANCE, SCREEN};
 const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const FIRST_DISPLAY_SCREEN: u64 = 100;
 const FIRST_WINDOW_SCREEN: u64 = 1000;
+const WALL: f32 = 0.5;
 
 #[derive(Clone, Copy, Debug)]
 struct Display {
     rect: Rect,
     scale: f32,
     screen: ScreenId,
+    work: Option<Rect>,
 }
 
 #[derive(Clone, Debug)]
@@ -23,6 +25,15 @@ struct Hosted {
     window: ViewId,
     screen: ScreenId,
     rect: Rect,
+    parent: Option<ViewId>,
+}
+
+#[derive(Clone, Debug)]
+struct Anchored {
+    layer: u64,
+    screen: ScreenId,
+    rect: Rect,
+    takes: Vec<Rect>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -35,11 +46,13 @@ enum Gesture {
 pub(crate) struct Desk {
     displays: Vec<Display>,
     windows: Vec<Hosted>,
+    anchored: Vec<Anchored>,
     next_screen: u64,
     gesture: Option<(ViewId, Gesture)>,
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
     pointer: Pos2,
     outside: bool,
+    intercepts: Vec<(ScreenId, Vec<KeyChord>)>,
 }
 
 impl Desk {
@@ -55,6 +68,7 @@ impl Desk {
                         0 => SCREEN,
                         index => ScreenId(FIRST_DISPLAY_SCREEN + index as u64),
                     },
+                    work: None,
                 })
                 .collect(),
             next_screen: FIRST_WINDOW_SCREEN,
@@ -75,6 +89,44 @@ impl Desk {
             .unwrap_or(self.displays[0])
     }
 
+    fn reported(&mut self, reports: &[block_plugin_api::FrameReport]) -> bool {
+        let mut changed = false;
+        for display in &mut self.displays {
+            let Some(report) = reports
+                .iter()
+                .find(|report| report.screen == display.screen)
+            else {
+                continue;
+            };
+            let work = report.work_area.map(|insets| insets.inside(display.rect));
+            changed |= display.work != work;
+            display.work = work;
+        }
+        changed
+    }
+
+    fn keep(&mut self) -> bool {
+        let moving = self.gesture.map(|(window, _)| window);
+        let mut moved = false;
+        for index in 0..self.windows.len() {
+            let held = &self.windows[index];
+            if Some(held.window) == moving {
+                continue;
+            }
+            let display = self.owner(held.rect);
+            let Some(work) = display.work else {
+                continue;
+            };
+            let to = walled(held.rect, display.rect, work);
+            if to != held.rect.min {
+                let size = held.rect.size();
+                self.windows[index].rect = Rect::from_min_size(to, size);
+                moved = true;
+            }
+        }
+        moved
+    }
+
     fn origin(&self, screen: ScreenId) -> Pos2 {
         self.displays
             .iter()
@@ -85,6 +137,12 @@ impl Desk {
                     .iter()
                     .find(|window| window.screen == screen)
                     .map(|window| window.rect.min)
+            })
+            .or_else(|| {
+                self.anchored
+                    .iter()
+                    .find(|anchored| anchored.screen == screen)
+                    .map(|anchored| anchored.rect.min)
             })
             .unwrap_or(Pos2::ZERO)
     }
@@ -105,11 +163,18 @@ impl Desk {
     }
 
     fn under(&self, at: Pos2) -> Option<ScreenId> {
-        self.windows
+        self.anchored
             .iter()
             .rev()
-            .find(|window| window.rect.contains(at))
-            .map(|window| window.screen)
+            .find(|anchored| anchored.takes.iter().any(|rect| rect.contains(at)))
+            .map(|anchored| anchored.screen)
+            .or_else(|| {
+                self.windows
+                    .iter()
+                    .rev()
+                    .find(|window| window.rect.contains(at))
+                    .map(|window| window.screen)
+            })
             .or_else(|| {
                 self.displays
                     .iter()
@@ -153,20 +218,37 @@ impl Desk {
                 },
                 windows: true,
                 host_place: None,
+                origin: Some(display.rect.min),
                 docked: false,
-                anchor_space: None,
+                anchor_space: Some(AnchorSpace {
+                    to_host: HostTransform {
+                        origin: display.rect.min,
+                        scale: vec2(1.0, 1.0),
+                    },
+                    bounds: display.rect,
+                }),
             });
-        let windows = self.windows.iter().map(|window| ScreenRequest {
-            screen: window.screen,
-            instance: INSTANCE,
-            view: window.window,
-            placement: View::window(window.window).placement,
-            metrics: metrics(window.rect.size(), self.owner(window.rect).scale),
-            frame: None,
-            windows: true,
-            host_place: Some(placement(window.rect)),
-            docked: false,
-            anchor_space: None,
+        let windows = self.windows.iter().map(|window| {
+            let display = self.owner(window.rect);
+            ScreenRequest {
+                screen: window.screen,
+                instance: INSTANCE,
+                view: window.window,
+                placement: View::window(window.window).placement,
+                metrics: metrics(window.rect.size(), display.scale),
+                frame: None,
+                windows: true,
+                host_place: Some(placement(window.rect)),
+                origin: Some(window.rect.min),
+                docked: false,
+                anchor_space: Some(AnchorSpace {
+                    to_host: HostTransform {
+                        origin: window.rect.min,
+                        scale: vec2(1.0, 1.0),
+                    },
+                    bounds: display.rect,
+                }),
+            }
         });
         displays.chain(windows).collect()
     }
@@ -177,17 +259,9 @@ impl Desk {
         };
         match request {
             WindowRequest::Open(open) => {
-                let origin = match open.placement {
-                    WindowPlacement::Over(over) => {
-                        let screen = self.view_screen(over.view.view);
-                        screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
-                    }
-                    WindowPlacement::Host(placement) => {
-                        read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
-                    }
-                    WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
-                };
+                let origin = self.point_of(open.placement);
                 let rect = Rect::from_min_size(origin, vec2(open.size.width, open.size.height));
+                let parent = find(&self.windows, open.opener.view).map(|_| open.opener.view);
                 match find(&self.windows, open.view) {
                     Some(index) => self.windows[index].rect = rect,
                     None => {
@@ -202,6 +276,7 @@ impl Desk {
                             window: open.view,
                             screen,
                             rect,
+                            parent,
                         });
                     }
                 }
@@ -230,6 +305,23 @@ impl Desk {
                     self.windows.remove(index);
                 }
             }
+            WindowRequest::Place(place) => {
+                let origin = self.point_of(place.placement);
+                self.move_to(place.view, origin);
+            }
+        }
+    }
+
+    fn point_of(&self, placement: WindowPlacement) -> Pos2 {
+        match placement {
+            WindowPlacement::Over(over) => {
+                let screen = self.view_screen(over.view.view);
+                screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
+            }
+            WindowPlacement::Host(placement) => {
+                read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
+            }
+            WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
         }
     }
 
@@ -251,15 +343,68 @@ impl Desk {
             return false;
         }
         let moved = at - pressed;
-        let placed = match gesture {
-            Gesture::Move => rect.translate(moved),
-            Gesture::Resize(edge) => resized(rect, edge, moved),
-        };
-        if let Some(window) = self.windows.iter_mut().find(|held| held.window == window) {
-            window.rect = placed;
+        match gesture {
+            Gesture::Move => self.move_to(window, rect.min + moved),
+            Gesture::Resize(edge) => {
+                if let Some(window) = self.windows.iter_mut().find(|held| held.window == window) {
+                    window.rect = resized(rect, edge, moved);
+                }
+            }
         }
         true
     }
+
+    fn move_to(&mut self, window: ViewId, to: Pos2) {
+        let Some(from) = self
+            .windows
+            .iter()
+            .find(|held| held.window == window)
+            .map(|held| held.rect.min)
+        else {
+            return;
+        };
+        let mut family = vec![window];
+        let mut index = 0;
+        while index < family.len() {
+            let parent = family[index];
+            family.extend(
+                self.windows
+                    .iter()
+                    .filter(|held| held.parent == Some(parent) && !family.contains(&held.window))
+                    .map(|held| held.window)
+                    .collect::<Vec<_>>(),
+            );
+            index += 1;
+        }
+        for held in &mut self.windows {
+            if family.contains(&held.window) {
+                held.rect = held.rect.translate(to - from);
+            }
+        }
+    }
+}
+
+fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
+    let mut min = rect.min;
+    if work.max.x < display.max.x - WALL {
+        min.x = min
+            .x
+            .min(work.max.x - rect.width())
+            .max(work.min.x.min(rect.min.x));
+    }
+    if work.max.y < display.max.y - WALL {
+        min.y = min
+            .y
+            .min(work.max.y - rect.height())
+            .max(work.min.y.min(rect.min.y));
+    }
+    if work.min.x > display.min.x + WALL {
+        min.x = min.x.max(work.min.x);
+    }
+    if work.min.y > display.min.y + WALL {
+        min.y = min.y.max(work.min.y);
+    }
+    min
 }
 
 fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
@@ -304,17 +449,84 @@ impl<A: BeuiApp> BeuiTest<A> {
         Some(self.desk.as_ref()?.requests(self.frame))
     }
 
-    pub(super) fn desk_asked(&mut self, requests: Vec<WindowRequest>) {
+    pub(super) fn desk_escaped(&mut self) {
         let Some(desk) = self.desk.as_mut() else {
             return;
         };
-        if requests.is_empty() {
+        let Some(output) = self.output.as_ref() else {
+            desk.anchored.clear();
+            return;
+        };
+        let screens = &self.plugin.layout().screens;
+        desk.anchored = output
+            .escaped
+            .iter()
+            .filter_map(|escaped| {
+                let view = beui_platform_plugin_api::anchored_view(escaped.layer.id);
+                let screen = screens.iter().find(|placed| placed.view == view)?.screen;
+                Some(Anchored {
+                    layer: escaped.layer.id,
+                    screen,
+                    rect: escaped.layer.rect,
+                    takes: escaped.layer.floating.clone(),
+                })
+            })
+            .collect();
+    }
+
+    pub(super) fn desk_asked(
+        &mut self,
+        requests: Vec<WindowRequest>,
+        reports: &[block_plugin_api::FrameReport],
+    ) {
+        let Some(desk) = self.desk.as_mut() else {
+            return;
+        };
+        let reported = desk.reported(reports);
+        let asked = !requests.is_empty();
+        if !asked && !reported {
             return;
         }
         for request in requests {
             desk.ask(request);
         }
-        self.place();
+        if desk.keep() || asked {
+            self.place();
+        }
+    }
+
+    pub(super) fn desk_intercepts(&mut self, windows: &[block_plugin_api::ScreenWindow]) {
+        let Some(desk) = self.desk.as_mut() else {
+            return;
+        };
+        for window in windows {
+            let keys = window.window.intercepted_keys.clone();
+            match desk
+                .intercepts
+                .iter_mut()
+                .find(|(screen, _)| *screen == window.screen)
+            {
+                Some((_, held)) => *held = keys,
+                None => desk.intercepts.push((window.screen, keys)),
+            }
+        }
+    }
+
+    pub(super) fn desk_tap(&mut self, key: Key) -> Option<bool> {
+        let desk = self.desk.as_mut()?;
+        let tap = KeyChord::tap(key);
+        let screen = desk
+            .intercepts
+            .iter()
+            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))?
+            .0;
+        self.desk_batches.push(InputBatch {
+            screen,
+            every_sample: false,
+            events: vec![TimedInput::from(Input::InterceptedTap(key))],
+            dismissed: Vec::new(),
+        });
+        Some(true)
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {
@@ -359,27 +571,56 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn desk_press(&mut self, at: Pos2) {
-        self.desk_pointer(at, Some(true));
+        self.desk_pointer(at, Some(true), PointerButton::Primary);
     }
 
     pub fn desk_move(&mut self, at: Pos2) {
-        self.desk_pointer(at, None);
+        self.desk_pointer(at, None, PointerButton::Primary);
     }
 
     pub fn desk_release(&mut self, at: Pos2) {
-        self.desk_pointer(at, Some(false));
+        self.desk_pointer(at, Some(false), PointerButton::Primary);
+    }
+
+    pub(super) fn desk_point(&self, test_id: &str, offset: Option<Vec2>) -> Option<Pos2> {
+        let rect = self.desk_rects_of(test_id).into_iter().next()?;
+        Some(match offset {
+            Some(offset) => rect.min + offset,
+            None => rect.center(),
+        })
+    }
+
+    pub(super) fn desk_click(&mut self, at: Pos2, button: PointerButton, clicks: usize) {
+        for _ in 0..clicks {
+            self.desk_pointer(at, Some(true), button);
+            self.desk_pointer(at, Some(false), button);
+        }
+    }
+
+    pub(super) fn desk_button(&mut self, at: Pos2, button: PointerButton, pressed: bool) {
+        self.desk_pointer(at, Some(pressed), button);
     }
 
     pub fn desk_drag(&mut self, from: Pos2, to: Pos2, steps: usize) {
         self.desk_press(from);
-        for step in 1..=steps.max(1) {
-            let along = step as f32 / steps.max(1) as f32;
-            self.desk_move(from + (to - from) * along);
-        }
+        self.desk_moves(from, to, steps, std::time::Duration::ZERO);
         self.desk_release(to);
     }
 
-    fn desk_pointer(&mut self, at: Pos2, pressed: Option<bool>) {
+    pub fn desk_moves(&mut self, from: Pos2, to: Pos2, steps: usize, each: std::time::Duration) {
+        for step in 1..=steps.max(1) {
+            if !each.is_zero() {
+                self.advance(each);
+            }
+            let along = step as f32 / steps.max(1) as f32;
+            self.desk_move(from + (to - from) * along);
+        }
+    }
+
+    fn desk_pointer(&mut self, at: Pos2, pressed: Option<bool>, button: PointerButton) {
+        for events in std::mem::take(&mut self.frames) {
+            self.step(events);
+        }
         let Some(desk) = self.desk.as_mut() else {
             panic!("desk input needs show_on_displays");
         };
@@ -425,7 +666,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let input = match pressed {
             Some(pressed) => Input::PointerButton {
                 pos: Pos2::ZERO + local,
-                button: PointerButton::Primary,
+                button,
                 pressed,
             },
             None => Input::PointerMoved(Pos2::ZERO + local),
@@ -440,6 +681,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             desk.gesture.take().is_some()
         };
         if ended {
+            desk.keep();
             self.place();
         }
         self.desk_batches.push(InputBatch {
@@ -491,6 +733,46 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             };
             let at = window.rect.translate(-shown.rect.min.to_vec2());
+            painting
+                .frame
+                .primitives
+                .extend(drawn.placed(beui::native::painting::Placement {
+                    source: [0.0, 0.0, 1.0, 1.0],
+                    corners: [
+                        [at.min.x, at.min.y],
+                        [at.max.x, at.min.y],
+                        [at.max.x, at.max.y],
+                        [at.min.x, at.max.y],
+                    ],
+                    clip: [0.0, 0.0, shown.rect.width(), shown.rect.height()],
+                    corner_radius: 0.0,
+                }));
+            for (key, pixels) in drawn.textures {
+                painting.textures.entry(key).or_insert(pixels);
+            }
+        }
+        for anchored in &desk.anchored {
+            let rect = anchored.rect;
+            if !rect.intersects(shown.rect) {
+                continue;
+            }
+            let Some(escaped) = output
+                .escaped
+                .iter()
+                .find(|escaped| escaped.layer.id == anchored.layer)
+            else {
+                continue;
+            };
+            let Ok(drawn) = beui::native::painting::painting(
+                &escaped.output,
+                rect.size(),
+                shown.scale,
+                escaped.output.window.appearance.clear_color,
+                beui::native::painting::Punches::Shown,
+            ) else {
+                continue;
+            };
+            let at = rect.translate(-shown.rect.min.to_vec2());
             painting
                 .frame
                 .primitives

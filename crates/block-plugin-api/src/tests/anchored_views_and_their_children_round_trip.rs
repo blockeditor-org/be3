@@ -48,6 +48,7 @@ fn anchored_views_and_their_children_round_trip() {
             blue: 0,
             alpha: 96,
         },
+        radius: 10.0,
     }];
     let frame = FrameCommit {
         reports: vec![

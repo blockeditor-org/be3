@@ -1,6 +1,5 @@
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
-use std::time::Duration;
 
 use block_plugin_api::{HostTrayItem, TrayRequest};
 use futures_util::StreamExt;
@@ -13,7 +12,6 @@ use super::super::client::{Event, run_on};
 use super::*;
 use crate::dbus::test_bus::Bus;
 
-const WAIT: Duration = Duration::from_secs(20);
 const MENU_PATH: &str = "/MenuBar";
 
 struct FakeItem {
@@ -131,7 +129,7 @@ fn until(
 ) -> Vec<HostTrayItem> {
     loop {
         let items = published
-            .recv_timeout(WAIT)
+            .recv()
             .unwrap_or_else(|_| panic!("the tray shows {what}"));
         if done(&items) {
             return items;
@@ -141,7 +139,7 @@ fn until(
 
 fn heard(heard: &Receiver<String>, what: &str) {
     let got = heard
-        .recv_timeout(WAIT)
+        .recv()
         .unwrap_or_else(|_| panic!("the item hears {what}"));
     assert_eq!(got, what);
 }

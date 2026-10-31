@@ -10,6 +10,7 @@ pub fn ButtonsFixture() -> NodeId {
     let pin = create_memo(move || format!("Pinned {}", pinned.get()));
     view! {
         <List spacing=Space::Md>
+            <Text style=TextStyle::HEADING>"Actions"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Save"
@@ -156,9 +157,41 @@ pub fn MenusFixture() -> NodeId {
                 on_select={choose}
             >
                 <Card @test_id="menus.card">
-                    <Text>"Right-click here"</Text>
+                    <List spacing=Space::Md>
+                        <Text>"Right-click here"</Text>
+                        <Button label="Focus me" @test_id="menus.card.focus" />
+                    </List>
                 </Card>
             </ContextMenu>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+pub fn LongMenusFixture() -> NodeId {
+    let chosen = create_signal(Vec::<usize>::new());
+    let report = create_memo(move || format!("Chose {:?}", chosen.get()));
+    let rows = create_memo(|| (1..=23).collect::<Vec<u32>>());
+    let subrows = create_memo(|| (1..=16).collect::<Vec<u32>>());
+    view! {
+        <List spacing=Space::Md>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <MenuButton
+                    label="Long"
+                    items={view! {
+                        <ForEach keys={rows}>|row: u32|
+                            <MenuItem label={format!("Item {row}")} />
+                        </ForEach>
+                        <MenuItem label="Item 24">
+                            <ForEach keys={subrows}>|row: u32|
+                                <MenuItem label={format!("Sub {row}")} />
+                            </ForEach>
+                        </MenuItem>
+                    }}
+                    on_select={move |path: Vec<usize>| chosen.set(path)}
+                />
+            </List>
             <Text>{report}</Text>
         </List>
     }
@@ -233,6 +266,48 @@ pub fn TextAreaFixture() -> NodeId {
                 />
             </Frame>
             <Text>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+pub fn DescribedFixture() -> NodeId {
+    let renames = create_signal(0_u32);
+    let inner = create_memo(move || format!("Inner {}", renames.get()));
+    let report = create_memo(move || format!("Renamed {}", renames.get()));
+    view! {
+        <List spacing=Space::Md>
+            <DescribedOuter inner />
+            <Button
+                label="Rename"
+                @test_id="described.rename"
+                on_click={move || renames.update(|renames| *renames += 1)}
+            />
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+fn group(label: String) -> beui::accesskit::Node {
+    let mut node = beui::accesskit::Node::new(beui::accesskit::Role::Group);
+    node.set_label(label);
+    node
+}
+
+#[component]
+fn DescribedOuter(inner: Memo<String>) -> NodeId {
+    component_accessibility(group("Outer".to_owned()));
+    view! {
+        <DescribedInner label={inner} />
+    }
+}
+
+#[component]
+fn DescribedInner(label: Memo<String>) -> NodeId {
+    component_accessibility(create_memo(move || group(label.get())));
+    view! {
+        <List spacing=Space::Md>
+            <Text>"Described"</Text>
         </List>
     }
 }

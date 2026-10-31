@@ -95,8 +95,9 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
         ],
         bars: vec![crate::unstyled::state::DockPlainBar {
             bar: TabId::new(20),
-            owner: TabId::new(11),
-            placement: DockBarPlacement::Beside(DockEdge::Top),
+            owner: Some(TabId::new(11)),
+            placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
+            hidden: false,
         }],
         outside: Vec::new(),
         unlocked: Vec::new(),
@@ -105,8 +106,8 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
     let mut first = deck(vec![DockSpecEntry::Tab(TabId::new(11))]);
     first.bars = vec![DockSpecBar {
         bar: TabId::new(20),
-        owner: TabId::new(11),
-        placement: DockBarPlacement::Beside(DockEdge::Top),
+        owner: Some(TabId::new(11)),
+        placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
     }];
     state.reconcile(&first);
 
@@ -121,12 +122,12 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
     joining.bars = vec![
         DockSpecBar {
             bar: TabId::new(20),
-            owner: TabId::new(12),
-            placement: DockBarPlacement::Beside(DockEdge::Top),
+            owner: Some(TabId::new(12)),
+            placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
         },
         DockSpecBar {
             bar: TabId::new(21),
-            owner: TabId::new(12),
+            owner: Some(TabId::new(12)),
             placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
         },
     ];

@@ -8,34 +8,9 @@ commands of their own so that each is one buck2 command. Every script is
 `crates/bootstrap` (guides/bootstrap.md). cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
-## Commands
+Every command and target is in guides/common_commands.md.
 
-| Command | What it does |
-|---|---|
-| `./scripts/buck run //:check` | rustc's check pass over every first-party target on the platforms the tests build: Linux x86_64 and the plugins' `wasi_guest` |
-| `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
-| `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
-| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
-| `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
-| `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with every plugin, driven and painted as a whole |
-| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |
-| `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
-| `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
-| `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
-| `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
-| `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
-| `./scripts/buck run -m release //crates/beui-host:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
-| `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
-| `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
-| `./scripts/buck run //crates/paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.png` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
-| `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
-| `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
-| `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
-| `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
-| `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
-| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium` and needs git, curl and python3 |
+## Profiles and build info
 
 `--target-platforms root//buck/platforms:<p>` builds for another platform, and
 `-m release` with cargo's release profile, on whichever platform it is. The
@@ -159,7 +134,8 @@ the app headless for an agent to drive.
 **A dependency**: `cargo add` (or edit `Cargo.toml`), then
 `./scripts/buck run //:buckify` to regenerate the rules. That includes a
 dev-dependency on another crate of the workspace: until it runs, the crate's
-`:test` cannot see it. A build script runs
+`:test` cannot see it, and rustc reports the crate as unresolved or unlinked
+(`./scripts/verify` regenerates the rules itself, and when a build fails with them stale it says to run it again). A build script runs
 as it does under cargo, and the libraries it links or compiles reach the link;
 one that needs something from the build, such as a sysroot's pkg-config, gets
 it from a fixup.
@@ -280,7 +256,7 @@ in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
 the crate's `[diag.json]` and passes when every line marked
 `//~ ERROR <part of the message>` has that error and no other line has one.
 It is rustc's check pass once for all the cases, with nothing linked. The
-crates sit outside `crates/` because `build //crates/...`, `//:check` and
+crates sit outside `crates/` because `build //crates/...` and
 `./scripts/verify` would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
@@ -451,14 +427,12 @@ extension ships: the toolchain's panics on this workspace.
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Lints** are rustc's, and a warning fails the compile that finds it, so
-  `./scripts/verify` sees them only in what its tests compile, `linux_x86_64`
-  and `wasi_guest`, and in what it checks: beui for Windows and the HTML
-  core's libraries. It neither typechecks other configurations (Android, the
-  web's wasm32, host wasi, release copies) nor runs clippy: each was a second
-  compile of every target, which doubled what a change cost. `//:check`
-  typechecks less: only `linux_x86_64` and `wasi_guest`
-  (`buck/dev/workspace.bxl`), so an agent's check is a third of the actions it
-  was. Code behind `cfg(windows)` or `cfg(target_os = "macos")` outside beui is
+  `./scripts/verify` sees them only in what it compiles and checks: every
+  first-party target on `linux_x86_64` and `wasi_guest`
+  (`buck/dev/workspace.bxl`), beui for Windows and the HTML core's
+  libraries. It neither typechecks other configurations (Android, the web's
+  wasm32, host wasi, release copies) nor runs clippy: each was a second
+  compile of every target, which doubled what a change cost. Code behind `cfg(windows)` or `cfg(target_os = "macos")` outside beui is
   first compiled by `./scripts/deploy`.
 - **Clippy** is still in the toolchain:
   `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`

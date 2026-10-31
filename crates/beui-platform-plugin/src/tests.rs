@@ -53,6 +53,7 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> ShownView {
         windows: false,
         docked: false,
         host_place: None,
+        origin: None,
         anchor_space: None,
     }
 }

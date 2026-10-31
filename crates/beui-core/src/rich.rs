@@ -216,6 +216,10 @@ impl RichLine {
             }
             _ => {
                 let x = runs.last().map_or(0.0, |run: &RichRun| run.x + run.width);
+                let ellipsis = match budget < 0.0 {
+                    true => shaper.galley("", style.font),
+                    false => ellipsis,
+                };
                 runs.push(RichRun {
                     piece,
                     range: cut..self.range.end,

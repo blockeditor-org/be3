@@ -42,7 +42,7 @@ pub struct DockDeclaredBar {
     pub tab: TabId,
     pub key: String,
     pub kind: String,
-    pub owner: TabId,
+    pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
 }
 
@@ -87,6 +87,7 @@ pub enum DockRequest {
     Fullscreen(Option<(TabId, Option<Rect>)>),
     PlaceBar(TabId, Option<DockBarPlacement>),
     MoveBar(TabId, DockBarMove),
+    HideBar(TabId, bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -434,6 +435,7 @@ impl JoinedLink {
                 DockRequest::PlaceBar(self.outer(bar)?, placement)
             }
             DockRequest::MoveBar(bar, moved) => DockRequest::MoveBar(self.outer(bar)?, moved),
+            DockRequest::HideBar(bar, hidden) => DockRequest::HideBar(self.outer(bar)?, hidden),
             DockRequest::Restore(from) => {
                 let registry = &self.join.registry;
                 let mut state = registry.state.get_untracked();
@@ -542,6 +544,11 @@ impl DockHostLink for JoinedLink {
             DockRequest::MoveBar(bar, moved) => {
                 if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
                     dock.ask_bar(DockRequest::MoveBar(bar, moved));
+                }
+            }
+            DockRequest::HideBar(bar, hidden) => {
+                if let (Some(bar), Some(dock)) = (self.outer(bar), self.dock()) {
+                    dock.ask_bar(DockRequest::HideBar(bar, hidden));
                 }
             }
             DockRequest::Restore(from) => {
