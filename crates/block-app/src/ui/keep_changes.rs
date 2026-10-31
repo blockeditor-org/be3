@@ -68,7 +68,7 @@ pub(crate) fn KeepChanges(
             let countdown_id = format!("{id}.countdown");
             let body_id = id.clone();
             view! {
-                <DialogCard width=WIDTH @test_id={id.clone()}>
+                <DialogCard width=WIDTH>
                     <DialogBody
                         kind=DialogKind::Alert
                         title

@@ -7,7 +7,7 @@ fn resizing_opens_a_card_on_the_resize_button() {
     editor.click("pixel-art.resize");
     editor.run();
 
-    assert!(editor.shown("pixel-art.resize.apply"));
+    assert!(editor.shown("pixel-art.resizing.apply"));
     let button = editor.rect_of("pixel-art.resize");
     let width = editor.rect_of("pixel-art.resize-width");
     assert!(

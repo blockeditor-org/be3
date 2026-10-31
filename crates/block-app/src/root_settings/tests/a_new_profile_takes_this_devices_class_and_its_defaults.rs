@@ -1,10 +1,7 @@
 use super::*;
 
-
 fn arrived(block: Uuid) {
-    block_app_stack::wait_until(|shared| {
-        shared.blocks.contains_key(&block).then_some(())
-    });
+    block_app_stack::wait_until(|shared| shared.blocks.contains_key(&block).then_some(()));
 }
 
 fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {

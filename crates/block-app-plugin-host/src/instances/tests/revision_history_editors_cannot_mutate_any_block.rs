@@ -17,9 +17,8 @@ fn revision_history_editors_cannot_mutate_any_block() {
         CounterContent::encode_operation(&counter_types::Counter::add(1)),
     );
     block_app_stack::flush();
-    let head = block_app_stack::wait_until(|shared| {
-        shared.graph.get(block).and_then(|node| node.head)
-    });
+    let head =
+        block_app_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
     let (send, receive) = std::sync::mpsc::channel();
     block_app_stack::revisions::request(
         block,
@@ -79,9 +78,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
     );
     block_app_stack::flush();
     block_app_stack::close(child);
-    block_app_stack::wait_until(|shared| {
-        (!shared.blocks.contains_key(&child)).then_some(())
-    });
+    block_app_stack::wait_until(|shared| (!shared.blocks.contains_key(&child)).then_some(()));
     let descendant = block_app_stack::revisions::alias(preview, child);
     block_app_stack::open(descendant, CounterContent::CONTENT_TYPE);
     block_app_stack::wait_until(|shared| {

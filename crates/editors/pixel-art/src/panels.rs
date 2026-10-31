@@ -405,7 +405,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 open={resizing}
                 title="Resize pixel art"
                 anchor={DialogAnchor::Control(tools.resize_button)}
-                id="pixel-art.resize"
+                id="pixel-art.resizing"
                 actions={vec![
                     DialogAction::cancel("Cancel"),
                     DialogAction::primary("Resize", apply).named("apply"),

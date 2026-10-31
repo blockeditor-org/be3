@@ -56,8 +56,6 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
 
     instances.ended(watched);
     instances.ended(unknown);
-    block_app_stack::wait_until(|shared| {
-        (!shared.blocks.contains_key(&other)).then_some(())
-    });
+    block_app_stack::wait_until(|shared| (!shared.blocks.contains_key(&other)).then_some(()));
     assert!(block_app_stack::content(own).is_some());
 }

@@ -38,9 +38,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     );
     opened_first(&mut open, &opened);
     to_replica(&mut instances, block, &FromEditor::Resend);
-    block_app_stack::wait_until(|shared| {
-        shared.blocks.contains_key(&block).then_some(())
-    });
+    block_app_stack::wait_until(|shared| shared.blocks.contains_key(&block).then_some(()));
     block_app_stack::wait_until(|shared| {
         shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
     });

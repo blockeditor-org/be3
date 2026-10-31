@@ -2109,7 +2109,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         match target {
             Target::Id(id, offset) if self.desk.is_some() => {
                 self.desk_point(&id, offset).unwrap_or_else(|| {
-                    panic!("no element with test id {id:?} on the desk\n{}", self.replay())
+                    panic!(
+                        "no element with test id {id:?} on the desk\n{}",
+                        self.replay()
+                    )
                 })
             }
             Target::Id(id, offset) => {

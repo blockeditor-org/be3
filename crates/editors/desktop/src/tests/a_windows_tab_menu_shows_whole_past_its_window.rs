@@ -10,13 +10,12 @@ fn a_windows_tab_menu_shows_whole_past_its_window() {
         size: Vec2::new(150.0, 90.0),
         ..host_window(1, true)
     }]);
-    fixture.test.show_on_displays(&[(
-        Rect::from_min_size(pos2(0.0, 0.0), vec2(960.0, 640.0)),
-        1.0,
-    )]);
+    fixture
+        .test
+        .show_on_displays(&[(Rect::from_min_size(pos2(0.0, 0.0), vec2(960.0, 640.0)), 1.0)]);
     fixture.settle();
     let window = fixture.test.desk_windows()[0];
-    let title = fixture.desk_text("Program 1");
+    let title = fixture.desk_text("todo-1.txt");
     fixture
         .test
         .click_with(title.center(), PointerButton::Secondary);

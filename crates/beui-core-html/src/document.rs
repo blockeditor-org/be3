@@ -277,6 +277,9 @@ pub fn append(parent: NodeId, child: NodeId) {
 }
 
 pub fn add_test_id(node: NodeId, id: String) {
+    if id.is_empty() {
+        return;
+    }
     let ids = with_entry(node, |entry| {
         let mut shared = entry.shared.borrow_mut();
         if !shared.test_ids.contains(&id) {

@@ -21,9 +21,7 @@ fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
 }
 
 fn loaded(query: block_app_stack::Query) {
-    block_app_stack::wait_until(|shared| {
-        shared.graph.ready(query).then_some(())
-    });
+    block_app_stack::wait_until(|shared| shared.graph.ready(query).then_some(()));
 }
 
 #[test]
