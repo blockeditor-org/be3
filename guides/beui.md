@@ -5274,7 +5274,11 @@ in. A node with something to report queues it with
 laid out with `Document::invalidate_after_layout`. The reports run together in
 one entry; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
-never painted from a layout the tree no longer has. A frame lays out at most
+never painted from a layout the tree no longer has. Nodes whose scopes ended
+during a layout, its reports or `on_laid_out` leave the tree as soon as that
+step returns, before the next layout, and what leaving changes (the focus
+moving off a removed node, say) is laid out again in the same frame; only what
+the walk itself changes counts as laid out. A frame lays out at most
 eight times: when the reports after the seventh still change something, the
 eighth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still

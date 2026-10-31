@@ -425,7 +425,7 @@ which close() checks, so a test that ends without calling it fails too.
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
-  the end of the app's log, after every panic the app logged before it with its message. A step
+  the end of the app's log, after every panic the app logged before it, each whole with its message and backtrace. A step
   that times out while the tree shows nothing pending means the app never settled: something
   asks for a frame every frame.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running

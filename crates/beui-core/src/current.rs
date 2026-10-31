@@ -74,15 +74,20 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
 }
 
 pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
+    let (result, installed) = enter_holding_removals(document, f);
+    if installed {
+        document.drain_removals();
+    }
+    result
+}
+
+pub(crate) fn enter_holding_removals<R>(document: &mut Document, f: impl FnOnce() -> R) -> (R, bool) {
     let context = document.reactive_scope().context();
     let guard = install(document);
     let result = context.run(f);
     let installed = matches!(guard, DocumentGuard::Installed(..));
     drop(guard);
-    if installed {
-        document.drain_removals();
-    }
-    result
+    (result, installed)
 }
 
 pub(crate) fn run_in<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {

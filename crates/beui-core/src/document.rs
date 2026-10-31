@@ -2653,9 +2653,7 @@ impl Document {
 
     fn run_laid_out(&mut self) {
         if let Some(laid_out) = self.laid_out.clone() {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context.run(|| laid_out());
+            crate::current::enter(self, || laid_out());
         }
     }
 
@@ -2760,14 +2758,17 @@ impl Document {
         self.layout_pass = self.layout_pass.wrapping_add(1);
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
+        let mut removing = false;
         if let Some(root) = self.root {
             let painter = ctx.window_painter(ctx.drawing_window());
             let placed = &*rects;
             self.layout_parent = None;
-            crate::current::run_in(self, |document| {
-                layout::layout(document, &painter, root, rect, placed);
-                document.lay_out_boundaries(ctx, placed);
-                document.place_moved_overlays(ctx, placed);
+            ((), removing) = crate::current::enter_holding_removals(self, || {
+                crate::current::with_document(|document| {
+                    layout::layout(document, &painter, root, rect, placed);
+                    document.lay_out_boundaries(ctx, placed);
+                    document.place_moved_overlays(ctx, placed);
+                })
             });
         }
         self.placing.clear();
@@ -2775,6 +2776,9 @@ impl Document {
         self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
+        if removing {
+            self.drain_removals();
+        }
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }
 }
