@@ -15,8 +15,8 @@ fn j_and_k_move_through_the_paintings_in_the_order_listed() {
             "text-block.typing_a_paragraph",
             "beui-demo.a_new_page",
             "checklist.an_old_list",
-            "pixel-art.broken",
-            "pixel-art.broken",
+            "map.broken",
+            "map.broken",
         ],
         "J walks the changed, then the added, removed and unreadable paintings, and stops at the end"
     );

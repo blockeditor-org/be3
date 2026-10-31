@@ -427,7 +427,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `ColorRole`. The desktop plugin's level OSD fades a card drawn in colour roles
   with the base `Fade`'s `opacity` (see "Polish" below). Bar popups now share the
   popover width (`Size::Popover`) instead of each picking pixels.
-- **Done.** database, logic-grid, deterministic-game, pixel-art, map,
+- **Done.** database, logic-grid, deterministic-game, map,
   pixel-ray-tracer, calendar, counter, block-debug, beui-gallery, pan-zoom,
   checklist and be-launcher import nothing from `unstyled` or `primitives`.
   Database's own `ControlFace` is gone: its choice pickers are styled
@@ -442,7 +442,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `DockEntry`). Left on purpose: logic-grid's hotbar slot face and
   deterministic-game's board are plugin canvases with their own drawing;
   be-launcher's enlargeable picture is a `Pressable` around the content
-  itself (labelled "Enlarge ..." for accessibility). The colour swatches in pixel-art,
+  itself (labelled "Enlarge ..." for accessibility). The colour swatches in
   pixel-ray-tracer and map's presets became `SwatchButton`s (square ones take
   `radius=Radius::Xs`), added by the canvas group below. pan-zoom's cards scale their padding and outline with the
   zoom (`Space::Custom`, `Stroke::Custom`), and their radius too
@@ -690,7 +690,7 @@ a token, or `Radius::Custom` for a corner from content),
 again (they take `impl Into<Stroke>` only for the conversion). Then
 consider a source lint against `Extent::px` on a styled `Frame`. **Done**:
 the last callers were beui's own tests and examples, beui-demo's tests, and
-pixel-art's, pixel-ray-tracer's and logic-grid's sidebar widths
+pixel-ray-tracer's and logic-grid's sidebar widths
 (`Size::Custom`); the lint is above, under "The types enforce it".
 
 ### Polish after the migrations
@@ -823,7 +823,6 @@ on who wrote it:
     destructive, and the dialog has no visible close.
   - Share: Add and Invite in the content, Done in the footer.
   - Text settings, About and logic-grid bits have no footer at all.
-  - pixel-art imports `Dialog` as `Modal` and draws its own buttons.
 - **Sheets, with no convention.** database "Filter and display" puts a ghost
   Done top right, and phone details has none. block-shell's picker switches
   between `Dialog` and `ModalSheet` by width itself (`picker_view.rs:477`).

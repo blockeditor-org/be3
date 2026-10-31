@@ -55,7 +55,7 @@ per-slide metadata exists yet.
 ## Export/sharing
 
 - Export to PDF or images, via `dynamic_artifact` (the same pattern
-  `pixel_art` and `gui_builder` use to export generated output).
+  compiled logic and `gui_builder` use to export generated output).
 - Print/handout view: skipped.
 
 ## Priority

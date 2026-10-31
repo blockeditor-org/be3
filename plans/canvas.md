@@ -16,8 +16,8 @@ finished in another.
 - **Vector**: precise vector editing: bezier paths, the numeric inspector the
   canvas has today, boolean operations.
 - **Raster**: one consistent pixel size, which lets display take shortcuts.
-  The pixel-art editor (`crates/editors/pixel-art`) merges into it: a raster
-  layer is an entity in the canvas. A game level made of pixel art is a canvas
+  It replaces the pixel-art editor, which was removed for it and whose tools
+  move into the canvas: a raster layer is an entity in the canvas. A game level made of pixel art is a canvas
   holding such layers, or child editors.
 - **Interactivity**: a 2D level editor. Entities carry components (they can
   already, through `CanvasComponent`), and a live preview runs modular wasm
