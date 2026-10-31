@@ -770,6 +770,7 @@ impl State {
                 .filter(|placement| state.is_dock_bar(bar) && !placement.is_beside()),
             target,
             settling: false,
+            carried: lifting.carried.get().is_some(),
         }));
     }
 
@@ -1046,6 +1047,7 @@ pub(super) struct Lift {
     from: Option<DockBarPlacement>,
     target: Option<(DockBarPlacement, usize)>,
     settling: bool,
+    carried: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1811,7 +1813,9 @@ pub(super) fn DockBarWindows(dock: State) -> NodeId {
     let away = dock.bars_away;
     let lifting = dock.lifting;
     let lifted_from = create_memo(move || {
-        let bar = lifting.lift.with(|lift| lift.map(|lift| lift.bar))?;
+        let bar = lifting
+            .lift
+            .with(|lift| lift.filter(|lift| !lift.carried).map(|lift| lift.bar))?;
         dock.state
             .with(|state| state.bar_placement(bar))
             .is_some_and(DockBarPlacement::is_window)

@@ -3078,8 +3078,8 @@ where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`
 popped out into a window, local or carried, lifts out of it the same way whenever the dock can map
 that window into its own (`window_point`, which needs the window's layer space: the host draws
 the window in the dock's space, as block-app does for its plugins' windows, keeping a child's node
-while it moves between the views of one plugin instance); its window stays open, empty, until the
-lift ends, so the press it holds keeps steering the bar. Only a bar in a window the dock cannot map
+while it moves between the views of one plugin instance, press and all); a local bar's window stays
+open, empty, until the lift ends, so the press it holds keeps steering the bar. Only a bar in a window the dock cannot map
 (an OS window of a native host) stays in it, and its grip asks the host to move that window
 (`WindowHandle::begin_move`; for a carried bar the root asks it of the window it opened). The dock
 reads every point in its own window (`window_point`), so a press that began in another layer
