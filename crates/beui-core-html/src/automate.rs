@@ -557,7 +557,10 @@ mod web {
                 };
                 crate::scroll::reveal(node);
                 settle(timeout).await?;
-                Ok(format!("{} revealed\n", place(shown_at(&target, &lines())?)))
+                Ok(format!(
+                    "{} revealed\n",
+                    place(shown_at(&target, &lines())?)
+                ))
             }
             Command::Shown(target) => Ok(format!("{}\n", place(shown_at(&target, &lines())?))),
             Command::Wait(text) => wait(&text, true, timeout).await,
