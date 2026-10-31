@@ -29,11 +29,11 @@ use crate::node::{
 };
 use crate::paint::{self, PaintCache, verify};
 use crate::painter::{Painter, PainterState, Zoom};
-use beui_types::layout::Direction;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 use crate::sight::Sight;
+use beui_types::layout::Direction;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
@@ -2084,7 +2084,12 @@ impl Document {
         self.min_widths.insert(id, width);
     }
 
-    pub fn measured_least_length(&self, id: NodeId, direction: Direction, cross: f32) -> Option<f32> {
+    pub fn measured_least_length(
+        &self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
         if self.arena.stale(id) {
             return None;
         }
@@ -2107,7 +2112,9 @@ impl Document {
             return;
         }
         let held = self.least_lengths.get_or_default(id);
-        held.retain(|(held, offered, _)| *held != direction || offered.to_bits() != cross.to_bits());
+        held.retain(|(held, offered, _)| {
+            *held != direction || offered.to_bits() != cross.to_bits()
+        });
         if held.len() >= REMEMBERED_MEASUREMENTS {
             held.remove(0);
         }

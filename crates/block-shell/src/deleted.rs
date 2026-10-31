@@ -48,12 +48,7 @@ pub(crate) fn DeletedBar(
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={"workspace.deleted"}
             >
-                <List
-                    direction=Direction::Horizontal
-                    wrap=true
-                    align=Align::Center
-                    spacing=SPACING
-                >
+                <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size=TextSize::Xs align=TextAlign::Center>
                             <Icon glyph=ICON_TRASH />

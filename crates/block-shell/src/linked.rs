@@ -80,12 +80,7 @@ pub(crate) fn LinkedBar(
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
-                <List
-                    direction=Direction::Horizontal
-                    wrap=true
-                    align=Align::Center
-                    spacing=SPACING
-                >
+                <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
                             <Icon glyph=ICON_LINK />

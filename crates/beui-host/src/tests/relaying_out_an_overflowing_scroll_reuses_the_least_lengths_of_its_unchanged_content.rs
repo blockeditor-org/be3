@@ -20,7 +20,9 @@ fn relaying_out_an_overflowing_scroll_reuses_the_least_lengths_of_its_unchanged_
                             <Text
                                 @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 overflow=Overflow::Ellipsis
-                            >{format!("Label number {label}")}</Text>
+                            >
+                                {format!("Label number {label}")}
+                            </Text>
                         </ForEach>
                     </Scroll>
                 </Frame>
