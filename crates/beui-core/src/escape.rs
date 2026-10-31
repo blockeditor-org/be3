@@ -266,7 +266,13 @@ impl Document {
                 placement,
                 rect: match rect.is_positive() {
                     true => rect,
-                    false => Rect::from_min_size(rect.min, Vec2::ZERO),
+                    false => Rect::from_min_size(
+                        [rect.min, to_host.rect(anchor).min, space.bounds.min]
+                            .into_iter()
+                            .find(|at| at.x.is_finite() && at.y.is_finite())
+                            .unwrap_or(Pos2::ZERO),
+                        Vec2::ZERO,
+                    ),
                 },
                 painted,
                 floating,

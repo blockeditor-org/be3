@@ -1020,11 +1020,15 @@ impl<K: DockKey> DockingLayout<K> {
                         (self.path(host, &declared.key)?, declared.kind.clone())
                     }
                 };
+                let owner = match bar.owner {
+                    Some(owner) => Some(spec.owner_tab(owner)?),
+                    None => None,
+                };
                 Some(DockDeclaredBar {
                     tab: bar.bar,
                     key,
                     kind,
-                    owner: bar.owner,
+                    owner,
                     placement: bar.placement,
                 })
             })

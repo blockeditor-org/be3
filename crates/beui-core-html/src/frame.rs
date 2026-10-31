@@ -15,6 +15,7 @@ thread_local! {
     static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
     static STARTED: Cell<bool> = const { Cell::new(false) };
     static PENDING: Cell<bool> = const { Cell::new(false) };
+    static WANTED_NOW: Cell<bool> = const { Cell::new(false) };
     static IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static FIRING: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
@@ -225,6 +226,7 @@ fn layout_pass() -> bool {
 
 pub fn frame() {
     PENDING.with(|pending| pending.set(false));
+    WANTED_NOW.with(|wanted| wanted.set(false));
     if !FROZEN.with(Cell::get) {
         CLOCK.with(|clock| clock.set(Some(Instant::now())));
     }
@@ -261,8 +263,8 @@ pub fn relayout() {
     IN_FRAME.with(|held| held.set(false));
 }
 
-pub fn pending() -> bool {
-    PENDING.with(Cell::get)
+pub fn busy() -> bool {
+    PENDING.with(Cell::get) && WANTED_NOW.with(Cell::get)
 }
 
 pub fn frozen() -> bool {
@@ -281,6 +283,15 @@ pub(crate) fn start() {
 }
 
 pub fn request_frame() {
+    WANTED_NOW.with(|wanted| wanted.set(true));
+    ask_frame();
+}
+
+fn timed_frame() {
+    ask_frame();
+}
+
+fn ask_frame() {
     if !started() || PENDING.with(|pending| pending.replace(true)) {
         return;
     }
@@ -298,6 +309,6 @@ fn schedule_after(delay: Duration) {
     if delay.is_zero() {
         request_frame();
     } else {
-        crate::dom::set_timeout(delay, request_frame);
+        crate::dom::set_timeout(delay, timed_frame);
     }
 }
