@@ -772,30 +772,6 @@ pub fn backgrounded() {
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub fn wait_for<T>(timeout: std::time::Duration, read: impl Fn(&Shared) -> Option<T>) -> Option<T> {
-    let (shared, changed) = stack()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .as_ref()
-        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))?;
-    let deadline = std::time::Instant::now() + timeout;
-    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    loop {
-        if let Some(value) = read(&held) {
-            return Some(value);
-        }
-        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-        if remaining.is_zero() {
-            return None;
-        }
-        held = changed
-            .wait_timeout(held, remaining)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
-    }
-}
-
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     let (shared, changed) = stack()
         .lock()

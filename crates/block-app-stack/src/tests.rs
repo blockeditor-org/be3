@@ -151,8 +151,6 @@ impl<C: LiveEdit> Drop for Editor<C> {
     }
 }
 
-const QUIET: Duration = Duration::from_secs(2);
-
 pub struct Harness {
     directory: PathBuf,
     server: Option<embedded_server::EmbeddedServer>,
@@ -426,18 +424,17 @@ impl Outside {
         } = self;
         let session = session.as_mut().expect("the outside peer has not left");
         local.block_on(runtime, async {
+            session.claim();
             while !session.is_owner() {
-                session.claim();
-                let _ = tokio::time::timeout(Duration::from_millis(100), async {
-                    while !session.is_owner() {
-                        let woken = session.next().await;
-                        session
-                            .handle(woken)
-                            .await
-                            .expect("the outside peer is still connected");
-                    }
-                })
-                .await;
+                let woken = session.next().await;
+                let heard = matches!(woken, be_cli::replica::Woken::Event(_));
+                session
+                    .handle(woken)
+                    .await
+                    .expect("the outside peer is still connected");
+                if heard {
+                    session.claim();
+                }
             }
         });
     }

@@ -8,8 +8,8 @@ fn on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet() {
     app.run(&["clock", "run"]);
     app.click("#dock.title");
     app.wait("#rename.name");
-    app.run(&["pause", "600"]);
     app.run(&["clock", "stop"]);
+    app.run(&["pause", "600"]);
     let (_, name_y, _, _) = app.place("#rename.name");
     let (_, handle_y, _, _) = app.place("#sheet.handle");
     assert!(

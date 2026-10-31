@@ -10,8 +10,8 @@ fn on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace() {
     app.run(&["clock", "run"]);
     app.click("#dock.switch");
     app.wait("#dock.switcher.tab.1");
-    app.run(&["pause", "600"]);
     app.run(&["clock", "stop"]);
+    app.run(&["pause", "600"]);
     app.wait("Button \"Components\"");
     app.wait("Label value=\"Docking\"");
     app.snapshot("on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace");

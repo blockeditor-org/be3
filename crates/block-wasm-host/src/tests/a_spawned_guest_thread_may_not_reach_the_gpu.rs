@@ -9,7 +9,7 @@ fn a_spawned_guest_thread_may_not_reach_the_gpu() {
     let mut plugin = host().load_bytes(source.as_bytes()).unwrap();
     let started = plugin.start();
     let failure = started
-        .and_then(|()| settled(&mut plugin, 42).map(|_| ()))
+        .and_then(|()| settled(&mut plugin, 42))
         .expect_err("the thread should have been refused");
     assert!(failure.contains("create-buffer"), "{failure}");
 }

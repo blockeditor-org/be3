@@ -10,5 +10,5 @@ fn a_plugin_linked_against_the_sdk_runs_on_it_in_every_thread() {
         })
         .unwrap();
     plugin.start().unwrap();
-    assert_eq!(settled(&mut plugin, 7 + 200 + 5), Ok(true));
+    assert_eq!(settled(&mut plugin, 7 + 200 + 5), Ok(()));
 }
