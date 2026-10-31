@@ -80,18 +80,18 @@ pub(crate) fn LinkedBar(
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                        <Icon glyph=ICON_LINK />
-                    </Text>
-                    <Text>"Linked block"</Text>
-                    <Show condition={via_reference}>
-                        <List
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=SPACING
-                        >
+                <List
+                    direction=Direction::Horizontal
+                    wrap=true
+                    align=Align::Center
+                    spacing=SPACING
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
+                            <Icon glyph=ICON_LINK />
+                        </Text>
+                        <Text>"Linked block"</Text>
+                        <Show condition={via_reference}>
                             <Text
                                 @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 style=TextStyle::CAPTION
@@ -99,6 +99,19 @@ pub(crate) fn LinkedBar(
                             >
                                 {elsewhere}
                             </Text>
+                        </Show>
+                        <Show condition={original}>
+                            <Text
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                style=TextStyle::CAPTION
+                                overflow=Overflow::Ellipsis
+                            >
+                                {everywhere}
+                            </Text>
+                        </Show>
+                    </List>
+                    <Show condition={via_reference}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Button
                                 @test_id={"workspace.linked.original"}
                                 label="Go to original"
@@ -130,30 +143,15 @@ pub(crate) fn LinkedBar(
                         </List>
                     </Show>
                     <Show condition={original}>
-                        <List
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=SPACING
-                        >
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                style=TextStyle::CAPTION
-                                overflow=Overflow::Ellipsis
-                            >
-                                {everywhere}
-                            </Text>
-                            <ReferenceMenu
-                                workspace={workspace}
-                                name="Show references"
-                                empty="No backrefs"
-                                refs={backrefs}
-                                containing={nowhere}
-                                named="workspace.linked.references"
-                            />
-                        </List>
+                        <ReferenceMenu
+                            workspace={workspace}
+                            name="Show references"
+                            empty="No backrefs"
+                            refs={backrefs}
+                            containing={nowhere}
+                            named="workspace.linked.references"
+                        />
                     </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
             </Frame>
         </Show>

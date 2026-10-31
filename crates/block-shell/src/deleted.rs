@@ -48,18 +48,25 @@ pub(crate) fn DeletedBar(
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={"workspace.deleted"}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text size=TextSize::Xs align=TextAlign::Center>
-                        <Icon glyph=ICON_TRASH />
-                    </Text>
-                    <Text>"Deleted block"</Text>
-                    <Text
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        style=TextStyle::CAPTION
-                        overflow=Overflow::Ellipsis
-                    >
-                        {caption}
-                    </Text>
+                <List
+                    direction=Direction::Horizontal
+                    wrap=true
+                    align=Align::Center
+                    spacing=SPACING
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text size=TextSize::Xs align=TextAlign::Center>
+                            <Icon glyph=ICON_TRASH />
+                        </Text>
+                        <Text>"Deleted block"</Text>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            style=TextStyle::CAPTION
+                            overflow=Overflow::Ellipsis
+                        >
+                            {caption}
+                        </Text>
+                    </List>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"
@@ -72,7 +79,6 @@ pub(crate) fn DeletedBar(
                             }
                         }}
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
             </Frame>
         </Show>
