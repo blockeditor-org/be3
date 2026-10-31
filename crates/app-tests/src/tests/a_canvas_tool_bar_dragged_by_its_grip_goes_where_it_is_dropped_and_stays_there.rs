@@ -3,21 +3,6 @@ use super::*;
 const CANVAS_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 const GRIP: &str = "#infinite-canvas.dock.grip";
 
-fn drag_grip(app: &mut AppTest, to: (f32, f32)) {
-    let from = app.place(GRIP);
-    let start = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
-    app.run(&["down", GRIP]);
-    for step in 1..=4 {
-        let share = step as f32 / 4.0;
-        let x = start.0 + (to.0 - start.0) * share;
-        let y = start.1 + (to.1 - start.1) * share;
-        app.run(&["move", &format!("{x},{y}")]);
-    }
-    app.run(&["pause", "200"]);
-    app.run(&["up"]);
-    app.run(&["pause", "1000"]);
-}
-
 #[test]
 fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there() {
     let mut app = AppTest::start();
@@ -28,7 +13,7 @@ fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_ther
     let docked = app.place(CANVAS_BAR);
     assert!(docked.2 > docked.3, "the bar starts along the bottom");
 
-    drag_grip(&mut app, (pane.0 + 4.0, pane.1 + pane.3 / 2.0));
+    drag_bar(&mut app, GRIP, (pane.0 + 4.0, pane.1 + pane.3 / 2.0));
     let left = app.place(CANVAS_BAR);
     assert!(
         left.3 > left.2 && (left.0 - pane.0).abs() < 12.0,
@@ -36,7 +21,7 @@ fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_ther
     );
     app.snapshot("a_canvas_tool_bar_dragged_to_the_left_edge_docks_along_it");
 
-    drag_grip(&mut app, (pane.0 + pane.2 / 2.0, pane.1 + 80.0));
+    drag_bar(&mut app, GRIP, (pane.0 + pane.2 / 2.0, pane.1 + 80.0));
     let top = app.place(CANVAS_BAR);
     assert!(
         top.2 > top.3 && top.1 > pane.1 + 2.0 && top.1 < pane.1 + 40.0,
@@ -57,7 +42,7 @@ fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_ther
 
     let files = app.place("Pane \"Files\"");
     let away = (files.0 + files.2 / 2.0, files.1 + files.3 / 2.0);
-    drag_grip(&mut app, away);
+    drag_bar(&mut app, GRIP, away);
     let popped = app.place(CANVAS_BAR);
     assert!(
         popped.0 < pane.0,
@@ -65,7 +50,7 @@ fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_ther
     );
     app.snapshot("a_canvas_tool_bar_dragged_away_from_the_canvas_pops_out_there");
 
-    drag_grip(&mut app, (pane.0 + pane.2 / 2.0, pane.1 + pane.3 - 80.0));
+    drag_bar(&mut app, GRIP, (pane.0 + pane.2 / 2.0, pane.1 + pane.3 - 80.0));
     let back = app.place(CANVAS_BAR);
     assert!(
         back.2 > back.3 && back.0 > pane.0 && back.1 + back.3 > pane.1 + pane.3 - 40.0,

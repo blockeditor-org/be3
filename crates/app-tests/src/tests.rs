@@ -102,6 +102,21 @@ fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
     app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
 }
 
+fn drag_bar(app: &mut AppTest, grip: &str, to: (f32, f32)) {
+    let from = app.place(grip);
+    let start = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
+    app.run(&["down", grip]);
+    for step in 1..=4 {
+        let share = step as f32 / 4.0;
+        let x = start.0 + (to.0 - start.0) * share;
+        let y = start.1 + (to.1 - start.1) * share;
+        app.run(&["move", &format!("{x},{y}")]);
+    }
+    app.run(&["pause", "200"]);
+    app.run(&["up"]);
+    app.run(&["pause", "1000"]);
+}
+
 fn add_to_canvas(app: &mut AppTest, label: &str) {
     app.click("#infinite-canvas.dock.block");
     choose_type(app, label);

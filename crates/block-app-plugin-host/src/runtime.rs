@@ -326,6 +326,10 @@ impl Presents {
     }
 }
 
+fn frame_changed(damage: Option<&[ScreenDamage]>) -> bool {
+    damage.is_none_or(|damage| !damage.is_empty())
+}
+
 impl Runtime {
     fn new(plugin: &PluginManifest, surface: u32) -> Self {
         let mut backend = Backend::new(plugin);
@@ -557,19 +561,27 @@ impl Runtime {
         host::request_repaint();
     }
 
-    fn busy(&mut self) -> bool {
+    fn busy(&mut self) -> Vec<&'static str> {
         if self.error.is_some() || !self.instances.has_mounted() {
-            return false;
+            return Vec::new();
         }
         let starting = matches!(
             self.session.state(),
             SessionState::Idle | SessionState::Starting
         );
-        starting
-            || self.painting
-            || self.drawing()
-            || !self.backend.settled()
-            || self.instances.awaiting_content()
+        [
+            (starting, "is starting"),
+            (self.painting, "has yet to answer a paint"),
+            (self.drawing(), "is drawing a frame"),
+            (!self.backend.settled(), "has input or a step in flight"),
+            (
+                self.instances.awaiting_content(),
+                "has an editor waiting for its block's content",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(busy, reason)| busy.then_some(reason))
+        .collect()
     }
 
     fn request_painting(&mut self) {
@@ -761,9 +773,11 @@ impl Runtime {
             self.backend.withdraw(image);
         }
         if let Some(mut frame) = self.backend.received_frame() {
-            self.export_previews(&frame);
+            let previewed = self.export_previews(&frame);
+            let mut changed = true;
             if frame.composited() {
                 frame.set_damage(self.presents.damage_through(frame.presents()));
+                changed = frame_changed(frame.damage());
                 self.shared.borrow_mut().publish(&self.layout, Some(frame));
                 self.frames += 1;
                 block_app_base::performance::record_group_count(
@@ -772,7 +786,9 @@ impl Runtime {
                     self.frames,
                 );
             }
-            mark(&self.plugin.identity.id);
+            if previewed || changed {
+                mark(&self.plugin.identity.id);
+            }
         }
     }
 
@@ -815,7 +831,7 @@ impl Runtime {
         self.answer();
     }
 
-    fn export_previews(&mut self, frame: &Frame) {
+    fn export_previews(&mut self, frame: &Frame) -> bool {
         let shown: Vec<ScreenPlacement> = self
             .layout
             .screens
@@ -824,7 +840,7 @@ impl Runtime {
             .copied()
             .collect();
         if shown.is_empty() {
-            return;
+            return false;
         }
         let surfaces: Vec<u32> = shown.iter().map(|placement| placement.surface).collect();
         let painted = Backend::pictures(frame, &surfaces)
@@ -840,8 +856,10 @@ impl Runtime {
                     size: [placement.width, placement.height],
                 })
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let exported = !painted.is_empty();
         previews::exported(&self.plugin.identity.id, &self.shared, painted);
+        exported
     }
 
     fn laid_out(&mut self, layout: ScreenLayout) {
@@ -961,7 +979,9 @@ impl Runtime {
         }
         let mut replies = Vec::new();
         let mut changed = false;
-        mark(&self.plugin.identity.id);
+        let heard = answers
+            .iter()
+            .any(|answer| !matches!(answer, Answer::Frame(_)));
         for answer in answers {
             changed |= match answer {
                 Answer::Layout(layout) => {
@@ -1012,6 +1032,9 @@ impl Runtime {
                     false
                 }
             };
+        }
+        if heard || changed {
+            mark(&self.plugin.identity.id);
         }
         self.send(replies);
         self.serve();
@@ -1476,12 +1499,21 @@ pub fn settle() {
     });
 }
 
-pub fn busy() -> bool {
+pub fn busy() -> Vec<String> {
     HOST.with(|host| {
-        host.borrow_mut()
+        let mut host = host.borrow_mut();
+        let mut reasons: Vec<String> = host
             .runtimes
-            .values_mut()
-            .any(|runtime| runtime.contain(Runtime::busy))
+            .iter_mut()
+            .flat_map(|(id, runtime)| {
+                runtime
+                    .contain(Runtime::busy)
+                    .into_iter()
+                    .map(move |reason| format!("the plugin {id} {reason}"))
+            })
+            .collect();
+        reasons.sort();
+        reasons
     })
 }
 

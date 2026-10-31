@@ -755,7 +755,7 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> bool {
+pub fn busy() -> Vec<&'static str> {
     with_shared(Shared::busy).unwrap_or_default()
 }
 

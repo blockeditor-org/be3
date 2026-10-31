@@ -28,7 +28,7 @@ thread_local! {
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static STALE: Cell<u64> = const { Cell::new(0) };
-    static OWED: Cell<bool> = const { Cell::new(false) };
+    static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
 }
@@ -103,7 +103,7 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
 
 pub(crate) fn notify() {
     block_app_stack::revisions::collect_released(editors::release_revisions);
-    OWED.with(|owed| owed.set(false));
+    OWED.with(|owed| owed.borrow_mut().take());
     apply_shell();
     desktop::apply();
     crate::surfaces::apply();
@@ -111,31 +111,39 @@ pub(crate) fn notify() {
 }
 
 pub(crate) fn notify_after_layout() {
-    if notify_plugins() {
-        OWED.with(|owed| owed.set(true));
+    if let Some(changed) = notify_plugins() {
+        OWED.with(|owed| *owed.borrow_mut() = Some(changed));
         block_app_base::host::request_repaint();
     }
 }
 
-pub(crate) fn owes_frame() -> bool {
-    OWED.with(Cell::get)
+pub(crate) fn owes_frame() -> Option<String> {
+    let changed = OWED.with(|owed| owed.borrow().clone())?;
+    Some(match changed.is_empty() {
+        true => "the compositor owes a frame for a change after layout".to_owned(),
+        false => format!(
+            "the compositor owes a frame for a change after layout from {}",
+            changed.join(", ")
+        ),
+    })
 }
 
-fn notify_plugins() -> bool {
+fn notify_plugins() -> Option<Vec<String>> {
     let stale = block_app_stack::stale_revision();
     if STALE.with(|seen| seen.replace(stale)) != stale {
         block_app_base::host::changed();
     }
-    let changed = block_app_plugin_host::take_changed();
+    let mut changed = block_app_plugin_host::take_changed();
+    changed.sort();
     let notified = !changed.is_empty() || block_app_base::host::take_changed();
     if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
         any.update(|revision| *revision += 1);
     }
-    for plugin_id in changed {
+    for plugin_id in &changed {
         let writers: Vec<Signal<u64>> = LISTENERS.with(|listeners| {
             listeners
                 .borrow()
-                .get(&plugin_id)
+                .get(plugin_id)
                 .map(|held| held.iter().map(|(_, listener)| *listener).collect())
                 .unwrap_or_default()
         });
@@ -143,7 +151,7 @@ fn notify_plugins() -> bool {
             write.update(|revision| *revision += 1);
         }
     }
-    notified
+    notified.then_some(changed)
 }
 
 pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {

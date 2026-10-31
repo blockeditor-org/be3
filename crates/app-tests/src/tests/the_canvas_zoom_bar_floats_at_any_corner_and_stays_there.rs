@@ -3,21 +3,6 @@ use super::*;
 const TOOL_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 const ZOOM_BAR: &str = "GenericContainer #infinite-canvas.zoom-pill at";
 
-fn drag(app: &mut AppTest, grip: &str, to: (f32, f32)) {
-    let from = app.place(grip);
-    let start = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
-    app.run(&["down", grip]);
-    for step in 1..=4 {
-        let share = step as f32 / 4.0;
-        let x = start.0 + (to.0 - start.0) * share;
-        let y = start.1 + (to.1 - start.1) * share;
-        app.run(&["move", &format!("{x},{y}")]);
-    }
-    app.run(&["pause", "200"]);
-    app.run(&["up"]);
-    app.run(&["pause", "1000"]);
-}
-
 #[test]
 fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     let mut app = AppTest::start();
@@ -33,7 +18,7 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
         "the zoom bar starts at the top right, at {zoom:?} in {pane:?}"
     );
 
-    drag(
+    drag_bar(
         &mut app,
         "#infinite-canvas.zoom.grip",
         (pane.0 + 90.0, bottom - 80.0),
@@ -50,12 +35,12 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     );
     app.snapshot("the_canvas_zoom_bar_dragged_to_the_bottom_left_corner");
 
-    drag(
+    drag_bar(
         &mut app,
         "#infinite-canvas.dock.grip",
         (pane.0 + 150.0, pane.1 + 60.0),
     );
-    drag(
+    drag_bar(
         &mut app,
         "#infinite-canvas.zoom.grip",
         (right - 150.0, pane.1 + 60.0),

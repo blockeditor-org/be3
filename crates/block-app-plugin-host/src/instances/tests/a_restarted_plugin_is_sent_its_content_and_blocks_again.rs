@@ -12,7 +12,7 @@ enum Sent {
 fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
     next_screens(instances);
     block_app_stack::wait_until(|shared| {
-        (shared.blocks.contains_key(&block) && !shared.busy()).then_some(())
+        (shared.blocks.contains_key(&block) && shared.busy().is_empty()).then_some(())
     });
     next_screens(instances);
     let mut sent: Vec<Sent> = from_replica(instances, block)

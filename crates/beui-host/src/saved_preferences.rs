@@ -61,7 +61,7 @@ impl<A: App> App for SavedPreferences<A> {
         self.app.lifecycle(change);
     }
 
-    fn busy(&self) -> bool {
+    fn busy(&self) -> Vec<String> {
         self.app.busy()
     }
 

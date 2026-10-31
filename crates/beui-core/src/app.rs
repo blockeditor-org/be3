@@ -48,8 +48,8 @@ pub trait App: std::any::Any {
 
     fn lifecycle(&mut self, _change: Lifecycle) {}
 
-    fn busy(&self) -> bool {
-        false
+    fn busy(&self) -> Vec<String> {
+        Vec::new()
     }
 
     fn environment(&self) -> Vec<(String, String)> {

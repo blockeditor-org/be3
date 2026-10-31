@@ -298,11 +298,26 @@ impl<'a> View<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
 struct Settled {
-    busy: bool,
-    again: bool,
+    busy: Vec<String>,
     drawing: bool,
+}
+
+fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if run.deferred {
+        reasons.push("input or events wait to be handled".to_owned());
+    }
+    if !clock_stopped && (run.repaint || run.repaint_after.is_zero()) {
+        reasons.push(
+            match run.animating {
+                true => "an animation runs",
+                false => "a frame asks for another",
+            }
+            .to_owned(),
+        );
+    }
+    reasons
 }
 
 enum Phase {
@@ -679,13 +694,12 @@ impl Session {
         for (name, times) in frame.app.other_frames() {
             self.other_frames.entry(name).or_default().merge(times);
         }
+        let mut busy = frame_busy(run, self.clock_stopped);
+        busy.extend(frame.app.busy());
+        self.inbox.note_busy(&busy);
         let settled = Settled {
-            busy: frame.app.busy(),
+            busy,
             drawing: frame.app.drawing(),
-            again: match self.clock_stopped {
-                true => run.deferred,
-                false => run.again(),
-            },
         };
         self.settle(view, settled, output, &frame.above);
         if let Some(after) = self.wants_frame(view.now) {
@@ -726,7 +740,7 @@ impl Session {
         output: &FrameOutput,
         above: &Above<'_>,
     ) {
-        let quiet = !settled.again && !settled.busy;
+        let quiet = settled.busy.is_empty();
         if quiet
             && let Some(Active {
                 request,
@@ -1873,6 +1887,10 @@ impl Session {
         }
         if self.clock_stopped {
             text.push_str("clock stopped: time passes only with pause\n");
+        }
+        match self.inbox.busy().as_slice() {
+            [] => text.push_str("settled\n"),
+            busy => text.push_str(&format!("busy: {}\n", busy.join("; "))),
         }
         if self.unhurried {
             text.push_str("hurry off: the app waits as it does for a person\n");

@@ -188,8 +188,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition or where the app asks for one and whether it shows the on-screen
-  keyboard or holds it back, a back gesture under way, files being dragged in, and any open file
-  dialog.
+  keyboard or holds it back, a back gesture under way, files being dragged in, any open file
+  dialog, and `settled` or `busy:` followed by why the app is not, as of its last frame.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the app ran elsewhere and reports through `App::other_frames`, which in block-app is
@@ -301,7 +301,7 @@ Every command that gives input waits until the app has settled and prints what c
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The app
-has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
+has settled once a frame asks for no other and `App::busy` gives no reason; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
@@ -315,7 +315,12 @@ TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or non
 `#TEST_ID+X,Y` beside another node), for something that
 moves or grows, such as a stroke reaching the pen;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
-own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
+own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`, and names
+what kept the app busy then, as `drive state` does: input waiting, a frame that asks for
+another or an animation running (while the clock runs), and each reason `App::busy` gives, such
+as a plugin drawing or the compositor owing a frame for a plugin's change after layout. A
+plugin's frame counts as a change only when it damaged what the host draws, so a plugin that
+animates without changing anything lets the app settle with the clock running.
 
 `drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way

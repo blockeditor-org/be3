@@ -222,9 +222,9 @@ pub async fn automate(
     let answered = beui_host::native::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
-        canceller.cancel(format!(
-            "timed out after {} seconds",
-            f64::from(timeout_milliseconds) / 1000.0
+        canceller.cancel(beui_host::native::drive::timed_out(
+            std::time::Duration::from_millis(u64::try_from(timeout_milliseconds).unwrap_or(0)),
+            &inbox.busy(),
         ));
     });
     web_sys::window()
@@ -429,9 +429,14 @@ impl beui::native::App for Shell {
         block_app_plugin_host::record_pacing();
     }
 
-    fn busy(&self) -> bool {
-        self.app.error.is_none()
-            && (self.app.busy() || block_app_plugin_host::busy() || compositor::owes_frame())
+    fn busy(&self) -> Vec<String> {
+        if self.app.error.is_some() {
+            return Vec::new();
+        }
+        let mut reasons = self.app.busy();
+        reasons.extend(block_app_plugin_host::busy());
+        reasons.extend(compositor::owes_frame());
+        reasons
     }
 
     fn environment(&self) -> Vec<(String, String)> {
@@ -1012,19 +1017,32 @@ impl BlockApp {
         }
     }
 
-    fn busy(&self) -> bool {
-        self.error.is_none() && self.loading()
-    }
-
-    fn loading(&self) -> bool {
-        self.pending_account_request
+    fn busy(&self) -> Vec<String> {
+        if self.error.is_some() {
+            return Vec::new();
+        }
+        let signing_in = self
+            .pending_account_request
             .as_ref()
-            .is_some_and(|pending| pending.browser.is_none())
-            || self.pending_organization_request.is_some()
-            || !self.pending_transfers.is_empty()
-            || !self.pending_copies.is_empty()
-            || (self.dev_workspace && self.organization.is_none())
-            || block_app_stack::busy()
+            .is_some_and(|pending| pending.browser.is_none());
+        [
+            (signing_in, "an account request is pending"),
+            (
+                self.pending_organization_request.is_some(),
+                "an organization request is pending",
+            ),
+            (!self.pending_transfers.is_empty(), "a transfer is pending"),
+            (!self.pending_copies.is_empty(), "a copy is pending"),
+            (
+                self.dev_workspace && self.organization.is_none(),
+                "the dev workspace has yet to open",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(busy, reason)| busy.then_some(reason))
+        .chain(block_app_stack::busy())
+        .map(str::to_owned)
+        .collect()
     }
 
     #[cfg(not(target_os = "android"))]

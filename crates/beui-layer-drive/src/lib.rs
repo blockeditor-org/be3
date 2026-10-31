@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
+use std::time::Duration;
 
 use beui_core::app::Waker;
 
@@ -101,6 +102,14 @@ impl Future for Answered {
     }
 }
 
+pub fn timed_out(timeout: Duration, busy: &[String]) -> String {
+    let after = format!("timed out after {} seconds", timeout.as_secs_f32());
+    match busy {
+        [] => after,
+        busy => format!("{after}; the app was still busy: {}", busy.join("; ")),
+    }
+}
+
 pub fn ask(inbox: &Inbox, words: Vec<String>) -> Answered {
     let answer = Arc::new(Mutex::new(Answer::default()));
     let cancelled = Arc::new(AtomicBool::new(false));
@@ -122,6 +131,7 @@ pub struct Inbox {
 struct InboxState {
     requests: VecDeque<Request>,
     waker: Option<Waker>,
+    busy: Vec<String>,
 }
 
 impl Inbox {
@@ -137,6 +147,24 @@ impl Inbox {
         if let Some(waker) = waker {
             waker.wake();
         }
+    }
+
+    pub(crate) fn note_busy(&self, busy: &[String]) {
+        let mut state = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if state.busy != busy {
+            state.busy = busy.to_vec();
+        }
+    }
+
+    pub fn busy(&self) -> Vec<String> {
+        self.inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .busy
+            .clone()
     }
 
     pub(crate) fn waiting(&self) -> bool {
