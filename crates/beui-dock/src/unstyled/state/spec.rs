@@ -98,6 +98,22 @@ struct Keys {
 }
 
 impl DockSpec {
+    pub fn owner_tab(&self, owner: TabId) -> Option<TabId> {
+        let roots = || {
+            self.main.iter().chain(
+                self.windows
+                    .iter()
+                    .filter_map(|window| window.root.as_ref()),
+            )
+        };
+        if roots().any(|root| holds_tab(root, owner)) {
+            return Some(owner);
+        }
+        roots()
+            .find_map(|root| hosted_root(root, owner))
+            .and_then(first_shown)
+    }
+
     pub fn tabs(&self) -> Vec<TabId> {
         let mut tabs = Vec::new();
         for site in self.sites() {
@@ -938,6 +954,38 @@ impl DockState {
             let (leaf, at) = self.locate(Entry::Tab(tab))?;
             self.pinned_group_of(leaf).is_none().then_some((leaf, at))
         })
+    }
+}
+
+fn holds_tab(node: &DockSpecNode, tab: TabId) -> bool {
+    let mut tabs = Vec::new();
+    spec_tabs(node, &mut tabs);
+    tabs.contains(&tab)
+}
+
+fn hosted_root(node: &DockSpecNode, host: TabId) -> Option<&DockSpecNode> {
+    match node {
+        DockSpecNode::Split { first, second, .. } => {
+            hosted_root(first, host).or_else(|| hosted_root(second, host))
+        }
+        DockSpecNode::Pane(pane) => pane.entries.iter().find_map(|entry| match entry {
+            DockSpecEntry::Tab(_) => None,
+            DockSpecEntry::Group { key, root, .. } => match super::joined_host(key) == Some(host) {
+                true => Some(&**root),
+                false => hosted_root(root, host),
+            },
+        }),
+    }
+}
+
+fn first_shown(node: &DockSpecNode) -> Option<TabId> {
+    match node {
+        DockSpecNode::Split { first, .. } => first_shown(first),
+        DockSpecNode::Pane(pane) => match (pane.active, pane.entries.first()?) {
+            (Some(active), _) => Some(active),
+            (None, DockSpecEntry::Tab(tab)) => Some(*tab),
+            (None, DockSpecEntry::Group { root, .. }) => first_shown(root),
+        },
     }
 }
 

@@ -2490,10 +2490,18 @@ pub fn placed_view(
                 .is_none()
                 .then(|| shown_view(runtime, instance, region, own, view))
         });
+        let placed = own.map(|own| (own.rect, own.clip)).or_else(|| {
+            let placement = runtime.instances.placement(instance, region)?;
+            Some((placement.rect, placement.clip))
+        });
+        let unshown = |view: PlacedView| match (view.rect == Rect::ZERO, placed) {
+            (true, Some((rect, clip))) => PlacedView { rect, clip, ..view },
+            _ => view,
+        };
         match (view, runtime.error.clone()) {
-            (_, Some(error)) => PlacedView::failed(error, true),
-            (Some(view), None) => view,
-            (None, None) => PlacedView::waiting(),
+            (_, Some(error)) => unshown(PlacedView::failed(error, true)),
+            (Some(view), None) => unshown(view),
+            (None, None) => unshown(PlacedView::waiting()),
         }
     })
 }
