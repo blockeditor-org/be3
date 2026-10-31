@@ -137,6 +137,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
+                    <DockPane id={"desktop".to_owned()} bare=true></DockPane>
                     <DockBar id={bars.apps} placement=APPS_PLACE>
                         <AppsBar shell display layout />
                     </DockBar>
