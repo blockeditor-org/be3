@@ -4,7 +4,7 @@ use beui_core::app::accessibility_dump::Line;
 use beui_core::geometry::{Pos2, Rect, pos2};
 use beui_types::target::{line_with, shown_at};
 
-pub(crate) use beui_types::target::{coordinates, locate, place};
+pub(crate) use beui_types::target::{coordinates, locate, place, shown_at as shown_part};
 
 pub(crate) fn scaled(rect: Rect, scale: f32) -> Rect {
     Rect::from_min_max(

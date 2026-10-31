@@ -3,7 +3,7 @@
 
 import { createRequire } from "node:module";
 
-import { commands, leadingOptions } from "./drive-words.mjs";
+import { Failure, commands, leadingOptions, shownPlaces } from "./drive-words.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -76,16 +76,18 @@ const answer = async (words) => {
     }
     return text;
 };
+// Where target shows, once a scroll that cuts it has revealed it, as the
+// app's own input commands aim.
 const place = async (target) => {
-    const reply = await answer(["find", target]);
-    const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
-    if (found === null) {
-        console.error(`${target} has no place on screen: ${reply.trim()}`);
+    const ratio = await page.evaluate(() => devicePixelRatio);
+    try {
+        const [found] = await shownPlaces((command, target) => answer([command, target]), [target], ratio);
+        return found;
+    } catch (error) {
+        if (!(error instanceof Failure)) throw error;
+        console.error(error.message);
         process.exit(1);
     }
-    const ratio = await page.evaluate(() => devicePixelRatio);
-    const [x, y, width, height] = found.slice(1).map((value) => Number(value) / ratio);
-    return { x, y, width, height };
 };
 
 async function run(command, rest) {
@@ -115,23 +117,21 @@ switch (command) {
         if (!url) break;
         const portal = await page.context().newPage();
         await portal.goto(url);
-        if (await portal.getByRole("button", { name: "Sign out / use another account", exact: true }).count()) {
-            await portal.getByRole("button", { name: "Sign out / use another account", exact: true }).click();
-        }
+        const another = portal.getByText("Use another account", { exact: true });
+        if (await another.count()) await another.click();
         await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
         await portal.getByLabel("Password", { exact: true }).fill("dev-password");
         await portal.getByRole("button", { name: "Sign in", exact: true }).click();
-        await portal.getByRole("heading", { name: "Please check your submission" }).or(
-            portal.getByRole("button", { name: "Approve sign-in", exact: true }),
-        ).first().waitFor();
-        if (await portal.getByRole("heading", { name: "Please check your submission" }).count()) {
+        const unknown = portal.getByText("No account matches those credentials", { exact: true });
+        await unknown.or(portal.getByRole("button", { name: "Approve sign-in", exact: true })).first().waitFor();
+        if (await unknown.count()) {
             await portal.getByRole("link", { name: "Create an account", exact: true }).click();
             await portal.getByLabel("Display name", { exact: true }).fill("Dev");
             await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
             await portal.locator('[name="password"]').fill("dev-password");
             await portal.getByLabel("Confirm password", { exact: true }).fill("dev-password");
             await portal.getByRole("button", { name: "Create account", exact: true }).click();
-            await portal.getByRole("heading", { name: "Check your email", exact: true }).waitFor();
+            await portal.getByText("Check your email", { exact: true }).waitFor();
             const { readFile } = await import("node:fs/promises");
             const log = await readFile(rest[0], "utf8");
             const links = log.match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
@@ -140,7 +140,7 @@ switch (command) {
             await portal.getByRole("button", { name: "Verify email", exact: true }).click();
         }
         await portal.getByRole("button", { name: "Approve sign-in", exact: true }).click();
-        await portal.getByRole("heading", { name: "Sign-in approved", exact: true }).waitFor();
+        await portal.getByText("Sign-in approved", { exact: true }).waitFor();
         await portal.close();
         break;
     }

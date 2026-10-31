@@ -19,7 +19,7 @@ use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
 
 use crate::gestures::{Frames, Gestures};
-use crate::target::{coordinates, hidden, locate, node, place, point, scaled};
+use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
@@ -41,6 +41,9 @@ Reading the app:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  reveal TARGET             scroll TARGET into view when a scroll cuts or hides it, as input does, and say
+                            where it shows, ending in revealed when it scrolled
+  shown TARGET              where the part of TARGET that shows is, without scrolling
   comps [--internals]       component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
@@ -143,7 +146,7 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
-        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
+        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
         | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
@@ -1286,6 +1289,18 @@ impl Session {
             "find" => {
                 let rect = locate(argument(0)?, rendered.lines())?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", place(rect)))))
+            }
+            "reveal" | "shown" => {
+                let target = argument(0)?;
+                if command == "reveal" {
+                    at(target)?;
+                }
+                let rect = shown_part(target, lines)?;
+                let scrolled = if revealed.is_empty() { "" } else { " revealed" };
+                Ok(Started::Done(Reply::Text(format!(
+                    "{}{scrolled}\n",
+                    place(rect)
+                ))))
             }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")

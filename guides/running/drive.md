@@ -173,7 +173,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
   too, as `#id` after a node's state, and a node with nothing else to show reads as a
   `GenericContainer`.
-- `drive find TARGET` says where a target is.
+- `drive find TARGET` says where a target is. `drive reveal TARGET` first scrolls it into view as
+  input does (below) and says where it shows, ending in `revealed` when it scrolled; `drive shown
+  TARGET` says where it shows without scrolling.
 - `drive hit TARGET` says what a press there would reach without pressing: the `Interactive`s
   along the hit path, innermost first, each with its kind, rect, test ids, the components it was
   made in and what it handles, then what forwarded input goes to and which overlays the press

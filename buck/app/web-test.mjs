@@ -28,7 +28,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { basename, extname, join, normalize, resolve } from "node:path";
 
-import { chord, commands, leadingOptions, wheelPixels } from "./drive-words.mjs";
+import { Failure, chord, commands, leadingOptions, shownPlaces, wheelPixels } from "./drive-words.mjs";
 
 const SIZE = { width: 1100, height: 720 };
 const TYPES = {
@@ -165,37 +165,20 @@ async function automate(page, words) {
     }, words);
 }
 
-class Failure extends Error {}
-
 async function answer(page, words) {
     const { text, error } = await automate(page, words);
     if (error !== undefined) throw new Failure(error);
     return text;
 }
 
-// Where each target shows, as native drive finds them: a target a scroll cuts
-// is revealed, at most once, and every target is found again after it, since
-// that scroll may have moved the ones before.
 async function centers(page, targets, timeout) {
-    const revealed = new Set();
-    for (;;) {
-        const found = [];
-        for (const target of targets) {
-            await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-            const asked = revealed.has(target) ? "shown" : "reveal";
-            const reply = await answer(page, [`--timeout=${timeout}`, asked, target]);
-            if (reply.trim().endsWith(" revealed")) {
-                revealed.add(target);
-                break;
-            }
-            const place = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
-            if (!place) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
-            const ratio = await page.evaluate(() => devicePixelRatio);
-            const [x, y, width, height] = place.slice(1).map((value) => Number(value) / ratio);
-            found.push({ x: x + width / 2, y: y + height / 2 });
-        }
-        if (found.length === targets.length) return found;
-    }
+    const ratio = await page.evaluate(() => devicePixelRatio);
+    const ask = async (command, target) => {
+        await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
+        return answer(page, [`--timeout=${timeout}`, command, target]);
+    };
+    const places = await shownPlaces(ask, targets, ratio);
+    return places.map(({ x, y, width, height }) => ({ x: x + width / 2, y: y + height / 2 }));
 }
 
 async function center(page, target, timeout) {

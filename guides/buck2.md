@@ -134,7 +134,8 @@ the app headless for an agent to drive.
 **A dependency**: `cargo add` (or edit `Cargo.toml`), then
 `./scripts/buck run //:buckify` to regenerate the rules. That includes a
 dev-dependency on another crate of the workspace: until it runs, the crate's
-`:test` cannot see it. A build script runs
+`:test` cannot see it, and rustc reports the crate as unresolved or unlinked
+(`//:check` adds that buckify is due when it fails with `crates.bzl` stale). A build script runs
 as it does under cargo, and the libraries it links or compiles reach the link;
 one that needs something from the build, such as a sysroot's pkg-config, gets
 it from a fixup.

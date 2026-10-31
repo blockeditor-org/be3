@@ -119,3 +119,29 @@ export function wheelPixels(ticks) {
     if (!Number.isInteger(value)) throw new Error(`${ticks} is not a number of ticks`);
     return value * SCROLL_LINE;
 }
+
+export class Failure extends Error {}
+
+// Where each target shows, as native drive aims input: `ask(command, target)`
+// sends `reveal TARGET` or `shown TARGET` (the HTML core's automate and the
+// drive layer both answer them). A target a scroll cuts is revealed, at most
+// once, and every target is found again after it, since that scroll may have
+// moved the ones before. Each place is in CSS pixels, the tree's divided by ratio.
+export async function shownPlaces(ask, targets, ratio) {
+    const revealed = new Set();
+    for (;;) {
+        const found = [];
+        for (const target of targets) {
+            const reply = await ask(revealed.has(target) ? "shown" : "reveal", target);
+            if (reply.trim().endsWith(" revealed")) {
+                revealed.add(target);
+                break;
+            }
+            const place = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
+            if (!place) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
+            const [x, y, width, height] = place.slice(1).map((value) => Number(value) / ratio);
+            found.push({ x, y, width, height });
+        }
+        if (found.length === targets.length) return found;
+    }
+}
