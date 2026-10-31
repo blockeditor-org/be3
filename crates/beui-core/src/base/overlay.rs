@@ -237,10 +237,7 @@ impl OverlayNode {
     }
 
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
-        match &self.anchor {
-            OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. } => node.try_get(),
-            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
-        }
+        self.anchor.node().and_then(|node| node.try_get())
     }
 
     fn pinned_rect(&mut self, rect: Rect, within: Option<Rect>) -> Rect {
@@ -266,6 +263,11 @@ impl OverlayNode {
         self.anchored = anchored;
         let target = match self.anchor.clone() {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
+            OverlayAnchor::Band { band, .. } => anchored.map(|node| {
+                band.try_get()
+                    .and_then(|band| out.get(&band))
+                    .map_or(node, |band| beui_types::layer::banded(node, band, self.placement))
+            }),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
         let space = doc.escape_space(self.placement, doc.viewport_window());
@@ -274,7 +276,7 @@ impl OverlayNode {
         let window_anchor = match &self.anchor {
             _ if centred => viewport,
             OverlayAnchor::Node(_) => anchored.unwrap_or(outer),
-            OverlayAnchor::Pinned { .. } => target.unwrap_or(outer),
+            OverlayAnchor::Pinned { .. } | OverlayAnchor::Band { .. } => target.unwrap_or(outer),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
         };
@@ -538,6 +540,7 @@ impl Element for OverlayNode {
                 "anchor",
                 match &self.anchor {
                     OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Band { .. } => "node, past its band".to_owned(),
                     OverlayAnchor::Pinned { rect, .. } => format!(
                         "pinned to a node from {}, {} to {}, {}",
                         rect.min.x, rect.min.y, rect.max.x, rect.max.y

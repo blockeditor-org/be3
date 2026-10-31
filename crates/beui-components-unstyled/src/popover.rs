@@ -9,6 +9,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::reactive::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PopoverPlacement {
@@ -43,6 +44,7 @@ pub fn Popover(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
+    band: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
@@ -71,7 +73,11 @@ pub fn Popover(
             open.set(false);
         }
     });
-    let anchor = anchor.unwrap_or(trigger_ref);
+    let node = anchor.unwrap_or(trigger_ref);
+    let anchor = match band {
+        Some(band) => OverlayAnchor::Band { node, band },
+        None => OverlayAnchor::Node(node),
+    };
     let placement = placement.map(|placement| match placement {
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Beside => Placement::RightStart,

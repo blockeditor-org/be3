@@ -53,7 +53,7 @@ session's layout. Every part lays itself out along its bar (`bar::bar_direction`
 stacks its hours over its minutes and the status icons stack too. A button's panel (`BarPopup`)
 opens away from the bar's edge, toward the windows: below or above a bar along the top or bottom
 (`PopoverPlacement::Below`, which turns up when there is no room below), beside one down a side
-(`PopoverPlacement::Beside`).
+(`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`).
 
 The grip menu's Hide hides a bar on its display; that display's Apps panel then offers "Show this
 display's bars" (`desktop.apps.bars`), which shows its three again, and Super still opens Apps,
@@ -62,8 +62,11 @@ Apps on the display the pointer was last over (`beui::native::last_pointer`, its
 `window_origin`), else the one holding the focused window, else the first. The windows' area is the dock inside its bands
 (`DockingLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
 low over it, and notification toasts gather in its corner nearest the Status bar
-(`bar::toast_corner`, bottom right by default, bottom left with the bar down the left side). A
-fullscreen window covers the bars, as it covers the whole display.
+(`bar::toast_corner`, bottom right by default, bottom left with the bar down the left side),
+below or beside the Status bar when it floats there (`bar::clear_of_status`, from
+`DockingLayout::over_bars_rect`). A fullscreen window covers the bars of its display, as it covers
+the whole display: the main dock's own bars drop beneath a fullscreen tab over its area, and a further
+display's dock is told a focused window is fullscreen on it (`DockingLayout::set_covered`).
 
 Display 0's bars are dock bars of the main view's dock, which holds every window. A further
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
@@ -246,7 +249,8 @@ out of one window and over another, on any display, lands on that window's bar.
 fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
 tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the views
 and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
-`desk_move`, `desk_release`, `desk_drag`) and paints a display with the windows on it
+`desk_move`, `desk_release`, `desk_drag`), sends `app_tap` to whichever view holds the keyboard
+(the one whose window requests intercept the tap) and paints a display with the windows on it
 (`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the

@@ -271,6 +271,17 @@ impl Layer {
                 set_style(node, "anchor-name", Some(name.clone()));
                 return Some(name);
             }
+            OverlayAnchor::Band { node, band } => {
+                let shown = banded_rect(node, band, self.placement.get());
+                let Some(rect) = shown else {
+                    let node = node.try_get()?;
+                    let name = anchor_name(node);
+                    set_style(node, "anchor-name", Some(name.clone()));
+                    return Some(name);
+                };
+                let origin = banded_origin();
+                rect.translate(-origin.to_vec2())
+            }
             OverlayAnchor::Point(point) => Rect::from_min_size(point, beui_types::Vec2::ZERO),
             OverlayAnchor::Rect(rect) | OverlayAnchor::Pinned { rect, .. } => rect,
         };
@@ -325,6 +336,32 @@ impl Layer {
     fn lay_out(&self) -> bool {
         web::lay_out(self)
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn banded_rect(node: NodeRef, band: NodeRef, placement: Placement) -> Option<Rect> {
+    let shown = |node: NodeRef| {
+        node.try_get()
+            .and_then(crate::dom::element)
+            .map(|element| crate::dom::client_rect(&element))
+    };
+    let rect = shown(node)?;
+    Some(shown(band).map_or(rect, |band| beui_types::layer::banded(rect, band, placement)))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn banded_rect(_node: NodeRef, _band: NodeRef, _placement: Placement) -> Option<Rect> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn banded_origin() -> beui_types::Pos2 {
+    crate::dom::origin()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn banded_origin() -> beui_types::Pos2 {
+    beui_types::Pos2::ZERO
 }
 
 fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static str, String)> {
@@ -696,6 +733,9 @@ mod web {
                 .try_get()
                 .and_then(crate::dom::element)
                 .map(|element| crate::dom::client_rect(&element)),
+            OverlayAnchor::Band { node, band } => {
+                super::banded_rect(node, band, layer.placement.get())
+            }
             OverlayAnchor::Point(point) => Some(shifted(Rect::from_min_size(point, Vec2::ZERO))),
             OverlayAnchor::Rect(rect) | OverlayAnchor::Pinned { rect, .. } => Some(shifted(rect)),
         }
@@ -778,9 +818,7 @@ mod web {
     }
 
     fn anchored_above(layer: &Layer) -> bool {
-        let (OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. }) =
-            layer.anchor.borrow().clone()
-        else {
+        let Some(node) = layer.anchor.borrow().node() else {
             return false;
         };
         let Some(anchor) = node.try_get().and_then(crate::dom::dom) else {

@@ -1100,8 +1100,9 @@ pub fn DockBarSurface(
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
     let band = create_memo(move || bar.is_some_and(|bar| bar.placement().is_beside()));
+    let surface = bar.map_or_else(NodeRef::new, |bar| bar.surface());
     view! {
-        <ToolPill direction={direction} band={band} spacing={spacing} children />
+        <ToolPill @node_ref=&surface direction={direction} band={band} spacing={spacing} children />
     }
 }
 

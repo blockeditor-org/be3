@@ -15,14 +15,11 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
         "the Apps bar is hidden on the second display alone"
     );
 
-    let focus_the_first = |fixture: &mut Fixture| {
-        fixture.desk_click("desktop.apps", left);
-        fixture.test.key(Key::Escape, Modifiers::NONE);
-        fixture.settle();
-    };
-    focus_the_first(&mut fixture);
     fixture.test.desk_move(right.center());
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(
+        fixture.test.app_tap(Key::Logo),
+        "the second display, which holds the keyboard, hears the Super tap"
+    );
     fixture.settle();
     let panel = fixture.shown_on("desktop.apps.panel", right);
     let band = fixture.shown_on("dock.bar.band.bottom", right);
@@ -41,7 +38,6 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
     );
 
     fixture.display_bar_menu(0, WINDOWS_BAR, left, &["hide"]);
-    focus_the_first(&mut fixture);
     fixture.test.desk_move(right.center());
     assert!(fixture.test.app_tap(Key::Logo));
     fixture.settle();
@@ -50,7 +46,12 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
             && fixture.test.desk_rects_of("desktop.apps.bars").is_empty(),
         "a display offers only its own hidden bars"
     );
-    focus_the_first(&mut fixture);
+    assert!(fixture.test.app_tap(Key::Logo));
+    fixture.settle();
+    assert!(
+        fixture.test.desk_rects_of("desktop.apps.panel").is_empty(),
+        "Super again closes the panel"
+    );
     fixture.test.desk_move(left.center());
     assert!(fixture.test.app_tap(Key::Logo));
     fixture.settle();

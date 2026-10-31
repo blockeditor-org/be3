@@ -52,7 +52,7 @@ use beui_view::window::{
     Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
 };
 
-pub(crate) use bars::BarCovers;
+pub(crate) use bars::{BarCovers, BarFloats};
 use bars::{BarHolder, BarPanels, DockBarTargets, DockBarWindows, DockBarred};
 pub use bars::{DockBarBandHandle, DockBarControl, DockBarTargetHandle, use_dock_bar};
 pub use dialog::DockDialogHandle;
@@ -604,6 +604,8 @@ struct State {
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
+    floats: Signal<BarFloats>,
+    covered: Signal<bool>,
     bars_away: Memo<bool>,
     bar_target: RenderFn<DockBarTargetHandle>,
     bar_band: RenderFn<DockBarBandHandle>,
@@ -1708,6 +1710,8 @@ pub(crate) struct DockConfig {
     pub(crate) window_border: f32,
     pub(crate) bar_margin: f32,
     pub(crate) covers: Signal<BarCovers>,
+    pub(crate) floats: Signal<BarFloats>,
+    pub(crate) covered: Signal<bool>,
     pub(crate) area: Signal<Rect>,
     pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
@@ -1766,6 +1770,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_target,
         bar_band,
         covers,
+        floats,
+        covered,
         area: dock_rect_held,
         bars_away,
         bar_key,
@@ -1835,6 +1841,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
+        floats,
+        covered,
         bars_away,
         bar_band: bar_band
             .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),

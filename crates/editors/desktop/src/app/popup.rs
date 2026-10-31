@@ -1,5 +1,6 @@
 use beui::Direction;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::use_dock_bar;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PANEL_MAX_WIDTH;
@@ -18,6 +19,7 @@ pub(crate) fn BarPopup(
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     let direction = bar_direction();
+    let band = use_dock_bar().map(|bar| bar.surface());
     let placement = create_memo(move || match direction.get() {
         Direction::Horizontal => PopoverPlacement::Below,
         Direction::Vertical => PopoverPlacement::Beside,
@@ -31,6 +33,7 @@ pub(crate) fn BarPopup(
             max_width=width
             open
             placement
+            band
             leading
         >|handle: PopoverHandle| {
             content.call(handle)

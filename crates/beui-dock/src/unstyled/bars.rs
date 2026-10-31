@@ -68,6 +68,7 @@ pub struct DockBarControl {
     bar: TabId,
     backing: BarBacking,
     menu: Memo<Vec<MenuNode>>,
+    surface: NodeRef,
 }
 
 #[derive(Clone, Copy)]
@@ -100,11 +101,16 @@ impl DockBarControl {
                 last: create_signal(None),
             },
             menu: bar_menu(placement, place, hide),
+            surface: NodeRef::new(),
         }
     }
 
     pub fn bar(&self) -> TabId {
         self.bar
+    }
+
+    pub fn surface(&self) -> NodeRef {
+        self.surface
     }
 
     pub fn is_hosted(&self) -> bool {
@@ -282,6 +288,7 @@ impl State {
                 bar,
                 backing: BarBacking::Local(dock),
                 menu: bar_menu(placement, place, hide),
+                surface: NodeRef::new(),
             });
             self.content.call(bar)
         });
@@ -307,7 +314,7 @@ impl State {
     }
 
     pub(super) fn bar_level(&self) -> LayerLevel {
-        match self.fullscreen_in_front() {
+        match self.fullscreen_over_bars() || self.covered.get() {
             true => LayerLevel::Normal,
             false => LayerLevel::Raised,
         }
@@ -1388,6 +1395,28 @@ fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f
     });
     let anchor = create_memo(move || OverlayAnchor::Point(at.get()));
     let open = create_memo(move || !bars.with(Vec::is_empty) && area.get().is_positive());
+    let floats = dock.floats;
+    let float = move |shown: Option<Rect>| {
+        if !floats.is_alive() || floats.with_untracked(|floats| floats.get(&(edge, align)).copied()) == shown {
+            return;
+        }
+        floats.update(|floats| match shown {
+            Some(rect) => {
+                floats.insert((edge, align), rect);
+            }
+            None => {
+                floats.remove(&(edge, align));
+            }
+        });
+    };
+    create_effect(move || {
+        let shown = open
+            .get()
+            .then(|| Rect::from_min_size(at.get(), size.get()))
+            .filter(Rect::is_positive);
+        untrack(|| float(shown));
+    });
+    on_cleanup(move || float(None));
     let level = create_memo(move || dock.bar_level());
     let layer = NodeRef::new();
     let view = view! {
@@ -1667,3 +1696,5 @@ pub(super) enum BarHolder {
 pub(super) type BarPanels = RefCell<HashMap<TabId, (NodeId, Scope)>>;
 
 pub(crate) type BarCovers = HashMap<(TabId, DockEdge, DockAlign), Rect>;
+
+pub(crate) type BarFloats = HashMap<(DockEdge, DockAlign), Rect>;

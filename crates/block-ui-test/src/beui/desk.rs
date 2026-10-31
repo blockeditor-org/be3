@@ -1,4 +1,4 @@
-use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics,
@@ -51,6 +51,7 @@ pub(crate) struct Desk {
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
     pointer: Pos2,
     outside: bool,
+    intercepts: Vec<(ScreenId, Vec<KeyChord>)>,
 }
 
 impl Desk {
@@ -481,6 +482,36 @@ impl<A: BeuiApp> BeuiTest<A> {
         if desk.keep() || asked {
             self.place();
         }
+    }
+
+    pub(super) fn desk_intercepts(&mut self, windows: &[block_plugin_api::ScreenWindow]) {
+        let Some(desk) = self.desk.as_mut() else {
+            return;
+        };
+        for window in windows {
+            let keys = window.window.intercepted_keys.clone();
+            match desk.intercepts.iter_mut().find(|(screen, _)| *screen == window.screen) {
+                Some((_, held)) => *held = keys,
+                None => desk.intercepts.push((window.screen, keys)),
+            }
+        }
+    }
+
+    pub(super) fn desk_tap(&mut self, key: Key) -> Option<bool> {
+        let desk = self.desk.as_mut()?;
+        let tap = KeyChord::tap(key);
+        let screen = desk
+            .intercepts
+            .iter()
+            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))?
+            .0;
+        self.desk_batches.push(InputBatch {
+            screen,
+            every_sample: false,
+            events: vec![TimedInput::from(Input::InterceptedTap(key))],
+            dismissed: Vec::new(),
+        });
+        Some(true)
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {

@@ -30,6 +30,7 @@ pub fn Popover(
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
+    band: Option<NodeRef>,
     leading: Option<Child>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
@@ -43,6 +44,7 @@ pub fn Popover(
             disabled
             open
             placement
+            band
             surface
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace handle variant size leading />

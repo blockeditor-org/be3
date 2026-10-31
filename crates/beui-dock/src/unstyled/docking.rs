@@ -35,7 +35,7 @@ use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
-use super::BarCovers;
+use super::{BarCovers, BarFloats};
 use super::bars::shared_key;
 pub use host::{
     DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
@@ -366,6 +366,8 @@ pub struct DockingLayout<K: 'static> {
     mode: Signal<DockMode>,
     restores: Signal<u64>,
     covers: Signal<BarCovers>,
+    floats: Signal<BarFloats>,
+    covered: Signal<bool>,
     area: Signal<Rect>,
     inner: Stored<LayoutInner<K>>,
 }
@@ -432,6 +434,8 @@ impl<K: DockKey> DockingLayout<K> {
         let hosted = create_signal(None);
         let bars_hosted = create_signal(None);
         let covers = create_signal(BarCovers::default());
+        let floats = create_signal(BarFloats::default());
+        let covered = create_signal(false);
         let area = create_signal(Rect::ZERO);
         let registry = Rc::new(Registry {
             covers,
@@ -462,6 +466,8 @@ impl<K: DockKey> DockingLayout<K> {
             mode,
             restores,
             covers,
+            floats,
+            covered,
             area,
             inner,
         };
@@ -653,6 +659,16 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn area(&self) -> Rect {
         self.area.get()
+    }
+
+    pub fn set_covered(&self, covered: bool) {
+        if self.covered.get_untracked() != covered {
+            self.covered.set(covered);
+        }
+    }
+
+    pub fn over_bars_rect(&self, edge: DockEdge, align: DockAlign) -> Option<Rect> {
+        self.floats.with(|floats| floats.get(&(edge, align)).copied())
     }
 
     pub fn window_rect(&self, key: &K) -> Option<Rect> {
@@ -1893,6 +1909,8 @@ where
                 bar_target,
                 bar_band,
                 covers: layout.covers,
+                floats: layout.floats,
+                covered: layout.covered,
                 area: layout.area,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),

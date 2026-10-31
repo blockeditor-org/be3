@@ -27,7 +27,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
-use block_editor_beui::{MediaWatch, PowerWatch};
+use block_editor_beui::{DisplaysWatch, MediaWatch, PowerWatch, WindowsWatch};
 use block_shell::{
     BlockTab, Failure, FloatingWindow, PanelWindow, WindowDialog, Workspace, WorkspaceDialogs,
 };
@@ -125,6 +125,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     let editor = shell.workspace.editor();
     let main = shell.workspace.layout();
     let layout = bar::display_layout(editor, main, display);
+    cover_under_fullscreen(editor, layout, display);
     let launches = shell.apps.launches();
     let area = windows_area(layout, region_area());
     let bars = Bars::of(display);
@@ -203,13 +204,12 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let region = region_area();
     let area = windows_area(layout, region);
     let bars = Bars::of(0);
-    let corner = create_memo(move || {
-        let placement = match layout.is_bar_hidden(&bars.status) {
-            true => None,
-            false => layout.bar_placement(&bars.status),
-        };
-        bar::toast_corner(placement)
+    let status = create_memo(move || match layout.is_bar_hidden(&bars.status) {
+        true => None,
+        false => layout.bar_placement(&bars.status),
     });
+    let corner = create_memo(move || bar::toast_corner(status.get()));
+    let toasts = create_memo(move || bar::clear_of_status(layout, status.get(), area.get()));
     let osd = media::Osd::new(editor);
     let shell = Shell::new(workspace, notifications, apps, windows);
     publish(editor.block_id(), Desktop { shell, osd });
@@ -255,10 +255,36 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <AppsKey apps windows layout />
                 </Show>
                 <AppsOverlay apps display=0 layout area />
-                <DesktopToasts notifications area corner />
+                <DesktopToasts notifications area={toasts} corner />
             </List>
         </Frame>
     }
+}
+
+fn cover_under_fullscreen(editor: Editor, layout: DockingLayout<TabId>, display: u32) {
+    let displays = editor.watch::<DisplaysWatch>();
+    let windows = editor.watch::<WindowsWatch>();
+    let screen = create_memo(move || {
+        displays.with(|displays| displays.get(display as usize).map(|screen| screen.rect))
+    });
+    let covered = create_memo(move || {
+        let Some(screen) = screen.get() else {
+            return false;
+        };
+        windows.with(|windows| {
+            windows.iter().any(|window| {
+                window.focused
+                    && window.shown
+                    && window
+                        .fullscreen
+                        .is_some_and(|area| screen.contains(area.center()))
+            })
+        })
+    });
+    create_effect(move || {
+        let covered = covered.get();
+        untrack(|| layout.set_covered(covered));
+    });
 }
 
 fn region_area() -> Memo<Rect> {

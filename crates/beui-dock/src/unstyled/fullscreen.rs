@@ -2,6 +2,7 @@ use beui_macros::component;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::Glyph;
+use beui_view::types::{Pos2, Rect};
 
 use super::{State, TabId};
 
@@ -23,6 +24,18 @@ impl super::State {
                 .fullscreen()
                 .is_some_and(|fullscreen| state.focused_tab() == Some(fullscreen.tab))
         })
+    }
+
+    pub(super) fn fullscreen_over_bars(&self) -> bool {
+        let outer = Rect::from_min_size(Pos2::ZERO, self.outer.get().size());
+        let over = self.state.with(|state| {
+            state.fullscreen().is_none_or(|fullscreen| {
+                fullscreen
+                    .area
+                    .is_none_or(|area| area.intersect(outer).is_positive())
+            })
+        });
+        over && self.fullscreen_in_front()
     }
 
     pub(super) fn offers_fullscreen(&self, tab: TabId) -> bool {

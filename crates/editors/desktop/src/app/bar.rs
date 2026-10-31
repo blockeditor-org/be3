@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::{NodeId, Rect};
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::dock::styled::{
     DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
@@ -148,6 +148,30 @@ pub(crate) fn toast_corner(placement: Option<DockBarPlacement>) -> Edge {
         (DockEdge::Bottom, DockAlign::Start) | (DockEdge::Left, _) => Edge::BottomStart,
         (DockEdge::Bottom, DockAlign::Center) => Edge::Bottom,
         (DockEdge::Bottom, DockAlign::End) | (DockEdge::Right, _) => Edge::BottomEnd,
+    }
+}
+
+pub(crate) fn clear_of_status(
+    layout: DockingLayout<TabId>,
+    status: Option<DockBarPlacement>,
+    area: Rect,
+) -> Rect {
+    let Some(DockBarPlacement::Over(edge, align)) = status else {
+        return area;
+    };
+    let Some(over) = layout.over_bars_rect(edge, align) else {
+        return area;
+    };
+    let mut clear = area;
+    match edge {
+        DockEdge::Top => clear.min.y = clear.min.y.max(over.bottom()),
+        DockEdge::Bottom => clear.max.y = clear.max.y.min(over.top()),
+        DockEdge::Left => clear.min.x = clear.min.x.max(over.right()),
+        DockEdge::Right => clear.max.x = clear.max.x.min(over.left()),
+    }
+    match clear.is_positive() {
+        true => clear,
+        false => area,
     }
 }
 

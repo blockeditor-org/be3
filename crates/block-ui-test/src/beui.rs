@@ -1156,6 +1156,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.report = Some(report);
         }
+        self.desk_intercepts(&commit.windows);
         if let Some(window) = commit
             .windows
             .into_iter()
@@ -1788,6 +1789,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn app_tap(&mut self, key: Key) -> bool {
+        if let Some(tapped) = self.desk_tap(key) {
+            return tapped;
+        }
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }

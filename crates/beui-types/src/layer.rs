@@ -350,6 +350,45 @@ pub enum OverlayAnchor {
         node: crate::node::NodeRef,
         rect: Rect,
     },
+    Band {
+        node: crate::node::NodeRef,
+        band: crate::node::NodeRef,
+    },
+}
+
+impl OverlayAnchor {
+    pub fn node(&self) -> Option<crate::node::NodeRef> {
+        match self {
+            OverlayAnchor::Node(node)
+            | OverlayAnchor::Pinned { node, .. }
+            | OverlayAnchor::Band { node, .. } => Some(*node),
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
+        }
+    }
+}
+
+pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
+    match placement {
+        Placement::BelowStart | Placement::Above | Placement::Popover { .. } => {
+            Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
+        }
+        Placement::RightStart => {
+            Rect::from_min_max(pos2(band.min.x, node.min.y), pos2(band.max.x, node.max.y))
+        }
+        Placement::At
+        | Placement::Over(_)
+        | Placement::Around
+        | Placement::Center
+        | Placement::Fill
+        | Placement::InsideTop
+        | Placement::InsideTopStart
+        | Placement::InsideTopEnd
+        | Placement::InsideBottom
+        | Placement::InsideBottomStart
+        | Placement::InsideBottomEnd
+        | Placement::CenterOn
+        | Placement::Edge(_) => node,
+    }
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &crate::node::NodeRef {

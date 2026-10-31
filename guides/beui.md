@@ -2013,6 +2013,11 @@ rect pinned to a node (`OverlayAnchor::Pinned { node, rect }`): the rect is
 taken in document coordinates and, the first time the overlay is placed, held
 by its offset from the node's nearer edge on each axis, so it follows the node
 when it moves or resizes and the layer still hangs from the node.
+`OverlayAnchor::Band { node, band }` is the node pushed out to `band`'s edges on
+the axis the placement opens along (`layer::banded`): a button's panel in a bar
+opens just past the whole bar rather than over its padding, while it still lines
+up with the button along the bar. The unstyled and styled `Popover` take it as
+`band`, and `DockBarControl::surface()` is the node a `DockBarSurface` draws on.
 `Placement::Popover { gap, margin }` places content like a popover: centred on
 the anchor and `gap` below it, flipping above where only that side has room and
 shifting sideways to stay `margin` inside the screen (the vertical choice and
@@ -3070,7 +3075,11 @@ floats over the dock's edge). Each run of dock bars floating over one place is a
 its own, `Pass` and anchored `Placement::Over` (so in a plugin it escapes its frame and
 draws over the host's windows too), at `LayerLevel::Raised` like every popped-out bar's
 window, so floating dock windows pass under them while menus and modals open over them;
-while a fullscreen tab is in front they drop to `Normal` and it covers them. A tab's bars
+while a fullscreen tab is in front they drop to `Normal` and it covers them (unless the
+tab is fullscreen over an area clear of the dock, such as another display), as they do while the owner
+says something outside the dock covers it (`DockingLayout::set_covered`). Where each run
+floating over the dock's edges is shown is `DockingLayout::over_bars_rect(edge, align)`, in the
+dock's coordinates, so its owner can keep things such as toasts clear of it. A tab's bars
 floating over its pane stay in that pane, under the windows that cover it. Floating dock
 windows (in a dock that draws its own) never cover a band: on an edge with a dock band
 beside it a window is kept wholly inside the area the bands leave, shrinking to fit, as it
