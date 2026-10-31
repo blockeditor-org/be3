@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     let guest = Someone::register(
         &harness.directory.join("server"),
         &harness.url,

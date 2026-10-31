@@ -189,7 +189,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition or where the app asks for one and whether it shows the on-screen
   keyboard or holds it back, a back gesture under way, files being dragged in, any open file
-  dialog, and `settled` or `busy:` followed by why the app is not, as of its last frame.
+  dialog, and `settled` or `busy:` followed by why the app is not, as of its last frame, and
+  whether an animation waits for a stopped clock.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the app ran elsewhere and reports through `App::other_frames`, which in block-app is
@@ -326,6 +327,9 @@ animates without changing anything lets the app settle with the clock running.
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. A plugin that asks to be drawn again
 is drawn again only once the clock has moved, so an animating plugin settles too. `drive clock run` starts it again.
+A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
+animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
+when an animation was waiting for the stopped clock, as `drive state` does.
 Anything else waiting on time, such as a plugin's frame timeout or a type module's clock (which
 groups quick edits into one undo step), waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 

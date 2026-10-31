@@ -71,7 +71,7 @@ fn converse(stream: UnixStream, inbox: &Inbox) -> io::Result<()> {
             Ok(reply) => reply,
             Err(RecvTimeoutError::Timeout) => {
                 cancelled.store(true, Ordering::SeqCst);
-                Reply::Error(crate::timed_out(timeout, &inbox.busy()))
+                Reply::Error(crate::timed_out(timeout, inbox))
             }
             Err(RecvTimeoutError::Disconnected) => {
                 Reply::Error("the app stopped before it answered".to_owned())

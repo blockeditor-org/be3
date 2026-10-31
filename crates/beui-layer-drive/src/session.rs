@@ -320,6 +320,18 @@ fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
     reasons
 }
 
+fn frame_held(run: &Frame, clock_stopped: bool) -> Option<String> {
+    (clock_stopped && (run.repaint || run.repaint_after.is_zero())).then(|| {
+        format!(
+            "{} waits for the stopped clock: `pause` lets time pass",
+            match run.animating {
+                true => "an animation",
+                false => "a frame",
+            }
+        )
+    })
+}
+
 enum Phase {
     Input {
         steps: VecDeque<Vec<Incoming>>,
@@ -696,7 +708,8 @@ impl Session {
         }
         let mut busy = frame_busy(run, self.clock_stopped);
         busy.extend(frame.app.busy());
-        self.inbox.note_busy(&busy);
+        self.inbox
+            .note_busy(&busy, frame_held(run, self.clock_stopped));
         let settled = Settled {
             busy,
             drawing: frame.app.drawing(),
@@ -1891,6 +1904,9 @@ impl Session {
         match self.inbox.busy().as_slice() {
             [] => text.push_str("settled\n"),
             busy => text.push_str(&format!("busy: {}\n", busy.join("; "))),
+        }
+        if let Some(held) = self.inbox.held() {
+            text.push_str(&format!("{held}\n"));
         }
         if self.unhurried {
             text.push_str("hurry off: the app waits as it does for a person\n");

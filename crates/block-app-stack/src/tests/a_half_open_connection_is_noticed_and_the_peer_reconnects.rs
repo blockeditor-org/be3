@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_half_open_connection_is_noticed_and_the_peer_reconnects() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
 

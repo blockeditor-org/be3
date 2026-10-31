@@ -8,16 +8,12 @@ fn a_joined_blocks_tab_opens_its_details_and_palette() {
     open_beui_demo(&mut app);
     app.click(DOCKING_MORE);
     app.wait("MenuItem \"File details\"");
-    app.run(&["clock", "run"]);
     app.click("MenuItem \"File details\"");
     app.wait("#workspace.details.rename");
-    app.run(&["clock", "stop"]);
     app.run(&["pause", "600"]);
     app.snapshot("a_joined_blocks_tab_opens_its_details");
-    app.run(&["clock", "run"]);
     app.key("Escape");
     app.gone("#workspace.details.rename");
-    app.run(&["clock", "stop"]);
     app.run(&["pause", "600"]);
 
     app.click(DOCKING_MORE);

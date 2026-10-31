@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_seal_the_connection_loses_is_kept_and_published_after_reconnect() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
 

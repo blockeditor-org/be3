@@ -181,8 +181,12 @@ impl Harness {
             .parse()
             .expect("the embedded server listens on an address");
         harness.relay = Some(fault_relay::Relay::start(server));
-        harness.clock = be_client::Clock::manual();
         harness
+    }
+
+    fn on_manual_clock(mut self) -> Self {
+        self.clock = be_client::Clock::manual();
+        self
     }
 
     fn relay(&self) -> &fault_relay::Relay {

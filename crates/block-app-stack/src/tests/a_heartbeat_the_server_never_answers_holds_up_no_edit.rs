@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_heartbeat_the_server_never_answers_holds_up_no_edit() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
     open(block, CounterContent::CONTENT_TYPE);

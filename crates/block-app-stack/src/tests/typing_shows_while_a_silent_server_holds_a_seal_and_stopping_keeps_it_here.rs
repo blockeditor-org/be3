@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
     open(block, CounterContent::CONTENT_TYPE);

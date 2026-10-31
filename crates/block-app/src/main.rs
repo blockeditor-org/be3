@@ -224,7 +224,7 @@ pub async fn automate(
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
         canceller.cancel(beui_host::native::drive::timed_out(
             std::time::Duration::from_millis(u64::try_from(timeout_milliseconds).unwrap_or(0)),
-            &inbox.busy(),
+            &inbox,
         ));
     });
     web_sys::window()

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn an_idle_peer_never_wakes_its_worker() {
-    let harness = Harness::relayed();
+    let harness = Harness::start().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
 

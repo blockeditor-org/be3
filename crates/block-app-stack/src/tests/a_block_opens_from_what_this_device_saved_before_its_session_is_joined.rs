@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let block = Uuid::new_v4();
 

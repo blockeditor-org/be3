@@ -399,6 +399,7 @@ which close() checks, so a test that ends without calling it fails too.
 
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
+  Keep it stopped: a closing menu or sheet goes only after a pause as long as its animation.
   The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
   clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
   click() first waits for its target, and record() and snapshot() wait for every editor's

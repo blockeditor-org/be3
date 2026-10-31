@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn stopping_returns_while_a_connect_goes_unanswered() {
-    let harness = Harness::relayed();
+    let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     wait_until("connected", |shared| shared.connected);
 

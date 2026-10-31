@@ -102,12 +102,16 @@ impl Future for Answered {
     }
 }
 
-pub fn timed_out(timeout: Duration, busy: &[String]) -> String {
-    let after = format!("timed out after {} seconds", timeout.as_secs_f32());
-    match busy {
-        [] => after,
-        busy => format!("{after}; the app was still busy: {}", busy.join("; ")),
+pub fn timed_out(timeout: Duration, inbox: &Inbox) -> String {
+    let state = inbox.inner.lock().unwrap_or_else(|poison| poison.into_inner());
+    let mut text = format!("timed out after {} seconds", timeout.as_secs_f32());
+    if !state.busy.is_empty() {
+        text.push_str(&format!("; the app was still busy: {}", state.busy.join("; ")));
     }
+    if let Some(held) = &state.held {
+        text.push_str(&format!("; {held}"));
+    }
+    text
 }
 
 pub fn ask(inbox: &Inbox, words: Vec<String>) -> Answered {
@@ -132,6 +136,7 @@ struct InboxState {
     requests: VecDeque<Request>,
     waker: Option<Waker>,
     busy: Vec<String>,
+    held: Option<String>,
 }
 
 impl Inbox {
@@ -149,7 +154,7 @@ impl Inbox {
         }
     }
 
-    pub(crate) fn note_busy(&self, busy: &[String]) {
+    pub(crate) fn note_busy(&self, busy: &[String], held: Option<String>) {
         let mut state = self
             .inner
             .lock()
@@ -157,6 +162,15 @@ impl Inbox {
         if state.busy != busy {
             state.busy = busy.to_vec();
         }
+        state.held = held;
+    }
+
+    pub fn held(&self) -> Option<String> {
+        self.inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .held
+            .clone()
     }
 
     pub fn busy(&self) -> Vec<String> {
