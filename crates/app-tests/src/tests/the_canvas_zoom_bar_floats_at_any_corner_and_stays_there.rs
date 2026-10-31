@@ -13,8 +13,9 @@ fn drag(app: &mut AppTest, grip: &str, to: (f32, f32)) {
         let y = start.1 + (to.1 - start.1) * share;
         app.run(&["move", &format!("{x},{y}")]);
     }
+    app.run(&["pause", "200"]);
     app.run(&["up"]);
-    app.run(&["settle"]);
+    app.run(&["pause", "1000"]);
 }
 
 #[test]
