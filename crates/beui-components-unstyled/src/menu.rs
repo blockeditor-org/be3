@@ -387,6 +387,15 @@ pub(crate) fn MenuList(
         )
     };
     let title = title.unwrap_or_else(|| create_memo(String::new));
+    let titled = state.titled;
+    component_accessibility(create_memo(move || match titled {
+        true => {
+            let mut node = Node::new(Role::Group);
+            node.set_label(title.get());
+            node
+        }
+        false => Node::new(Role::Menu),
+    }));
     view! {
         <List spacing=0.0>
             <Interactive

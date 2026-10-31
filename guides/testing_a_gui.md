@@ -473,11 +473,12 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   at the place `reveal` answers (beui-core-html's: the part of the target that shows, once a
   scroll that cuts it has revealed it, and after a reveal every target of the command is found
   again, as native drive reruns the command), so the browser's own focus, key and IME paths run, and `resize WxH`
-  sets the page's viewport, as native `resize` sets the headless window. Two commands are browser
-  only, for scripts that run nowhere else (crates/beui-demo-html's): `selection none|some`, and
+  sets the page's viewport, as native `resize` sets the headless window. Three commands are browser
+  only, for scripts that run nowhere else (crates/beui-demo-html's): `selection none|some`,
   `role ROLE NAME [STATE...]`, which waits for Playwright's `getByRole` to find exactly one
   element with that ARIA role, exact name and states (`checked`, `selected`, `not-checked`,
-  `level=2`, ...). It also runs
+  `level=2`, ...), and `roles ROLE COUNT`, which waits for exactly COUNT visible elements with
+  that role, whatever their names (`roles dialog 1` while one dialog is open). It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`

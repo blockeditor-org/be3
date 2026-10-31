@@ -93,7 +93,7 @@ BE3BROWSER 1
     "<div style=\"display: contents; flex: 0 0 auto;\">",
     "<div style=\"position: fixed; opacity: 0; pointer-events: none;\">",
     "</div>",
-    "<dialog class=\"beui-overlay\" style=\"pointer-events: none;\" popover=\"manual\">",
+    "<dialog class=\"beui-overlay\" role=\"generic\" style=\"pointer-events: none;\" popover=\"manual\">",
     "<!--[-->",
     "<!--]-->",
     "<div class=\"beui-beak\" hidden=\"\">",

@@ -16,6 +16,8 @@
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
 // visible element with that ARIA role and exact accessible name, in each STATE given (checked,
 // disabled, expanded, pressed, selected, each also as not-STATE, or level=N).
+// `roles ROLE COUNT` (browser only) waits until exactly COUNT visible elements have that ARIA
+// role, whatever their names.
 // After every command the document itself must not scroll or overflow the
 // viewport (a beui app owns its viewport, and only its Scrolls scroll), and the
 // browser must not draw its focus ring on what beui draws its own for.
@@ -289,6 +291,20 @@ async function step(page, words) {
                 await page.getByRole(role, query).waitFor({ timeout: timeout * 1000 });
             } catch (error) {
                 throw new Failure(`getByRole(${JSON.stringify(role)}, ${JSON.stringify(query)}): ${error.message.split("\n")[0]}`);
+            }
+            return "";
+        }
+        case "roles": {
+            const [role, wanted] = args;
+            const count = Number(wanted);
+            if (!role || !Number.isInteger(count) || count < 0) throw new Failure("roles takes a ROLE and a COUNT");
+            const found = page.getByRole(role);
+            try {
+                if (count > 0) await found.nth(count - 1).waitFor({ timeout: timeout * 1000 });
+                await found.nth(count).waitFor({ state: "hidden", timeout: timeout * 1000 });
+            } catch (error) {
+                const shown = await found.count();
+                throw new Failure(`getByRole(${JSON.stringify(role)}) found ${shown}, not ${count}: ${error.message.split("\n")[0]}`);
             }
             return "";
         }

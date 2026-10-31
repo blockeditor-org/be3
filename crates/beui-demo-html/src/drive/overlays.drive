@@ -1,0 +1,25 @@
+# Each overlay reads once, as what it is: a dialog as one dialog named by its
+# title, a popover as its own dialog, and a menu as a menu, never wrapped in a
+# second, unnamed dialog. The Menus page draws one menu in place.
+clock stop
+click '#demo.catalog.Overlays'
+roles dialog 0
+click '#demo.discard.open'
+role alertdialog 'Discard changes?'
+roles alertdialog 1
+roles dialog 0
+key Escape
+roles alertdialog 0
+click '#demo.filters'
+role dialog Filters
+roles dialog 1
+key Escape
+roles dialog 0
+click '#demo.catalog.Menus'
+roles menu 1
+click 'Button "Sort"'
+role menuitem 'By name'
+roles menu 2
+roles dialog 0
+key Escape
+roles menu 1
