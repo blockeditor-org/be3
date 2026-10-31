@@ -13,30 +13,11 @@ export_file(
 # each names. ./scripts/verify and ./scripts/ci are scripts rather than targets,
 # so that each is one buck2 command.
 #
-#   ./scripts/buck run //:check
 #   ./scripts/buck run //:fuzz
 #   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:pdfium -- REVISION
 #   ./scripts/buck run //:rust-project
-
-# rustc's check pass over every first-party target in every configuration.
-# When it fails and crates.bzl is out of date with the manifests, which is how
-# a dependency just added to a Cargo.toml shows as an unresolved crate, it says
-# to run buckify.
-command_alias(
-    name = "check",
-    args = [
-        "sh",
-        "-c",
-        "./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null && exit 0; "
-        + "status=$?; "
-        + "if sh buck/cargo/update.sh --check 2> /dev/null | grep -q '^Out of date'; then "
-        + "echo 'buck/cargo/crates.bzl or Cargo.lock is out of date with the Cargo.toml files, so a crate may lack a dependency its manifest names: run ./scripts/buck run //:buckify.' >&2; "
-        + "fi; "
-        + "exit $status",
-    ],
-)
 
 # Every fuzz target, taking turns, until it is stopped (crates/local-tools).
 command_alias(

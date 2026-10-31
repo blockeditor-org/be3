@@ -1,9 +1,12 @@
 load("//buck/cargo/buckify.bxl", buckify = "generate")
 load("//buck/cargo/html.bzl", "html_libraries")
+load("//buck/dev/workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh), every test and plugin test, beui checked for Windows
+# (fix.sh), every test and plugin test, rustc's check pass over every
+# first-party Rust target on Linux and the plugins' wasm (workspace.bxl), so
+# that a target no test builds still compiles, beui checked for Windows
 # (_CROSS_CHECKS), for ./scripts/ci which of crates/bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
@@ -67,6 +70,14 @@ def _cross_checks(ctx) -> list[Artifact]:
     for target, platform in configurations:
         for configured in ctx.cquery(target_platform = platform).eval(target):
             sub_targets = ctx.analysis(configured).providers()[DefaultInfo].sub_targets
+            checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
+    return checks
+
+def _workspace_checks(ctx) -> list[Artifact]:
+    checks = []
+    for target in rust_targets(ctx):
+        sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
+        if "check" in sub_targets:
             checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
     return checks
 
@@ -180,6 +191,7 @@ def _impl(ctx: bxl.Context):
     if args.tests:
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
         built.extend(_cross_checks(ctx))
+        built.extend(_workspace_checks(ctx))
     if args.plugin_tests:
         targets = ctx.cquery().kind("^(plugin_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
         printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])

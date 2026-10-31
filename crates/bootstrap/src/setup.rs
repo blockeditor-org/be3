@@ -155,8 +155,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     steps.end();
     println!();
     println!("Setup finished. The first time ./scripts/buck runs, it asks which build server");
-    println!("to build on and for its key - guides/build_server.md says more. Then check the");
-    println!("workspace compiles with");
-    println!("./scripts/buck run //:check, and run ./scripts/verify before committing.");
+    println!("to build on and for its key - guides/build_server.md says more. Then run");
+    println!("./scripts/verify, which compiles and checks the workspace, before committing.");
     Ok(ExitCode::SUCCESS)
 }

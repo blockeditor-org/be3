@@ -135,7 +135,7 @@ the app headless for an agent to drive.
 `./scripts/buck run //:buckify` to regenerate the rules. That includes a
 dev-dependency on another crate of the workspace: until it runs, the crate's
 `:test` cannot see it, and rustc reports the crate as unresolved or unlinked
-(`//:check` adds that buckify is due when it fails with `crates.bzl` stale). A build script runs
+(`./scripts/verify` regenerates the rules itself, and when a build fails with them stale it says to run it again). A build script runs
 as it does under cargo, and the libraries it links or compiles reach the link;
 one that needs something from the build, such as a sysroot's pkg-config, gets
 it from a fixup.
@@ -253,7 +253,7 @@ in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
 the crate's `[diag.json]` and passes when every line marked
 `//~ ERROR <part of the message>` has that error and no other line has one.
 It is rustc's check pass once for all the cases, with nothing linked. The
-crates sit outside `crates/` because `build //crates/...`, `//:check` and
+crates sit outside `crates/` because `build //crates/...` and
 `./scripts/verify` would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
@@ -418,14 +418,12 @@ extension ships: the toolchain's panics on this workspace.
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Lints** are rustc's, and a warning fails the compile that finds it, so
-  `./scripts/verify` sees them only in what its tests compile, `linux_x86_64`
-  and `wasi_guest`, and in what it checks: beui for Windows and the HTML
-  core's libraries. It neither typechecks other configurations (Android, the
-  web's wasm32, host wasi, release copies) nor runs clippy: each was a second
-  compile of every target, which doubled what a change cost. `//:check`
-  typechecks less: only `linux_x86_64` and `wasi_guest`
-  (`buck/dev/workspace.bxl`), so an agent's check is a third of the actions it
-  was. Code behind `cfg(windows)` or `cfg(target_os = "macos")` outside beui is
+  `./scripts/verify` sees them only in what it compiles and checks: every
+  first-party target on `linux_x86_64` and `wasi_guest`
+  (`buck/dev/workspace.bxl`), beui for Windows and the HTML core's
+  libraries. It neither typechecks other configurations (Android, the web's
+  wasm32, host wasi, release copies) nor runs clippy: each was a second
+  compile of every target, which doubled what a change cost. Code behind `cfg(windows)` or `cfg(target_os = "macos")` outside beui is
   first compiled by `./scripts/deploy`.
 - **Clippy** is still in the toolchain:
   `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`

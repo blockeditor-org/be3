@@ -2,7 +2,7 @@ load("@root//buck/platforms:cross.bzl", "HTML_PLANS")
 load(":crates.bzl", "crates")
 
 # Every first-party library cargo plans for beui's HTML core, beside the
-# platform it is built for there: what //:check and ./scripts/verify check on
+# platform it is built for there: what ./scripts/verify checks on
 # that core, so that the crates which build on it keep building.
 def html_libraries() -> list[(str, str)]:
     found = []

@@ -6181,12 +6181,10 @@ supports key presses, text, hover, pointer clicks, and touch gestures. See the
 From the workspace root, use:
 
 ```text
-./scripts/buck run //:check
 ./scripts/verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/verify`
-is the full check, and CI runs it on a pull request and pushes whatever it changes to
+`./scripts/verify` compiles the whole workspace and is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a

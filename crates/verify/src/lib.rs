@@ -20,6 +20,7 @@ struct Run {
     options: Options,
     built: Vec<(String, PathBuf, PathBuf, bool)>,
     failed: bool,
+    stale_crates: bool,
 }
 
 pub fn run() -> ExitCode {
@@ -58,6 +59,7 @@ fn main(arguments: Vec<String>) -> ExitCode {
         .collect();
     let mut run = Run {
         failed: options.build_failed,
+        stale_crates: false,
         options,
         built,
     };
@@ -68,6 +70,16 @@ fn main(arguments: Vec<String>) -> ExitCode {
             println!(
                 "Verification failed: something did not build or a test failed, and buck2 says what above."
             );
+            if run.stale_crates {
+                println!(
+                    "buck/cargo/crates.bzl or Cargo.lock was out of date with the Cargo.toml files, so a crate may have lacked a dependency its manifest names: run ./scripts/verify{} again.",
+                    if run.options.check {
+                        " without --check"
+                    } else {
+                        ""
+                    }
+                );
+            }
         } else {
             println!("Verification failed.");
         }
@@ -200,11 +212,12 @@ impl Run {
 
     fn generated(&mut self) {
         if let Some(generated) = self.built("buckify").first() {
-            self.update(
+            let crates = self.update(
                 &generated.join("crates.bzl"),
                 Path::new("buck/cargo/crates.bzl"),
             );
-            self.update(&generated.join("Cargo.lock"), Path::new("Cargo.lock"));
+            let lock = self.update(&generated.join("Cargo.lock"), Path::new("Cargo.lock"));
+            self.stale_crates = crates || lock;
         }
         if let Some(lock) = self.built("sysroot").first() {
             self.update(lock, Path::new("buck/sysroot/packages.bzl"));
@@ -244,14 +257,14 @@ impl Run {
         }
     }
 
-    fn update(&mut self, from: &Path, to: &Path) {
+    fn update(&mut self, from: &Path, to: &Path) -> bool {
         if fs::read(from).ok() == fs::read(to).ok() {
-            return;
+            return false;
         }
         if self.options.check {
             println!("Out of date: {}", to.display());
             self.failed = true;
-            return;
+            return true;
         }
         let mut partial = to.as_os_str().to_owned();
         partial.push(".partial");
@@ -265,6 +278,7 @@ impl Run {
             println!("Could not update {}", to.display());
             self.failed = true;
         }
+        true
     }
 
     fn fixes(&mut self) {

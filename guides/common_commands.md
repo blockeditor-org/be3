@@ -2,7 +2,7 @@
 
 This guide is for people as well as agents. It sorts the ways to run things by who can use them:
 a person at a machine with displays, a device or a headset, and an agent in a container with
-none of them. AGENTS.md's Commands section has the everyday ones (`//:check`, `./scripts/verify`,
+none of them. AGENTS.md's Commands section has the everyday ones (`./scripts/verify`,
 `./scripts/test`, `:dev`, `rasterize`); guides/running/ says how to run and drive each platform.
 `./scripts/buck run` passes the environment on to the program, so a `BEUI_*` variable before it
 reaches the app.
@@ -80,8 +80,7 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 
 | Command | What it does |
 |---|---|
-| `./scripts/buck run //:check` | rustc's check pass over every first-party target on the platforms the tests build: Linux x86_64 and the plugins' `wasi_guest` |
-| `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the plugins' `wasi_guest`, autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/editors/desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |

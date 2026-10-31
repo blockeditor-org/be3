@@ -1,15 +1,16 @@
 # One subtarget of every first-party Rust target in the configurations the
 # tests build, the wasm ones included through transitions; prints
-# "label<TAB>path" per target.
+# "label<TAB>path" per target. ./scripts/verify builds the check subtarget of
+# each (buck/dev/verify.bxl); this is for another one, such as clippy.txt.
 #
-#   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check
+#   ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt
 
 # The platforms ./scripts/verify's tests compile on: the host, and plugins.
 # Everything else - release copies, Android, the desktop and arm64 targets the
 # dist bundles transition to, the web's wasm, the type modules and games on
-# wasm32, beui's HTML core and its Windows check - is left to ./scripts/verify
-# and CI, since each is another compile of most of the workspace for a change
-# that seldom breaks only there.
+# wasm32 - is left to CI and ./scripts/deploy, and beui's HTML core and its
+# Windows check to verify.bxl's _CROSS_CHECKS, since each is another compile
+# of most of the workspace for a change that seldom breaks only there.
 _PLATFORMS = ["linux_x86_64", "wasi_guest"]
 
 def _platform(target) -> str:
@@ -17,14 +18,14 @@ def _platform(target) -> str:
 
 # Every first-party Rust target on those platforms. ./scripts/deploy's target is
 # left out of the universe: it configures block-app for every desktop platform.
-def _rust_targets(ctx: bxl.Context) -> list:
+def rust_targets(ctx: bxl.Context) -> list:
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/local-tools:deploy"))
     targets = ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/..."))
     return [target for target in targets if _platform(target) in _PLATFORMS]
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
-    targets = _rust_targets(ctx)
+    targets = rust_targets(ctx)
     outputs = {}
     for target in targets:
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
