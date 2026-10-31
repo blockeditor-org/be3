@@ -7,6 +7,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, NodeId, ScrollGesture};
 use block_editor_beui::desktop;
+
+use super::bar::bar_bounds;
 use block_editor_beui::{
     Editor, HostImage, HostTrayItem, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
 };
@@ -136,6 +138,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             glyph=ICON_BLOCKS
             click_opens
             secondary_opens={has_menu}
+            bounds={bar_bounds()}
             @test_id={prefix.clone()}
             items={view! {
                 <TrayEntries entries chosen prefix={prefix.clone()} />

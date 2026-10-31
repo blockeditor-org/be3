@@ -2019,10 +2019,17 @@ opens just past the whole bar rather than over its padding, while it still lines
 up with the button along the bar. The unstyled and styled `Popover` take it as
 `band`, and `DockBarControl::surface()` is the node a `DockBarSurface` draws on.
 An overlay's `bounds` (a rect in the overlay's window coordinates; `Overlay`,
-`Anchored` and both `Popover`s take it) narrows the room it is placed and
+`Anchored`, both `Popover`s, `MenuPopup`, `MenuButton` and `ContextMenu` take
+it, and a menu hands its own to its submenus) narrows the room it is placed and
 measured in, so it shifts, flips and shrinks within that rect rather than the
-whole screen; a panel that must not cover a dock's bands takes the dock's area.
-The HTML core ignores it.
+whole screen; a panel or menu that must not cover a dock's bands takes the
+dock's area. The HTML core ignores it.
+A menu always fits its room: `BelowStart` opens below, else above, else on the
+roomier side shrunk to it; a submenu (`RightStart`) opens right, else left, and
+slides up or down to stay inside; a menu panel taller than that scrolls inside
+itself, and the arrow keys reveal the row they focus. The HTML core does the same
+with CSS anchor fallbacks (`flip-block`, `flip-inline`) and a `max-height` of the
+roomier side (`layer::room_beside`), set each frame.
 `Placement::Popover { gap, margin }` places content like a popover: centred on
 the anchor and `gap` below it, flipping above where only that side has room and
 shifting sideways to stay `margin` inside the screen (the vertical choice and

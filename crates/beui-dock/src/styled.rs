@@ -1086,7 +1086,10 @@ pub fn DockBarSurface(
 }
 
 #[component]
-pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> NodeId {
+pub fn DockBarGrip(
+    #[prop(default = None)] control: Option<DockBarControl>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+) -> NodeId {
     let Some(control) = control.or_else(use_dock_bar) else {
         return view! {
             <Frame />
@@ -1136,6 +1139,7 @@ pub fn DockBarGrip(#[prop(default = None)] control: Option<DockBarControl>) -> N
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Toolbar
                 open
+                bounds
                 click_opens=false
                 on_click={move || {
                     if !moved.get() {

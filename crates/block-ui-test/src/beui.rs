@@ -1860,7 +1860,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        if self.rect().contains_rect(self.rect_of(test_id)) {
+        let whole = self
+            .test_ids()
+            .iter()
+            .find(|(named, _)| *named == test_id)
+            .is_some_and(|(_, shown)| shown.iter().all(|at| at.whole));
+        if whole && self.rect().contains_rect(self.rect_of(test_id)) {
             return;
         }
         {

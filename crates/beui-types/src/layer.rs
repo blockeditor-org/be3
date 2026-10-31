@@ -343,9 +343,26 @@ pub fn resolve_rect(
             _ => (viewport.bottom() - content_size.y).max(viewport.top()),
         };
     }
-    origin.x = origin.x.max(viewport.left());
-    origin.y = origin.y.max(viewport.top());
+    origin.x = origin
+        .x
+        .min(viewport.right() - content_size.x)
+        .max(viewport.left());
+    origin.y = origin
+        .y
+        .min(viewport.bottom() - content_size.y)
+        .max(viewport.top());
     Rect::from_min_size(origin, content_size)
+}
+
+pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Option<f32> {
+    let room = match placement {
+        Placement::BelowStart => (viewport.bottom() - anchor_rect.bottom())
+            .max(anchor_rect.top() - viewport.top()),
+        Placement::RightStart => (viewport.bottom() - anchor_rect.top())
+            .max(anchor_rect.bottom() - viewport.top()),
+        _ => return None,
+    };
+    Some(room.clamp(0.0, viewport.height().max(0.0)))
 }
 
 #[derive(Clone, PartialEq)]

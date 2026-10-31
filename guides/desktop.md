@@ -56,7 +56,9 @@ opens away from the bar's edge, toward the windows: below or above a bar along t
 (`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`). It stays inside
 its display's work area (`bar::BarArea`, the `DockingLayout::area()` the bands leave, as the
 popover's `bounds`), shifting along the bar to clear another band and scrolling when taller than
-that area, so it never covers another bar.
+that area, so it never covers another bar. The bar's menus do the same (`bar::bar_bounds()` as the
+`bounds` of the grip's `DockBarGrip`, a window chip's `ContextMenu` and a tray item's `MenuButton`),
+their submenus too.
 
 The grip menu's Hide hides a bar on its display; that display's Apps panel then offers "Show this
 display's bars" (`desktop.apps.bars`), which shows its three again, and Super still opens Apps,

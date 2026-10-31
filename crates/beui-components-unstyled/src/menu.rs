@@ -4,6 +4,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::types::Dismiss;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 use beui_view::types::Track;
 use beui_view::types::icons::Glyph;
 use beui_view::types::{Key, KeyPress};
@@ -291,6 +292,7 @@ struct State {
     pages: bool,
     glyphs: Memo<bool>,
     spacing: f32,
+    bounds: Memo<Option<Rect>>,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
@@ -307,6 +309,7 @@ pub(crate) fn MenuList(
     active: Prop<bool>,
     #[prop(default = false)] focus_first: bool,
     #[prop(default = false)] pages: bool,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 ) -> NodeId {
     let row = row.expect("menu_list requires a `row` builder");
@@ -335,6 +338,7 @@ pub(crate) fn MenuList(
             })
         },
         spacing,
+        bounds: create_memo(move || bounds.get()),
         on_select,
     };
     api.fill(MenuListApi(state));
@@ -447,6 +451,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             active=true
             focus_first=true
             pages={state.pages}
+            bounds={state.bounds}
             on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
                 path.insert(0, index);
                 state.on_select.call((path, then));
@@ -742,6 +747,7 @@ fn MenuRow(
                     <Overlay
                         anchor=button
                         placement=Placement::RightStart
+                        bounds={state.bounds}
                         open={open}
                         on_dismiss={move |_: Dismiss| open.set(false)}
                         content={move || {
@@ -756,6 +762,7 @@ fn MenuRow(
                                     parent={leave}
                                     active={open}
                                     focus_first=true
+                                    bounds={state.bounds}
                                     on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
                                         path.insert(0, index);
                                         state.on_select.call((path, then));

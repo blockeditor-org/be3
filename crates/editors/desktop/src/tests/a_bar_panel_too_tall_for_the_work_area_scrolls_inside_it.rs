@@ -8,9 +8,9 @@ const SHORT: Vec2 = Vec2::new(800.0, 320.0);
 fn a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it() {
     let mut fixture = Fixture::with_windows(&[1]);
     fixture.hear(0.45, false, SPEAKERS);
-    fixture.bar_menu(STATUS_BAR, &["beside.ends", "beside.right.bottom"]);
     fixture.test.set_size(SHORT);
     fixture.settle();
+    fixture.bar_menu(STATUS_BAR, &["beside.ends", "beside.right.bottom"]);
 
     fixture.test.click("desktop.status");
     fixture.settle();

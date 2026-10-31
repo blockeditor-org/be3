@@ -63,6 +63,7 @@ mod focus;
 mod frame;
 mod interactive;
 mod list;
+mod long_menus;
 mod menus;
 mod offset;
 mod overlay;

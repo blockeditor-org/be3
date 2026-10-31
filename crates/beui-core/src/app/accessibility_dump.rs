@@ -101,6 +101,7 @@ impl Rendered {
                     named.entry(test_id.clone()).or_default().push(TestIdAt {
                         rect: bounds.scaled(self.scale.recip()),
                         visible: line.visible,
+                        whole: line.whole,
                     });
                 }
             }
@@ -118,6 +119,7 @@ pub struct TestIds {
 pub struct TestIdAt {
     pub rect: crate::geometry::Rect,
     pub visible: bool,
+    pub whole: bool,
 }
 
 impl TestIds {
@@ -153,6 +155,7 @@ pub struct Line {
     pub text: String,
     pub bounds: Option<crate::geometry::Rect>,
     pub visible: bool,
+    pub whole: bool,
     pub test_ids: Vec<String>,
 }
 
@@ -360,6 +363,7 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
     }
     let mut text = String::new();
     let mut visible_part = true;
+    let mut whole = true;
     let _ = write!(text, "{:?}", node.role());
     if let Some(label) = label {
         let _ = write!(text, " {label:?}");
@@ -395,8 +399,10 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
         if visible <= 0.0 && rect.area() > 0.0 {
             text.push_str(" offscreen");
             visible_part = false;
+            whole = false;
         } else if visible < rect.area() {
             text.push_str(" partly offscreen");
+            whole = false;
         }
     }
     Some(Line {
@@ -420,6 +426,7 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
             )
         }),
         visible: visible_part,
+        whole,
         test_ids,
     })
 }

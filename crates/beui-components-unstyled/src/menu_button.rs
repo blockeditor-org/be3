@@ -8,7 +8,7 @@ use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{PointerPress, ScrollGesture};
+use beui_view::types::{PointerPress, Rect, ScrollGesture};
 
 #[component]
 pub fn MenuButton(
@@ -23,6 +23,7 @@ pub fn MenuButton(
     #[prop(default = false)] secondary_opens: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     accessibility: Option<Prop<Node>>,
     on_click: ClickCallback,
     on_secondary_click: ClickCallback,
@@ -101,6 +102,7 @@ pub fn MenuButton(
                 items={items.into_run()}
                 menu
                 anchor={button}
+                bounds
                 trigger={button}
                 open={shown}
                 on_dismiss={move || open.set(false)}

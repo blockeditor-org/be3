@@ -135,6 +135,15 @@ fn save_bars(editor: Editor, display: u32, snapshot: DockingSnapshot<TabId>) {
 #[derive(Clone, Copy)]
 pub(crate) struct BarArea(pub(crate) Memo<Rect>);
 
+pub(crate) fn bar_bounds() -> Memo<Option<Rect>> {
+    let bar = use_dock_bar();
+    let area = use_context::<BarArea>();
+    create_memo(move || match (bar, area) {
+        (Some(bar), Some(BarArea(area))) if !bar.placement().is_window() => Some(area.get()),
+        _ => None,
+    })
+}
+
 pub(crate) fn bar_direction() -> Memo<Direction> {
     let bar = use_dock_bar();
     create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()))
@@ -210,7 +219,7 @@ pub(crate) fn AppsBar(shell: Shell, display: u32, layout: DockingLayout<TabId>) 
     let shown = create_memo(move || bar.is_none_or(|bar| !bar.is_hidden()));
     view! {
         <DockBarSurface @test_id={"desktop.bar.apps"}>
-            <DockBarGrip />
+            <DockBarGrip bounds={bar_bounds()} />
             <Show condition={shown}>
                 <AppsButton apps={shell.apps} display layout />
             </Show>
@@ -223,7 +232,7 @@ pub(crate) fn WindowsBar(shell: Shell, display: u32) -> NodeId {
     let direction = bar_direction();
     view! {
         <DockBarSurface @test_id={"desktop.bar.windows"}>
-            <DockBarGrip />
+            <DockBarGrip bounds={bar_bounds()} />
             <WindowChips windows={shell.windows} direction display />
         </DockBarSurface>
     }
@@ -233,7 +242,7 @@ pub(crate) fn WindowsBar(shell: Shell, display: u32) -> NodeId {
 pub(crate) fn StatusBar(shell: Shell, display: u32) -> NodeId {
     view! {
         <DockBarSurface @test_id={"desktop.bar.status"}>
-            <DockBarGrip />
+            <DockBarGrip bounds={bar_bounds()} />
             <StatusItems shell display />
         </DockBarSurface>
     }

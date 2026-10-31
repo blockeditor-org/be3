@@ -1,0 +1,16 @@
+# A menu taller than a short window fits inside it and scrolls: keys walk to
+# its last row and show it, a press there opens that row's submenu, which is
+# too tall as well, and keys walk to its last row too, which a press chooses.
+clock stop
+resize 600x240
+click 'Button "Long"'
+wait 'MenuItem "Item 1"'
+key End
+wait 'MenuItem "Item 24" focused'
+click 'MenuItem "Item 24"'
+wait 'MenuItem "Sub 1" focused'
+key End
+wait 'MenuItem "Sub 16" focused'
+click 'MenuItem "Sub 16"'
+wait 'value="Chose [23, 15]"'
+gone 'MenuItem "Item 1"'

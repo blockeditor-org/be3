@@ -11,6 +11,7 @@ use block_editor_beui::desktop;
 use block_editor_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_name, window_picture};
 
+use super::bar::bar_bounds;
 use super::placeholders::Placeholders;
 
 const CHIP_SPACING: Space = Space::Xs;
@@ -416,6 +417,7 @@ fn WindowChip(windows: DeskWindows, chip: ChipKey, vertical: Memo<bool>) -> Node
     let display_prefix = prefix.clone();
     view! {
         <ContextMenu
+            bounds={bar_bounds()}
             items={view! {
                 <MenuItem
                     label={visibility}

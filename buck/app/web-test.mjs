@@ -245,6 +245,12 @@ async function step(page, words) {
             await page.mouse.wheel(wheelPixels(args[2]), wheelPixels(args[1]));
             return settle();
         }
+        case "resize": {
+            const size = /^(\d+)x(\d+)$/.exec(args[0] ?? "");
+            if (!size) throw new Failure(`resize takes WIDTHxHEIGHT, not ${args[0]}`);
+            await page.setViewportSize({ width: Number(size[1]), height: Number(size[2]) });
+            return settle();
+        }
         case "type":
             await page.keyboard.type(args.join(" "));
             return settle();

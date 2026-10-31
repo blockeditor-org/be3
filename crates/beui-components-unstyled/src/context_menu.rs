@@ -43,6 +43,7 @@ pub fn ContextMenu(
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
@@ -166,6 +167,7 @@ pub fn ContextMenu(
                         items={items.clone()}
                         menu={menu}
                         anchor
+                        bounds
                         open={shown}
                         sheet
                         focusing

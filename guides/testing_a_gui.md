@@ -94,7 +94,8 @@ nothing it does (a handler's effect, a row added, a dialog opened) shows in show
 or the model until the next run(). Call run() after every gesture — the view only sees an
 event on the frame it is delivered in — and click a text field before typing into it. click() first scrolls a target that is out of view into it
 (`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
-DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
+DocumentTest alike (BeuiTest also when it is only partly in view, such as a row its menu's
+scroll cuts), so a test need not know how much fits on its screen. It panics when no
 node has that test id, which is usually a node that was never given one, or one a virtualized
 list has not built; shown() and label() ask about one without clicking it.
 
@@ -467,7 +468,8 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
   commands through beui-core-html's `automate` (its tree is in native's line format, from the
   core's nodes and `getBoundingClientRect`); `click`, `move`, `down`, `up`, `drag`, `wheel` (a tick is a line, 40 pixels), `type` and `key` are real Playwright input
-  at the place `find` answers, so the browser's own focus, key and IME paths run. It also runs
+  at the place `find` answers, so the browser's own focus, key and IME paths run, and `resize WxH`
+  sets the page's viewport, as native `resize` sets the headless window. It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`

@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};
 use block_editor_beui::beui::styled::*;
 
-use super::bar::{BarArea, bar_direction};
+use super::bar::{bar_bounds, bar_direction};
 
 #[component]
 pub(crate) fn BarPopup(
@@ -19,13 +19,8 @@ pub(crate) fn BarPopup(
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     let direction = bar_direction();
-    let bar = use_dock_bar();
-    let band = bar.map(|bar| bar.surface());
-    let area = use_context::<BarArea>();
-    let bounds = create_memo(move || match (bar, area) {
-        (Some(bar), Some(BarArea(area))) if !bar.placement().is_window() => Some(area.get()),
-        _ => None,
-    });
+    let band = use_dock_bar().map(|bar| bar.surface());
+    let bounds = bar_bounds();
     let max_length = create_memo(move || {
         let inset = 2.0 * (PANEL_PADDING.px() + Border::DEFAULT.width.px());
         bounds

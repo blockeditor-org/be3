@@ -27,6 +27,7 @@ use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
 mod a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it;
+mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;

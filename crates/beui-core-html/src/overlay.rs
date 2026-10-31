@@ -743,6 +743,16 @@ mod web {
         }
     }
 
+    fn fit(layer: &Layer) {
+        let placement = layer.placement.get();
+        let room = anchor_rect(layer).and_then(|anchor| {
+            beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
+        });
+        if let Some(room) = room {
+            set_style(layer.parts.dialog, "max-height", Some(px(room)));
+        }
+    }
+
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
         let placement = layer.placement.get();
         if matches!(
@@ -892,6 +902,7 @@ mod web {
         if wanted.is_none() {
             return changed;
         }
+        fit(layer);
         let anchors = anchors_supported();
         if !anchors {
             measured(layer, &dialog);
