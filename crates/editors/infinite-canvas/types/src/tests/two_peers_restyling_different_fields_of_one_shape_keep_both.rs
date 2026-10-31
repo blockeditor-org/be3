@@ -33,6 +33,7 @@ fn two_peers_restyling_different_fields_of_one_shape_keep_both() {
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
             entity: Box::new(original),
+            pixels: None,
         },
     );
     let red = CanvasColor::Rgba {

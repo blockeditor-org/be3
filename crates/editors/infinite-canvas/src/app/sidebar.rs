@@ -5,9 +5,9 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
 use infinite_canvas_types::{
-    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
-    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
-    CanvasTextWeight,
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasProfile,
+    CanvasShape, CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize,
+    CanvasTextVerticalAlign, CanvasTextWeight,
 };
 
 use crate::geometry::*;
@@ -16,6 +16,7 @@ use super::actions::CanvasActions;
 use super::components::CanvasComponents;
 use super::layers::LayersSection;
 use super::paint::resolve_color;
+use super::raster::RasterPanel;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 use super::style::{BACKGROUNDS as SOFT, STROKES};
@@ -44,9 +45,18 @@ pub(crate) fn CanvasSidebar(
     state: CanvasState,
     shown: block_editor_beui::beui::reactive::Prop<bool>,
 ) -> DynamicSegment<ListChild> {
+    let vector = create_memo(move || state.profile.get() == CanvasProfile::Vector);
+    let raster = create_memo(move || state.profile.get() == CanvasProfile::Raster);
     view! {
         <Sidebar shown={shown}>
-            <Inspector state={state} />
+            <List spacing=Space::None>
+                <Show condition={vector}>
+                    <Inspector state={state} />
+                </Show>
+                <Show condition={raster}>
+                    <RasterPanel state={state} />
+                </Show>
+            </List>
         </Sidebar>
     }
 }
@@ -660,7 +670,7 @@ pub(crate) fn styled_entities(state: CanvasState) -> Vec<CanvasEntity> {
 }
 
 pub(crate) fn colored(entity: &CanvasEntity) -> bool {
-    !entity.shape.embeds_block() && !entity.is_frame()
+    !entity.shape.embeds_block() && !entity.is_frame() && entity.shape != CanvasShape::Raster
 }
 
 pub(crate) fn stroked(entity: &CanvasEntity) -> bool {
@@ -988,7 +998,7 @@ fn set_fill(state: CanvasState, fill: Option<CanvasColor>) {
 }
 
 #[component]
-fn OpacityRow(state: CanvasState) -> NodeId {
+pub(crate) fn OpacityRow(state: CanvasState) -> NodeId {
     let value = create_memo(move || {
         common_value(
             state
@@ -1225,12 +1235,23 @@ const SHORTCUTS: [(&str, &str); 9] = [
 ];
 
 #[component]
-fn ShortcutsSection() -> NodeId {
+pub(crate) fn ShortcutsSection(#[prop(default = false)] raster: bool) -> NodeId {
     let open = create_signal(false);
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
-    let mut tools: Vec<Action> = actions.tools().into_iter().cloned().collect();
-    tools.push(actions.add_image.clone());
-    tools.push(actions.tool_lock.clone());
+    let tools: Vec<Action> = match raster {
+        true => actions
+            .pixel_tools()
+            .into_iter()
+            .chain(actions.raster.all())
+            .cloned()
+            .collect(),
+        false => actions
+            .tools()
+            .into_iter()
+            .chain([&actions.add_image, &actions.tool_lock])
+            .cloned()
+            .collect(),
+    };
     let count = tools.len();
     view! {
         <Accordion title="Shortcuts" open={open}>

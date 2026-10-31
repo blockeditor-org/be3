@@ -3979,7 +3979,6 @@ dependencies = [
  "map-types",
  "pan-zoom-types",
  "pdf-types",
- "pixel-art-types",
  "pixel-ray-tracer-types",
  "presentation-types",
  "scene-3d-types",
@@ -4900,6 +4899,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bench",
  "beui",
  "block-editor-beui",
@@ -6486,18 +6486,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pixel-art-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
 name = "pixel-ray-tracer-types"
 version = "0.1.0"
 dependencies = [
@@ -6506,21 +6494,6 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "serde",
- "uuid",
-]
-
-[[package]]
-name = "pixel_art"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "image",
- "image-block-types",
- "pixel-art-types",
- "serde",
- "serde_json",
  "uuid",
 ]
 

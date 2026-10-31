@@ -41,7 +41,7 @@ A layer can hold a child editor; its content appears one frame after the layer, 
 
 One `Dialog`, presented by kind and size, with an optional anchor:
 
-1. Small per-object forms opened from a control (text settings, pixel-art Resize, logic-grid storage, calendar event form, file-tree Inspect, database filter, canvas Export, Rename): a card with a beak on desktop, a bottom sheet on phones. They escape the frame, have no scrim, close on an outside press, set `blocks-owner`, trap focus and give it back.
+1. Small per-object forms opened from a control (text settings, logic-grid storage, calendar event form, file-tree Inspect, database filter, canvas Export, Rename): a card with a beak on desktop, a bottom sheet on phones. They escape the frame, have no scrim, close on an outside press, set `blocks-owner`, trap focus and give it back.
 2. Confirmations (Alerts): centred over the frame that asked, with a scrim, inside its region. Never a sheet.
 3. Large forms and embedded editors (block creation, artifact settings, Share, Members, Contacts, Agents, conflict compare): attached to the owning frame, not a point; a full-height sheet on phones (escaping, attached to an edge). The anchor only drives the opening transition.
 4. App-level modals with no origin (lock, reauth, onboarding, add device, sync errors): host-drawn, centred over the app. Unchanged.

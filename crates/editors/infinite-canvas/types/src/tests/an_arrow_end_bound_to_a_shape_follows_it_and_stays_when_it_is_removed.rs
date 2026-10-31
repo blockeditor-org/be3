@@ -43,6 +43,7 @@ fn an_arrow_end_bound_to_a_shape_follows_it_and_stays_when_it_is_removed() {
             &mut content,
             InfiniteCanvasOperation::Add {
                 entity: Box::new(entity),
+                pixels: None,
             },
         );
     }

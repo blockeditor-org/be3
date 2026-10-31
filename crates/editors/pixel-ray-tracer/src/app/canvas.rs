@@ -79,7 +79,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                 }
             }}
         >
-            <Frame fill=ColorRole::Background>
+            <Frame fill=ColorRole::Background @test_id={"pixel_ray_tracer.canvas"}>
                 <List spacing=Space::None>
                     <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                         <CanvasItem

@@ -306,9 +306,13 @@ impl Live {
                 tool: Tool::Text,
                 start,
                 current,
+                snapped,
                 ..
             }) => {
-                let bounds = WorldRect::from_points(*start, *current);
+                let bounds = WorldRect::from_points(
+                    super::state::snapped_point(*start, *snapped),
+                    super::state::snapped_point(*current, *snapped),
+                );
                 painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, self.palette.auto);
             }
             Some(Gesture::Erase { trail, .. }) => {
@@ -375,6 +379,7 @@ impl Live {
             | Some(Gesture::Endpoint { .. })
             | Some(Gesture::Bend { .. })
             | Some(Gesture::Pen { .. })
+            | Some(Gesture::Raster { .. })
             | None => {}
         }
     }

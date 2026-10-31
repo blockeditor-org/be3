@@ -18,6 +18,7 @@ use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
+use super::raster::{RasterGuideDrawing, raster_image, rastering};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
@@ -453,6 +454,12 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         });
         freehand && state.being_drawn(id)
     });
+    let raster = state.entities.watch(id).raster();
+    let image = create_memo(move || raster.with(|raster| raster.as_ref().map(raster_image)));
+    let rastered = create_memo(move || raster.with(Option::is_some));
+    let raster_profile = rastering(state);
+    let guided = create_memo(move || !state.previewing() && raster_profile.get() && rastered.get());
+    let corner = create_memo(move || bounds.get().min);
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
@@ -521,6 +528,7 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
             glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
             automatic: label.is_some_and(|label| label.automatic),
             placeholder: placeholder.get(),
+            raster: image.get(),
             entity,
         };
         if shown.borrow().as_ref() == Some(&paint) {
@@ -541,6 +549,9 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         >
             <Layers>
                 <Drawing draw={draw} />
+                <Show condition={guided}>
+                    <RasterGuideDrawing state entity raster corner />
+                </Show>
                 <Show condition={live}>
                     <EntityText state id entity outer={bounds} editing />
                 </Show>

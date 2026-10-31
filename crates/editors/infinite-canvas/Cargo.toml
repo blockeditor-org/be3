@@ -8,6 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+base64 = "0.22"
 beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
 block-editor-database = { path = "../../block-editor-database" }

@@ -1,4 +1,5 @@
 mod canvas;
+mod raster;
 
 pub use canvas::{
     BINDING_GAP, Canvas, CanvasArrowhead, CanvasBinding, CanvasColor, CanvasComponent,
@@ -7,6 +8,10 @@ pub use canvas::{
     CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextStyle,
     CanvasTextVerticalAlign, CanvasTextWeight, CanvasTone, CanvasTransform, Component, Entity,
     InfiniteCanvasOperation, normalized_entity,
+};
+pub use raster::{
+    CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, DEFAULT_RASTER_SIZE,
+    MAX_RASTER_PALETTE_COLORS, MAX_RASTER_SIZE, default_raster_palette, raster_dimensions,
 };
 
 block_type_guest::be_block_types![CanvasContent { undo }];

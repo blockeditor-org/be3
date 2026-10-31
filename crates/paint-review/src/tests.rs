@@ -210,7 +210,7 @@ fn mixed() -> Manifest {
             added("beui-demo.a_new_page"),
             changed("beui-demo.buttons"),
             removed("checklist.an_old_list"),
-            unreadable("pixel-art.broken"),
+            unreadable("map.broken"),
             changed("text-block.typing_a_paragraph"),
         ],
     }

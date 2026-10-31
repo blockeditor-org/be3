@@ -15,9 +15,10 @@ finished in another.
 - **Prototyping**: like Excalidraw. Quick, imprecise, hand-drawn by default.
 - **Vector**: precise vector editing: bezier paths, the numeric inspector the
   canvas has today, boolean operations.
-- **Raster**: one consistent pixel size, which lets display take shortcuts.
-  The pixel-art editor (`crates/editors/pixel-art`) merges into it: a raster
-  layer is an entity in the canvas. A game level made of pixel art is a canvas
+- **Raster**: pixel layers, one world unit a pixel at their natural size,
+  scaled like images, and snapping to whole pixels.
+  It replaces the pixel-art editor, which was removed for it and whose tools
+  move into the canvas: a raster layer is an entity in the canvas. A game level made of pixel art is a canvas
   holding such layers, or child editors.
 - **Interactivity**: a 2D level editor. Entities carry components (they can
   already, through `CanvasComponent`), and a live preview runs modular wasm
@@ -33,16 +34,55 @@ shared live state.
 It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
 pressure-aware pen tools; resize, rotate, group, lock, layers, align and
 distribute; peers' cursors and selections; child blocks edited in place; and a
-phone dock and selection bar. A viewer picks a profile from the frame's menu or
-the context menu: Prototyping (the default: a style popover in the selection
-bar, hand-drawn shapes, no frame tool) or Vector (the accordion inspector).
-The profile lives in the editor's `CanvasState`; `Canvas::profile` only keeps
-the last one used, and `Root::undoable` keeps that write out of undo. New
-shapes take the viewer's last style, kept per profile.
+phone dock and selection bar. A viewer picks a profile from the mode dock (a
+dock bar of radio buttons at the top-left of the stage, `app/mode.rs`; on a
+narrow frame it folds into a menu button at the start of the tool dock, since
+it would not fit beside the zoom pill), the frame's menu, the context menu or
+the palette: Prototyping (the default: a style popover in the selection bar,
+hand-drawn shapes, no frame tool), Vector (the accordion inspector) or Raster
+(pixel tools and the raster panel). The profile lives in the editor's
+`CanvasState`; `Canvas::profile` only keeps the last one used, and
+`Root::undoable` keeps that write out of undo. New shapes take the viewer's
+last style, kept per profile. A tool belongs to profiles (`Tool::belongs_to`,
+which picks the dock's tools); a tool that does not belong is disabled, so one
+letter picks a different tool per profile: R, O, L, E and P draw pixel
+rectangles, ellipses, lines, erase pixels and draw with the pencil in Raster,
+and shapes, lines, the eraser and the pen elsewhere.
+
+The Raster profile (`app/raster.rs`, with the rasterization pixel-art had in
+`src/raster.rs`) has pencil (B or P), pixel eraser (E), fill (G), eyedropper
+(I), replace colour (C), and pixel line, rectangle and ellipse (L, R, O), with
+a brush size (`[` and `]`), a square or round brush, filled shapes (X), mirror
+symmetry (H left to right, Shift+H top to bottom; pixel-art's V selects here)
+and Shift for straight lines and squares. Its sidebar holds the brush, the
+colour and the canvas-wide palette, the selected layer's size, Resize… (an
+anchored card with width, height and anchor) and Clear… (an alert), the
+layer's opacity, the pixel grid and snapping toggles, and the layers. A
+drawing tool paints into the topmost raster layer under the pointer, or starts
+a `DEFAULT_RASTER_SIZE` layer centred on the press; a stroke is a gesture
+(`Gesture::Raster`, its pixels in `CanvasCells::stroke`) whose `Paint`s go out
+live and undo as one step, and a shape tool puts back the pixels it no longer
+covers as it is dragged. Each layer is drawn as one texture sampled nearest,
+made again only when that layer's grid changes (`EntitySignals::raster`), with
+its outline and, once a layer pixel is 12 screen points on its shorter side,
+the pixel grid over it. A pixel is one world unit at a layer's natural size,
+so one screen pixel at 100% on a 1x display; a layer is created that size,
+its corner on whole units. Its handles scale it like an image, keeping its
+proportions unless Shift is held, and the pixels draw larger or smaller,
+sampled nearest; drawing maps the pointer to a pixel through the layer's
+transform. Only Resize… changes the pixel count. Snap to whole pixels
+(`CanvasState::snaps`, the Tools menu, the palette and the Raster panel) is
+a per-viewer choice kept per profile, on by default in Raster only: while it
+is on, moving, nudging, resizing and drawing any shape (not freehand
+strokes) put its corners on whole world units. Export embeds a layer as
+a PNG `<image>` with `image-rendering="pixelated"` in SVG and upscales it
+nearest before the CPU rasterizer in PNG, which samples bilinearly. Paintings
+show raster layers blurred for the same reason: `paint_format` has no nearest
+sampling.
 
 The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
 `shape` names what it is (`CanvasShape`: rectangle, ellipse, diamond, path,
-freehand, text, image, block, editor, frame) and decides only how the general
+freehand, text, image, block, editor, frame, raster) and decides only how the general
 fields are read: `points` is a path or stroke in the unit square of the
 entity's transform, each point with optional bezier handles; `pressures` go
 with a freehand stroke's points; `block` and `scale` hold an embed; `text` is
@@ -51,6 +91,25 @@ label, and a frame's name, which stays plain. Text and labels are drawn as
 read-only rich text areas the renderer scales, and the one being edited syncs
 live with peers through the shared `LiveText`. Every part of the style is its
 own field, so concurrent restyles merge.
+
+A raster layer (`CanvasShape::Raster`, model in
+`crates/editors/infinite-canvas/types/src/raster.rs`) keeps its pixels in the
+entity's `pixels` field, a `be_model::Grid<[u8; 4]>` that merges concurrent
+edits per pixel; its bounds may start anywhere, so a paint made during a
+resize lands where it was painted, and one cropped away by the other side
+counts as a conflict. The pixels are not in `CanvasEntity`: read them with
+`Canvas::raster(content, id)` or `Entity::raster`, which share the grid's bytes
+(`be_model::Cells` holds them copy-on-write) rather than copy them. The canvas
+root holds the raster `palette`. A layer is never rotated, and its transform
+may be any size, which scales its pixels: a blank `Add` derives the pixel
+count from the transform's size, one pixel a world unit, and puts the corner on
+whole units, while an `Add` carrying `pixels` (a duplicate, an Alt-drag or a
+paste) keeps them and the transform's size; the clipboard's text carries each
+copied layer's pixels as a base64 PNG; `Update` moves and scales it like any shape; and `Resize` keeps the
+layer's world units per pixel on each axis and moves the transform by its
+anchor so the pixels stay where they were. `Paint`, `Fill`,
+`ReplaceColor`, `Clear`, `Resize` and `SetPalette` are pixel-art's operations,
+ported, and undo like every other edit.
 
 A line's or arrow's end drawn or dragged onto a shape binds to it, as in
 Excalidraw. A path's `start_binding` and `end_binding` name the shape and an

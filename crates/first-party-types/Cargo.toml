@@ -23,7 +23,6 @@ logic-grid-types = { path = "../editors/logic-grid/types" }
 map-types = { path = "../editors/map/types" }
 pan-zoom-types = { path = "../editors/pan-zoom/types" }
 pdf-types = { path = "../editors/pdf/types" }
-pixel-art-types = { path = "../editors/pixel-art/types" }
 pixel-ray-tracer-types = { path = "../editors/pixel-ray-tracer/types" }
 presentation-types = { path = "../editors/presentation/types" }
 scene-3d-types = { path = "../editors/scene-3d/types" }

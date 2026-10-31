@@ -4,8 +4,8 @@ use block_editor_beui::block_ui::{
 };
 use block_editor_beui::{ResizeMode, block_ui};
 use infinite_canvas_types::{
-    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
+    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasRaster, CanvasShape,
+    CanvasStyle, CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
 };
 use uuid::Uuid;
 
@@ -161,15 +161,23 @@ pub(crate) fn gesture_rect(
     WorldRect::from_points(opposite, current)
 }
 
+pub(crate) type Rasters = std::collections::HashMap<Uuid, CanvasRaster>;
+
 pub(crate) fn duplicate_entities(
     entities: Vec<CanvasEntity>,
     offset: CanvasPoint,
-) -> Vec<CanvasEntity> {
+    rasters: &Rasters,
+) -> (Vec<CanvasEntity>, Rasters) {
     let mut duplicate_groups = std::collections::HashMap::new();
-    entities
+    let mut duplicated = Rasters::new();
+    let entities = entities
         .into_iter()
         .map(|mut entity| {
-            entity.id = Uuid::new_v4();
+            let id = Uuid::new_v4();
+            if let Some(raster) = rasters.get(&entity.id) {
+                duplicated.insert(id, raster.clone());
+            }
+            entity.id = id;
             if let Some(group_id) = entity.group_id {
                 entity.group_id = Some(
                     *duplicate_groups
@@ -181,7 +189,8 @@ pub(crate) fn duplicate_entities(
             entity.transform.center.y += offset.y;
             entity
         })
-        .collect()
+        .collect();
+    (entities, duplicated)
 }
 
 pub(crate) fn entity_kind_label(entity: &CanvasEntity) -> &'static str {
@@ -201,6 +210,7 @@ pub(crate) fn entity_kind_label(entity: &CanvasEntity) -> &'static str {
         CanvasShape::Block => "Block preview",
         CanvasShape::Editor => "Direct editor",
         CanvasShape::Frame => "Frame",
+        CanvasShape::Raster => "Raster layer",
     }
 }
 

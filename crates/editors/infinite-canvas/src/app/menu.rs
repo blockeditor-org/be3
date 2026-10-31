@@ -86,10 +86,15 @@ fn tools_menu(actions: &CanvasActions) -> MenuNode {
         TOOLS
             .into_iter()
             .map(|tool| act(&actions.tool(tool)))
+            .chain([MenuNode::Separator])
+            .chain(actions.pixel.iter().map(act))
+            .chain([MenuNode::Separator])
+            .chain(actions.raster.all().into_iter().map(act))
             .chain([
                 MenuNode::Separator,
                 act(&actions.tool_lock),
                 act(&actions.bind_lines),
+                act(&actions.snap),
             ])
             .collect(),
     )
@@ -119,6 +124,7 @@ fn profile_menu(actions: &CanvasActions) -> MenuNode {
         vec![
             MenuNode::labelled(&actions.prototyping, "Prototyping"),
             MenuNode::labelled(&actions.vector, "Vector"),
+            MenuNode::labelled(&actions.raster_profile, "Raster"),
         ],
     )
 }

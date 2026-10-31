@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -49,11 +50,19 @@ impl Bounds {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Serialize)]
 pub struct Cells {
     size: u8,
     bounds: Bounds,
-    bytes: Vec<u8>,
+    bytes: Arc<Vec<u8>>,
+}
+
+impl PartialEq for Cells {
+    fn eq(&self, other: &Self) -> bool {
+        self.size == other.size
+            && self.bounds == other.bounds
+            && (Arc::ptr_eq(&self.bytes, &other.bytes) || self.bytes == other.bytes)
+    }
 }
 
 impl Cells {
@@ -61,7 +70,7 @@ impl Cells {
         Self {
             size,
             bounds,
-            bytes: vec![0; bounds.area() * usize::from(size)],
+            bytes: Arc::new(vec![0; bounds.area() * usize::from(size)]),
         }
     }
 
@@ -76,7 +85,7 @@ impl Cells {
             (Stored::from("top"), Stored::from(self.bounds.top)),
             (Stored::from("width"), Stored::from(self.bounds.width)),
             (Stored::from("height"), Stored::from(self.bounds.height)),
-            (Stored::from("cells"), Stored::Bytes(self.bytes.clone())),
+            (Stored::from("cells"), Stored::Bytes(self.bytes.to_vec())),
         ])
     }
 
@@ -105,7 +114,7 @@ impl Cells {
         (bytes.len() == expected).then_some(Self {
             size,
             bounds,
-            bytes,
+            bytes: Arc::new(bytes),
         })
     }
 
@@ -136,11 +145,11 @@ impl Cells {
         if value.len() != size {
             return false;
         }
-        let held = &mut self.bytes[index * size..index * size + size];
-        if held == value {
+        let at = index * size..index * size + size;
+        if self.bytes[at.clone()] == *value {
             return false;
         }
-        held.copy_from_slice(value);
+        Arc::make_mut(&mut self.bytes)[at].copy_from_slice(value);
         true
     }
 

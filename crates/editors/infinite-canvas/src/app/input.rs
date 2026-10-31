@@ -1,12 +1,13 @@
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use block_editor_beui::reactive::{Get, untrack};
 use infinite_canvas_types::{
-    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasProfile, CanvasShape, CanvasTransform,
 };
 use uuid::Uuid;
 
 use crate::freehand::Ink;
 use crate::geometry::*;
+use crate::raster::PixelTool;
 
 use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
 
@@ -100,6 +101,9 @@ impl CanvasState {
             }
         }
         let tool = match press.pen.is_some_and(|pen| pen.eraser) {
+            true if self.profile.get_untracked() == CanvasProfile::Raster => {
+                Tool::Pixel(PixelTool::Eraser)
+            }
             true => Tool::Eraser,
             false => self.tool_for(press),
         };
@@ -124,6 +128,7 @@ impl CanvasState {
                     pointer: world,
                     from_center: press.modifiers.alt,
                     detached: press.modifiers.ctrl,
+                    snapped: self.snaps.get_untracked(),
                 }));
             }
             Tool::Pen => {
@@ -137,6 +142,7 @@ impl CanvasState {
                 }));
             }
             Tool::Eraser => self.begin_erasing(world),
+            Tool::Pixel(pixel) => self.press_raster(pixel, world, press.modifiers.shift),
         }
     }
 
@@ -237,6 +243,7 @@ impl CanvasState {
                 preserve_aspect_ratio,
                 scale_text,
                 scale_editors,
+                snapped: self.snaps.get_untracked(),
             }));
             return;
         }
@@ -321,12 +328,14 @@ impl CanvasState {
                 grab,
                 snap: modifiers.shift,
                 detached: modifiers.ctrl,
+                snapped: self.snaps.get_untracked(),
             },
             _ => Gesture::Bend {
                 original,
                 index,
                 current: at,
                 grab,
+                snapped: self.snaps.get_untracked(),
             },
         }));
     }
@@ -355,9 +364,16 @@ impl CanvasState {
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         let modifiers = press.modifiers;
-        if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
-            self.erase_toward(world, modifiers.alt);
-            return;
+        match self.gesture.get_untracked() {
+            Some(Gesture::Erase { .. }) => {
+                self.erase_toward(world, modifiers.alt);
+                return;
+            }
+            Some(Gesture::Raster { .. }) => {
+                self.drag_raster(world, modifiers.shift);
+                return;
+            }
+            _ => {}
         }
         let scale = self.scale();
         let pen_step = 1.0 / scale;
@@ -455,7 +471,7 @@ impl CanvasState {
                     || *force_preserve_aspect_ratio
                     || *default_preserve_aspect_ratio != modifiers.shift;
             }
-            Gesture::Erase { .. } => {}
+            Gesture::Erase { .. } | Gesture::Raster { .. } => {}
             Gesture::Pen {
                 points,
                 pressures,
@@ -508,7 +524,10 @@ impl CanvasState {
             return false;
         }
         if press.key == Key::Escape {
-            if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
+            if matches!(
+                self.gesture.get_untracked(),
+                Some(Gesture::Erase { .. } | Gesture::Raster { .. })
+            ) {
                 self.begin_gesture(None);
             } else if self.focused_editor.get_untracked().is_some() {
                 self.focus_editor(None);
@@ -532,18 +551,22 @@ impl CanvasState {
             _ => None,
         };
         if let Some((x, y)) = nudge {
+            let before = self.selected_unlocked();
             let amount = match modifiers.shift {
                 true => 10.0,
                 false => 1.0,
             };
-            let before = self.selected_unlocked();
+            let snapped = self.snaps.get_untracked();
             let after = before
                 .iter()
                 .cloned()
                 .map(|mut entity| {
                     entity.transform.center.x += x * amount;
                     entity.transform.center.y += y * amount;
-                    entity
+                    match snapped {
+                        true => super::state::moved_to_whole_units(entity),
+                        false => entity,
+                    }
                 })
                 .collect();
             self.record_update(before, after);
@@ -583,7 +606,12 @@ impl CanvasState {
                 text.placeholder = "Text".into();
                 text
             }
-            Tool::Select | Tool::Lasso | Tool::Pen | Tool::Eraser | Tool::Frame => {
+            Tool::Select
+            | Tool::Lasso
+            | Tool::Pen
+            | Tool::Eraser
+            | Tool::Frame
+            | Tool::Pixel(_) => {
                 self.set_tool(tool);
                 return;
             }

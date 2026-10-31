@@ -751,7 +751,7 @@ built this way: the counter, the checklist (the one first-party type already in
 its plugin's types crate, `crates/editors/checklist/types`), the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
-compiled logic, the infinite canvas, pixel art and text. Implementing the
+compiled logic, the infinite canvas and text. Implementing the
 traits by hand remains possible for content that does not fit. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
@@ -760,8 +760,8 @@ is an object in that clip's list, so reattaching it is a move, a move that
 would make a cycle is refused by the model, and removing a clip takes what is
 attached to it. Its editor still speaks in `VideoOperation`s, which
 `VideoProject::edit_for` turns into edits against the content it is shown, and
-reads a flattened `Video` for its timeline. The logic game, the logic grid, the
-canvas and pixel art work the same way: the editor speaks in an operation enum
+reads a flattened `Video` for its timeline. The logic game, the logic grid and the
+canvas work the same way: the editor speaks in an operation enum
 as a command, and `edit_for` on the content turns a command into an edit
 against the content as it is now. The logic grid computes that by applying the
 command to the grid it reads back and writing the fields that differ, so its
@@ -776,7 +776,7 @@ in general fields rather than a variant per tool, and an arrow end bound to a
 shape is stored as the shape's id and an anchor and resolved when the canvas is
 read (stopping a gap short of its outline), so it follows a shape a peer moved
 without anyone rewriting the arrow
-(`plans/canvas.md`, Where it stands). Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
+(`plans/canvas.md`, Where it stands). The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 
@@ -1431,7 +1431,7 @@ replacement wins outright: whatever a replica had not saved when the replacement
 reached it is written as a stash commit that becomes a parent of a later head, so
 it stays in the block's history, and nothing is replayed on top
 (guides/type_modules.md, "Peers"). The image, audio and PDF
-editors' "replace" buttons and the pixel art export's regeneration all go this
+editors' "replace" buttons and compiled logic's regeneration all go this
 way. `content_file_creation::<C>` is the creation view that makes a block of a
 file type from the file the user picks.
 
@@ -2291,8 +2291,8 @@ canvas's `CanvasCursor::caret` (which also names the entity) both carry one.
 
 Dynamic artifacts reach content from the artifact session through the
 host: `EditorHost::content_of` gives a regeneration a projection of its source,
-and `EditorHost::replace_content` writes the result. Compiled logic and the
-pixel art export regenerate this way.
+and `EditorHost::replace_content` writes the result. Compiled logic
+regenerates this way.
 
 ## What is not built yet
 

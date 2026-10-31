@@ -17,6 +17,7 @@ fn a_canvas_profile_is_kept_but_never_undone() {
         &canvas,
         &InfiniteCanvasOperation::Add {
             entity: Box::new(shape),
+            pixels: None,
         },
     );
     let both = Edit(

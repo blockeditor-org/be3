@@ -20,8 +20,10 @@ pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod layers;
 pub(crate) mod menu;
+pub(crate) mod mode;
 pub(crate) mod overlay;
 pub(crate) mod paint;
+pub(crate) mod raster;
 pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
 pub(crate) mod sketch;
@@ -34,6 +36,8 @@ pub(crate) mod touch;
 use actions::canvas_actions;
 use canvas::CanvasStage;
 use export::ExportDialog;
+use mode::{MODE, ModeBar};
+use raster::RasterDialogs;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
@@ -96,7 +100,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
+        chrome.get() && state.profile.get() != infinite_canvas_types::CanvasProfile::Prototyping
     });
     let scope = NodeRef::new();
     action_scope(&scope);
@@ -116,6 +120,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                         <TouchSetting editor choice={touch} />
                         <ImportError state={state} />
                         <ExportDialog exporter />
+                        <RasterDialogs state />
                         <List
                             @sizing=ItemSize::Percent(100.0)
                             direction=Direction::Horizontal
@@ -130,6 +135,13 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     </List>
                 </DockTab>
             </DockPane>
+            <DockBar
+                id=MODE
+                parent=STAGE
+                placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
+            >
+                <ModeBar open />
+            </DockBar>
             <DockBar
                 id=TOOLS
                 parent=STAGE
