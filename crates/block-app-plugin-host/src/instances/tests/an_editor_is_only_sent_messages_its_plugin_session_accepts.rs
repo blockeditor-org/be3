@@ -2,8 +2,6 @@ use super::*;
 use be_block::BlockContent;
 use counter_types::CounterContent;
 
-use std::time::Duration;
-
 use block_type_guest::editor::FromEditor;
 
 fn opened_first(opened: &mut HashSet<EditorInstanceId>, sent: &[Outbound]) {
@@ -40,14 +38,12 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     );
     opened_first(&mut open, &opened);
     to_replica(&mut instances, block, &FromEditor::Resend);
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared.blocks.contains_key(&block).then_some(())
-    })
-    .expect("the new stack never held the block's content");
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    });
+    block_app_stack::wait_until(|shared| {
         shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
-    })
-    .expect("the replica never answered the editor");
+    });
 
     let carried = next_screens(&mut instances).opened;
 

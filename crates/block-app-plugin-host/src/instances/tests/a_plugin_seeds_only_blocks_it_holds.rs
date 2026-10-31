@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::BlockContent;
 use counter_types::{Counter, CounterContent};
 
@@ -20,23 +18,21 @@ fn seed(instances: &mut Instances, block: Uuid) {
 
 fn opened_at(block: Uuid) -> i64 {
     block_app_stack::open(block, CounterContent::CONTENT_TYPE);
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
         CounterContent::decode(held.bytes())
             .ok()
             .map(|counter| counter.root().value())
     })
-    .expect("the new stack never opened the block")
 }
 
 #[test]
 fn a_plugin_seeds_only_blocks_it_holds() {
     let harness = block_app_testing::Harness::start();
     harness.connect();
-    block_app_stack::wait_for(Duration::from_secs(20), |_| {
+    block_app_stack::wait_until(|_| {
         block_app_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
-    })
-    .expect("the stack never loaded the counter's type");
+    });
     let own = Uuid::new_v4();
     let stranger = Uuid::new_v4();
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);

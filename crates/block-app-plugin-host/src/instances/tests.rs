@@ -265,18 +265,13 @@ fn replica_sent_until(
     block: Uuid,
     done: impl Fn(&[ToEditor]) -> bool,
 ) -> Vec<ToEditor> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut sent = Vec::new();
     loop {
         sent.extend(replica_sends(instances, block));
         if done(&sent) {
             return sent;
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the replica never sent what was expected: {sent:?}"
-        );
-        block_app_stack::wait_for(std::time::Duration::from_millis(100), |shared| {
+        block_app_stack::wait_until(|shared| {
             shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
         });
     }

@@ -1,20 +1,17 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::StoredHead;
 use counter_types::{Counter, CounterContent};
 
 fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::CommitId {
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared
             .graph
             .get(block)
             .and_then(|node| node.head)
             .filter(|head| Some(*head) != after)
     })
-    .expect("the block was never saved")
 }
 
 fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, String>> {

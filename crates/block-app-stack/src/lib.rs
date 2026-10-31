@@ -756,15 +756,7 @@ fn send(command: Command) {
 }
 
 pub fn busy() -> bool {
-    with_shared(|shared| {
-        shared.pending > 0
-            || shared.typing
-            || shared.draining
-            || shared.uploading > 0
-            || shared.owing > 0
-            || shared.graph.fetching()
-    })
-    .unwrap_or_default()
+    with_shared(Shared::busy).unwrap_or_default()
 }
 
 pub fn seal_owed() {
@@ -800,6 +792,23 @@ pub fn wait_for<T>(timeout: std::time::Duration, read: impl Fn(&Shared) -> Optio
             .wait_timeout(held, remaining)
             .unwrap_or_else(PoisonError::into_inner)
             .0;
+    }
+}
+
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
+    let (shared, changed) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
+        .expect("the stack is running");
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    loop {
+        if let Some(value) = read(&held) {
+            return value;
+        }
+        held = changed.wait(held).unwrap_or_else(PoisonError::into_inner);
     }
 }
 

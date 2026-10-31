@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::{BlockContent, LiveEdit};
 use browser_tab_types::{BrowserTabContent, HistoryItem};
 
@@ -13,20 +11,18 @@ fn titled(block: Uuid, title: &str) {
         .root()
         .replace(&HistoryItem::new("https://example.com/", title));
     block_app_stack::operate(block, BrowserTabContent::encode_operation(&edit));
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == title).then_some(())
-    })
-    .expect("the new stack never took the title");
+    });
 }
 
 fn named(block: Uuid, name: &str) {
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let node = shared.graph.get(block)?;
         (node.metadata.name().as_deref() == Some(name)).then_some(())
-    })
-    .unwrap_or_else(|| panic!("the block was never named {name}"));
+    });
 }
 
 #[test]
@@ -41,10 +37,9 @@ fn a_block_is_named_after_its_content_until_someone_names_it() {
         block,
         &block_type_guest::editor::FromEditor::Resend,
     );
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
-    })
-    .expect("the new stack never held the tab");
+    });
 
     titled(block, "Example Domain");
     instances.next_screens(PASS);

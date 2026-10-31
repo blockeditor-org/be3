@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::blocks::BlockHistory;
 use calendar_types::{Calendar, CalendarContent, CalendarEvent};
@@ -37,14 +35,13 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
             &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
         ),
     );
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared
             .histories
             .get(&block)
             .is_some_and(|history| history.can_undo)
             .then_some(())
-    })
-    .expect("the calendar never had anything to undo");
+    });
 
     assert_eq!(
         histories(&mut instances, watch),

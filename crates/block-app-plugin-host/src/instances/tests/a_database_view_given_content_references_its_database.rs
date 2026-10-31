@@ -1,8 +1,6 @@
 use super::*;
 use uuid::Uuid;
 
-use std::time::Duration;
-
 use be_block::BlockContent;
 use database_types::database_view::{DatabaseView, DatabaseViewContent};
 
@@ -28,10 +26,9 @@ fn a_database_view_given_content_references_its_database() {
     let view = Uuid::new_v4();
     let (database, other) = (Uuid::new_v4(), Uuid::new_v4());
     let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
-    block_app_stack::wait_for(Duration::from_secs(20), |_| {
+    block_app_stack::wait_until(|_| {
         block_app_stack::is_known(DatabaseViewContent::CONTENT_TYPE).then_some(())
-    })
-    .expect("the stack never started the database's type module");
+    });
 
     seed(&mut instances, view, database);
     block_app_stack::flush();
@@ -41,18 +38,16 @@ fn a_database_view_given_content_references_its_database() {
         &block_type_guest::editor::FromEditor::Resend,
     );
     instances.next_screens(PASS);
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let held = shared.blocks.get(&view)?;
         (database_in(held.bytes()) == Some(database)).then_some(())
-    })
-    .expect("the view never took the content it was given");
+    });
 
     block_app_stack::flush();
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         let node = shared.graph.get(view)?;
         (node.references == [database]).then_some(())
-    })
-    .expect("the graph never learned what the view references");
+    });
 
     seed(&mut instances, view, other);
     block_app_stack::flush();

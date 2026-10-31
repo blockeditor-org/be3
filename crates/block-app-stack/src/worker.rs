@@ -421,6 +421,15 @@ impl Shared {
     pub fn touch(&mut self, block: Uuid) {
         self.touched.insert(block);
     }
+
+    pub fn busy(&self) -> bool {
+        self.pending > 0
+            || self.typing
+            || self.draining
+            || self.uploading > 0
+            || self.owing > 0
+            || self.graph.fetching()
+    }
 }
 
 pub(super) type Store = be_store::FileStore;

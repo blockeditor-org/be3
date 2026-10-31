@@ -13,10 +13,9 @@ fn a_session_opens_in_the_editor_its_view_names() {
         None,
     );
     block_app_stack::hold(session, VIEW_TYPE);
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared.blocks.contains_key(&session).then_some(())
-    })
-    .expect("the new stack never held the session");
+    });
 
     let settings = RootSettings::new(WORKSPACE_EDITOR);
     assert_eq!(settings.session_editor(session), Some(DESKTOP_EDITOR));

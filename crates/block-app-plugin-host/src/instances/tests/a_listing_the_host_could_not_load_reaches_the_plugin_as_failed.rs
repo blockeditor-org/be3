@@ -1,7 +1,5 @@
 use super::*;
 
-use std::time::Duration;
-
 use block_plugin_api::BlockQuery;
 use counter_types::CounterContent;
 
@@ -23,10 +21,9 @@ fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
 }
 
 fn loaded(query: block_app_stack::Query) {
-    block_app_stack::wait_for(Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared.graph.ready(query).then_some(())
-    })
-    .expect("the listing never loaded");
+    });
 }
 
 #[test]

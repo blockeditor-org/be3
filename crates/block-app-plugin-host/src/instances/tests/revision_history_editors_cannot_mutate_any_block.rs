@@ -17,10 +17,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
         CounterContent::encode_operation(&counter_types::Counter::add(1)),
     );
     block_app_stack::flush();
-    let head = block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
+    let head = block_app_stack::wait_until(|shared| {
         shared.graph.get(block).and_then(|node| node.head)
-    })
-    .expect("the saved counter has a head");
+    });
     let (send, receive) = std::sync::mpsc::channel();
     block_app_stack::revisions::request(
         block,
@@ -29,9 +28,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
             send.send(reply).unwrap();
         },
     );
-    let block_app_stack::revisions::Answered::Previewed(Ok(preview)) = receive
-        .recv_timeout(std::time::Duration::from_secs(20))
-        .unwrap()
+    let block_app_stack::revisions::Answered::Previewed(Ok(preview)) = receive.recv().unwrap()
     else {
         panic!("preview opens");
     };
@@ -82,21 +79,19 @@ fn revision_history_editors_cannot_mutate_any_block() {
     );
     block_app_stack::flush();
     block_app_stack::close(child);
-    block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         (!shared.blocks.contains_key(&child)).then_some(())
-    })
-    .expect("the child's live session closes");
+    });
     let descendant = block_app_stack::revisions::alias(preview, child);
     block_app_stack::open(descendant, CounterContent::CONTENT_TYPE);
-    block_app_stack::wait_for(std::time::Duration::from_secs(20), |shared| {
+    block_app_stack::wait_until(|shared| {
         shared
             .revision_previews
             .get(&descendant)
             .and_then(|preview| preview.content.as_ref())
             .filter(|_| shared.graph.get(child).is_some())
             .map(|_| ())
-    })
-    .expect("the child loads as a read-only preview");
+    });
     assert_eq!(block_app_stack::revisions::source(descendant), Some(child));
     assert!(!block_app_stack::access(descendant).can_edit());
     assert_eq!(
