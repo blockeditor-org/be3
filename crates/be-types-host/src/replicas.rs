@@ -311,6 +311,7 @@ struct Open {
     made_up: bool,
     early: Vec<Replayed>,
     unreported: bool,
+    reporting: Option<CommitId>,
 }
 
 pub struct Replicas<H: Host> {
@@ -696,6 +697,7 @@ impl<H: Host> Replicas<H> {
                 made_up: joining,
                 early: Vec::new(),
                 unreported: false,
+                reporting: None,
             },
         );
         if reader {
@@ -792,6 +794,7 @@ impl<H: Host> Replicas<H> {
         open.publishing = 0;
         open.moved.clear();
         open.published.clear();
+        open.reporting = None;
         open.status.head = head;
         open.replay.retain(Replayed::local_edit);
         let (module, handle) = (open.module, open.handle);
@@ -1135,6 +1138,10 @@ impl<H: Host> Replicas<H> {
         self.keeping = false;
     }
 
+    pub fn reported(&self) -> bool {
+        self.open.values().all(|open| open.reporting.is_none())
+    }
+
     pub fn take_kept(&mut self) -> bool {
         std::mem::take(&mut self.kept)
     }
@@ -1173,7 +1180,8 @@ impl<H: Host> Replicas<H> {
             reply,
             ..
         } = unanswered;
-        if self.modules.generation(module) == generation {
+        let delivered = self.modules.generation(module) == generation;
+        if delivered {
             self.modules
                 .call(module, |connection| reply.send(connection, &result));
         }
@@ -1182,6 +1190,12 @@ impl<H: Host> Replicas<H> {
         };
         if open.epoch != epoch {
             return;
+        }
+        if delivered
+            && let Ok(PublishOutcome::Published(head)) = result
+            && open.status.head != Some(head)
+        {
+            open.reporting = Some(head);
         }
         open.publishing = open.publishing.saturating_sub(1);
         if let Some(head) = published {
@@ -1579,7 +1593,8 @@ impl<H: Host> Replicas<H> {
                 published,
             } => {
                 let heads = answer.heads();
-                if self.modules.generation(module) == generation {
+                let delivered = self.modules.generation(module) == generation;
+                if delivered {
                     self.modules
                         .call(module, |connection| answer.send(connection));
                 }
@@ -1588,6 +1603,12 @@ impl<H: Host> Replicas<H> {
                 };
                 if open.epoch != epoch {
                     return;
+                }
+                if delivered
+                    && let Some(head) = published
+                    && open.status.head != Some(head)
+                {
+                    open.reporting = Some(head);
                 }
                 if heads {
                     open.publishing = open.publishing.saturating_sub(1);
@@ -2157,6 +2178,9 @@ impl<H: Host> Replicas<H> {
                     return false;
                 };
                 open.unreported = false;
+                if open.reporting.is_some() && open.status.head != status.head {
+                    open.reporting = None;
+                }
                 if status.clean && status.head.is_some() && !status.owes_seal {
                     open.replay.clear();
                 }
