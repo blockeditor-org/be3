@@ -929,7 +929,7 @@ impl Session<'_> {
                         self.tasks.0.sync(peer, shared);
                     }
                 }
-                if !self.tasks.0.syncing() || !self.line.is_up() {
+                if (!self.tasks.0.syncing() || !self.line.is_up()) && self.replicas.reported() {
                     kept_for_flushes = false;
                     for done in flushes.drain(..) {
                         let _ = done.send(());
