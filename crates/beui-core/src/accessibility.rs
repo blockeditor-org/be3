@@ -784,10 +784,11 @@ impl Document {
             tree.mark(id, &self.arena);
         }
         let inert = self.inert_roots();
-        for id in inert.symmetric_difference(&tree.inert) {
-            tree.mark(*id, &self.arena);
+        let held = std::mem::replace(&mut tree.inert, inert);
+        let toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
+        for id in toggled {
+            tree.mark(id, &self.arena);
         }
-        tree.inert = inert;
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
 

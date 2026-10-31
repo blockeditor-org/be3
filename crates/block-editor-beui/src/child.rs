@@ -1,6 +1,5 @@
 use beui::NodeId;
 use beui::icons::Glyph;
-use beui::primitives::use_modal;
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;

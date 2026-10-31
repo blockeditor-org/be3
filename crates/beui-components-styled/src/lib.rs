@@ -77,8 +77,8 @@ pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Offset, Overlay,
-    Portal, SystemBars, TextChild, TextItem, VirtualList,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Modality, Offset,
+    Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList, use_modal,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;

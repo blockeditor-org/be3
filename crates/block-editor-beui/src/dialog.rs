@@ -1,7 +1,6 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use beui::primitives::Modality;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{BackGesture, Key, KeyAt, KeyPhase, NodeId};
