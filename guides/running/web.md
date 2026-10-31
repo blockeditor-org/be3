@@ -57,7 +57,8 @@ the launcher's browser.
 A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
 than drawing them. Its bundle answers the reading commands of `drive` through
 `beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
-app's line format, `find`, `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
+app's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
+has revealed it, or as it is), `wait`, `gone`, `settle`, `pause` and `clock stop|run`. Input does
 not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
 does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
 shares its command parsing with web-drive.mjs (buck/app/drive-words.mjs).
