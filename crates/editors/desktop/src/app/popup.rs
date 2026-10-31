@@ -49,9 +49,7 @@ pub(crate) fn BarPopup(
             bounds
             leading
         >|handle: PopoverHandle|
-            <Scroll max_length bleed=Bleed::POPOVER>
-                {content.call(handle)}
-            </Scroll>
+            <Scroll max_length bleed=Bleed::POPOVER>{content.call(handle)}</Scroll>
         </Popover>
     }
 }
