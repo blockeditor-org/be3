@@ -1488,11 +1488,13 @@ struct BuiltChildren {
 pub(crate) struct ChildNodes {
     shared: Stored<BuiltChildren>,
     mount: u64,
+    child_view: ChildView,
 }
 
 impl ChildNodes {
     pub(crate) fn joining(shares: Option<ChildNodes>, joined: Joined) -> Self {
         let mount = joined.mount;
+        let child_view = joined.child_view;
         let shared = match shares.filter(|shares| shares.shared.is_alive()) {
             Some(shares) => {
                 let views = shares.shared.with(|held| held.views);
@@ -1506,7 +1508,11 @@ impl ChildNodes {
             }
             None => Self::root(joined),
         };
-        Self { shared, mount }
+        Self {
+            shared,
+            mount,
+            child_view,
+        }
     }
 
     fn root(joined: Joined) -> Stored<BuiltChildren> {
@@ -1550,14 +1556,8 @@ impl ChildNodes {
             }
             return node;
         }
-        let (views, region) = self
-            .shared
-            .with(|held| (held.views, held.region.clone()));
-        let Some(asking) = joined(views, self.mount) else {
-            return view! {
-                <Frame />
-            };
-        };
+        let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));
+        let child_view = self.child_view;
         let mount = self.mount;
         let build = move || {
             let holder = create_signal(mount);
@@ -1581,18 +1581,12 @@ impl ChildNodes {
                         .cloned()
                 })
             });
-            let rect = create_memo(move || {
-                following().map_or(Rect::ZERO, |view| view.rect.get())
-            });
-            let anchors = create_memo(move || {
-                following().and_then(|view| view.anchors.get())
-            });
-            let encloses = create_memo(move || {
-                following().and_then(|view| view.encloses.get())
-            });
+            let rect = create_memo(move || following().map_or(Rect::ZERO, |view| view.rect.get()));
+            let anchors = create_memo(move || following().and_then(|view| view.anchors.get()));
+            let encloses = create_memo(move || following().and_then(|view| view.encloses.get()));
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
-            let node = asking.child_view.with(|view| view(key, child, rect));
+            let node = child_view.with(|view| view(key, child, rect));
             (node, holder)
         };
         let scope = region.as_ref().and_then(super::anchored::closed_with);

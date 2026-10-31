@@ -1,3 +1,3 @@
 use super::*;
-mod a_pan_drag_asked_for_late_pans_from_the_press;
 mod a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_it;
+mod a_pan_drag_asked_for_late_pans_from_the_press;
