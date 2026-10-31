@@ -103,10 +103,16 @@ impl Future for Answered {
 }
 
 pub fn timed_out(timeout: Duration, inbox: &Inbox) -> String {
-    let state = inbox.inner.lock().unwrap_or_else(|poison| poison.into_inner());
+    let state = inbox
+        .inner
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let mut text = format!("timed out after {} seconds", timeout.as_secs_f32());
     if !state.busy.is_empty() {
-        text.push_str(&format!("; the app was still busy: {}", state.busy.join("; ")));
+        text.push_str(&format!(
+            "; the app was still busy: {}",
+            state.busy.join("; ")
+        ));
     }
     if let Some(held) = &state.held {
         text.push_str(&format!("; {held}"));
