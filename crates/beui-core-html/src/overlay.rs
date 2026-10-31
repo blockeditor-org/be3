@@ -778,7 +778,9 @@ mod web {
     }
 
     fn anchored_above(layer: &Layer) -> bool {
-        let OverlayAnchor::Node(node) = layer.anchor.borrow().clone() else {
+        let (OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. }) =
+            layer.anchor.borrow().clone()
+        else {
             return false;
         };
         let Some(anchor) = node.try_get().and_then(crate::dom::dom) else {
