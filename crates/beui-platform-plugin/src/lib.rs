@@ -78,6 +78,7 @@ impl Platform for PluginPlatform {
                 described: Vec::new(),
                 focused: HashSet::default(),
                 toggles: HashMap::default(),
+                toggled: 0,
                 overflows: Vec::new(),
                 floated: HashMap::default(),
                 asks: Vec::new(),
@@ -163,6 +164,7 @@ struct ModuleRunner {
     described: Vec<(ViewRef, u64)>,
     focused: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
+    toggled: u32,
     overflows: Vec<(WindowId, String)>,
     floated: HashMap<WindowId, Floated>,
     asks: Vec<(ViewRef, block_plugin_api::WindowRequest)>,
@@ -487,6 +489,27 @@ impl ModuleRunner {
             .map(|(id, _)| *id)
     }
 
+    fn count_toggles(&mut self, regions: &[ShownView], active: Option<ViewRef>) {
+        let Some(output) = self.runner.output() else {
+            return;
+        };
+        let toggled = output.main().window.requests.keyboard_toggles;
+        let asked = toggled.wrapping_sub(std::mem::replace(&mut self.toggled, toggled));
+        if asked == 0 {
+            return;
+        }
+        let shown = |id: &ViewRef| regions.iter().any(|region| region.id() == *id);
+        let Some(view) = active
+            .filter(shown)
+            .or_else(|| self.keyboard_view())
+            .or_else(|| regions.first().map(ShownView::id))
+        else {
+            return;
+        };
+        let count = self.toggles.entry(view).or_default();
+        *count = count.wrapping_add(asked);
+    }
+
     fn requests(&mut self, id: ViewRef, keyboard: Option<ViewRef>, ratio: f32) -> WindowRequests {
         let Some(output) = self.runner.output() else {
             return WindowRequests::default();
@@ -496,7 +519,6 @@ impl ModuleRunner {
             .and_then(|window| output.window(window))
             .map_or_else(WindowState::default, |output| output.window.clone());
         let main = &output.main().window.requests;
-        let toggles = self.toggles.entry(id).or_insert(main.keyboard_toggles);
         if keyboard == Some(id) {
             if state.requests.ime.is_none() {
                 state.requests.ime.clone_from(&main.ime);
@@ -510,9 +532,8 @@ impl ModuleRunner {
                 .clone_from(&main.intercepted_keys);
             state.requests.pastes.clone_from(&main.pastes);
             state.requests.clipboard_keys = main.clipboard_keys;
-            *toggles = main.keyboard_toggles;
         }
-        state.requests.keyboard_toggles = *toggles;
+        state.requests.keyboard_toggles = self.toggles.get(&id).copied().unwrap_or(0);
         state.scaled(ratio.recip()).requests
     }
 
@@ -801,6 +822,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
+        self.count_toggles(regions, active);
         self.overflows = self
             .runner
             .output()

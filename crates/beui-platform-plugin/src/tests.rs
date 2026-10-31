@@ -17,6 +17,7 @@ use super::*;
 use beui_host::native::build;
 
 mod a_copy_in_a_view_reaches_the_host;
+mod a_keyboard_toggle_reaches_the_host_once_from_the_view_it_was_asked_in;
 mod a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view;
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
 mod a_view_describes_itself_and_does_what_a_screen_reader_asks;
