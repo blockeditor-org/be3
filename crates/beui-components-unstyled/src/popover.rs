@@ -1,5 +1,6 @@
 use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
+use beui_view::components::overlay::use_modal;
 use beui_view::types::LayerPolicy;
 use beui_view::types::icons::Glyph;
 
@@ -134,11 +135,15 @@ pub fn Popover(
 
 #[component]
 fn PopoverSurface(label: Memo<String>, children: Child) -> NodeId {
+    let modal = use_modal();
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Dialog);
         let label = label.get();
         if !label.is_empty() {
             node.set_label(label);
+        }
+        if modal.get() {
+            node.set_modal();
         }
         node
     }));

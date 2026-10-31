@@ -2,7 +2,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Modality, Overlay, use_modal};
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -218,6 +218,7 @@ pub fn DialogBody(
             _ => action.on_click.call(),
         }
     });
+    let modal = use_modal();
     component_accessibility(create_memo(move || {
         let mut node = Node::new(match kind {
             DialogKind::Alert => Role::AlertDialog,
@@ -226,6 +227,9 @@ pub fn DialogBody(
         let title = title.get();
         if !title.is_empty() {
             node.set_label(title);
+        }
+        if modal.get() {
+            node.set_modal();
         }
         node
     }));
@@ -473,6 +477,7 @@ pub fn Dialog(
         bottom_inset: create_memo(|| 0.0),
     };
     provide_context(layout);
+    provide_context(Modality(create_memo(|| true)));
     let mut ever = false;
     let opened = create_memo(move || {
         ever |= open.get();

@@ -2,7 +2,7 @@ use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Modality, Overlay};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -311,6 +311,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let control = DockTabControl::local(tab, dock.state, dock);
     let body = scope.context().run(|| {
         provide_context(control);
+        provide_context(Modality(create_memo(|| false)));
         content.call(())
     });
     store(scope);

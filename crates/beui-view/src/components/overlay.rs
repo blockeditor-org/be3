@@ -36,7 +36,11 @@ pub fn Overlay(
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
-    let presence = OverlayPresence::new(create_memo(move || open.get()));
+    let blocks = policy.clone();
+    let presence = OverlayPresence::new(
+        create_memo(move || open.get()),
+        create_memo(move || blocks.get() == LayerPolicy::BlocksAll),
+    );
     crate::core::overlay(
         anchor,
         placement,
@@ -62,15 +66,21 @@ pub fn Overlay(
 #[derive(Clone, Copy)]
 pub struct OverlayPresence {
     open: Memo<bool>,
+    modal: Memo<bool>,
     lingering: Signal<Vec<Memo<bool>>>,
 }
 
 impl OverlayPresence {
-    pub(crate) fn new(open: Memo<bool>) -> Self {
+    pub(crate) fn new(open: Memo<bool>, modal: Memo<bool>) -> Self {
         Self {
             open,
+            modal,
             lingering: create_signal(Vec::new()),
         }
+    }
+
+    pub(crate) fn modality(self) -> Modality {
+        Modality(self.modal)
     }
 
     pub(crate) fn lingering(self) -> Signal<Vec<Memo<bool>>> {
@@ -97,4 +107,12 @@ impl OverlayPresence {
 
 pub fn use_overlay_presence() -> Option<OverlayPresence> {
     use_context::<OverlayPresence>()
+}
+
+#[derive(Clone, Copy)]
+pub struct Modality(pub Memo<bool>);
+
+pub fn use_modal() -> Memo<bool> {
+    let held = use_context::<Modality>();
+    create_memo(move || held.is_some_and(|Modality(modal)| modal.get()))
 }

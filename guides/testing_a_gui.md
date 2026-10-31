@@ -477,7 +477,8 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   only, for scripts that run nowhere else (crates/beui-demo-html's): `selection none|some`,
   `role ROLE NAME [STATE...]`, which waits for Playwright's `getByRole` to find exactly one
   element with that ARIA role, exact name and states (`checked`, `selected`, `not-checked`,
-  `level=2`, ...), and `roles ROLE COUNT`, which waits for exactly COUNT visible elements with
+  `level=2`, ...; `modal`/`not-modal` read Chrome's own accessibility tree over CDP, since
+  Playwright has no such query), and `roles ROLE COUNT`, which waits for exactly COUNT visible elements with
   that role, whatever their names (`roles dialog 1` while one dialog is open). It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
   failing on any line that is not `ok`. It runs on this machine, not a worker, which have no

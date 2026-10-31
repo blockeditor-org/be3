@@ -114,6 +114,7 @@ pub(crate) fn overlay(
                         });
                         let built = scope.context().run(|| {
                             provide_context(presence);
+                            provide_context(presence.modality());
                             content.call(())
                         });
                         layered.fill(slot, vec![built]);
