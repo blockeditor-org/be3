@@ -28,6 +28,7 @@ struct Running {
 #[derive(Clone, Default)]
 struct Launched {
     program: Option<String>,
+    name: String,
     launch: Option<u64>,
     block: Option<uuid::Uuid>,
 }
@@ -40,14 +41,19 @@ thread_local! {
     static NAMES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
-fn tag(program: Option<String>, launch: Option<u64>, block: Option<uuid::Uuid>) -> Option<u64> {
+fn tag(
+    program: Option<&DesktopEntry>,
+    launch: Option<u64>,
+    block: Option<uuid::Uuid>,
+) -> Option<u64> {
     if program.is_none() && launch.is_none() {
         return None;
     }
     LAUNCHES.with(|launches| {
         let mut launches = launches.borrow_mut();
         launches.push(Launched {
-            program,
+            program: program.map(|entry| entry.id.clone()),
+            name: program.map(|entry| entry.name.clone()).unwrap_or_default(),
             launch,
             block,
         });
@@ -310,7 +316,10 @@ pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
                 id: HostWindowId(info.id.0),
                 kind: WindowKind::Window,
                 shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
-                name: program_name(&info.app_id),
+                name: match launched.name.is_empty() {
+                    true => program_name(&info.app_id),
+                    false => launched.name.clone(),
+                },
                 title: info.title,
                 app_id: info.app_id,
                 parent: info
@@ -642,7 +651,7 @@ impl Programs {
         windows.run(Launch {
             arguments,
             working_dir: entry.working_dir.clone(),
-            tag: tag(Some(entry.id.clone()), launch, file.map(|(_, block)| block)),
+            tag: tag(Some(entry), launch, file.map(|(_, block)| block)),
         });
         block_app_base::host::wake();
         Ok(())

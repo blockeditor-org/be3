@@ -21,7 +21,7 @@ fn a_program_window_dragged_to_another_display_shows_on_both_on_the_way() {
     );
     assert_eq!(fixture.test.desk_window_scales(), [1.0]);
 
-    let tab = fixture.desk_text("Program 1");
+    let tab = fixture.desk_text("notes-1.txt");
     let grab = pos2(tab.max.x + 80.0, tab.center().y);
     let seam = left.max.x - windows[0].center().x;
     let halfway = grab + vec2(seam, 200.0);

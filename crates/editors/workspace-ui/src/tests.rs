@@ -209,14 +209,29 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .find_map(|child| text_within(&document, child, words))
 }
 
+const PROGRAMS: [(&str, &str); 5] = [
+    ("org.gnome.TextEditor", "Text Editor"),
+    ("org.gnome.Terminal", "Terminal"),
+    ("com.github.PintaProject.Pinta", "Pinta"),
+    ("org.mozilla.firefox", "Firefox"),
+    ("org.gnome.Totem", "Videos"),
+];
+
 fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
+    let (app_id, name) = match parent {
+        Some(_) => ("", ""),
+        None => PROGRAMS
+            .into_iter()
+            .find(|(_, name)| title == *name || title.ends_with(&format!(" - {name}")))
+            .unwrap_or(("", "")),
+    };
     block_editor_beui::HostWindow {
         id: block_editor_beui::HostWindowId(id),
         kind: block_editor_beui::WindowKind::Window,
         shown: true,
         title: title.to_owned(),
-        app_id: "test".to_owned(),
-        name: String::new(),
+        app_id: app_id.to_owned(),
+        name: name.to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),
         modal: false,
         size: block_editor_beui::beui::Vec2::new(320.0, 200.0),

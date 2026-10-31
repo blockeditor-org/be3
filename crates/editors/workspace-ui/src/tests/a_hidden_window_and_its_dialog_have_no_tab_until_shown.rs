@@ -5,7 +5,7 @@ fn a_hidden_window_and_its_dialog_have_no_tab_until_shown() {
     let (mut fixture, _) = editor();
     let hidden = block_editor_beui::HostWindow {
         shown: false,
-        ..window(5, "Paint", None)
+        ..window(5, "Pinta", None)
     };
     fixture.host.set_watched::<WindowsWatch>(&vec![
         hidden.clone(),
@@ -19,7 +19,7 @@ fn a_hidden_window_and_its_dialog_have_no_tab_until_shown() {
         "neither a hidden window nor its dialog is drawn: {placed:?}"
     );
     assert!(fixture.says("Terminal"));
-    assert!(!fixture.says("Paint"));
+    assert!(!fixture.says("Pinta"));
     assert!(!fixture.says("Save as"));
 
     fixture.host.set_watched::<WindowsWatch>(&vec![
@@ -32,7 +32,7 @@ fn a_hidden_window_and_its_dialog_have_no_tab_until_shown() {
     ]);
     fixture.settle();
     assert!(
-        fixture.says("Paint"),
+        fixture.says("Pinta"),
         "shown again, the window has its tab back"
     );
     assert!(fixture.says("Save as"), "and its dialog is back");

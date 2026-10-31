@@ -24,7 +24,7 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     let dialog = HostWindow {
         parent: Some(HostWindowId(1)),
         title: "Preferences".to_owned(),
-        ..host_window(4, false)
+        ..foot(4)
     };
     fixture.show_windows(&[
         HostWindow {

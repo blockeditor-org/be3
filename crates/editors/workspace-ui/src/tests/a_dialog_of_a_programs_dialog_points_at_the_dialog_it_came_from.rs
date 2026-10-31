@@ -9,7 +9,7 @@ fn a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from() {
         ..window(3, "Replace the file?", Some(2))
     };
     fixture.host.set_watched::<WindowsWatch>(&vec![
-        window(1, "Editor", None),
+        window(1, "Text Editor", None),
         window(2, "Save as", Some(1)),
         confirm,
     ]);

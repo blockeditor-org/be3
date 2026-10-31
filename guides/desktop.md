@@ -124,8 +124,9 @@ header, like a program window's tab and its chip, is `block_shell::window_name`,
 a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
 app id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
 then " — " and the window's title when it says more (not the name or app id, a trailing
-" - name" cut off). The Linux host fills `name` from the desktop entry named by the window's app id
-(`Environment::entry`); the Windows host from the Start menu program whose AppUserModelID or
+" - name" cut off). Both hosts first name a window after the program the desktop launched it from
+(`origin.program`). Otherwise the Linux host fills `name` from the desktop entry named by the window's app id
+(`Environment::entry`), and the Windows host from the Start menu program whose AppUserModelID or
 shortcut target is the window's app id or command (guides/desktop/windows.md). A placeholder keeps
 the name (`KeptWindow::name`, `KeptWindow::window_name`), and the "not responding" banner says
 only the program's name. It is the size the program drew (`HostWindow::size`, followed as the

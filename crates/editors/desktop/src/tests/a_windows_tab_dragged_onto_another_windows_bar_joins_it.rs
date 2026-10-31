@@ -15,8 +15,8 @@ fn tab_rect(fixture: &Fixture, title: &str) -> Rect {
 #[test]
 fn a_windows_tab_dragged_onto_another_windows_bar_joins_it() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
-    let first = tab_rect(&fixture, "Program 1");
-    let second = tab_rect(&fixture, "Program 2");
+    let first = tab_rect(&fixture, "notes-1.txt");
+    let second = tab_rect(&fixture, "notes-2.txt");
     let to = Pos2::new(first.max.x + 60.0, first.center().y);
     fixture.test.drag(second.center(), to);
     fixture.settle();

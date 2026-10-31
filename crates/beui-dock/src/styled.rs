@@ -56,7 +56,7 @@ use switch::DockSwitchPanel;
 const TAB_PADDING_HORIZONTAL: Space = Space::Md;
 const TAB_HEIGHT: Size = Size::Toolbar;
 const TAB_RADIUS: Radius = Radius::Tab;
-const DIALOG_RADIUS: Radius = Radius::Lg;
+const CARD_RADIUS: Radius = Radius::Lg;
 const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
 const ROOMY_BAR: f32 = 400.0;
@@ -142,7 +142,7 @@ where
                 <DockDialogFace handle />
             }}
             dialog_beak=POINTER_REACH
-            dialog_radius={DIALOG_RADIUS.px()}
+            dialog_radius={CARD_RADIUS.px()}
             dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER
             tab={move |handle: DockTabHandle| view! {
@@ -546,7 +546,7 @@ pub fn DockCard(
                 @node_ref=&pointer
                 fill=ColorRole::SurfaceRaised
                 border
-                radius=Radius::Lg
+                radius=CARD_RADIUS
                 padding=CHROME_PADDING
             >
                 {body}
@@ -585,7 +585,7 @@ fn draw_card_pointer(
     const TIP_RADIUS: f32 = 2.0;
     let reach = CARD_POINTER;
     let width = CHROME_BORDER;
-    let radius = Radius::Lg.px();
+    let radius = CARD_RADIUS.px();
     let (lowest, highest) = (
         rect.left() + radius + reach + width,
         rect.right() - radius - reach - width,
@@ -655,7 +655,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
             width=width
             fill=ColorRole::SurfaceRaised
             border={dialog_outline(focused, create_memo(move || attention.get()))}
-            radius=DIALOG_RADIUS
+            radius=CARD_RADIUS
             padding=CHROME_PADDING
         >
             <List spacing=Space::None>

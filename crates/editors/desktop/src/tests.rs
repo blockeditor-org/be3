@@ -573,9 +573,9 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         id: HostWindowId(id),
         kind: WindowKind::Window,
         shown: true,
-        title: format!("Program {id}"),
-        app_id: "test".to_owned(),
-        name: String::new(),
+        title: format!("notes-{id}.txt"),
+        app_id: "org.gnome.TextEditor".to_owned(),
+        name: "Text Editor".to_owned(),
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),
@@ -593,13 +593,14 @@ fn program_window(id: u64, app_id: &str, title: &str, origin: WindowOrigin) -> H
     HostWindow {
         title: title.to_owned(),
         app_id: app_id.to_owned(),
+        name: String::new(),
         origin,
         ..host_window(id, false)
     }
 }
 
 fn foot(id: u64) -> HostWindow {
-    program_window(
+    let window = program_window(
         id,
         "foot",
         &format!("Terminal {id}"),
@@ -608,7 +609,11 @@ fn foot(id: u64) -> HostWindow {
             command: vec!["foot".to_owned()],
             launch: None,
         },
-    )
+    );
+    HostWindow {
+        name: "Foot".to_owned(),
+        ..window
+    }
 }
 
 fn notes(id: u64) -> HostWindow {

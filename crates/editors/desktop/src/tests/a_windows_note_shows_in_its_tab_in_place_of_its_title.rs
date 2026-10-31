@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_windows_note_shows_in_its_tab_in_place_of_its_title() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
-    assert!(fixture.says("Program 1"));
+    assert!(fixture.says("notes-1.txt"));
     let noted = HostWindow {
         note: Some("Ctrl+Alt+Space comes back to Block".to_owned()),
         ..host_window(1, true)
@@ -14,7 +14,7 @@ fn a_windows_note_shows_in_its_tab_in_place_of_its_title() {
         "the note is in the window's tab"
     );
     assert_eq!(
-        fixture.times_said("Program 1"),
+        fixture.times_said("notes-1.txt"),
         1,
         "the note takes the title's place in the tab while it is set, and the bar's chip keeps it"
     );
@@ -22,5 +22,5 @@ fn a_windows_note_shows_in_its_tab_in_place_of_its_title() {
 
     fixture.show_windows(&[host_window(1, true), host_window(2, false)]);
     assert!(!fixture.says("Ctrl+Alt+Space comes back to Block"));
-    assert!(fixture.says("Program 1"), "the title comes back");
+    assert!(fixture.says("notes-1.txt"), "the title comes back");
 }

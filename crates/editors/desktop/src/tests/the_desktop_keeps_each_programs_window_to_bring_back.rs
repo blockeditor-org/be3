@@ -27,7 +27,7 @@ fn the_desktop_keeps_each_programs_window_to_bring_back() {
                 key: HostWindowId(1),
                 window: Some(HostWindowId(1)),
                 app_id: "foot".to_owned(),
-                name: String::new(),
+                name: "Foot".to_owned(),
                 title: "Terminal 1".to_owned(),
                 origin: foot(1).origin,
                 fullscreen: false,

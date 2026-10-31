@@ -5,7 +5,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     let (mut fixture, _) = editor();
 
     fixture.host.set_watched::<WindowsWatch>(&vec![
-        window(1, "Editor", None),
+        window(1, "Text Editor", None),
         window(2, "Save changes?", Some(1)),
     ]);
     fixture.settle();
@@ -48,7 +48,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     drop(document);
 
     fixture.host.set_watched::<WindowsWatch>(&vec![
-        window(1, "Editor", None),
+        window(1, "Text Editor", None),
         window(2, "Save changes?", Some(1)),
         window(3, "Terminal", None),
     ]);

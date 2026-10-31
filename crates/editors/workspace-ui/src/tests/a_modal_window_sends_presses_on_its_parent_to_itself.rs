@@ -9,7 +9,7 @@ fn a_modal_window_sends_presses_on_its_parent_to_itself() {
     };
     fixture
         .host
-        .set_watched::<WindowsWatch>(&vec![window(1, "Editor", None), modal]);
+        .set_watched::<WindowsWatch>(&vec![window(1, "Text Editor", None), modal]);
     fixture.settle();
     let parent = placed_windows(&fixture)
         .into_iter()
