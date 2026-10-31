@@ -1,7 +1,7 @@
 use be_block::{
     OrganizationPolicies, OrganizationPoliciesContent, Root, Settings, SettingsContent, WhoMay,
 };
-use be_protocol::{ClientMessage, ErrorCode};
+use be_protocol::{ErrorCode, client};
 
 use super::*;
 
@@ -153,107 +153,93 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         history.len()
     );
     let oldest = history.last().unwrap().commit;
-    let pruned = admin
-        .connection()
-        .request(|request| ClientMessage::PruneHistory {
-            request,
-            block: image_block,
-            drop: vec![oldest],
-        })
-        .await
-        .unwrap_err();
+    let pruned = crate::ask(client::blocks::prune_history(
+        &admin.connection(),
+        image_block,
+        vec![oldest],
+    ))
+    .await
+    .unwrap_err();
     assert_eq!(refused(pruned), ErrorCode::PolicyRefused);
-    let backdated = be_protocol::ByteBuf::from(pseudorandom(64, 7));
+    let backdated = pseudorandom(64, 7);
     let backdated_commit = be_commit::CommitId::from_hash(be_store::Hash::of(&backdated));
     let current = admin.summary(image_block).await.unwrap().head;
-    admin
-        .connection()
-        .request(|request| ClientMessage::Publish {
-            request,
-            block: image_block,
-            commit: backdated_commit,
-            expected: current,
-            parents: current.into_iter().collect(),
-            chunks: Vec::new(),
-            time: 0,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: vec![backdated],
-        })
-        .await
-        .unwrap();
-    let pruned = admin
-        .connection()
-        .request(|request| ClientMessage::PruneHistory {
-            request,
-            block: image_block,
-            drop: vec![backdated_commit],
-        })
-        .await
-        .unwrap_err();
+    crate::ask(client::blocks::publish(
+        &admin.connection(),
+        image_block,
+        backdated_commit,
+        current,
+        current.into_iter().collect(),
+        Vec::new(),
+        0,
+        false,
+        Vec::new(),
+        Vec::new(),
+        vec![backdated],
+    ))
+    .await
+    .unwrap();
+    let pruned = crate::ask(client::blocks::prune_history(
+        &admin.connection(),
+        image_block,
+        vec![backdated_commit],
+    ))
+    .await
+    .unwrap_err();
     assert_eq!(
         refused(pruned),
         ErrorCode::PolicyRefused,
         "a version that says it is old was pruned the day the server received it"
     );
 
-    let early = be_protocol::ByteBuf::from(pseudorandom(64, 6));
+    let early = pseudorandom(64, 6);
     let early_hash = be_store::Hash::of(&early);
-    admin
-        .connection()
-        .request(|request| ClientMessage::PutObjects {
-            request,
-            objects: vec![early],
-        })
-        .await
-        .unwrap();
+    crate::ask(client::objects::put_objects(
+        &admin.connection(),
+        vec![early],
+    ))
+    .await
+    .unwrap();
     let mut policies = OrganizationPoliciesContent::default();
     policies.apply(&OrganizationPolicies::set_storage_quota(Some(1)));
     policies.apply(&OrganizationPolicies::set_history_days(Some(30)));
     let head = admin.summary(block).await.unwrap().head;
     admin.save(block, &policies, head).await.unwrap();
-    let over = admin
-        .connection()
-        .request(|request| ClientMessage::PutObjects {
-            request,
-            objects: vec![be_protocol::ByteBuf::from(pseudorandom(64, 5))],
-        })
-        .await
-        .unwrap_err();
+    let over = crate::ask(client::objects::put_objects(
+        &admin.connection(),
+        vec![pseudorandom(64, 5)],
+    ))
+    .await
+    .unwrap_err();
     assert_eq!(refused(over), ErrorCode::OverQuota);
-    let held = admin
-        .connection()
-        .request(|request| ClientMessage::HoldObjects {
-            request,
-            block: image_block,
-            objects: vec![early_hash],
-        })
-        .await
-        .unwrap_err();
+    let held = crate::ask(client::objects::hold_objects(
+        &admin.connection(),
+        image_block,
+        vec![early_hash],
+    ))
+    .await
+    .unwrap_err();
     assert_eq!(
         refused(held),
         ErrorCode::OverQuota,
         "an object uploaded before the quota was held past it"
     );
     let current = admin.summary(image_block).await.unwrap().head;
-    let published = admin
-        .connection()
-        .request(|request| ClientMessage::Publish {
-            request,
-            block: image_block,
-            commit: be_commit::CommitId::from_hash(early_hash),
-            expected: current,
-            parents: current.into_iter().collect(),
-            chunks: Vec::new(),
-            time: 0,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
-        })
-        .await
-        .unwrap_err();
+    let published = crate::ask(client::blocks::publish(
+        &admin.connection(),
+        image_block,
+        be_commit::CommitId::from_hash(early_hash),
+        current,
+        current.into_iter().collect(),
+        Vec::new(),
+        0,
+        false,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    ))
+    .await
+    .unwrap_err();
     assert_eq!(
         refused(published),
         ErrorCode::OverQuota,

@@ -198,7 +198,7 @@ impl Harness {
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
         let mut joins = self
             .relay()
-            .count(|message| matches!(message, be_protocol::ClientMessage::JoinSession { .. }));
+            .count(|method| method == be_protocol::__args::SESSIONS_SESSION_JOIN);
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
@@ -890,13 +890,13 @@ impl Device {
             let connection = be_client::Connection::connect(&self.url, &be_client::Clock::real())
                 .await
                 .expect("the other device reaches the server again");
-            let be_protocol::ServerMessage::Authenticated { token, .. } = connection
-                .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
-                .await
-                .expect("the other device signs in again")
-            else {
-                panic!("the server did not sign the other device in");
-            };
+            let token = be_client::ask(be_protocol::client::account::authenticate(
+                &connection,
+                token,
+            ))
+            .await
+            .expect("the other device signs in again")
+            .token;
             peer.attach(connection, token)
                 .await
                 .expect("the other device opens the workspace again");

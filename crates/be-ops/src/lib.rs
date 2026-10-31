@@ -10,6 +10,8 @@ pub use serde::{Serialize, de::DeserializeOwned};
 
 pub mod guest;
 
+pub mod net;
+
 #[doc(hidden)]
 pub use block_guest_abi as __abi;
 
@@ -410,6 +412,10 @@ impl Connection {
         self.served.contains_key(&op)
     }
 
+    pub fn is_canceled(&self, op: OpId) -> bool {
+        self.served.get(&op).is_some_and(|served| served.canceled)
+    }
+
     pub fn is_pending(&self, op: OpId) -> bool {
         self.started.contains_key(&op)
     }
@@ -682,6 +688,16 @@ impl<T: Serialize> Latest<T> {
         self.producer.finish(connection);
     }
 }
+
+#[cfg(test)]
+extern crate self as be_ops;
+
+#[cfg(test)]
+be_ops_bindgen::generate!({
+    path: "test-wit",
+    world: "library",
+    network: true,
+});
 
 #[cfg(test)]
 mod tests;

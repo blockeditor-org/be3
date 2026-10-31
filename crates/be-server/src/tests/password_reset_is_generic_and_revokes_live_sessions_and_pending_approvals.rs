@@ -66,21 +66,13 @@ async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approva
             .await
             .is_ok()
     );
-    while let Some(frame) = app.socket.next().await {
-        if matches!(frame.unwrap(), WsMessage::Close(_)) {
-            break;
-        }
-    }
+    app.ended().await;
     let mut claimant = harness.client().await;
     assert!(matches!(
         claimant
-            .send(|request| ClientMessage::FinishBrowserLogin {
-                request,
-                code,
-                secret
-            })
+            .call(|peer| client::account::finish_browser_login(peer, code, secret))
             .await,
-        ServerMessage::Failed { .. }
+        Err(_)
     ));
     assert_eq!(
         browser

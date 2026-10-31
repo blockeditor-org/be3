@@ -9,41 +9,35 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
 
     let mut stranger = harness.client().await;
     let response = stranger
-        .send(|request| ClientMessage::ReadBlock { request, block })
+        .call(|peer| client::blocks::read_block(peer, block))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::NotAuthenticated),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::NotAuthenticated),
         "{response:?}"
     );
 
     let response = stranger
-        .send(|request| ClientMessage::Authenticate {
-            request,
-            token: "not a token".into(),
-        })
+        .call(|peer| client::account::authenticate(peer, "not a token".into()))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::InvalidCredentials),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidCredentials),
         "{response:?}"
     );
 
     stranger.register("stranger@example.com").await;
     let response = stranger
-        .send(|request| ClientMessage::OpenOrganization {
-            request,
-            organization,
-        })
+        .call(|peer| client::organizations::open_organization(peer, organization))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::PermissionDenied),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::PermissionDenied),
         "{response:?}"
     );
 
     let response = stranger
-        .send(|request| ClientMessage::ReadBlock { request, block })
+        .call(|peer| client::blocks::read_block(peer, block))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::NotAuthenticated),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::NotAuthenticated),
         "{response:?}"
     );
 

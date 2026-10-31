@@ -7,11 +7,11 @@ use std::{
     time::Instant,
 };
 
-use be_protocol::{MAX_FRAME_BYTES, encode, read_hello};
+use be_protocol::{MAX_FRAME_BYTES, read_hello};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::TcpStream,
-    sync::Mutex,
+    sync::{Mutex, mpsc},
 };
 use uuid::Uuid;
 
@@ -30,14 +30,16 @@ pub(crate) struct Sessions {
 
 struct Session {
     client: Option<Client>,
+    outbound: mpsc::UnboundedReceiver<Vec<u8>>,
     heard: Instant,
 }
 
 impl Sessions {
-    fn insert(&self, client: Client) -> String {
+    fn insert(&self, client: Client, outbound: mpsc::UnboundedReceiver<Vec<u8>>) -> String {
         let id = Uuid::new_v4().simple().to_string();
         let session = Session {
             client: Some(client),
+            outbound,
             heard: Instant::now(),
         };
         self.open
@@ -363,9 +365,13 @@ async fn answer(
         let (ours, compatible) = greeting(theirs.as_deref())?;
         let session = match compatible {
             true => {
-                let mut client = Client::open(services).await;
+                let (sending, outbound) = mpsc::unbounded_channel();
+                let mut client = Client::open(services, move |frame| {
+                    let _ = sending.send(frame);
+                })
+                .await;
                 client.connection.header_token = crate::bearer(authorization);
-                Some(services.http.insert(client))
+                Some(services.http.insert(client, outbound))
             }
             false => None,
         };
@@ -387,7 +393,10 @@ async fn answer(
     };
     let mut held = session.lock().await;
     held.heard = Instant::now();
-    let Some(client) = held.client.as_mut() else {
+    let Session {
+        client, outbound, ..
+    } = &mut *held;
+    let Some(client) = client.as_mut() else {
         return Ok(gone);
     };
     if client.connection.header_token != crate::bearer(authorization) {
@@ -406,11 +415,25 @@ async fn answer(
         }
         return Ok(gone);
     }
-    let mut answers = Vec::new();
+    let mut carried = catch_up(client).await;
     for frame in frames {
-        for message in client.answer(frame).await {
-            answers.push(encode(&message).map_err(|_| ServerError::Corrupt)?);
+        carried = carried.and(client.receive(frame).await);
+    }
+    let carried = carried.and(catch_up(client).await);
+    if let Err(error) = carried {
+        if let Some(client) = held.client.take() {
+            client.close().await;
         }
+        return Ok(Answer {
+            status: 400,
+            session: None,
+            body: error.to_string().into_bytes(),
+            keep: false,
+        });
+    }
+    let mut answers = Vec::new();
+    while let Ok(frame) = outbound.try_recv() {
+        answers.push(frame);
     }
     Ok(Answer {
         status: 200,
@@ -418,6 +441,16 @@ async fn answer(
         body: framed(&answers),
         keep: true,
     })
+}
+
+async fn catch_up(client: &mut Client) -> Result<(), ServerError> {
+    for late in client.pending_lates() {
+        client.late(late).await;
+    }
+    for push in client.pending_pushes() {
+        client.push(push).await?;
+    }
+    Ok(())
 }
 
 fn unframed(body: &[u8]) -> Option<Vec<&[u8]>> {

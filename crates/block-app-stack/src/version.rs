@@ -95,7 +95,6 @@ pub(super) struct Context<'a> {
     pub(super) peer: &'a Arc<Peer<Store>>,
     pub(super) shared: &'a Arc<Mutex<Shared>>,
     pub(super) replicas: &'a mut Replicas,
-    pub(super) tasks: &'a super::worker::Tasks,
 }
 
 fn failed(error: ClientError) -> String {
@@ -1427,15 +1426,15 @@ impl Versions {
             {
                 continue;
             }
-            let (peer, watching) = (Arc::clone(context.peer), Arc::clone(&self.watching));
-            context.tasks.spawn(async move {
-                if peer.watch(block).await.is_err() {
-                    watching
+            match context.peer.is_attached() {
+                true => context.peer.watch(block),
+                false => {
+                    self.watching
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
                         .remove(&block);
                 }
-            });
+            }
         }
     }
 

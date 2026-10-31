@@ -24,73 +24,67 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
     client
         .upload(&author.store, &author.objects_of(first, &first_chunks))
         .await;
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: first,
-            expected: None,
-            parents: Vec::new(),
-            chunks: first_chunks.clone(),
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                first,
+                None,
+                Vec::new(),
+                first_chunks.clone(),
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     client
         .upload(&author.store, &author.objects_of(second, &second_chunks))
         .await;
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: second,
-            expected: Some(first),
-            parents: Some(first).into_iter().collect(),
-            chunks: second_chunks.clone(),
-            time: 2_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                second,
+                Some(first),
+                Some(first).into_iter().collect(),
+                second_chunks.clone(),
+                2_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
 
     let response = client
-        .send(|request| ClientMessage::PruneHistory {
-            request,
-            block,
-            drop: vec![first],
-        })
+        .call(|peer| client::blocks::prune_history(peer, block, vec![first]))
         .await;
-    let ServerMessage::Collected { objects, .. } = response else {
+    let Ok(objects) = response else {
         panic!("pruning failed: {response:?}");
     };
     assert!(objects > 0, "pruning the first draft freed nothing");
 
     for chunk in &shared {
         let response = client
-            .send(|request| ClientMessage::GetObject {
-                request,
-                hash: *chunk,
-            })
+            .call(|peer| client::objects::get_object(peer, *chunk))
             .await;
         assert!(
-            matches!(response, ServerMessage::Object { bytes: Some(_), .. }),
+            matches!(response, Ok(Some(_))),
             "a chunk the surviving commit still holds was deleted"
         );
     }
 
     let response = client
-        .send(|request| ClientMessage::GetObject {
-            request,
-            hash: first.hash(),
-        })
+        .call(|peer| client::objects::get_object(peer, first.hash()))
         .await;
     assert!(
-        matches!(response, ServerMessage::Object { bytes: None, .. }),
+        matches!(response, Ok(None)),
         "the pruned commit object survived"
     );
 

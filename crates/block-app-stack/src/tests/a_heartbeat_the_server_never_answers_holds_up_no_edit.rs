@@ -12,7 +12,7 @@ fn a_heartbeat_the_server_never_answers_holds_up_no_edit() {
 
     let mut heartbeats = harness
         .relay()
-        .count(|message| matches!(message, be_protocol::ClientMessage::Heartbeat { .. }));
+        .count(|method| method == be_protocol::__args::SESSIONS_SESSION_HEARTBEAT);
     let early = Duration::from_millis(block_type_guest::SEAL_INTERVAL / 2);
     harness
         .clock

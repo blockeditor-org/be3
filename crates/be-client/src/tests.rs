@@ -226,13 +226,13 @@ impl Harness {
         let connection = Connection::connect(&self.url, &Clock::real())
             .await
             .unwrap();
-        let be_protocol::ServerMessage::Authenticated { token, .. } = connection
-            .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
-            .await
-            .unwrap()
-        else {
-            panic!("the server did not sign the device in");
-        };
+        let token = crate::ask(be_protocol::client::account::authenticate(
+            &connection,
+            token,
+        ))
+        .await
+        .expect("the server signs the device in")
+        .token;
         peer.attach(connection, token).await.unwrap();
     }
 

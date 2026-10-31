@@ -6,9 +6,9 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
     let mut parents = vec![BlockParent::Root];
     while let Some(parent) = parents.pop() {
         let response = client
-            .send(|request| ClientMessage::ListChildren { request, parent })
+            .call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
             .await;
-        let ServerMessage::Blocks { blocks, .. } = response else {
+        let Ok(blocks) = response else {
             panic!("listing failed: {response:?}");
         };
         for block in blocks {
@@ -31,25 +31,29 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(1),
-            organization,
-            email: "guest@example.com".into(),
-            role: OrganizationRole::Editor,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(1),
+                organization,
+                "guest@example.com".into(),
+                OrganizationRole::Editor,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    guest
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(1),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = guest
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(1),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     guest.open(organization).await;
@@ -60,14 +64,9 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 
     let account = guest_account(&mut guest).await;
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block: folder,
-            account,
-            access: Access::View,
-        })
+        .call(|peer| client::blocks::set_access(peer, folder, account, Access::View))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let mut seen = listed(&mut guest).await;
     seen.sort();
     let mut expected = vec![
@@ -89,9 +88,9 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 async fn guest_account(guest: &mut TestClient) -> Uuid {
     let token = guest.token.clone();
     let response = guest
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .call(|peer| client::account::authenticate(peer, token))
         .await;
-    let ServerMessage::Authenticated { account, .. } = response else {
+    let Ok(Authenticated { account, .. }) = response else {
         panic!("the guest could not re-authenticate: {response:?}");
     };
     account

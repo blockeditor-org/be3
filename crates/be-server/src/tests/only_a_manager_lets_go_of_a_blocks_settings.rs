@@ -5,14 +5,9 @@ async fn set_references(
     client: &mut TestClient,
     block: Uuid,
     references: Vec<Uuid>,
-) -> ServerMessage {
+) -> Result<BlockSummary, Error> {
     client
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: b"named".to_vec(),
-            references,
-        })
+        .call(|peer| client::blocks::set_metadata(peer, block, b"named".to_vec(), references))
         .await
 }
 
@@ -26,47 +21,43 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
     let editor_id = editor.register("editor@example.com").await;
     editor.personal().await;
     let link = owner.link(None).await;
-    editor.accept(link, &[]).await;
+    let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;
     let settings = Uuid::new_v4();
     let key = Uuid::new_v4();
     let created = owner
-        .send(|request| ClientMessage::CreateBlock {
-            request,
-            block: settings,
-            content_type: SETTINGS_TYPE,
-            parent: BlockParent::Block(workspace),
-            metadata: Vec::new(),
-            references: Vec::new(),
-            key,
-            keys: KeySet {
-                keys: vec![row(key, settings, KeyKind::Data)],
-                wrapped: Vec::new(),
-            },
+        .call(|peer| {
+            client::blocks::create_block(
+                peer,
+                settings,
+                SETTINGS_TYPE,
+                BlockParent::Block(workspace),
+                Vec::new(),
+                Vec::new(),
+                key,
+                KeySet {
+                    keys: vec![row(key, settings, KeyKind::Data)],
+                    wrapped: Vec::new(),
+                },
+            )
         })
         .await;
-    assert!(
-        matches!(created, ServerMessage::Block { .. }),
-        "{created:?}"
-    );
+    assert!(matches!(created, Ok(_)), "{created:?}");
     let held = set_references(&mut owner, workspace, vec![settings]).await;
-    assert!(matches!(held, ServerMessage::Block { .. }), "{held:?}");
+    assert!(matches!(held, Ok(_)), "{held:?}");
 
     let granted = owner.grant(workspace, editor_id, Access::Edit).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     let kept = set_references(&mut editor, workspace, vec![settings]).await;
-    assert!(matches!(kept, ServerMessage::Block { .. }), "{kept:?}");
+    assert!(matches!(kept, Ok(_)), "{kept:?}");
     let dropped = set_references(&mut editor, workspace, Vec::new()).await;
     assert!(
         refused_as(&dropped, ErrorCode::PermissionDenied),
         "an editor let go of the workspace's settings: {dropped:?}"
     );
     let dropped = set_references(&mut owner, workspace, Vec::new()).await;
-    assert!(
-        matches!(dropped, ServerMessage::Block { .. }),
-        "{dropped:?}"
-    );
+    assert!(matches!(dropped, Ok(_)), "{dropped:?}");
 
     harness.stop().await;
 }

@@ -14,18 +14,13 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     assert!(state.is_owner(owner));
 
     let first = author.compose(b"typed on the phone\n", 1_000, None);
-    phone
+    let _ = phone
         .publish(&author, block, first.0, first.1, None, 1_000)
         .await;
     let response = phone
-        .send(|request| ClientMessage::Heartbeat {
-            request,
-            block,
-            generation: state.generation,
-            clean_at: Some(first.0),
-        })
+        .heartbeat(block, state.generation, Some(first.0))
         .await;
-    let ServerMessage::Session { state: beating, .. } = response else {
+    let Ok(beating) = response else {
         panic!("heartbeat failed: {response:?}");
     };
     assert_eq!(beating.clean_at, Some(first.0));
@@ -37,7 +32,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     drop(phone);
 
     let taken = loop {
-        if let ServerMessage::SessionChanged {
+        if let Notice::SessionChanged {
             block: changed,
             state,
         } = laptop.notification().await
@@ -65,7 +60,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
         .publish(&author, block, second.0, second.1, Some(first.0), 2_000)
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "the new owner could not continue from the head: {response:?}"
     );
 

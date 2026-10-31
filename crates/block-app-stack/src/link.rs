@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use be_client::{ClientError, Clock, Connection};
-use be_protocol::{ClientMessage, ServerMessage};
+use be_protocol::client;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
 
@@ -58,15 +58,9 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
         return Ok(held.link.clone());
     }
     let connection = open(server_url, clock).await?;
-    let ServerMessage::Authenticated { account, .. } = connection
-        .request(|request| ClientMessage::Authenticate {
-            request,
-            token: token.to_owned(),
-        })
+    let account = be_client::ask(client::account::authenticate(&connection, token.to_owned()))
         .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+        .account;
     let link = Link {
         connection,
         account,

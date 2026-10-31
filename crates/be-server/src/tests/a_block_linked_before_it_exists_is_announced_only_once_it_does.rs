@@ -13,7 +13,7 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
     other.list(BlockParent::Root).await;
 
     let folder = author.create_block(BlockParent::Root).await;
-    let ServerMessage::BlockChanged { block: created } = other.graph_change().await else {
+    let Notice::BlockChanged { block: created } = other.graph_change().await else {
         panic!("the folder was not announced");
     };
     other.list(BlockParent::Block(folder)).await;
@@ -23,22 +23,24 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
         .upload(&writer.store, &writer.objects_of(commit, &chunks))
         .await;
     let response = author
-        .send(|request| ClientMessage::Publish {
-            request,
-            block: folder,
-            commit,
-            expected: None,
-            parents: Vec::new(),
-            chunks,
-            time: 1_000,
-            pinned: false,
-            references: vec![note],
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                folder,
+                commit,
+                None,
+                Vec::new(),
+                chunks,
+                1_000,
+                false,
+                vec![note],
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
     let key = Uuid::new_v4();
@@ -53,8 +55,8 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
     let mut newest = created.revision;
     loop {
         let (block, revision, present) = match other.graph_change().await {
-            ServerMessage::BlockChanged { block } => (block.id, block.revision, true),
-            ServerMessage::BlockRemoved { block, revision } => (block, revision, false),
+            Notice::BlockChanged { block } => (block.id, block.revision, true),
+            Notice::BlockRemoved { block, revision } => (block, revision, false),
             unexpected => panic!("not a graph change: {unexpected:?}"),
         };
         assert!(

@@ -1,17 +1,19 @@
 use super::*;
 
-use be_protocol::{ClientId, ServerMessage};
+use be_protocol::ClientId;
+
+use crate::Event;
 use counter_types::CounterContent;
 
 async fn heard(
     peer: &Peer<MemoryStore>,
-    events: &mut tokio::sync::broadcast::Receiver<ServerMessage>,
+    events: &mut tokio::sync::broadcast::Receiver<Event>,
     block: Uuid,
     count: usize,
 ) -> Vec<(ClientId, Vec<u8>, Vec<u8>)> {
     let mut heard = Vec::new();
     while heard.len() < count {
-        if let ServerMessage::Relayed {
+        if let Event::Relayed {
             block: relayed,
             from,
             payload,
@@ -70,7 +72,7 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
     assert_eq!(plain(&tablet_heard), [b"to everyone".to_vec()]);
     while let Ok(event) = on_phone.try_recv() {
         assert!(
-            !matches!(event, ServerMessage::Relayed { .. }),
+            !matches!(event, Event::Relayed { .. }),
             "a peer never hears itself"
         );
     }

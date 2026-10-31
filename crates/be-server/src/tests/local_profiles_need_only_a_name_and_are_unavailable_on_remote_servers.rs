@@ -6,12 +6,9 @@ async fn local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers()
     let mut client = remote.client().await;
     assert!(matches!(
         client
-            .send(|request| ClientMessage::CreateLocalProfile {
-                request,
-                display_name: "Ada".into()
-            })
+            .call(|peer| client::account::create_local_profile(peer, "Ada".into()))
             .await,
-        ServerMessage::Failed { .. }
+        Err(_)
     ));
     let local = Harness::configured(ServerConfig {
         local_profiles: true,
@@ -21,39 +18,33 @@ async fn local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers()
     let mut client = local.client().await;
     assert!(matches!(
         client
-            .send(|request| ClientMessage::CreateLocalProfile {
-                request,
-                display_name: " ".into()
-            })
+            .call(|peer| client::account::create_local_profile(peer, " ".into()))
             .await,
-        ServerMessage::Failed { .. }
+        Err(_)
     ));
     let created = client
-        .send(|request| ClientMessage::CreateLocalProfile {
-            request,
-            display_name: " Ada ".into(),
-        })
+        .call(|peer| client::account::create_local_profile(peer, " Ada ".into()))
         .await;
-    let ServerMessage::Authenticated {
+    let Ok(Authenticated {
         account,
         display_name,
         email,
         token,
         ..
-    } = created
+    }) = created
     else {
         panic!("{created:?}")
     };
     assert_eq!(display_name, "Ada");
     assert!(email.is_empty());
     let resumed = client
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .call(|peer| client::account::authenticate(peer, token))
         .await;
     assert!(
-        matches!(resumed, ServerMessage::Authenticated { account: id, email, .. } if id == account && email.is_empty())
+        matches!(resumed, Ok(Authenticated { account: id, email, .. }) if id == account && email.is_empty())
     );
     assert!(
-        matches!(client.send(|request| ClientMessage::CreateLocalProfile { request, display_name: "Ada".into() }).await, ServerMessage::Authenticated { account: id, .. } if id != account)
+        matches!(client.call(|peer| client::account::create_local_profile(peer, "Ada".into())).await, Ok(Authenticated { account: id, .. }) if id != account)
     );
     assert_eq!(
         http(

@@ -7,10 +7,10 @@ use std::{
 use std::sync::PoisonError;
 use wasi_threads::Mutex;
 
-use be_client::{ClientError, Peer, Reconciled, Saved, Sealed, connection::Answer};
+use be_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed};
 use be_commit::CommitId;
 use be_graph::BlockParent;
-use be_protocol::{ClientId, ServerMessage, SessionState};
+use be_protocol::{ClientId, SessionState};
 use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
     ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
@@ -327,7 +327,7 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
-    unsealing: HashMap<Uuid, VecDeque<ServerMessage>>,
+    unsealing: HashMap<Uuid, VecDeque<Event>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
     publishes: HashMap<u64, Unanswered>,
@@ -396,7 +396,7 @@ impl<H: Host> Replicas<H> {
         });
     }
 
-    fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer, ClientError>) {
+    fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer<()>, ClientError>) {
         let answer = match sent {
             Ok(answer) => answer,
             Err(error) if unreachable(&error) => return,
@@ -544,7 +544,7 @@ impl<H: Host> Replicas<H> {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
                     let (client, session) = peer.join_session(block)?.await?;
-                    peer.watch(block).await?;
+                    peer.watch(block);
                     let head = peer.remote_head(block).await?;
                     Ok((client, session, head, ahead(&peer, block)))
                 }
@@ -583,7 +583,7 @@ impl<H: Host> Replicas<H> {
                     reset::<H>(peer, block, &kind).await?;
                 }
                 let (client, session) = peer.join_session(block)?.await?;
-                peer.watch(block).await?;
+                peer.watch(block);
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head, false))
             }
@@ -1409,10 +1409,10 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &ServerMessage) {
-        let (ServerMessage::SessionChanged { block, .. }
-        | ServerMessage::Relayed { block, .. }
-        | ServerMessage::HeadChanged { block, .. }) = event
+    pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
+        let (Event::SessionChanged { block, .. }
+        | Event::Relayed { block, .. }
+        | Event::HeadChanged { block, .. }) = event
         else {
             return;
         };
@@ -1421,7 +1421,7 @@ impl<H: Host> Replicas<H> {
             return;
         }
         match event {
-            ServerMessage::SessionChanged { block, state } => {
+            Event::SessionChanged { block, state } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
@@ -1438,7 +1438,7 @@ impl<H: Host> Replicas<H> {
                 open.session = state.clone();
                 self.replay(replica, replayed);
             }
-            ServerMessage::Relayed {
+            Event::Relayed {
                 block,
                 from,
                 payload,
@@ -1472,7 +1472,7 @@ impl<H: Host> Replicas<H> {
                 }
                 self.replay(replica, replayed);
             }
-            ServerMessage::HeadChanged { block, head, .. } => {
+            Event::HeadChanged { block, head, .. } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
@@ -1678,7 +1678,7 @@ impl<H: Host> Replicas<H> {
             H::spawn(async move {
                 let joined = async {
                     let (client, session) = peer.join_session(block)?.await?;
-                    peer.watch(block).await?;
+                    peer.watch(block);
                     let head = peer.remote_head(block).await?;
                     Ok::<_, ClientError>((client, session, head))
                 }

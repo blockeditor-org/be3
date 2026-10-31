@@ -1,6 +1,6 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_protocol::ClientMessage;
+use be_protocol::client;
 
 #[tokio::test]
 async fn a_request_fails_once_a_ping_goes_unanswered() {
@@ -15,10 +15,8 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
     let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
 
     relay.stall();
-    let answer = connection
-        .send(|request| ClientMessage::ListOrganizations { request })
-        .unwrap();
-    let mut pings = relay.count(|message| matches!(message, ClientMessage::Ping { .. }));
+    let answer = crate::ask(client::organizations::list_organizations(&connection));
+    let mut pings = relay.count(|method| method == be_protocol::__args::CONNECTION_PING);
     clock.advance(PING_INTERVAL);
     pings.wait_for(|pings| *pings > 0).await.unwrap();
     clock.advance(PONG_WAIT);

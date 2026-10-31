@@ -1,0 +1,70 @@
+package be3:server@0.1.0;
+
+/// An account's contacts and the links that make them.
+interface contacts {
+    use types.{account-id, error, link-id, pending-grant};
+
+    record contact-link {
+        id: link-id,
+        owner: account-id,
+        card: list<u8>,
+        grant: option<pending-grant>,
+    }
+
+    /// A link of the caller's own, and who accepted it.
+    record own-contact-link {
+        id: link-id,
+        code: list<u8>,
+        accepter: option<account-id>,
+        card: list<u8>,
+        grant: option<pending-grant>,
+    }
+
+    record contact-row {
+        account: account-id,
+        email: string,
+        display-name: string,
+        sealed: list<u8>,
+        changes: list<list<u8>>,
+    }
+
+    /// Replaces `CreateContactLink`.
+    create-contact-link: async func(
+        link: link-id,
+        card: list<u8>,
+        code: list<u8>,
+        grant: option<pending-grant>,
+    ) -> result<_, error>;
+
+    /// Replaces `GetContactLink` and its `ContactLink` answer.
+    get-contact-link: async func(link: link-id) -> result<contact-link, error>;
+
+    /// Replaces `AcceptContactLink`.
+    accept-contact-link: async func(
+        link: link-id,
+        card: list<u8>,
+        contact: list<u8>,
+        key: list<u8>,
+    ) -> result<_, error>;
+
+    /// Replaces `ListContactLinks` and its `ContactLinks` answer.
+    list-contact-links: async func() -> result<list<own-contact-link>, error>;
+
+    /// Replaces `DeleteContactLink`.
+    delete-contact-link: async func(link: link-id) -> result<_, error>;
+
+    /// Replaces `PutContact`.
+    put-contact: async func(contact: account-id, sealed: list<u8>) -> result<_, error>;
+
+    /// Replaces `ListContacts` and its `Contacts` answer.
+    list-contacts: async func() -> result<list<contact-row>, error>;
+
+    /// Replaces `RemoveContact`.
+    remove-contact: async func(account: account-id) -> result<_, error>;
+
+    /// An item whenever the account's contacts, links or key changes
+    /// changed through another connection, so the client reads them again; a
+    /// latest-value stream, so changes the client has not taken yet are one
+    /// item. Replaces the pushed `ContactsChanged`.
+    contacts-changed: func() -> stream;
+}

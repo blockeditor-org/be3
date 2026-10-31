@@ -2,9 +2,9 @@ use super::*;
 
 async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
     let response = client
-        .send(|request| ClientMessage::GetObject { request, hash })
+        .call(|peer| client::objects::get_object(peer, hash))
         .await;
-    let ServerMessage::Object { bytes, .. } = response else {
+    let Ok(bytes) = response else {
         panic!("reading an object failed: {response:?}");
     };
     bytes
@@ -12,25 +12,29 @@ async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
 
 async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid, email: &str) {
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(1),
-            organization,
-            email: email.into(),
-            role: OrganizationRole::Editor,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(1),
+                organization,
+                email.into(),
+                OrganizationRole::Editor,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    guest
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(1),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = guest
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(1),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     guest.open(organization).await;
@@ -49,7 +53,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
         .publish(&author, block, commit, chunks.clone(), None, 1_000)
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
     let (unpublished, loose) = author.compose(b"never published\n", 2_000, Some(commit));
@@ -72,25 +76,20 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
 
     let token = guest.token.clone();
     let response = guest
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .call(|peer| client::account::authenticate(peer, token))
         .await;
-    let ServerMessage::Authenticated {
+    let Ok(Authenticated {
         account: guest_account,
         ..
-    } = response
+    }) = response
     else {
         panic!("the guest could not re-authenticate: {response:?}");
     };
     guest.open(organization).await;
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block,
-            account: guest_account,
-            access: be_graph::Access::View,
-        })
+        .call(|peer| client::blocks::set_access(peer, block, guest_account, be_graph::Access::View))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert!(read(&mut guest, commit.hash()).await.is_some());
 
     harness.stop().await;

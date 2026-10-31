@@ -11,7 +11,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
     let (head, chunks) = author.compose(b"a note worth keeping\n", 1_000, None);
-    client
+    let _ = client
         .publish(&author, block, head, chunks.clone(), None, 1_000)
         .await;
 
@@ -64,13 +64,10 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     assert_eq!(returning.read_block(block).await.head, Some(head));
     for chunk in &chunks {
         let response = returning
-            .send(|request| ClientMessage::GetObject {
-                request,
-                hash: *chunk,
-            })
+            .call(|peer| client::objects::get_object(peer, *chunk))
             .await;
         assert!(
-            matches!(response, ServerMessage::Object { bytes: Some(_), .. }),
+            matches!(response, Ok(Some(_))),
             "a chunk did not survive the restore"
         );
     }

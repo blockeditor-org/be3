@@ -71,6 +71,35 @@ async fn post_authorized(
     (status, header("be3-session"), frames)
 }
 
+pub(super) struct Posted {
+    pub(super) peer: Peer,
+    outbound: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
+}
+
+impl Posted {
+    pub(super) fn new() -> Self {
+        let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
+        let peer = Peer::new(be_ops::Side::Guest, move |frame| {
+            let _ = sending.send(frame);
+        });
+        Self { peer, outbound }
+    }
+
+    pub(super) fn frames(&mut self) -> Vec<Vec<u8>> {
+        std::iter::from_fn(|| self.outbound.try_recv().ok()).collect()
+    }
+
+    pub(super) fn heard(&self, frames: &[Vec<u8>]) {
+        for frame in frames {
+            self.peer.receive(frame).unwrap();
+        }
+    }
+}
+
+fn refs(frames: &[Vec<u8>]) -> Vec<&[u8]> {
+    frames.iter().map(Vec::as_slice).collect()
+}
+
 #[tokio::test]
 async fn a_client_speaks_the_protocol_over_http_posts() {
     let harness = Harness::start().await;
@@ -87,30 +116,44 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         .register("http@example.com", "Http", "a long enough password")
         .await
         .unwrap();
-    let register = encode(&ClientMessage::Authenticate { request: 1, token }).unwrap();
-    let (_, _, frames) = post(&mut stream, Some(&session), &[&register]).await;
-    let response: ServerMessage = be_protocol::decode(frames.last().unwrap()).unwrap();
-    assert!(
-        matches!(response, ServerMessage::Authenticated { request: 1, .. }),
-        "{response:?}"
-    );
+    let mut posted = Posted::new();
+    let mut registering = client::account::authenticate(&posted.peer, token);
+    let sent = posted.frames();
+    let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
+    posted.heard(&frames);
+    let std::task::Poll::Ready(Ok(response)) = poll(&mut registering) else {
+        panic!("the post was not answered");
+    };
+    assert!(matches!(response, Ok(Authenticated { .. })), "{response:?}");
 
-    let list = encode(&ClientMessage::ListOrganizations { request: 2 }).unwrap();
-    let again = encode(&ClientMessage::ListOrganizations { request: 3 }).unwrap();
-    let (_, _, frames) = post(&mut stream, Some(&session), &[&list, &again]).await;
-    let requests: Vec<Option<u64>> = frames
+    let mut list = client::organizations::list_organizations(&posted.peer);
+    let mut again = client::organizations::list_organizations(&posted.peer);
+    let sent = posted.frames();
+    let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
+    let answered: Vec<be_ops::OpId> = frames
         .iter()
-        .map(|frame| be_protocol::decode::<ServerMessage>(frame).unwrap())
-        .filter(|response| matches!(response, ServerMessage::Organizations { .. }))
-        .map(|response| response.request())
+        .filter_map(|frame| match be_ops::decode_frame::<be_ops::Frame>(frame) {
+            Ok(be_ops::Frame::Complete { op, .. }) => Some(op),
+            _ => None,
+        })
         .collect();
     assert_eq!(
-        requests,
-        [Some(2), Some(3)],
-        "two frames in one post were not both answered, in order, signed in"
+        answered,
+        [list.op(), again.op()],
+        "two frames in one post were not both answered, in order"
+    );
+    posted.heard(&frames);
+    assert!(
+        matches!(poll(&mut list), std::task::Poll::Ready(Ok(Ok(_))))
+            && matches!(poll(&mut again), std::task::Poll::Ready(Ok(Ok(_)))),
+        "two frames in one post were not both answered signed in"
     );
 
-    let (status, _, _) = post(&mut stream, Some("not-a-session"), &[&list]).await;
+    let listing = Posted::new();
+    let _listed = client::organizations::list_organizations(&listing.peer);
+    let mut listing = listing;
+    let list = listing.frames();
+    let (status, _, _) = post(&mut stream, Some("not-a-session"), &refs(&list)).await;
     assert_eq!(status, 404);
 
     let mut stranger = tokio::net::TcpStream::connect(&address).await.unwrap();
@@ -119,7 +162,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     assert_eq!(session, None, "another build was given a session");
 
-    let ServerMessage::Authenticated { token, .. } = response else {
+    let Ok(Authenticated { token, .. }) = response else {
         panic!("not authenticated")
     };
     let authorization = format!("Bearer {token}");
@@ -127,21 +170,32 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let (_, session, _) =
         post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
     let session = session.unwrap();
-    let authenticate = encode(&ClientMessage::AuthenticateHeader { request: 4 }).unwrap();
+    let mut proxied = Posted::new();
+    let mut authenticating = client::account::authenticate_header(&proxied.peer);
+    let sent = proxied.frames();
     let (_, _, frames) = post_authorized(
         &mut proxy,
         Some(&session),
-        &[&authenticate],
+        &refs(&sent),
         Some(&authorization),
     )
     .await;
-    assert!(
-        matches!(be_protocol::decode::<ServerMessage>(frames.last().unwrap()).unwrap(), ServerMessage::Authenticated { token, .. } if token.is_empty())
-    );
-    let (status, _, _) =
-        post_authorized(&mut proxy, Some(&session), &[&list], Some(&authorization)).await;
+    proxied.heard(&frames);
+    assert!(matches!(
+        poll(&mut authenticating),
+        std::task::Poll::Ready(Ok(Ok(Authenticated { token, .. }))) if token.is_empty()
+    ));
+    let _listed = client::organizations::list_organizations(&proxied.peer);
+    let list = proxied.frames();
+    let (status, _, _) = post_authorized(
+        &mut proxy,
+        Some(&session),
+        &refs(&list),
+        Some(&authorization),
+    )
+    .await;
     assert_eq!(status, 200);
-    let (status, _, _) = post(&mut proxy, Some(&session), &[&list]).await;
+    let (status, _, _) = post(&mut proxy, Some(&session), &refs(&list)).await;
     assert_eq!(
         status, 401,
         "a session id alone must not replace the injected account token"

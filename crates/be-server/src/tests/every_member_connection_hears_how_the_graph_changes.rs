@@ -14,25 +14,19 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let folder = author.create_block(BlockParent::Root).await;
     let created = other.graph_change().await;
     assert!(
-        matches!(&created, ServerMessage::BlockChanged { block } if block.id == folder),
+        matches!(&created, Notice::BlockChanged { block } if block.id == folder),
         "{created:?}"
     );
 
     let response = author
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block: folder,
-            metadata: b"sealed name".to_vec(),
-            references: Vec::new(),
+        .call(|peer| {
+            client::blocks::set_metadata(peer, folder, b"sealed name".to_vec(), Vec::new())
         })
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
     let renamed = other.graph_change().await;
     assert!(
-        matches!(&renamed, ServerMessage::BlockChanged { block }
+        matches!(&renamed, Notice::BlockChanged { block }
             if block.id == folder && block.metadata == b"sealed name"),
         "{renamed:?}"
     );
@@ -41,15 +35,12 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let child = author.create_block(BlockParent::Block(folder)).await;
     other.graph_change().await;
     let response = author
-        .send(|request| ClientMessage::DeleteBlock {
-            request,
-            block: child,
-        })
+        .call(|peer| client::blocks::delete_block(peer, child))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let detached = other.graph_change().await;
     assert!(
-        matches!(&detached, ServerMessage::BlockChanged { block }
+        matches!(&detached, Notice::BlockChanged { block }
             if block.id == child && block.parent == Some(BlockParent::Detached)),
         "{detached:?}"
     );
@@ -61,15 +52,15 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     );
 
     let response = author
-        .send(|request| ClientMessage::CollectDetached { request })
+        .call(|peer| client::blocks::collect_detached(peer))
         .await;
     assert!(
-        matches!(response, ServerMessage::Collected { .. }),
+        matches!(response, Ok(be_protocol::Collected { .. })),
         "{response:?}"
     );
     let removed = other.graph_change().await;
     assert!(
-        matches!(removed, ServerMessage::BlockRemoved { block, .. } if block == child),
+        matches!(removed, Notice::BlockRemoved { block, .. } if block == child),
         "{removed:?}"
     );
 

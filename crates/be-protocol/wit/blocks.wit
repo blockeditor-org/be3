@@ -1,0 +1,240 @@
+package be3:server@0.1.0;
+
+/// The content-addressed objects of the organization this connection opened.
+interface objects {
+    use types.{block-id, error, hash};
+
+    /// Stores objects, each named by its SHA-256; answers their hashes in
+    /// order. Replaces `PutObjects` and its `Stored` answer.
+    put-objects: async func(objects: list<list<u8>>) -> result<list<hash>, error>;
+
+    /// An object the caller may read, or none. Replaces `GetObject` and its
+    /// `Object` answer.
+    get-object: async func(hash: hash) -> result<option<list<u8>>, error>;
+
+    /// Which of `hashes` the server lacks. Replaces `MissingObjects` and its
+    /// `Missing` answer.
+    missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;
+
+    /// Keeps stored objects alive for `block` until a commit takes them.
+    /// Replaces `HoldObjects`.
+    hold-objects: async func(block: block-id, objects: list<hash>) -> result<_, error>;
+}
+
+/// The blocks of the organization this connection opened.
+interface blocks {
+    use types.{
+        access-level, account-id, block-id, block-parent, block-summary, commit-id,
+        content-type-id, error, hash, key-id, key-set, listing, organization-role,
+    };
+
+    variant publish-outcome {
+        /// The head moved to this commit.
+        published(commit-id),
+        /// `expected` was not the head; this is.
+        rejected(option<commit-id>),
+    }
+
+    record history-entry {
+        commit: commit-id,
+        parents: list<commit-id>,
+        time: s64,
+        pinned: bool,
+    }
+
+    /// The summaries asked for, and as many of the objects of their heads as
+    /// fit in half a frame, in order; a client asks again for the rest.
+    record contents {
+        blocks: list<block-summary>,
+        objects: list<list<u8>>,
+    }
+
+    /// What `collect-detached` deleted and freed.
+    record collected {
+        blocks: list<block-id>,
+        objects: u64,
+    }
+
+    record access-entry {
+        account: account-id,
+        email: string,
+        display-name: string,
+        role: organization-role,
+        author: bool,
+        granted: option<access-level>,
+        inherited: access-level,
+        effective: access-level,
+        source: option<block-id>,
+        contact: bool,
+        waiting: bool,
+    }
+
+    record access-list {
+        entries: list<access-entry>,
+        company: bool,
+        set-inside: u32,
+    }
+
+    record block-removed {
+        block: block-id,
+        revision: u64,
+    }
+
+    /// What a connection's `changes` stream tells of the blocks it listed.
+    variant block-change {
+        /// A block it listed, or one that now matches a listing, changed.
+        changed(block-summary),
+        /// A block it was told of matches none of its listings any more.
+        removed(block-removed),
+    }
+
+    record head-moved {
+        head: commit-id,
+        author: account-id,
+    }
+
+    /// What a `watch` stream tells of its block.
+    variant block-event {
+        /// Another connection published a new head.
+        moved(head-moved),
+        /// The block was deleted; the stream then ends.
+        deleted,
+    }
+
+    /// Replaces `CreateBlock` and its `Block` answer.
+    create-block: async func(
+        block: block-id,
+        content-type: content-type-id,
+        parent: block-parent,
+        metadata: list<u8>,
+        references: list<block-id>,
+        key: key-id,
+        keys: key-set,
+    ) -> result<block-summary, error>;
+
+    /// Replaces `SetMetadata` and its `Block` answer.
+    set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
+
+    /// Stores `objects` and moves the head to `commit` if it is `expected`.
+    /// Replaces `Publish` and its `Published` and `Rejected` answers.
+    publish: async func(
+        block: block-id,
+        commit: commit-id,
+        expected: option<commit-id>,
+        parents: list<commit-id>,
+        chunks: list<hash>,
+        time: s64,
+        pinned: bool,
+        references: list<block-id>,
+        metadata: list<u8>,
+        objects: list<list<u8>>,
+    ) -> result<publish-outcome, error>;
+
+    /// One block's summary, which lists it as `listing.block` would.
+    /// Replaces `ReadBlock` and its `Block` answer.
+    read-block: async func(block: block-id) -> result<block-summary, error>;
+
+    /// Summaries of `blocks` and the objects of their heads the caller does
+    /// not hold, those of the commits in `held` left out. Replaces
+    /// `ReadContents` and its `Contents` answer.
+    read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
+
+    /// Moves a block, with the keys it needs under its new parent. Replaces
+    /// `SetParent`.
+    set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
+
+    /// The blocks of a listing, which the connection's `changes` stream then
+    /// follows until `unlist`. Replaces `ListShared`, `ListChildren`,
+    /// `ListDeleted`, `ListBackrefs`, `ListReferences`, `ListOpenSettings`
+    /// and their `Blocks` answers.
+    list-blocks: async func(listing: listing) -> result<list<block-summary>, error>;
+
+    /// Stops following a listing. Replaces `Unlist`.
+    unlist: async func(listing: listing) -> result<_, error>;
+
+    /// Changes to the blocks of everything this connection listed, each
+    /// block told once however many listings hold it, from the next listing
+    /// on; `open-organization` starts the listings over. Replaces the pushed
+    /// `BlockChanged` and `BlockRemoved`.
+    changes: func() -> stream<block-change>;
+
+    /// Replaces `ListHistory` and its `History` answer.
+    list-history: async func(block: block-id) -> result<list<history-entry>, error>;
+
+    /// Drops commits from a block's history; answers how many objects that
+    /// freed. Replaces `PruneHistory` and its `Collected` answer.
+    prune-history: async func(block: block-id, drop: list<commit-id>) -> result<u64, error>;
+
+    /// Replaces `DeleteBlock`.
+    delete-block: async func(block: block-id) -> result<_, error>;
+
+    /// Deletes the detached blocks nothing reaches any more. Replaces
+    /// `CollectDetached` and its `Collected` answer.
+    collect-detached: async func() -> result<collected, error>;
+
+    /// Replaces `SetAccess`.
+    set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
+
+    /// Replaces `ListAccess` and its `AccessList` answer.
+    list-access: async func(block: block-id) -> result<access-list, error>;
+
+    /// Head moves of a block made by other connections, until it is deleted
+    /// or the stream dropped. Each stream is its own: two on one block both
+    /// hear, and dropping one leaves the other. Replaces `Watch`, `Unwatch`
+    /// and the pushed `HeadChanged` and `BlockDeleted`.
+    watch: func(block: block-id) -> stream<block-event>;
+}
+
+/// Live sessions on blocks, whose connections relay edits to each other and
+/// share one lease.
+interface sessions {
+    use types.{block-id, client-id, commit-id, error, session-state};
+
+    record joined {
+        /// This connection, as the session's participants name it.
+        client: client-id,
+        state: session-state,
+    }
+
+    record relayed {
+        %from: client-id,
+        payload: list<u8>,
+    }
+
+    /// What a session's `join` stream tells.
+    variant session-event {
+        /// First, once joined.
+        joined(joined),
+        /// First and last, when the caller may not join.
+        refused(error),
+        /// Another participant changed the session.
+        changed(session-state),
+        /// A participant relayed a message to this one, or to all.
+        relayed(relayed),
+    }
+
+    /// This connection in a block's session. Dropping it leaves the session.
+    resource session {
+        /// Names the block; `join` joins it.
+        constructor(block: block-id);
+
+        /// Joins the session and tells what happens in it, starting with
+        /// `joined` or `refused`. Replaces `JoinSession` and its `Session`
+        /// answer, the pushed `SessionChanged` and `Relayed`, and, by
+        /// dropping the session, `LeaveSession`.
+        join: func() -> stream<session-event>;
+
+        /// Claims the lease of `generation` once its owner left. Replaces
+        /// `ClaimOwnership` and its `Session` answer.
+        claim-ownership: async func(generation: u64) -> result<session-state, error>;
+
+        /// The owner's heartbeat, with the head it holds clean; answers the
+        /// session's state either way. Replaces `Heartbeat` and its `Session`
+        /// answer.
+        heartbeat: async func(generation: u64, clean-at: option<commit-id>) -> result<session-state, error>;
+
+        /// Relays a sealed message to one participant, or to every other one
+        /// with no `to`. Replaces `Relay`.
+        relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
+    }
+}

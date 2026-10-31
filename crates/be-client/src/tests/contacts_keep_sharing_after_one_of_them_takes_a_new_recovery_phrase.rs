@@ -2,7 +2,7 @@ use super::*;
 
 use be_graph::Access;
 use be_keys::Party;
-use be_protocol::{ClientMessage, ServerMessage};
+use be_protocol::{RecoveryKey, client};
 use text_block_types::{TextBlock, TextContent};
 
 async fn note_in(peer: &Peer<MemoryStore>, parent: Uuid, body: &str) -> Uuid {
@@ -78,14 +78,10 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             ],
         )
         .unwrap();
-    let ServerMessage::RecoveryKey { sealed, own, .. } = owner
-        .connection()
-        .request(|request| ClientMessage::GetRecoveryKey { request })
-        .await
-        .unwrap()
-    else {
-        panic!("the server did not answer with the recovery key");
-    };
+    let RecoveryKey { sealed, own, .. } =
+        crate::ask(client::keys::get_recovery_key(&owner.connection()))
+            .await
+            .expect("the server answers with the recovery key");
     let resealed = crate::contacts::new_identity(
         owner.account(),
         owner.keys().identity(),
@@ -95,17 +91,15 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     )
     .expect("the old phrase opens everything sealed to the owner");
     assert_eq!(resealed.changes.len(), 2, "one change per verified contact");
-    owner
-        .connection()
-        .request(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: fresh.public().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-        })
-        .await
-        .unwrap();
+    crate::ask(client::keys::set_recovery_key(
+        &owner.connection(),
+        fresh.public().0,
+        resealed.sealed,
+        resealed.own,
+        resealed.changes,
+    ))
+    .await
+    .unwrap();
 
     let owner = with_identity(&harness, &owner, fresh.clone()).await;
     let guest = harness.second(&guest).await;

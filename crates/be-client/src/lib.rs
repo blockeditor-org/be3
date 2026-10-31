@@ -14,7 +14,7 @@ pub mod transfer;
 mod transport;
 
 pub use clock::Clock;
-pub use connection::Connection;
+pub use connection::{Answer, Connection, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{Credentials, Drained, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed};
@@ -124,6 +124,24 @@ impl Error for ClientError {}
 impl ClientError {
     pub fn is_unreachable(&self) -> bool {
         matches!(self, Self::Disconnected(_) | Self::TimedOut(_))
+    }
+}
+
+impl From<be_ops::OpError> for ClientError {
+    fn from(error: be_ops::OpError) -> Self {
+        match error {
+            be_ops::OpError::Canceled => Self::Disconnected("the connection closed".into()),
+            be_ops::OpError::Unsupported => Self::Unexpected,
+            be_ops::OpError::Denied => {
+                Self::Refused(ErrorCode::PermissionDenied, error.to_string())
+            }
+        }
+    }
+}
+
+impl From<be_protocol::Error> for ClientError {
+    fn from(error: be_protocol::Error) -> Self {
+        Self::Refused(error.code, error.message)
     }
 }
 

@@ -5,33 +5,32 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let response = client
-        .send(|request| ClientMessage::CreateBlock {
-            request,
-            block,
-            content_type,
-            parent: BlockParent::Block(parent),
-            metadata: Vec::new(),
-            references: Vec::new(),
-            key,
-            keys: KeySet {
-                keys: vec![row(key, block, KeyKind::Data)],
-                wrapped: Vec::new(),
-            },
+        .call(|peer| {
+            client::blocks::create_block(
+                peer,
+                block,
+                content_type,
+                BlockParent::Block(parent),
+                Vec::new(),
+                Vec::new(),
+                key,
+                KeySet {
+                    keys: vec![row(key, block, KeyKind::Data)],
+                    wrapped: Vec::new(),
+                },
+            )
         })
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
     block
 }
 
 async fn access_of(client: &mut TestClient, block: Uuid) -> Access {
     match client
-        .send(|request| ClientMessage::ReadBlock { request, block })
+        .call(|peer| client::blocks::read_block(peer, block))
         .await
     {
-        ServerMessage::Block { block, .. } => block.access,
+        Ok(block) => block.access,
         _ => Access::None,
     }
 }
@@ -46,7 +45,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let guest_id = guest.register("guest@example.com").await;
     guest.personal().await;
     let link = owner.link(None).await;
-    guest.accept(link, &[]).await;
+    let _ = guest.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;
     let folder = owner.create_block(BlockParent::Block(workspace)).await;
@@ -56,20 +55,17 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let elsewhere = owner.create_block(BlockParent::Root).await;
 
     let granted = owner.grant(note, guest_id, Access::View).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     assert!(!access_of(&mut guest, kind).await.can_view());
 
     let opened = owner.grant(kind, ANYONE_INSIDE, Access::View).await;
-    assert!(matches!(opened, ServerMessage::Ok { .. }), "{opened:?}");
+    assert!(matches!(opened, Ok(())), "{opened:?}");
     assert_eq!(access_of(&mut guest, kind).await, Access::View);
     assert!(!access_of(&mut guest, settings).await.can_view());
     let listed = guest
-        .send(|request| ClientMessage::ListOpenSettings {
-            request,
-            block: note,
-        })
+        .call(|peer| client::blocks::list_blocks(peer, Listing::OpenSettings(note)))
         .await;
-    let ServerMessage::Blocks { blocks, .. } = listed else {
+    let Ok(blocks) = listed else {
         panic!("listing the open settings failed: {listed:?}");
     };
     assert_eq!(
@@ -82,19 +78,19 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
 
     let key = Uuid::new_v4();
     let stored = owner
-        .send(|request| ClientMessage::PutKeys {
-            request,
-            keys: KeySet {
-                keys: vec![row(key, kind, KeyKind::Scope)],
-                wrapped: Vec::new(),
-            },
+        .call(|peer| {
+            client::keys::put_keys(
+                peer,
+                KeySet {
+                    keys: vec![row(key, kind, KeyKind::Scope)],
+                    wrapped: Vec::new(),
+                },
+            )
         })
         .await;
-    assert!(matches!(stored, ServerMessage::Ok { .. }), "{stored:?}");
-    let response = owner
-        .send(|request| ClientMessage::GetKeyWork { request })
-        .await;
-    let ServerMessage::KeyWork { work, .. } = response else {
+    assert!(matches!(stored, Ok(())), "{stored:?}");
+    let response = owner.call(|peer| client::keys::get_key_work(peer)).await;
+    let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };
     assert!(
@@ -116,7 +112,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
         );
     }
     let closed = owner.grant(kind, ANYONE_INSIDE, Access::None).await;
-    assert!(matches!(closed, ServerMessage::Ok { .. }), "{closed:?}");
+    assert!(matches!(closed, Ok(())), "{closed:?}");
     assert!(!access_of(&mut guest, kind).await.can_view());
 
     harness.stop().await;

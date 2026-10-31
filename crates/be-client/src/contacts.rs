@@ -3,10 +3,12 @@ use be_keys::{CardRole, ContactCard, InviteCode, Party, RecoveryPublic, Recovery
 use std::collections::HashMap;
 
 use be_protocol::{
-    ClientMessage, ContactLink, ErrorCode, EscrowKey, KeyChange, OrganizationInvitation,
-    OrganizationRole, OwnKind, OwnSealed, PendingGrant, SealedKey, ServerMessage,
+    ContactLink, ErrorCode, EscrowKey, KeyChange, OrganizationInvitation, OrganizationRole,
+    OwnKind, OwnSealed, PendingGrant, SealedKey, client,
 };
 use uuid::Uuid;
+
+use std::sync::Arc;
 
 use crate::{ClientError, connection::Connection};
 
@@ -70,16 +72,11 @@ fn tampered() -> ClientError {
 }
 
 pub async fn contacts(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
 ) -> Result<Vec<Contact>, ClientError> {
-    let ServerMessage::Contacts { contacts, .. } = connection
-        .request(|request| ClientMessage::ListContacts { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+    let contacts = client::contacts::list_contacts(connection).await??;
     let mut held = None;
     let mut listed = Vec::with_capacity(contacts.len());
     for row in contacts {
@@ -101,13 +98,8 @@ pub async fn contacts(
             )
             .await?;
             verified.public = public;
-            connection
-                .request(|request| ClientMessage::PutContact {
-                    request,
-                    contact: row.account,
-                    sealed: verified.seal_own(identity),
-                })
-                .await?;
+            client::contacts::put_contact(connection, row.account, verified.seal_own(identity))
+                .await??;
         }
         listed.push(Contact {
             public: card.map(|card| card.public),
@@ -138,18 +130,12 @@ fn changed_key(
     (current != card.public).then_some(current)
 }
 
-async fn sealed_to_me(connection: &Connection) -> Result<Vec<SealedKey>, ClientError> {
-    let ServerMessage::RecoveryKey { sealed, .. } = connection
-        .request(|request| ClientMessage::GetRecoveryKey { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
-    Ok(sealed)
+async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, ClientError> {
+    Ok(client::keys::get_recovery_key(connection).await??.sealed)
 }
 
 async fn reseal_from(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     card: &ContactCard,
@@ -178,9 +164,7 @@ async fn reseal_from(
         })
         .collect();
     if !keys.is_empty() {
-        connection
-            .request(|request| ClientMessage::ResealKeys { request, keys })
-            .await?;
+        client::keys::reseal_keys(connection, keys).await??;
     }
     Ok(())
 }
@@ -267,7 +251,7 @@ pub fn new_identity(
 }
 
 pub async fn make_link(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     offer: Option<&GrantOffer>,
@@ -280,31 +264,22 @@ pub async fn make_link(
         key: offer.key,
         sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
     });
-    connection
-        .request(|request| ClientMessage::CreateContactLink {
-            request,
-            link: link_id(&code),
-            card: me.seal(&code, CardRole::Owner),
-            code: identity.seal_own(&code.to_bytes()),
-            grant,
-        })
-        .await?;
+    client::contacts::create_contact_link(
+        connection,
+        link_id(&code),
+        me.seal(&code, CardRole::Owner),
+        identity.seal_own(&code.to_bytes()),
+        grant,
+    )
+    .await??;
     Ok(code)
 }
 
 pub async fn open_link(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     code: &InviteCode,
 ) -> Result<(ContactLink, ContactCard), ClientError> {
-    let ServerMessage::ContactLink { link, .. } = connection
-        .request(|request| ClientMessage::GetContactLink {
-            request,
-            link: link_id(code),
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+    let link = client::contacts::get_contact_link(connection, link_id(code)).await??;
     let card = ContactCard::open(code, CardRole::Owner, &link.card).map_err(|_| tampered())?;
     if card.account != link.owner.into_bytes() {
         return Err(tampered());
@@ -313,7 +288,7 @@ pub async fn open_link(
 }
 
 pub async fn accept_link(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     code: &InviteCode,
@@ -332,29 +307,23 @@ pub async fn accept_link(
         }
         None => Vec::new(),
     };
-    connection
-        .request(|request| ClientMessage::AcceptContactLink {
-            request,
-            link: link.id,
-            card: me.seal(code, CardRole::Accepter),
-            contact: card.seal_own(identity),
-            key,
-        })
-        .await?;
+    client::contacts::accept_contact_link(
+        connection,
+        link.id,
+        me.seal(code, CardRole::Accepter),
+        card.seal_own(identity),
+        key,
+    )
+    .await??;
     Ok(card)
 }
 
 pub async fn finish_links(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
-    let ServerMessage::ContactLinks { links, .. } = connection
-        .request(|request| ClientMessage::ListContactLinks { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+    let links = client::contacts::list_contact_links(connection).await??;
     let mut finished = Vec::new();
     for link in links {
         let Some(accepter) = link.accepter else {
@@ -368,13 +337,12 @@ pub async fn finish_links(
             .filter(|card| card.account == accepter.into_bytes());
         let mut kept = opened.is_some();
         if let Some(card) = &opened {
-            let put = connection
-                .request(|request| ClientMessage::PutContact {
-                    request,
-                    contact: accepter,
-                    sealed: card.seal_own(identity),
-                })
-                .await;
+            let put = crate::ask(client::contacts::put_contact(
+                connection,
+                accepter,
+                card.seal_own(identity),
+            ))
+            .await;
             match put {
                 Ok(_) => {}
                 Err(ClientError::Refused(ErrorCode::NotAContact, _)) => kept = false,
@@ -388,12 +356,7 @@ pub async fn finish_links(
         if kept && elsewhere {
             continue;
         }
-        connection
-            .request(|request| ClientMessage::DeleteContactLink {
-                request,
-                link: link.id,
-            })
-            .await?;
+        client::contacts::delete_contact_link(connection, link.id).await??;
         if let Some(card) = opened.filter(|_| kept) {
             finished.push(Finished {
                 card,
@@ -404,15 +367,16 @@ pub async fn finish_links(
     Ok(finished)
 }
 
-pub async fn remove_contact(connection: &Connection, account: Uuid) -> Result<(), ClientError> {
-    connection
-        .request(|request| ClientMessage::RemoveContact { request, account })
-        .await?;
+pub async fn remove_contact(
+    connection: &Arc<Connection>,
+    account: Uuid,
+) -> Result<(), ClientError> {
+    client::contacts::remove_contact(connection, account).await??;
     Ok(())
 }
 
 pub async fn invite(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     organization: Uuid,
@@ -424,34 +388,25 @@ pub async fn invite(
     let escrow = escrow.map_or_else(Vec::new, |escrow| {
         code.seal_escrow(organization.into_bytes(), &escrow.encode())
     });
-    connection
-        .request(|request| ClientMessage::Invite {
-            request,
-            invitation: link_id(&code),
-            organization,
-            email,
-            role,
-            sealed: me.seal(&code, CardRole::Owner),
-            code: identity.seal_own(&code.to_bytes()),
-            escrow,
-        })
-        .await?;
+    client::organizations::invite(
+        connection,
+        link_id(&code),
+        organization,
+        email,
+        role,
+        me.seal(&code, CardRole::Owner),
+        identity.seal_own(&code.to_bytes()),
+        escrow,
+    )
+    .await??;
     Ok(code)
 }
 
 pub async fn invitation(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     code: &InviteCode,
 ) -> Result<(OrganizationInvitation, ContactCard), ClientError> {
-    let ServerMessage::Invitation { invitation, .. } = connection
-        .request(|request| ClientMessage::GetInvitation {
-            request,
-            invitation: link_id(code),
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+    let invitation = client::organizations::get_invitation(connection, link_id(code)).await??;
     let card =
         ContactCard::open(code, CardRole::Owner, &invitation.sealed).map_err(|_| tampered())?;
     if card.account != invitation.invited_by.into_bytes() {
@@ -461,7 +416,7 @@ pub async fn invitation(
 }
 
 pub async fn accept_invitation(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     code: &InviteCode,
@@ -478,14 +433,13 @@ pub async fn accept_invitation(
             seal_pin(identity, invitation.organization, &opened)
         }
     };
-    connection
-        .request(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: invitation.id,
-            card: me.seal(code, CardRole::Accepter),
-            contact: card.seal_own(identity),
-            escrow,
-        })
-        .await?;
+    client::organizations::accept_invitation(
+        connection,
+        invitation.id,
+        me.seal(code, CardRole::Accepter),
+        card.seal_own(identity),
+        escrow,
+    )
+    .await??;
     Ok(invitation)
 }

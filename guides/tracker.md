@@ -73,8 +73,8 @@ be Code sync ~/code [--watch]           a folder or workspace and a directory, k
 ```
 
 `be ls` lists the top: the organization's roots the account can see
-(`ListChildren` of the root) and each block shared with it whose parent it
-cannot see (`ListShared`, the app's Shared with me), never a settings block.
+(`list-blocks` of the root's children) and each block shared with it whose parent it
+cannot see (`list-blocks` of what is shared, the app's Shared with me), never a settings block.
 `be` never lists the whole organization: it lists the top, then a block's
 children when it needs them, one request per block, and keeps what it has
 listed for the rest of the command. `new-database` and `upload` without `--in`

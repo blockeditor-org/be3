@@ -16,64 +16,62 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     client
         .upload(&author.store, &author.objects_of(head, &chunks))
         .await;
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block: child,
-            commit: head,
-            expected: None,
-            parents: Vec::new(),
-            chunks: chunks.clone(),
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                child,
+                head,
+                None,
+                Vec::new(),
+                chunks.clone(),
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
 
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block: bystander,
-            commit: head,
-            expected: None,
-            parents: Vec::new(),
-            chunks: chunks.clone(),
-            time: 1_000,
-            pinned: false,
-            references: vec![child],
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                bystander,
+                head,
+                None,
+                Vec::new(),
+                chunks.clone(),
+                1_000,
+                false,
+                vec![child],
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
 
     let response = client
-        .send(|request| ClientMessage::ListBackrefs {
-            request,
-            block: child,
-        })
+        .call(|peer| client::blocks::list_blocks(peer, Listing::Backrefs(child)))
         .await;
-    let ServerMessage::Blocks { blocks, .. } = response else {
+    let Ok(blocks) = response else {
         panic!("backrefs failed: {response:?}");
     };
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].id, bystander);
 
     let response = client
-        .send(|request| ClientMessage::DeleteBlock {
-            request,
-            block: folder,
-        })
+        .call(|peer| client::blocks::delete_block(peer, folder))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 
     let response = client
-        .send(|request| ClientMessage::CollectDetached { request })
+        .call(|peer| client::blocks::collect_detached(peer))
         .await;
-    let ServerMessage::Collected {
+    let Ok(be_protocol::Collected {
         blocks, objects, ..
-    } = response
+    }) = response
     else {
         panic!("collection failed: {response:?}");
     };
@@ -86,24 +84,15 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     );
 
     let response = client
-        .send(|request| ClientMessage::GetObject {
-            request,
-            hash: chunks[0],
-        })
+        .call(|peer| client::objects::get_object(peer, chunks[0]))
         .await;
-    assert!(
-        matches!(response, ServerMessage::Object { bytes: Some(_), .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(Some(_))), "{response:?}");
 
     let response = client
-        .send(|request| ClientMessage::ReadBlock {
-            request,
-            block: child,
-        })
+        .call(|peer| client::blocks::read_block(peer, child))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::BlockNotFound),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::BlockNotFound),
         "{response:?}"
     );
     assert!(client.read_block(bystander).await.head.is_some());

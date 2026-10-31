@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url};
-use be_protocol::{ClientMessage, ServerMessage};
+use be_protocol::client;
 use be_store::FileStore;
 use uuid::Uuid;
 
@@ -157,27 +157,22 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
     let connection = Connection::connect(&url, &be_client::Clock::real())
         .await
         .map_err(explain)?;
-    let signed_in = connection
-        .request(|request| {
-            if settings.token.is_empty() {
-                ClientMessage::AuthenticateHeader { request }
-            } else {
-                ClientMessage::Authenticate {
-                    request,
-                    token: settings.token.clone(),
-                }
-            }
-        })
-        .await
-        .map_err(|error| {
-            format!(
-                "the server refused account authentication: {}",
-                explain(error)
-            )
-        })?;
-    let ServerMessage::Authenticated { account, token, .. } = signed_in else {
-        return Err("the server did not sign this connection in".to_owned());
+    let signed_in = match settings.token.is_empty() {
+        true => be_client::ask(client::account::authenticate_header(&connection)).await,
+        false => {
+            be_client::ask(client::account::authenticate(
+                &connection,
+                settings.token.clone(),
+            ))
+            .await
+        }
     };
+    let be_protocol::Authenticated { account, token, .. } = signed_in.map_err(|error| {
+        format!(
+            "the server refused account authentication: {}",
+            explain(error)
+        )
+    })?;
     let organization = match settings.organization {
         Some(organization) => organization,
         None => only_organization(&connection).await?,
@@ -201,14 +196,10 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
     .map_err(explain)
 }
 
-async fn only_organization(connection: &Connection) -> Result<Uuid, String> {
-    let ServerMessage::Organizations { organizations, .. } = connection
-        .request(|request| ClientMessage::ListOrganizations { request })
+async fn only_organization(connection: &Arc<Connection>) -> Result<Uuid, String> {
+    let organizations = be_client::ask(client::organizations::list_organizations(connection))
         .await
-        .map_err(explain)?
-    else {
-        return Err("the server did not list organizations".to_owned());
-    };
+        .map_err(explain)?;
     match organizations.as_slice() {
         [only] => Ok(only.id),
         [] => Err("this account is not a member of any organization".to_owned()),
@@ -225,19 +216,16 @@ async fn only_organization(connection: &Connection) -> Result<Uuid, String> {
 }
 
 async fn identity(
-    connection: &Connection,
+    connection: &Arc<Connection>,
     phrase: &str,
 ) -> Result<be_keys::RecoverySecret, String> {
     let secret = be_keys::RecoveryPhrase::parse(phrase)
         .map_err(|error| format!("BE3_RECOVERY_PHRASE: {error}"))?
         .secret();
-    let ServerMessage::RecoveryKey { public, .. } = connection
-        .request(|request| ClientMessage::GetRecoveryKey { request })
+    let public = be_client::ask(client::keys::get_recovery_key(connection))
         .await
         .map_err(explain)?
-    else {
-        return Err("the server did not send the account's recovery key".to_owned());
-    };
+        .public;
     match public {
         Some(public) if public == secret.public().0 => Ok(secret),
         Some(_) => Err("BE3_RECOVERY_PHRASE is not this account's recovery phrase".to_owned()),

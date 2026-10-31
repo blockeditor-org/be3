@@ -1,0 +1,202 @@
+package be3:server@0.1.0;
+
+/// What the client asks of the server, and what it hears back, over one
+/// websocket. A connection starts with the raw `be3 hello` frame
+/// (`be_protocol::hello`) each way; after that every frame is a be-ops frame,
+/// and each function below is an op whose id is the only correlation. The
+/// server serves these interfaces; the client imports them.
+///
+/// Calls on one connection are taken in the order they were sent, so a call
+/// that opens a stream (`watch`, `changes`, `paired`, ...) is in place before
+/// any call sent after it is answered.
+interface types {
+    use be3:shared/ids@0.1.0.{uuid, hash, block-id, account-id, organization-id, commit-id, content-type-id};
+    use be3:shared/access@0.1.0.{access-level};
+
+    /// Why the server refused a call. Replaces `ServerMessage::Failed`.
+    record error {
+        code: error-code,
+        message: string,
+    }
+
+    enum error-code {
+        not-authenticated,
+        invalid-credentials,
+        email-already-registered,
+        invalid-request,
+        permission-denied,
+        block-not-found,
+        block-already-exists,
+        object-not-found,
+        object-too-large,
+        parent-cycle,
+        storage,
+        organization-not-found,
+        invitation-not-found,
+        login-disabled,
+        block-has-content,
+        key-missing,
+        not-a-contact,
+        link-not-found,
+        last-administrator,
+        policy-unreadable,
+        policy-refused,
+        over-quota,
+    }
+
+    /// A connection, as the server numbers them; a session's participants and
+    /// pairing messages name connections by it.
+    type client-id = u64;
+
+    /// A key a client minted: a data, scope or escrow key.
+    type key-id = uuid;
+
+    type invitation-id = uuid;
+
+    type link-id = uuid;
+
+    /// A 32-byte public key: an account's recovery key, an escrow key's
+    /// public and signing halves, the server's own account key.
+    type public-key = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
+    enum organization-role {
+        administrator,
+        editor,
+    }
+
+    enum organization-kind {
+        company,
+        personal,
+    }
+
+    /// Where a block sits: nowhere yet, at the organization's root, or inside
+    /// another block. The same cases as `be_graph::BlockParent`.
+    variant block-parent {
+        detached,
+        root,
+        block(block-id),
+    }
+
+    /// A query whose blocks the server keeps a connection told of on its
+    /// `changes` stream once it listed them, until it unlists it.
+    variant listing {
+        children(block-parent),
+        deleted,
+        shared,
+        backrefs(block-id),
+        block(block-id),
+        references(block-id),
+        open-settings(block-id),
+    }
+
+    /// What a connection may know of a block. One it may only know exists
+    /// carries only its id, type and access, with `held` set.
+    record block-summary {
+        id: block-id,
+        content-type: content-type-id,
+        access: access-level,
+        author: option<account-id>,
+        parent: option<block-parent>,
+        head: option<commit-id>,
+        references: list<block-id>,
+        metadata: list<u8>,
+        version: option<u64>,
+        key: option<key-id>,
+        scope: option<block-id>,
+        revision: u64,
+        held: bool,
+        opens-inside: bool,
+        sets-access: bool,
+    }
+
+    enum key-kind {
+        data,
+        scope,
+        escrow,
+    }
+
+    record key-row {
+        id: key-id,
+        block: block-id,
+        kind: key-kind,
+        epoch: u64,
+    }
+
+    variant wrapped-by {
+        key(key-id),
+        account(account-id),
+    }
+
+    record wrapped-key {
+        key: key-id,
+        wrapped-by: wrapped-by,
+        sender: account-id,
+        sealed: list<u8>,
+    }
+
+    record key-set {
+        keys: list<key-row>,
+        wrapped: list<wrapped-key>,
+    }
+
+    /// One epoch of an organization's escrow key, signed by the epoch before
+    /// over `EscrowKey::chained`. Its fields, their order and their types are
+    /// those of `be_protocol::EscrowKey`, whose postcard bytes clients seal and
+    /// the server stores (a pinned escrow key, an invitation's or link's
+    /// escrow): the two encode alike, which a test of this crate holds.
+    record escrow-key {
+        id: key-id,
+        epoch: u64,
+        public: public-key,
+        signing: public-key,
+        signature: list<u8>,
+    }
+
+    /// A key sealed to an account by a sender, within an organization.
+    record sealed-key {
+        organization: organization-id,
+        key: key-id,
+        sender: account-id,
+        sealed: list<u8>,
+    }
+
+    enum own-kind {
+        contact,
+        link,
+        escrow,
+    }
+
+    /// What an account sealed for itself: a contact's card, a link's code, a
+    /// pinned escrow key.
+    record own-sealed {
+        kind: own-kind,
+        id: uuid,
+        sealed: list<u8>,
+    }
+
+    /// A key change sealed for one contact, after an account took a new
+    /// recovery phrase.
+    record key-change {
+        contact: account-id,
+        sealed: list<u8>,
+    }
+
+    /// A grant waiting in a contact link until its accepter is known.
+    record pending-grant {
+        organization: organization-id,
+        block: block-id,
+        access: access-level,
+        key: key-id,
+        sealed: list<u8>,
+    }
+
+    /// A block's live session: its lease generation, the connection that owns
+    /// the lease, every connection in it, and the head its owner last
+    /// reported clean.
+    record session-state {
+        generation: u64,
+        owner: option<client-id>,
+        participants: list<client-id>,
+        clean-at: option<commit-id>,
+    }
+}

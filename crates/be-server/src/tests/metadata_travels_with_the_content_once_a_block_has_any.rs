@@ -13,17 +13,11 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     other.list(BlockParent::Root).await;
 
     let response = author_connection
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: b"sealed before content".to_vec(),
-            references: Vec::new(),
+        .call(|peer| {
+            client::blocks::set_metadata(peer, block, b"sealed before content".to_vec(), Vec::new())
         })
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
 
     let author = Author::new(account);
     let (head, chunks) = author.compose(b"first\n", 1_000, None);
@@ -31,22 +25,24 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         .upload(&author.store, &author.objects_of(head, &chunks))
         .await;
     let response = author_connection
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: head,
-            expected: None,
-            parents: Vec::new(),
-            chunks,
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: b"sealed with content".to_vec(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                head,
+                None,
+                Vec::new(),
+                chunks,
+                1_000,
+                false,
+                Vec::new(),
+                b"sealed with content".to_vec(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
     assert_eq!(
@@ -54,7 +50,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         b"sealed with content"
     );
     let heard = loop {
-        if let ServerMessage::BlockChanged { block: changed } = other.graph_change().await
+        if let Notice::BlockChanged { block: changed } = other.graph_change().await
             && changed.id == block
             && changed.head == Some(head)
         {
@@ -64,20 +60,17 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     assert_eq!(heard.metadata, b"sealed with content");
 
     let response = author_connection
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: b"sealed beside content".to_vec(),
-            references: Vec::new(),
+        .call(|peer| {
+            client::blocks::set_metadata(peer, block, b"sealed beside content".to_vec(), Vec::new())
         })
         .await;
     assert!(
         matches!(
             response,
-            ServerMessage::Failed {
+            Err(Error {
                 code: ErrorCode::BlockHasContent,
                 ..
-            }
+            })
         ),
         "{response:?}"
     );

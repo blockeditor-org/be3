@@ -1,16 +1,26 @@
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-    task::Poll,
+    pin::Pin,
+    sync::{Arc, Mutex, PoisonError},
+    task::{Context, Poll},
     time::Duration,
 };
 
-use be_protocol::{ClientMessage, ServerMessage, decode, encode, hello, read_hello};
-use futures_util::future::{Either, select};
-use tokio::sync::{broadcast, mpsc, oneshot, watch};
+use be_commit::CommitId;
+use be_ops::{
+    MethodId, OpId, Side,
+    net::{Arrival, Caller, Peer},
+};
+use be_protocol::{
+    BlockEvent, ClientId, PairingMessage, SessionEvent, SessionState, client, hello, read_hello,
+};
+use futures_util::{
+    StreamExt,
+    future::{Either, select},
+    stream::FuturesUnordered,
+};
+use tokio::sync::{broadcast, mpsc, watch};
+use uuid::Uuid;
 
 use crate::{
     ClientError, Clock,
@@ -19,27 +29,93 @@ use crate::{
 
 const EVENT_CAPACITY: usize = 4096;
 
+const PING_FRAME_BYTES: usize = 32;
+
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 pub const PING_INTERVAL: Duration = Duration::from_secs(15);
 pub const PONG_WAIT: Duration = Duration::from_secs(20);
 
-const PING_REQUEST: u64 = 0;
+pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
-type Reply = oneshot::Sender<Result<ServerMessage, ClientError>>;
+pub async fn ask<T: be_ops::DeserializeOwned>(
+    pending: be_ops::net::Pending<Result<T, be_protocol::Error>>,
+) -> Result<T, ClientError> {
+    Ok(pending.await??)
+}
 
-struct Outbound {
-    request: u64,
-    bytes: Vec<u8>,
-    reply: Reply,
+type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Event {
+    BlockChanged(be_protocol::BlockSummary),
+    BlockRemoved {
+        block: Uuid,
+        revision: u64,
+    },
+    HeadChanged {
+        block: Uuid,
+        head: CommitId,
+        author: Uuid,
+    },
+    BlockDeleted {
+        block: Uuid,
+    },
+    SessionChanged {
+        block: Uuid,
+        state: SessionState,
+    },
+    Relayed {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+    },
+    Paired(PairingMessage),
+    ContactsChanged,
+    KeyWorkChanged,
+}
+
+struct Watching {
+    count: usize,
+    _stop: tokio::sync::oneshot::Sender<()>,
+}
+
+#[derive(Default)]
+struct Registry {
+    subscribed: bool,
+    watching: HashMap<Uuid, Watching>,
+    sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
 }
 
 pub struct Connection {
-    commands: mpsc::UnboundedSender<Outbound>,
+    peer: Peer,
     shut: mpsc::UnboundedSender<()>,
-    events: broadcast::Sender<ServerMessage>,
+    pumps: mpsc::UnboundedSender<Pump>,
+    events: broadcast::Sender<Event>,
     closed: watch::Receiver<bool>,
     due: watch::Receiver<Duration>,
-    next: AtomicU64,
+    registry: Mutex<Registry>,
+}
+
+impl Caller for Connection {
+    fn start(&self, parent: Option<OpId>, method: MethodId, args: Vec<u8>) -> OpId {
+        self.peer.start(parent, method, args)
+    }
+
+    fn poll_op(&self, op: OpId, context: &mut Context<'_>) -> Poll<Arrival> {
+        self.peer.poll_op(op, context)
+    }
+
+    fn credit(&self, op: OpId, items: u32, bytes: u64) {
+        self.peer.credit(op, items, bytes);
+    }
+
+    fn cancel(&self, op: OpId) {
+        self.peer.cancel(op);
+    }
+
+    fn request_cancel(&self, op: OpId) {
+        self.peer.request_cancel(op);
+    }
 }
 
 impl Connection {
@@ -53,27 +129,33 @@ impl Connection {
             Either::Left((opened, _)) => opened?,
             Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
         };
-        let (commands, receiver) = mpsc::unbounded_channel();
+        let (outbound, frames) = mpsc::unbounded_channel();
+        let peer = Peer::new(Side::Guest, move |frame| {
+            let _ = outbound.send(frame);
+        });
         let (shut, shutting) = mpsc::unbounded_channel();
+        let (pumps, pumping) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (closing, closed) = watch::channel(false);
         let opened = clock.now();
         let (due, watched) = watch::channel(opened + PING_INTERVAL);
         let connection = Arc::new(Self {
-            commands,
+            peer: peer.clone(),
             shut,
-            events: events.clone(),
+            pumps,
+            events,
             closed,
             due: watched,
-            next: AtomicU64::new(0),
+            registry: Mutex::new(Registry::default()),
         });
         spawn(worker(
             Carried {
                 writer,
                 reader,
-                commands: receiver,
+                peer,
+                frames,
                 shut: shutting,
-                events,
+                pumps: pumping,
                 clock: clock.clone(),
                 opened,
                 due,
@@ -84,23 +166,215 @@ impl Connection {
     }
 
     pub fn offline() -> Arc<Self> {
-        let (commands, _) = mpsc::unbounded_channel();
+        let peer = Peer::new(Side::Guest, |_| {});
+        peer.close();
         let (shut, _) = mpsc::unbounded_channel();
+        let (pumps, _) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(1);
         let (_, closed) = watch::channel(true);
         let (_, due) = watch::channel(Duration::MAX);
         Arc::new(Self {
-            commands,
+            peer,
             shut,
+            pumps,
             events,
             closed,
             due,
-            next: AtomicU64::new(0),
+            registry: Mutex::new(Registry::default()),
         })
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<ServerMessage> {
-        self.events.subscribe()
+    fn registry(&self) -> std::sync::MutexGuard<'_, Registry> {
+        self.registry.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn pump(&self, pump: impl Future<Output = ()> + Send + 'static) {
+        let _ = self.pumps.send(Box::pin(pump));
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<Event> {
+        let receiver = self.events.subscribe();
+        if std::mem::replace(&mut self.registry().subscribed, true) {
+            return receiver;
+        }
+        let events = self.events.clone();
+        let mut changes = client::blocks::changes(&self.peer);
+        self.pump(async move {
+            while let Some(change) = changes.recv().await {
+                let _ = events.send(match change {
+                    be_protocol::BlockChange::Changed(block) => Event::BlockChanged(block),
+                    be_protocol::BlockChange::Removed { block, revision } => {
+                        Event::BlockRemoved { block, revision }
+                    }
+                });
+            }
+        });
+        let events = self.events.clone();
+        let mut paired = client::account::paired(&self.peer);
+        self.pump(async move {
+            while let Some(message) = paired.recv().await {
+                let _ = events.send(Event::Paired(message));
+            }
+        });
+        let events = self.events.clone();
+        let mut contacts = client::contacts::contacts_changed(&self.peer);
+        self.pump(async move {
+            while contacts.recv().await.is_some() {
+                let _ = events.send(Event::ContactsChanged);
+            }
+        });
+        let events = self.events.clone();
+        let mut key_work = client::keys::key_work_changed(&self.peer);
+        self.pump(async move {
+            while key_work.recv().await.is_some() {
+                let _ = events.send(Event::KeyWorkChanged);
+            }
+        });
+        receiver
+    }
+
+    pub fn watch(&self, block: Uuid) {
+        let mut registry = self.registry();
+        if let Some(watching) = registry.watching.get_mut(&block) {
+            watching.count += 1;
+            return;
+        }
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        registry.watching.insert(
+            block,
+            Watching {
+                count: 1,
+                _stop: stop,
+            },
+        );
+        drop(registry);
+        let events = self.events.clone();
+        let mut heard = client::blocks::watch(&self.peer, block);
+        self.pump(async move {
+            let heard = async move {
+                while let Some(event) = heard.recv().await {
+                    let _ = events.send(match event {
+                        BlockEvent::Moved { head, author } => Event::HeadChanged {
+                            block,
+                            head,
+                            author,
+                        },
+                        BlockEvent::Deleted => Event::BlockDeleted { block },
+                    });
+                }
+            };
+            select(std::pin::pin!(heard), stopped).await;
+        });
+    }
+
+    pub fn unwatch(&self, block: Uuid) {
+        let mut registry = self.registry();
+        if let Some(watching) = registry.watching.get_mut(&block) {
+            watching.count -= 1;
+            if watching.count == 0 {
+                registry.watching.remove(&block);
+            }
+        }
+    }
+
+    pub fn join_session(self: &Arc<Self>, block: Uuid) -> Answer<(ClientId, SessionState)> {
+        let session = Arc::new(client::sessions::Session::new(&self.peer, block));
+        let mut joining = session.join();
+        let left = self.registry().sessions.insert(block, Arc::clone(&session));
+        drop(left);
+        let connection = Arc::clone(self);
+        Box::pin(async move {
+            let joined = match joining.recv().await {
+                Some(SessionEvent::Joined { client, state }) => Ok((client, state)),
+                Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
+                Some(SessionEvent::Changed(_) | SessionEvent::Relayed { .. }) => {
+                    Err(ClientError::Unexpected)
+                }
+                None => Err(joining
+                    .ended()
+                    .and_then(Result::err)
+                    .map_or(ClientError::Unexpected, ClientError::from)),
+            };
+            if joined.is_err() {
+                connection.forget_session(block, &session);
+                return joined;
+            }
+            let events = connection.events.clone();
+            connection.pump(async move {
+                while let Some(event) = joining.recv().await {
+                    let _ = events.send(match event {
+                        SessionEvent::Changed(state) => Event::SessionChanged { block, state },
+                        SessionEvent::Relayed { from, payload } => Event::Relayed {
+                            block,
+                            from,
+                            payload,
+                        },
+                        SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
+                    });
+                }
+            });
+            joined
+        })
+    }
+
+    fn forget_session(&self, block: Uuid, session: &Arc<client::sessions::Session>) {
+        let mut registry = self.registry();
+        if registry
+            .sessions
+            .get(&block)
+            .is_some_and(|held| Arc::ptr_eq(held, session))
+        {
+            registry.sessions.remove(&block);
+        }
+    }
+
+    fn session(&self, block: Uuid) -> Result<Arc<client::sessions::Session>, ClientError> {
+        self.registry()
+            .sessions
+            .get(&block)
+            .cloned()
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    be_protocol::ErrorCode::InvalidRequest,
+                    "join the session before speaking in it".into(),
+                )
+            })
+    }
+
+    pub fn leave_session(&self, block: Uuid) -> Answer<()> {
+        let session = self.registry().sessions.remove(&block);
+        Box::pin(async move {
+            if let Some(session) = session.and_then(Arc::into_inner) {
+                let _ = session.close().await;
+            }
+            Ok(())
+        })
+    }
+
+    pub fn claim_ownership(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
+        let claimed = self
+            .session(block)
+            .map(|session| session.claim_ownership(generation));
+        Box::pin(async move { Ok(claimed?.await??) })
+    }
+
+    pub fn heartbeat(
+        &self,
+        block: Uuid,
+        generation: u64,
+        clean_at: Option<CommitId>,
+    ) -> Answer<SessionState> {
+        let beat = self
+            .session(block)
+            .map(|session| session.heartbeat(generation, clean_at));
+        Box::pin(async move { Ok(beat?.await??) })
+    }
+
+    pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
+        let relayed = self
+            .session(block)
+            .map(|session| session.relay(to, payload));
+        Box::pin(async move { Ok(relayed?.await??) })
     }
 
     pub fn closed(&self) -> watch::Receiver<bool> {
@@ -118,42 +392,7 @@ impl Connection {
     pub fn close(&self) {
         let _ = self.shut.send(());
     }
-
-    pub async fn request(
-        &self,
-        build: impl FnOnce(u64) -> ClientMessage,
-    ) -> Result<ServerMessage, ClientError> {
-        self.send(build)?.await
-    }
-
-    pub fn send(&self, build: impl FnOnce(u64) -> ClientMessage) -> Result<Answer, ClientError> {
-        let message = build(self.next.fetch_add(1, Ordering::Relaxed) + 1);
-        let request = message.request();
-        let bytes = encode(&message).map_err(|error| ClientError::Encoding(error.to_string()))?;
-        let (reply, response) = oneshot::channel();
-        self.commands
-            .send(Outbound {
-                request,
-                bytes,
-                reply,
-            })
-            .map_err(|_| ClientError::Disconnected("the connection worker stopped".into()))?;
-        Ok(Box::pin(async move {
-            let response = response
-                .await
-                .map_err(|_| ClientError::Disconnected("the connection closed".into()))??;
-            match response {
-                ServerMessage::Failed { code, message, .. } => {
-                    Err(ClientError::Refused(code, message))
-                }
-                response => Ok(response),
-            }
-        }))
-    }
 }
-
-pub type Answer =
-    std::pin::Pin<Box<dyn Future<Output = Result<ServerMessage, ClientError>> + Send>>;
 
 async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
     let ours = build_id::current().map_err(ClientError::NoBuild)?;
@@ -209,19 +448,37 @@ async fn next_binary(
     })
 }
 
+fn is_ping(frame: &[u8]) -> bool {
+    frame.len() <= PING_FRAME_BYTES
+        && matches!(
+            be_ops::decode_frame::<be_ops::Frame>(frame),
+            Ok(be_ops::Frame::Start { method, .. }) if method == be_protocol::__args::CONNECTION_PING
+        )
+}
+
+fn queue(queued: &mut VecDeque<(Out, bool)>, frame: Vec<u8>) {
+    match is_ping(&frame) {
+        true => queued.push_front((Out::Message(frame), true)),
+        false => queued.push_back((Out::Message(frame), false)),
+    }
+}
+
 struct Carried {
     writer: Writer,
     reader: Reader,
-    commands: mpsc::UnboundedReceiver<Outbound>,
+    peer: Peer,
+    frames: mpsc::UnboundedReceiver<Vec<u8>>,
     shut: mpsc::UnboundedReceiver<()>,
-    events: broadcast::Sender<ServerMessage>,
+    pumps: mpsc::UnboundedReceiver<Pump>,
     clock: Clock,
     opened: Duration,
     due: watch::Sender<Duration>,
 }
 
 async fn worker(carried: Carried, closing: watch::Sender<bool>) {
+    let peer = carried.peer.clone();
     carry(carried).await;
+    peer.close();
     let _ = closing.send(true);
 }
 
@@ -249,7 +506,7 @@ fn write(mut writer: Writer, out: Out, ping: bool) -> Sending {
 
 enum Woke {
     Wrote(Writer, bool, Result<(), String>),
-    Command(Option<Outbound>),
+    Outbound(Option<Vec<u8>>),
     Frame(Option<Frame>),
     Timer,
     Shut(bool),
@@ -259,20 +516,17 @@ async fn carry(
     Carried {
         writer,
         mut reader,
-        mut commands,
+        peer,
+        mut frames,
         shut,
-        events,
+        mut pumps,
         clock,
         opened,
         due,
     }: Carried,
 ) {
-    let Ok(ping) = encode(&ClientMessage::Ping {
-        request: PING_REQUEST,
-    }) else {
-        return;
-    };
-    let mut pending: HashMap<u64, Reply> = HashMap::new();
+    let mut running: FuturesUnordered<Pump> = FuturesUnordered::new();
+    let mut ping: Option<be_ops::net::Pending<()>> = None;
     let mut writer = Some(writer);
     let mut sending: Option<(Sending, Duration)> = None;
     let mut queued: VecDeque<(Out, bool)> = VecDeque::new();
@@ -284,8 +538,11 @@ async fn carry(
     loop {
         let now = clock.now();
         if !owed && pinged.is_none() && now >= heard + PING_INTERVAL {
-            queued.push_front((Out::Message(ping.clone()), true));
+            ping = Some(client::connection::ping(&peer));
             owed = true;
+        }
+        while let Ok(frame) = frames.try_recv() {
+            queue(&mut queued, frame);
         }
         if sending.is_none()
             && let Some((out, is_ping)) = queued.pop_front()
@@ -314,6 +571,10 @@ async fn carry(
                 {
                     return Poll::Ready(Woke::Shut(shutting.is_some()));
                 }
+                while let Poll::Ready(Some(pump)) = pumps.poll_recv(context) {
+                    running.push(pump);
+                }
+                while let Poll::Ready(Some(())) = running.poll_next_unpin(context) {}
                 if let Some((write, _)) = &mut sending
                     && let Poll::Ready((writer, ping, written)) = write.as_mut().poll(context)
                 {
@@ -324,23 +585,23 @@ async fn carry(
                         if let Poll::Ready(frame) = frame.as_mut().poll(context) {
                             return Poll::Ready(Woke::Frame(frame));
                         }
-                    } else if accepting && let Poll::Ready(command) = commands.poll_recv(context) {
-                        return Poll::Ready(Woke::Command(command));
+                    } else if accepting && let Poll::Ready(outbound) = frames.poll_recv(context) {
+                        return Poll::Ready(Woke::Outbound(outbound));
                     }
                 }
                 timer.as_mut().poll(context).map(|()| Woke::Timer)
             })
             .await
         };
-        reading_first = matches!(woke, Woke::Command(_));
+        reading_first = matches!(woke, Woke::Outbound(_));
         match woke {
             Woke::Shut(true) => return,
             Woke::Shut(false) => shut = None,
             Woke::Wrote(_, _, Err(_)) => return,
-            Woke::Wrote(idle, ping, Ok(())) => {
+            Woke::Wrote(idle, is_ping, Ok(())) => {
                 writer = Some(idle);
                 sending = None;
-                if ping {
+                if is_ping {
                     owed = false;
                     pinged = Some(clock.now());
                 }
@@ -353,35 +614,18 @@ async fn carry(
                     return;
                 }
             }
-            Woke::Command(None) => return,
-            Woke::Command(Some(command)) => {
-                if command.reply.is_closed() {
-                    continue;
-                }
-                pending.insert(command.request, command.reply);
-                queued.push_back((Out::Message(command.bytes), false));
-            }
+            Woke::Outbound(None) => return,
+            Woke::Outbound(Some(frame)) => queue(&mut queued, frame),
             Woke::Frame(frame) => {
                 heard = clock.now();
                 pinged = None;
                 match frame {
                     Some(Frame::Binary(bytes)) => {
-                        let Ok(message) = decode::<ServerMessage>(&bytes) else {
-                            continue;
-                        };
-                        if matches!(message, ServerMessage::Pong { .. }) {
-                            continue;
+                        if peer.receive(&bytes).is_err() {
+                            return;
                         }
-                        match message
-                            .request()
-                            .and_then(|request| pending.remove(&request))
-                        {
-                            Some(reply) => {
-                                let _ = reply.send(Ok(message));
-                            }
-                            None => {
-                                let _ = events.send(message);
-                            }
+                        if ping.as_mut().is_some_and(answered) {
+                            ping = None;
                         }
                     }
                     #[cfg(not(target_arch = "wasm32"))]
@@ -393,4 +637,9 @@ async fn carry(
             }
         }
     }
+}
+
+fn answered(ping: &mut be_ops::net::Pending<()>) -> bool {
+    let mut context = Context::from_waker(std::task::Waker::noop());
+    Pin::new(ping).poll(&mut context).is_ready()
 }

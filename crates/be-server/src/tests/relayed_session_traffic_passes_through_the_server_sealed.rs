@@ -26,25 +26,18 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         "the relayed payload carried its plaintext"
     );
 
-    let response = peer
-        .send(|request| ClientMessage::Relay {
-            request,
-            block,
-            to: Some(owner_id),
-            payload: sealed.clone(),
-        })
-        .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    let response = peer.relay(block, Some(owner_id), sealed.clone()).await;
+    assert!(matches!(response, Ok(())), "{response:?}");
 
     let joined = owner.notification().await;
     assert!(
-        matches!(joined, ServerMessage::SessionChanged { state: ref changed, .. }
+        matches!(joined, Notice::SessionChanged { state: ref changed, .. }
             if changed.participants.contains(&peer_id)),
         "the owner was not told a peer joined: {joined:?}"
     );
 
     let relayed = owner.notification().await;
-    let ServerMessage::Relayed {
+    let Notice::Relayed {
         block: on,
         from,
         payload,
@@ -57,16 +50,9 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
     assert_eq!(payload, sealed);
     assert_eq!(author.commits.vault().open(&payload).unwrap(), plaintext);
 
-    let response = peer
-        .send(|request| ClientMessage::Relay {
-            request,
-            block,
-            to: Some(9_999),
-            payload: sealed,
-        })
-        .await;
+    let response = peer.relay(block, Some(9_999), sealed).await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::InvalidRequest),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidRequest),
         "{response:?}"
     );
 

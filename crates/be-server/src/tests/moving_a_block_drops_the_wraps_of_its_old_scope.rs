@@ -13,18 +13,20 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     assert_eq!(owner.read_block(document).await.scope, Some(from.block));
 
     let stray = owner
-        .send(|request| ClientMessage::SetParent {
-            request,
-            block: document,
-            parent: BlockParent::Block(to.block),
-            keys: KeySet {
-                keys: vec![row(Uuid::new_v4(), elsewhere, KeyKind::Data)],
-                wrapped: Vec::new(),
-            },
+        .call(|peer| {
+            client::blocks::set_parent(
+                peer,
+                document,
+                BlockParent::Block(to.block),
+                KeySet {
+                    keys: vec![row(Uuid::new_v4(), elsewhere, KeyKind::Data)],
+                    wrapped: Vec::new(),
+                },
+            )
         })
         .await;
     assert!(
-        matches!(stray, ServerMessage::Failed { .. }),
+        matches!(stray, Err(_)),
         "a move stored a key for a block it did not move: {stray:?}"
     );
     assert_eq!(
@@ -34,33 +36,35 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
 
     let fresh = Uuid::new_v4();
     let response = owner
-        .send(|request| ClientMessage::SetParent {
-            request,
-            block: document,
-            parent: BlockParent::Block(to.block),
-            keys: KeySet {
-                keys: vec![KeyRow {
-                    id: fresh,
-                    block: document,
-                    kind: KeyKind::Data,
-                    epoch: 2,
-                }],
-                wrapped: vec![
-                    wrap(
-                        old_key,
-                        WrappedBy::Key(to.scope),
-                        b"old data under the new scope",
-                    ),
-                    wrap(
-                        fresh,
-                        WrappedBy::Key(to.scope),
-                        b"fresh data under the new scope",
-                    ),
-                ],
-            },
+        .call(|peer| {
+            client::blocks::set_parent(
+                peer,
+                document,
+                BlockParent::Block(to.block),
+                KeySet {
+                    keys: vec![KeyRow {
+                        id: fresh,
+                        block: document,
+                        kind: KeyKind::Data,
+                        epoch: 2,
+                    }],
+                    wrapped: vec![
+                        wrap(
+                            old_key,
+                            WrappedBy::Key(to.scope),
+                            b"old data under the new scope",
+                        ),
+                        wrap(
+                            fresh,
+                            WrappedBy::Key(to.scope),
+                            b"fresh data under the new scope",
+                        ),
+                    ],
+                },
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let moved = owner.read_block(document).await;
     assert_eq!(moved.key, Some(fresh));
     assert_eq!(moved.scope, Some(to.block));

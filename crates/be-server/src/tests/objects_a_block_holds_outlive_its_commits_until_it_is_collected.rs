@@ -14,61 +14,42 @@ async fn objects_a_block_holds_outlive_its_commits_until_it_is_collected() {
     client.upload(&author.store, &objects).await;
 
     let response = client
-        .send(|request| ClientMessage::HoldObjects {
-            request,
-            block: repository,
-            objects: objects.clone(),
-        })
+        .call(|peer| client::objects::hold_objects(peer, repository, objects.clone()))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let response = client
-        .send(|request| ClientMessage::HoldObjects {
-            request,
-            block: repository,
-            objects: objects.clone(),
-        })
+        .call(|peer| client::objects::hold_objects(peer, repository, objects.clone()))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 
     let response = client
-        .send(|request| ClientMessage::HoldObjects {
-            request,
-            block: repository,
-            objects: vec![Hash::of(b"never uploaded")],
+        .call(|peer| {
+            client::objects::hold_objects(peer, repository, vec![Hash::of(b"never uploaded")])
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { code, .. } if code == ErrorCode::ObjectNotFound),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::ObjectNotFound),
         "{response:?}"
     );
 
-    client
-        .send(|request| ClientMessage::DeleteBlock {
-            request,
-            block: repository,
-        })
+    let _ = client
+        .call(|peer| client::blocks::delete_block(peer, repository))
         .await;
     let response = client
-        .send(|request| ClientMessage::CollectDetached { request })
+        .call(|peer| client::blocks::collect_detached(peer))
         .await;
-    let ServerMessage::Collected { objects: freed, .. } = response else {
+    let Ok(be_protocol::Collected { objects: freed, .. }) = response else {
         panic!("collection failed: {response:?}");
     };
     assert_eq!(
         freed,
-        objects.len(),
+        objects.len() as u64,
         "holding an object twice counted it twice"
     );
     let response = client
-        .send(|request| ClientMessage::GetObject {
-            request,
-            hash: chunks[0],
-        })
+        .call(|peer| client::objects::get_object(peer, chunks[0]))
         .await;
-    assert!(
-        matches!(response, ServerMessage::Object { bytes: None, .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(None)), "{response:?}");
 
     harness.stop().await;
 }

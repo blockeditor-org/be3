@@ -1,5 +1,5 @@
-use be_client::{ClientError, Connection};
-use be_protocol::{ClientMessage, ErrorCode, Organization, OrganizationInvitation, ServerMessage};
+use be_client::{ClientError, Connection, ask};
+use be_protocol::{Authenticated, ErrorCode, Organization, OrganizationInvitation, client};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -52,21 +52,19 @@ pub fn link_base(server_url: &str) -> String {
     }
 }
 
-fn session_of(response: ServerMessage) -> Result<Session, AccountError> {
-    match response {
-        ServerMessage::Authenticated {
-            account,
-            email,
-            display_name,
-            token,
-            ..
-        } => Ok(Session {
-            account,
-            email,
-            display_name,
-            token,
-        }),
-        _ => Err(ClientError::Unexpected.into()),
+fn session_of(
+    Authenticated {
+        account,
+        email,
+        display_name,
+        token,
+    }: Authenticated,
+) -> Session {
+    Session {
+        account,
+        email,
+        display_name,
+        token,
     }
 }
 
@@ -87,13 +85,12 @@ pub async fn create_local_profile(
 ) -> Result<Session, AccountError> {
     let connection = crate::link::connect(&server_url).await?;
     let session = session_of(
-        connection
-            .request(|request| ClientMessage::CreateLocalProfile {
-                request,
-                display_name,
-            })
-            .await?,
-    )?;
+        ask(client::account::create_local_profile(
+            &connection,
+            display_name,
+        ))
+        .await?,
+    );
     crate::link::adopt(&server_url, &session.token, session.account, connection).await;
     Ok(session)
 }
@@ -108,79 +105,47 @@ pub async fn browser_login(
         let mut connection = crate::link::connect(&server_url)
             .await
             .map_err(|error| error.to_string())?;
-        let mut events = connection.subscribe();
-        let response = connection
-            .request(|request| ClientMessage::BeginBrowserLogin { request })
-            .await
-            .map_err(|error| error.to_string())?;
-        let ServerMessage::BrowserLogin { code, secret, .. } = response else {
-            return Err("Unexpected sign-in response".into());
-        };
+        let be_protocol::BrowserLogin { code, secret } =
+            ask(client::account::begin_browser_login(&connection))
+                .await
+                .map_err(|error| error.to_string())?;
         notify(BrowserLogin {
             code: code.clone(),
             url: format!("{auth_url}?code={code}"),
         });
         loop {
-            if !approval_pushed(&mut events, connection.closed()).await {
-                connection = loop {
-                    be_client::Clock::real()
-                        .sleep(std::time::Duration::from_secs(2))
-                        .await;
-                    match crate::link::connect(&server_url).await {
-                        Ok(connection) => break connection,
-                        Err(error) if error.is_unreachable() => {}
-                        Err(error) => return Err(error.to_string()),
-                    }
-                };
-                events = connection.subscribe();
-            }
-            match connection
-                .request(|request| ClientMessage::FinishBrowserLogin {
-                    request,
-                    code: code.clone(),
-                    secret: secret.clone(),
-                })
-                .await
+            match ask(client::account::finish_browser_login(
+                &connection,
+                code.clone(),
+                secret.clone(),
+            ))
+            .await
             {
-                Ok(ServerMessage::Ok { .. }) => {}
-                Err(error) if error.is_unreachable() => {}
                 Ok(response) => {
-                    let session = session_of(response).map_err(|error| error.to_string())?;
+                    let session = session_of(response);
                     crate::link::adopt(&server_url, &session.token, session.account, connection)
                         .await;
                     return Ok(session);
                 }
+                Err(error) if error.is_unreachable() => {}
                 Err(error) => return Err(error.to_string()),
             }
+            connection = loop {
+                be_client::Clock::real()
+                    .sleep(std::time::Duration::from_secs(2))
+                    .await;
+                match crate::link::connect(&server_url).await {
+                    Ok(connection) => break connection,
+                    Err(error) if error.is_unreachable() => {}
+                    Err(error) => return Err(error.to_string()),
+                }
+            };
         }
     };
     match futures_util::future::select(Box::pin(login), cancelled).await {
         futures_util::future::Either::Left((result, _)) => result,
         futures_util::future::Either::Right(_) => Err("Sign-in cancelled".into()),
     }
-}
-
-async fn approval_pushed(
-    events: &mut tokio::sync::broadcast::Receiver<ServerMessage>,
-    mut closed: tokio::sync::watch::Receiver<bool>,
-) -> bool {
-    let pushed = async {
-        loop {
-            match events.recv().await {
-                Ok(ServerMessage::BrowserLoginFinished { .. })
-                | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => return true,
-                Ok(_) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => return false,
-            }
-        }
-    };
-    let closed = async {
-        let _ = closed.wait_for(|closed| *closed).await;
-    };
-    matches!(
-        futures_util::future::select(std::pin::pin!(pushed), std::pin::pin!(closed)).await,
-        futures_util::future::Either::Left((true, _))
-    )
 }
 
 async fn authenticated(
@@ -197,9 +162,7 @@ async fn authenticated(
 pub async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token.clone()).await?;
     crate::link::forget(&server_url, &token).await;
-    connection
-        .request(|request| ClientMessage::Logout { request })
-        .await?;
+    ask(client::account::logout(&connection)).await?;
     Ok(())
 }
 
@@ -208,13 +171,7 @@ pub async fn organizations(
     token: String,
 ) -> Result<Vec<Organization>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Organizations { organizations, .. } = connection
-        .request(|request| ClientMessage::ListOrganizations { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok(organizations)
+    Ok(ask(client::organizations::list_organizations(&connection)).await?)
 }
 
 pub async fn create_organization(
@@ -223,15 +180,11 @@ pub async fn create_organization(
     name: String,
 ) -> Result<Organization, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    match connection
-        .request(|request| ClientMessage::CreateOrganization { request, name })
-        .await?
-    {
-        ServerMessage::Organizations {
-            mut organizations, ..
-        } if !organizations.is_empty() => Ok(organizations.remove(0)),
-        _ => Err(ClientError::Unexpected.into()),
-    }
+    Ok(ask(client::organizations::create_organization(
+        &connection,
+        name,
+    ))
+    .await?)
 }
 
 #[derive(Clone, Debug)]
@@ -294,16 +247,7 @@ pub async fn agents(
     organization: Uuid,
 ) -> Result<Vec<be_protocol::Agent>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Agents { agents, .. } = connection
-        .request(|request| ClientMessage::ListAgents {
-            request,
-            organization,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok(agents)
+    Ok(ask(client::members::list_agents(&connection, organization)).await?)
 }
 
 pub async fn remove_agent(
@@ -313,13 +257,12 @@ pub async fn remove_agent(
     account: Uuid,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::RemoveAgent {
-            request,
-            organization,
-            account,
-        })
-        .await?;
+    ask(client::members::remove_agent(
+        &connection,
+        organization,
+        account,
+    ))
+    .await?;
     Ok(())
 }
 
@@ -337,17 +280,11 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
         account,
         ..
     } = crate::link::signed_in(&server_url, &token, &be_client::Clock::real()).await?;
-    let ServerMessage::RecoveryKey {
+    let be_protocol::RecoveryKey {
         public,
         sealed,
         own,
-        ..
-    } = connection
-        .request(|request| ClientMessage::GetRecoveryKey { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
+    } = ask(client::keys::get_recovery_key(&connection)).await?;
     Ok(Keys {
         account,
         recovery: public.map(be_keys::RecoveryPublic),
@@ -363,15 +300,14 @@ pub async fn set_recovery_key(
     resealed: be_client::contacts::NewIdentity,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: public.0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-        })
-        .await?;
+    ask(client::keys::set_recovery_key(
+        &connection,
+        public.0,
+        resealed.sealed,
+        resealed.own,
+        resealed.changes,
+    ))
+    .await?;
     Ok(())
 }
 
@@ -384,34 +320,21 @@ pub async fn pair(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<[u8; 32], AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let mut events = connection.subscribe();
+    let mut paired = client::account::paired(&connection);
     let (pairing, message) = be_keys::Pairing::start(&code, account.as_bytes());
     let payload = be_keys::PairingMessage::Request { message, device }.encode();
-    connection
-        .request(|request| ClientMessage::Pair {
-            request,
-            to: None,
-            payload,
-        })
-        .await?;
+    ask(client::account::pair(&connection, None, payload)).await?;
     let reply = async {
-        loop {
-            match events.recv().await {
-                Ok(ServerMessage::Paired { payload, .. }) => {
-                    if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
-                        be_keys::PairingMessage::decode(&payload)
-                    {
-                        return Ok((message, sealed));
-                    }
-                }
-                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    return Err(AccountError::from(ClientError::Disconnected(
-                        "the connection closed while waiting for another device".into(),
-                    )));
-                }
+        while let Some(heard) = paired.recv().await {
+            if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
+                be_keys::PairingMessage::decode(&heard.payload)
+            {
+                return Ok((message, sealed));
             }
         }
+        Err(AccountError::from(ClientError::Disconnected(
+            "the connection closed while waiting for another device".into(),
+        )))
     };
     let (message, sealed) =
         match futures_util::future::select(std::pin::pin!(reply), cancelled).await {

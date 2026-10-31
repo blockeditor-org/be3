@@ -61,9 +61,9 @@ still needs a recovery phrase or another unlocked Block device.
 
 Browser authorization lasts ten minutes independently of the initiating connection.
 The app retains a private secret separately from the displayed code and keeps the
-connection that began the request open, asking again whenever the server reports the
-browser's decision. Only if that connection drops does it reconnect, every two seconds,
-and ask on the new one. Only that secret
+connection that began the request open, with one `finish-browser-login` call waiting
+on it until the browser approves or denies the code. Only if that connection drops
+does it reconnect, every two seconds, and call again on the new one. Only that secret
 can redeem an approved request, once. Approval is explicit after portal authentication;
 email verification alone does not approve a device. A revoked approving browser session
 cannot issue an app session from an unclaimed approval.
@@ -188,8 +188,8 @@ Backups are scheduled on the host. `be-server backup` writes a backup and
 
 `Authorization: Bearer <account token>` is reserved for be-server account
 sessions. Native and browser clients can keep sending their account token in
-protocol messages. A proxy can instead inject the header into WebSocket upgrades
-or every HTTP POST; clients send `AuthenticateHeader` to use it. The server
+protocol calls. A proxy can instead inject the header into WebSocket upgrades
+or every HTTP POST; clients call `authenticate-header` to use it. The server
 validates the same session tokens and returns an empty token field for this
 request, keeping the injected secret outside the client. HTTP sessions require
 the same account header on every request.

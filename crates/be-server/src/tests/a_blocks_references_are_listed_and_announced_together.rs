@@ -2,23 +2,15 @@ use super::*;
 
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: name.to_vec(),
-            references: Vec::new(),
-        })
+        .call(|peer| client::blocks::set_metadata(peer, block, name.to_vec(), Vec::new()))
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
 }
 
 async fn heard(client: &mut TestClient) -> Uuid {
     match client.graph_change().await {
-        ServerMessage::BlockChanged { block } => block.id,
-        ServerMessage::BlockRemoved { block, .. } => block,
+        Notice::BlockChanged { block } => block.id,
+        Notice::BlockRemoved { block, .. } => block,
         other => panic!("{other:?}"),
     }
 }
@@ -42,22 +34,24 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .upload(&author.store, &author.objects_of(commit, &chunks))
         .await;
     let response = client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block: view,
-            commit,
-            expected: None,
-            parents: Vec::new(),
-            chunks,
-            time: 1_000,
-            pinned: false,
-            references: issues.clone(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                view,
+                commit,
+                None,
+                Vec::new(),
+                chunks,
+                1_000,
+                false,
+                issues.clone(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
 
@@ -66,12 +60,9 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .await;
     other.read_block(view).await;
     let response = other
-        .send(|request| ClientMessage::ListReferences {
-            request,
-            block: view,
-        })
+        .call(|peer| client::blocks::list_blocks(peer, Listing::References(view)))
         .await;
-    let ServerMessage::Blocks { blocks, .. } = response else {
+    let Ok(blocks) = response else {
         panic!("{response:?}");
     };
     let mut listed: Vec<Uuid> = blocks.iter().map(|block| block.id).collect();

@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use be_block::{MY_FILES, NAME, ROW_PREFIX};
 use be_cli::{cli, session};
+use be_client::ask;
 use be_client::{Connection, contacts};
 use be_keys::{InviteCode, RecoveryPhrase};
-use be_protocol::{ClientMessage, KeyKind, OrganizationKind, OrganizationRole, ServerMessage};
+use be_protocol::{KeyKind, OrganizationKind, OrganizationRole, client};
 use be_server::backup::{self, BackupKey, Directory};
 use database_types::{
     database::DatabaseContent,
@@ -26,13 +27,6 @@ async fn every_snapshot_of_a_servers_data_still_serves_what_it_held() {
 
 fn socket(server: &Server) -> String {
     be_client::socket_url(&server.url)
-}
-
-async fn request(
-    connection: &Connection,
-    build: impl FnOnce(u64) -> ClientMessage,
-) -> ServerMessage {
-    connection.request(build).await.unwrap()
 }
 
 async fn portal_http(
@@ -65,13 +59,10 @@ async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connectio
     let connection = Connection::connect(&socket(server), &be_client::Clock::real())
         .await
         .unwrap();
-    let ServerMessage::BrowserLogin { code, secret, .. } = request(&connection, |request| {
-        ClientMessage::BeginBrowserLogin { request }
-    })
-    .await
-    else {
-        panic!("browser sign-in starts")
-    };
+    let be_protocol::BrowserLogin { code, secret } =
+        ask(client::account::begin_browser_login(&connection))
+            .await
+            .expect("browser sign-in starts");
     let page = portal_http(server, "GET", "/auth/login", "", "").await;
     let signed_in = portal_http(
         server,
@@ -104,13 +95,12 @@ async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connectio
     )
     .await;
     assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
-    let ServerMessage::Authenticated { token, .. } =
-        request(&connection, |request| ClientMessage::FinishBrowserLogin {
-            request,
-            code,
-            secret,
-        })
-        .await
+    let Ok(be_protocol::Authenticated { token, .. }) = ask(client::account::finish_browser_login(
+        &connection,
+        code,
+        secret,
+    ))
+    .await
     else {
         panic!("{email}'s password no longer signs in")
     };
@@ -176,10 +166,8 @@ async fn check(snapshot: &Snapshot) {
         store.resolve_token(snapshot.friend_token).await.is_ok(),
         kept
     );
-    let ServerMessage::RecoveryKey { public, .. } = request(&by_password, |request| {
-        ClientMessage::GetRecoveryKey { request }
-    })
-    .await
+    let Ok(be_protocol::RecoveryKey { public, .. }) =
+        ask(client::keys::get_recovery_key(&by_password)).await
     else {
         panic!("{name}: the owner's recovery key was not sent");
     };
@@ -194,10 +182,7 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the owner's phrase no longer matches its recovery key"
     );
-    let ServerMessage::Organizations { organizations, .. } = request(&by_password, |request| {
-        ClientMessage::ListOrganizations { request }
-    })
-    .await
+    let Ok(organizations) = ask(client::organizations::list_organizations(&by_password)).await
     else {
         panic!("{name}: the owner's organizations were not listed");
     };

@@ -5,9 +5,7 @@ async fn browser_authorization_survives_disconnecting_before_approval() {
     harness.member("offline@example.com").await;
     let mut app = harness.client().await;
     let (code, secret) = begin_session(&mut app).await;
-    app.socket.close(None).await.unwrap();
-    while app.socket.next().await.is_some() {}
-    drop(app);
+    app.close().await;
     let mut browser = Browser::default();
     browser
         .login(&harness, "offline@example.com", "correct horse battery")
@@ -26,6 +24,6 @@ async fn browser_authorization_survives_disconnecting_before_approval() {
     );
     let mut app = harness.client().await;
     assert!(
-        matches!(app.send(|request| ClientMessage::FinishBrowserLogin { request, code, secret }).await, ServerMessage::Authenticated { email, .. } if email == "offline@example.com")
+        matches!(app.call(|peer| client::account::finish_browser_login(peer, code, secret)).await, Ok(Authenticated { email, .. }) if email == "offline@example.com")
     );
 }

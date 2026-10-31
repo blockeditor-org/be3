@@ -1,5 +1,5 @@
 use be_graph::Access;
-use be_protocol::{ClientMessage, ServerMessage};
+use be_protocol::{CreatedAgent, client};
 
 use super::*;
 use crate::session::{Settings, connect};
@@ -20,34 +20,28 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let phrase = be_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
     let organization = owner.peer().organization();
-    let response = owner
-        .peer()
-        .connection()
-        .request(|request| ClientMessage::CreateAgent {
-            request,
-            organization,
-            name: "Claude".into(),
-            recovery: public.0,
-            contact: be_client::contacts::card(
-                owner.peer().account(),
-                owner.peer().keys().identity(),
-                "Owner",
-                "owner@example.com",
-            )
-            .seal_own(&phrase.secret()),
-            escrow: owner
-                .peer()
-                .keys()
-                .escrow()
-                .map_or_else(Vec::new, |escrow| {
-                    be_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-                }),
-        })
-        .await
-        .unwrap();
-    let ServerMessage::AgentCreated { agent, token, .. } = response else {
-        panic!("creating the agent failed: {response:?}");
-    };
+    let CreatedAgent { agent, token } = be_client::ask(client::members::create_agent(
+        &owner.peer().connection(),
+        organization,
+        "Claude".into(),
+        public.0,
+        be_client::contacts::card(
+            owner.peer().account(),
+            owner.peer().keys().identity(),
+            "Owner",
+            "owner@example.com",
+        )
+        .seal_own(&phrase.secret()),
+        owner
+            .peer()
+            .keys()
+            .escrow()
+            .map_or_else(Vec::new, |escrow| {
+                be_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
+            }),
+    ))
+    .await
+    .expect("creating the agent failed");
     owner
         .peer()
         .share(board.database, agent.account, Access::Edit, &public)

@@ -14,33 +14,31 @@ async fn pruning_history_keeps_pinned_commits() {
     client
         .upload(&author.store, &author.objects_of(first, &first_chunks))
         .await;
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: first,
-            expected: None,
-            parents: Vec::new(),
-            chunks: first_chunks.clone(),
-            time: 1_000,
-            pinned: true,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                first,
+                None,
+                Vec::new(),
+                first_chunks.clone(),
+                1_000,
+                true,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    client
+    let _ = client
         .publish(&author, block, second, second_chunks, Some(first), 2_000)
         .await;
 
     let response = client
-        .send(|request| ClientMessage::PruneHistory {
-            request,
-            block,
-            drop: vec![first, second],
-        })
+        .call(|peer| client::blocks::prune_history(peer, block, vec![first, second]))
         .await;
-    let ServerMessage::Collected { objects, .. } = response else {
+    let Ok(objects) = response else {
         panic!("pruning failed: {response:?}");
     };
     assert_eq!(objects, 0, "pruning freed a pinned commit or the head");
@@ -55,13 +53,10 @@ async fn pruning_history_keeps_pinned_commits() {
     assert!(kept.contains(&second), "the head was pruned");
 
     let response = client
-        .send(|request| ClientMessage::GetObject {
-            request,
-            hash: first.hash(),
-        })
+        .call(|peer| client::objects::get_object(peer, first.hash()))
         .await;
     assert!(
-        matches!(response, ServerMessage::Object { bytes: Some(_), .. }),
+        matches!(response, Ok(Some(_))),
         "the pinned commit's object was deleted"
     );
 

@@ -15,6 +15,7 @@ use wit_parser::{
     Function, FunctionKind, InterfaceId, Resolve, Type, TypeDefKind, TypeId, TypeOwner, WorldItem,
 };
 
+#[derive(Default)]
 struct Options {
     path: String,
     world: String,
@@ -28,32 +29,21 @@ struct Options {
     ordered: BTreeSet<String>,
     deps: Vec<String>,
     local: BTreeSet<String>,
+    network: bool,
 }
 
 impl Parse for Options {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let content;
         braced!(content in input);
-        let mut options = Options {
-            path: String::new(),
-            world: String::new(),
-            with: BTreeMap::new(),
-            uses: BTreeMap::new(),
-            own_debug: BTreeSet::new(),
-            copy: BTreeSet::new(),
-            default: BTreeSet::new(),
-            inline: BTreeSet::new(),
-            lenient: BTreeSet::new(),
-            ordered: BTreeSet::new(),
-            deps: Vec::new(),
-            local: BTreeSet::new(),
-        };
+        let mut options = Options::default();
         while !content.is_empty() {
             let key: Ident = content.parse()?;
             content.parse::<Token![:]>()?;
             match key.to_string().as_str() {
                 "path" => options.path = content.parse::<LitStr>()?.value(),
                 "world" => options.world = content.parse::<LitStr>()?.value(),
+                "network" => options.network = content.parse::<syn::LitBool>()?.value,
                 "with" => {
                     let mapped;
                     braced!(mapped in content);
@@ -114,6 +104,9 @@ impl Parse for Options {
 }
 
 mod local;
+
+#[cfg(test)]
+mod tests;
 
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -227,6 +220,14 @@ impl Generator {
         let (package, _) = resolve
             .push_dir(&path)
             .map_err(|error| format!("{}: {error:#}", path.display()))?;
+        Self::generate(options, resolve, package)
+    }
+
+    fn generate(
+        options: Options,
+        resolve: Resolve,
+        package: wit_parser::PackageId,
+    ) -> Result<TokenStream, String> {
         let world = resolve
             .select_world(&[package], Some(&options.world))
             .map_err(|error| format!("{error:#}"))?;
@@ -276,6 +277,9 @@ impl Generator {
             generator.types_of(*interface, &mut defined, &mut types)?;
         }
         let types = types.finish();
+        if generator.options.network {
+            return generator.network(&imports, &exports, types);
+        }
         let mut args = TokenStream::new();
         let mut guest_imports = Modules::default();
         let mut embed_imports = Modules::default();
@@ -484,6 +488,163 @@ impl Generator {
                 }
             }
         })
+    }
+
+    fn network(
+        &self,
+        imports: &[InterfaceId],
+        exports: &[InterfaceId],
+        types: TokenStream,
+    ) -> Result<TokenStream, String> {
+        if let Some(exported) = exports.first() {
+            return Err(format!(
+                "{}: a network world only imports: the server serves its imports and the \
+                 client calls them",
+                self.resolve.id_of(*exported).unwrap_or_default()
+            ));
+        }
+        if !self.options.local.is_empty() {
+            return Err("a network world has no local interfaces".to_owned());
+        }
+        let mut args = TokenStream::new();
+        let mut embed = Modules::default();
+        let mut client = Modules::default();
+        for interface in imports {
+            if self.resolve.interfaces[*interface].functions.is_empty() {
+                continue;
+            }
+            let module = self.module_name(*interface);
+            let methods = self.methods(*interface)?;
+            if let Some(direct) = methods
+                .iter()
+                .find(|method| matches!(method.shape, Shape::Direct(_)))
+            {
+                return Err(format!(
+                    "{}: a network world has no sync funcs, since a direct call runs on a \
+                     wasm guest's thread; make it an async func",
+                    direct.name
+                ));
+            }
+            args.extend(self.args(&module, &methods));
+            let nest = self.nest(*interface);
+            embed.push(nest.clone(), &module, self.embed_import(&module, &methods));
+            client.push(nest, &module, self.client(&methods)?);
+        }
+        let (embed, client) = (embed.finish(), client.finish());
+        Ok(quote! {
+            #types
+
+            #[doc(hidden)]
+            pub mod __args {
+                #args
+            }
+
+            pub mod embed {
+                #embed
+            }
+
+            pub mod client {
+                #client
+            }
+        })
+    }
+
+    fn client(&self, methods: &[Method<'_>]) -> Result<TokenStream, String> {
+        let caller = quote!(caller: &(impl ::be_ops::net::Caller + ::core::clone::Clone));
+        let mut out = TokenStream::new();
+        let mut resources = BTreeMap::<String, Vec<TokenStream>>::new();
+        for method in methods {
+            let name = snake(method.function.item_name());
+            let params = self.params(method)?;
+            let constant = &method.constant;
+            let args = Self::construct(method);
+            let resource = method.function.kind.resource().map(|resource| {
+                self.resolve.types[resource]
+                    .name
+                    .clone()
+                    .unwrap_or_default()
+            });
+            let (returns, start) = match &method.shape {
+                Shape::Call(result) => {
+                    let result = self.optional(result.as_ref())?;
+                    (
+                        quote!(::be_ops::net::Pending<#result>),
+                        quote!(::be_ops::net::call),
+                    )
+                }
+                Shape::Stream(item) => {
+                    let item = self.optional(item.as_ref())?;
+                    (
+                        quote!(::be_ops::net::Stream<#item>),
+                        quote!(::be_ops::net::stream),
+                    )
+                }
+                Shape::Direct(_) => unreachable!("a network world refuses sync funcs"),
+            };
+            let Some(resource) = resource else {
+                out.extend(quote! {
+                    pub fn #name(#caller, #(#params),*) -> #returns {
+                        #start(
+                            ::be_ops::net::share(caller),
+                            ::core::option::Option::None,
+                            crate::__args::#constant,
+                            &#args,
+                        )
+                    }
+                });
+                continue;
+            };
+            let item = match method.function.kind {
+                FunctionKind::Constructor(_) => quote! {
+                    pub fn new(#caller, #(#params),*) -> Self {
+                        Self(::be_ops::net::open(
+                            ::be_ops::net::share(caller),
+                            crate::__args::#constant,
+                            &#args,
+                        ))
+                    }
+                },
+                _ => quote! {
+                    pub fn #name(&self, #(#params),*) -> #returns {
+                        #start(
+                            self.0.caller(),
+                            ::core::option::Option::Some(self.0.op()),
+                            crate::__args::#constant,
+                            &#args,
+                        )
+                    }
+                },
+            };
+            resources.entry(resource).or_default().push(item);
+        }
+        for (resource, items) in resources {
+            let name = camel(&resource);
+            out.extend(quote! {
+                #[derive(Debug)]
+                pub struct #name(::be_ops::net::Resource);
+
+                impl #name {
+                    #(#items)*
+
+                    pub fn op(&self) -> ::be_ops::OpId {
+                        self.0.op()
+                    }
+
+                    pub fn closed(&mut self) -> ::be_ops::net::Closed<'_> {
+                        self.0.closed()
+                    }
+
+                    pub fn close(
+                        self,
+                    ) -> impl ::core::future::Future<
+                        Output = ::core::result::Result<(), ::be_ops::OpError>,
+                    > + ::core::marker::Send {
+                        self.0.close()
+                    }
+                }
+            });
+        }
+        Ok(out)
     }
 
     fn module_name(&self, interface: InterfaceId) -> Ident {

@@ -16,33 +16,32 @@ async fn blocks_publish_and_read_back_through_the_server() {
         .upload(&author.store, &author.objects_of(first, &chunks))
         .await;
     let response = client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: first,
-            expected: None,
-            parents: Vec::new(),
-            chunks: chunks.clone(),
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                first,
+                None,
+                Vec::new(),
+                chunks.clone(),
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { head, .. } if head == first),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(head)) if head == first),
         "{response:?}"
     );
     assert_eq!(client.read_block(block).await.head, Some(first));
 
     let response = client
-        .send(|request| ClientMessage::GetObject {
-            request,
-            hash: chunks[0],
-        })
+        .call(|peer| client::objects::get_object(peer, chunks[0]))
         .await;
-    let ServerMessage::Object { bytes: Some(_), .. } = response else {
+    let Ok(Some(_)) = response else {
         panic!("the published chunk was not readable: {response:?}");
     };
 
@@ -50,25 +49,27 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let carried = author
         .objects_of(second, &next_chunks)
         .into_iter()
-        .map(|hash| be_protocol::ByteBuf::from(author.store.get(hash).unwrap().unwrap()))
+        .map(|hash| author.store.get(hash).unwrap().unwrap())
         .collect();
     let response = client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: second,
-            expected: Some(first),
-            parents: Some(first).into_iter().collect(),
-            chunks: next_chunks,
-            time: 2_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: carried,
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                second,
+                Some(first),
+                Some(first).into_iter().collect(),
+                next_chunks,
+                2_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                carried,
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
 

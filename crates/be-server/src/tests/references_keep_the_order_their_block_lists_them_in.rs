@@ -24,22 +24,24 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             .upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
         let response = client
-            .send(|request| ClientMessage::Publish {
-                request,
-                block: deck,
-                commit,
-                expected: head,
-                parents: head.into_iter().collect(),
-                chunks,
-                time,
-                pinned: false,
-                references: references.clone(),
-                metadata: Vec::new(),
-                objects: Vec::new(),
+            .call(|peer| {
+                client::blocks::publish(
+                    peer,
+                    deck,
+                    commit,
+                    head,
+                    head.into_iter().collect(),
+                    chunks,
+                    time,
+                    false,
+                    references.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                )
             })
             .await;
         assert!(
-            matches!(response, ServerMessage::Published { .. }),
+            matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
             "{response:?}"
         );
         assert_eq!(

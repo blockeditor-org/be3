@@ -1,0 +1,90 @@
+package be3:server@0.1.0;
+
+/// The keys of the organization this connection opened, and the account's
+/// own recovery key.
+interface keys {
+    use types.{
+        account-id, block-id, error, escrow-key, key-change, key-id, key-set, own-sealed,
+        public-key, sealed-key,
+    };
+
+    record recovery-key {
+        public: option<public-key>,
+        sealed: list<sealed-key>,
+        %own: list<own-sealed>,
+    }
+
+    /// A scope or escrow key not yet sealed to an account that should hold
+    /// it.
+    record unsealed {
+        key: key-id,
+        account: account-id,
+    }
+
+    /// What an organization's keys wait for that the caller may do: blocks
+    /// whose keys to rotate, whether to rotate the escrow key, keys to seal
+    /// to accounts, scope keys not yet wrapped under the escrow key, and the
+    /// escrow chain.
+    record key-work {
+        rotations: list<block-id>,
+        escrow-rotation: bool,
+        unsealed: list<unsealed>,
+        unescrowed: list<key-id>,
+        escrows: list<escrow-key>,
+    }
+
+    /// The keys of `blocks`, or every key the caller holds with none.
+    /// Replaces `GetKeys` and its `Keys` answer.
+    get-keys: async func(blocks: option<list<block-id>>) -> result<key-set, error>;
+
+    /// Replaces `PutKeys`.
+    put-keys: async func(keys: key-set) -> result<_, error>;
+
+    /// Replaces `GetRecoveryKey` and its `RecoveryKey` answer.
+    get-recovery-key: async func() -> result<recovery-key, error>;
+
+    /// Moves the account to a new recovery key, with everything sealed to
+    /// the old one sealed again and a key change for each contact. Replaces
+    /// `SetRecoveryKey`.
+    set-recovery-key: async func(
+        public: public-key,
+        sealed: list<sealed-key>,
+        %own: list<own-sealed>,
+        changes: list<key-change>,
+    ) -> result<_, error>;
+
+    /// Replaces `ResealKeys`.
+    reseal-keys: async func(keys: list<sealed-key>) -> result<_, error>;
+
+    /// Replaces `GetKeyWork` and its `KeyWork` answer.
+    get-key-work: async func() -> result<key-work, error>;
+
+    /// An item whenever the organization's key work may have changed, so the
+    /// client asks `get-key-work` again; a latest-value stream, so changes the
+    /// client has not taken yet are one item. Replaces the pushed
+    /// `KeyWorkChanged`.
+    key-work-changed: func() -> stream;
+
+    /// Gives every block below `roots` a new key. Replaces `Rotate`.
+    rotate: async func(roots: list<block-id>, keys: key-set) -> result<_, error>;
+
+    /// Adds the next epoch of the escrow chain. Replaces `CreateEscrow`.
+    create-escrow: async func(escrow: escrow-key, keys: key-set) -> result<_, error>;
+
+    /// Keeps the escrow key the caller pinned, sealed to itself. Replaces
+    /// `PinEscrow`.
+    pin-escrow: async func(sealed: list<u8>) -> result<_, error>;
+}
+
+/// What a client imports from the server.
+world client {
+    import connection;
+    import account;
+    import organizations;
+    import members;
+    import contacts;
+    import objects;
+    import blocks;
+    import sessions;
+    import keys;
+}

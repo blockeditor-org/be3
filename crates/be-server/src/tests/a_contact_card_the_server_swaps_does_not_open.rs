@@ -17,15 +17,17 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let code = InviteCode::generate();
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
-        .send(|request| ClientMessage::CreateContactLink {
-            request,
-            link,
-            card: honest.seal(&code, CardRole::Owner),
-            code: Vec::new(),
-            grant: None,
+        .call(|peer| {
+            client::contacts::create_contact_link(
+                peer,
+                link,
+                honest.seal(&code, CardRole::Owner),
+                Vec::new(),
+                None,
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 
     let forged = ContactCard {
         public: RecoveryPhrase::generate().secret().public(),
@@ -42,8 +44,8 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
         )
         .unwrap();
 
-    let ServerMessage::ContactLink { link: found, .. } = other
-        .send(|request| ClientMessage::GetContactLink { request, link })
+    let Ok(found) = other
+        .call(|peer| client::contacts::get_contact_link(peer, link))
         .await
     else {
         panic!("the link could not be read");
