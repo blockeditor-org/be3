@@ -227,18 +227,27 @@ impl Desk {
                     bounds: display.rect,
                 }),
             });
-        let windows = self.windows.iter().map(|window| ScreenRequest {
-            screen: window.screen,
-            instance: INSTANCE,
-            view: window.window,
-            placement: View::window(window.window).placement,
-            metrics: metrics(window.rect.size(), self.owner(window.rect).scale),
-            frame: None,
-            windows: true,
-            host_place: Some(placement(window.rect)),
-            origin: Some(window.rect.min),
-            docked: false,
-            anchor_space: None,
+        let windows = self.windows.iter().map(|window| {
+            let display = self.owner(window.rect);
+            ScreenRequest {
+                screen: window.screen,
+                instance: INSTANCE,
+                view: window.window,
+                placement: View::window(window.window).placement,
+                metrics: metrics(window.rect.size(), display.scale),
+                frame: None,
+                windows: true,
+                host_place: Some(placement(window.rect)),
+                origin: Some(window.rect.min),
+                docked: false,
+                anchor_space: Some(AnchorSpace {
+                    to_host: HostTransform {
+                        origin: window.rect.min,
+                        scale: vec2(1.0, 1.0),
+                    },
+                    bounds: display.rect,
+                }),
+            }
         });
         displays.chain(windows).collect()
     }
@@ -560,15 +569,34 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn desk_press(&mut self, at: Pos2) {
-        self.desk_pointer(at, Some(true));
+        self.desk_pointer(at, Some(true), PointerButton::Primary);
     }
 
     pub fn desk_move(&mut self, at: Pos2) {
-        self.desk_pointer(at, None);
+        self.desk_pointer(at, None, PointerButton::Primary);
     }
 
     pub fn desk_release(&mut self, at: Pos2) {
-        self.desk_pointer(at, Some(false));
+        self.desk_pointer(at, Some(false), PointerButton::Primary);
+    }
+
+    pub(super) fn desk_point(&self, test_id: &str, offset: Option<Vec2>) -> Option<Pos2> {
+        let rect = self.desk_rects_of(test_id).into_iter().next()?;
+        Some(match offset {
+            Some(offset) => rect.min + offset,
+            None => rect.center(),
+        })
+    }
+
+    pub(super) fn desk_click(&mut self, at: Pos2, button: PointerButton, clicks: usize) {
+        for _ in 0..clicks {
+            self.desk_pointer(at, Some(true), button);
+            self.desk_pointer(at, Some(false), button);
+        }
+    }
+
+    pub(super) fn desk_button(&mut self, at: Pos2, button: PointerButton, pressed: bool) {
+        self.desk_pointer(at, Some(pressed), button);
     }
 
     pub fn desk_drag(&mut self, from: Pos2, to: Pos2, steps: usize) {
@@ -580,7 +608,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.desk_release(to);
     }
 
-    fn desk_pointer(&mut self, at: Pos2, pressed: Option<bool>) {
+    fn desk_pointer(&mut self, at: Pos2, pressed: Option<bool>, button: PointerButton) {
+        for events in std::mem::take(&mut self.frames) {
+            self.step(events);
+        }
         let Some(desk) = self.desk.as_mut() else {
             panic!("desk input needs show_on_displays");
         };
@@ -626,7 +657,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let input = match pressed {
             Some(pressed) => Input::PointerButton {
                 pos: Pos2::ZERO + local,
-                button: PointerButton::Primary,
+                button,
                 pressed,
             },
             None => Input::PointerMoved(Pos2::ZERO + local),

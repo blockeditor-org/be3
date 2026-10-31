@@ -5,7 +5,7 @@ use beui::dock::styled::{
 };
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
-const DISPLAY: Vec2 = vec2(900.0, 600.0);
+const DISPLAY: Vec2 = vec2(900.0, 800.0);
 
 struct PoppedApp;
 
@@ -75,15 +75,24 @@ fn dragging_a_popped_out_bars_grip_moves_its_window_and_opens_no_menu() {
     );
 
     let grip = test.desk_rects_of("dock.bar.9.grip")[0];
-    test.desk_press(grip.center());
-    test.desk_release(grip.center());
+    test.click(grip.center());
+    test.run();
+    test.run();
+    let window = test.desk_windows()[0];
+    let hide = test.desk_rects_of("grip.dock.bar.hide");
+    let [hide] = hide[..] else {
+        panic!("a click on the grip still opens its menu: {hide:?}");
+    };
+    assert!(
+        !window.contains_rect(hide),
+        "the menu escapes the bar's small window to show whole: {hide:?} {window:?}"
+    );
+
+    test.click("grip.dock.bar.hide");
     test.run();
     test.run();
     assert!(
-        !test
-            .document()
-            .find_test_ids("grip.dock.bar.hide")
-            .is_empty(),
-        "a click on the grip still opens its menu"
+        test.desk_windows().is_empty(),
+        "a click on the escaped menu reaches it, and the bar hides"
     );
 }

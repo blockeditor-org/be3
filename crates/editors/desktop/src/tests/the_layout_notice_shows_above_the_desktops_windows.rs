@@ -39,6 +39,16 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
         .first()
         .copied()
         .expect("the notice is shown on the display");
+    let card = fixture
+        .test
+        .desk_rects_of("workspace.layout")
+        .first()
+        .copied()
+        .expect("the notice's card carries the dialog's id");
+    assert!(
+        card.contains_rect(reset),
+        "the card holds its buttons: {card:?} {reset:?}"
+    );
     let over = reset.intersect(window);
     assert!(
         over.is_positive(),
@@ -48,9 +58,7 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
         .test
         .desk_snapshot("the_layout_notice_above_a_window", 0);
 
-    let at = over.center();
-    fixture.test.desk_press(at);
-    fixture.test.desk_release(at);
+    fixture.test.click(over.center());
     fixture.settle();
     assert!(
         !fixture.test.shown("workspace.layout.reset"),

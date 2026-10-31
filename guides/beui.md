@@ -2214,7 +2214,7 @@ and it wraps rather than stacking. A narrow or touched one stacks its buttons fu
 primary first. `busy` disables an action and shows progress in its button
 (`Button`'s `busy`). With `id`, the buttons are `{id}.{name}`: `confirm` for the
 primary or destructive action, `cancel`, and what `named` gives a secondary one;
-the close button is `{id}.close` and the footer `{id}.actions`. A confirmation
+the close button is `{id}.close`, the footer `{id}.actions`, and the card itself `{id}`. A confirmation
 inside a dialog is an alert of its own, opened over it; a control or row action
 (a member's role, share's Add) stays in the content.
 

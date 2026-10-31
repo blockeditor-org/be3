@@ -1927,24 +1927,40 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn hover(&mut self, target: impl Into<Target>) {
         let at = self.locate("move", &[target.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_move(at[0]);
+            return;
+        }
         let frames = self.gestures.hover(at[0]);
         self.perform(frames);
     }
 
     pub fn click(&mut self, target: impl Into<Target>) {
         let at = self.locate("click", &[target.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], PointerButton::Primary, 1);
+            return;
+        }
         let frames = self.gestures.click(at[0], PointerButton::Primary, 1);
         self.perform(frames);
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("click", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], button, 1);
+            return;
+        }
         let frames = self.gestures.click(at[0], button, 1);
         self.perform(frames);
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) {
         let at = self.locate("click", &[target.into()], &["double".to_owned()]);
+        if self.desk.is_some() {
+            self.desk_click(at[0], PointerButton::Primary, 2);
+            return;
+        }
         let frames = self.gestures.click(at[0], PointerButton::Primary, 2);
         self.perform(frames);
     }
@@ -1957,18 +1973,30 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("down", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_button(at[0], button, true);
+            return;
+        }
         let frames = self.gestures.down(at[0], button);
         self.perform(frames);
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
         let at = self.locate("up", &[target.into()], &[button_name(button)]);
+        if self.desk.is_some() {
+            self.desk_button(at[0], button, false);
+            return;
+        }
         let frames = self.gestures.up(Some(at[0]), button);
         self.perform(frames);
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
         let at = self.locate("drag", &[from.into(), to.into()], &[]);
+        if self.desk.is_some() {
+            self.desk_drag(at[0], at[1], 2);
+            return;
+        }
         let frames = self.gestures.drag(at[0], at[1], 2, PointerButton::Primary);
         self.perform(frames);
     }
@@ -2079,6 +2107,11 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn point(&mut self, target: Target) -> Pos2 {
         match target {
+            Target::Id(id, offset) if self.desk.is_some() => {
+                self.desk_point(&id, offset).unwrap_or_else(|| {
+                    panic!("no element with test id {id:?} on the desk\n{}", self.replay())
+                })
+            }
             Target::Id(id, offset) => {
                 self.reveal(&id);
                 match offset {

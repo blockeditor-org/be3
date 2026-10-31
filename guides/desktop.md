@@ -257,9 +257,12 @@ out of one window and over another, on any display, lands on that window's bar.
 `--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
 fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
 tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the views
-and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
-`desk_move`, `desk_release`, `desk_drag`), sends `app_tap` to whichever view holds the keyboard
-(the one whose window requests intercept the tap) and paints a display with the windows on it
+and hosts the windows as block-app does, gives each display and window an anchor space so
+popovers and dialogs escape above the windows, takes input in desktop points (`desk_press`,
+`desk_move`, `desk_release`, `desk_drag`; `click`, `hover`, `down`, `up` and `drag` go the same
+way, a test id to the centre of the first place the desk shows it, a point read in desktop
+points), sends `app_tap` to whichever view holds the keyboard (the one whose window requests
+intercept the tap) and paints a display with the windows and escaped layers on it
 (`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the

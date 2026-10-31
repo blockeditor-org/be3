@@ -60,6 +60,7 @@ mod a_window_on_the_second_display_is_kept_above_its_bars;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
+mod a_windows_tab_menu_shows_whole_past_its_window;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
@@ -459,8 +460,7 @@ impl Fixture {
             .into_iter()
             .find(|rect| on.contains_rect(*rect))
             .unwrap_or_else(|| panic!("{test_id} is shown on {on:?}"));
-        self.test.desk_press(rect.center());
-        self.test.desk_release(rect.center());
+        self.test.click(rect.center());
         self.settle();
     }
 
