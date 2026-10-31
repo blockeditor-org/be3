@@ -1,0 +1,10 @@
+extern crate be_ops as _;
+extern crate block_editor_plugin as _;
+extern crate block_gpu_guest as _;
+extern crate block_plugin_api as _;
+extern crate geometry as _;
+extern crate postcard as _;
+extern crate serde as _;
+extern crate serde_json as _;
+extern crate uuid as _;
+extern crate wgpu as _;

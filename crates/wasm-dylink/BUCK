@@ -1,6 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-# How a plugin is linked to the plugin SDK when it is loaded (guides/plugin_sdk.md): the
+# How a plugin is linked to its libraries when it is loaded (guides/plugin_libraries.md): the
 # names the link and the loaders agree on, and the plan both loaders follow.
 
 cargo_library()

@@ -54,6 +54,7 @@ fn guest() -> String {
         label: None,
         format: None,
         dimension: None,
+        usage: None,
         aspect: abi::TextureAspect::All,
         base_mip_level: 0,
         mip_level_count: None,
@@ -74,6 +75,7 @@ fn guest() -> String {
         vertex: abi::VertexState {
             module: abi::ShaderModule(1),
             entry_point: Some("vs_main".into()),
+            constants: Vec::new(),
             buffers: Vec::new(),
         },
         primitive: abi::PrimitiveState {
@@ -94,6 +96,7 @@ fn guest() -> String {
         fragment: Some(abi::FragmentState {
             module: abi::ShaderModule(1),
             entry_point: Some("fs_main".into()),
+            constants: Vec::new(),
             targets: vec![Some(abi::ColorTargetState {
                 format: abi::TextureFormat::Rgba8Unorm,
                 blend: None,
@@ -114,6 +117,8 @@ fn guest() -> String {
             depth_slice: None,
         })],
         depth_stencil_attachment: None,
+        occlusion_query_set: None,
+        timestamp_writes: None,
     }));
     let call = |name: &str, this: Option<u32>, (at, length): (usize, usize)| {
         let this = this.map_or(String::new(), |this| format!("(i32.const {this}) "));
@@ -144,9 +149,6 @@ fn guest() -> String {
             (import "{GPU}" "[method]render-pass.set-scissor-rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
             (import "{GPU}" "[method]render-pass.draw" (func $draw (param i32 i32 i32 i32 i32)))
             (data (i32.const 4096) "{data}")
-            (global (export "__tls_size") i32 (i32.const 0))
-            (global (export "__tls_align") i32 (i32.const 1))
-            (func (export "plugin_initialize_tls") (param i32 i32))
             (func (export "plugin_start") {start})
             (func (export "plugin_shutdown"))
             (func (export "plugin_step") (local $left i32)

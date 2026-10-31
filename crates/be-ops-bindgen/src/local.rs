@@ -42,6 +42,7 @@ enum Returns {
     Nothing,
     Scalar,
     Niche { own: bool },
+    Bytes,
     Encoded,
 }
 
@@ -322,6 +323,9 @@ impl Generator {
         if let Some((own, _)) = self.optional_handle(ty) {
             return Returns::Niche { own };
         }
+        if let Param::Bytes = self.param(ty) {
+            return Returns::Bytes;
+        }
         match self.flat(ty) {
             Some(flat) if flat.len() == 1 => Returns::Scalar,
             _ => Returns::Encoded,
@@ -440,9 +444,12 @@ impl Generator {
             .ok_or("an interface of the world has no name")?;
         let module = self.module_name(interface);
         let calls = self.calls(interface)?;
-        let encoded_results = calls
-            .iter()
-            .any(|call| matches!(self.returns(call.result.as_ref()), Returns::Encoded));
+        let encoded_results = calls.iter().any(|call| {
+            matches!(
+                self.returns(call.result.as_ref()),
+                Returns::Encoded | Returns::Bytes
+            )
+        });
         let mut externs = Vec::new();
         let mut stubs = Vec::new();
         let mut free = Vec::new();
@@ -467,7 +474,7 @@ impl Generator {
             for (_, ty) in &call.params {
                 abi_types.extend(self.abi(ty));
             }
-            if let Returns::Encoded = returns {
+            if let Returns::Encoded | Returns::Bytes = returns {
                 abi_types.extend([Flat::U32, Flat::U32]);
             }
             if abi_types.len() > 16 {
@@ -485,7 +492,7 @@ impl Generator {
                     .as_ref()
                     .and_then(|ty| self.flat(ty))
                     .and_then(|flat| flat.first().copied()),
-                (Returns::Niche { .. } | Returns::Encoded, _) => Some(Flat::U32),
+                (Returns::Niche { .. } | Returns::Encoded | Returns::Bytes, _) => Some(Flat::U32),
             };
             let abi_names: Vec<Ident> = (0..abi_types.len())
                 .map(|index| format_ident!("a{index}"))
@@ -664,6 +671,17 @@ impl Generator {
                         ),
                     }
                 }
+                (Returns::Bytes, _) => {
+                    let mut args = guest_args.clone();
+                    args.push(quote!(pointer));
+                    args.push(quote!(capacity));
+                    (
+                        quote!(-> ::std::vec::Vec<u8>),
+                        quote! {
+                            returned_bytes(|pointer, capacity| unsafe { imports::#import(#(#args),*) })
+                        },
+                    )
+                }
                 (Returns::Encoded, _) => {
                     let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
                     let mut args = guest_args.clone();
@@ -815,6 +833,25 @@ impl Generator {
                         },
                     )
                 }
+                (Returns::Bytes, _) => {
+                    let pointer = &abi_names[abi_names.len() - 2];
+                    let capacity = &abi_names[abi_names.len() - 1];
+                    (
+                        quote!(-> ::std::vec::Vec<u8>),
+                        quote! {{
+                            let length = result.len() as u32;
+                            if length <= #capacity {
+                                if let ::core::result::Result::Err(message) = caller.write(#pointer, &result) {
+                                    caller.refuse(::std::format!("{}: {message}", #key));
+                                    return 0;
+                                }
+                            } else {
+                                *caller.returned() = result;
+                            }
+                            length
+                        }},
+                    )
+                }
                 (Returns::Encoded, _) => {
                     let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
                     let pointer = &abi_names[abi_names.len() - 2];
@@ -922,6 +959,16 @@ impl Generator {
                             }
                         }
                     })
+                }
+
+                #[allow(dead_code)]
+                fn returned_bytes(call: impl FnOnce(u32, u32) -> u32) -> ::std::vec::Vec<u8> {
+                    let length = call(0, 0) as usize;
+                    let mut bytes = ::std::vec![0u8; length];
+                    if length > 0 {
+                        unsafe { imports::returned(bytes.as_mut_ptr() as u32) };
+                    }
+                    bytes
                 }
             },
             false => TokenStream::new(),

@@ -12,7 +12,8 @@ load(
     "time_limited",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "dev_only", "keep_profile")
+load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
 # app and the native tests only load a game or a plugin as a module, so the
@@ -61,8 +62,14 @@ wasi_html_transition = transition(
 def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
     shared = ctx.attrs.library[DefaultInfo].sub_targets["shared"][DefaultInfo].default_outputs[0]
     name = (ctx.attrs.module or ctx.attrs.name) + ".wasm"
+    closure = []
+    for library in ctx.attrs.libraries:
+        for module in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
+            if module not in closure:
+                closure.append(module)
+    libraries = WasmLibrariesInfo(closure = closure)
     if not ctx.attrs.optimize:
-        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared))]
+        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared)), libraries]
     module = ctx.actions.declare_output(name)
     ctx.actions.run(
         cmd_args(
@@ -76,11 +83,14 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
         category = "wasm_opt",
     )
-    return [DefaultInfo(default_output = module)]
+    return [DefaultInfo(default_output = module), libraries]
 
 def _module_rule(cfg):
     return rule(
         attrs = {
+            # The libraries it is linked against (wasm_library), whose
+            # closure it gives as WasmLibrariesInfo.
+            "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "library": attrs.transition_dep(cfg = cfg),
             "module": attrs.option(attrs.string(), default = None),
             "optimize": attrs.default_only(
@@ -124,14 +134,81 @@ wasi_app_flags = plugin_exports + [
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
-# The plugin SDK (guides/plugin_sdk.md): every crate the plugins have in
-# common, linked whole into one module that exports all of it, which each
-# plugin is linked against and the host links it to when it loads. Its
-# :module is what a plugin's identity names, so the plugins are relinked when
-# it changes.
-PLUGIN_SDK = "root//crates/block-plugin-sdk:module"
+# The libraries every editor is linked against unless it names its own
+# (guides/plugin_libraries.md): base, the root that holds std, wasi-libc, wgpu and
+# block-editor-plugin, and beui above it.
+BASE_LIBRARY = "root//crates/plugin-library-base:module"
 
-def plugin_sdk():
+DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/plugin-library-beui:module"]
+
+# What makes a module the root of every closure: wasi-libc's crt1-reactor.o,
+# whose _initialize sets up libc's main thread and runs the constructors. The
+# root and a standalone plugin are each a WASI reactor linked at fixed
+# addresses, which the host instantiates as it is.
+_reactor = [
+    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/crt1-reactor.o",
+    "-Clink-arg=--export=_initialize",
+]
+
+def _needs(libraries):
+    return ["--be3-needs=$(location {})".format(library) for library in libraries]
+
+# A library plugins are linked against (guides/plugin_libraries.md): the package's
+# crate linked whole into a module of its own that exports everything, which
+# the host links each plugin that names it to when it loads. libraries names
+# every library under it, the whole closure; with none it is the root, linked
+# at fixed addresses with std and wasi-libc, and with some it is
+# position-independent, leaves out everything they link and reaches their
+# thread-locals through GOT.tls. A package whose crate other crates depend on,
+# such as crates/tls-diamond's, has a library.rs beside its Cargo.toml that only
+# names the crate, and that is what is linked, so the module holds the very rlib
+# its dependents compile against.
+def wasm_library(module, libraries = [], rustc_flags = []):
+    facts = cargo_wasm_facts()
+    linker_flags = _needs(libraries) + ["--be3-library=" + module]
+    rustc_flags = plugin_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
+    if native.glob(["library.rs"]):
+        cargo_library(rustc_flags = rustc_flags)
+        native.rust_library(
+            name = "wasm",
+            crate = facts.crate + "_library",
+            crate_root = "library.rs",
+            deps = [":" + facts.name],
+            edition = facts.edition,
+            linker_flags = linker_flags,
+            preferred_linkage = "shared",
+            rustc_flags = rustc_flags,
+            srcs = ["library.rs"],
+            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        )
+    else:
+        native.rust_library(
+            name = "wasm",
+            crate = facts.crate,
+            crate_root = facts.crate_root,
+            deps = facts.deps,
+            edition = facts.edition,
+            env = facts.env,
+            features = facts.features,
+            linker_flags = linker_flags,
+            mapped_srcs = cargo_manifest_sources(),
+            preferred_linkage = "shared",
+            rustc_flags = rustc_flags,
+            srcs = cargo_library_sources(),
+            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        )
+    wasi_module(
+        name = "module",
+        libraries = libraries,
+        library = ":wasm",
+        module = module,
+        visibility = ["PUBLIC"],
+    )
+
+# A package's crate linked against libraries, every one in its closure, and
+# exporting only what a plugin does: a plugin that is not an editor, such as
+# crates/tls-diamond's.
+def linked_plugin(module, libraries, rustc_flags = []):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = "wasm",
@@ -141,18 +218,56 @@ def plugin_sdk():
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
-        linker_flags = ["--be3-sdk"],
+        linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports,
+        rustc_flags = plugin_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
     wasi_module(
         name = "module",
+        libraries = libraries,
         library = ":wasm",
-        module = "sdk",
+        module = module,
         visibility = ["PUBLIC"],
+    )
+
+# The package's editor linked as :<name>, its module named module.wasm: what
+# editor() makes :module with, and a second build of the same editor linked
+# another way, such as triangle's :standalone. libraries = None links it
+# against DEFAULT_LIBRARIES; a list names every library in its closure; [] links
+# every crate it uses into it, a standalone plugin (guides/plugin_libraries.md, "The
+# raw plugin interface"), a WASI reactor the host instantiates as it is.
+def editor_module(name, module, libraries = None, extra_deps = [], visibility = ["PUBLIC"]):
+    facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    linker_flags = _needs(libraries)
+    rustc_flags = [] if libraries else _reactor
+    library = "wasm" if name == "module" else name + "-wasm"
+    native.rust_library(
+        name = library,
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps + extra_deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
+        linker_flags = linker_flags,
+        mapped_srcs = cargo_manifest_sources(),
+        preferred_linkage = "shared",
+        rustc_flags = plugin_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
+        srcs = cargo_library_sources() + ["manifest.json"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        visibility = visibility,
+    )
+    wasi_module(
+        name = name,
+        libraries = libraries,
+        library = ":" + library,
+        module = module,
+        visibility = visibility,
     )
 
 # An editor: the guest cdylib, :wasm (wasm32 only; a plugin is all behind
@@ -160,7 +275,8 @@ def plugin_sdk():
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
-# A plugin is linked against the plugin SDK. types is the plugin's type module
+# A plugin is linked against DEFAULT_LIBRARIES, or as libraries says
+# (editor_module above). types is the plugin's type module
 # (a wasm32_module, such as checklist's //crates/editors/checklist/types:module),
 # which :types names for the app to stage beside :module.
 #
@@ -178,27 +294,11 @@ def plugin_sdk():
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through block-ui-test.
-def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None):
-    facts = cargo_wasm_facts()
-    native.rust_library(
-        name = "wasm",
-        crate = facts.crate,
-        crate_root = facts.crate_root,
-        deps = facts.deps + extra_deps,
-        edition = facts.edition,
-        env = facts.env,
-        features = facts.features,
-        linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)],
-        mapped_srcs = cargo_manifest_sources(),
-        preferred_linkage = "shared",
-        rustc_flags = plugin_exports + dev_only(["-Copt-level=0"]),
-        srcs = cargo_library_sources() + ["manifest.json"],
-        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
-        visibility = visibility,
-    )
-    wasi_module(
+def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+    editor_module(
         name = "module",
-        library = ":wasm",
+        extra_deps = extra_deps,
+        libraries = libraries,
         module = module,
         visibility = visibility,
     )

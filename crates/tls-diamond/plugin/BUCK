@@ -1,0 +1,15 @@
+load("@root//buck/wasm:defs.bzl", "linked_plugin")
+
+# The plugin at the top of the thread-local diamond (guides/plugin_libraries.md,
+# "Thread-locals"): its generics reach the thread-locals of base, left and
+# right, which block-wasm-host's tests and :web-test (crates/tls-diamond/BUCK)
+# check on wasmtime and in Chromium.
+linked_plugin(
+    libraries = [
+        "//crates/tls-diamond/base:module",
+        "//crates/tls-diamond/left:module",
+        "//crates/tls-diamond/right:module",
+    ],
+    module = "plugin",
+    rustc_flags = ["-Copt-level=2"],
+)

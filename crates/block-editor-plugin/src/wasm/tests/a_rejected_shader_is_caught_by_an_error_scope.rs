@@ -2,7 +2,11 @@ use super::*;
 
 #[test]
 fn a_rejected_shader_is_caught_by_an_error_scope() {
-    let (device, _queue) = block_gpu_guest::device_and_queue();
+    let (device, _queue) = block_gpu_guest::request_device(&wgpu::DeviceDescriptor {
+        required_limits: block_gpu_guest::limits(),
+        ..Default::default()
+    })
+    .unwrap();
     let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let _module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,

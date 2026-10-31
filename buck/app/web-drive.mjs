@@ -122,8 +122,10 @@ switch (command) {
         await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
         await portal.getByLabel("Password", { exact: true }).fill("dev-password");
         await portal.getByRole("button", { name: "Sign in", exact: true }).click();
-        const unknown = portal.getByText("No account matches those credentials", { exact: true });
-        await unknown.or(portal.getByRole("button", { name: "Approve sign-in", exact: true })).first().waitFor();
+        const unknown = portal.getByText(/no account matches those credentials/i);
+        await unknown.or(
+            portal.getByRole("button", { name: "Approve sign-in", exact: true }),
+        ).first().waitFor();
         if (await unknown.count()) {
             await portal.getByRole("link", { name: "Create an account", exact: true }).click();
             await portal.getByLabel("Display name", { exact: true }).fill("Dev");
@@ -131,7 +133,7 @@ switch (command) {
             await portal.locator('[name="password"]').fill("dev-password");
             await portal.getByLabel("Confirm password", { exact: true }).fill("dev-password");
             await portal.getByRole("button", { name: "Create account", exact: true }).click();
-            await portal.getByRole("heading", { name: "Check your email", exact: true }).waitFor();
+            await portal.getByText("Check your email", { exact: true }).first().waitFor();
             const { readFile } = await import("node:fs/promises");
             const log = await readFile(rest[0], "utf8");
             const links = log.match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
@@ -140,7 +142,7 @@ switch (command) {
             await portal.getByRole("button", { name: "Verify email", exact: true }).click();
         }
         await portal.getByRole("button", { name: "Approve sign-in", exact: true }).click();
-        await portal.getByRole("heading", { name: "Sign-in approved", exact: true }).waitFor();
+        await portal.getByText("Sign-in approved", { exact: true }).first().waitFor();
         await portal.close();
         break;
     }

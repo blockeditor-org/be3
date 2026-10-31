@@ -1,10 +1,24 @@
-use core::{fmt, future::ready, mem::ManuallyDrop, ops::Range, pin::Pin};
-use std::{cell::RefCell, sync::Arc};
+use core::{
+    fmt,
+    future::{Future, ready},
+    mem::ManuallyDrop,
+    ops::Range,
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use block_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
 
 use crate::convert::{self, custom};
+use crate::features::Allowed;
+
+mod compute;
 
 pub(crate) fn last_error() -> String {
     gpu::take_error().unwrap_or_default()
@@ -15,8 +29,29 @@ struct Scope {
     error: Option<wgpu::Error>,
 }
 
+struct Map {
+    buffer: abi::Buffer,
+    callback: BufferMapCallback,
+}
+
+struct Work {
+    ticket: u64,
+    callback: BoxSubmittedWorkDoneCallback,
+}
+
+#[derive(Default)]
+struct Lost {
+    lost: bool,
+    callback: Option<BoxDeviceLostCallback>,
+}
+
 thread_local! {
     static SCOPES: RefCell<Vec<Scope>> = const { RefCell::new(Vec::new()) };
+    static MAPS: RefCell<Vec<Map>> = const { RefCell::new(Vec::new()) };
+    static WORK: RefCell<Vec<Work>> = const { RefCell::new(Vec::new()) };
+    static COMPILING: RefCell<Vec<Waker>> = const { RefCell::new(Vec::new()) };
+    static LOST: RefCell<Lost> = RefCell::new(Lost::default());
+    static FRESH: RefCell<HashSet<u32>> = RefCell::new(HashSet::new());
     static UNCAPTURED: RefCell<Option<Arc<dyn wgpu::UncapturedErrorHandler>>> =
         const { RefCell::new(None) };
 }
@@ -33,6 +68,9 @@ impl fmt::Display for Rejected {
 impl std::error::Error for Rejected {}
 
 fn reject(message: String) {
+    if LOST.with(|lost| lost.borrow().lost) {
+        return;
+    }
     let error = wgpu::Error::Validation {
         source: Box::new(Rejected(message.clone())),
         description: message,
@@ -70,6 +108,103 @@ fn checked() {
     }
 }
 
+pub(crate) fn fresh_device() {
+    gpu::request_device();
+    LOST.with(|lost| *lost.borrow_mut() = Lost::default());
+}
+
+pub(crate) fn settle(wait: bool) -> bool {
+    let settling = || {
+        MAPS.with(|maps| !maps.borrow().is_empty()) || WORK.with(|work| !work.borrow().is_empty())
+    };
+    if settling() {
+        gpu::poll(wait);
+    }
+    settle_maps();
+    settle_work();
+    for waker in COMPILING.with(|compiling| compiling.take()) {
+        waker.wake();
+    }
+    settle_loss();
+    !settling()
+}
+
+fn settle_work() {
+    let done: Vec<Work> = WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        let (done, waiting) = work
+            .drain(..)
+            .partition(|work| gpu::submitted_work_done(work.ticket));
+        *work = waiting;
+        done
+    });
+    for work in done {
+        (work.callback)();
+    }
+}
+
+fn settle_loss() {
+    if LOST.with(|lost| lost.borrow().callback.is_none()) {
+        return;
+    }
+    let Some(info) = gpu::device_lost() else {
+        return;
+    };
+    let callback = LOST.with(|lost| {
+        let mut lost = lost.borrow_mut();
+        lost.lost = true;
+        lost.callback.take()
+    });
+    if let Some(callback) = callback {
+        let reason = match info.reason {
+            abi::DeviceLostReason::Unknown => wgpu::DeviceLostReason::Unknown,
+            abi::DeviceLostReason::Destroyed => wgpu::DeviceLostReason::Destroyed,
+        };
+        callback(reason, info.message);
+    }
+}
+
+fn settle_maps() {
+    if MAPS.with(|maps| maps.borrow().is_empty()) {
+        return;
+    }
+    let mut states = HashMap::new();
+    let settled: Vec<(Map, abi::MapState)> = MAPS.with(|maps| {
+        let mut maps = maps.borrow_mut();
+        let mut settled = Vec::new();
+        let mut index = 0;
+        while index < maps.len() {
+            let buffer = maps[index].buffer;
+            let state = *states
+                .entry(buffer.0)
+                .or_insert_with(|| ManuallyDrop::new(gpu::Buffer::from_handle(buffer)).map_state());
+            match state {
+                abi::MapState::Pending => index += 1,
+                _ => settled.push((maps.remove(index), state)),
+            }
+        }
+        settled
+    });
+    for (map, state) in settled {
+        (map.callback)(match state {
+            abi::MapState::Mapped => Ok(()),
+            _ => Err(wgpu::BufferAsyncError),
+        });
+    }
+}
+
+fn abort_maps(buffer: abi::Buffer) {
+    let aborted: Vec<Map> = MAPS.with(|maps| {
+        let mut maps = maps.borrow_mut();
+        let (aborted, kept) = maps.drain(..).partition(|map| map.buffer == buffer);
+        *maps = kept;
+        aborted
+    });
+    for map in aborted {
+        (map.callback)(Err(wgpu::BufferAsyncError));
+    }
+}
+
 macro_rules! resource {
     ($name:ident) => {
         #[derive(Debug)]
@@ -82,9 +217,17 @@ macro_rules! resource {
                     gpu::$name::from_handle(abi::$name(0))
                 }))
             }
+
+            #[allow(dead_code)]
+            fn refused(message: String) -> Self {
+                reject(message);
+                Self(gpu::$name::from_handle(abi::$name(0)))
+            }
         }
     };
 }
+
+pub(crate) use resource;
 
 resource!(Buffer);
 resource!(Texture);
@@ -93,11 +236,65 @@ resource!(Sampler);
 resource!(BindGroupLayout);
 resource!(BindGroup);
 resource!(PipelineLayout);
-resource!(ShaderModule);
 resource!(RenderPipeline);
 resource!(CommandBuffer);
 resource!(CommandEncoder);
 resource!(RenderPass);
+resource!(QuerySet);
+resource!(RenderBundleEncoder);
+resource!(RenderBundle);
+
+#[derive(Debug)]
+pub(crate) struct ShaderModule(pub(crate) gpu::ShaderModule, Option<String>);
+
+impl ShaderModule {
+    fn refused(message: String) -> Self {
+        reject(message.clone());
+        Self(
+            gpu::ShaderModule::from_handle(abi::ShaderModule(0)),
+            Some(message),
+        )
+    }
+}
+
+struct Compiling {
+    module: abi::ShaderModule,
+    refused: Option<String>,
+}
+
+impl Future for Compiling {
+    type Output = wgpu::CompilationInfo;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(message) = &self.refused {
+            return Poll::Ready(wgpu::CompilationInfo {
+                messages: vec![wgpu::CompilationMessage {
+                    message: message.clone(),
+                    message_type: wgpu::CompilationMessageType::Error,
+                    location: None,
+                }],
+            });
+        }
+        let module = ManuallyDrop::new(gpu::ShaderModule::from_handle(self.module));
+        match module.get_compilation_info() {
+            Some(messages) => Poll::Ready(wgpu::CompilationInfo {
+                messages: messages.iter().map(convert::compilation_message).collect(),
+            }),
+            None => {
+                COMPILING.with(|compiling| compiling.borrow_mut().push(context.waker().clone()));
+                Poll::Pending
+            }
+        }
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        let handle = self.0.handle();
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&handle.0));
+        abort_maps(handle);
+    }
+}
 
 impl Drop for RenderPass {
     fn drop(&mut self) {
@@ -131,6 +328,7 @@ impl Drop for MappedRange {
 
 #[derive(Debug)]
 pub(crate) struct Device {
+    allowed: Allowed,
     limits: wgpu::Limits,
 }
 
@@ -138,41 +336,25 @@ pub(crate) struct Device {
 pub(crate) struct Queue;
 
 impl Device {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(
+        features: wgpu::Features,
+        offered: wgpu::Features,
+        limits: wgpu::Limits,
+    ) -> Self {
         Self {
-            limits: fetch_limits(),
+            allowed: Allowed {
+                requested: features,
+                offered,
+            },
+            limits,
         }
-    }
-}
-
-fn fetch_limits() -> wgpu::Limits {
-    let limits = gpu::limits();
-    wgpu::Limits {
-        max_texture_dimension_1d: limits.max_texture_dimension1d,
-        max_texture_dimension_2d: limits.max_texture_dimension2d,
-        max_texture_dimension_3d: limits.max_texture_dimension3d,
-        max_texture_array_layers: limits.max_texture_array_layers,
-        max_bind_groups: limits.max_bind_groups,
-        max_bindings_per_bind_group: limits.max_bindings_per_bind_group,
-        max_sampled_textures_per_shader_stage: limits.max_sampled_textures_per_shader_stage,
-        max_samplers_per_shader_stage: limits.max_samplers_per_shader_stage,
-        max_uniform_buffers_per_shader_stage: limits.max_uniform_buffers_per_shader_stage,
-        max_uniform_buffer_binding_size: limits.max_uniform_buffer_binding_size,
-        max_storage_buffer_binding_size: limits.max_storage_buffer_binding_size,
-        max_vertex_buffers: limits.max_vertex_buffers,
-        max_buffer_size: limits.max_buffer_size,
-        max_vertex_attributes: limits.max_vertex_attributes,
-        max_vertex_buffer_array_stride: limits.max_vertex_buffer_array_stride,
-        min_uniform_buffer_offset_alignment: limits.min_uniform_buffer_offset_alignment,
-        min_storage_buffer_offset_alignment: limits.min_storage_buffer_offset_alignment,
-        ..wgpu::Limits::downlevel_defaults()
     }
 }
 
 // unsafe(ffi)
 impl DeviceInterface for Device {
     fn features(&self) -> wgpu::Features {
-        wgpu::Features::empty()
+        self.allowed.requested
     }
 
     fn limits(&self) -> wgpu::Limits {
@@ -202,28 +384,44 @@ impl DeviceInterface for Device {
     ) -> DispatchShaderModule {
         let wgsl = match desc.source {
             wgpu::ShaderSource::Wgsl(source) => source.into_owned(),
-            _ => panic!("the plugin gpu abi only accepts wgsl shaders"),
+            _ => panic!("the plugin gpu abi only accepts wgsl shaders, as browser WebGPU does"),
         };
+        if let Err(message) = self.allowed.shader(&wgsl) {
+            return DispatchShaderModule::custom(ShaderModule::refused(message));
+        }
         let descriptor = abi::ShaderModuleDescriptor {
             label: convert::label(desc.label),
             wgsl,
         };
-        DispatchShaderModule::custom(ShaderModule::created(gpu::create_shader_module(
-            &descriptor,
-        )))
+        let made = gpu::create_shader_module(&descriptor);
+        let message = last_error();
+        DispatchShaderModule::custom(match made {
+            Some(module) => {
+                if !message.is_empty() {
+                    reject(message);
+                }
+                ShaderModule(module, None)
+            }
+            None => ShaderModule::refused(message),
+        })
     }
 
     unsafe fn create_shader_module_passthrough(
         &self,
         _desc: &wgpu::ShaderModuleDescriptorPassthrough<'_>,
     ) -> DispatchShaderModule {
-        unimplemented!("passthrough shaders are not available to plugins")
+        unimplemented!(
+            "passthrough shaders are refused: plugins are untrusted, and wgpu cannot validate them"
+        )
     }
 
     fn create_bind_group_layout(
         &self,
         desc: &wgpu::BindGroupLayoutDescriptor<'_>,
     ) -> DispatchBindGroupLayout {
+        if let Err(message) = self.allowed.group_layout(desc) {
+            return DispatchBindGroupLayout::custom(BindGroupLayout::refused(message));
+        }
         let descriptor = abi::BindGroupLayoutDescriptor {
             label: convert::label(desc.label),
             entries: desc
@@ -279,12 +477,16 @@ impl DeviceInterface for Device {
         &self,
         desc: &wgpu::RenderPipelineDescriptor<'_>,
     ) -> DispatchRenderPipeline {
+        if let Err(message) = self.allowed.render_pipeline(desc) {
+            return DispatchRenderPipeline::custom(RenderPipeline::refused(message));
+        }
         let descriptor = abi::RenderPipelineDescriptor {
             label: convert::label(desc.label),
             layout: desc.layout.map(convert::layout_handle),
             vertex: abi::VertexState {
                 module: convert::module_handle(desc.vertex.module),
                 entry_point: desc.vertex.entry_point.map(str::to_owned),
+                constants: convert::constants(&desc.vertex.compilation_options),
                 buffers: desc
                     .vertex
                     .buffers
@@ -340,6 +542,7 @@ impl DeviceInterface for Device {
             fragment: desc.fragment.as_ref().map(|fragment| abi::FragmentState {
                 module: convert::module_handle(fragment.module),
                 entry_point: fragment.entry_point.map(str::to_owned),
+                constants: convert::constants(&fragment.compilation_options),
                 targets: fragment
                     .targets
                     .iter()
@@ -365,21 +568,23 @@ impl DeviceInterface for Device {
         &self,
         _desc: &wgpu::MeshPipelineDescriptor<'_>,
     ) -> DispatchRenderPipeline {
-        unimplemented!("mesh pipelines are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn create_compute_pipeline(
         &self,
-        _desc: &wgpu::ComputePipelineDescriptor<'_>,
+        desc: &wgpu::ComputePipelineDescriptor<'_>,
     ) -> DispatchComputePipeline {
-        unimplemented!("compute pipelines are not available to plugins")
+        compute::pipeline(desc)
     }
 
     unsafe fn create_pipeline_cache(
         &self,
         _desc: &wgpu::PipelineCacheDescriptor<'_>,
     ) -> DispatchPipelineCache {
-        unimplemented!("pipeline caches are not available to plugins")
+        unimplemented!(
+            "pipeline caches are refused: plugins are untrusted, and wgpu cannot validate a cache"
+        )
     }
 
     fn create_buffer(&self, desc: &wgpu::BufferDescriptor<'_>) -> DispatchBuffer {
@@ -389,10 +594,17 @@ impl DeviceInterface for Device {
             usage: desc.usage.bits(),
             mapped_at_creation: desc.mapped_at_creation,
         };
-        DispatchBuffer::custom(Buffer::created(gpu::create_buffer(&descriptor)))
+        let buffer = Buffer::created(gpu::create_buffer(&descriptor));
+        if desc.mapped_at_creation {
+            FRESH.with(|fresh| fresh.borrow_mut().insert(buffer.0.handle().0));
+        }
+        DispatchBuffer::custom(buffer)
     }
 
     fn create_texture(&self, desc: &wgpu::TextureDescriptor<'_>) -> DispatchTexture {
+        if let Err(message) = self.allowed.texture(desc) {
+            return DispatchTexture::custom(Texture::refused(message));
+        }
         let descriptor = abi::TextureDescriptor {
             label: convert::label(desc.label),
             size: convert::extent(desc.size),
@@ -415,7 +627,7 @@ impl DeviceInterface for Device {
         _desc: &wgpu::ExternalTextureDescriptor<'_>,
         _planes: &[&wgpu::TextureView],
     ) -> DispatchExternalTexture {
-        unimplemented!("external textures are not available to plugins")
+        unimplemented!("external textures are not available to plugins yet")
     }
 
     fn create_blas(
@@ -423,11 +635,11 @@ impl DeviceInterface for Device {
         _desc: &wgpu::CreateBlasDescriptor<'_>,
         _sizes: wgpu::BlasGeometrySizeDescriptors,
     ) -> (Option<u64>, DispatchBlas) {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 
     fn create_tlas(&self, _desc: &wgpu::CreateTlasDescriptor<'_>) -> DispatchTlas {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 
     fn create_sampler(&self, desc: &wgpu::SamplerDescriptor<'_>) -> DispatchSampler {
@@ -448,8 +660,23 @@ impl DeviceInterface for Device {
         DispatchSampler::custom(Sampler::created(gpu::create_sampler(&descriptor)))
     }
 
-    fn create_query_set(&self, _desc: &wgpu::QuerySetDescriptor<'_>) -> DispatchQuerySet {
-        unimplemented!("query sets are not available to plugins")
+    fn create_query_set(&self, desc: &wgpu::QuerySetDescriptor<'_>) -> DispatchQuerySet {
+        let kind = match desc.ty {
+            wgpu::QueryType::Occlusion => abi::QueryType::Occlusion,
+            wgpu::QueryType::Timestamp => abi::QueryType::Timestamp,
+            wgpu::QueryType::PipelineStatistics(_) => {
+                unimplemented!("pipeline statistics queries are not in browser WebGPU")
+            }
+        };
+        if let Err(message) = self.allowed.query_set(desc.ty) {
+            return DispatchQuerySet::custom(QuerySet::refused(message));
+        }
+        let descriptor = abi::QuerySetDescriptor {
+            label: convert::label(desc.label),
+            r#type: kind,
+            count: desc.count,
+        };
+        DispatchQuerySet::custom(QuerySet::created(gpu::create_query_set(&descriptor)))
     }
 
     fn create_command_encoder(
@@ -466,12 +693,35 @@ impl DeviceInterface for Device {
 
     fn create_render_bundle_encoder(
         &self,
-        _desc: &wgpu::RenderBundleEncoderDescriptor<'_>,
+        desc: &wgpu::RenderBundleEncoderDescriptor<'_>,
     ) -> DispatchRenderBundleEncoder {
-        unimplemented!("render bundles are not available to plugins")
+        if desc.multiview.is_some() {
+            unimplemented!("multiview render bundles are not in browser WebGPU")
+        }
+        let descriptor = abi::RenderBundleEncoderDescriptor {
+            label: convert::label(desc.label),
+            color_formats: desc
+                .color_formats
+                .iter()
+                .map(|format| format.map(convert::texture_format))
+                .collect(),
+            depth_stencil: desc
+                .depth_stencil
+                .map(|state| abi::RenderBundleDepthStencil {
+                    format: convert::texture_format(state.format),
+                    depth_read_only: state.depth_read_only,
+                    stencil_read_only: state.stencil_read_only,
+                }),
+            sample_count: desc.sample_count,
+        };
+        DispatchRenderBundleEncoder::custom(RenderBundleEncoder::created(
+            gpu::create_render_bundle_encoder(&descriptor),
+        ))
     }
 
-    fn set_device_lost_callback(&self, _device_lost_callback: BoxDeviceLostCallback) {}
+    fn set_device_lost_callback(&self, device_lost_callback: BoxDeviceLostCallback) {
+        LOST.with(|lost| lost.borrow_mut().callback = Some(device_lost_callback));
+    }
 
     fn on_uncaptured_error(&self, handler: Arc<dyn wgpu::UncapturedErrorHandler>) {
         UNCAPTURED.with(|held| *held.borrow_mut() = Some(handler));
@@ -503,9 +753,13 @@ impl DeviceInterface for Device {
 
     fn poll(
         &self,
-        _poll_type: wgpu::wgt::PollType<u64>,
+        poll_type: wgpu::wgt::PollType<u64>,
     ) -> Result<wgpu::PollStatus, wgpu::PollError> {
-        Ok(wgpu::PollStatus::QueueEmpty)
+        let wait = matches!(poll_type, wgpu::wgt::PollType::Wait { .. });
+        Ok(match settle(wait) {
+            true => wgpu::PollStatus::QueueEmpty,
+            false => wgpu::PollStatus::Poll,
+        })
     }
 
     fn get_internal_counters(&self) -> wgpu::InternalCounters {
@@ -516,7 +770,10 @@ impl DeviceInterface for Device {
         None
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        gpu::destroy_device();
+        LOST.with(|lost| lost.borrow_mut().lost = true);
+    }
 }
 
 impl QueueInterface for Queue {
@@ -562,11 +819,7 @@ impl QueueInterface for Queue {
         gpu::write_texture(
             convert::texel_copy_texture(texture),
             data,
-            abi::TexelCopyBufferLayout {
-                offset: data_layout.offset,
-                bytes_per_row: data_layout.bytes_per_row,
-                rows_per_image: data_layout.rows_per_image,
-            },
+            convert::texel_copy_buffer_layout(data_layout),
             convert::extent(size),
         );
         checked();
@@ -579,7 +832,7 @@ impl QueueInterface for Queue {
         _dest: wgpu::CopyExternalImageDestInfo<&wgpu::Texture>,
         _size: wgpu::Extent3d,
     ) {
-        unimplemented!("external image copies are not available to plugins")
+        unimplemented!("external image copies are not available to plugins yet")
     }
 
     fn submit(&self, command_buffers: &mut dyn Iterator<Item = DispatchCommandBuffer>) -> u64 {
@@ -600,19 +853,21 @@ impl QueueInterface for Queue {
     }
 
     fn on_submitted_work_done(&self, callback: BoxSubmittedWorkDoneCallback) {
-        callback();
+        let ticket = gpu::on_submitted_work_done();
+        WORK.with(|work| work.borrow_mut().push(Work { ticket, callback }));
     }
 
     fn compact_blas(&self, _blas: &DispatchBlas) -> (Option<u64>, DispatchBlas) {
-        unimplemented!("acceleration structures are not available to plugins")
+        unimplemented!("acceleration structures are not in browser WebGPU")
     }
 }
 
 impl ShaderModuleInterface for ShaderModule {
     fn get_compilation_info(&self) -> Pin<Box<dyn ShaderCompilationInfoFuture>> {
-        Box::pin(ready(wgpu::CompilationInfo {
-            messages: Vec::new(),
-        }))
+        Box::pin(Compiling {
+            module: self.0.handle(),
+            refused: self.1.clone(),
+        })
     }
 }
 
@@ -622,39 +877,68 @@ impl TextureViewInterface for TextureView {}
 impl SamplerInterface for Sampler {}
 impl PipelineLayoutInterface for PipelineLayout {}
 impl CommandBufferInterface for CommandBuffer {}
+impl QuerySetInterface for QuerySet {}
+impl RenderBundleInterface for RenderBundle {}
 
 impl RenderPipelineInterface for RenderPipeline {
-    fn get_bind_group_layout(&self, _index: u32) -> DispatchBindGroupLayout {
-        unimplemented!("implicit bind group layouts are not available to plugins")
+    fn get_bind_group_layout(&self, index: u32) -> DispatchBindGroupLayout {
+        DispatchBindGroupLayout::custom(BindGroupLayout::created(
+            self.0.get_bind_group_layout(index),
+        ))
     }
 }
 
 impl BufferInterface for Buffer {
     fn map_async(
         &self,
-        _mode: wgpu::MapMode,
-        _range: Range<wgpu::BufferAddress>,
+        mode: wgpu::MapMode,
+        range: Range<wgpu::BufferAddress>,
         callback: BufferMapCallback,
     ) {
-        callback(Err(wgpu::BufferAsyncError));
+        let mode = match mode {
+            wgpu::MapMode::Read => abi::MapMode::Read,
+            wgpu::MapMode::Write => abi::MapMode::Write,
+        };
+        self.0
+            .map_async(mode, range.start, range.end.saturating_sub(range.start));
+        checked();
+        MAPS.with(|maps| {
+            maps.borrow_mut().push(Map {
+                buffer: self.0.handle(),
+                callback,
+            })
+        });
     }
 
     fn get_mapped_range(&self, sub_range: Range<wgpu::BufferAddress>) -> DispatchBufferMappedRange {
-        let length = sub_range.end.saturating_sub(sub_range.start) as usize;
+        let length = sub_range.end.saturating_sub(sub_range.start);
+        let fresh = FRESH.with(|fresh| fresh.borrow().contains(&self.0.handle().0));
+        let bytes = match fresh {
+            true => vec![0u8; length as usize],
+            false => self.0.read_mapped(sub_range.start, length),
+        };
+        checked();
         DispatchBufferMappedRange::custom(MappedRange {
             buffer: self.0.handle(),
             offset: sub_range.start,
-            bytes: vec![0u8; length],
+            bytes,
             written: false,
         })
     }
 
     fn unmap(&self) {
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
+        abort_maps(self.0.handle());
         self.0.unmap();
         checked();
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
+        abort_maps(self.0.handle());
+        self.0.destroy();
+        checked();
+    }
 }
 
 impl TextureInterface for Texture {
@@ -663,6 +947,7 @@ impl TextureInterface for Texture {
             label: convert::label(desc.label),
             format: desc.format.map(convert::texture_format),
             dimension: desc.dimension.map(convert::texture_view_dimension),
+            usage: desc.usage.map(|usage| usage.bits()),
             aspect: convert::texture_aspect(desc.aspect),
             base_mip_level: desc.base_mip_level,
             mip_level_count: desc.mip_level_count,
@@ -672,7 +957,10 @@ impl TextureInterface for Texture {
         DispatchTextureView::custom(TextureView::created(self.0.create_view(&descriptor)))
     }
 
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        self.0.destroy();
+        checked();
+    }
 }
 
 // unsafe(ffi)
@@ -705,31 +993,48 @@ impl BufferMappedRangeInterface for MappedRange {
 impl CommandEncoderInterface for CommandEncoder {
     fn copy_buffer_to_buffer(
         &self,
-        _source: &DispatchBuffer,
-        _source_offset: wgpu::BufferAddress,
-        _destination: &DispatchBuffer,
-        _destination_offset: wgpu::BufferAddress,
-        _copy_size: Option<wgpu::BufferAddress>,
+        source: &DispatchBuffer,
+        source_offset: wgpu::BufferAddress,
+        destination: &DispatchBuffer,
+        destination_offset: wgpu::BufferAddress,
+        copy_size: Option<wgpu::BufferAddress>,
     ) {
-        unimplemented!("buffer copies are not available to plugins yet")
+        self.0.copy_buffer_to_buffer(
+            &custom::<Buffer>(source.as_custom()).0,
+            source_offset,
+            &custom::<Buffer>(destination.as_custom()).0,
+            destination_offset,
+            copy_size,
+        );
+        checked();
     }
 
     fn copy_buffer_to_texture(
         &self,
-        _source: wgpu::TexelCopyBufferInfo<'_>,
-        _destination: wgpu::TexelCopyTextureInfo<'_>,
-        _copy_size: wgpu::Extent3d,
+        source: wgpu::TexelCopyBufferInfo<'_>,
+        destination: wgpu::TexelCopyTextureInfo<'_>,
+        copy_size: wgpu::Extent3d,
     ) {
-        unimplemented!("buffer copies are not available to plugins yet")
+        self.0.copy_buffer_to_texture(
+            convert::texel_copy_buffer(source),
+            convert::texel_copy_texture(destination),
+            convert::extent(copy_size),
+        );
+        checked();
     }
 
     fn copy_texture_to_buffer(
         &self,
-        _source: wgpu::TexelCopyTextureInfo<'_>,
-        _destination: wgpu::TexelCopyBufferInfo<'_>,
-        _copy_size: wgpu::Extent3d,
+        source: wgpu::TexelCopyTextureInfo<'_>,
+        destination: wgpu::TexelCopyBufferInfo<'_>,
+        copy_size: wgpu::Extent3d,
     ) {
-        unimplemented!("texture copies are not available to plugins yet")
+        self.0.copy_texture_to_buffer(
+            convert::texel_copy_texture(source),
+            convert::texel_copy_buffer(destination),
+            convert::extent(copy_size),
+        );
+        checked();
     }
 
     fn copy_texture_to_texture(
@@ -743,10 +1048,11 @@ impl CommandEncoderInterface for CommandEncoder {
             convert::texel_copy_texture(destination),
             convert::extent(copy_size),
         );
+        checked();
     }
 
-    fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
-        unimplemented!("compute passes are not available to plugins")
+    fn begin_compute_pass(&self, desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
+        compute::pass(&self.0, desc)
     }
 
     fn begin_render_pass(&self, desc: &wgpu::RenderPassDescriptor<'_>) -> DispatchRenderPass {
@@ -793,6 +1099,16 @@ impl CommandEncoderInterface for CommandEncoder {
                     stencil_read_only: attachment.stencil_ops.is_none(),
                 }
             }),
+            occlusion_query_set: desc
+                .occlusion_query_set
+                .map(|set| custom::<QuerySet>(set.as_custom()).0.handle()),
+            timestamp_writes: desc.timestamp_writes.as_ref().map(|writes| {
+                abi::PassTimestampWrites {
+                    query_set: custom::<QuerySet>(writes.query_set.as_custom()).0.handle(),
+                    beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                    end_of_pass_write_index: writes.end_of_pass_write_index,
+                }
+            }),
         };
         DispatchRenderPass::custom(RenderPass::created(self.0.begin_render_pass(&descriptor)))
     }
@@ -806,34 +1122,55 @@ impl CommandEncoderInterface for CommandEncoder {
         _texture: &DispatchTexture,
         _subresource_range: &wgpu::ImageSubresourceRange,
     ) {
-        unimplemented!("texture clears are not available to plugins yet")
+        unimplemented!("texture clears are not in browser WebGPU")
     }
 
     fn clear_buffer(
         &self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _size: Option<wgpu::BufferAddress>,
+        buffer: &DispatchBuffer,
+        offset: wgpu::BufferAddress,
+        size: Option<wgpu::BufferAddress>,
     ) {
-        unimplemented!("buffer clears are not available to plugins yet")
+        self.0
+            .clear_buffer(&custom::<Buffer>(buffer.as_custom()).0, offset, size);
+        checked();
     }
 
-    fn insert_debug_marker(&self, _label: &str) {}
+    fn insert_debug_marker(&self, label: &str) {
+        self.0.insert_debug_marker(label);
+        checked();
+    }
 
-    fn push_debug_group(&self, _label: &str) {}
+    fn push_debug_group(&self, label: &str) {
+        self.0.push_debug_group(label);
+        checked();
+    }
 
-    fn pop_debug_group(&self) {}
+    fn pop_debug_group(&self) {
+        self.0.pop_debug_group();
+        checked();
+    }
 
-    fn write_timestamp(&self, _query_set: &DispatchQuerySet, _query_index: u32) {}
+    fn write_timestamp(&self, _query_set: &DispatchQuerySet, _query_index: u32) {
+        unimplemented!("timestamps written inside command encoders are not in browser WebGPU")
+    }
 
     fn resolve_query_set(
         &self,
-        _query_set: &DispatchQuerySet,
-        _first_query: u32,
-        _query_count: u32,
-        _destination: &DispatchBuffer,
-        _destination_offset: wgpu::BufferAddress,
+        query_set: &DispatchQuerySet,
+        first_query: u32,
+        query_count: u32,
+        destination: &DispatchBuffer,
+        destination_offset: wgpu::BufferAddress,
     ) {
+        self.0.resolve_query_set(
+            &custom::<QuerySet>(query_set.as_custom()).0,
+            first_query,
+            query_count,
+            &custom::<Buffer>(destination.as_custom()).0,
+            destination_offset,
+        );
+        checked();
     }
 
     fn mark_acceleration_structures_built<'a>(
@@ -907,7 +1244,7 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
-        unimplemented!("immediate data is not available to plugins yet")
+        unimplemented!("immediate data is not in browser WebGPU")
     }
 
     fn set_blend_constant(&mut self, color: wgpu::Color) {
@@ -955,19 +1292,21 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn draw_mesh_tasks(&mut self, _x: u32, _y: u32, _z: u32) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
-    fn draw_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
-        unimplemented!("indirect draws are not available to plugins yet")
+    fn draw_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
+        self.0
+            .draw_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
     }
 
-    fn draw_indexed_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
-        unimplemented!("indirect draws are not available to plugins yet")
+    fn draw_indexed_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
+        self.0
+            .draw_indexed_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
     }
 
     fn draw_mesh_tasks_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn multi_draw_indirect(
@@ -976,7 +1315,7 @@ impl RenderPassInterface for RenderPass {
         _offset: wgpu::BufferAddress,
         _count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect is not in browser WebGPU")
     }
 
     fn multi_draw_indexed_indirect(
@@ -985,7 +1324,7 @@ impl RenderPassInterface for RenderPass {
         _offset: wgpu::BufferAddress,
         _count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect is not in browser WebGPU")
     }
 
     fn multi_draw_indirect_count(
@@ -996,7 +1335,7 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
     }
 
     fn multi_draw_mesh_tasks_indirect(
@@ -1005,7 +1344,7 @@ impl RenderPassInterface for RenderPass {
         _offset: wgpu::BufferAddress,
         _count: u32,
     ) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
     fn multi_draw_indexed_indirect_count(
@@ -1016,7 +1355,7 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("indirect draws are not available to plugins yet")
+        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
     }
 
     fn multi_draw_mesh_tasks_indirect_count(
@@ -1027,34 +1366,142 @@ impl RenderPassInterface for RenderPass {
         _count_buffer_offset: wgpu::BufferAddress,
         _max_count: u32,
     ) {
-        unimplemented!("mesh shaders are not available to plugins")
+        unimplemented!("mesh shaders are not in browser WebGPU")
     }
 
-    fn insert_debug_marker(&mut self, _label: &str) {}
+    fn insert_debug_marker(&mut self, label: &str) {
+        self.0.insert_debug_marker(label);
+    }
 
-    fn push_debug_group(&mut self, _group_label: &str) {}
+    fn push_debug_group(&mut self, group_label: &str) {
+        self.0.push_debug_group(group_label);
+    }
 
-    fn pop_debug_group(&mut self) {}
+    fn pop_debug_group(&mut self) {
+        self.0.pop_debug_group();
+    }
 
-    fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {}
+    fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {
+        unimplemented!(
+            "timestamps written inside passes are not in browser WebGPU: use the pass's timestamp writes"
+        )
+    }
 
-    fn begin_occlusion_query(&mut self, _query_index: u32) {}
+    fn begin_occlusion_query(&mut self, query_index: u32) {
+        self.0.begin_occlusion_query(query_index);
+    }
 
-    fn end_occlusion_query(&mut self) {}
+    fn end_occlusion_query(&mut self) {
+        self.0.end_occlusion_query();
+    }
 
     fn begin_pipeline_statistics_query(
         &mut self,
         _query_set: &DispatchQuerySet,
         _query_index: u32,
     ) {
+        unimplemented!("pipeline statistics queries are not in browser WebGPU")
     }
 
-    fn end_pipeline_statistics_query(&mut self) {}
+    fn end_pipeline_statistics_query(&mut self) {
+        unimplemented!("pipeline statistics queries are not in browser WebGPU")
+    }
 
-    fn execute_bundles(
+    fn execute_bundles(&mut self, render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>) {
+        let bundles: Vec<&gpu::RenderBundle> = render_bundles
+            .map(|bundle| &custom::<RenderBundle>(bundle.as_custom()).0)
+            .collect();
+        self.0.execute_bundles(&bundles);
+    }
+}
+
+impl RenderBundleEncoderInterface for RenderBundleEncoder {
+    fn set_pipeline(&mut self, pipeline: &DispatchRenderPipeline) {
+        self.0
+            .set_pipeline(&custom::<RenderPipeline>(pipeline.as_custom()).0);
+    }
+
+    fn set_bind_group(
         &mut self,
-        _render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>,
+        index: u32,
+        bind_group: Option<&DispatchBindGroup>,
+        offsets: &[wgpu::DynamicOffset],
     ) {
-        unimplemented!("render bundles are not available to plugins")
+        let group = bind_group.map(|group| &custom::<BindGroup>(group.as_custom()).0);
+        self.0.set_bind_group(index, group, offsets);
+    }
+
+    fn set_index_buffer(
+        &mut self,
+        buffer: &DispatchBuffer,
+        index_format: wgpu::IndexFormat,
+        offset: wgpu::BufferAddress,
+        size: Option<wgpu::BufferSize>,
+    ) {
+        self.0.set_index_buffer(
+            &custom::<Buffer>(buffer.as_custom()).0,
+            convert::index_format(index_format),
+            offset,
+            convert::size(size),
+        );
+    }
+
+    fn set_vertex_buffer(
+        &mut self,
+        slot: u32,
+        buffer: &DispatchBuffer,
+        offset: wgpu::BufferAddress,
+        size: Option<wgpu::BufferSize>,
+    ) {
+        self.0.set_vertex_buffer(
+            slot,
+            &custom::<Buffer>(buffer.as_custom()).0,
+            offset,
+            convert::size(size),
+        );
+    }
+
+    fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
+        unimplemented!("immediate data is not in browser WebGPU")
+    }
+
+    fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>) {
+        self.0.draw(
+            vertices.end.saturating_sub(vertices.start),
+            instances.end.saturating_sub(instances.start),
+            vertices.start,
+            instances.start,
+        );
+    }
+
+    fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
+        self.0.draw_indexed(
+            indices.end.saturating_sub(indices.start),
+            instances.end.saturating_sub(instances.start),
+            indices.start,
+            base_vertex,
+            instances.start,
+        );
+    }
+
+    fn draw_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
+        self.0
+            .draw_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
+    }
+
+    fn draw_indexed_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
+        self.0
+            .draw_indexed_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
+    }
+
+    fn finish(mut self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
+        self.finish_custom(desc)
+    }
+
+    fn finish_custom(&mut self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
+        let descriptor = abi::RenderBundleDescriptor {
+            label: convert::label(desc.label),
+        };
+        DispatchRenderBundle::custom(RenderBundle::created(self.0.finish(&descriptor)))
     }
 }

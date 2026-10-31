@@ -50,3 +50,14 @@ released = rule(
     attrs = {"actual": attrs.transition_dep(cfg = _release)},
     impl = _released_impl,
 )
+
+# Every crate's own flags in a release build (they cannot be the toolchain's,
+# whose rustc_cfg runs rustc without nightly options). Legacy mangling names a
+# generic instance by its path and a hash rather than by every type argument, so
+# a symbol is a third the length: 16 MB less in block-app, whose backtraces
+# still name each function, and a seventh off the plugins, whose name sections
+# and exports are made of these symbols.
+RELEASE_SYMBOL_FLAGS = select({
+    "DEFAULT": [],
+    "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
+})

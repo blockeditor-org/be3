@@ -1,8 +1,12 @@
+use std::collections::HashMap;
+
+use wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, short_symbol};
+
 pub const CUSTOM: u8 = 0;
-const IMPORT: u8 = 2;
+pub(crate) const IMPORT: u8 = 2;
 const GLOBAL: u8 = 6;
 const EXPORT: u8 = 7;
-const HEADER: usize = 8;
+pub(crate) const HEADER: usize = 8;
 const ORDER: [u8; 13] = [1, 2, 3, 4, 5, 13, 6, 7, 8, 9, 12, 10, 11];
 
 pub const FUNCTION: u8 = 0;
@@ -38,21 +42,21 @@ pub struct MemoryInfo {
     pub table_align: u32,
 }
 
-struct Reader<'a> {
+pub(crate) struct Reader<'a> {
     bytes: &'a [u8],
-    at: usize,
+    pub(crate) at: usize,
 }
 
 impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, at: 0 }
     }
 
-    fn done(&self) -> bool {
+    pub(crate) fn done(&self) -> bool {
         self.at >= self.bytes.len()
     }
 
-    fn byte(&mut self) -> Result<u8, String> {
+    pub(crate) fn byte(&mut self) -> Result<u8, String> {
         let byte = *self
             .bytes
             .get(self.at)
@@ -61,7 +65,7 @@ impl<'a> Reader<'a> {
         Ok(byte)
     }
 
-    fn unsigned(&mut self) -> Result<u64, String> {
+    pub(crate) fn unsigned(&mut self) -> Result<u64, String> {
         let mut value = 0u64;
         let mut shift = 0;
         loop {
@@ -76,11 +80,29 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn u32(&mut self) -> Result<u32, String> {
+    pub(crate) fn signed(&mut self) -> Result<i64, String> {
+        let mut value = 0i64;
+        let mut shift = 0;
+        loop {
+            let byte = self.byte()?;
+            if shift < 64 {
+                value |= i64::from(byte & 0x7f) << shift;
+            }
+            shift += 7;
+            if byte & 0x80 == 0 {
+                if shift < 64 && byte & 0x40 != 0 {
+                    value |= -1i64 << shift;
+                }
+                return Ok(value);
+            }
+        }
+    }
+
+    pub(crate) fn u32(&mut self) -> Result<u32, String> {
         u32::try_from(self.unsigned()?).map_err(|_| "a count does not fit in 32 bits".to_owned())
     }
 
-    fn take(&mut self, length: usize) -> Result<&'a [u8], String> {
+    pub(crate) fn take(&mut self, length: usize) -> Result<&'a [u8], String> {
         let end = self
             .at
             .checked_add(length)
@@ -91,7 +113,7 @@ impl<'a> Reader<'a> {
         Ok(taken)
     }
 
-    fn name(&mut self) -> Result<String, String> {
+    pub(crate) fn name(&mut self) -> Result<String, String> {
         let length = self.u32()? as usize;
         let bytes = self.take(length)?;
         String::from_utf8(bytes.to_vec()).map_err(|_| "a name is not UTF-8".to_owned())
@@ -215,7 +237,7 @@ pub fn memory_info(bytes: &[u8]) -> Result<Option<MemoryInfo>, String> {
     Ok(None)
 }
 
-fn unsigned(mut value: u64, out: &mut Vec<u8>) {
+pub(crate) fn unsigned(mut value: u64, out: &mut Vec<u8>) {
     loop {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
@@ -227,7 +249,7 @@ fn unsigned(mut value: u64, out: &mut Vec<u8>) {
     }
 }
 
-fn signed(mut value: i64, out: &mut Vec<u8>) {
+pub(crate) fn signed(mut value: i64, out: &mut Vec<u8>) {
     loop {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
@@ -240,12 +262,12 @@ fn signed(mut value: i64, out: &mut Vec<u8>) {
     }
 }
 
-fn name(text: &str, out: &mut Vec<u8>) {
+pub(crate) fn name(text: &str, out: &mut Vec<u8>) {
     unsigned(text.len() as u64, out);
     out.extend_from_slice(text.as_bytes());
 }
 
-fn section(id: u8, contents: &[u8], out: &mut Vec<u8>) {
+pub(crate) fn section(id: u8, contents: &[u8], out: &mut Vec<u8>) {
     out.push(id);
     unsigned(contents.len() as u64, out);
     out.extend_from_slice(contents);
@@ -272,6 +294,82 @@ pub fn with_custom(bytes: &[u8], wanted: &str, payload: &[u8]) -> Vec<u8> {
     let mut out = bytes.to_vec();
     section(CUSTOM, &contents, &mut out);
     out
+}
+
+pub fn with_short_symbols(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = bytes[..HEADER].to_vec();
+    for current in sections(bytes)? {
+        match current.id {
+            IMPORT => section(IMPORT, &short_imports(current.contents)?, &mut out),
+            EXPORT => section(EXPORT, &short_exports(current.contents)?, &mut out),
+            id => section(id, current.contents, &mut out),
+        }
+    }
+    Ok(out)
+}
+
+fn short_imports(contents: &[u8]) -> Result<Vec<u8>, String> {
+    let mut reader = Reader::new(contents);
+    let count = reader.u32()?;
+    let mut out = Vec::with_capacity(contents.len());
+    unsigned(u64::from(count), &mut out);
+    for _ in 0..count {
+        let module = reader.name()?;
+        let symbol = reader.name()?;
+        name(&module, &mut out);
+        match module.as_str() {
+            ENV | GOT_FUNCTION | GOT_MEMORY | GOT_THREAD_LOCAL => {
+                name(&short_symbol(&symbol), &mut out);
+            }
+            _ => name(&symbol, &mut out),
+        }
+        let start = reader.at;
+        let kind = reader.byte()?;
+        match kind {
+            FUNCTION => {
+                reader.u32()?;
+            }
+            TABLE => {
+                reader.byte()?;
+                reader.limits()?;
+            }
+            MEMORY => reader.limits()?,
+            GLOBAL_KIND => {
+                reader.byte()?;
+                reader.byte()?;
+            }
+            TAG => {
+                reader.byte()?;
+                reader.u32()?;
+            }
+            other => return Err(format!("an import of an unknown kind {other}")),
+        }
+        out.extend_from_slice(&contents[start..reader.at]);
+    }
+    Ok(out)
+}
+
+fn short_exports(contents: &[u8]) -> Result<Vec<u8>, String> {
+    let mut reader = Reader::new(contents);
+    let count = reader.u32()?;
+    let mut out = Vec::with_capacity(contents.len());
+    unsigned(u64::from(count), &mut out);
+    let mut seen = HashMap::new();
+    for _ in 0..count {
+        let symbol = reader.name()?;
+        let short = short_symbol(&symbol);
+        if let Some(other) = seen.insert(short.clone().into_owned(), symbol.clone())
+            && other != symbol
+        {
+            return Err(format!("{other} and {symbol} are both exported as {short}"));
+        }
+        name(&short, &mut out);
+        let start = reader.at;
+        reader.byte()?;
+        reader.u32()?;
+        out.extend_from_slice(&contents[start..reader.at]);
+    }
+    Ok(out)
 }
 
 fn rank(id: u8) -> Option<usize> {
@@ -353,4 +451,77 @@ pub fn with_exported_globals(bytes: &[u8], globals: &[(String, i32)]) -> Result<
         section(EXPORT, &export_contents, &mut out);
     }
     Ok(out)
+}
+
+fn constant(reader: &mut Reader<'_>) -> Result<Option<i64>, String> {
+    let mut value = None;
+    loop {
+        match reader.byte()? {
+            0x0b => return Ok(value),
+            0x41 | 0x42 => value = Some(reader.signed()?),
+            0x23 | 0xd2 => {
+                reader.u32()?;
+                value = None;
+            }
+            0xd0 => {
+                reader.byte()?;
+                value = None;
+            }
+            0x43 => {
+                reader.take(4)?;
+                value = None;
+            }
+            0x44 => {
+                reader.take(8)?;
+                value = None;
+            }
+            0x6a | 0x6b | 0x6c | 0x7c | 0x7d | 0x7e => value = None,
+            other => return Err(format!("a global's initializer has the opcode {other:#x}")),
+        }
+    }
+}
+
+pub fn exported_constant(bytes: &[u8], wanted: &str) -> Result<Option<i64>, String> {
+    let sections = sections(bytes)?;
+    let Some(index) = exported_index(&sections, wanted, GLOBAL_KIND)? else {
+        return Ok(None);
+    };
+    let imported = imports(bytes)?
+        .iter()
+        .filter(|import| import.kind == GLOBAL_KIND)
+        .count() as u32;
+    let Some(defined) = index.checked_sub(imported) else {
+        return Ok(None);
+    };
+    let Some(section) = sections.iter().find(|section| section.id == GLOBAL) else {
+        return Ok(None);
+    };
+    let mut reader = Reader::new(section.contents);
+    let count = reader.u32()?;
+    for at in 0..count {
+        reader.byte()?;
+        reader.byte()?;
+        let value = constant(&mut reader)?;
+        if at == defined {
+            return Ok(value);
+        }
+    }
+    Ok(None)
+}
+
+fn exported_index(sections: &[Section<'_>], wanted: &str, kind: u8) -> Result<Option<u32>, String> {
+    let Some(section) = sections.iter().find(|section| section.id == EXPORT) else {
+        return Ok(None);
+    };
+    let mut reader = Reader::new(section.contents);
+    let count = reader.u32()?;
+    for _ in 0..count {
+        let name = reader.name()?;
+        let exported = reader.byte()?;
+        let index = reader.u32()?;
+        if name == wanted && exported == kind {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
 }

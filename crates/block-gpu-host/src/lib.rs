@@ -1,19 +1,25 @@
+mod bundles;
 mod convert;
 mod host;
+mod queries;
+mod settling;
 mod tables;
 pub mod transport;
 
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::pin::pin;
+use std::pin::{Pin, pin};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use block_gpu_abi::device as abi;
+use settling::Settling;
 use tables::Table;
+
+pub use settling::Wake;
 
 pub use block_gpu_abi;
 pub use wgpu;
@@ -30,16 +36,26 @@ pub struct Gpu {
     limits: abi::SupportedLimits,
     buffers: Table<wgpu::Buffer>,
     textures: Table<wgpu::Texture>,
+    made_textures: HashSet<u32>,
     views: Table<wgpu::TextureView>,
     samplers: Table<wgpu::Sampler>,
     group_layouts: Table<wgpu::BindGroupLayout>,
     groups: Table<wgpu::BindGroup>,
     pipeline_layouts: Table<wgpu::PipelineLayout>,
     modules: Table<wgpu::ShaderModule>,
+    compilations: HashMap<u32, Compilation>,
     pipelines: Table<wgpu::RenderPipeline>,
+    settling: Settling,
+    destroyed: bool,
     encoders: Table<wgpu::CommandEncoder>,
     command_buffers: Table<wgpu::CommandBuffer>,
     passes: Table<wgpu::RenderPass<'static>>,
+    compute_pipelines: Table<wgpu::ComputePipeline>,
+    compute_passes: Table<wgpu::ComputePass<'static>>,
+    query_sets: Table<queries::QuerySet>,
+    coarsening: Option<queries::Coarsening>,
+    bundle_encoders: Table<bundles::BundleEncoder>,
+    bundles: Table<wgpu::RenderBundle>,
     surface_ids: Table<u32>,
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
@@ -49,6 +65,11 @@ pub struct Gpu {
 }
 
 type Outcome<T> = Result<T, String>;
+
+#[cfg(not(target_arch = "wasm32"))]
+type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo> + Send>>;
+#[cfg(target_arch = "wasm32")]
+type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo>>>;
 
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
@@ -100,16 +121,26 @@ impl Gpu {
             limits,
             buffers: Table::new(),
             textures: Table::new(),
+            made_textures: HashSet::new(),
             views: Table::new(),
             samplers: Table::new(),
             group_layouts: Table::new(),
             groups: Table::new(),
             pipeline_layouts: Table::new(),
             modules: Table::new(),
+            compilations: HashMap::new(),
             pipelines: Table::new(),
+            settling: Settling::new(),
+            destroyed: false,
             encoders: Table::new(),
             command_buffers: Table::new(),
             passes: Table::new(),
+            compute_pipelines: Table::new(),
+            compute_passes: Table::new(),
+            query_sets: Table::new(),
+            coarsening: None,
+            bundle_encoders: Table::new(),
+            bundles: Table::new(),
             surface_ids: Table::new(),
             surfaces: HashMap::new(),
             imports: Imports::default(),
@@ -121,6 +152,16 @@ impl Gpu {
 
     pub fn sharing(mut self, imports: Imports) -> Self {
         self.imports = imports;
+        self
+    }
+
+    pub fn waking(mut self, wake: Wake) -> Self {
+        self.settling.waking(wake);
+        self
+    }
+
+    pub fn owning_device(self) -> Self {
+        self.device.set_device_lost_callback(self.settling.losing());
         self
     }
 
@@ -177,7 +218,7 @@ impl Gpu {
     }
 
     pub fn report(&mut self, message: String) {
-        if self.error.is_none() {
+        if self.error.is_none() && !self.lost() {
             self.error = Some(message);
         }
     }
@@ -192,11 +233,18 @@ impl Gpu {
         }
     }
 
+    fn lost(&self) -> bool {
+        self.destroyed || self.settling.lost().is_some()
+    }
+
     fn create<T>(
         &mut self,
         table: fn(&mut Self) -> &mut Table<T>,
         act: impl FnOnce(&mut Self) -> Outcome<T>,
     ) -> Option<u32> {
+        if self.destroyed {
+            return Some(table(self).skip());
+        }
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let created = act(self);
         let caught = caught(scope.pop());
@@ -242,10 +290,32 @@ fn texel_copy_texture(
     }
 }
 
-fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> wgpu::BufferSlice<'_> {
-    match size {
-        None => buffer.slice(offset..),
-        Some(size) => buffer.slice(offset..offset.saturating_add(size)),
+fn texel_copy_buffer(
+    buffer: &wgpu::Buffer,
+    layout: abi::TexelCopyBufferLayout,
+) -> wgpu::TexelCopyBufferInfo<'_> {
+    wgpu::TexelCopyBufferInfo {
+        buffer,
+        layout: wgpu::TexelCopyBufferLayout {
+            offset: layout.offset,
+            bytes_per_row: layout.bytes_per_row,
+            rows_per_image: layout.rows_per_image,
+        },
+    }
+}
+
+fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> Outcome<wgpu::BufferSlice<'_>> {
+    let end = match size {
+        None => Some(buffer.size()),
+        Some(size) => offset.checked_add(size),
+    };
+    match end {
+        Some(end) if offset < end && end <= buffer.size() => Ok(buffer.slice(offset..end)),
+        _ => Err(format!(
+            "a binding of {offset}..{} is empty or runs past the end of its {}-byte buffer",
+            end.map_or_else(|| "overflow".to_owned(), |end| end.to_string()),
+            buffer.size()
+        )),
     }
 }
 

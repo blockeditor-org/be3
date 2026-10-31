@@ -1,0 +1,16 @@
+[package]
+name = "plugin-library-beui"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+beui-platform-plugin = { path = "../beui-platform-plugin" }
+block-editor-beui = { path = "../block-editor-beui" }
+
+[lints]
+workspace = true

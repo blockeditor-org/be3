@@ -267,7 +267,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let store = SHARED_STORE
             .with(|shared| shared.borrow_mut().take())
             .unwrap_or_else(|| ContentStore::new(host.organization_id()));
-        let blocks = host.blocks();
+        let blocks = host.graph();
         store.know_elsewhere(move |block| blocks.info(block).is_some());
         let block_type = host.block_type().unwrap_or_default();
         let (account_id, organization_id, client_id) = (

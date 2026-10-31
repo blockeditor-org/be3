@@ -386,6 +386,7 @@ pub struct Shared {
     pub pending: usize,
     pub typing: bool,
     pub uploading: usize,
+    pub listing_revisions: usize,
     pub importing: usize,
     pub previewed: std::collections::HashSet<Uuid>,
     pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
@@ -433,6 +434,10 @@ impl Shared {
             (self.typing, "a block type module has yet to settle"),
             (self.draining, "the block store sends sealed edits"),
             (self.uploading > 0, "the block store uploads files"),
+            (
+                self.listing_revisions > 0,
+                "the block store lists a block's revisions",
+            ),
             (self.owing > 0, "the block store owes edits a seal"),
             (
                 self.graph.fetching(),
@@ -1844,6 +1849,28 @@ async fn apply(
             held.stale_revision += 1;
             drop(held);
             block_app_base::host::wake();
+            true
+        }
+        Command::Revision {
+            block,
+            request: super::revisions::Asked::List,
+            reply,
+        } => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .listing_revisions += 1;
+            let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+            tasks.spawn(async move {
+                reply(super::revisions::Answered::Listed(
+                    super::revisions::list(&peer, block).await,
+                ));
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .listing_revisions -= 1;
+                block_app_base::host::wake();
+            });
             true
         }
         Command::Revision {

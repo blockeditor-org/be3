@@ -134,7 +134,7 @@ fn gpu() -> Result<(wgpu::Device, wgpu::Queue), String> {
     .map_err(|error| format!("no graphics adapter is available: {error}"))?;
     pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("plugin test device"),
-        required_features: wgpu::Features::empty(),
+        required_features: adapter.features() & wgpu::Features::all_webgpu_mask(),
         required_limits: wgpu::Limits::downlevel_defaults(),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,

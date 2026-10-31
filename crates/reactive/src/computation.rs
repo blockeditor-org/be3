@@ -72,34 +72,56 @@ pub(crate) fn no_computation() -> Weak<Computation> {
     Weak::<Computation<fn() -> bool>>::new()
 }
 
+struct Parts {
+    owner: Rc<Owner>,
+    tracking: u64,
+    zone: u64,
+    gate: Option<Rc<Gate>>,
+}
+
+fn parts() -> Parts {
+    let owner = current_owner();
+    let gate = owner.gate.borrow().clone();
+    Parts {
+        owner,
+        tracking: next_tracking(),
+        zone: current_zone(),
+        gate,
+    }
+}
+
 impl Computation {
     pub(crate) fn new(
         source: Option<Rc<dyn Tracked>>,
         callback: impl FnMut() -> bool + 'static,
     ) -> Rc<Self> {
-        let owner = current_owner();
+        let parts = parts();
         let computation: Rc<Self> = Rc::new(Computation {
-            parent: owner.computation.clone(),
-            owner: Rc::downgrade(&owner),
+            parent: parts.owner.computation.clone(),
+            owner: Rc::downgrade(&parts.owner),
             state: Cell::new(State::Dirty),
             refreshing: Cell::new(false),
             execution_owner: RefCell::new(None),
             dependencies: RefCell::new(Vec::new()),
-            tracking: Cell::new(next_tracking()),
+            tracking: Cell::new(parts.tracking),
             source,
             queued: Cell::new(false),
             queued_at: Cell::new(0),
             runs: Cell::new((0, 0)),
             binding: Cell::new(false),
-            zone: current_zone(),
-            gate: owner.gate.borrow().clone(),
+            zone: parts.zone,
+            gate: parts.gate,
             callback: RefCell::new(Slot {
                 live: true,
                 callback: ManuallyDrop::new(callback),
             }),
         });
-        owner.add(Cleanup::Dispose(computation.clone()));
+        computation.adopt(&parts.owner);
         computation
+    }
+
+    fn adopt(self: &Rc<Self>, owner: &Owner) {
+        owner.add(Cleanup::Dispose(self.clone()));
     }
 
     pub(crate) fn count_run(&self, flush: u64) -> u32 {

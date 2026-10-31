@@ -1,7 +1,7 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "wasm32_module")
 
-# The smallest guest without a gpu, an SDK or WASI: the tests of
+# The smallest guest without a gpu, a library or WASI: the tests of
 # block-guest-host and block-wasm-host start it in process and as this module.
 cargo_library()
 

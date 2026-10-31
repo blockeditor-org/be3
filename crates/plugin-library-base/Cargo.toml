@@ -1,0 +1,23 @@
+[package]
+name = "plugin-library-base"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-ops = { path = "../be-ops" }
+block-editor-plugin = { path = "../block-editor-plugin" }
+block-gpu-guest = { path = "../block-gpu-guest" }
+block-plugin-api = { path = "../block-plugin-api" }
+geometry = { path = "../geometry" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v7"] }
+wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
+
+[lints]
+workspace = true

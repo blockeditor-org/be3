@@ -37,8 +37,12 @@ impl<T> Table<T> {
         handle
     }
 
-    pub(crate) fn skip(&mut self) {
-        self.counter.take();
+    pub(crate) fn skip(&mut self) -> Handle {
+        self.counter.take()
+    }
+
+    pub(crate) fn values(&self) -> impl Iterator<Item = &T> {
+        self.entries.values()
     }
 
     pub(crate) fn get(&self, handle: Handle, kind: &str) -> Result<&T, String> {

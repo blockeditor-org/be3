@@ -1,6 +1,5 @@
 pub use be_block;
 pub use geometry;
-pub use reactive;
 
 mod asked;
 mod clock;
@@ -8,11 +7,14 @@ mod content;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod cooldown;
 mod docks;
+pub mod driver;
 pub mod editor_session;
+mod editor_state;
 pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
+mod layered_settings;
 mod link;
 mod module;
 #[cfg(target_arch = "wasm32")]
@@ -26,6 +28,7 @@ pub mod root_settings;
 mod runtime;
 mod screens;
 pub mod session;
+mod state;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 mod wire;
@@ -67,9 +70,13 @@ pub use block_plugin_api::{
 pub use block_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
 pub use block_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
-pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected};
+pub use content::{LiveContent, Objects, Projected};
+pub use editor_state::{
+    ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
+    PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,
+};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
-pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
+pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
@@ -77,6 +84,7 @@ pub use host::{
     RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
     Waker,
 };
+pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
 pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
 #[cfg(target_arch = "wasm32")]
@@ -84,6 +92,7 @@ pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use previews::preview_texture;
+pub use state::{Subscription, Unready};
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 
@@ -109,11 +118,6 @@ pub mod __private {
             name,
             open: P::open,
         }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn initialize_tls(size: usize, align: usize) {
-        crate::wasm::initialize_storage(size, align);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -168,11 +172,6 @@ pub mod __private {
 #[macro_export]
 macro_rules! platform_entry {
     ($manifest:ident, $apps:expr) => {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
-            $crate::__private::initialize_tls(size as usize, align as usize);
-        }
-
         struct PluginGuest($crate::__private::Editor);
 
         impl $crate::__private::Guest for PluginGuest {

@@ -55,7 +55,7 @@ platform hides: dragging workspace-ui's splitter between Files and an editor, sa
 small steps (`mousedown 1`, then `mousemove` one step at a time) and run `import -window root`
 after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the window a fractional
 scale. To skip building every plugin, run the binary that `:dev` built
-(`buck-out/v2/art/root/crates/block-app/__dev-app__/*/dev-app/block-app`, with the
+(`target/apps/dev-app-*/block-app`, where it unpacked the app, with the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it, read from `/proc/PID/environ`,
 then stop that headless app) with the variables above in place of `:native`.
 

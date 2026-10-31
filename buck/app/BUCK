@@ -30,6 +30,11 @@ filegroup(
 )
 
 export_file(
+    name = "page-test.mjs",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
     name = "bundle.sh",
     visibility = ["PUBLIC"],
 )

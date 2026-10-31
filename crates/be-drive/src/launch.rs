@@ -12,13 +12,14 @@ use beui_runner::environment;
 
 use crate::{Unanswered, request};
 
-const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
-       [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [--pin-clock]
-       [--fresh] [--stop] [PROGRAM ARGUMENTS...]
+const USAGE: &str = "usage: be-drive launch --program=PATH [--archive=APPZ] [--name=NAME] [--data]
+       [--libraries=DIR] [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS]
+       [--pin-clock] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
 round trip between the program and its server. --pin-clock starts its wall clock at the fixed
 moment tests use (2026-03-02 09:41 UTC) in the UTC time zone, instead of the real time and zone.
+With --archive, PROGRAM is a path in that app archive (crates/app-archive), unpacked first.
 Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SOCKET_PATH: usize = 107;
@@ -27,6 +28,7 @@ const SCREEN: &str = "1440x900";
 #[derive(Default)]
 struct Launch {
     program: Option<String>,
+    archive: Option<String>,
     name: Option<String>,
     data: bool,
     libraries: Option<String>,
@@ -62,6 +64,8 @@ fn parse(arguments: &[String], usage: &str) -> Result<Launch, String> {
             _ => {
                 if let Some(program) = value("--program=") {
                     launch.program = Some(program);
+                } else if let Some(archive) = value("--archive=") {
+                    launch.archive = Some(archive);
                 } else if let Some(name) = value("--name=") {
                     launch.name = Some(name);
                 } else if let Some(libraries) = value("--libraries=") {
@@ -100,7 +104,10 @@ impl Launch {
 
     fn start(&self, dir: &Path, log: Option<&Path>) -> Result<Child, String> {
         let name = self.name();
-        let program = self.program();
+        let program = match &self.archive {
+            Some(archive) => app_archive::unpacked(Path::new(archive))?.join(self.program()),
+            None => PathBuf::from(self.program()),
+        };
         let data = dir.join("data");
         if self.fresh && data.exists() {
             fs::remove_dir_all(&data)
@@ -121,7 +128,7 @@ impl Launch {
         fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))
             .map_err(|error| error.to_string())?;
         let listening = listener.as_raw_fd();
-        let mut command = Command::new(program);
+        let mut command = Command::new(&program);
         command
             .args(&self.arguments)
             .env(environment::PLATFORM, "headless")
@@ -176,7 +183,8 @@ impl Launch {
         let see = log.map_or_else(String::new, |log| format!("; see {}", log.display()));
         let spawned = command.spawn();
         drop(listener);
-        let mut child = spawned.map_err(|error| format!("could not start {program}: {error}"))?;
+        let mut child =
+            spawned.map_err(|error| format!("could not start {}: {error}", program.display()))?;
         if let Err(error) = request(&socket, &["settle".to_owned()], STARTUP) {
             kill_group(child.id());
             let status = child.wait().map_err(|error| error.to_string())?;

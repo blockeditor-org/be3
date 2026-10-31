@@ -3,7 +3,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Artifacts, EditorHost};
-use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
+use block_editor_beui::{BlockList, BlockQuery, Blocks, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use image_block_types::{ImageContent, ImageFile};
 use pixel_art_types::{Artwork, PixelArtContent};
@@ -166,8 +166,8 @@ impl Regeneration {
         let settings = ImageSettings::decode(data)?;
         Ok(Self {
             host: host.clone(),
-            source: host.content_of::<PixelArtContent>(source),
-            named: host.blocks().watch(BlockQuery::Block(source)),
+            source: host.content_of::<PixelArtContent>(source).into(),
+            named: Blocks::of(host).watch(BlockQuery::Block(source)),
             target: target_id,
             settings,
         })

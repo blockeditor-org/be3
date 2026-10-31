@@ -29,8 +29,8 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         .sharing(&document),
     );
     let shown = whole(100.0, 100.0);
-    let start = surface.context().now();
-    surface.context().set_clock(start);
+    let start = surface.regions().context().now();
+    surface.regions().context().set_clock(start);
     one(&mut surface, &shown);
     let scroll = scroll.get();
     surface.input(
@@ -38,8 +38,11 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         &TimedInput::from(Input::PointerMoved(pos2(50.0, 50.0))),
         None,
     );
-    let frame = |surface: &mut ModuleRunner, events: &[TimedInput]| {
-        surface.context().advance_clock(Duration::from_millis(16));
+    let frame = |surface: &mut Driver<ModuleRunner>, events: &[TimedInput]| {
+        surface
+            .regions()
+            .context()
+            .advance_clock(Duration::from_millis(16));
         for event in events {
             surface.input(&shown, event, None);
         }

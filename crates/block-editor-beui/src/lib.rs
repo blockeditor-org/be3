@@ -2,6 +2,7 @@ pub use beui;
 pub use beui::{FileFilter, PickedFile};
 #[cfg(test)]
 extern crate beui_platform_plugin as _;
+pub use beui::reactive;
 pub use block_editor_plugin;
 pub use block_editor_plugin::*;
 
@@ -9,11 +10,13 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+mod content;
 mod dialog;
 mod docked;
 mod editor;
 mod file_chooser;
 mod fitting;
+mod graph;
 pub mod headless;
 mod instance;
 mod layered_settings;
@@ -33,12 +36,13 @@ pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subre
 pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,
 };
+pub use content::{ContentProjection, OwnedContentProjection};
 pub use editor::{
-    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, KindsAbove, OrganizationLayers,
-    OwnedEditor, SetKind, SubregionContent, fit_content, node_anchor,
+    Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
-pub use fitting::{Fit, Fitting};
+pub use fitting::Fitting;
+pub use graph::{BlockList, Blocks};
 pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
@@ -47,7 +51,7 @@ pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
-pub use version_control::{VersionHistory, VersionSteps, short_id};
+pub use version_control::{VersionHistory, VersionSteps};
 
 #[beui::reactive::component]
 pub trait BeuiApp: 'static {

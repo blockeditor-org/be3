@@ -130,6 +130,24 @@ FIXUPS = {
     # disagree. The overlay leaves the includes out.
     "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
     "webkit2gtk-sys": _PKG_CONFIG,
+    # What the plugin GPU API needs of wgpu 29. It cannot finish a custom backend's
+    # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
+    # encoder cannot be called with, and the custom arm is `unimplemented!()`.
+    # The overlay adds `finish_custom(&mut self)` to the encoder's interface,
+    # which a plugin's backend (crates/block-gpu-guest) implements. And wgpu-core's
+    # backend panics on a bundle that fails validation, where the host must
+    # report a plugin's mistake as WebGPU does: the overlay sends it to the
+    # device's error sink. And wgpu's WebGPU backend leaves a render pass's
+    # occlusion query set out of the pass it begins in a browser. Drop each
+    # change once wgpu has it.
+    "wgpu": {
+        "overlay": {
+            "src/api/render_bundle_encoder.rs": "overlays/wgpu/render_bundle_encoder.rs",
+            "src/backend/webgpu.rs": "overlays/wgpu/webgpu.rs",
+            "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
+            "src/dispatch.rs": "overlays/wgpu/dispatch.rs",
+        }
+    },
     # Windows API imports as raw-dylib, which rustc turns into import stubs
     # itself, rather than through the import library windows_<arch>_msvc
     # vendors. That library is needed by every final link, and a build

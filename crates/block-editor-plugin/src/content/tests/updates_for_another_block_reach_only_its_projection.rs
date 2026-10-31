@@ -4,8 +4,7 @@ use super::*;
 fn updates_for_another_block_reach_only_its_projection() {
     let fixture = Fixture::new();
     let other_block = uuid::Uuid::new_v4();
-    let other =
-        OwnedContentProjection::<ChecklistContent>::new(fixture.host.clone(), Some(other_block));
+    let other = LiveContent::<ChecklistContent>::new(fixture.host.clone(), Some(other_block));
     let (_, add) = Checklist::add("from elsewhere");
     let mut content = ChecklistContent::default();
     content.apply(&add);
@@ -16,7 +15,7 @@ fn updates_for_another_block_reach_only_its_projection() {
     other.pump();
     fixture.projection.pump();
 
-    let listed = |projection: &ContentProjection<ChecklistContent>| {
+    let listed = |projection: &LiveContent<ChecklistContent>| {
         projection
             .read(|content| content.root().items.len())
             .unwrap_or_default()

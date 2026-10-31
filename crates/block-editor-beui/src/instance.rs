@@ -18,7 +18,6 @@ use uuid::Uuid;
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
 use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::docked::{DockedTabBody, DockedTabs};
-use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
@@ -44,7 +43,7 @@ struct Parts<A: BeuiApp> {
     dialog_control: Rc<Cell<Option<DialogControl>>>,
     settings: Rc<Cell<Option<beui::NodeId>>>,
     settings_control: Rc<Cell<Option<DialogControl>>>,
-    scale: Rc<Cell<BeuiScale>>,
+    scale: Rc<Cell<crate::PointScale>>,
     views: RefCell<Views<A>>,
     generation: beui::reactive::OwnedSignal<u64>,
     docked: Rc<DockedTabs>,
@@ -343,7 +342,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
     }
 
     fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document) {
-        self.scale.set(BeuiScale {
+        self.scale.set(crate::PointScale {
             ratio: view.ratio,
             pixels_per_point: context.pixels_per_point(),
         });

@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Thread-local diamond</title>
+<link rel="icon" href="data:,">
+<script type="module">
+    function run(kind) {
+        const worker = new Worker("diamond.js", { type: "module" });
+        const outcome = new Promise((resolve) => {
+            worker.onmessage = ({ data }) => resolve(data);
+            worker.onerror = (event) => resolve({ error: String(event.message ?? event) });
+        });
+        worker.postMessage({ kind });
+        return outcome;
+    }
+    globalThis.outcome = Promise.all([run("diamond"), run("tampered")]).then((outcomes) => {
+        const failed = outcomes.find((outcome) => !outcome.passed);
+        return failed ?? { passed: true, message: outcomes.map(({ message }) => message).join("; ") };
+    });
+</script>

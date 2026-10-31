@@ -98,8 +98,8 @@ impl Screens {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("plugin device"),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
-                    .using_resolution(adapter.limits()),
+                required_features: adapter.features() & wgpu::Features::all_webgpu_mask(),
+                required_limits: adapter.limits(),
                 ..Default::default()
             })
             .await

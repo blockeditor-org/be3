@@ -206,21 +206,20 @@ pub(super) async fn run(
     block: Uuid,
     request: Asked,
 ) -> Answered {
-    let outcome = perform(peer, replicas, shared, block, request).await;
     match request {
-        Asked::List => Answered::Listed(outcome.map(|result| result.0)),
-        Asked::Preview(_) => Answered::Previewed(outcome.map(|result| result.1)),
-        Asked::Restore(_) => Answered::Restored(outcome.map(|_| ())),
+        Asked::List => Answered::Listed(list(peer, block).await),
+        Asked::Preview(commit) => {
+            Answered::Previewed(perform(peer, replicas, shared, block, commit, false).await)
+        }
+        Asked::Restore(commit) => Answered::Restored(
+            perform(peer, replicas, shared, block, commit, true)
+                .await
+                .map(drop),
+        ),
     }
 }
 
-async fn perform(
-    peer: &Arc<Peer<Store>>,
-    replicas: &mut Replicas,
-    shared: &Arc<Mutex<Shared>>,
-    block: Uuid,
-    request: Asked,
-) -> Result<(Vec<Revision>, Uuid), String> {
+pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Revision>, String> {
     let summary = peer
         .summary(block)
         .await
@@ -228,39 +227,52 @@ async fn perform(
     if !summary.access.can_view() {
         return Err("You do not have permission to view this file.".into());
     }
-    let commit = match request {
-        Asked::Preview(commit) | Asked::Restore(commit) => {
-            Some(CommitId::from_hash(be_store::Hash::from_bytes(commit)))
-        }
-        Asked::List => None,
-    };
-    let conflicted = commit.is_some_and(|commit| {
+    let mut revisions: Vec<_> = peer
+        .history(block)
+        .await
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .map(|entry| Revision {
+            commit: *entry.commit.hash().as_bytes(),
+            time: entry.time,
+            current: Some(entry.commit) == summary.head,
+        })
+        .collect();
+    revisions.sort_by(|a, b| {
+        b.time
+            .cmp(&a.time)
+            .then_with(|| b.current.cmp(&a.current))
+            .then_with(|| b.commit.cmp(&a.commit))
+    });
+    Ok(revisions)
+}
+
+async fn perform(
+    peer: &Arc<Peer<Store>>,
+    replicas: &mut Replicas,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    commit: [u8; 32],
+    restore: bool,
+) -> Result<Uuid, String> {
+    let summary = peer
+        .summary(block)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !summary.access.can_view() {
+        return Err("You do not have permission to view this file.".into());
+    }
+    let commit = CommitId::from_hash(be_store::Hash::from_bytes(commit));
+    let conflicted = {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         super::conflicts::is_side(&held, block, commit)
-    });
+    };
     let entries = match conflicted {
         true => Vec::new(),
         false => peer
             .history(block)
             .await
             .map_err(|error| error.to_string())?,
-    };
-    let Some(commit) = commit else {
-        let mut revisions: Vec<_> = entries
-            .into_iter()
-            .map(|entry| Revision {
-                commit: *entry.commit.hash().as_bytes(),
-                time: entry.time,
-                current: Some(entry.commit) == summary.head,
-            })
-            .collect();
-        revisions.sort_by(|a, b| {
-            b.time
-                .cmp(&a.time)
-                .then_with(|| b.current.cmp(&a.current))
-                .then_with(|| b.commit.cmp(&a.commit))
-        });
-        return Ok((revisions, Uuid::nil()));
     };
     if !conflicted && !entries.iter().any(|entry| entry.commit == commit) {
         return Err("This revision is no longer available.".into());
@@ -276,7 +288,7 @@ async fn perform(
         .read_manifest(&saved.manifest)
         .await
         .map_err(|error| error.to_string())?;
-    if matches!(request, Asked::Preview(_)) {
+    if !restore {
         let content = super::is_known(summary.content_type)
             .then(|| Content::new(summary.content_type, bytes))
             .ok_or("This revision cannot be previewed.")?;
@@ -293,7 +305,7 @@ async fn perform(
                 requested: false,
             },
         );
-        return Ok((Vec::new(), id));
+        return Ok(id);
     }
     if !summary.access.can_edit() {
         return Err("You do not have permission to restore this file.".into());
@@ -311,5 +323,5 @@ async fn perform(
     replicas
         .change((peer, shared), block, Change::Replace(bytes))
         .await;
-    Ok((Vec::new(), Uuid::nil()))
+    Ok(Uuid::nil())
 }

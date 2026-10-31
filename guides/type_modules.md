@@ -22,7 +22,7 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
 ## Operations and WIT
 
 WIT is the schema, but there is no component model underneath: everything rides the
-pure-guest ABI (guides/plugin_sdk.md, "Guests without the SDK"). The WIT decides how
+pure-guest ABI (guides/plugin_libraries.md, "The raw plugin interface"). The WIT decides how
 each function travels. A plain `func` is a direct call: a wasm import (guest to host)
 or export (host to guest) of its own, run to completion on the guest's thread before
 the caller goes on. An `async func`, a `stream<T>` and a resource's lifetime are
@@ -150,7 +150,9 @@ flags, handles and records and options of them are flattened into wasm arguments
 strings and lists of scalars or handles go as a pointer and a length, and anything
 else as postcard; a result is one wasm value (`option<own<R>>` is the handle, 0 for
 none) or postcard written into room the guest offers, with `[returned]` fetching one
-that did not fit. The guest gets an owner type per resource that drops it; the host a
+that did not fit. A `list<u8>` result is raw bytes rather than postcard: the guest offers
+no room, learns the length, and has `[returned]` write the bytes straight into a vector
+of that length, so a large read is copied once into the guest. The guest gets an owner type per resource that drops it; the host a
 `Host` trait, a `Caller` trait for the guest's memory and the device, `glue`
 functions, and `<world>_local_imports!`, which hands a macro of the runtime's every
 import's glue, module, name, `module#name` and wasm signature to link or export. A

@@ -38,7 +38,7 @@ impl Instance for Triangle {
     fn create_block(&mut self) -> Result<Uuid, String> {
         Ok(self
             .host
-            .blocks()
+            .graph()
             .create(&TriangleContent::default(), BlockParent::Detached))
     }
 

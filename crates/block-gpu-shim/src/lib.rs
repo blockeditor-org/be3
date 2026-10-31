@@ -13,6 +13,7 @@ use screens::Screens;
 
 thread_local! {
     static SHIM: RefCell<Option<Shim>> = const { RefCell::new(None) };
+    static WAKE: RefCell<Option<js_sys::Function>> = const { RefCell::new(None) };
 }
 
 struct Shim {
@@ -50,7 +51,9 @@ pub async fn start() -> Result<(), JsValue> {
         .await
         .map_err(|error| JsValue::from_str(&error))?;
     let shim = Shim {
-        gpu: Gpu::new(device, queue),
+        gpu: Gpu::new(device, queue)
+            .waking(std::sync::Arc::new(wake))
+            .owning_device(),
         screens,
         memory: None,
         returned: Vec::new(),
@@ -61,6 +64,19 @@ pub async fn start() -> Result<(), JsValue> {
     };
     SHIM.with(|current| *current.borrow_mut() = Some(shim));
     Ok(())
+}
+
+fn wake() {
+    WAKE.with(|wake| {
+        if let Some(wake) = wake.borrow().as_ref() {
+            let _ = wake.call0(&JsValue::NULL);
+        }
+    });
+}
+
+#[wasm_bindgen]
+pub fn bind_wake(wake: js_sys::Function) {
+    WAKE.with(|held| *held.borrow_mut() = Some(wake));
 }
 
 #[wasm_bindgen]

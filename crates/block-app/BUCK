@@ -34,7 +34,13 @@ cargo_test(
     run_env = test_environment,
 )
 
-cargo_binary()
+# ./scripts/deploy sets be3.lto: fat LTO over one codegen unit takes a tenth off
+# the app's code and two thirds off its symbols (159 MB to 113 in October 2026),
+# but its link takes ten minutes, which every other release build, such as the
+# build helper's for be-launcher, would wait on.
+cargo_binary(
+    rustc_flags = ["-Clto=fat", "-Ccodegen-units=1"] if read_config("be3", "lto", "false") == "true" else [],
+)
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
@@ -50,7 +56,6 @@ app(
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
     visibility = ["//crates/app-tests:", "//crates/bench:", "//crates/local-tools:"],
 )
 
@@ -64,7 +69,6 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # What CI ships per platform: the app under cargo's name; the plugins ship
@@ -91,7 +95,8 @@ wasi_app_module(
 web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck/app:build-info.json"]
 
 # The WASI and wasi-threads shims, which beui-web-demo and paint-review-web
-# need too, with what thread.js imports.
+# need too, with what thread.js imports, and plugin.js, which boots a plugin
+# in its worker (block-wasm-host's :standalone-web-test boots one with it).
 [
     export_file(
         name = shim,
@@ -102,10 +107,12 @@ web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck
             "//crates/beui-html-spike:",
             "//crates/beui-shared-tests:",
             "//crates/beui-web-demo:",
+            "//crates/block-wasm-host:",
             "//crates/paint-review-web:",
+            "//crates/tls-diamond:",
         ],
     )
-    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js", "plugin.js"]
 ]
 
 app(
@@ -124,7 +131,6 @@ app(
         "$(location :Caddyfile)",
         "$(location //crates/be-server-bin:bin)",
     ],
-    sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
 )
@@ -185,7 +191,6 @@ app(
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # The build helper finalizes :android-dist with CI's key; deploy finalizes :android-release
@@ -265,13 +270,13 @@ app(
     modules = ["//{}:module".format(package) for package in dev_plugins],
     plugin_types = ["//{}:types".format(package) for package in dev_plugins],
     precompiler = "//crates/plugin-test-runner:precompiler",
-    sdk = "//crates/block-plugin-sdk:module",
 )
 
 headless(
     name = "dev",
     app_name = "dev",
+    archive = "$(location :dev-app[archive])",
     args = ["--dev-workspace"],
     data = True,
-    program = "$(location :dev-app)/block-app",
+    program = "block-app",
 )

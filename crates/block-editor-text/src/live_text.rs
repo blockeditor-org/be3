@@ -7,7 +7,7 @@ use be_block::be_model::marks::Rich;
 use be_block::be_model::{
     Change, Document as Content, Edit, FieldRef, ObjectId, RichText, Text, Value,
 };
-use block_editor_plugin::{ContentProjection, EditorHost, Projected, Waker};
+use block_editor_plugin::{EditorHost, LiveContent, Projected, Waker};
 use text_editor_core::{
     ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Formats, Pos, SeqOp,
     TextChange, TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in, changed,
@@ -240,7 +240,7 @@ impl<F: TextField> LiveText<F> {
 
     pub fn sync(
         &self,
-        content: &ContentProjection<Content<F::Root>>,
+        content: &LiveContent<Content<F::Root>>,
         host: &EditorHost,
         block: Uuid,
         whole: bool,

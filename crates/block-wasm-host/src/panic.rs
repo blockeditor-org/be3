@@ -3,7 +3,7 @@ use std::fmt;
 use block_guest_abi as abi;
 use wasmtime::{Caller, Linker};
 
-use crate::threads::Spawns;
+use crate::state::Reads;
 
 #[derive(Debug)]
 struct GuestPanic(String);
@@ -27,13 +27,13 @@ impl fmt::Display for Stopped {
 
 impl std::error::Error for Stopped {}
 
-pub(crate) fn link<T: Spawns + 'static>(linker: &mut Linker<T>) -> Result<(), String> {
+pub(crate) fn link<T: Reads + 'static>(linker: &mut Linker<T>) -> Result<(), String> {
     linker
         .func_wrap(
             abi::HOST_MODULE,
             abi::HOST_PANIC,
-            |caller: Caller<'_, T>, pointer: u32, length: u32| -> wasmtime::Result<()> {
-                let message = match caller.data().spawner().read(pointer, length) {
+            |mut caller: Caller<'_, T>, pointer: u32, length: u32| -> wasmtime::Result<()> {
+                let message = match T::read(&mut caller, pointer, length) {
                     Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
                     Err(error) => format!("the plugin panicked, and its message was lost: {error}"),
                 };

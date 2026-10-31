@@ -76,20 +76,28 @@ pub(crate) fn insert_owned(value: Rc<dyn Any>) -> Key {
 }
 
 pub(crate) fn insert_owned_tracked<V: Tracked + 'static>(value: Rc<V>) -> Key {
+    insert_owned_slot(value.clone(), Some(value))
+}
+
+fn insert_owned_slot(value: Rc<dyn Any>, tracked: Option<Rc<dyn Tracked>>) -> Key {
     let owner = current_owner();
-    let key = insert_tracked(value);
+    let key = insert_slot(value, tracked);
     owner.add(Cleanup::Free(key));
     key
 }
 
 pub(crate) fn get<T: 'static>(key: Key) -> Option<Rc<T>> {
+    get_any(key)?.downcast().ok()
+}
+
+fn get_any(key: Key) -> Option<Rc<dyn Any>> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
         let slot = arena.slots.get(key.index as usize)?;
         if slot.generation != key.generation {
             return None;
         }
-        slot.value.clone()?.downcast().ok()
+        slot.value.clone()
     })
 }
 

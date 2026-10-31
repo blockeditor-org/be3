@@ -8,10 +8,10 @@ use std::{
 
 use block_gpu_abi::embed::device as gpu;
 use block_guest_abi as guest;
-use wasmtime::{Caller, Engine, Error, Instance, Linker, SharedMemory, Store, TypedFunc};
+use wasmtime::{Caller, Engine, Error, Linker, SharedMemory, Store, TypedFunc};
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
-use crate::dylink::{self, Layout, Program};
+use crate::dylink::{self, Linked, Program};
 use crate::interrupt::{self, Interrupt};
 use crate::state::Threaded;
 use crate::wake::Wake;
@@ -20,6 +20,7 @@ const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
 const START: &str = "wasi_thread_start";
 const REFUSED: i32 = -1;
+const UNSHARED: &str = "the plugin spawned a thread, which needs a shared memory it imports";
 const REAPING_PASSES: u32 = 8;
 const REAPING_WAIT: Duration = Duration::from_millis(50);
 
@@ -30,8 +31,8 @@ pub(crate) trait Spawns {
 pub(crate) struct Spawner {
     engine: Engine,
     program: Program,
-    layout: OnceLock<Layout>,
-    memory: SharedMemory,
+    linked: OnceLock<Arc<Linked>>,
+    memory: Option<SharedMemory>,
     wake: Arc<Wake>,
     interrupt: Arc<Interrupt>,
     next: AtomicI32,
@@ -47,14 +48,14 @@ impl Spawner {
     pub(crate) fn new(
         engine: Engine,
         program: Program,
-        memory: SharedMemory,
+        memory: Option<SharedMemory>,
         wake: Arc<Wake>,
         interrupt: Arc<Interrupt>,
     ) -> Arc<Self> {
         let spawner = Arc::new(Self {
             engine,
             program,
-            layout: OnceLock::new(),
+            linked: OnceLock::new(),
             memory,
             wake,
             interrupt,
@@ -70,8 +71,8 @@ impl Spawner {
         spawner
     }
 
-    pub(crate) fn linked(&self, layout: Layout) {
-        let _ = self.layout.set(layout);
+    pub(crate) fn linked(&self, linked: Arc<Linked>) {
+        let _ = self.linked.set(linked);
     }
 
     pub(crate) fn stop(&self) {
@@ -112,9 +113,12 @@ impl Spawner {
     }
 
     fn notify_every_waiter(&self) {
-        let size = self.memory.data_size() as u64;
+        let Some(memory) = &self.memory else {
+            return;
+        };
+        let size = memory.data_size() as u64;
         for address in (0..size).step_by(4) {
-            let _ = self.memory.atomic_notify(address, u32::MAX);
+            let _ = memory.atomic_notify(address, u32::MAX);
         }
     }
 
@@ -158,16 +162,21 @@ impl Spawner {
         if self.stopped.load(Ordering::Acquire) || self.halts(false) {
             return REFUSED;
         }
+        let Some(memory) = &self.memory else {
+            self.fail(UNSHARED.to_owned());
+            return REFUSED;
+        };
         let thread_locals = match &self.program {
             Program::Whole(_) => None,
-            Program::Linked { .. } => match dylink::spawned_thread_locals(&self.memory, argument) {
-                Ok(base) => Some(base),
+            Program::Linked(_) => match self.blocks(memory, argument) {
+                Ok(thread) => Some(thread),
                 Err(failure) => {
                     self.fail(failure);
                     return REFUSED;
                 }
             },
         };
+        let blocks = thread_locals.as_ref().map(|thread| thread.blocks);
         let thread = self.next.fetch_add(1, Ordering::Relaxed);
         let spawner = Arc::clone(self);
         self.begin();
@@ -180,11 +189,13 @@ impl Spawner {
                 {
                     spawner.fail(failure);
                 }
+                spawner.free(blocks);
                 spawner.end();
             });
         match spawned {
             Ok(_) => thread,
             Err(error) => {
+                self.free(blocks);
                 self.end();
                 self.fail(format!("a plugin thread could not start: {error}"));
                 REFUSED
@@ -196,7 +207,7 @@ impl Spawner {
         self: &Arc<Self>,
         thread: i32,
         argument: i32,
-        thread_locals: Option<u32>,
+        thread_locals: Option<dylink::Thread>,
     ) -> Result<(), String> {
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let state = Threaded {
@@ -209,9 +220,14 @@ impl Spawner {
         let mut linker: Linker<Threaded> = Linker::new(&self.engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut Threaded| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked for a plugin thread: {error}"))?;
-        linker
-            .define(&store, "env", "memory", self.memory.clone())
-            .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
+        let memory = self.memory.clone().ok_or(UNSHARED)?;
+        for import in self.program.first().imports() {
+            if import.ty().memory().is_some() {
+                linker
+                    .define(&store, import.module(), import.name(), memory.clone())
+                    .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
+            }
+        }
         link(&mut linker)?;
         crate::wake::link(&mut linker)?;
         crate::panic::link(&mut linker)?;
@@ -222,7 +238,13 @@ impl Spawner {
         let instance = linker
             .instantiate(&mut store, self.program.first())
             .map_err(|error| format!("a plugin thread could not be instantiated: {error}"))?;
-        self.link_plugin(&mut store, &linker, &instance, thread_locals)?;
+        if let (Program::Linked(modules), Some(thread)) = (&self.program, &thread_locals) {
+            let linked = self
+                .linked
+                .get()
+                .ok_or("a plugin thread started before its plugin was linked")?;
+            dylink::link(&mut store, &linker, modules, linked, instance, thread)?;
+        }
         let start: TypedFunc<(i32, i32), ()> = instance
             .get_typed_func(&mut store, START)
             .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
@@ -232,22 +254,22 @@ impl Spawner {
         })
     }
 
-    fn link_plugin(
-        &self,
-        store: &mut Store<Threaded>,
-        linker: &Linker<Threaded>,
-        sdk: &Instance,
-        thread_locals: Option<u32>,
-    ) -> Result<(), String> {
-        let (Program::Linked { plugin, .. }, Some(base)) = (&self.program, thread_locals) else {
-            return Ok(());
-        };
-        let layout = self
-            .layout
+    fn blocks(&self, memory: &SharedMemory, argument: i32) -> Result<dylink::Thread, String> {
+        let linked = self
+            .linked
             .get()
-            .ok_or("a plugin thread started before its plugin was linked")?;
-        let instance = dylink::instantiate(store, linker, sdk, plugin, layout)?;
-        dylink::place_thread_locals(store, &instance, &self.memory, layout, base)
+            .ok_or("a plugin thread was spawned before its plugin was linked")?;
+        Ok(dylink::Thread {
+            blocks: linked.take(memory)?,
+            root_block: dylink::spawned_thread_locals(memory, argument)?,
+            main: false,
+        })
+    }
+
+    fn free(&self, blocks: Option<u32>) {
+        if let (Some(blocks), Some(linked)) = (blocks, self.linked.get()) {
+            linked.give(blocks);
+        }
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
@@ -255,7 +277,7 @@ impl Spawner {
         for import in self
             .program
             .modules()
-            .into_iter()
+            .iter()
             .flat_map(|module| module.imports())
         {
             if !matches!(import.module(), gpu::MODULE | guest::HOST_MODULE) {
@@ -284,7 +306,7 @@ impl Spawner {
     }
 
     pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        crate::state::read(&self.memory, pointer, length)
+        crate::state::read(self.memory.as_ref().ok_or(UNSHARED)?, pointer, length)
     }
 
     fn fail(&self, failure: String) {

@@ -1,6 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -92,7 +92,7 @@ def _core_flags():
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return ["-Zthreads=8"] + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return ["-Zthreads=8"] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # Workspace crates built for wasm outside a release build, at opt-level 1 rather
 # than the plugin profile's 2: a change under beui recompiles each of them for
@@ -414,6 +414,7 @@ def cargo_wasm_facts():
     crate = _crate()
     library = crate["library"]
     return struct(
+        name = crate["name"],
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"]),

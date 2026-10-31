@@ -1,0 +1,10 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+# An app's staged directory as one compressed file (guides/buck2.md, "Apps"):
+# `pack` makes it on a worker and `run` unpacks it here and runs the program in it.
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
