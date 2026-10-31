@@ -45,7 +45,11 @@ fn two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place() 
     test.snapshot("two_tool_bars_docked_along_the_bottom_of_their_stage");
 
     let grip = test.rect_of("bars.style.grip").center();
-    drop_bar(&mut test, grip, pos2(tools.left() + 8.0, tools.bottom() - 2.0));
+    drop_bar(
+        &mut test,
+        grip,
+        pos2(tools.left() + 8.0, tools.bottom() - 2.0),
+    );
     test.frame(Vec::new());
     test.settle();
     let stage = test.rect_of("bars.stage");

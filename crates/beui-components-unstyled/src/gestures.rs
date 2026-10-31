@@ -5,8 +5,8 @@ use std::time::Instant;
 use beui_view::reactive::*;
 use beui_view::types::{
     AutoscrollGesture, Direction, DragGesture, PointerButton, PointerId, PointerInput,
-    PointerStage, Pos2, ScrollGesture, SecondaryDrag, TOUCH_DRAG_THRESHOLD, Vec2, WheelInput,
-    Velocity, ZoomGesture, vec2,
+    PointerStage, Pos2, ScrollGesture, SecondaryDrag, TOUCH_DRAG_THRESHOLD, Vec2, Velocity,
+    WheelInput, ZoomGesture, vec2,
 };
 
 pub const AUTOSCROLL_DEAD_ZONE: f32 = 10.0;

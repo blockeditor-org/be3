@@ -26,10 +26,9 @@ use super::state::{
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
-    DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockStripHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
-    TabId,
+    DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle, DockSplitterHandle,
+    DockStackHandle, DockState, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
 };
 use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;

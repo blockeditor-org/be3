@@ -92,7 +92,7 @@ fn bars_docked_along_one_edge_share_its_band_side_by_side() {
     );
 
     let grip = harness.center(harness.find("dock.bar.6.grip"));
-    harness.drag(grip, pos2(five.left() + 20.0, band.top() + 4.0));
+    harness.drag_and_rest(grip, pos2(five.left() + 20.0, band.top() + 4.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(layout.bar_placement(&6), Some(top(DockAlign::Start)));
@@ -103,7 +103,7 @@ fn bars_docked_along_one_edge_share_its_band_side_by_side() {
     );
 
     let grip = harness.center(harness.find("dock.bar.7.grip"));
-    harness.drag(grip, pos2(eight.right() - 10.0, band.top() + 4.0));
+    harness.drag_and_rest(grip, pos2(eight.right() - 10.0, band.top() + 4.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

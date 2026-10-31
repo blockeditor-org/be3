@@ -75,7 +75,10 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
         harness.frame(Vec::new());
     }
     assert!(
-        harness.document().find_test_id("dock.bar.band.right").is_none(),
+        harness
+            .document()
+            .find_test_id("dock.bar.band.right")
+            .is_none(),
         "and is gone once it has closed"
     );
     let floating = harness.rect(harness.find("bar.9"));
