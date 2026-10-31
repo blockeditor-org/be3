@@ -7,9 +7,13 @@ license.workspace = true
 
 [dependencies]
 block-guest-abi = { path = "../block-guest-abi" }
+futures-core = "0.3"
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
+
+[dev-dependencies]
+be-ops-bindgen = { path = "../be-ops-bindgen" }
 
 [lints]
 workspace = true

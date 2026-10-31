@@ -3530,45 +3530,55 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -3582,32 +3592,39 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "wasi": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -3621,6 +3638,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -3634,6 +3652,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -3647,26 +3666,32 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                ],
                 "test_features": [],
             },
         },
@@ -46005,6 +46030,7 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -46025,30 +46051,35 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "wasi": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "wasi-guest": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -46061,18 +46092,21 @@ third_party = {
             "wasm32": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },

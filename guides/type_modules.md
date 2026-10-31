@@ -159,6 +159,37 @@ import's glue, module, name, `module#name` and wasm signature to link or export.
 world with other imports of its own takes a local interface from its crate with
 `uses` and also names it in `local`, and generates nothing for it.
 
+`network: true` generates a world for a client and a server that talk over a
+socket instead of a guest and its host: `crates/be-protocol`'s network protocol. Such
+a world only imports, has no local interfaces and no sync funcs (the generator refuses
+them, since a direct call runs on a wasm guest's thread): only `async func`s,
+`stream<T>`-returning funcs and resources (a constructor, async methods and streams).
+It generates the types, `embed::<import>::Call` for the server as above, and
+`client::<import>` for the client instead of `guest` and the exports: a function per
+func that takes `caller: &(impl be_ops::net::Caller + Clone)` and returns a
+`be_ops::net::Pending<T>` (an `async func`; a `Send` future of `Result<T, OpError>`)
+or a `be_ops::net::Stream<T>` (`recv()`, and `futures_core::Stream`; it grants credit
+as it is read like the guest's), and a struct per resource whose `new(caller, ...)`
+opens it, whose methods start ops under it, whose `closed()` awaits its end and whose
+drop cancels it. Dropping a `Pending` or `Stream` cancels it too, so nothing in user
+code names an op. `Caller` is the stubs' seam (start an op, poll what arrives for it,
+grant credit, cancel), and `be_ops::net::Peer` implements it: one side's `Connection`
+behind a mutex, made with a sink it hands each outbound frame to (under its lock, so
+in order; the sink must not call back into the peer), fed each inbound frame with
+`receive`, which keeps what belongs to calls started through `Caller` and returns the
+rest of the events (`Started`, and `Canceled`/`Credited` of what this side serves),
+and `close`d when the socket goes, which ends every call `Canceled`. The client is
+`Side::Guest` and the server `Side::Host`. The server answers from any thread or task
+through `peer.lock()`, a guard that derefs to the `Connection` and sends what it queued
+when dropped: `Call::accept(&mut peer.lock(), started)`, then in a spawned task
+`reply.send(&mut peer.lock(), &value)`, `stream.send(...)` after
+`peer.writable(stream.op()).await?` (which waits for credit and fails once the op is
+canceled), and `peer.canceled(op).await` to stop work, or end a resource, that the
+client dropped. Never hold the guard across an await. A `Canceled` event may name an op
+already answered (a parent's end cancels its children when the server completes it,
+and the event comes out of the next `receive`), so a server ignores one it does not
+know. crates/be-ops's `network` tests run both halves over an in-memory pipe.
+
 ## The protocol
 
 The world: the module imports `host` and exports `replicas`

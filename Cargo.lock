@@ -948,7 +948,9 @@ dependencies = [
 name = "be-ops"
 version = "0.1.0"
 dependencies = [
+ "be-ops-bindgen",
  "block-guest-abi",
+ "futures-core",
  "postcard",
  "serde",
  "serde_bytes",

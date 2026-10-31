@@ -1,0 +1,29 @@
+package be3:library@0.1.0;
+
+interface shelf {
+    record book {
+        title: string,
+        pages: u32,
+    }
+
+    variant shelf-error {
+        missing(string),
+        full,
+    }
+
+    find: async func(title: string) -> result<book, shelf-error>;
+
+    hold: async func(title: string);
+
+    books: func(first: u32) -> stream<book>;
+
+    resource reading {
+        constructor(title: string);
+        page: async func() -> u32;
+        turns: func() -> stream<u32>;
+    }
+}
+
+world library {
+    import shelf;
+}
