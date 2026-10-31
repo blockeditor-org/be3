@@ -264,7 +264,12 @@ pub(crate) fn filled(raster: &CanvasRaster, x: u16, y: u16, color: CanvasPixel) 
     cells
 }
 
-pub(crate) fn resized(bounds: Bounds, width: u16, height: u16, anchor: CanvasRasterAnchor) -> Bounds {
+pub(crate) fn resized(
+    bounds: Bounds,
+    width: u16,
+    height: u16,
+    anchor: CanvasRasterAnchor,
+) -> Bounds {
     let (old_width, old_height) = (
         u16::try_from(bounds.width).unwrap_or(MAX_RASTER_SIZE),
         u16::try_from(bounds.height).unwrap_or(MAX_RASTER_SIZE),

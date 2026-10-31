@@ -15,7 +15,11 @@ fn raster_layers_fill_resize_and_keep_a_paint_made_during_a_resize() {
         InfiniteCanvasOperation::Paint {
             id,
             pixels: (0..32)
-                .map(|y| CanvasPixelUpdate { x: 4, y, color: RED })
+                .map(|y| CanvasPixelUpdate {
+                    x: 4,
+                    y,
+                    color: RED,
+                })
                 .collect(),
         },
     );
@@ -59,7 +63,11 @@ fn raster_layers_fill_resize_and_keep_a_paint_made_during_a_resize() {
     assert_eq!(conflicts, 0, "a resize and a paint touch different things");
     let raster = Canvas::raster(&merged, id).expect("a raster layer");
     assert_eq!((raster.width(), raster.height()), (16, 16));
-    assert_eq!(raster.pixel(4, 4), Some(RED), "the paint moved with the crop");
+    assert_eq!(
+        raster.pixel(4, 4),
+        Some(RED),
+        "the paint moved with the crop"
+    );
 
     let cleared = canvas_run(&merged, InfiniteCanvasOperation::Clear { id });
     let raster = Canvas::raster(&cleared, id).expect("a raster layer");
@@ -71,7 +79,9 @@ fn raster_layers_fill_resize_and_keep_a_paint_made_during_a_resize() {
         "clearing a clear layer changes nothing"
     );
 
-    let many: Vec<CanvasPixel> = (0..40).map(|red| CanvasPixel::new(red, 0, 0, 255)).collect();
+    let many: Vec<CanvasPixel> = (0..40)
+        .map(|red| CanvasPixel::new(red, 0, 0, 255))
+        .collect();
     let palette = canvas_run(
         &cleared,
         InfiniteCanvasOperation::SetPalette {

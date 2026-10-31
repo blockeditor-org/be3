@@ -4,8 +4,8 @@ use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 use crate::{
-    Canvas, CanvasContent, CanvasEntity, CanvasPixel, CanvasPixelUpdate, CanvasPoint,
-    CanvasShape, CanvasTransform, InfiniteCanvasOperation,
+    Canvas, CanvasContent, CanvasEntity, CanvasPixel, CanvasPixelUpdate, CanvasPoint, CanvasShape,
+    CanvasTransform, InfiniteCanvasOperation,
 };
 
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;

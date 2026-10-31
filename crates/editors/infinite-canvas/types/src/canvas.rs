@@ -11,9 +11,8 @@ use be_block::{ChildChange, Root};
 use database_types::database::DatabaseValue;
 
 use crate::raster::{
-    self, CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor,
-    DEFAULT_PIXEL_SIZE, default_raster_palette, normalized_palette, pixel_size_or_default,
-    raster_dimensions,
+    self, CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, DEFAULT_PIXEL_SIZE,
+    default_raster_palette, normalized_palette, pixel_size_or_default, raster_dimensions,
     valid_dimension,
 };
 
@@ -839,7 +838,9 @@ impl Canvas {
     }
 
     pub fn set_pixel_size(content: &CanvasContent, pixel_size: f32) -> Edit {
-        if !pixel_size.is_finite() || pixel_size <= 0.0 || Self::pixel_size_in(content) == pixel_size
+        if !pixel_size.is_finite()
+            || pixel_size <= 0.0
+            || Self::pixel_size_in(content) == pixel_size
         {
             return Edit::default();
         }
@@ -1019,7 +1020,9 @@ impl Canvas {
                 Self::repaint(content, *id, |raster| raster::painted(raster, pixels))
             }
             InfiniteCanvasOperation::Fill { id, x, y, color } => {
-                Self::repaint(content, *id, |raster| raster::filled(raster, *x, *y, *color))
+                Self::repaint(content, *id, |raster| {
+                    raster::filled(raster, *x, *y, *color)
+                })
             }
             InfiniteCanvasOperation::ReplaceColor { id, from, to } => {
                 Self::repaint(content, *id, |raster| match from == to {

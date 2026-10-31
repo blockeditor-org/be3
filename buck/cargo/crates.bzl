@@ -69831,6 +69831,7 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
+                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -70101,6 +70102,7 @@ third_party = {
             "wasm32": {
                 "features": [
                     "alloc",
+                    "rc",
                     "result",
                     "std",
                 ],

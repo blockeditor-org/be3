@@ -4,7 +4,10 @@ use crate::CanvasRasterAnchor;
 #[test]
 fn a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict() {
     let (blank, id) = raster_layer(&CanvasContent::default(), 32, 32);
-    let base = edited(&blank, [paint(&blank, id, 0, 0, CanvasPixel::new(0, 0, 0, 255))]);
+    let base = edited(
+        &blank,
+        [paint(&blank, id, 0, 0, CanvasPixel::new(0, 0, 0, 255))],
+    );
     let ours = canvas_run(
         &base,
         InfiniteCanvasOperation::Resize {
