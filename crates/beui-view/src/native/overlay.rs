@@ -16,6 +16,7 @@ use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
 use beui_core::base::overlay::WindowSpec;
 use beui_core::color::Color;
+use crate::types::Rect;
 use beui_core::current::with_document;
 use beui_core::layer::Dismiss;
 use beui_core::layer::LayerLevel;
@@ -32,6 +33,7 @@ struct Mounted {
 pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
+    bounds: Prop<Option<Rect>>,
     scrim: Prop<Color>,
     scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
@@ -64,6 +66,10 @@ pub(crate) fn overlay(
     create_binding(move || {
         let anchor = anchor.get();
         with_document(|document| document.set_overlay_anchor(overlay, anchor))
+    });
+    create_binding(move || {
+        let bounds = bounds.get();
+        with_document(|document| document.set_overlay_bounds(overlay, bounds))
     });
     create_binding(move || {
         let beak = beak.get();

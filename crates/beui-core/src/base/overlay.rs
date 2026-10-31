@@ -171,6 +171,7 @@ pub struct OverlayNode {
     scrim_radius: f32,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
+    bounds: Option<Rect>,
     anchored: Option<Rect>,
     pub(crate) anchor_rect: Option<Rect>,
     escaped: Option<(LayerSpace, Vec2, Zoom)>,
@@ -202,6 +203,7 @@ impl OverlayNode {
             scrim_radius: 0.0,
             open: false,
             anchor,
+            bounds: None,
             anchored: None,
             anchor_rect: None,
             escaped: None,
@@ -307,6 +309,10 @@ impl OverlayNode {
                 self.escaped = None;
                 (painter, viewport)
             }
+        };
+        let area = match self.bounds.map(|bounds| area.intersect(self.inner(bounds))) {
+            Some(bounded) if bounded.is_positive() => bounded,
+            _ => area,
         };
         let anchor_rect = self.inner(window_anchor);
         let inside = matches!(
@@ -692,6 +698,12 @@ impl Document {
             let node = self.arena.get_mut_as::<OverlayNode>(overlay);
             node.anchor = anchor;
             node.pinned = None;
+        }
+    }
+
+    pub fn set_overlay_bounds(&mut self, overlay: NodeOf<OverlayNode>, bounds: Option<Rect>) {
+        if self.arena.get_as::<OverlayNode>(overlay).bounds != bounds {
+            self.arena.get_mut_as::<OverlayNode>(overlay).bounds = bounds;
         }
     }
 

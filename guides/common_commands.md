@@ -83,8 +83,8 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target on the platforms the tests build: Linux x86_64 and the plugins' `wasi_guest` |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
-| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below) |
-| `./scripts/test //crates/editors/checklist:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
+| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
+| `./scripts/test //crates/editors/desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
 | `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with every plugin, driven and painted as a whole |
 | `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |

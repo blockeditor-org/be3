@@ -2018,6 +2018,11 @@ the axis the placement opens along (`layer::banded`): a button's panel in a bar
 opens just past the whole bar rather than over its padding, while it still lines
 up with the button along the bar. The unstyled and styled `Popover` take it as
 `band`, and `DockBarControl::surface()` is the node a `DockBarSurface` draws on.
+An overlay's `bounds` (a rect in the overlay's window coordinates; `Overlay`,
+`Anchored` and both `Popover`s take it) narrows the room it is placed and
+measured in, so it shifts, flips and shrinks within that rect rather than the
+whole screen; a panel that must not cover a dock's bands takes the dock's area.
+The HTML core ignores it.
 `Placement::Popover { gap, margin }` places content like a popover: centred on
 the anchor and `gap` below it, flipping above where only that side has room and
 shifting sideways to stay `margin` inside the screen (the vertical choice and

@@ -53,7 +53,10 @@ session's layout. Every part lays itself out along its bar (`bar::bar_direction`
 stacks its hours over its minutes and the status icons stack too. A button's panel (`BarPopup`)
 opens away from the bar's edge, toward the windows: below or above a bar along the top or bottom
 (`PopoverPlacement::Below`, which turns up when there is no room below), beside one down a side
-(`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`).
+(`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`). It stays inside
+its display's work area (`bar::BarArea`, the `DockingLayout::area()` the bands leave, as the
+popover's `bounds`), shifting along the bar to clear another band and scrolling when taller than
+that area, so it never covers another bar.
 
 The grip menu's Hide hides a bar on its display; that display's Apps panel then offers "Show this
 display's bars" (`desktop.apps.bars`), which shows its three again, and Super still opens Apps,

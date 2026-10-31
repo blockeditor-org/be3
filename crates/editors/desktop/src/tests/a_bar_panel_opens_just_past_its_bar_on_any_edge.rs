@@ -27,6 +27,11 @@ fn a_bar_panel_opens_just_past_its_bar_on_any_edge() {
         past(bar.left() - quick.right()),
         "and just left of a bar down the right: {quick:?} {bar:?}"
     );
+    let foot = fixture.test.rect_of("desktop.bar.apps");
+    assert!(
+        quick.bottom() <= foot.top() + 0.5,
+        "and stays above the band along the foot: {quick:?} {foot:?}"
+    );
     fixture
         .test
         .snapshot("quick_settings_just_past_a_bar_down_the_right");

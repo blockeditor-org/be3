@@ -10,6 +10,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PopoverPlacement {
@@ -46,6 +47,7 @@ pub fn Popover(
     anchor: Option<NodeRef>,
     band: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -106,6 +108,7 @@ pub fn Popover(
                 style={surface}
                 anchor=anchor
                 placement
+                bounds
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
                 open={create_memo(move || open.get())}

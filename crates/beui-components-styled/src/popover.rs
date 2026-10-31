@@ -15,6 +15,7 @@ use beui_view::reactive::*;
 use crate::theme::Density;
 use crate::tokens::{Length, Size, Space};
 use beui_view::types::Extent;
+use beui_view::types::Rect;
 
 pub const PANEL_PADDING: Space = Space::Lg;
 pub const PANEL_MAX_WIDTH: Size = Size::Popover;
@@ -31,6 +32,7 @@ pub fn Popover(
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
     band: Option<NodeRef>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     leading: Option<Child>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
@@ -45,6 +47,7 @@ pub fn Popover(
             open
             placement
             band
+            bounds
             surface
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace handle variant size leading />

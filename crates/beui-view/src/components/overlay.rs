@@ -10,6 +10,7 @@ use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
 use crate::types::Placement;
+use crate::types::Rect;
 use crate::types::WindowId;
 use crate::types::WindowSpec;
 use beui_macros::component;
@@ -18,6 +19,7 @@ use beui_macros::component;
 pub fn Overlay(
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
     #[prop(default = 0.0)] scrim_radius: Prop<f32>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
@@ -38,6 +40,7 @@ pub fn Overlay(
     crate::core::overlay(
         anchor,
         placement,
+        bounds,
         scrim,
         scrim_radius,
         policy,

@@ -132,6 +132,9 @@ fn save_bars(editor: Editor, display: u32, snapshot: DockingSnapshot<TabId>) {
     editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct BarArea(pub(crate) Memo<Rect>);
+
 pub(crate) fn bar_direction() -> Memo<Direction> {
     let bar = use_dock_bar();
     create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()))

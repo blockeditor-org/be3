@@ -128,6 +128,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     cover_under_fullscreen(editor, layout, display);
     let launches = shell.apps.launches();
     let area = windows_area(layout, region_area());
+    provide_context(bar::BarArea(area));
     let bars = Bars::of(display);
     view! {
         <Frame>
@@ -203,6 +204,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let notifications = DesktopNotifications::new(editor);
     let region = region_area();
     let area = windows_area(layout, region);
+    provide_context(bar::BarArea(area));
     let bars = Bars::of(0);
     let status = create_memo(move || match layout.is_bar_hidden(&bars.status) {
         true => None,
