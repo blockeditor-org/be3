@@ -157,6 +157,27 @@ pub struct Line {
     pub test_ids: Vec<String>,
 }
 
+impl beui_types::target::TreeLine for Line {
+    fn depth(&self) -> usize {
+        self.depth
+    }
+    fn text(&self) -> &str {
+        &self.text
+    }
+    fn test_ids(&self) -> &[String] {
+        &self.test_ids
+    }
+    fn bounds(&self) -> Option<crate::geometry::Rect> {
+        self.bounds
+    }
+    fn visible(&self) -> bool {
+        self.visible
+    }
+    fn shown(&self) -> Option<crate::geometry::Rect> {
+        self.shown
+    }
+}
+
 impl AccessibilityDump {
     pub fn new() -> Self {
         Self::default()

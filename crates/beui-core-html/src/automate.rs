@@ -1,11 +1,13 @@
 use std::fmt::Write as _;
 use std::time::Duration;
 
-use beui_types::{Rect, Vec2, pos2};
+use beui_types::Rect;
+use beui_types::target::TreeLine;
+pub use beui_types::target::{locate, place, shown_at};
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, reveal TARGET (scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input), wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, reveal TARGET (scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input, ending in revealed when it scrolled), shown TARGET (says where a target shows, without scrolling), wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
@@ -84,16 +86,6 @@ fn area(rect: Rect) -> f32 {
     rect.width().max(0.0) * rect.height().max(0.0)
 }
 
-pub fn place(rect: Rect) -> String {
-    format!(
-        "at {},{} size {}x{}",
-        rect.min.x.round(),
-        rect.min.y.round(),
-        rect.width().round(),
-        rect.height().round()
-    )
-}
-
 pub fn render(lines: &[Line]) -> String {
     let mut text = String::new();
     for line in lines {
@@ -122,143 +114,29 @@ pub fn ids(lines: &[Line]) -> String {
         .collect()
 }
 
-fn numbers(text: &str) -> Option<Vec<f32>> {
-    text.split(',')
-        .map(|number| number.trim().parse::<f32>().ok())
-        .collect()
-}
-
-fn placed(line: &Line) -> Result<Rect, String> {
-    let rect = line
-        .bounds
-        .ok_or_else(|| format!("{:?} has no place on screen", line.text))?;
-    if !line.visible {
-        return Err(format!("{:?} is scrolled out of view", line.text));
+impl TreeLine for Line {
+    fn depth(&self) -> usize {
+        self.depth
     }
-    Ok(rect)
-}
-
-enum Found<'a> {
-    Line(&'a Line),
-    Inside(&'a Line, Vec2),
-    Area(Rect),
-}
-
-fn found<'a>(target: &str, lines: &'a [Line]) -> Result<Found<'a>, String> {
-    if let Some(id) = target.strip_prefix('#') {
-        if let Some((id, offset)) = id.rsplit_once('+')
-            && let Some([x, y]) = numbers(offset).as_deref()
-        {
-            return match found(&format!("#{id}"), lines)? {
-                Found::Line(line) => Ok(Found::Inside(line, Vec2::new(*x, *y))),
-                _ => unreachable!("a test id finds a line"),
-            };
-        }
-        let named: Vec<&Line> = lines
-            .iter()
-            .filter(|line| line.test_ids.iter().any(|named| named == id))
-            .collect();
-        return match named.as_slice() {
-            [] => Err(format!(
-                "no node on screen has the test id {id}; `ids` lists them"
-            )),
-            [line] => Ok(Found::Line(line)),
-            _ => Err(format!(
-                "the test id {id} names {} nodes on screen",
-                named.len()
-            )),
-        };
+    fn text(&self) -> &str {
+        &self.text
     }
-    match numbers(target).as_deref() {
-        Some([x, y]) => return Ok(Found::Area(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO))),
-        Some([x, y, width, height]) => {
-            return Ok(Found::Area(Rect::from_min_size(
-                pos2(*x, *y),
-                Vec2::new(*width, *height),
-            )));
-        }
-        _ => {}
+    fn test_ids(&self) -> &[String] {
+        &self.test_ids
     }
-    let found: Vec<usize> = (0..lines.len())
-        .filter(|index| lines[*index].text.contains(target))
-        .collect();
-    match pick(lines, &found) {
-        Some(index) => Ok(Found::Line(&lines[index])),
-        None if found.is_empty() => Err(format!(
-            "no line of the tree contains {target:?}; `tree` prints it"
-        )),
-        None => {
-            let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
-            for index in &found {
-                message.push_str("  ");
-                message.push_str(&lines[*index].text);
-                message.push('\n');
-            }
-            message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
-            Err(message)
-        }
+    fn bounds(&self) -> Option<Rect> {
+        self.bounds
     }
-}
-
-pub fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
-    match found(target, lines)? {
-        Found::Line(line) => placed(line),
-        Found::Inside(line, offset) => {
-            Ok(Rect::from_min_size(placed(line)?.min + offset, Vec2::ZERO))
-        }
-        Found::Area(rect) => Ok(rect),
+    fn visible(&self) -> bool {
+        self.visible
+    }
+    fn shown(&self) -> Option<Rect> {
+        self.shown
     }
 }
 
 pub fn hidden(target: &str, lines: &[Line]) -> Option<crate::node::NodeId> {
-    let line = match found(target, lines).ok()? {
-        Found::Line(line) | Found::Inside(line, _) => line,
-        Found::Area(_) => return None,
-    };
-    match line.bounds.is_some() && line.shown != line.bounds {
-        true => line.node,
-        false => None,
-    }
-}
-
-pub fn shown_at(target: &str, lines: &[Line]) -> Result<Rect, String> {
-    match found(target, lines)? {
-        Found::Line(line) => {
-            let rect = placed(line)?;
-            Ok(line
-                .shown
-                .filter(|shown| shown.is_positive())
-                .unwrap_or(rect))
-        }
-        _ => locate(target, lines),
-    }
-}
-
-fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
-    if let [first, rest @ ..] = found
-        && rest.iter().all(|index| {
-            lines[*index].text == lines[*first].text && lines[*index].bounds == lines[*first].bounds
-        })
-    {
-        return Some(*first);
-    }
-    let within = |candidates: &[usize]| {
-        let first = *candidates.first()?;
-        let depth = lines[first].depth;
-        let end = lines[first + 1..]
-            .iter()
-            .position(|line| line.depth <= depth)
-            .map_or(lines.len(), |offset| first + 1 + offset);
-        candidates.iter().all(|index| *index < end).then_some(first)
-    };
-    within(found).or_else(|| {
-        let shown: Vec<usize> = found
-            .iter()
-            .copied()
-            .filter(|index| lines[*index].visible)
-            .collect();
-        within(&shown)
-    })
+    beui_types::target::hidden(target, lines).and_then(|line| line.node)
 }
 
 pub enum Command {
@@ -266,6 +144,7 @@ pub enum Command {
     Ids,
     Find(String),
     Reveal(String),
+    Shown(String),
     Wait(String),
     Gone(String),
     Settle,
@@ -310,6 +189,7 @@ pub fn parse(words: &[String]) -> Result<Request, String> {
         "ids" => Command::Ids,
         "find" => Command::Find(named("a TARGET")?),
         "reveal" => Command::Reveal(named("a TARGET")?),
+        "shown" => Command::Shown(named("a TARGET")?),
         "wait" => Command::Wait(named("TEXT")?),
         "gone" => Command::Gone(named("TEXT")?),
         "settle" => Command::Settle,
@@ -400,6 +280,13 @@ mod web {
     }
 
     impl Walk<'_> {
+        fn within(&self, element: &web_sys::Element, clip: Rect) -> Rect {
+            match crate::dom::clips(element) {
+                true => clip.intersect(rect_of(element, self.ratio)),
+                false => clip,
+            }
+        }
+
         fn children(&mut self, dom: &web_sys::Node, depth: usize, clip: Rect) {
             let mut child = dom.first_child();
             while let Some(node) = child {
@@ -411,11 +298,11 @@ mod web {
         }
 
         fn element(&mut self, dom: &web_sys::Node, depth: usize, clip: Rect) {
-            let Some(about) = about(dom, &self.abouts, &self.keys) else {
-                self.children(dom, depth, clip);
+            let Some(element) = dom.dyn_ref::<web_sys::Element>() else {
                 return;
             };
-            let Some(element) = dom.dyn_ref::<web_sys::Element>() else {
+            let Some(about) = about(dom, &self.abouts, &self.keys) else {
+                self.children(dom, depth, self.within(element, clip));
                 return;
             };
             let rendered = crate::dom::call(element.as_ref(), "checkVisibility", &[])
@@ -506,10 +393,7 @@ mod web {
             if about.kinds.contains(&"Text") {
                 return;
             }
-            let clip = match about.kinds.contains(&"Offset") {
-                true => clip.intersect(rect),
-                false => clip,
-            };
+            let clip = self.within(element, clip);
             self.children(dom, depth + usize::from(shown), clip);
         }
     }
@@ -668,12 +552,14 @@ mod web {
             Command::Ids => Ok(ids(&lines())),
             Command::Find(target) => Ok(format!("{}\n", place(locate(&target, &lines())?))),
             Command::Reveal(target) => {
-                if let Some(node) = hidden(&target, &lines()) {
-                    crate::scroll::reveal(node);
-                    settle(timeout).await?;
-                }
-                Ok(format!("{}\n", place(shown_at(&target, &lines())?)))
+                let Some(node) = hidden(&target, &lines()) else {
+                    return Ok(format!("{}\n", place(shown_at(&target, &lines())?)));
+                };
+                crate::scroll::reveal(node);
+                settle(timeout).await?;
+                Ok(format!("{} revealed\n", place(shown_at(&target, &lines())?)))
             }
+            Command::Shown(target) => Ok(format!("{}\n", place(shown_at(&target, &lines())?))),
             Command::Wait(text) => wait(&text, true, timeout).await,
             Command::Gone(text) => wait(&text, false, timeout).await,
             Command::Settle => settle(timeout).await.map(|()| String::new()),

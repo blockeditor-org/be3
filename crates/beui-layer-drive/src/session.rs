@@ -19,7 +19,7 @@ use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
 
 use crate::gestures::{Frames, Gestures};
-use crate::target::{coordinates, describe, hidden, locate, node, point, scaled};
+use crate::target::{coordinates, hidden, locate, node, place, point, scaled};
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
@@ -1263,7 +1263,7 @@ impl Session {
                 let text = ids
                     .into_iter()
                     .map(|(id, line)| {
-                        let place = line.bounds.map(describe).unwrap_or_default();
+                        let place = line.bounds.map(place).unwrap_or_default();
                         let hidden = if line.visible { "" } else { " offscreen" };
                         format!("#{id} {place}{hidden}\n")
                     })
@@ -1272,7 +1272,7 @@ impl Session {
             }
             "find" => {
                 let rect = locate(argument(0)?, rendered.lines())?;
-                Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+                Ok(Started::Done(Reply::Text(format!("{}\n", place(rect)))))
             }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
@@ -1873,7 +1873,7 @@ impl Session {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
                 "the app asks for an input method, its caret {}, {}\n",
-                describe(scaled(area.cursor, scale)),
+                place(scaled(area.cursor, scale)),
                 match area.keyboard {
                     Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
                     Keyboard::Held => "its keyboard held back".to_owned(),

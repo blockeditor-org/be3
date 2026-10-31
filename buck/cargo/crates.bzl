@@ -10102,6 +10102,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10115,6 +10116,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10128,6 +10130,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10141,6 +10144,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10154,6 +10158,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10167,6 +10172,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10180,6 +10186,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10193,6 +10200,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],
@@ -10206,6 +10214,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/beui-types:beui-types",
                     "//crates/stable-hash:stable-hash",
                     "//third-party/rust:accesskit-0.24.1",
                 ],

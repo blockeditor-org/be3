@@ -211,6 +211,18 @@ pub fn scale_of(element: &web_sys::Element, rect: beui_types::Rect) -> f32 {
     }
 }
 
+pub fn clips(element: &web_sys::Element) -> bool {
+    let Some(style) = window().and_then(|window| window.get_computed_style(element).ok().flatten())
+    else {
+        return false;
+    };
+    ["overflow-x", "overflow-y"].iter().any(|axis| {
+        style
+            .get_property_value(axis)
+            .is_ok_and(|value| value != "visible")
+    })
+}
+
 pub fn viewport() -> beui_types::Rect {
     let Some(window) = window() else {
         return beui_types::Rect::EVERYTHING;

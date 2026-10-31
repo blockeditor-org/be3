@@ -6,10 +6,11 @@
 // It serves DIR, and for each script opens DIR's index.html with
 // ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
-// automate(words) (beui-core-html's automate: tree, ids, find, reveal, wait, gone,
+// automate(words) (beui-core-html's automate: tree, ids, find, reveal, shown, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
 // place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
-// revealed it), so the browser's own focus, key and text paths run.
+// revealed it; after a reveal every target of the command is found again, as native drive
+// does), so the browser's own focus, key and text paths run.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // After every command the document itself must not scroll or overflow the
@@ -172,14 +173,33 @@ async function answer(page, words) {
     return text;
 }
 
+// Where each target shows, as native drive finds them: a target a scroll cuts
+// is revealed, at most once, and every target is found again after it, since
+// that scroll may have moved the ones before.
+async function centers(page, targets, timeout) {
+    const revealed = new Set();
+    for (;;) {
+        const found = [];
+        for (const target of targets) {
+            await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
+            const asked = revealed.has(target) ? "shown" : "reveal";
+            const reply = await answer(page, [`--timeout=${timeout}`, asked, target]);
+            if (reply.trim().endsWith(" revealed")) {
+                revealed.add(target);
+                break;
+            }
+            const place = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
+            if (!place) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
+            const ratio = await page.evaluate(() => devicePixelRatio);
+            const [x, y, width, height] = place.slice(1).map((value) => Number(value) / ratio);
+            found.push({ x: x + width / 2, y: y + height / 2 });
+        }
+        if (found.length === targets.length) return found;
+    }
+}
+
 async function center(page, target, timeout) {
-    await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-    const reply = await answer(page, [`--timeout=${timeout}`, "reveal", target]);
-    const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
-    if (!found) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
-    const ratio = await page.evaluate(() => devicePixelRatio);
-    const [x, y, width, height] = found.slice(1).map((value) => Number(value) / ratio);
-    return { x: x + width / 2, y: y + height / 2 };
+    return (await centers(page, [target], timeout))[0];
 }
 
 const BUTTONS = { left: "left", right: "right", middle: "middle" };
@@ -205,8 +225,7 @@ async function step(page, words) {
             return settle();
         }
         case "drag": {
-            const from = await center(page, args[0], timeout);
-            const to = await center(page, args[1], timeout);
+            const [from, to] = await centers(page, args.slice(0, 2), timeout);
             let steps = 2;
             let button = "left";
             for (const extra of args.slice(2)) {

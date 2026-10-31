@@ -14,6 +14,7 @@ pub mod pixel_grid;
 pub mod preferences;
 pub mod region;
 pub mod rows;
+pub mod target;
 pub mod text;
 pub mod tree;
 pub mod window;
