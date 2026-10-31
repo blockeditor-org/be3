@@ -123,7 +123,7 @@ impl EntityPaint {
             | CanvasShape::Diamond
             | CanvasShape::Path
             | CanvasShape::Freehand => self.sketch.draw(painter, color, fill),
-            CanvasShape::Text | CanvasShape::Frame => {}
+            CanvasShape::Text | CanvasShape::Frame | CanvasShape::Raster => {}
             CanvasShape::Image => {
                 let painter = self.turned(painter);
                 self.fill_uncovered(&painter, self.box_rect(), opacity);

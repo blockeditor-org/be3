@@ -157,7 +157,7 @@ pub(crate) fn profile_style(profile: CanvasProfile) -> CanvasStyle {
             look: CanvasLook::HandDrawn,
             ..CanvasStyle::default()
         },
-        CanvasProfile::Vector => CanvasStyle::default(),
+        CanvasProfile::Vector | CanvasProfile::Raster => CanvasStyle::default(),
     }
 }
 

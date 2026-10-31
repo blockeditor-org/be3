@@ -12,7 +12,7 @@ be-store = { path = "../be-store", default-features = false }
 ciborium = "0.2"
 postcard = { version = "1", features = ["use-std"] }
 sequence = { path = "../sequence" }
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [features]

@@ -201,6 +201,7 @@ pub(crate) fn entity_kind_label(entity: &CanvasEntity) -> &'static str {
         CanvasShape::Block => "Block preview",
         CanvasShape::Editor => "Direct editor",
         CanvasShape::Frame => "Frame",
+        CanvasShape::Raster => "Raster layer",
     }
 }
 

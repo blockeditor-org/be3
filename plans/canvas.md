@@ -42,7 +42,7 @@ shapes take the viewer's last style, kept per profile.
 
 The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
 `shape` names what it is (`CanvasShape`: rectangle, ellipse, diamond, path,
-freehand, text, image, block, editor, frame) and decides only how the general
+freehand, text, image, block, editor, frame, raster) and decides only how the general
 fields are read: `points` is a path or stroke in the unit square of the
 entity's transform, each point with optional bezier handles; `pressures` go
 with a freehand stroke's points; `block` and `scale` hold an embed; `text` is
@@ -51,6 +51,23 @@ label, and a frame's name, which stays plain. Text and labels are drawn as
 read-only rich text areas the renderer scales, and the one being edited syncs
 live with peers through the shared `LiveText`. Every part of the style is its
 own field, so concurrent restyles merge.
+
+A raster layer (`CanvasShape::Raster`, model in
+`crates/editors/infinite-canvas/types/src/raster.rs`) keeps its pixels in the
+entity's `pixels` field, a `be_model::Grid<[u8; 4]>` that merges concurrent
+edits per pixel; its bounds may start anywhere, so a paint made during a
+resize lands where it was painted, and one cropped away by the other side
+counts as a conflict. The pixels are not in `CanvasEntity`: read them with
+`Canvas::raster(content, id)` or `Entity::raster`, which share the grid's bytes
+(`be_model::Cells` holds them copy-on-write) rather than copy them. The canvas
+root holds one `pixel_size` (world units per pixel) and the raster `palette`.
+A layer is never rotated, and its transform always covers its width by height
+pixels with its corner on the canvas-wide pixel grid: `Add` derives the pixel
+count from the transform's size, `Update` keeps the size and snaps the
+center, `Canvas::set_pixel_size` rescales every layer, and `Resize` moves the
+transform by its anchor so the pixels stay where they were. `Paint`, `Fill`,
+`ReplaceColor`, `Clear`, `Resize` and `SetPalette` are pixel-art's operations,
+ported, and undo like every other edit.
 
 A line's or arrow's end drawn or dragged onto a shape binds to it, as in
 Excalidraw. A path's `start_binding` and `end_binding` name the shape and an

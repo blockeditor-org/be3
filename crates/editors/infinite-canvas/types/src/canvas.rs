@@ -1,14 +1,21 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use be_model::{
-    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, RichText, Series,
-    marks::Rich,
+    Anchor, BlockRef, Bounds, Change, Document, Edit, Grid, List, Map, Model, ObjectId, RichText,
+    Series, marks::Rich,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block::{ChildChange, Root};
 use database_types::database::DatabaseValue;
+
+use crate::raster::{
+    self, CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor,
+    DEFAULT_PIXEL_SIZE, default_raster_palette, normalized_palette, pixel_size_or_default,
+    raster_dimensions,
+    valid_dimension,
+};
 
 pub const BINDING_GAP: f32 = 4.0;
 
@@ -102,6 +109,7 @@ pub enum CanvasShape {
     Block,
     Editor,
     Frame,
+    Raster,
 }
 
 impl CanvasShape {
@@ -287,10 +295,19 @@ pub enum CanvasProfile {
     #[default]
     Prototyping,
     Vector,
+    Raster,
 }
 
 impl CanvasProfile {
-    pub const ALL: [Self; 2] = [Self::Prototyping, Self::Vector];
+    pub const ALL: [Self; 3] = [Self::Prototyping, Self::Vector, Self::Raster];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Prototyping => "Prototyping",
+            Self::Vector => "Vector",
+            Self::Raster => "Raster",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -546,6 +563,33 @@ pub enum InfiniteCanvasOperation {
         points: Vec<CanvasPoint>,
         pressures: Vec<f32>,
     },
+    Paint {
+        id: Uuid,
+        pixels: Vec<CanvasPixelUpdate>,
+    },
+    Fill {
+        id: Uuid,
+        x: u16,
+        y: u16,
+        color: CanvasPixel,
+    },
+    ReplaceColor {
+        id: Uuid,
+        from: CanvasPixel,
+        to: CanvasPixel,
+    },
+    Clear {
+        id: Uuid,
+    },
+    Resize {
+        id: Uuid,
+        width: u16,
+        height: u16,
+        anchor: CanvasRasterAnchor,
+    },
+    SetPalette {
+        colors: Vec<CanvasPixel>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
@@ -588,6 +632,8 @@ pub struct Canvas {
     pub entities: List<Entity>,
     pub grid: CanvasGrid,
     pub profile: CanvasProfile,
+    pub pixel_size: f32,
+    pub palette: Option<Vec<CanvasPixel>>,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -624,6 +670,7 @@ pub struct Entity {
     pub locked: bool,
     pub components: List<Component>,
     pub points_frame: Option<CanvasPointsFrame>,
+    pub pixels: Grid<[u8; 4]>,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -668,6 +715,28 @@ impl Entity {
             locked: entity.locked,
             components: entity.components.iter().map(Component::of).collect(),
             points_frame: entity.points_frame,
+            pixels: Grid::default(),
+        }
+    }
+
+    fn placed(entity: &CanvasEntity, pixel_size: f32) -> Self {
+        let mut held = Self::of(entity);
+        if entity.shape == CanvasShape::Raster {
+            let (width, height) = raster_dimensions(pixel_size, entity.transform.size);
+            let transform =
+                CanvasTransform::raster(pixel_size, entity.transform.center, width, height);
+            held.center = transform.center;
+            held.size = transform.size;
+            held.rotation = 0.0;
+            held.pixels = Grid::new(Bounds::new(0, 0, u32::from(width), u32::from(height)));
+        }
+        held
+    }
+
+    pub fn raster(&self) -> Option<CanvasRaster> {
+        match self.shape {
+            Some(CanvasShape::Raster) => CanvasRaster::of(&self.pixels),
+            _ => None,
         }
     }
 
@@ -741,6 +810,67 @@ impl Canvas {
         Self::GRID.set(ObjectId::ROOT, &grid).into()
     }
 
+    pub fn resolved_pixel_size(&self) -> f32 {
+        pixel_size_or_default(self.pixel_size)
+    }
+
+    pub fn resolved_palette(&self) -> Vec<CanvasPixel> {
+        self.palette.clone().unwrap_or_else(default_raster_palette)
+    }
+
+    pub fn pixel_size_in(content: &CanvasContent) -> f32 {
+        pixel_size_or_default(content.field(ObjectId::ROOT, Self::PIXEL_SIZE))
+    }
+
+    pub fn palette_in(content: &CanvasContent) -> Vec<CanvasPixel> {
+        content
+            .field(ObjectId::ROOT, Self::PALETTE)
+            .unwrap_or_else(default_raster_palette)
+    }
+
+    pub fn raster(content: &CanvasContent, id: Uuid) -> Option<CanvasRaster> {
+        let object = ObjectId::from_uuid(id);
+        if !content.tree().contains(object)
+            || content.field(object, Entity::SHAPE) != Some(CanvasShape::Raster)
+        {
+            return None;
+        }
+        CanvasRaster::of(&content.field(object, Entity::PIXELS))
+    }
+
+    pub fn set_pixel_size(content: &CanvasContent, pixel_size: f32) -> Edit {
+        if !pixel_size.is_finite() || pixel_size <= 0.0 || Self::pixel_size_in(content) == pixel_size
+        {
+            return Edit::default();
+        }
+        let mut changes = vec![Self::PIXEL_SIZE.set(ObjectId::ROOT, &pixel_size)];
+        for object in content.ids(ObjectId::ROOT, Self::ENTITIES) {
+            let Some(raster) = Self::raster(content, object.as_uuid()) else {
+                continue;
+            };
+            let center: CanvasPoint = content.field(object, Entity::CENTER);
+            let size: CanvasPoint = content.field(object, Entity::SIZE);
+            let held = CanvasPoint::new(
+                size.x / f32::from(raster.width()),
+                size.y / f32::from(raster.height()),
+            );
+            let corner = CanvasPoint::new(
+                ((center.x - size.x * 0.5) / held.x).round() * pixel_size,
+                ((center.y - size.y * 0.5) / held.y).round() * pixel_size,
+            );
+            let size = CanvasPoint::new(
+                f32::from(raster.width()) * pixel_size,
+                f32::from(raster.height()) * pixel_size,
+            );
+            changes.push(Entity::CENTER.set(
+                object,
+                &CanvasPoint::new(corner.x + size.x * 0.5, corner.y + size.y * 0.5),
+            ));
+            changes.push(Entity::SIZE.set(object, &size));
+        }
+        Edit(changes)
+    }
+
     pub fn with_entities(entities: impl IntoIterator<Item = CanvasEntity>) -> Self {
         let mut seen = HashSet::new();
         Self {
@@ -751,12 +881,11 @@ impl Canvas {
                     .map(|entity| {
                         (
                             ObjectId::from_uuid(entity.id),
-                            Entity::of(&normalized_entity(entity)),
+                            Entity::placed(&normalized_entity(entity), DEFAULT_PIXEL_SIZE),
                         )
                     }),
             ),
-            grid: CanvasGrid::default(),
-            profile: CanvasProfile::default(),
+            ..Self::default()
         }
     }
 
@@ -803,14 +932,17 @@ impl Canvas {
                         ObjectId::from_uuid(entity.id),
                         ObjectId::ROOT,
                         Anchor::End,
-                        &Entity::of(&normalized_entity(entity.as_ref().clone())),
+                        &Entity::placed(
+                            &normalized_entity(entity.as_ref().clone()),
+                            Self::pixel_size_in(content),
+                        ),
                     )
                     .into()
             }
             InfiniteCanvasOperation::Update { entities } => entities
                 .iter()
                 .flat_map(|update| {
-                    let update = normalized_entity(update.clone());
+                    let mut update = normalized_entity(update.clone());
                     let Some(held) = held(update.id) else {
                         return Vec::new();
                     };
@@ -818,6 +950,17 @@ impl Canvas {
                         return Vec::new();
                     };
                     shown.follow(unbound);
+                    if shown.shape == CanvasShape::Raster || update.shape == CanvasShape::Raster {
+                        update.shape = shown.shape;
+                    }
+                    if let Some(raster) = held.raster() {
+                        update.transform = CanvasTransform::raster(
+                            shown.transform.size.x / f32::from(raster.width()),
+                            update.transform.center,
+                            raster.width(),
+                            raster.height(),
+                        );
+                    }
                     update_entity(content, &held, &shown, &update)
                 })
                 .collect(),
@@ -872,7 +1015,90 @@ impl Canvas {
                 points,
                 pressures,
             } => Self::extend(content, ObjectId::from_uuid(*id), points, pressures),
+            InfiniteCanvasOperation::Paint { id, pixels } => {
+                Self::repaint(content, *id, |raster| raster::painted(raster, pixels))
+            }
+            InfiniteCanvasOperation::Fill { id, x, y, color } => {
+                Self::repaint(content, *id, |raster| raster::filled(raster, *x, *y, *color))
+            }
+            InfiniteCanvasOperation::ReplaceColor { id, from, to } => {
+                Self::repaint(content, *id, |raster| match from == to {
+                    true => Vec::new(),
+                    false => raster::recolored(raster, |held| (held == *from).then_some(*to)),
+                })
+            }
+            InfiniteCanvasOperation::Clear { id } => Self::repaint(content, *id, |raster| {
+                raster::recolored(raster, |held| {
+                    (held != CanvasPixel::TRANSPARENT).then_some(CanvasPixel::TRANSPARENT)
+                })
+            }),
+            InfiniteCanvasOperation::Resize {
+                id,
+                width,
+                height,
+                anchor,
+            } => Self::resize(content, *id, *width, *height, *anchor),
+            InfiniteCanvasOperation::SetPalette { colors } => {
+                let colors = normalized_palette(colors);
+                match colors == Self::palette_in(content) {
+                    true => Edit::default(),
+                    false => Self::PALETTE.set(ObjectId::ROOT, &Some(colors)).into(),
+                }
+            }
         }
+    }
+
+    fn repaint(
+        content: &CanvasContent,
+        id: Uuid,
+        cells: impl FnOnce(&CanvasRaster) -> raster::Cells,
+    ) -> Edit {
+        Self::raster(content, id)
+            .and_then(|held| raster::paint(ObjectId::from_uuid(id), cells(&held)))
+            .into_iter()
+            .collect()
+    }
+
+    fn resize(
+        content: &CanvasContent,
+        id: Uuid,
+        width: u16,
+        height: u16,
+        anchor: CanvasRasterAnchor,
+    ) -> Edit {
+        let Some(held) = Self::raster(content, id) else {
+            return Edit::default();
+        };
+        if !valid_dimension(width)
+            || !valid_dimension(height)
+            || (width == held.width() && height == held.height())
+        {
+            return Edit::default();
+        }
+        let object = ObjectId::from_uuid(id);
+        let (old, new) = (
+            held.bounds(),
+            raster::resized(held.bounds(), width, height, anchor),
+        );
+        let center: CanvasPoint = content.field(object, Entity::CENTER);
+        let size: CanvasPoint = content.field(object, Entity::SIZE);
+        let pixel = CanvasPoint::new(
+            size.x / f32::from(held.width()),
+            size.y / f32::from(held.height()),
+        );
+        let corner = CanvasPoint::new(
+            center.x - size.x * 0.5 + (new.left - old.left) as f32 * pixel.x,
+            center.y - size.y * 0.5 + (new.top - old.top) as f32 * pixel.y,
+        );
+        let size = CanvasPoint::new(f32::from(width) * pixel.x, f32::from(height) * pixel.y);
+        Edit(vec![
+            Entity::PIXELS.reshape(object, new),
+            Entity::CENTER.set(
+                object,
+                &CanvasPoint::new(corner.x + size.x * 0.5, corner.y + size.y * 0.5),
+            ),
+            Entity::SIZE.set(object, &size),
+        ])
     }
 
     fn extend(
@@ -1244,6 +1470,7 @@ pub fn normalized_entity(mut entity: CanvasEntity) -> CanvasEntity {
                 entity.scale = 1.0;
             }
         }
+        CanvasShape::Raster => entity.transform.rotation = 0.0,
         CanvasShape::Frame => {
             entity.transform.rotation = 0.0;
             let size = &mut entity.transform.size;
@@ -1286,6 +1513,13 @@ impl CanvasEntity {
             locked: false,
             components: Vec::new(),
         }
+    }
+
+    pub fn raster(pixel_size: f32, center: CanvasPoint, width: u16, height: u16) -> Self {
+        Self::new(
+            CanvasShape::Raster,
+            CanvasTransform::raster(pixel_size, center, width, height),
+        )
     }
 
     pub fn path(world: &[CanvasPoint]) -> Self {
