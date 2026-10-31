@@ -498,8 +498,12 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
+        let before = types::kinds_revision();
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
+        }
+        if types::kinds_revision() != before {
+            H::wake();
         }
         types::kind_of(content_type)
     }
@@ -1868,6 +1872,7 @@ impl<H: Host> Replicas<H> {
         match heard {
             Heard::Hello(types) => {
                 self.modules.hello(module, types).await;
+                H::wake();
                 false
             }
             Heard::Canceled { op } => {

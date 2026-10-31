@@ -3,7 +3,7 @@ use std::{
     convert::Infallible,
     sync::{
         Arc,
-        atomic::AtomicBool,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -55,11 +55,18 @@ pub fn is_known(content_type: Uuid) -> bool {
             .contains_key(&content_type)
 }
 
+static KINDS: AtomicU64 = AtomicU64::new(0);
+
 pub fn register(kind: Kind) {
     REGISTRY
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
+    KINDS.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn kinds_revision() -> u64 {
+    KINDS.load(Ordering::Relaxed)
 }
 
 static HELD: wasi_threads::Mutex<Option<Instant>> = wasi_threads::Mutex::new(None);

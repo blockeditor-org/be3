@@ -834,6 +834,7 @@ pub fn identity() -> Option<(Uuid, Uuid)> {
 
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
+        + be_types_host::kinds_revision()
 }
 
 pub fn graph_revision() -> u64 {

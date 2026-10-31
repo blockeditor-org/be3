@@ -34,13 +34,19 @@ fn a_declared_module_starts_only_when_its_type_is_first_needed() {
     );
     pollster::block_on(modules.ready());
     assert_eq!(STARTS.load(Ordering::SeqCst), 0);
-    assert!(is_known(LAZY), "the declared type is known before its module runs");
+    assert!(
+        is_known(LAZY),
+        "the declared type is known before its module runs"
+    );
     assert_eq!(modules.module_of(LAZY), Some(0));
     assert!(kind_of(LAZY).is_none());
 
     pollster::block_on(modules.load(0));
     assert_eq!(STARTS.load(Ordering::SeqCst), 1);
-    assert!(kind_of(LAZY).is_some(), "loading registers what the module answered");
+    assert!(
+        kind_of(LAZY).is_some(),
+        "loading registers what the module answered"
+    );
 
     pollster::block_on(modules.load(0));
     assert_eq!(STARTS.load(Ordering::SeqCst), 1);
