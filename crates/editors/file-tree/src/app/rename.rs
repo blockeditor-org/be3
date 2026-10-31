@@ -1,6 +1,7 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::{Key, KeyPhase};
 use uuid::Uuid;
 
 use super::rows::{RowKey, Tree as FileTree};
@@ -36,6 +37,16 @@ impl Renaming {
             if let Some(key) = shown {
                 untrack(|| renaming.start(key));
             }
+        });
+        on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
+            let confirms = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Enter)
+                && pending.with_untracked(Option::is_some);
+            if confirms {
+                pending.set(None);
+            }
+            confirms
         });
         renaming
     }

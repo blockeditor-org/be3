@@ -44,7 +44,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
 
     app.click("#file-tree.new");
     app.click("#file-tree.new-workspace");
-    app.wait("TextInput \"Name\"");
+    app.wait("TextInput \"Name\" value=\"New workspace\" focused");
     app.type_text("Team");
     app.key("Enter");
     app.wait("TreeItem \"Team\"");
