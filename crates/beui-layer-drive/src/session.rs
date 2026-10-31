@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -19,7 +19,7 @@ use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
 
 use crate::gestures::{Frames, Gestures};
-use crate::target::{coordinates, describe, locate, node, point, scaled};
+use crate::target::{coordinates, describe, hidden, locate, node, point, scaled};
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
@@ -357,6 +357,10 @@ enum Phase {
         pasted: std::sync::mpsc::Receiver<Pasted>,
         until: Instant,
     },
+    Revealing {
+        revealed: Vec<accesskit::NodeId>,
+        before: Rc<Rendered>,
+    },
 }
 
 struct Active {
@@ -365,6 +369,7 @@ struct Active {
     tap: usize,
     immediate: bool,
     changes: Option<usize>,
+    skipped: usize,
 }
 
 struct Pending {
@@ -373,6 +378,8 @@ struct Pending {
     immediate: bool,
     changes: Option<usize>,
     skipped: usize,
+    revealed: Vec<accesskit::NodeId>,
+    before: Option<Rc<Rendered>>,
 }
 
 enum Started {
@@ -544,6 +551,8 @@ impl Session {
                         immediate,
                         changes,
                         skipped,
+                        revealed: Vec::new(),
+                        before: None,
                     });
                     self.start_pending(0, view, frame);
                 }
@@ -557,15 +566,26 @@ impl Session {
             return;
         };
         let words = &pending.request.words[pending.skipped..];
-        match self.start(tap, words, view, frame) {
+        match self.start(tap, words, &pending.revealed, view, frame) {
             Ok(Started::Done(reply)) => (pending.request.reply)(reply),
-            Ok(Started::Phase(phase)) => {
+            Ok(Started::Phase(mut phase)) => {
+                match (&mut phase, pending.before) {
+                    (Phase::Revealing { revealed, before }, earlier) => {
+                        revealed.extend(pending.revealed);
+                        if let Some(earlier) = earlier {
+                            *before = earlier;
+                        }
+                    }
+                    (Phase::Input { before, .. }, Some(earlier)) => *before = earlier,
+                    _ => {}
+                }
                 self.active = Some(Active {
                     request: pending.request,
                     phase,
                     tap,
                     immediate: pending.immediate,
                     changes: pending.changes,
+                    skipped: pending.skipped,
                 });
             }
             Err(error) => (pending.request.reply)(Reply::Error(error)),
@@ -624,7 +644,7 @@ impl Session {
     fn wants_frame(&self, now: Instant) -> Option<Duration> {
         let stopped = self.clock_stopped;
         let Some(active) = &self.active else {
-            return self.inbox.waiting().then_some(Duration::ZERO);
+            return (self.pending.is_some() || self.inbox.waiting()).then_some(Duration::ZERO);
         };
         match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
@@ -707,6 +727,27 @@ impl Session {
         above: &Above<'_>,
     ) {
         let quiet = !settled.again && !settled.busy;
+        if quiet
+            && let Some(Active {
+                request,
+                phase: Phase::Revealing { revealed, before },
+                tap,
+                immediate,
+                changes,
+                skipped,
+            }) = self.active.take_if(|active| matches!(active.phase, Phase::Revealing { .. }))
+        {
+            self.pending = Some(Pending {
+                request,
+                tap,
+                immediate,
+                changes,
+                skipped,
+                revealed,
+                before: Some(before),
+            });
+            return;
+        }
         let Some(active) = &mut self.active else {
             return;
         };
@@ -985,14 +1026,31 @@ impl Session {
         &mut self,
         tap: usize,
         words: &[String],
+        revealed: &[accesskit::NodeId],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
         let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        match kind(command) {
-            Some(Kind::Session) => self.session(command, arguments, view, frame),
-            _ => self.command(tap, command, arguments, view, frame),
+        if kind(command) == Some(Kind::Session) {
+            return self.session(command, arguments, view, frame);
         }
+        let reveal = Cell::new(None);
+        let started = self.command(tap, command, arguments, view, frame, revealed, &reveal);
+        let Some(id) = reveal.get() else {
+            return started;
+        };
+        frame
+            .context
+            .accessibility_action(accesskit::ActionRequest {
+                action: accesskit::Action::ScrollIntoView,
+                target_tree: accesskit::TreeId::ROOT,
+                target_node: id,
+                data: None,
+            });
+        Ok(Started::Phase(Phase::Revealing {
+            revealed: vec![id],
+            before: view.rendered(),
+        }))
     }
 
     fn session(
@@ -1060,6 +1118,8 @@ impl Session {
         arguments: &[String],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
     ) -> Result<Started, String> {
         let gesture = tap;
         let under = self.taps[tap].clone();
@@ -1099,6 +1159,12 @@ impl Session {
         let above = &frame.above;
         let entered = std::cell::Cell::new(None);
         let at = |target: &str| -> Result<Pos2, String> {
+            if let Some(id) = hidden(target, lines)
+                && !revealed.contains(&id)
+            {
+                reveal.set(Some(id));
+                return Err(format!("{target} is revealed first"));
+            }
             let Some(under) = &under else {
                 return point(target, lines, scale);
             };

@@ -20,70 +20,61 @@ pub(crate) fn describe(rect: Rect) -> String {
     )
 }
 
-pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
+enum Found<'a> {
+    Line(&'a Line),
+    Inside(&'a Line, Vec2),
+    Area(Rect),
+}
+
+fn found<'a>(target: &str, lines: &'a [Rc<Line>]) -> Result<Found<'a>, String> {
     if let Some(id) = target.strip_prefix('#') {
         if let Some((id, offset)) = id.rsplit_once('+')
             && let Some([x, y]) = numbers(offset).as_deref()
         {
-            let rect = locate(&format!("#{id}"), lines)?;
-            return Ok(Rect::from_min_size(
-                rect.min + Vec2::new(*x, *y),
-                Vec2::ZERO,
-            ));
+            return match found(&format!("#{id}"), lines)? {
+                Found::Line(line) => Ok(Found::Inside(line, Vec2::new(*x, *y))),
+                _ => unreachable!("a test id finds a line"),
+            };
         }
         let named: Vec<&Line> = lines
             .iter()
             .filter(|line| line.test_ids.iter().any(|named| named == id))
             .map(|line| &**line)
             .collect();
-        let line = match named.as_slice() {
-            [] => {
-                return Err(format!(
-                    "no node on screen has the test id {id}; `ids` lists them"
-                ));
-            }
-            [line] => *line,
-            _ => {
-                return Err(format!(
-                    "the test id {id} names {} nodes on screen",
-                    named.len()
-                ));
-            }
+        return match named.as_slice() {
+            [] => Err(format!(
+                "no node on screen has the test id {id}; `ids` lists them"
+            )),
+            [line] => Ok(Found::Line(line)),
+            _ => Err(format!(
+                "the test id {id} names {} nodes on screen",
+                named.len()
+            )),
         };
-        return placed(line);
     }
-    match numbers(target).as_deref() {
-        Some([x, y]) => return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
-        Some([x, y, width, height]) => {
-            return Ok(Rect::from_min_size(
-                pos2(*x, *y),
-                Vec2::new(*width, *height),
-            ));
-        }
-        _ => {}
+    if let Some(rect) = coordinates(target) {
+        return Ok(Found::Area(rect));
     }
-    let found: Vec<usize> = (0..lines.len())
-        .filter(|index| lines[*index].text.contains(target))
-        .collect();
-    let line = match pick(lines, &found) {
-        Some(index) => &*lines[index],
-        None if found.is_empty() => {
-            return Err(format!(
-                "no line of the tree contains {target:?}; `tree` prints it"
-            ));
-        }
-        None => {
-            let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
-            for index in &found {
-                message.push_str("  ");
-                message.push_str(&lines[*index].text);
-                message.push('\n');
-            }
-            message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
-            return Err(message);
-        }
+    line_with(target, lines).map(Found::Line)
+}
+
+pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
+    match found(target, lines)? {
+        Found::Line(line) => placed(line),
+        Found::Inside(line, offset) => Ok(Rect::from_min_size(
+            placed(line)?.min + offset,
+            Vec2::ZERO,
+        )),
+        Found::Area(rect) => Ok(rect),
+    }
+}
+
+pub(crate) fn hidden(target: &str, lines: &[Rc<Line>]) -> Option<accesskit::NodeId> {
+    let line = match found(target, lines).ok()? {
+        Found::Line(line) | Found::Inside(line, _) => line,
+        Found::Area(_) => return None,
     };
-    placed(line)
+    (line.bounds.is_some() && line.shown != line.bounds).then_some(line.id)
 }
 
 pub(crate) fn coordinates(target: &str) -> Option<Rect> {
@@ -190,7 +181,16 @@ pub(crate) fn point(
     lines: &[Rc<Line>],
     pixels_per_point: f32,
 ) -> Result<Pos2, String> {
-    let center = locate(target, lines)?.center();
+    let center = match found(target, lines)? {
+        Found::Line(line) => {
+            let rect = placed(line)?;
+            line.shown
+                .filter(|shown| shown.is_positive())
+                .unwrap_or(rect)
+                .center()
+        }
+        _ => locate(target, lines)?.center(),
+    };
     Ok(pos2(
         center.x / pixels_per_point,
         center.y / pixels_per_point,

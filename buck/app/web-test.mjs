@@ -6,9 +6,10 @@
 // It serves DIR, and for each script opens DIR's index.html with
 // ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
-// automate(words) (beui-core-html's automate: tree, ids, find, wait, gone,
+// automate(words) (beui-core-html's automate: tree, ids, find, reveal, wait, gone,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
-// place `find` answers, so the browser's own focus, key and text paths run.
+// place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
+// revealed it), so the browser's own focus, key and text paths run.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // After every command the document itself must not scroll or overflow the
@@ -173,7 +174,7 @@ async function answer(page, words) {
 
 async function center(page, target, timeout) {
     await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-    const reply = await answer(page, ["find", target]);
+    const reply = await answer(page, [`--timeout=${timeout}`, "reveal", target]);
     const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
     if (!found) throw new Failure(`${target} has no place on screen: ${reply.trim()}`);
     const ratio = await page.evaluate(() => devicePixelRatio);

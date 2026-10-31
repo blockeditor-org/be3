@@ -103,8 +103,8 @@ impl DocumentTest {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        let shown = Rect::from_min_size(beui::Pos2::ZERO, self.size());
-        if self.rect_of(test_id).intersect(shown).is_positive() {
+        let window = Rect::from_min_size(beui::Pos2::ZERO, self.size());
+        if !scroll_cuts(&self.document(), test_id) && window.contains_rect(self.rect_of(test_id)) {
             return;
         }
         let document = self.document_mut();
@@ -173,6 +173,13 @@ impl DocumentTest {
             self.latest = Some(self.stepped.take_output());
         }
     }
+}
+
+pub(crate) fn scroll_cuts(document: &Document, test_id: &str) -> bool {
+    document
+        .find_test_ids(test_id)
+        .into_iter()
+        .any(|node| document.is_cut(node))
 }
 
 const HOST: Color32 = Color32::from_rgb(24, 26, 32);

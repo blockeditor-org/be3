@@ -1860,13 +1860,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        let cut = {
-            let document = self.document();
-            document
-                .find_test_ids(test_id)
-                .into_iter()
-                .any(|node| document.is_cut(node))
-        };
+        let cut = crate::document::scroll_cuts(&self.document(), test_id);
         if !cut && (self.desk.is_some() || self.rect().contains_rect(self.rect_of(test_id))) {
             return;
         }

@@ -1016,6 +1016,10 @@ impl Document {
         if !self.contains(target) {
             return true;
         }
+        if request.action == Action::ScrollIntoView {
+            self.reveal_node(target);
+            return true;
+        }
         if self
             .accessibility
             .get(&target)

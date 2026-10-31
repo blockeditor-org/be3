@@ -239,6 +239,12 @@ A command that acts on something takes a TARGET:
   A match inside another match counts as that one, so a button and its own label are one
   target; when several unrelated lines match, the error lists them.
 
+A command that presses, points or types at a target first scrolls it into view when a scroll
+hides it or cuts part of it, as a person would (the accessibility action `ScrollIntoView`,
+which a beui document answers by revealing the node in every scroll around it), waits for that
+to settle, and then aims at the middle of the part that shows, never at a hidden part, where
+whatever is beneath would take the press. Its reply's changes include the scroll.
+
 ## Acting
 
 `drive help` lists every command; these are the kinds.
