@@ -395,7 +395,7 @@ impl State {
                     .state
                     .with_untracked(|state| state.bar_placement(bar))
                     .is_some_and(DockBarPlacement::is_window);
-                if !windowed {
+                if !windowed || self.bar_window_in_dock(bar) {
                     self.lift_bar(bar, rect.min + moved.at.to_vec2(), rect);
                 }
                 self.drag_over(point);
@@ -439,6 +439,20 @@ impl State {
             dock.min + origin.to_vec2(),
             rect.size(),
         ))
+    }
+
+    fn bar_window_in_dock(&self, bar: TabId) -> bool {
+        if !self.opens.get_untracked() {
+            return true;
+        }
+        let key = self.window_key(bar);
+        let window = self
+            .bar_windows
+            .value()
+            .borrow()
+            .get(&key)
+            .map(|handle| handle.id);
+        window.is_none_or(|window| window_point(Pos2::ZERO, window, self.home()).is_some())
     }
 
     pub(super) fn keep_bar_panels(&self, bars: &[TabId]) {

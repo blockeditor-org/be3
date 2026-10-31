@@ -3062,8 +3062,12 @@ with a last row that hides the bar, and
 the drag threshold with the press that went down, then with each move. The dock
 carries the drag, and the bar itself is what shows it: lifted out of its place into a
 layer of its own (`LayerPolicy::Inert`, at the bars' level), it follows the pointer exactly from
-where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too, except one
-popped out into a window, which stays in it until it is let go. The dock
+where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too. A carried
+bar popped out into a window lifts out of it the same way when the dock can map that window into
+its own (`window_point`: the host draws the window in the dock's host window, as block-app does
+for its plugins' windows, keeping a child's node while it moves between the views of one plugin
+instance); one in a window the host opens on its own stays in it until it is let go, since its
+press cannot follow its body out of that window. The dock
 reads every point in its own window (`window_point`), so a press that began in another layer
 (a bar floating over an edge escapes into one of its own) still steers it. Each move
 resolves where it would land as if it were let go there: the outer band of the pane

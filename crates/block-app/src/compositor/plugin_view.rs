@@ -72,7 +72,7 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
-struct Enclosing(NodeRef);
+struct Enclosing(Memo<Option<NodeRef>>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
@@ -203,6 +203,7 @@ pub(crate) fn PluginView(
     #[prop(default = false)] offscreen: bool,
     #[prop(default = false)] nests_windows: bool,
     #[prop(default = None)] opens_at: Option<Memo<Rect>>,
+    #[prop(default = None)] shares: Option<ChildNodes>,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -408,7 +409,25 @@ pub(crate) fn PluginView(
         }
     });
     let rect = create_memo(move || state.with(|view| view.rect));
-    let children = ChildNodes::new(state, rect, child_view);
+    let catcher = NodeRef::new();
+    let enclosing = use_context::<Enclosing>();
+    let encloses = match (offscreen, enclosing) {
+        (false, _) => create_memo(move || Some(catcher)),
+        (true, Some(Enclosing(enclosing))) => enclosing,
+        (true, None) => create_memo(|| None),
+    };
+    let anchors = super::anchored::anchor_host();
+    let children = ChildNodes::joining(
+        shares,
+        Joined {
+            mount,
+            state,
+            rect,
+            child_view,
+            anchors,
+            encloses,
+        },
+    );
     let (reports, tick) = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
@@ -568,9 +587,7 @@ pub(crate) fn PluginView(
     let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let every_sample = create_memo(move || state.with(|view| view.every_sample));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
-    let catcher = NodeRef::new();
-    let enclosing = use_context::<Enclosing>();
-    provide_context(Enclosing(catcher));
+    provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
     super::intercept::intercept_keys(plugin_id, instance, region.id, intercepted, move || {
@@ -597,7 +614,9 @@ pub(crate) fn PluginView(
                         region: region.id,
                         zoom,
                         rect,
-                        parent: enclosing.and_then(|Enclosing(parent)| parent.try_get()),
+                        parent: enclosing
+                            .and_then(|Enclosing(parent)| parent.get())
+                            .and_then(|parent| parent.try_get()),
                     },
                 )
             });
@@ -614,7 +633,7 @@ pub(crate) fn PluginView(
         instance,
         region: region.id,
         window,
-        host: super::anchored::anchor_host(),
+        host: anchors,
         state,
         revision,
         children,
@@ -859,7 +878,7 @@ pub(crate) fn PluginView(
         let overlaid = (!shows_desktop).then(|| {
             let editor = editor.clone();
             view! {
-                <OverlaidWindows editor region />
+                <OverlaidWindows editor region nodes={children} />
             }
         });
         let panels = (!nests_windows).then(|| {
@@ -1026,7 +1045,7 @@ thread_local! {
 }
 
 #[component]
-fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
+fn OverlaidWindows(editor: ViewEditor, region: View, nodes: ChildNodes) -> NodeId {
     let block = editor.role.block().map(|block| block.id);
     let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance, region);
     let viewport = use_viewport_size();
@@ -1057,7 +1076,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
                     next.get()
                 })));
                 let window = {
-                    provide_context(host.expect("just made"));
+                    provide_context(super::anchored::HostOfAnchors(create_memo(move || host)));
                     view! {
                         <Overlay
                             anchor
@@ -1074,6 +1093,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View) -> NodeId {
                                     region
                                     nests_windows=true
                                     opens_at={Some(shown)}
+                                    shares={Some(nodes)}
                                     child_view
                                     on_focus={Callback::new(|()| {})}
                                 />
@@ -1433,85 +1453,192 @@ fn ViewChildren(
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Joined {
+    pub(crate) mount: u64,
+    pub(crate) state: Memo<PlacedView>,
+    pub(crate) rect: Memo<Rect>,
+    pub(crate) child_view: ChildView,
+    pub(crate) anchors: Memo<Option<super::anchored::AnchorHost>>,
+    pub(crate) encloses: Memo<Option<NodeRef>>,
+}
+
+impl Joined {
+    fn lists(&self, key: ChildId) -> bool {
+        self.state.is_alive()
+            && self
+                .state
+                .with(|view| view.children.iter().any(|child| child.child == key))
+    }
+}
+
+struct BuiltChild {
+    node: NodeId,
+    scope: Option<reactive::Scope>,
+    holder: Signal<u64>,
+}
+
 struct BuiltChildren {
-    state: Memo<PlacedView>,
-    rect: Memo<Rect>,
-    child_view: ChildView,
     region: Option<reactive::ScopeContext>,
-    built: RefCell<HashMap<ChildId, (NodeId, Option<reactive::Scope>)>>,
+    views: Signal<Vec<Joined>>,
+    built: RefCell<HashMap<ChildId, BuiltChild>>,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ChildNodes(Stored<BuiltChildren>);
+pub(crate) struct ChildNodes {
+    shared: Stored<BuiltChildren>,
+    mount: u64,
+}
 
 impl ChildNodes {
-    fn new(state: Memo<PlacedView>, rect: Memo<Rect>, child_view: ChildView) -> Self {
-        let nodes = Self(store(BuiltChildren {
-            state,
-            rect,
-            child_view,
-            region: reactive::current_scope(),
-            built: RefCell::new(HashMap::new()),
-        }));
-        create_effect(move || {
-            let shown: Vec<ChildId> =
-                state.with(|view| view.children.iter().map(|child| child.child).collect());
-            untrack(|| nodes.keep(&shown));
-        });
-        on_cleanup(move || nodes.keep(&[]));
-        nodes
+    pub(crate) fn joining(shares: Option<ChildNodes>, joined: Joined) -> Self {
+        let mount = joined.mount;
+        let shared = match shares.filter(|shares| shares.shared.is_alive()) {
+            Some(shares) => {
+                let views = shares.shared.with(|held| held.views);
+                views.update(|views| views.push(joined));
+                on_cleanup(move || {
+                    if views.is_alive() {
+                        views.update(|views| views.retain(|view| view.mount != mount));
+                    }
+                });
+                shares.shared
+            }
+            None => Self::root(joined),
+        };
+        Self { shared, mount }
     }
 
-    fn keep(self, shown: &[ChildId]) {
-        if !self.0.is_alive() {
-            return;
-        }
-        let gone: Vec<Option<reactive::Scope>> = self.0.with(|held| {
-            let mut built = held.built.borrow_mut();
-            let stale: Vec<ChildId> = built
-                .keys()
-                .filter(|key| !shown.contains(key))
-                .copied()
-                .collect();
-            stale
-                .into_iter()
-                .filter_map(|key| built.remove(&key).map(|(_, scope)| scope))
-                .collect()
+    fn root(joined: Joined) -> Stored<BuiltChildren> {
+        let views = create_signal(vec![joined]);
+        let shared = store(BuiltChildren {
+            region: reactive::current_scope(),
+            views,
+            built: RefCell::new(HashMap::new()),
         });
-        for scope in gone.into_iter().flatten() {
-            scope.dispose();
-        }
+        create_effect(move || {
+            let shown: Vec<ChildId> = views.with(|views| {
+                views
+                    .iter()
+                    .filter(|view| view.state.is_alive())
+                    .flat_map(|view| {
+                        view.state.with(|view| {
+                            view.children
+                                .iter()
+                                .map(|child| child.child)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect()
+            });
+            untrack(|| keep(shared, &shown));
+        });
+        on_cleanup(move || keep(shared, &[]));
+        shared
     }
 
     pub(crate) fn node(self, key: ChildId) -> NodeId {
-        if let Some(node) = self
-            .0
-            .with(|held| held.built.borrow().get(&key).map(|(node, _)| *node))
-        {
+        let held = self.shared.with(|held| {
+            held.built
+                .borrow()
+                .get(&key)
+                .map(|built| (built.node, built.holder))
+        });
+        if let Some((node, holder)) = held {
+            if holder.is_alive() && holder.get_untracked() != self.mount {
+                holder.set(self.mount);
+            }
             return node;
         }
-        let (state, rect, child_view, region) = self
-            .0
-            .with(|held| (held.state, held.rect, held.child_view, held.region.clone()));
+        let (views, region) = self
+            .shared
+            .with(|held| (held.views, held.region.clone()));
+        let Some(asking) = joined(views, self.mount) else {
+            return view! {
+                <Frame />
+            };
+        };
+        let mount = self.mount;
         let build = move || {
+            let holder = create_signal(mount);
+            let holding = create_memo(move || {
+                let mount = holder.get();
+                views.with(|views| {
+                    views
+                        .iter()
+                        .find(|view| view.mount == mount && view.lists(key))
+                        .or_else(|| views.iter().find(|view| view.lists(key)))
+                        .map(|view| view.mount)
+                })
+            });
+            let following = move || holding.get().and_then(|mount| joined(views, mount));
             let child = create_memo(move || {
-                state.with(|view| {
+                let view = following()?;
+                view.state.with(|view| {
                     view.children
                         .iter()
                         .find(|child| child.child == key)
                         .cloned()
                 })
             });
-            child_view.with(|view| view(key, child, rect))
+            let rect = create_memo(move || {
+                following().map_or(Rect::ZERO, |view| view.rect.get())
+            });
+            let anchors = create_memo(move || {
+                following().and_then(|view| view.anchors.get())
+            });
+            let encloses = create_memo(move || {
+                following().and_then(|view| view.encloses.get())
+            });
+            provide_context(super::anchored::HostOfAnchors(anchors));
+            provide_context(Enclosing(encloses));
+            let node = asking.child_view.with(|view| view(key, child, rect));
+            (node, holder)
         };
         let scope = region.as_ref().and_then(super::anchored::closed_with);
-        let node = match &scope {
+        let (node, holder) = match &scope {
             Some(scope) => scope.run(build),
             None => build(),
         };
-        self.0
-            .with(|held| held.built.borrow_mut().insert(key, (node, scope)));
+        self.shared.with(|held| {
+            held.built.borrow_mut().insert(
+                key,
+                BuiltChild {
+                    node,
+                    scope,
+                    holder,
+                },
+            )
+        });
         node
+    }
+}
+
+fn joined(views: Signal<Vec<Joined>>, mount: u64) -> Option<Joined> {
+    if !views.is_alive() {
+        return None;
+    }
+    views.with(|views| views.iter().find(|view| view.mount == mount).copied())
+}
+
+fn keep(shared: Stored<BuiltChildren>, shown: &[ChildId]) {
+    if !shared.is_alive() {
+        return;
+    }
+    let gone: Vec<Option<reactive::Scope>> = shared.with(|held| {
+        let mut built = held.built.borrow_mut();
+        let stale: Vec<ChildId> = built
+            .keys()
+            .filter(|key| !shown.contains(key))
+            .copied()
+            .collect();
+        stale
+            .into_iter()
+            .filter_map(|key| built.remove(&key).map(|built| built.scope))
+            .collect()
+    });
+    for scope in gone.into_iter().flatten() {
+        scope.dispose();
     }
 }
 

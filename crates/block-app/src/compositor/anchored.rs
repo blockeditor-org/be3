@@ -18,8 +18,14 @@ pub(crate) struct AnchorBounds(pub(crate) Memo<Rect>);
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AnchorHost(pub(crate) u64);
 
-pub(crate) fn anchor_host() -> Option<AnchorHost> {
-    use_context::<AnchorHost>()
+#[derive(Clone, Copy)]
+pub(crate) struct HostOfAnchors(pub(crate) Memo<Option<AnchorHost>>);
+
+pub(crate) fn anchor_host() -> Memo<Option<AnchorHost>> {
+    match use_context::<HostOfAnchors>() {
+        Some(HostOfAnchors(host)) => host,
+        None => create_memo(|| None),
+    }
 }
 
 #[derive(Clone)]
@@ -29,7 +35,7 @@ pub(crate) struct AnchorOwner {
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
     pub(crate) window: Memo<WindowId>,
-    pub(crate) host: Option<AnchorHost>,
+    pub(crate) host: Memo<Option<AnchorHost>>,
     pub(crate) state: Memo<PlacedView>,
     pub(crate) revision: ReadSignal<u64>,
     pub(crate) children: ChildNodes,
@@ -83,8 +89,10 @@ fn owners_in(window: WindowId, host: Option<AnchorHost>) -> Vec<AnchorOwner> {
         owners
             .borrow()
             .iter()
-            .filter(|owner| owner.state.is_alive() && owner.window.is_alive())
-            .filter(|owner| owner.window.get() == window && owner.host == host)
+            .filter(|owner| {
+                owner.state.is_alive() && owner.window.is_alive() && owner.host.is_alive()
+            })
+            .filter(|owner| owner.window.get() == window && owner.host.get() == host)
             .cloned()
             .collect()
     })
