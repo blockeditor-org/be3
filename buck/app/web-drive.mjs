@@ -131,7 +131,7 @@ switch (command) {
             await portal.locator('[name="password"]').fill("dev-password");
             await portal.getByLabel("Confirm password", { exact: true }).fill("dev-password");
             await portal.getByRole("button", { name: "Create account", exact: true }).click();
-            await portal.getByText("Check your email", { exact: true }).waitFor();
+            await portal.getByRole("heading", { name: "Check your email", exact: true }).waitFor();
             const { readFile } = await import("node:fs/promises");
             const log = await readFile(rest[0], "utf8");
             const links = log.match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
@@ -140,7 +140,7 @@ switch (command) {
             await portal.getByRole("button", { name: "Verify email", exact: true }).click();
         }
         await portal.getByRole("button", { name: "Approve sign-in", exact: true }).click();
-        await portal.getByText("Sign-in approved", { exact: true }).waitFor();
+        await portal.getByRole("heading", { name: "Sign-in approved", exact: true }).waitFor();
         await portal.close();
         break;
     }

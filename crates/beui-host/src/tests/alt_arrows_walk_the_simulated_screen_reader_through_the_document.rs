@@ -20,9 +20,9 @@ fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
 
     assert_eq!(
         harness.reader_items(),
-        ["Settings, text", "Pick a theme, text"]
+        ["Settings, heading", "Pick a theme, text"]
     );
-    assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
+    assert_eq!(harness.reading().as_deref(), Some("Settings, heading"));
 
     harness.key(Key::ArrowRight, Modifiers::ALT);
     assert_eq!(harness.reading().as_deref(), Some("Pick a theme, text"));
@@ -35,5 +35,5 @@ fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
     );
 
     harness.key(Key::ArrowLeft, Modifiers::ALT);
-    assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
+    assert_eq!(harness.reading().as_deref(), Some("Settings, heading"));
 }

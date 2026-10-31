@@ -813,7 +813,7 @@ impl Session {
                 if *ready && let Some(target) = target {
                     let placed = match *window {
                         PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),
-                        _ => locate(target, view.rendered().lines()),
+                        _ => shown_part(target, view.rendered().lines()),
                     };
                     match placed {
                         Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
@@ -1190,13 +1190,17 @@ impl Session {
         let scale = view.pixels_per_point;
         let above = &frame.above;
         let entered = std::cell::Cell::new(None);
-        let at = |target: &str| -> Result<Pos2, String> {
-            if let Some(id) = hidden(target, lines)
-                && !revealed.contains(&id)
-            {
-                reveal.set(Some(id));
-                return Err(format!("{target} is revealed first"));
+        let reveal_first = |target: &str, lines: &[Rc<Line>]| -> Result<(), String> {
+            match hidden(target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => Ok(()),
             }
+        };
+        let at = |target: &str| -> Result<Pos2, String> {
+            reveal_first(target, lines)?;
             let Some(under) = &under else {
                 return point(target, lines, scale);
             };
@@ -1770,7 +1774,10 @@ impl Session {
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
-                    Some(target) => Some(shown_at(target, under.as_deref(), view, above)?),
+                    Some(target) => {
+                        reveal_first(target, rendered.lines())?;
+                        Some(shown_at(target, under.as_deref(), view, above)?)
+                    }
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing {
@@ -1799,9 +1806,12 @@ impl Session {
                     [target] => Some(target.clone()),
                     _ => return Err("usage: paint [TARGET] [in WINDOW|platform]".to_owned()),
                 };
+                if let Some(target) = &target {
+                    reveal_first(target, rendered.lines())?;
+                }
                 let crop = match (&target, window) {
                     (Some(target), window) if window != PLATFORM => Some(in_points(
-                        locate(target, rendered.lines())?,
+                        shown_part(target, rendered.lines())?,
                         view.pixels_per_point,
                     )),
                     _ => None,
@@ -2237,12 +2247,12 @@ fn shown_at(
     above: &Above<'_>,
 ) -> Result<Rect, String> {
     let Some(under) = under else {
-        return locate(target, view.rendered().lines());
+        return shown_part(target, view.rendered().lines());
     };
     if let Some(rect) = coordinates(target) {
         return Ok(rect);
     }
-    let rect = locate(target, view.rendered().lines())?;
+    let rect = shown_part(target, view.rendered().lines())?;
     let scale = view.pixels_per_point;
     let corners = [
         rect.min,

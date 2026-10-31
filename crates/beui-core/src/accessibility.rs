@@ -952,7 +952,17 @@ impl Document {
     ) -> (Node, Option<AccessNodeId>) {
         let mut focus = inner.focus;
         let mut node = if let Some(node) = explicit {
-            node.clone()
+            let mut node = node.clone();
+            if let Some(text) = text
+                && node.label().is_none()
+                && node.value().is_none()
+            {
+                match node.role() {
+                    Role::Label => node.set_value(text),
+                    _ => node.set_label(text),
+                }
+            }
+            node
         } else if let Some(text) = text {
             let mut node = Node::new(Role::Label);
             node.set_value(text);

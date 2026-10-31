@@ -330,18 +330,26 @@ mod web {
                 .then(|| text_of(dom, &self.abouts, &self.keys))
                 .filter(|text| !text.is_empty());
             let line = match (&about.accessibility, &text) {
-                (Some(node), _) => {
+                (Some(node), text) => {
                     let role = format!("{:?}", node.role());
                     let numeric = node
                         .numeric_value()
                         .map(|value| ((value * 1000.0).round() / 1000.0).to_string());
                     let value = node.value().map(str::to_owned).or(numeric);
+                    let unnamed = node.label().is_none() && value.is_none();
+                    let (label, value) = match (unnamed, text) {
+                        (true, Some(text)) if node.role() == accesskit::Role::Label => {
+                            (None, Some(text.clone()))
+                        }
+                        (true, Some(text)) => (Some(text.as_str()), None),
+                        _ => (node.label(), value),
+                    };
                     let toggled = node.toggled().map(|toggled| format!("{toggled:?}"));
                     Some(describe(
                         depth,
                         Description {
                             role: &role,
-                            label: node.label(),
+                            label,
                             value: value.as_deref(),
                             toggled: toggled.as_deref(),
                             disabled: node.is_disabled(),

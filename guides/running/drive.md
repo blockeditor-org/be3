@@ -204,7 +204,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
 - `drive shot FILE.png [TARGET]` writes a PNG of what the platform shows (under space, the 3D
-  view), or of one target, where that target shows in the frame it captures.
+  view), or of one target: it reveals the target as input does (below) and crops to the part of
+  it that shows in the frame it captures.
 - `drive windows` lists the app's windows, each one's number and size in pixels.
 - An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
   with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
@@ -219,8 +220,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   instead, which is how to see the app's own window flat when a layer such as space is
   between it and the platform. `./scripts/buck run //crates/local-tools:bin -- rasterize
   SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and `example-dump`
-  lists its shapes. It waits until the app settles and crops to where TARGET is
-  in the frame it paints, then asks every running
+  lists its shapes. It reveals TARGET as `shot` does, waits until the app settles and crops to
+  the part of TARGET that shows in the frame it paints, then asks every running
   plugin for what it last painted, through the plugin's `paintings` export (paint-format's
   `ScreenPaintings`). What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
@@ -246,7 +247,8 @@ A command that presses, points or types at a target first scrolls it into view w
 hides it or cuts part of it, as a person would (the accessibility action `ScrollIntoView`,
 which a beui document answers by revealing the node in every scroll around it), waits for that
 to settle, and then aims at the middle of the part that shows, never at a hidden part, where
-whatever is beneath would take the press. Its reply's changes include the scroll.
+whatever is beneath would take the press. Its reply's changes include the scroll. `shot` and
+`paint` reveal their target the same way and crop to the part that shows.
 
 ## Acting
 

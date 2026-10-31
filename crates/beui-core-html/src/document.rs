@@ -360,7 +360,19 @@ pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
 }
 
 pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
-    with_entry(node, |entry| entry.accessibility = Some(accessibility));
+    let heading = (accessibility.role() == accesskit::Role::Heading)
+        .then(|| accessibility.level().unwrap_or(2).clamp(1, 6));
+    let was_heading = with_entry(node, |entry| {
+        entry
+            .accessibility
+            .replace(accessibility)
+            .is_some_and(|old| old.role() == accesskit::Role::Heading)
+    })
+    .unwrap_or(false);
+    if heading.is_some() || was_heading {
+        set_attribute(node, "role", heading.map(|_| "heading".to_owned()));
+        set_attribute(node, "aria-level", heading.map(|level| level.to_string()));
+    }
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {

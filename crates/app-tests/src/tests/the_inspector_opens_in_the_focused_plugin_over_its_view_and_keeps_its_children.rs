@@ -4,7 +4,7 @@ use super::*;
 fn the_inspector_opens_in_the_focused_plugin_over_its_view_and_keeps_its_children() {
     let mut app = AppTest::start();
     app.wait("Pane \"Files\"");
-    app.click("Label value=\"No file open\"");
+    app.click("Heading \"No file open\"");
     app.key("ctrl+shift+i");
     assert!(
         !app.shown("#inspector.dock"),

@@ -27,7 +27,7 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.click("#account.name");
     app.type_text("Ada");
     app.click("#account.confirm");
-    app.wait("Label value=\"Check that you saved them\"");
+    app.wait("Heading \"Check that you saved them\"");
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
 

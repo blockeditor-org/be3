@@ -491,7 +491,7 @@ impl App {
     }
 
     fn save_phrase(&mut self) -> Result<Vec<String>, String> {
-        self.wait("Label value=\"Check that you saved them\"")?;
+        self.wait("Heading \"Check that you saved them\"")?;
         let tree = self.run(&["tree"])?;
         let phrase: Vec<String> = tree
             .lines()

@@ -5733,7 +5733,11 @@ resolve their tokens into a base `Text`'s `font` and `color`:
   returns a `TextColor`.
 - `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
   `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
-  (muted). A prop given beside a preset wins over it.
+  (muted). A prop given beside a preset wins over it. `TITLE` and `HEADING`
+  are headings, levels 1 and 2 (`TextStyle::heading(level)` makes any style
+  one): the text is an accessibility `Heading` on both cores, `role="heading"`
+  with `aria-level` on HTML. Unlike the rest of a style, a heading level is
+  not inherited from a `TextStyleProvider`.
 - `overflow`, as on the base `Text`: text wraps unless told otherwise, so a
   paragraph needs nothing, and a one-line label (a button's, a row's, a
   title in a bar) takes `overflow=Overflow::Ellipsis`.

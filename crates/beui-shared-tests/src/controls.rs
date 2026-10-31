@@ -10,6 +10,7 @@ pub fn ButtonsFixture() -> NodeId {
     let pin = create_memo(move || format!("Pinned {}", pinned.get()));
     view! {
         <List spacing=Space::Md>
+            <Text style=TextStyle::HEADING>"Actions"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Save"
