@@ -100,6 +100,9 @@ pub fn Fixture(name: String) -> Root {
         "popups" => view! {
             <controls::PopupsFixture />
         },
+        "described" => view! {
+            <controls::DescribedFixture />
+        },
         "fields" => view! {
             <controls::FieldsFixture />
         },

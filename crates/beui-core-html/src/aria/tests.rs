@@ -3,7 +3,7 @@ use crate::document::{create, element, set_accessibility};
 
 fn html(tag: &'static str, node: accesskit::Node) -> String {
     let made = create("Test", tag);
-    set_accessibility(made, node);
+    set_accessibility(made, node, 1);
     element(made).expect("made above").to_html()
 }
 
@@ -18,3 +18,4 @@ mod a_checked_switch_reads_as_a_checked_aria_switch;
 mod a_native_element_keeps_its_own_semantics;
 mod a_selected_tab_reads_as_a_selected_aria_tab;
 mod a_slider_carries_its_value_and_range;
+mod the_outermost_component_describes_a_shared_element;

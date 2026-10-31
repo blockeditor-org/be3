@@ -269,3 +269,45 @@ pub fn TextAreaFixture() -> NodeId {
         </List>
     }
 }
+
+#[component]
+pub fn DescribedFixture() -> NodeId {
+    let renames = create_signal(0_u32);
+    let inner = create_memo(move || format!("Inner {}", renames.get()));
+    let report = create_memo(move || format!("Renamed {}", renames.get()));
+    view! {
+        <List spacing=Space::Md>
+            <DescribedOuter inner />
+            <Button
+                label="Rename"
+                @test_id="described.rename"
+                on_click={move || renames.update(|renames| *renames += 1)}
+            />
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+fn group(label: String) -> beui::accesskit::Node {
+    let mut node = beui::accesskit::Node::new(beui::accesskit::Role::Group);
+    node.set_label(label);
+    node
+}
+
+#[component]
+fn DescribedOuter(inner: Memo<String>) -> NodeId {
+    component_accessibility(group("Outer".to_owned()));
+    view! {
+        <DescribedInner label={inner} />
+    }
+}
+
+#[component]
+fn DescribedInner(label: Memo<String>) -> NodeId {
+    component_accessibility(create_memo(move || group(label.get())));
+    view! {
+        <List spacing=Space::Md>
+            <Text>"Described"</Text>
+        </List>
+    }
+}

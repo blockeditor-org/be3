@@ -16,7 +16,7 @@ pub(crate) struct Shared {
     style: Vec<(&'static str, String)>,
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
-    described_by: Option<u32>,
+    described: Option<(u64, accesskit::Node)>,
     aria: Vec<(&'static str, String)>,
 }
 
@@ -28,7 +28,6 @@ pub(crate) struct Entry {
     pub(crate) owner: Option<ScopeContext>,
     pub(crate) direction: Direction,
     pub(crate) states: Vec<Box<dyn Any>>,
-    pub(crate) accessibility: Option<accesskit::Node>,
     refs: Vec<Weak<NodeCell>>,
 }
 
@@ -115,7 +114,6 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         owner: reactive::current_scope(),
         direction: Direction::Vertical,
         states: Vec::new(),
-        accessibility: None,
         refs: Vec::new(),
     };
     let node = ARENA.with(|arena| {
@@ -361,19 +359,22 @@ pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
     .flatten()
 }
 
-pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
-    let Some((element, shared, wraps)) = with_entry(node, |entry| {
-        (entry.element.clone(), entry.shared.clone(), entry.wraps)
-    }) else {
+pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64) {
+    let Some((element, shared)) =
+        with_entry(node, |entry| (entry.element.clone(), entry.shared.clone()))
+    else {
         return;
     };
-    let attributes = crate::aria::attributes(&accessibility, element.tag());
-    with_entry(node, |entry| entry.accessibility = Some(accessibility));
     let mut shared = shared.borrow_mut();
-    if shared.described_by.is_some_and(|outer| outer > wraps) {
+    if shared
+        .described
+        .as_ref()
+        .is_some_and(|(held, _)| *held > rank)
+    {
         return;
     }
-    shared.described_by = Some(wraps);
+    let attributes = crate::aria::attributes(&accessibility, element.tag());
+    shared.described = Some((rank, accessibility));
     for (name, _) in &shared.aria {
         if !attributes.iter().any(|(set, _)| set == name) {
             element.set_attribute(name, None);
@@ -424,7 +425,7 @@ pub struct About {
 pub fn about_elements() -> Vec<About> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
-        let mut found: Vec<(About, u32, Option<u32>)> = Vec::new();
+        let mut found: Vec<(About, u32)> = Vec::new();
         let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::default();
         for (index, (generation, entry)) in arena.slots.iter().enumerate() {
             let Some(entry) = entry.as_ref() else {
@@ -440,23 +441,23 @@ pub fn about_elements() -> Vec<About> {
                             element: entry.element.clone(),
                             kinds: Vec::new(),
                             test_ids: entry.shared.borrow().test_ids.clone(),
-                            accessibility: None,
+                            accessibility: entry
+                                .shared
+                                .borrow()
+                                .described
+                                .as_ref()
+                                .map(|(_, described)| described.clone()),
                         },
                         entry.wraps,
-                        None,
                     ));
                     found.len() - 1
                 });
-            let (about, wraps, described) = &mut found[at];
+            let (about, wraps) = &mut found[at];
             if *wraps < entry.wraps {
                 about.node = node;
                 *wraps = entry.wraps;
             }
             about.kinds.push(entry.kind);
-            if entry.accessibility.is_some() && described.is_none_or(|outer| outer < entry.wraps) {
-                about.accessibility = entry.accessibility.clone();
-                *described = Some(entry.wraps);
-            }
         }
         found.into_iter().map(|(about, ..)| about).collect()
     })

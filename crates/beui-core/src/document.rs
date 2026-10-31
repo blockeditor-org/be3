@@ -169,6 +169,7 @@ pub struct Document {
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
+    accessibility_ranks: NodeMap<u64>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
     pub work: WorkCounters,
@@ -410,6 +411,7 @@ impl Document {
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_ranks: NodeMap::default(),
             accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
@@ -965,7 +967,15 @@ impl Document {
         !self.changes.is_empty() || !self.damage_flashes.is_empty()
     }
 
-    pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
+    pub fn set_accessibility(&mut self, id: NodeId, node: Node, rank: u64) {
+        if self
+            .accessibility_ranks
+            .get(&id)
+            .is_some_and(|held| *held > rank)
+        {
+            return;
+        }
+        self.accessibility_ranks.insert(id, rank);
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
             self.arena.touch(id);
@@ -1175,6 +1185,7 @@ impl Document {
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_ranks.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
