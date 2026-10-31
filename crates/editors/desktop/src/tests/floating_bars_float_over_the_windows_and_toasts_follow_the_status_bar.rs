@@ -33,5 +33,7 @@ fn floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar() {
         card.top() >= status.bottom(),
         "beneath the Status bar rather than over it: {card:?} {status:?}"
     );
-    fixture.test.snapshot("a_toast_beneath_the_floating_status_bar");
+    fixture
+        .test
+        .snapshot("a_toast_beneath_the_floating_status_bar");
 }

@@ -7,9 +7,9 @@ use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
+use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
-use beui_view::reactive::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PopoverPlacement {

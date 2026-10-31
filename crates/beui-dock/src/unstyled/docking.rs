@@ -35,8 +35,8 @@ use beui_components_unstyled::DialogLayout;
 use beui_components_unstyled::menu_popup::MenuStyle;
 const MAX_JOINED_DEPTH: usize = 16;
 
-use super::{BarCovers, BarFloats};
 use super::bars::shared_key;
+use super::{BarCovers, BarFloats};
 pub use host::{
     DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab,
     DockDragStage, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockJoin, DockKeeper,
@@ -668,7 +668,8 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn over_bars_rect(&self, edge: DockEdge, align: DockAlign) -> Option<Rect> {
-        self.floats.with(|floats| floats.get(&(edge, align)).copied())
+        self.floats
+            .with(|floats| floats.get(&(edge, align)).copied())
     }
 
     pub fn window_rect(&self, key: &K) -> Option<Rect> {

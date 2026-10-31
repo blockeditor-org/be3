@@ -346,7 +346,9 @@ fn banded_rect(node: NodeRef, band: NodeRef, placement: Placement) -> Option<Rec
             .map(|element| crate::dom::client_rect(&element))
     };
     let rect = shown(node)?;
-    Some(shown(band).map_or(rect, |band| beui_types::layer::banded(rect, band, placement)))
+    Some(shown(band).map_or(rect, |band| {
+        beui_types::layer::banded(rect, band, placement)
+    }))
 }
 
 #[cfg(not(target_arch = "wasm32"))]

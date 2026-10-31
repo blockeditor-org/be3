@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::{NodeId, Rect};
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::dock::styled::{
     DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
@@ -14,6 +13,7 @@ use block_editor_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
 use block_editor_beui::beui::reactive::toggle_keyboard;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{NodeId, Rect};
 use block_editor_beui::{
     DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
 };

@@ -490,7 +490,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         };
         for window in windows {
             let keys = window.window.intercepted_keys.clone();
-            match desk.intercepts.iter_mut().find(|(screen, _)| *screen == window.screen) {
+            match desk
+                .intercepts
+                .iter_mut()
+                .find(|(screen, _)| *screen == window.screen)
+            {
                 Some((_, held)) => *held = keys,
                 None => desk.intercepts.push((window.screen, keys)),
             }

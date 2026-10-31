@@ -266,7 +266,9 @@ impl OverlayNode {
             OverlayAnchor::Band { band, .. } => anchored.map(|node| {
                 band.try_get()
                     .and_then(|band| out.get(&band))
-                    .map_or(node, |band| beui_types::layer::banded(node, band, self.placement))
+                    .map_or(node, |band| {
+                        beui_types::layer::banded(node, band, self.placement)
+                    })
             }),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };

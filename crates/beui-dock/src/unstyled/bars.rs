@@ -1397,7 +1397,9 @@ fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f
     let open = create_memo(move || !bars.with(Vec::is_empty) && area.get().is_positive());
     let floats = dock.floats;
     let float = move |shown: Option<Rect>| {
-        if !floats.is_alive() || floats.with_untracked(|floats| floats.get(&(edge, align)).copied()) == shown {
+        if !floats.is_alive()
+            || floats.with_untracked(|floats| floats.get(&(edge, align)).copied()) == shown
+        {
             return;
         }
         floats.update(|floats| match shown {

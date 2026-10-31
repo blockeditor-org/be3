@@ -24,8 +24,5 @@ fn arrow_keys_walk_the_status_bar_item_by_item() {
     );
     fixture.test.key(Key::ArrowLeft, Modifiers::NONE);
     fixture.settle();
-    assert!(
-        focused_on(&fixture, "desktop.status"),
-        "and back again"
-    );
+    assert!(focused_on(&fixture, "desktop.status"), "and back again");
 }
