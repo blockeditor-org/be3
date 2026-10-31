@@ -184,6 +184,9 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         Some(Placement::Beside(Edge::Left, Align::Center)),
         "the bar stays put while the root carries it"
     );
+    for _ in 0..8 {
+        show_docked(&mut session, &[(View::MAIN, 6)], false);
+    }
     ask(
         &mut session,
         child,

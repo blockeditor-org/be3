@@ -250,6 +250,7 @@ struct Pacing {
     unseen: bool,
     animating: bool,
     paint_at: Option<Duration>,
+    drawn_at: Duration,
     requested_at: Option<Duration>,
     animated: u64,
 }
@@ -264,10 +265,14 @@ impl Pacing {
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
-        (self.needed || (self.animated != pass && self.paint_at.is_some_and(|at| at <= now)))
+        (self.needed || (self.animated != pass && self.asked_by(now)))
             && self
                 .requested_at
                 .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
+    }
+
+    fn asked_by(&self, now: Duration) -> bool {
+        self.paint_at.is_some_and(|at| at <= now) && now > self.drawn_at
     }
 
     fn request(&mut self, now: Duration, pass: u64) {
@@ -278,6 +283,7 @@ impl Pacing {
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
         self.needed = false;
         self.requested_at = None;
+        self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
     }
 

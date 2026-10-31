@@ -21,12 +21,15 @@ pub(crate) fn set_frame_time(now: Duration, wall: Duration) {
     });
 }
 
+pub(crate) fn step(by: Duration) {
+    set_frame_time(frame_now() + by, wall_clock() + by);
+}
+
 pub(crate) fn restart() {
     FRAME.with(|frame| frame.set(None));
     WALL_CLOCK.with(|held| held.set(None));
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub(crate) fn frame_now() -> Duration {
     FRAME.with(|frame| frame.get().map_or(Duration::ZERO, |(_, now)| now))
 }

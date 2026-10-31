@@ -27,6 +27,8 @@ use block_plugin_api::ViewRef;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
+pub const FRAME_STEP: std::time::Duration = std::time::Duration::from_micros(16_667);
+
 static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
@@ -831,6 +833,7 @@ impl EditorSession {
     }
 
     pub fn frame(&mut self, views: &[(ViewId, u32)]) -> Vec<Frame> {
+        crate::clock::step(FRAME_STEP);
         let begun: Vec<ShownView> = views
             .iter()
             .map(|(view, age)| self.begin(*view, *age))

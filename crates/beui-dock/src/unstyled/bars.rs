@@ -895,9 +895,6 @@ impl State {
             return false;
         };
         let seconds = frame.delta.as_secs_f32();
-        if seconds <= 0.0 {
-            return false;
-        }
         let flight = lifting.flight.value();
         let mut flight = flight.borrow_mut();
         if !lift.settling {

@@ -27,6 +27,7 @@ mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
 mod an_editor_not_docked_draws_its_dock_itself_and_declares_nothing;
 mod an_open_beui_overlay_is_reported_over_the_child_it_covers;
+mod each_frame_of_a_session_moves_its_clock_on_by_one_step;
 mod the_frame_and_the_preview_of_one_block_both_load_its_content;
 
 fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
