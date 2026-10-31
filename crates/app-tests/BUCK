@@ -1,19 +1,105 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load(":apps.bzl", "app_test_apps")
 
-# block-app with every plugin, headless as `:dev` runs it, driven by the same
-# commands as `drive` and painted with every plugin's own paint
-# (guides/testing_a_gui.md, Testing editors together). The app is built for a
-# worker, so the tests run on Linux x86_64 only. Each test is an action of its
-# own under ./scripts/verify (run_apart in buck/cargo/defs.bzl).
+# block-app headless as `:dev` runs it, driven by the same commands as `drive`
+# and painted with every plugin's own paint (guides/testing_a_gui.md, Testing
+# editors together). The app is built for a worker, so the tests run on Linux
+# x86_64 only. Each test is an action of its own under ./scripts/verify
+# (run_apart in buck/cargo/defs.bzl), against an app that stages only the
+# editors it names here beside the ones every app needs (apps.bzl), so it
+# builds and reruns only for those. A test not named here stages every editor:
+# keep it so for a test whose paintings show every block type, such as the add
+# menu's.
+EDITORS = {
+    "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["beui-gallery"],
+    "a_block_added_from_the_files_is_named_in_its_row": ["text-block"],
+    "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
+    "a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones": ["infinite-canvas"],
+    "a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl": ["infinite-canvas"],
+    "a_canvas_popped_out_into_a_window_hides_the_files_behind_it": ["infinite-canvas"],
+    "a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there": ["infinite-canvas"],
+    "a_canvas_tool_bar_goes_where_its_grip_menu_puts_it": ["infinite-canvas"],
+    "a_canvas_tool_bar_popped_out_lifts_out_of_its_window_and_follows_its_grip": ["infinite-canvas"],
+    "a_checklist_on_a_canvas_works_in_place_and_zooms_with_it": ["checklist", "infinite-canvas"],
+    "a_contact_link_asks_before_connecting_two_accounts": [],
+    "a_deleted_joined_block_says_so_on_each_of_its_tabs": ["beui-gallery"],
+    "a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page": ["beui-gallery"],
+    "a_dock_grip_menu_row_loses_its_highlight_when_the_pointer_leaves_the_menu": [],
+    "a_drag_across_an_empty_map_pans_it": ["map"],
+    "a_files_row_menu_escapes_the_files_where_drive_finds_it": ["block-debug", "text-block"],
+    "a_joined_blocks_tab_opens_its_details_and_palette": ["beui-gallery"],
+    "a_joined_blocks_tabs_carry_its_menu": ["beui-gallery"],
+    "a_joined_demos_tab_bodies_are_in_the_accessibility_tree": ["beui-gallery"],
+    "a_local_account_needs_only_a_display_name": [],
+    "a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size": ["checklist", "infinite-canvas"],
+    "a_new_folder_opens_its_editor": ["workspace-index"],
+    "a_new_image_asks_for_its_file_in_the_image_editors_own_dialog": ["image-block"],
+    "a_new_text_block_opens_in_a_tab_beside_the_files": ["text-block"],
+    "a_pen_draws_a_line_on_a_canvas_with_the_pen_tool": ["infinite-canvas"],
+    "a_personal_organization_can_create_an_agent": [],
+    "a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it": ["infinite-canvas", "pixel-art"],
+    "a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab": ["beui-gallery"],
+    "a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck": ["infinite-canvas", "presentation", "text-block"],
+    "a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on": ["block-debug", "text-block"],
+    "a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu": [],
+    "a_second_finger_turns_a_pen_stroke_into_a_pinch": ["infinite-canvas"],
+    "a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions": ["desktop", "infinite-canvas"],
+    "a_setting_opens_from_the_settings_tab_beside_the_files": ["settings"],
+    "a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar": ["infinite-canvas", "presentation", "text-block"],
+    "a_slides_preview_catches_up_with_quick_changes_after_a_pause": ["infinite-canvas", "presentation", "text-block"],
+    "a_tab_keeps_its_view_through_a_resize": ["pixel-art"],
+    "a_tab_popped_out_in_space_is_a_panel_of_its_own": ["settings"],
+    "a_tooltip_from_the_files_reaches_past_them": [],
+    "adding_an_account_chooses_a_local_or_custom_server": [],
+    "an_active_child_pans_in_the_frame_its_canvas_pans": ["infinite-canvas", "pixel-art"],
+    "an_invitation_shows_the_link_to_send_the_invited_person": [],
+    "choosing_a_scale_draws_the_app_larger": ["settings"],
+    "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
+    "closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace": ["beui-gallery"],
+    "closing_a_tab_shuts_its_editor_down": ["text-block"],
+    "fit_on_an_active_child_fits_its_content_in_its_view": ["infinite-canvas", "pixel-art"],
+    "in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice": ["beui-gallery"],
+    "leaving_a_workspace_someone_shared_asks_first": [],
+    "moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_plugin": [],
+    "my_files_offers_no_delete": [],
+    "on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace": ["beui-gallery"],
+    "on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_app": [],
+    "on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet": ["text-block"],
+    "on_a_phone_the_app_menu_rises_as_a_sheet_it_draws_itself": [],
+    "presenting_a_deck_again_and_again_adds_no_blocks": ["infinite-canvas", "presentation", "text-block"],
+    "presenting_a_deck_fills_the_screen_until_escape": ["infinite-canvas", "presentation", "text-block"],
+    "pressing_the_files_after_a_text_block_moves_the_focus_to_them": ["text-block"],
+    "reopening_a_block_keeps_the_view_the_person_moved": ["pixel-art"],
+    "revision_history_previews_and_restores_a_text_file": ["text-block"],
+    "the_app_menu_opens_under_its_button": [],
+    "the_app_opens_its_files_and_closes_cleanly": [],
+    "the_canvas_menu_ticks_its_grid_and_profile_in_submenus": ["infinite-canvas"],
+    "the_canvas_zoom_bar_floats_at_any_corner_and_stays_there": ["infinite-canvas"],
+    "the_desktop_shell_opens_and_closes_cleanly": ["desktop"],
+    "the_files_new_menu_row_loses_its_highlight_when_the_pointer_leaves": [],
+    "the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace": [],
+    "the_inspector_opens_in_the_focused_plugin_over_its_view_and_keeps_its_children": [],
+    "the_members_dialog_lists_an_organizations_members_and_their_roles": [],
+    "the_more_card_hangs_on_its_tab_and_leaves_the_files_usable": ["checklist", "infinite-canvas"],
+    "the_organizations_screen_takes_an_invite_link": [],
+    "the_rename_card_from_the_files_reaches_past_them": ["text-block"],
+    "the_rename_card_takes_the_keyboard_with_its_name_selected": ["text-block"],
+    "the_text_settings_point_at_the_tab_from_its_menu_and_the_palette": ["text-block"],
+    "the_workspace_splitter_reaches_over_the_files_and_its_tabs_scroll_with_the_wheel": [],
+    "two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown": ["infinite-canvas"],
+    "typing_after_a_pause_undoes_as_its_own_step": ["text-block"],
+    "typing_in_the_add_menu_from_the_files_reaches_it_straight_away": ["checklist"],
+}
 
 cargo_library()
 
 cargo_test(
+    apart_env = app_test_apps(EDITORS),
     paints = True,
     run_apart = True,
     run_env = {
         "APP_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-        "BLOCK_APP": "$(location //crates/block-app:native)/block-app",
+        "BLOCK_APP": "$(location :app-all)/block-app",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },

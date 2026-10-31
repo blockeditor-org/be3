@@ -136,7 +136,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own. Its compile never takes the
 # variable: a sysroot's libc in it would load into the compiler.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, apart_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -161,16 +161,22 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             target_compatible_with = kwargs.get("target_compatible_with", []),
             **common,
         )
-        painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
+        apart = {}
+        if run_apart:
+            tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
+            for test in apart_env:
+                if test not in tests:
+                    fail("apart_env names {}, which is not a file under src/tests/".format(test))
+            apart = {test: run_env | apart_env.get(test, {}) for test in tests}
+        painting_test(name = name, apart = apart, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
         if not run_apart:
             painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
             return
-        for path in native.glob(["src/tests/*.rs"]):
-            test = path.removeprefix("src/tests/").removesuffix(".rs")
+        for test, test_env in apart.items():
             painting_test_run(
                 name = "{}-run-{}".format(name, test),
                 args = ["tests::{}::".format(test)],
-                env = run_env,
+                env = test_env,
                 harness = ":" + name + "-harness",
                 manifest = "Cargo.toml",
                 paintings = paintings,
@@ -243,7 +249,9 @@ library_path_test = rule(
 # crates/app-tests is one: block-app with its plugins, driven headless. With
 # run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
 # test that fails costs only its own paintings rather than every one the crate
-# accepts, since a failed action keeps no outputs.
+# accepts, since a failed action keeps no outputs; apart_env adds to run_env
+# for the files it names, as crates/app-tests names each test's own app, and
+# ./scripts/test runs each file apart with its own environment too.
 def _painting_command(ctx, env):
     command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
     if "LD_LIBRARY_PATH" in env:
@@ -255,13 +263,27 @@ def _painting_command(ctx, env):
 # ExternalRunnerTestInfo is not enough: the command and environment, and the
 # files it reads that the command does not name, such as the accepted
 # paintings.
-RemoteTestInfo = provider(fields = ["command", "env", "hidden"])
+# `apart` is a run_apart test's environment for each file under src/tests/, by
+# the file's name.
+RemoteTestInfo = provider(fields = {
+    "apart": provider_field(dict, default = {}),
+    "command": provider_field(typing.Any),
+    "env": provider_field(dict),
+    "hidden": provider_field(list),
+})
 
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     command = _painting_command(ctx, env)
-    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs.paintings)
+    apart = {}
+    for test, test_env in ctx.attrs.apart.items():
+        test_env = dict(test_env)
+        test_env["CARGO_MANIFEST_DIR"] = env["CARGO_MANIFEST_DIR"]
+        if "LD_LIBRARY_PATH" in test_env:
+            test_env["BE3_LD_LIBRARY_PATH"] = test_env.pop("LD_LIBRARY_PATH")
+        apart[test] = test_env
+    remote = RemoteTestInfo(apart = apart, command = command, env = env, hidden = ctx.attrs.paintings)
     return (
         [remote]
         + inject_test_run_info(
@@ -280,6 +302,7 @@ def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
 
 painting_test = rule(
     attrs = {
+        "apart": attrs.dict(attrs.string(), attrs.dict(attrs.string(), attrs.arg()), default = {}),
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "labels": attrs.list(attrs.string(), default = []),
