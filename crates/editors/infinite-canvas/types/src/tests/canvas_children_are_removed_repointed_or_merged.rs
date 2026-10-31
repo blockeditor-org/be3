@@ -60,6 +60,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
             &content,
             &InfiniteCanvasOperation::Add {
                 entity: Box::new(entity),
+                pixels: None,
             },
         );
         content.apply(&edit);

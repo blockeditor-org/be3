@@ -4899,6 +4899,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bench",
  "beui",
  "block-editor-beui",

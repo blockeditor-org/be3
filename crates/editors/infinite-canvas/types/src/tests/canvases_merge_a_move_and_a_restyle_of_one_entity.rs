@@ -22,6 +22,7 @@ fn canvases_merge_a_move_and_a_restyle_of_one_entity() {
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
             entity: Box::new(original.clone()),
+            pixels: None,
         },
     );
     let mut moved = original.clone();

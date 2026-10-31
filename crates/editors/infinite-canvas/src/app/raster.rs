@@ -399,6 +399,7 @@ impl CanvasState {
             self.open_writes();
             self.record(InfiniteCanvasOperation::Add {
                 entity: Box::new(entity),
+                pixels: None,
             });
         }
         if !pixels.is_empty() {

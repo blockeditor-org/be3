@@ -4,14 +4,15 @@ use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 use crate::{
-    Canvas, CanvasContent, CanvasEntity, CanvasPixel, CanvasPixelUpdate, CanvasPoint, CanvasShape,
-    CanvasTransform, InfiniteCanvasOperation,
+    Canvas, CanvasContent, CanvasEntity, CanvasPixel, CanvasPixelUpdate, CanvasPoint, CanvasRaster,
+    CanvasShape, CanvasTransform, InfiniteCanvasOperation,
 };
 
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_canvas_profile_is_kept_but_never_undone;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
+mod a_raster_layer_added_with_its_pixels_keeps_them_and_its_scale;
 mod a_raster_layer_starts_at_its_natural_size_and_scales_freely;
 mod an_arrow_end_bound_to_a_shape_follows_it_and_stays_when_it_is_removed;
 mod canvas_children_are_removed_repointed_or_merged;
@@ -61,6 +62,7 @@ fn raster_layer(content: &CanvasContent, width: u16, height: u16) -> (CanvasCont
         content,
         InfiniteCanvasOperation::Add {
             entity: Box::new(layer),
+            pixels: None,
         },
     );
     (content, id)

@@ -16,6 +16,7 @@ fn a_raster_layer_starts_at_its_natural_size_and_scales_freely() {
         &blank,
         InfiniteCanvasOperation::Add {
             entity: Box::new(layer),
+            pixels: None,
         },
     );
     let raster = Canvas::raster(&content, id).expect("a raster layer");

@@ -36,6 +36,7 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::entities::Entities;
+use super::export::{decode_raster, encode_raster};
 use super::raster::{RasterTools, Stroke};
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
@@ -49,6 +50,8 @@ const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
 #[derive(Deserialize, Serialize)]
 struct CanvasClipboardPayload {
     entities: Vec<CanvasEntity>,
+    #[serde(default)]
+    rasters: BTreeMap<Uuid, String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -237,6 +240,7 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         originals: Vec<CanvasEntity>,
         duplicate: bool,
+        rasters: Rasters,
         snapped: bool,
     },
     Resize {
@@ -1022,13 +1026,14 @@ impl CanvasState {
             .unwrap_or(false)
     }
 
-    fn put_live(&self, entities: Vec<CanvasEntity>) {
+    fn put_live(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {
         let (held, added): (Vec<_>, Vec<_>) = entities
             .into_iter()
             .partition(|entity| self.holds(entity.id));
         let mut operations: Vec<InfiniteCanvasOperation> = added
             .into_iter()
             .map(|entity| InfiniteCanvasOperation::Add {
+                pixels: rasters.get(&entity.id).cloned(),
                 entity: Box::new(entity),
             })
             .collect();
@@ -1050,7 +1055,7 @@ impl CanvasState {
                 current,
                 ..
             } if start != current => match self.drawn_shape(&gesture) {
-                Some(entity) => self.put_live(vec![entity]),
+                Some(entity) => self.put_live(vec![entity], &Rasters::new()),
                 None if self.holds(*id) => {
                     self.operate(&InfiniteCanvasOperation::Remove { ids: vec![*id] })
                 }
@@ -1075,13 +1080,15 @@ impl CanvasState {
                 } else if let [start, _, ..] = points[..] {
                     let entity =
                         pen_entity(points.clone(), pressures.clone(), self.default_style());
-                    self.put_live(vec![seeded(entity, *id, start)]);
+                    self.put_live(vec![seeded(entity, *id, start)], &Rasters::new());
                 }
                 written.set(points.len());
             }
             Gesture::Move {
-                duplicate: true, ..
-            } => self.put_live(gesture_entities(&gesture)),
+                duplicate: true,
+                rasters,
+                ..
+            } => self.put_live(gesture_entities(&gesture), rasters),
             Gesture::Endpoint { .. } => self.operate(&InfiniteCanvasOperation::Update {
                 entities: self.endpoint_entities(&gesture),
             }),
@@ -1100,12 +1107,13 @@ impl CanvasState {
         }
     }
 
-    fn add_selected(&self, entities: Vec<CanvasEntity>) {
+    fn add_selected(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {
         self.selection
             .set(entities.iter().map(|entity| entity.id).collect());
         let operations = entities
             .into_iter()
             .map(|entity| InfiniteCanvasOperation::Add {
+                pixels: rasters.get(&entity.id).cloned(),
                 entity: Box::new(entity),
             })
             .collect::<Vec<_>>();
@@ -1743,6 +1751,7 @@ impl CanvasState {
         }
         self.record(InfiniteCanvasOperation::Add {
             entity: Box::new(entity),
+            pixels: None,
         });
         self.select_added(id, shape);
     }
@@ -1764,17 +1773,34 @@ impl CanvasState {
     }
 
     pub(crate) fn duplicate_selection(&self) {
-        let duplicates = duplicate_entities(
-            self.selected_entities(),
+        let selected = self.selected_entities();
+        let rasters = self.rasters_of(&selected);
+        let (duplicates, rasters) = duplicate_entities(
+            selected,
             CanvasPoint::new(IMPORT_CASCADE_OFFSET, IMPORT_CASCADE_OFFSET),
+            &rasters,
         );
-        self.add_selected(duplicates);
+        self.add_selected(duplicates, &rasters);
+    }
+
+    fn rasters_of(&self, entities: &[CanvasEntity]) -> Rasters {
+        self.content()
+            .read(|canvas| {
+                entities
+                    .iter()
+                    .filter(|entity| entity.shape == CanvasShape::Raster)
+                    .filter_map(|entity| Some((entity.id, Canvas::raster(canvas, entity.id)?)))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn begin_move(&self, world: CanvasPoint, duplicate: bool) {
         let mut originals = self.selected_unlocked();
+        let mut rasters = Rasters::new();
         if duplicate {
-            originals = duplicate_entities(originals, CanvasPoint::default());
+            let held = self.rasters_of(&originals);
+            (originals, rasters) = duplicate_entities(originals, CanvasPoint::default(), &held);
             self.selection
                 .set(originals.iter().map(|entity| entity.id).collect());
         }
@@ -1783,6 +1809,7 @@ impl CanvasState {
             current: world,
             originals,
             duplicate,
+            rasters,
             snapped: self.snaps.get_untracked(),
         }));
     }
@@ -2061,7 +2088,12 @@ impl CanvasState {
         if entities.is_empty() {
             return false;
         }
-        match serde_json::to_string(&CanvasClipboardPayload { entities }) {
+        let rasters = self
+            .rasters_of(&entities)
+            .into_iter()
+            .filter_map(|(id, raster)| Some((id, encode_raster(&raster)?)))
+            .collect();
+        match serde_json::to_string(&CanvasClipboardPayload { entities, rasters }) {
             Ok(json) => {
                 block_editor_beui::beui::reactive::copy_text(format!(
                     "{CANVAS_CLIPBOARD_PREFIX}{json}"
@@ -2110,11 +2142,17 @@ impl CanvasState {
         };
         let from = bounds.center();
         let to = self.paste_center();
-        let duplicates = duplicate_entities(
+        let rasters = payload
+            .rasters
+            .iter()
+            .filter_map(|(id, png)| Some((*id, decode_raster(png)?)))
+            .collect();
+        let (duplicates, rasters) = duplicate_entities(
             payload.entities,
             CanvasPoint::new(to.x - from.x, to.y - from.y),
+            &rasters,
         );
-        self.add_selected(duplicates);
+        self.add_selected(duplicates, &rasters);
         self.put_down_tool();
         true
     }
@@ -2494,6 +2532,7 @@ impl CanvasState {
         self.selection.set(HashSet::from([entity_id]));
         self.record(InfiniteCanvasOperation::Add {
             entity: Box::new(entity),
+            pixels: None,
         });
     }
 
@@ -2568,7 +2607,7 @@ impl CanvasState {
                 if shape == CanvasShape::Text {
                     self.draft_text(created);
                 }
-                self.put_live(vec![entity]);
+                self.put_live(vec![entity], &Rasters::new());
                 self.select_added(created, shape);
                 if !self.tool_locked.get_untracked() {
                     self.put_down_tool();
@@ -2583,7 +2622,7 @@ impl CanvasState {
             } => {
                 if let Some(&start) = points.first() {
                     let entity = pen_entity(points, pressures, self.default_style());
-                    self.put_live(vec![seeded(entity, id, start)]);
+                    self.put_live(vec![seeded(entity, id, start)], &Rasters::new());
                     self.select_added(id, CanvasShape::Freehand);
                 }
             }

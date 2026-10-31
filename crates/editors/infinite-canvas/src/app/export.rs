@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::native::{core_painter, wrap_painter};
 use std::collections::BTreeMap;
@@ -672,11 +674,6 @@ fn svg_entity(
     let turn = turn(entity);
     if let Some(raster) = scene.rasters.get(&entity.id) {
         let rect = world.rect(entity_bounds(entity));
-        let data = encode_png(
-            [u32::from(raster.width()), u32::from(raster.height())],
-            raster.rgba_bytes().to_vec(),
-        )
-        .unwrap_or_default();
         out.push_str(&format!(
             "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"none\" image-rendering=\"pixelated\" style=\"image-rendering:pixelated\"{} href=\"data:image/png;base64,{}\"/>\n",
             number(rect.min.x),
@@ -684,7 +681,7 @@ fn svg_entity(
             number(rect.width()),
             number(rect.height()),
             opacity_of(opacity),
-            base64(&data)
+            encode_raster(raster).unwrap_or_default()
         ));
         return;
     }
@@ -709,7 +706,7 @@ fn svg_entity(
                 "<image {place} preserveAspectRatio=\"none\"{} href=\"data:{};base64,{}\"/>\n",
                 opacity_of(opacity),
                 escape(&image.media_type),
-                base64(&image.data)
+                BASE64.encode(&image.data)
             )),
             None => {
                 let surface = with_opacity(scene.palette.surface, opacity);
@@ -993,24 +990,25 @@ fn escape(text: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn base64(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let bytes = [
-            chunk[0],
-            *chunk.get(1).unwrap_or(&0),
-            *chunk.get(2).unwrap_or(&0),
-        ];
-        let joined = (u32::from(bytes[0]) << 16) | (u32::from(bytes[1]) << 8) | u32::from(bytes[2]);
-        for index in 0..4 {
-            match index <= chunk.len() {
-                true => out.push(ALPHABET[(joined >> (18 - 6 * index) & 63) as usize] as char),
-                false => out.push('='),
-            }
-        }
-    }
-    out
+pub(crate) fn encode_raster(raster: &CanvasRaster) -> Option<String> {
+    encode_png(
+        [u32::from(raster.width()), u32::from(raster.height())],
+        raster.rgba_bytes().to_vec(),
+    )
+    .ok()
+    .map(|png| BASE64.encode(png))
+}
+
+pub(crate) fn decode_raster(encoded: &str) -> Option<CanvasRaster> {
+    let png = BASE64.decode(encoded).ok()?;
+    let image = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+        .ok()?
+        .into_rgba8();
+    CanvasRaster::from_rgba(
+        u16::try_from(image.width()).ok()?,
+        u16::try_from(image.height()).ok()?,
+        image.as_raw(),
+    )
 }
 
 pub(crate) const DIALOG_SPACING: Space = Space::Lg;

@@ -101,9 +101,11 @@ counts as a conflict. The pixels are not in `CanvasEntity`: read them with
 `Canvas::raster(content, id)` or `Entity::raster`, which share the grid's bytes
 (`be_model::Cells` holds them copy-on-write) rather than copy them. The canvas
 root holds the raster `palette`. A layer is never rotated, and its transform
-may be any size, which scales its pixels: `Add` derives the pixel count from
-the transform's size, one pixel a world unit, and puts the corner on whole
-units; `Update` moves and scales it like any shape; and `Resize` keeps the
+may be any size, which scales its pixels: a blank `Add` derives the pixel
+count from the transform's size, one pixel a world unit, and puts the corner on
+whole units, while an `Add` carrying `pixels` (a duplicate, an Alt-drag or a
+paste) keeps them and the transform's size; the clipboard's text carries each
+copied layer's pixels as a base64 PNG; `Update` moves and scales it like any shape; and `Resize` keeps the
 layer's world units per pixel on each axis and moves the transform by its
 anchor so the pixels stay where they were. `Paint`, `Fill`,
 `ReplaceColor`, `Clear`, `Resize` and `SetPalette` are pixel-art's operations,

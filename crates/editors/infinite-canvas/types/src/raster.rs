@@ -70,6 +70,27 @@ impl CanvasRaster {
         })
     }
 
+    pub fn from_rgba(width: u16, height: u16, rgba: &[u8]) -> Option<Self> {
+        if !valid_dimension(width)
+            || !valid_dimension(height)
+            || rgba.len() != usize::from(width) * usize::from(height) * 4
+        {
+            return None;
+        }
+        let mut pixels = Grid::new(Bounds::new(0, 0, u32::from(width), u32::from(height)));
+        let mut rows = rgba.as_chunks::<4>().0.chunks(usize::from(width));
+        for y in 0..i32::from(height) {
+            for (x, pixel) in (0..).zip(rows.next().unwrap_or_default()) {
+                pixels.set(x, y, *pixel);
+            }
+        }
+        Some(Self { pixels })
+    }
+
+    pub(crate) fn grid(&self) -> &Grid<[u8; 4]> {
+        &self.pixels
+    }
+
     pub fn width(&self) -> u16 {
         u16::try_from(self.pixels.bounds().width).unwrap_or(MAX_RASTER_SIZE)
     }

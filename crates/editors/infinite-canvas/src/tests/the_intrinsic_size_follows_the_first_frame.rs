@@ -20,12 +20,14 @@ fn the_intrinsic_size_follows_the_first_frame() {
         &mut editor,
         InfiniteCanvasOperation::Add {
             entity: Box::new(first),
+            pixels: None,
         },
     );
     apply(
         &mut editor,
         InfiniteCanvasOperation::Add {
             entity: Box::new(second),
+            pixels: None,
         },
     );
     editor.run();

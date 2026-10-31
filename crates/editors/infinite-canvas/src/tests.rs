@@ -45,6 +45,7 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
+mod a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale;
 mod a_peer_sees_a_labelled_shape_while_it_is_moved;
 mod a_peer_sees_a_move_called_off_put_back;
 mod a_peer_sees_a_shape_while_it_is_dragged;
@@ -57,6 +58,7 @@ mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_phone_opens_a_context_submenu_as_a_page_of_its_sheet;
 mod a_png_export_draws_formatted_text_as_the_canvas_does;
 mod a_preview_with_no_camera_fits_its_frame;
+mod a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale;
 mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
 mod a_raster_layer_is_exported_pixel_sharp;
 mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
@@ -444,6 +446,7 @@ fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
             &content,
             &InfiniteCanvasOperation::Add {
                 entity: Box::new(entity.clone()),
+                pixels: None,
             },
         );
         content.apply(&edit);
@@ -491,6 +494,25 @@ fn paint(editor: &mut BeuiTest<CanvasApp>, id: Uuid, pixels: &[(u16, u16)], colo
         },
     );
     editor.run();
+}
+
+fn painted_scaled_layer() -> (BeuiTest<CanvasApp>, Uuid) {
+    let layer = raster_layer(1, CanvasPoint::default(), 8);
+    let mut editor = raster_editor(std::slice::from_ref(&layer));
+    paint(&mut editor, layer.id, &[(1, 1), (6, 2), (3, 6)], RED);
+    let mut scaled = rasters(&editor).remove(0);
+    scaled.transform.size = CanvasPoint::new(16.0, 16.0);
+    apply(
+        &mut editor,
+        InfiniteCanvasOperation::Update {
+            entities: vec![scaled],
+        },
+    );
+    editor.run();
+    let center = editor.rect_of("infinite-canvas.canvas").center();
+    editor.click(center + Vec2::new(4.0, 4.0));
+    editor.run();
+    (editor, layer.id)
 }
 
 fn rasters(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {

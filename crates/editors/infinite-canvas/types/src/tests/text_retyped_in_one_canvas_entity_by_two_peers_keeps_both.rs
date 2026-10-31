@@ -16,6 +16,7 @@ fn text_retyped_in_one_canvas_entity_by_two_peers_keeps_both() {
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
             entity: Box::new(note.clone()),
+            pixels: None,
         },
     );
     assert_eq!(text_of(&base), "hello world");

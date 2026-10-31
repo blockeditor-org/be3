@@ -538,10 +538,11 @@ pub enum CanvasLayerMove {
     SendToBack,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InfiniteCanvasOperation {
     Add {
         entity: Box<CanvasEntity>,
+        pixels: Option<CanvasRaster>,
     },
     Update {
         entities: Vec<CanvasEntity>,
@@ -716,15 +717,33 @@ impl Entity {
         }
     }
 
-    fn placed(entity: &CanvasEntity) -> Self {
+    fn placed(entity: &CanvasEntity, pixels: Option<&CanvasRaster>) -> Self {
         let mut held = Self::of(entity);
-        if entity.shape == CanvasShape::Raster {
-            let (width, height) = raster_dimensions(entity.transform.size);
-            let transform = CanvasTransform::raster(entity.transform.center, width, height);
-            held.center = transform.center;
-            held.size = transform.size;
-            held.rotation = 0.0;
-            held.pixels = Grid::new(Bounds::new(0, 0, u32::from(width), u32::from(height)));
+        if entity.shape != CanvasShape::Raster {
+            return held;
+        }
+        held.rotation = 0.0;
+        let size = entity.transform.size;
+        match pixels {
+            Some(raster) => {
+                held.pixels = raster.grid().clone();
+                if !(size.x.is_finite() && size.y.is_finite() && size.x != 0.0 && size.y != 0.0) {
+                    let transform = CanvasTransform::raster(
+                        entity.transform.center,
+                        raster.width(),
+                        raster.height(),
+                    );
+                    held.center = transform.center;
+                    held.size = transform.size;
+                }
+            }
+            None => {
+                let (width, height) = raster_dimensions(size);
+                let transform = CanvasTransform::raster(entity.transform.center, width, height);
+                held.center = transform.center;
+                held.size = transform.size;
+                held.pixels = Grid::new(Bounds::new(0, 0, u32::from(width), u32::from(height)));
+            }
         }
         held
     }
@@ -836,7 +855,7 @@ impl Canvas {
                     .map(|entity| {
                         (
                             ObjectId::from_uuid(entity.id),
-                            Entity::placed(&normalized_entity(entity)),
+                            Entity::placed(&normalized_entity(entity), None),
                         )
                     }),
             ),
@@ -878,7 +897,7 @@ impl Canvas {
         };
         let unbound = |id: Uuid| held(id)?.view(ObjectId::from_uuid(id));
         match operation {
-            InfiniteCanvasOperation::Add { entity } => {
+            InfiniteCanvasOperation::Add { entity, pixels } => {
                 if entity.id.is_nil() || content.tree().contains(ObjectId::from_uuid(entity.id)) {
                     return Edit::default();
                 }
@@ -887,7 +906,10 @@ impl Canvas {
                         ObjectId::from_uuid(entity.id),
                         ObjectId::ROOT,
                         Anchor::End,
-                        &Entity::placed(&normalized_entity(entity.as_ref().clone())),
+                        &Entity::placed(
+                            &normalized_entity(entity.as_ref().clone()),
+                            pixels.as_ref(),
+                        ),
                     )
                     .into()
             }
