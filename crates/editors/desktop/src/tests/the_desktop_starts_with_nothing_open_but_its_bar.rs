@@ -20,7 +20,8 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
         );
     }
     assert!(
-        document.find_test_id("dock.grip").is_none() && document.find_test_id("dock.grip.desktop").is_none(),
+        document.find_test_id("dock.grip").is_none()
+            && document.find_test_id("dock.grip.desktop").is_none(),
         "the desktop's empty area is its background, with no pane grip"
     );
     let clock = document

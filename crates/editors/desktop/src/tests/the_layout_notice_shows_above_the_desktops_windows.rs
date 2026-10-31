@@ -21,9 +21,10 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
     let mut fixture = Fixture::holding(saved);
     fixture.settle();
     fixture.show_windows(&[host_window(2, true)]);
-    fixture
-        .test
-        .show_on_displays(&[(Rect::from_min_size(Default::default(), Vec2::new(800.0, 600.0)), 1.0)]);
+    fixture.test.show_on_displays(&[(
+        Rect::from_min_size(Default::default(), Vec2::new(800.0, 600.0)),
+        1.0,
+    )]);
     fixture.settle();
 
     let window = fixture

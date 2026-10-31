@@ -1,8 +1,8 @@
 use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
-    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics, WindowEdge, WindowPlacement,
-    WindowRequest,
+    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics,
+    WindowEdge, WindowPlacement, WindowRequest,
 };
 
 use super::{BeuiTest, INSTANCE, SCREEN};
