@@ -424,12 +424,18 @@ impl Shared {
 
     pub fn busy(&self) -> Vec<&'static str> {
         [
-            (self.pending > 0, "the block store has commands to carry out"),
+            (
+                self.pending > 0,
+                "the block store has commands to carry out",
+            ),
             (self.typing, "a block type module has yet to settle"),
             (self.draining, "the block store sends sealed edits"),
             (self.uploading > 0, "the block store uploads files"),
             (self.owing > 0, "the block store owes edits a seal"),
-            (self.graph.fetching(), "the block store loads the organization's graph"),
+            (
+                self.graph.fetching(),
+                "the block store loads the organization's graph",
+            ),
         ]
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason))

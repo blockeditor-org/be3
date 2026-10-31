@@ -50,7 +50,11 @@ fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_ther
     );
     app.snapshot("a_canvas_tool_bar_dragged_away_from_the_canvas_pops_out_there");
 
-    drag_bar(&mut app, GRIP, (pane.0 + pane.2 / 2.0, pane.1 + pane.3 - 80.0));
+    drag_bar(
+        &mut app,
+        GRIP,
+        (pane.0 + pane.2 / 2.0, pane.1 + pane.3 - 80.0),
+    );
     let back = app.place(CANVAS_BAR);
     assert!(
         back.2 > back.3 && back.0 > pane.0 && back.1 + back.3 > pane.1 + pane.3 - 40.0,
