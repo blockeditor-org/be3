@@ -8,6 +8,21 @@ use uuid::Uuid;
 
 pub use serde_bytes::ByteBuf;
 
+be_ops_bindgen::generate!({
+    path: "wit",
+    world: "client",
+    deps: ["../be-ops/wit"],
+    with: {
+        "uuid": uuid::Uuid,
+        "hash": be_store::Hash,
+        "commit-id": be_commit::CommitId,
+        "public-key": [u8; 32],
+    },
+    copy: ["uuid", "hash", "commit-id", "public-key"],
+    default: ["key-set", "key-work", "session-state", "access-list", "organization-kind"],
+    inline: ["block-removed", "head-moved", "joined", "relayed"],
+});
+
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1026,3 +1041,6 @@ pub fn read_hello(frame: &[u8]) -> Option<String> {
     let build = frame.strip_prefix(HELLO)?;
     String::from_utf8(build.to_vec()).ok()
 }
+
+#[cfg(test)]
+mod tests;

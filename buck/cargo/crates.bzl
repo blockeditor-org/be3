@@ -3565,6 +3565,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-guest-abi:block-guest-abi",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -4014,6 +4027,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4030,6 +4045,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4046,6 +4063,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4062,6 +4081,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4078,6 +4099,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4094,6 +4117,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4110,6 +4135,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4126,6 +4153,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4142,6 +4171,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4158,6 +4189,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -4174,6 +4207,8 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/be-ops:be-ops",
                     "//crates/be-store:be-store",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -16105,6 +16140,14 @@ crates = {
                 "test_features": [],
             },
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},

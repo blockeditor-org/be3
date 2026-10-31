@@ -990,6 +990,8 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-graph",
+ "be-ops",
+ "be-ops-bindgen",
  "be-store",
  "postcard",
  "serde",
