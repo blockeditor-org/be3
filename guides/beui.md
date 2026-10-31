@@ -1130,7 +1130,11 @@ someone else: it takes a `NodeId`, lays it out and paints it where the portal
 stands, and leaves it alone when the portal goes away, so a subtree can move
 between places in the tree without being built again. Exactly one portal shows
 a given node - claiming it takes it from the portal that had it - and the
-subtree lives as long as the scope that built it. `Embed` reserves a rectangle
+subtree lives as long as the scope that built it. A node no portal shows keeps
+the arena parent of the portal that last showed it (`Arena::parent` is the last
+container that listed it), so code walking up from a node must check that each
+step still lists it: a `Canvas` lays out the item holding the focus only if it is
+one of its own items. `Embed` reserves a rectangle
 for something outside the document (`beui::native::Embed`, since only the
 native app composites anything) — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the

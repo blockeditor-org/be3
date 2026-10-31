@@ -1,4 +1,4 @@
-use block_editor_beui::beui::{Pos2, pos2, vec2};
+use block_editor_beui::beui::{pos2, vec2};
 
 use super::*;
 
@@ -18,11 +18,10 @@ fn a_bar_thrown_up_from_its_band_floats_over_the_top() {
     fixture.test.desk_move(from + vec2(0.0, -20.0));
     fixture.test.desk_move(start);
     fixture.test.advance(std::time::Duration::from_millis(200));
-    let mut at: Pos2 = start;
-    for _ in 0..4 {
-        at += vec2(-10.0, -40.0);
-        fixture.test.desk_move(at);
-    }
+    let at = start + vec2(-40.0, -160.0);
+    fixture
+        .test
+        .desk_moves(start, at, 4, std::time::Duration::ZERO);
     fixture.test.desk_release(at);
     fixture.test.settle();
     let landed = fixture.test.desk_rects_of("desktop.bar.status");

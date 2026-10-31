@@ -87,11 +87,7 @@ fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu(
     let from = grip.center();
     let to = from + vec2(120.0, 80.0);
     test.desk_press(from);
-    test.desk_move(from + vec2(60.0, 40.0));
-    test.desk_move(to);
-    for _ in 0..20 {
-        test.advance(std::time::Duration::from_millis(25));
-    }
+    test.desk_moves(from, to, 20, std::time::Duration::from_millis(25));
     let held = test.desk_rects_of("dock.bar.9.grip");
     let [held] = held[..] else {
         panic!("the lifted bar shows its grip: {held:?}");

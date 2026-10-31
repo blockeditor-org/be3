@@ -271,7 +271,8 @@ fills it, and its windows are the host's own, drawn over it in that window's poi
 tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the views
 and hosts the windows as block-app does, gives each display and window an anchor space so
 popovers and dialogs escape above the windows, takes input in desktop points (`desk_press`,
-`desk_move`, `desk_release`, `desk_drag`; `click`, `hover`, `down`, `up` and `drag` go the same
+`desk_move`, `desk_release`, `desk_drag`, and `desk_moves`, which advances the clock by a given
+step before each move so a fluid drag is followed frame by frame; `click`, `hover`, `down`, `up` and `drag` go the same
 way, a test id to the centre of the first place the desk shows it, revealed first when a scroll cuts it, a point read in desktop
 points), sends `app_tap` to whichever view holds the keyboard (the one whose window requests
 intercept the tap) and paints a display with the windows and escaped layers on it

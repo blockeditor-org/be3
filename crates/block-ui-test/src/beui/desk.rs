@@ -603,11 +603,18 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn desk_drag(&mut self, from: Pos2, to: Pos2, steps: usize) {
         self.desk_press(from);
+        self.desk_moves(from, to, steps, std::time::Duration::ZERO);
+        self.desk_release(to);
+    }
+
+    pub fn desk_moves(&mut self, from: Pos2, to: Pos2, steps: usize, each: std::time::Duration) {
         for step in 1..=steps.max(1) {
+            if !each.is_zero() {
+                self.advance(each);
+            }
             let along = step as f32 / steps.max(1) as f32;
             self.desk_move(from + (to - from) * along);
         }
-        self.desk_release(to);
     }
 
     fn desk_pointer(&mut self, at: Pos2, pressed: Option<bool>, button: PointerButton) {

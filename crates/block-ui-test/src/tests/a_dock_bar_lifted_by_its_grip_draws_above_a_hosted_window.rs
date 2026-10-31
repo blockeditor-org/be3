@@ -63,9 +63,7 @@ fn a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window() {
     let from = grip.center();
     let to = window.center();
     test.desk_press(from);
-    for step in 1..=8 {
-        test.desk_move(from + (to - from) * (step as f32 / 8.0));
-    }
+    test.desk_moves(from, to, 8, std::time::Duration::ZERO);
     test.settle();
     let bar = test.desk_rects_of("bar");
     let [bar] = bar[..] else {
