@@ -18,6 +18,7 @@ fn editor(name: &str, edits: Edits) -> EditorManifest {
         resize: Default::default(),
         views: Vec::new(),
         accepts: Vec::new(),
+        opens: Vec::new(),
     }
 }
 

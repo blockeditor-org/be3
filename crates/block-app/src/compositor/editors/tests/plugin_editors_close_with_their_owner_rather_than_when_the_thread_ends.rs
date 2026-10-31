@@ -27,6 +27,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
                 resize: Default::default(),
                 views: Vec::new(),
                 accepts: Vec::new(),
+                opens: Vec::new(),
             }],
             block_types: Vec::new(),
             entry_point: String::new(),

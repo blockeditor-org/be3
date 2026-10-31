@@ -39,12 +39,18 @@ impl ShownFrame for Frame {
     }
 }
 
+pub(super) fn prepare(_plugin: &PluginManifest, _module: String) {}
+
+pub(super) fn hand_over_device() {}
+
+pub(super) fn discard_prepared() {}
+
 pub(super) fn spawn(
     _plugin: &PluginManifest,
     module: String,
-    waiting: Arc<AtomicBool>,
-) -> Result<(Channel, Mailbox), String> {
-    WorkerChannel::start(&module, waiting).map(|channel| (channel, ()))
+) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
+    let waiting = Arc::<AtomicBool>::default();
+    WorkerChannel::start(&module, Arc::clone(&waiting)).map(|channel| (channel, (), waiting))
 }
 
 pub(super) fn frame(presented: Vec<PresentedBitmap>, _presents: u64) -> Frame {

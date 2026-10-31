@@ -18,7 +18,7 @@ pub type Connect = Arc<dyn Fn() -> Result<(wgpu::Device, wgpu::Queue), String> +
 
 pub(crate) enum Device {
     Ready(Box<Gpu>),
-    Unconnected(Connect),
+    Unconnected { connect: Connect, wakes: bool },
     Unavailable(String),
 }
 
@@ -26,14 +26,14 @@ impl Device {
     pub(crate) fn ready(&self) -> Option<&Gpu> {
         match self {
             Self::Ready(gpu) => Some(gpu.as_ref()),
-            Self::Unconnected(_) | Self::Unavailable(_) => None,
+            Self::Unconnected { .. } | Self::Unavailable(_) => None,
         }
     }
 
     pub(crate) fn ready_mut(&mut self) -> Option<&mut Gpu> {
         match self {
             Self::Ready(gpu) => Some(gpu.as_mut()),
-            Self::Unconnected(_) | Self::Unavailable(_) => None,
+            Self::Unconnected { .. } | Self::Unavailable(_) => None,
         }
     }
 }
@@ -116,15 +116,15 @@ pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<V
 
 impl State {
     pub(crate) fn gpu(&mut self) -> Result<&mut Gpu, String> {
-        if let Device::Unconnected(connect) = &self.device {
+        if let Device::Unconnected { connect, wakes } = &self.device {
             self.device = match connect() {
                 Ok((device, queue)) => {
+                    let gpu = Gpu::new(device, queue).sharing(Arc::clone(&self.imports));
                     let wake = Arc::clone(&self.wake);
-                    Device::Ready(Box::new(
-                        Gpu::new(device, queue)
-                            .sharing(Arc::clone(&self.imports))
-                            .waking(Arc::new(move || wake.wake())),
-                    ))
+                    Device::Ready(Box::new(match wakes {
+                        true => gpu.waking(Arc::new(move || wake.wake())),
+                        false => gpu,
+                    }))
                 }
                 Err(message) => Device::Unavailable(format!(
                     "the plugin used the gpu, and no device could be opened: {message}"
@@ -134,7 +134,7 @@ impl State {
         match &mut self.device {
             Device::Ready(gpu) => Ok(gpu.as_mut()),
             Device::Unavailable(message) => Err(message.clone()),
-            Device::Unconnected(_) => Err("the plugin's gpu was never connected".to_owned()),
+            Device::Unconnected { .. } => Err("the plugin's gpu was never connected".to_owned()),
         }
     }
 

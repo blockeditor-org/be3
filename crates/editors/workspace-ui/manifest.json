@@ -17,6 +17,9 @@
         "dialog",
         "panel",
         "window"
+      ],
+      "opens": [
+        "9026bab5-b23e-4b81-a693-d3a250905f9e"
       ]
     },
     "picker": {

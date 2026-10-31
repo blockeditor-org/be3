@@ -77,7 +77,7 @@ impl<P> Drop for Threaded<P> {
         let Some(thread) = self.thread.take() else {
             return;
         };
-        STOPPING.with(|stopping| {
+        let _ = STOPPING.try_with(|stopping| {
             let mut stopping = stopping.borrow_mut();
             stopping.retain(|stopping| !stopping.handle.is_finished());
             stopping.push(thread);

@@ -122,6 +122,7 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     if arguments.desktop {
         app.run_as_desktop();
     }
+    app.warm_plugins();
     run_shell(options, Shell::new(app))
 }
 
@@ -2738,12 +2739,12 @@ impl BlockApp {
         self.poll_account_request();
         #[cfg(target_os = "linux")]
         self.run_notifications();
+        self.warm_plugins();
         if !self.signed_in {
             block_app_stack::stop();
             performance::end_frame();
             return;
         }
-        self.warm_plugins();
         if self.scheduled_organization_list {
             self.scheduled_organization_list = false;
             let mut account = self.account.clone();
@@ -2801,17 +2802,25 @@ impl BlockApp {
     }
 
     fn warm_plugins(&mut self) {
-        if std::mem::replace(&mut self.warmed, true) {
+        let opening = self.signed_in || self.pending_account_request.is_some();
+        if !opening || std::mem::replace(&mut self.warmed, true) {
             return;
         }
-        let shell = self.root_settings.shell();
+        let shell = self.root_settings.shell().into_bytes();
         let in_use = self.app_state.warm_plugins().unwrap_or_default();
-        for manifest in block_app_stack::discovery::manifests() {
-            let edits_shell = manifest
+        let manifests = block_app_stack::discovery::manifests();
+        let opened: Vec<[u8; 16]> = manifests
+            .iter()
+            .flat_map(|manifest| manifest.editor(shell))
+            .flat_map(|editor| editor.opens.iter().copied())
+            .chain([shell])
+            .collect();
+        for manifest in manifests {
+            let shown = manifest
                 .editors
                 .iter()
-                .any(|editor| Uuid::from_bytes(editor.id) == shell);
-            if edits_shell || in_use.contains(&manifest.identity.id) {
+                .any(|editor| opened.contains(&editor.id));
+            if shown || in_use.contains(&manifest.identity.id) {
                 block_app_plugin_host::warm(&manifest);
             }
         }

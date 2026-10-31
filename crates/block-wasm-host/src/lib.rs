@@ -69,6 +69,7 @@ pub struct Host {
 #[derive(Clone)]
 enum Devices {
     Given(wgpu::Device, wgpu::Queue),
+    Awaited(Connect),
     OnDemand(Connect),
 }
 
@@ -78,7 +79,14 @@ impl Devices {
             Self::Given(device, queue) => Device::Ready(Box::new(
                 Gpu::new(device.clone(), queue.clone()).sharing(Arc::clone(imports)),
             )),
-            Self::OnDemand(connect) => Device::Unconnected(Arc::clone(connect)),
+            Self::Awaited(connect) => Device::Unconnected {
+                connect: Arc::clone(connect),
+                wakes: false,
+            },
+            Self::OnDemand(connect) => Device::Unconnected {
+                connect: Arc::clone(connect),
+                wakes: true,
+            },
         }
     }
 }
@@ -95,6 +103,21 @@ impl Host {
             engine,
             libraries,
             devices: Devices::Given(device, queue),
+            imports: Imports::default(),
+            direct: Vec::new(),
+        })
+    }
+
+    pub fn awaiting(
+        device: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
+        cache: Option<&Path>,
+    ) -> Result<Self, String> {
+        let (engine, libraries) = engine(cache, Flavor::Plugin)?;
+        Ok(Self {
+            interrupt: Interrupt::new(engine.clone()),
+            engine,
+            libraries,
+            devices: Devices::Awaited(Arc::new(device)),
             imports: Imports::default(),
             direct: Vec::new(),
         })

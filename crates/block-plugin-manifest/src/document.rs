@@ -50,6 +50,8 @@ pub struct EditorDocument {
     pub views: Vec<ParentView>,
     #[serde(default)]
     pub accepts: Vec<ShellRequest>,
+    #[serde(default)]
+    pub opens: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,6 +264,15 @@ impl EditorDocument {
             resize: self.resize,
             views: self.views,
             accepts: self.accepts,
+            opens: self
+                .opens
+                .iter()
+                .map(|editor| {
+                    Uuid::parse_str(editor)
+                        .map(Uuid::into_bytes)
+                        .map_err(|_| ManifestError::InvalidEditorId)
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 }

@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     path::PathBuf,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, Condvar, Mutex, PoisonError, atomic::AtomicBool},
     time::{Duration, Instant},
 };
 
@@ -29,8 +29,47 @@ pub(super) type Picture = wgpu::Texture;
 
 pub(super) type Mailbox = block_wasm_host::Imports;
 
+type Gpu = Result<(wgpu::Device, wgpu::Queue), String>;
+
 thread_local! {
     static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    static PREPARED: RefCell<Vec<Prepared>> = const { RefCell::new(Vec::new()) };
+}
+
+struct Prepared {
+    plugin_id: String,
+    module: String,
+    started: Result<(Channel, Mailbox, Arc<AtomicBool>), String>,
+    device: Arc<Handover>,
+}
+
+impl Drop for Prepared {
+    fn drop(&mut self) {
+        self.device.hand(Err(NO_GPU.to_owned()));
+    }
+}
+
+#[derive(Default)]
+struct Handover {
+    device: Mutex<Option<Gpu>>,
+    handed: Condvar,
+}
+
+impl Handover {
+    fn hand(&self, gpu: Gpu) {
+        let mut device = self.device.lock().unwrap_or_else(PoisonError::into_inner);
+        device.get_or_insert(gpu);
+        self.handed.notify_all();
+    }
+
+    fn wait(&self) -> Gpu {
+        let device = self.device.lock().unwrap_or_else(PoisonError::into_inner);
+        let device = self
+            .handed
+            .wait_while(device, |device| device.is_none())
+            .unwrap_or_else(PoisonError::into_inner);
+        device.clone().unwrap_or_else(|| Err(NO_GPU.to_owned()))
+    }
 }
 
 pub(super) fn wait_for_workers(within: Duration) {
@@ -59,23 +98,71 @@ pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFr
     }
 }
 
+pub(super) fn prepare(plugin: &PluginManifest, module: String) {
+    let device = Arc::<Handover>::default();
+    let handover = Arc::clone(&device);
+    let started = Host::awaiting(move || handover.wait(), cache().as_deref())
+        .and_then(|host| start(plugin, &module, host));
+    PREPARED.with(|prepared| {
+        prepared.borrow_mut().push(Prepared {
+            plugin_id: plugin.identity.id.clone(),
+            module,
+            started,
+            device,
+        });
+    });
+}
+
+pub(super) fn hand_over_device() {
+    let device = gpu().ok_or_else(|| NO_GPU.to_owned());
+    PREPARED.with(|prepared| {
+        for prepared in prepared.borrow().iter() {
+            prepared.device.hand(device.clone());
+        }
+    });
+}
+
+pub(super) fn discard_prepared() {
+    let discarded = PREPARED.with(|prepared| std::mem::take(&mut *prepared.borrow_mut()));
+    drop(discarded);
+}
+
 pub(super) fn spawn(
     plugin: &PluginManifest,
     module: String,
-    waiting: Arc<AtomicBool>,
-) -> Result<(Channel, Mailbox), String> {
+) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
+    let prepared = PREPARED.with(|prepared| {
+        let mut prepared = prepared.borrow_mut();
+        let index = prepared.iter().position(|prepared| {
+            prepared.plugin_id == plugin.identity.id && prepared.module == module
+        })?;
+        Some(prepared.remove(index))
+    });
+    if let Some(mut prepared) = prepared {
+        return std::mem::replace(&mut prepared.started, Err(NO_GPU.to_owned()));
+    }
     let host = match gpu() {
         Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
         None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
-    }
-    .with_direct(block_plugin_api::embed::IMPORTS);
+    };
+    start(plugin, &module, host)
+}
+
+fn start(
+    plugin: &PluginManifest,
+    module: &str,
+    host: Host,
+) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
+    let host = host.with_direct(block_plugin_api::embed::IMPORTS);
+    let module = module.to_owned();
+    let waiting = Arc::<AtomicBool>::default();
     let interrupter = host.interrupter();
     let mailbox = host.imports();
     let channel = thread::spawn(
         Spawn {
             name: format!("plugin {}", plugin.identity.id),
             wake: Arc::new(block_app_base::host::wake),
-            waiting,
+            waiting: Arc::clone(&waiting),
             interrupt: Box::new(move || interrupter.interrupt()),
             contain: |run| block_app_base::panic_guard::contain(run),
         },
@@ -85,7 +172,7 @@ pub(super) fn spawn(
             Ok(Editor(plugin))
         },
     )?;
-    Ok((channel, mailbox))
+    Ok((channel, mailbox, waiting))
 }
 
 pub(super) fn offer(mailbox: &Mailbox, _channel: &mut Channel, image: u64, picture: &Picture) {

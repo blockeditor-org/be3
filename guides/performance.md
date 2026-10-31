@@ -250,9 +250,18 @@ session left, with every step that can overlap running at once. What keeps it th
   it without waiting for the server's organization list and keys, which are fetched in
   the background (`resume_organization` in crates/block-app/src/main.rs). If the list
   no longer has it, the app falls back to the organization list.
-- The plugins whose editors were open are kept in app state too, and are started, with
-  the shell's plugin, on the first frame (`block_app_plugin_host::warm`), before the shell asks
-  for them. A plugin with no editors open idles once it has loaded.
+- The plugins whose editors were open are kept in app state too, and are started with
+  the shell's plugin and the plugins of the editors the shell's manifest `opens`
+  (`warm_plugins` in crates/block-app/src/main.rs, `block_app_plugin_host::warm`), before the
+  shell asks for them. The app warms them as soon as it knows it will open a workspace (an
+  account signed in or signing in), before its window and GPU are set up: a plugin warmed
+  before `install` loads, links and instantiates on its own thread at once, waits for the
+  host's device only when it first reaches the GPU, and becomes the runtime that `install`
+  creates for it. Starting workspace-ui and the file tree together, there, took the time to
+  the Files pane from about 0.92 s to 0.76 s locally (October 2026). Most of a plugin's
+  start is `Plugin::new` linking its libraries (about 0.3 s each, the two at once);
+  deserializing its mapped `.cwasm` takes a few milliseconds. A plugin with no editors open
+  idles once it has loaded.
 - On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
   `Module::deserialize_file`) rather than read into memory and copied: the app's
   plugins, libraries and type modules come to about 400 MB, and mapping them took about a
