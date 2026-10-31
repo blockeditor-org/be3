@@ -33,6 +33,7 @@ fn frame_screens_and_reports_round_trip() {
         dialog: Some(DialogFrame {
             narrow: true,
             bottom_inset: 24.0,
+            modal: false,
         }),
         anchor: Some(Rect::from_min_size(
             Pos2::new(40.0, -28.0),

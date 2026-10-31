@@ -189,6 +189,10 @@ interface types {
         /// or a phone's gesture bar, which a footer pinned to the bottom stays
         /// above.
         bottom-inset: f32,
+        /// The dialog blocks everything else its host shows, so assistive
+        /// technology reads it as modal. A dialog that blocks only part of
+        /// the host, as one hanging from a tab does, is not.
+        modal: bool,
     }
 
     record frame-spec {

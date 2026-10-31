@@ -36,6 +36,7 @@ fn a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes() {
     dialog.set_dialog(DialogFrame {
         narrow: true,
         bottom_inset: 24.0,
+        modal: true,
     });
     dialog.snapshot("a_new_image_on_a_phone_stretches_its_buttons_above_the_inset");
 }

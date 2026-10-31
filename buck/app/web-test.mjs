@@ -15,8 +15,9 @@
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
 // visible element with that ARIA role and exact accessible name, in each STATE given (checked,
-// disabled, expanded, modal, pressed, selected, each also as not-STATE, or level=N; modal reads
-// Chrome's own accessibility tree, as the dialog's aria-modal reaches it).
+// disabled, expanded, inert, modal, pressed, selected, each also as not-STATE, or level=N; inert
+// and modal read Chrome's own accessibility tree: modal as the dialog's aria-modal reaches it,
+// inert as an inert ancestor leaves the element out of it).
 // `roles ROLE COUNT` (browser only) waits until exactly COUNT visible elements have that ARIA
 // role, whatever their names.
 // After every command the document itself must not scroll or overflow the
@@ -279,25 +280,35 @@ async function step(page, words) {
             const [role, name, ...states] = args;
             if (!role || name === undefined) throw new Failure("role takes a ROLE, a NAME and any STATEs");
             const query = { name, exact: true };
-            let modal;
+            const ax = {};
             for (const state of states) {
                 const level = state.match(/^level=(\d+)$/);
                 const [key, value] = level ? ["level", Number(level[1])]
                     : state.startsWith("not-") ? [state.slice(4), false] : [state, true];
-                if (!["checked", "disabled", "expanded", "modal", "pressed", "selected", "level"].includes(key)) {
-                    throw new Failure(`role takes checked, disabled, expanded, modal, pressed, selected or level=N, not ${state}`);
+                if (!["checked", "disabled", "expanded", "inert", "modal", "pressed", "selected", "level"].includes(key)) {
+                    throw new Failure(`role takes checked, disabled, expanded, inert, modal, pressed, selected or level=N, not ${state}`);
                 }
-                if (key === "modal") modal = value;
+                if (key === "modal" || key === "inert") ax[key] = value;
                 else query[key] = value;
             }
+            if (ax.inert) query.includeHidden = true;
             const found = page.getByRole(role, query);
             try {
                 await found.waitFor({ timeout: timeout * 1000 });
             } catch (error) {
                 throw new Failure(`getByRole(${JSON.stringify(role)}, ${JSON.stringify(query)}): ${error.message.split("\n")[0]}`);
             }
-            if (modal !== undefined && await axModal(page, found) !== modal) {
-                throw new Failure(`${role} ${JSON.stringify(name)} is ${modal ? "not " : ""}modal in Chrome's accessibility tree`);
+            if (Object.keys(ax).length > 0) {
+                const node = await axNode(page, found);
+                const read = {
+                    modal: node?.properties?.find(property => property.name === "modal")?.value?.value === true,
+                    inert: (node?.ignoredReasons ?? []).some(reason => reason.name.startsWith("inert")),
+                };
+                for (const [key, wanted] of Object.entries(ax)) {
+                    if (read[key] !== wanted) {
+                        throw new Failure(`${role} ${JSON.stringify(name)} is ${wanted ? "not " : ""}${key} in Chrome's accessibility tree`);
+                    }
+                }
             }
             return "";
         }
@@ -320,16 +331,15 @@ async function step(page, words) {
     }
 }
 
-async function axModal(page, locator) {
-    const mark = "data-web-test-modal";
+async function axNode(page, locator) {
+    const mark = "data-web-test-ax";
     await locator.evaluate((element, mark) => element.setAttribute(mark, ""), mark);
     const session = await page.context().newCDPSession(page);
     try {
         const { root } = await session.send("DOM.getDocument", { depth: 0 });
         const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `[${mark}]` });
         const { nodes } = await session.send("Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false });
-        const modal = nodes[0]?.properties?.find(property => property.name === "modal");
-        return modal?.value?.value === true;
+        return nodes[0];
     } finally {
         await session.detach();
         await locator.evaluate((element, mark) => element.removeAttribute(mark), mark);

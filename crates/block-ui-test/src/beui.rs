@@ -353,7 +353,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
-                dialog: Some(block_plugin_api::DialogFrame::default()),
+                dialog: Some(block_plugin_api::DialogFrame {
+                    modal: true,
+                    ..block_plugin_api::DialogFrame::default()
+                }),
                 anchor: None,
             }),
             _ => None,

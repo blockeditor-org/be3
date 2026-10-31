@@ -158,7 +158,10 @@ asks for by placing a child with `dialog` set) gets the whole area inside the
 card or sheet, with no padding and no title bar of the host's: it draws the
 title, the content and the actions, and reports the height it wants as its
 content (the host passes the size it got as the frame's, and how much of its
-bottom is covered as `bottom-inset`). Escape, back and a press outside it go to
+bottom is covered as `bottom-inset`). Nothing in the instance's own tree
+blocks anything around its dialog, so the host says as `modal` whether the
+dialog blocks everything else it shows, and the instance tells assistive
+technology that the dialog is modal only then. Escape, back and a press outside it go to
 the instance first, so a form with unsaved changes can ask before closing: the
 editor showing it calls `dismiss-child`, the host calls the instance's
 `dismiss`, and the instance answers with `close-dialog`, which reaches the

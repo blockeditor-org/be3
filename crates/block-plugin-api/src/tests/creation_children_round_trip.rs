@@ -25,6 +25,7 @@ fn creation_children_round_trip() {
             dialog: Some(DialogFrame {
                 narrow: false,
                 bottom_inset: 0.0,
+                modal: true,
             }),
             docks: None,
             anchor: None,

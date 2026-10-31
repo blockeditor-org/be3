@@ -2106,7 +2106,10 @@ Each layer has one `policy` (`LayerPolicy`):
 - `BlocksParent` - modal to the node it hangs from alone. A press on that node
   is shut out and asks the layer to close, the focus cannot enter it (Tab skips
   it, and focusing something inside it focuses the layer's first focusable
-  instead), and everything else stays live. A modal `DockDialog` is one.
+  instead), and everything else stays live. Assistive technology skips the node
+  too (natively it is `hidden` in accesskit, on the HTML core `inert`), while the
+  layer itself, blocking only part of the app, is not `aria-modal`. A modal
+  `DockDialog` is one.
 - `Inert` - a tooltip, a drag preview. It takes no input at all, so the
   document underneath goes on answering the pointer and the keyboard as if it
   were not there.

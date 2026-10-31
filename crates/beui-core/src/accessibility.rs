@@ -19,6 +19,7 @@ use crate::base::text::TextNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
+use crate::layer::LayerPolicy;
 use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId, SpaceTransform};
 use crate::window::WindowId;
 
@@ -277,6 +278,7 @@ pub struct AccessibilityTree {
     orphaned: Vec<AccessNodeId>,
     inspected: bool,
     scale: Option<f32>,
+    inert: HashSet<NodeId>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -566,13 +568,14 @@ impl Pass<'_> {
         }
         let layered = overlay.is_some();
 
+        let inert = self.tree.inert.contains(&id);
         let explicit = document.accessibility.get(&id);
         let text = element
             .as_any()
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
-        if explicit.is_none() && text.is_none() && !named && !force && !layered {
+        if explicit.is_none() && text.is_none() && !named && !force && !layered && !inert {
             if !self.tree.stale(id)
                 && let Some(held) = self.tree.gathered.get(&id)
                 && held.key == key
@@ -639,6 +642,10 @@ impl Pass<'_> {
         let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
         if layered {
             node.set_class_name(LAYER_CLASS);
+        }
+        if inert {
+            node.set_hidden();
+            node.clear_actions();
         }
         if focus.is_some() {
             out.focus = focus;
@@ -776,6 +783,11 @@ impl Document {
         for id in moved {
             tree.mark(id, &self.arena);
         }
+        let inert = self.inert_roots();
+        for id in inert.symmetric_difference(&tree.inert) {
+            tree.mark(*id, &self.arena);
+        }
+        tree.inert = inert;
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
 
@@ -807,6 +819,18 @@ impl Document {
             tree.changed.push(SpaceId::of(root));
         }
         Some(access)
+    }
+
+    fn inert_roots(&self) -> HashSet<NodeId> {
+        self.layers()
+            .iter()
+            .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
+            .filter_map(|layer| {
+                let blocked = layer.hangs_from?;
+                let overlay = layer.overlay?;
+                (!self.is_within(overlay.id(), blocked)).then_some(blocked)
+            })
+            .collect()
     }
 
     pub fn accessibility_update(&self, full: bool) -> Option<Fragment> {

@@ -32,6 +32,24 @@ thread_local! {
     static LAYERS: RefCell<HashMap<NodeId, Weak<Layer>>> = RefCell::default();
     static OPEN: RefCell<Vec<Weak<Layer>>> = RefCell::default();
     static NEXT: Cell<u32> = const { Cell::new(0) };
+    static INERT: RefCell<HashMap<NodeId, usize>> = RefCell::default();
+}
+
+fn make_inert(node: NodeId, inert: bool) {
+    let shown = INERT.with(|held| {
+        let mut held = held.borrow_mut();
+        let count = held.entry(node).or_default();
+        match inert {
+            true => *count += 1,
+            false => *count = count.saturating_sub(1),
+        }
+        let shown = *count > 0;
+        if !shown {
+            held.remove(&node);
+        }
+        shown
+    });
+    set_attribute(node, "inert", shown.then(String::new));
 }
 
 pub struct Parts {
@@ -55,6 +73,7 @@ pub struct Layer {
     wanted: Cell<bool>,
     dismissable: Cell<bool>,
     on_dismiss: Callback<Dismiss>,
+    inert: Cell<Option<NodeId>>,
     #[cfg(target_arch = "wasm32")]
     shown_modal: Cell<bool>,
     #[cfg(target_arch = "wasm32")]
@@ -94,6 +113,7 @@ pub fn layer(
         wanted: Cell::new(false),
         dismissable: Cell::new(true),
         on_dismiss,
+        inert: Cell::new(None),
         #[cfg(target_arch = "wasm32")]
         shown_modal: Cell::new(false),
         #[cfg(target_arch = "wasm32")]
@@ -142,6 +162,14 @@ pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
     Vec::new()
 }
 
+impl Drop for Layer {
+    fn drop(&mut self) {
+        if let Some(held) = self.inert.take() {
+            make_inert(held, false);
+        }
+    }
+}
+
 fn anchor_name(node: NodeId) -> String {
     format!("--beui-anchor-{}-{}", node.index(), node.generation())
 }
@@ -162,6 +190,7 @@ impl Layer {
     pub fn set_anchor(&self, anchor: OverlayAnchor) {
         *self.anchor.borrow_mut() = anchor;
         self.place();
+        self.sync_inert();
     }
 
     pub fn set_placement(&self, placement: Placement) {
@@ -185,6 +214,7 @@ impl Layer {
             (policy == LayerPolicy::Inert).then(|| "none".to_owned()),
         );
         self.sync_attributes();
+        self.sync_inert();
         crate::frame::request_frame();
     }
 
@@ -219,6 +249,7 @@ impl Layer {
             OPEN.with(|open| open.borrow_mut().push(weak));
         }
         self.sync_attributes();
+        self.sync_inert();
         self.place();
         crate::frame::request_frame();
     }
@@ -260,6 +291,36 @@ impl Layer {
         );
         if !crate::frame::started() {
             set_attribute(dialog, "open", self.wanted.get().then(String::new));
+        }
+    }
+
+    fn blocked(&self) -> Option<NodeId> {
+        if !self.wanted.get() || self.policy.get() != LayerPolicy::BlocksParent {
+            return None;
+        }
+        let blocked = match self.anchor.borrow().clone() {
+            OverlayAnchor::Node(node)
+            | OverlayAnchor::Band { node, .. }
+            | OverlayAnchor::Pinned { node, .. } => node.try_get()?,
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => return None,
+        };
+        let holds_layer = crate::document::element(blocked)
+            .zip(crate::document::element(self.parts.host))
+            .is_none_or(|(blocked, host)| blocked.find(&|node| node.is(&host)).is_some());
+        (!holds_layer).then_some(blocked)
+    }
+
+    fn sync_inert(&self) {
+        let blocked = self.blocked();
+        let held = self.inert.replace(blocked);
+        if held == blocked {
+            return;
+        }
+        if let Some(held) = held {
+            make_inert(held, false);
+        }
+        if let Some(blocked) = blocked {
+            make_inert(blocked, true);
         }
     }
 

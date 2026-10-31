@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use beui::primitives::Modality;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{BackGesture, Key, KeyAt, KeyPhase, NodeId};
@@ -12,6 +13,7 @@ use crate::Artifacts;
 pub(crate) struct DialogControl {
     narrow: Signal<bool>,
     inset: Signal<f32>,
+    modal: Signal<bool>,
     dismiss: Callback<()>,
 }
 
@@ -23,6 +25,9 @@ impl DialogControl {
         }
         if self.inset.get_untracked() != frame.bottom_inset {
             self.inset.set(frame.bottom_inset);
+        }
+        if self.modal.get_untracked() != frame.modal {
+            self.modal.set(frame.modal);
         }
     }
 
@@ -39,6 +44,8 @@ pub(crate) fn PluginDialog(
 ) -> NodeId {
     let narrow = create_signal(false);
     let inset = create_signal(0.0_f32);
+    let modal = create_signal(false);
+    provide_context(Modality(create_memo(move || modal.get())));
     let wide_or_narrow = create_memo(move || narrow.get());
     provide_context(DialogLayout {
         narrow: wide_or_narrow,
@@ -58,6 +65,7 @@ pub(crate) fn PluginDialog(
     control.set(Some(DialogControl {
         narrow,
         inset,
+        modal,
         dismiss,
     }));
     on_key(KeyAt::Root, KeyPhase::Bubble, move |event| {
