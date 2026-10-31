@@ -1,7 +1,7 @@
 use beui::{Input, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
-    InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics, WindowEdge, WindowPlacement,
+    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics, WindowEdge, WindowPlacement,
     WindowRequest,
 };
 
@@ -29,6 +29,13 @@ struct Hosted {
 }
 
 #[derive(Clone, Copy, Debug)]
+struct Anchored {
+    layer: u64,
+    screen: ScreenId,
+    rect: Rect,
+}
+
+#[derive(Clone, Copy, Debug)]
 enum Gesture {
     Move,
     Resize(WindowEdge),
@@ -38,6 +45,7 @@ enum Gesture {
 pub(crate) struct Desk {
     displays: Vec<Display>,
     windows: Vec<Hosted>,
+    anchored: Vec<Anchored>,
     next_screen: u64,
     gesture: Option<(ViewId, Gesture)>,
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
@@ -128,6 +136,12 @@ impl Desk {
                     .find(|window| window.screen == screen)
                     .map(|window| window.rect.min)
             })
+            .or_else(|| {
+                self.anchored
+                    .iter()
+                    .find(|anchored| anchored.screen == screen)
+                    .map(|anchored| anchored.rect.min)
+            })
             .unwrap_or(Pos2::ZERO)
     }
 
@@ -147,11 +161,18 @@ impl Desk {
     }
 
     fn under(&self, at: Pos2) -> Option<ScreenId> {
-        self.windows
+        self.anchored
             .iter()
             .rev()
-            .find(|window| window.rect.contains(at))
-            .map(|window| window.screen)
+            .find(|anchored| anchored.rect.contains(at))
+            .map(|anchored| anchored.screen)
+            .or_else(|| {
+                self.windows
+                    .iter()
+                    .rev()
+                    .find(|window| window.rect.contains(at))
+                    .map(|window| window.screen)
+            })
             .or_else(|| {
                 self.displays
                     .iter()
@@ -197,7 +218,13 @@ impl Desk {
                 host_place: None,
                 origin: Some(display.rect.min),
                 docked: false,
-                anchor_space: None,
+                anchor_space: Some(AnchorSpace {
+                    to_host: HostTransform {
+                        origin: display.rect.min,
+                        scale: vec2(1.0, 1.0),
+                    },
+                    bounds: display.rect,
+                }),
             });
         let windows = self.windows.iter().map(|window| ScreenRequest {
             screen: window.screen,
@@ -411,6 +438,30 @@ impl<A: BeuiApp> BeuiTest<A> {
         Some(self.desk.as_ref()?.requests(self.frame))
     }
 
+    pub(super) fn desk_escaped(&mut self) {
+        let Some(desk) = self.desk.as_mut() else {
+            return;
+        };
+        let Some(output) = self.output.as_ref() else {
+            desk.anchored.clear();
+            return;
+        };
+        let screens = &self.plugin.layout().screens;
+        desk.anchored = output
+            .escaped
+            .iter()
+            .filter_map(|escaped| {
+                let view = beui_platform_plugin_api::anchored_view(escaped.layer.id);
+                let screen = screens.iter().find(|placed| placed.view == view)?.screen;
+                Some(Anchored {
+                    layer: escaped.layer.id,
+                    screen,
+                    rect: escaped.layer.rect,
+                })
+            })
+            .collect();
+    }
+
     pub(super) fn desk_asked(
         &mut self,
         requests: Vec<WindowRequest>,
@@ -607,6 +658,46 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             };
             let at = window.rect.translate(-shown.rect.min.to_vec2());
+            painting
+                .frame
+                .primitives
+                .extend(drawn.placed(beui::native::painting::Placement {
+                    source: [0.0, 0.0, 1.0, 1.0],
+                    corners: [
+                        [at.min.x, at.min.y],
+                        [at.max.x, at.min.y],
+                        [at.max.x, at.max.y],
+                        [at.min.x, at.max.y],
+                    ],
+                    clip: [0.0, 0.0, shown.rect.width(), shown.rect.height()],
+                    corner_radius: 0.0,
+                }));
+            for (key, pixels) in drawn.textures {
+                painting.textures.entry(key).or_insert(pixels);
+            }
+        }
+        for anchored in &desk.anchored {
+            let rect = anchored.rect;
+            if !rect.intersects(shown.rect) {
+                continue;
+            }
+            let Some(escaped) = output
+                .escaped
+                .iter()
+                .find(|escaped| escaped.layer.id == anchored.layer)
+            else {
+                continue;
+            };
+            let Ok(drawn) = beui::native::painting::painting(
+                &escaped.output,
+                rect.size(),
+                shown.scale,
+                escaped.output.window.appearance.clear_color,
+                beui::native::painting::Punches::Shown,
+            ) else {
+                continue;
+            };
+            let at = rect.translate(-shown.rect.min.to_vec2());
             painting
                 .frame
                 .primitives

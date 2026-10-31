@@ -1114,6 +1114,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.output = Some(output);
             self.shown_window = Some(window);
         }
+        self.desk_escaped();
         if let Some(commit) = self.plugin.outbound() {
             self.committed(roundtrip(commit, "the plugin's frame"));
         }

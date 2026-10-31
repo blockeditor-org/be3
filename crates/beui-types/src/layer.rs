@@ -73,11 +73,11 @@ impl Placement {
             | Placement::Around
             | Placement::BelowStart
             | Placement::RightStart
+            | Placement::Center
             | Placement::CenterOn
             | Placement::Popover { .. }
             | Placement::Edge(_) => true,
             Placement::At
-            | Placement::Center
             | Placement::Fill
             | Placement::InsideTop
             | Placement::InsideTopStart

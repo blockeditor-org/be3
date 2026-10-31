@@ -2321,6 +2321,7 @@ dependencies = [
  "beui-core",
  "beui-host",
  "beui-platform-plugin",
+ "beui-platform-plugin-api",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",

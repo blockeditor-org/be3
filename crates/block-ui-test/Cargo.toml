@@ -11,6 +11,7 @@ beui = { path = "../beui" }
 beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }
 beui-platform-plugin = { path = "../beui-platform-plugin" }
+beui-platform-plugin-api = { path = "../beui-platform-plugin-api" }
 block-editor-beui = { path = "../block-editor-beui" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-type-guest = { path = "../block-type-guest" }

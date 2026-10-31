@@ -270,7 +270,9 @@ impl OverlayNode {
         };
         let space = doc.escape_space(self.placement, doc.viewport_window());
         let outer = space.map_or(viewport, |space| space.area());
+        let centred = space.is_some() && self.placement == Placement::Center;
         let window_anchor = match &self.anchor {
+            _ if centred => viewport,
             OverlayAnchor::Node(_) => anchored.unwrap_or(outer),
             OverlayAnchor::Pinned { .. } => target.unwrap_or(outer),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
@@ -322,7 +324,11 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
-        let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
+        let placement = match centred {
+            true => Placement::CenterOn,
+            false => self.placement,
+        };
+        let rect = beui_types::layer::resolve_rect(area, anchor_rect, placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
         self.stand_off(doc, painter, content, rect, anchor_rect, out);
         self.point_at(doc, painter, anchor_rect, out);
