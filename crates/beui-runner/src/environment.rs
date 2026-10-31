@@ -170,7 +170,9 @@ pub fn choose(natives: &[&str], var: impl Fn(&str) -> Option<String>) -> Result<
             None | Some("real") => false,
             Some("pinned") => true,
             Some(other) => {
-                return Err(format!("{HEADLESS_CLOCK} takes real or pinned, not {other}"));
+                return Err(format!(
+                    "{HEADLESS_CLOCK} takes real or pinned, not {other}"
+                ));
             }
         };
         Base::Headless {
