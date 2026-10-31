@@ -3074,12 +3074,14 @@ with a last row that hides the bar, and
 the drag threshold with the press that went down, then with each move. The dock
 carries the drag, and the bar itself is what shows it: lifted out of its place into a
 layer of its own (`LayerPolicy::Inert`, at the bars' level), it follows the pointer exactly from
-where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too. A carried
-bar popped out into a window lifts out of it the same way when the dock can map that window into
-its own (`window_point`: the host draws the window in the dock's host window, as block-app does
-for its plugins' windows, keeping a child's node while it moves between the views of one plugin
-instance); one in a window the host opens on its own stays in it until it is let go, since its
-press cannot follow its body out of that window. The dock
+where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too. A bar
+popped out into a window, local or carried, lifts out of it the same way whenever the dock can map
+that window into its own (`window_point`, which needs the window's layer space: the host draws
+the window in the dock's space, as block-app does for its plugins' windows, keeping a child's node
+while it moves between the views of one plugin instance); its window stays open, empty, until the
+lift ends, so the press it holds keeps steering the bar. Only a bar in a window the dock cannot map
+(an OS window of a native host) stays in it, and its grip asks the host to move that window
+(`WindowHandle::begin_move`; for a carried bar the root asks it of the window it opened). The dock
 reads every point in its own window (`window_point`), so a press that began in another layer
 (a bar floating over an edge escapes into one of its own) still steers it. Each move
 resolves where it would land as if it were let go there: the outer band of the pane
@@ -3107,8 +3109,7 @@ where it was let go into its gap (a softer `Spring`, starting at the pointer's v
 drops back into its place in the layout. Under `Motion::Instant` it is wherever the pointer is
 and in its place the moment it is let go. A bar popped out by being dropped away from the pane
 opens its window where it was let go, with no spring. The bars floating over an edge are kept clear together
-(`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
-to move its window, and the menu docks it again. The styled `DockBarGrip`
+(`keep_clear` on their list). The menu docks a popped-out bar again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
 its menu when clicked or pressed with Enter, never on the release of a press that
 dragged it, wherever the drag went (its rows are `grip.dock.bar.` and

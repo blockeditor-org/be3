@@ -48,7 +48,9 @@ and the two after it), which it places and hides by itself. By default all three
 bottom edge in one band (`dock.bar.band.bottom`): Apps at its start, Windows centred, Status at its
 end. A grip moves its bar like any dock bar: beside any edge at its start, centre or end, floated over
 one, or popped out into a window; the dock saves where each is and whether it is hidden, in the
-session's layout. Every part lays itself out along its bar (`bar::bar_direction`, from
+session's layout. The host maps the desktop's windows into the displays' one space, so dragging a
+popped-out bar's grip lifts the bar out of its window to follow the pointer and land like any other
+dock bar (guides/beui.md, the dock's bars); it does not move the window. Every part lays itself out along its bar (`bar::bar_direction`, from
 `use_dock_bar().direction()`): down a left or right edge the chips show only their icons, the clock
 stacks its hours over its minutes and the status icons stack too. A button's panel (`BarPopup`)
 opens away from the bar's edge, toward the windows: below or above a bar along the top or bottom

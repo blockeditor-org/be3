@@ -222,21 +222,18 @@ impl DockBarControl {
             drag_board().track(DragPoint::of(press));
             return;
         }
-        let windowed = untrack(|| self.placement().is_window());
-        if windowed && dock.opens.get_untracked() {
-            let key = dock.window_key(bar);
-            let handle = dock.bar_windows.value().borrow().get(&key).copied();
-            if handle.is_some_and(WindowHandle::begin_move) {
-                return;
-            }
+        if dock.moves_bar_window(bar) {
+            return;
         }
-        let rect = dock.bar_panel_rect(bar);
-        let grab = rect.map_or(Vec2::ZERO, |rect| press.pos - rect.min);
+        let grab = dock
+            .bar_panel_rect(bar)
+            .map_or(Vec2::ZERO, |rect| press.pos - rect.min);
+        let rect = dock.bar_home_rect(bar);
         let size = rect.map_or(WINDOW_SIZE, |rect| rect.size());
         dock.bar_grab.set((grab, size));
         dock.begin_drag(DockDragged::Bar(bar));
         if let Some(rect) = rect {
-            dock.lift_bar(bar, press.pos, rect);
+            dock.lift_bar(bar, rect.min + grab, rect);
         }
         drag_board().begin(
             Rc::new(DockDragged::Bar(bar)),
@@ -361,7 +358,26 @@ impl State {
         }
     }
 
+    fn moves_bar_window(&self, bar: TabId) -> bool {
+        let windowed = self
+            .state
+            .with_untracked(|state| state.bar_placement(bar))
+            .is_some_and(DockBarPlacement::is_window);
+        if !windowed || self.bar_window_in_dock(bar) {
+            return false;
+        }
+        let key = self.window_key(bar);
+        let handle = self.bar_windows.value().borrow().get(&key).copied();
+        handle.is_some_and(WindowHandle::begin_move)
+    }
+
     fn carry_bar(&self, bar: TabId, moved: DockBarMove) {
+        if self.lifting.window_moved.get() == Some(bar) {
+            if moved.stage != DockDragStage::Move {
+                self.lifting.window_moved.set(None);
+            }
+            return;
+        }
         let carried = self.drag.with_untracked(|drag| {
             drag.as_ref()
                 .is_some_and(|drag| drag.dragged == DockDragged::Bar(bar))
@@ -388,16 +404,14 @@ impl State {
                 let Some(rect) = rect else {
                     return;
                 };
+                if self.moves_bar_window(bar) {
+                    self.lifting.window_moved.set(Some(bar));
+                    return;
+                }
                 self.lifting.carried.set(Some(rect));
                 self.bar_grab.set((moved.at.to_vec2(), rect.size()));
                 self.begin_drag(DockDragged::Bar(bar));
-                let windowed = self
-                    .state
-                    .with_untracked(|state| state.bar_placement(bar))
-                    .is_some_and(DockBarPlacement::is_window);
-                if !windowed || self.bar_window_in_dock(bar) {
-                    self.lift_bar(bar, rect.min + moved.at.to_vec2(), rect);
-                }
+                self.lift_bar(bar, rect.min + moved.at.to_vec2(), rect);
                 self.drag_over(point);
             }
             DockDragStage::Drop if carried => {
@@ -1062,6 +1076,7 @@ pub(super) struct Lifting {
     flight: Stored<RefCell<Flight>>,
     motion: StoredCell<Option<Animation>>,
     carried: StoredCell<Option<Rect>>,
+    window_moved: StoredCell<Option<TabId>>,
     preview: Memo<Option<DockState>>,
     left: Memo<Option<(TabId, DockState)>>,
 }
@@ -1097,6 +1112,7 @@ impl Lifting {
             flight: store(RefCell::new(Flight::default())),
             motion: StoredCell::new(None),
             carried: StoredCell::new(None),
+            window_moved: StoredCell::new(None),
             preview,
             left,
         }
@@ -1793,18 +1809,32 @@ fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f
 #[component]
 pub(super) fn DockBarWindows(dock: State) -> NodeId {
     let away = dock.bars_away;
+    let lifting = dock.lifting;
+    let lifted_from = create_memo(move || {
+        let bar = lifting.lift.with(|lift| lift.map(|lift| lift.bar))?;
+        dock.state
+            .with(|state| state.bar_placement(bar))
+            .is_some_and(DockBarPlacement::is_window)
+            .then(|| dock.window_key(bar))
+    });
     let keys = create_memo(move || {
         if away.get() {
             return Vec::new();
         }
-        dock.shown(|state| {
+        let mut keys = dock.shown(|state| {
             state
                 .bar_windows(&|bar| dock.window_key(bar))
                 .into_iter()
                 .filter(|(_, bars)| state.followed_bar(bars).is_some())
                 .map(|(key, _)| key)
                 .collect::<Vec<_>>()
-        })
+        });
+        if let Some(key) = lifted_from.get()
+            && !keys.contains(&key)
+        {
+            keys.push(key);
+        }
+        keys
     });
     view! {
         <List spacing=0.0>
@@ -1852,9 +1882,18 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
             size.set(measured);
         }
     });
+    let held = key.clone();
+    let kept = create_memo(move || {
+        state.with(|state| {
+            let windows = state.bar_windows(&|bar| dock.window_key(bar));
+            let (_, bars) = windows.iter().find(|(key, _)| *key == held)?;
+            state.followed_bar(bars)
+        })
+    });
     let origin = create_memo(move || {
         let placement = followed
             .get()
+            .or_else(|| kept.get())
             .and_then(|bar| state.with(|state| state.bar_placement(bar)));
         let origin = match placement {
             Some(DockBarPlacement::Window { origin, .. }) => origin,
