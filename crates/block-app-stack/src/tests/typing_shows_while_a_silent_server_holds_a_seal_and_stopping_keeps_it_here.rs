@@ -10,13 +10,13 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     wait_for_count(block, 1);
     flush();
 
-    let mut sending = harness.relay().count(|message| {
-        matches!(
-            message,
-            be_protocol::ClientMessage::MissingObjects { .. }
-                | be_protocol::ClientMessage::PutObjects { .. }
-                | be_protocol::ClientMessage::Publish { .. }
-        )
+    let mut sending = harness.relay().count(|method| {
+        [
+            be_protocol::__args::OBJECTS_MISSING_OBJECTS,
+            be_protocol::__args::OBJECTS_PUT_OBJECTS,
+            be_protocol::__args::BLOCKS_PUBLISH,
+        ]
+        .contains(&method)
     });
     harness.relay().stall();
     add(block, 2);

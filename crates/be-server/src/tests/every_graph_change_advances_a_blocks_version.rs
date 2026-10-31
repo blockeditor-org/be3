@@ -10,27 +10,19 @@ async fn every_graph_change_advances_a_blocks_version() {
     let created = owner.read_block(block).await.version;
 
     let response = owner
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: vec![1, 2, 3],
-            references: Vec::new(),
-        })
+        .call(|peer| client::blocks::set_metadata(peer, block, vec![1, 2, 3], Vec::new()))
         .await;
-    let ServerMessage::Block { block: renamed, .. } = response else {
+    let Ok(renamed) = response else {
         panic!("set metadata failed: {response:?}");
     };
     assert!(renamed.version > created);
 
     let response = owner
-        .send(|request| ClientMessage::SetParent {
-            request,
-            block,
-            parent: BlockParent::Block(folder),
-            keys: KeySet::default(),
+        .call(|peer| {
+            client::blocks::set_parent(peer, block, BlockParent::Block(folder), KeySet::default())
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let moved = owner.read_block(block).await;
     assert!(moved.version > renamed.version);
     assert_eq!(moved.metadata, vec![1, 2, 3]);

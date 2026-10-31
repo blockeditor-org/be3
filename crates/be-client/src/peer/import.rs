@@ -2,7 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 
 use be_commit::{Commit, CommitKind, now_milliseconds};
 use be_graph::BlockParent;
-use be_protocol::{BlockSummary, ByteBuf, ClientMessage, KeySet, ServerMessage};
+use be_protocol::{BlockSummary, ErrorCode, KeySet, PublishOutcome, client};
 use be_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
@@ -271,19 +271,12 @@ impl<S: ObjectStore> Peer<S> {
         let store = self.commits.vault().store();
         let objects = group
             .iter()
-            .map(|hash| {
-                store
-                    .get(*hash)?
-                    .map(ByteBuf::from)
-                    .ok_or(ClientError::MissingObject(*hash))
-            })
-            .collect::<Result<Vec<ByteBuf>, ClientError>>()?;
-        let sent = self
-            .connection()
-            .send(|request| ClientMessage::PutObjects { request, objects })?;
+            .map(|hash| store.get(*hash)?.ok_or(ClientError::MissingObject(*hash)))
+            .collect::<Result<Vec<Vec<u8>>, ClientError>>()?;
+        let sent = client::objects::put_objects(&self.connection(), objects);
         Ok(Box::pin(async move {
-            match sent.await? {
-                ServerMessage::Stored { hashes, .. } if hashes == group => Ok(Vec::new()),
+            match sent.await?? {
+                hashes if hashes == group => Ok(Vec::new()),
                 _ => Err(ClientError::Unexpected),
             }
         }))
@@ -301,41 +294,39 @@ impl<S: ObjectStore> Peer<S> {
                 key,
                 keys,
             } = ready.creation.clone();
-            let created = self
-                .connection()
-                .send(|request| ClientMessage::CreateBlock {
-                    request,
-                    block,
-                    content_type,
-                    parent,
-                    metadata,
-                    references,
-                    key,
-                    keys,
-                });
+            let created = client::blocks::create_block(
+                &self.connection(),
+                block,
+                content_type,
+                parent,
+                metadata,
+                references,
+                key,
+                keys,
+            );
             let published = ready.publish.clone().map(|pending| {
-                self.connection().send(|request| ClientMessage::Publish {
-                    request,
-                    block: pending.block,
-                    commit: pending.commit,
-                    expected: None,
-                    parents: Vec::new(),
-                    chunks: pending.chunks,
-                    time: pending.time,
-                    pinned: false,
-                    references: pending.references,
-                    metadata: pending.metadata,
-                    objects: Vec::new(),
-                })
+                client::blocks::publish(
+                    &self.connection(),
+                    pending.block,
+                    pending.commit,
+                    None,
+                    Vec::new(),
+                    pending.chunks,
+                    pending.time,
+                    false,
+                    pending.references,
+                    pending.metadata,
+                    Vec::new(),
+                )
             });
             sent.push((ready, created, published));
         }
         Box::pin(async move {
             let mut results = Vec::with_capacity(sent.len());
             for (ready, created, published) in sent {
-                let created = answered(created).await?;
+                let created = created.await?;
                 let published = match published {
-                    Some(published) => Some(answered(published).await?),
+                    Some(published) => Some(published.await?),
                     None => None,
                 };
                 results.push((ready.id, self.imported(&ready, created, published)));
@@ -347,21 +338,20 @@ impl<S: ObjectStore> Peer<S> {
     fn imported(
         &self,
         ready: &Prepared,
-        created: ServerMessage,
-        published: Option<ServerMessage>,
+        created: Result<BlockSummary, be_protocol::Error>,
+        published: Option<Result<PublishOutcome, be_protocol::Error>>,
     ) -> Imported {
         let block = ready.id;
         let summary = match created {
-            ServerMessage::Block { block, .. } => Some(block),
-            ServerMessage::Failed {
-                code: be_protocol::ErrorCode::BlockAlreadyExists,
+            Ok(block) => Some(block),
+            Err(be_protocol::Error {
+                code: ErrorCode::BlockAlreadyExists,
                 ..
-            } => None,
-            ServerMessage::Failed { code, message, .. } => {
+            }) => None,
+            Err(error) => {
                 self.refs.remove(&ready.queued)?;
-                return Err(ClientError::Refused(code, message));
+                return Err(error.into());
             }
-            _ => return Err(ClientError::Unexpected),
         };
         self.recorded(&ready.keys);
         if let Some(summary) = &summary {
@@ -370,17 +360,16 @@ impl<S: ObjectStore> Peer<S> {
         let commit = ready.publish.as_ref().map(|pending| pending.commit);
         let head = match published {
             None => None,
-            Some(ServerMessage::Published { head, .. }) => Some(head),
-            Some(ServerMessage::Rejected { head, .. }) if head.is_some() && head == commit => head,
-            Some(ServerMessage::Rejected { .. }) => {
+            Some(Ok(PublishOutcome::Published(head))) => Some(head),
+            Some(Ok(PublishOutcome::Rejected(head))) if head.is_some() && head == commit => head,
+            Some(Ok(PublishOutcome::Rejected(_))) => {
                 self.refs.remove(&ready.queued)?;
                 return Err(ClientError::Contended);
             }
-            Some(ServerMessage::Failed { code, message, .. }) => {
+            Some(Err(error)) => {
                 self.refs.remove(&ready.queued)?;
-                return Err(ClientError::Refused(code, message));
+                return Err(error.into());
             }
-            Some(_) => return Err(ClientError::Unexpected),
         };
         self.refs.remove(&ready.queued)?;
         if let Some(head) = head {
@@ -391,18 +380,5 @@ impl<S: ObjectStore> Peer<S> {
             Some(summary) => Ok(summary),
             None => self.refs.summary(block).ok_or(ClientError::Unexpected),
         }
-    }
-}
-
-async fn answered(
-    sent: Result<crate::connection::Answer, ClientError>,
-) -> Result<ServerMessage, ClientError> {
-    match sent?.await {
-        Err(ClientError::Refused(code, message)) => Ok(ServerMessage::Failed {
-            request: 0,
-            code,
-            message,
-        }),
-        answer => answer,
     }
 }

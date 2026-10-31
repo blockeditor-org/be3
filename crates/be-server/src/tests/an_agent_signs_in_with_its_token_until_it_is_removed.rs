@@ -8,66 +8,56 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let organization = owner.organization("tracker").await;
 
     let response = owner
-        .send(|request| ClientMessage::CreateAgent {
-            request,
-            organization,
-            name: "Claude".into(),
-            recovery: [7; 32],
-            contact: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::members::create_agent(
+                peer,
+                organization,
+                "Claude".into(),
+                [7; 32],
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    let ServerMessage::AgentCreated { agent, token, .. } = response else {
+    let Ok(be_protocol::CreatedAgent { agent, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
     assert_eq!(agent.name, "Claude");
 
     let mut bot = harness.client().await;
     let response = bot
-        .send(|request| ClientMessage::Authenticate {
-            request,
-            token: token.clone(),
-        })
+        .call(|peer| client::account::authenticate(peer, token.clone()))
         .await;
-    let ServerMessage::Authenticated { account, .. } = response else {
+    let Ok(Authenticated { account, .. }) = response else {
         panic!("the agent's token did not sign it in: {response:?}");
     };
     assert_eq!(account, agent.account);
     bot.open(organization).await;
-    let response = bot
-        .send(|request| ClientMessage::GetRecoveryKey { request })
-        .await;
-    let ServerMessage::RecoveryKey { public, sealed, .. } = response else {
+    let response = bot.call(|peer| client::keys::get_recovery_key(peer)).await;
+    let Ok(be_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
     assert_eq!(public, Some([7; 32]));
     assert!(sealed.is_empty());
 
     let response = owner
-        .send(|request| ClientMessage::ListAgents {
-            request,
-            organization,
-        })
+        .call(|peer| client::members::list_agents(peer, organization))
         .await;
-    let ServerMessage::Agents { agents, .. } = response else {
+    let Ok(agents) = response else {
         panic!("listing agents failed: {response:?}");
     };
     assert_eq!(agents, [agent.clone()]);
 
     let response = owner
-        .send(|request| ClientMessage::RemoveAgent {
-            request,
-            organization,
-            account: agent.account,
-        })
+        .call(|peer| client::members::remove_agent(peer, organization, agent.account))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let mut again = harness.client().await;
     let response = again
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .call(|peer| client::account::authenticate(peer, token))
         .await;
     assert!(
-        matches!(response, ServerMessage::Failed { .. }),
+        matches!(response, Err(_)),
         "a removed agent's token still works: {response:?}"
     );
 

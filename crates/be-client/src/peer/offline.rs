@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use be_commit::{CommitId, now_milliseconds};
 use be_graph::{Access, BlockParent};
-use be_protocol::{BlockSummary, ClientMessage, ErrorCode, Listing, ServerMessage};
+use be_protocol::{BlockSummary, ErrorCode, Listing, client};
 use be_store::ObjectStore;
 use uuid::Uuid;
 
@@ -401,26 +401,23 @@ impl<S: ObjectStore> Peer<S> {
         creation: Creation,
     ) -> Result<Drained, ClientError> {
         let block = creation.block;
-        let response = self
-            .connection()
-            .request(|request| ClientMessage::CreateBlock {
-                request,
-                block,
-                content_type: creation.content_type,
-                parent: creation.parent,
-                metadata: creation.metadata.clone(),
-                references: creation.references.clone(),
-                key: creation.key,
-                keys: creation.keys.clone(),
-            })
-            .await;
+        let response = crate::ask(client::blocks::create_block(
+            &self.connection(),
+            block,
+            creation.content_type,
+            creation.parent,
+            creation.metadata.clone(),
+            creation.references.clone(),
+            creation.key,
+            creation.keys.clone(),
+        ))
+        .await;
         match response {
-            Ok(ServerMessage::Block { block: summary, .. }) => {
+            Ok(summary) => {
                 self.refs.remove(&[sequence])?;
                 self.note(&summary);
                 Ok(Drained::Created { block })
             }
-            Ok(_) => Err(ClientError::Unexpected),
             Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Created { block })
@@ -456,22 +453,19 @@ impl<S: ObjectStore> Peer<S> {
         defining: Defining,
     ) -> Result<Drained, ClientError> {
         let block = defining.block;
-        let response = self
-            .connection()
-            .request(|request| ClientMessage::SetMetadata {
-                request,
-                block,
-                metadata: defining.metadata.clone(),
-                references: defining.references.clone(),
-            })
-            .await;
+        let response = crate::ask(client::blocks::set_metadata(
+            &self.connection(),
+            block,
+            defining.metadata.clone(),
+            defining.references.clone(),
+        ))
+        .await;
         match response {
-            Ok(ServerMessage::Block { block: summary, .. }) => {
+            Ok(summary) => {
                 self.refs.remove(&[sequence])?;
                 self.note(&summary);
                 Ok(Drained::Defined { block })
             }
-            Ok(_) => Err(ClientError::Unexpected),
             Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => {
                 self.refs.remove(&[sequence])?;
                 let plain = self

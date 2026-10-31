@@ -24,14 +24,9 @@ fn sorted(mut ids: Vec<Uuid>) -> Vec<Uuid> {
 
 async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Access) {
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block,
-            account,
-            access,
-        })
+        .call(|peer| client::blocks::set_access(peer, block, account, access))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 }
 
 #[tokio::test]
@@ -48,25 +43,29 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let mut guest = harness.client().await;
     let guest_id = guest.register("guest@example.com").await;
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(1),
-            organization,
-            email: "guest@example.com".into(),
-            role: OrganizationRole::Editor,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(1),
+                organization,
+                "guest@example.com".into(),
+                OrganizationRole::Editor,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    guest
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(1),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = guest
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(1),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     guest.open(organization).await;
@@ -93,42 +92,46 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     );
 
     let refused = guest
-        .send(|request| ClientMessage::PutKeys {
-            request,
-            keys: KeySet {
-                keys: Vec::new(),
-                wrapped: vec![wrap(
-                    folder.scope,
-                    WrappedBy::Account(guest_id),
-                    b"a viewer sealing itself a key",
-                )],
-            },
+        .call(|peer| {
+            client::keys::put_keys(
+                peer,
+                KeySet {
+                    keys: Vec::new(),
+                    wrapped: vec![wrap(
+                        folder.scope,
+                        WrappedBy::Account(guest_id),
+                        b"a viewer sealing itself a key",
+                    )],
+                },
+            )
         })
         .await;
     assert!(
         matches!(
             refused,
-            ServerMessage::Failed {
+            Err(Error {
                 code: ErrorCode::PermissionDenied,
                 ..
-            }
+            })
         ),
         "{refused:?}"
     );
     let response = owner
-        .send(|request| ClientMessage::PutKeys {
-            request,
-            keys: KeySet {
-                keys: Vec::new(),
-                wrapped: vec![wrap(
-                    folder.scope,
-                    WrappedBy::Account(guest_id),
-                    b"scope sealed to the guest",
-                )],
-            },
+        .call(|peer| {
+            client::keys::put_keys(
+                peer,
+                KeySet {
+                    keys: Vec::new(),
+                    wrapped: vec![wrap(
+                        folder.scope,
+                        WrappedBy::Account(guest_id),
+                        b"scope sealed to the guest",
+                    )],
+                },
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let narrowed = guest.keys(Some(vec![inside])).await;
     assert_eq!(
         ids(&narrowed),
@@ -142,9 +145,9 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         "{narrowed:?}"
     );
     let response = guest
-        .send(|request| ClientMessage::GetRecoveryKey { request })
+        .call(|peer| client::keys::get_recovery_key(peer))
         .await;
-    let ServerMessage::RecoveryKey { sealed, .. } = response else {
+    let Ok(be_protocol::RecoveryKey { sealed, .. }) = response else {
         panic!("{response:?}");
     };
     assert_eq!(sealed.len(), 1);
@@ -155,10 +158,10 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         "a revoked guest was still served the keys"
     );
     let response = guest
-        .send(|request| ClientMessage::GetRecoveryKey { request })
+        .call(|peer| client::keys::get_recovery_key(peer))
         .await;
     assert!(
-        matches!(&response, ServerMessage::RecoveryKey { sealed, .. } if sealed.is_empty()),
+        matches!(&response, Ok(be_protocol::RecoveryKey { sealed, .. }) if sealed.is_empty()),
         "a revoked guest was still served what was sealed to it: {response:?}"
     );
 
@@ -166,17 +169,14 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         ids(&owner.keys(Some(vec![private.block])).await),
         sorted(vec![private.data, private.scope])
     );
-    owner
-        .send(|request| ClientMessage::DeleteBlock {
-            request,
-            block: private.block,
-        })
+    let _ = owner
+        .call(|peer| client::blocks::delete_block(peer, private.block))
         .await;
     let response = owner
-        .send(|request| ClientMessage::CollectDetached { request })
+        .call(|peer| client::blocks::collect_detached(peer))
         .await;
     assert!(
-        matches!(response, ServerMessage::Collected { .. }),
+        matches!(response, Ok(be_protocol::Collected { .. })),
         "{response:?}"
     );
     let left = owner.keys(None).await;

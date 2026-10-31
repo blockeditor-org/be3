@@ -9,105 +9,89 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let mut guest = harness.member("Guest@Example.com").await;
 
     let refused = guest
-        .send(|request| ClientMessage::OpenOrganization {
-            request,
-            organization,
-        })
+        .call(|peer| client::organizations::open_organization(peer, organization))
         .await;
-    assert!(
-        matches!(refused, ServerMessage::Failed { .. }),
-        "{refused:?}"
-    );
+    assert!(matches!(refused, Err(_)), "{refused:?}");
 
     let invitation = Uuid::from_u128(7);
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation,
-            organization,
-            email: "guest@example.com".into(),
-            role: OrganizationRole::Editor,
-            sealed: b"sealed to the invite code".to_vec(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                invitation,
+                organization,
+                "guest@example.com".into(),
+                OrganizationRole::Editor,
+                b"sealed to the invite code".to_vec(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 
     let mut outsider = harness.member("outsider@example.com").await;
     for refused in [
         outsider
-            .send(|request| ClientMessage::GetInvitation {
-                request,
-                invitation,
-            })
-            .await,
+            .call(|peer| client::organizations::get_invitation(peer, invitation))
+            .await
+            .map(|_| ()),
         outsider
-            .send(|request| ClientMessage::AcceptInvitation {
-                request,
-                invitation,
-                card: Vec::new(),
-                contact: Vec::new(),
-                escrow: Vec::new(),
+            .call(|peer| {
+                client::organizations::accept_invitation(
+                    peer,
+                    invitation,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
             })
             .await,
     ] {
         assert!(
-            matches!(refused, ServerMessage::Failed { .. }),
+            matches!(refused, Err(_)),
             "an account with another email used the invitation: {refused:?}"
         );
     }
 
     let fetched = guest
-        .send(|request| ClientMessage::GetInvitation {
-            request,
-            invitation,
-        })
+        .call(|peer| client::organizations::get_invitation(peer, invitation))
         .await;
-    let ServerMessage::Invitation {
-        invitation: found, ..
-    } = fetched
-    else {
+    let Ok(found) = fetched else {
         panic!("reading the invitation failed: {fetched:?}");
     };
     assert_eq!(found.organization_name, "shared");
     assert_eq!(found.sealed, b"sealed to the invite code");
 
     let response = guest
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation,
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                invitation,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     guest.open(organization).await;
     let again = guest
-        .send(|request| ClientMessage::GetInvitation {
-            request,
-            invitation,
-        })
+        .call(|peer| client::organizations::get_invitation(peer, invitation))
         .await;
     assert!(
-        matches!(again, ServerMessage::Failed { .. }),
+        matches!(again, Err(_)),
         "the invitation outlived its use: {again:?}"
     );
 
     let token = guest.token.clone();
-    let response = guest
-        .send(|request| ClientMessage::Logout { request })
-        .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    let response = guest.call(|peer| client::account::logout(peer)).await;
+    assert!(matches!(response, Ok(())), "{response:?}");
     let mut returning = harness.client().await;
     let response = returning
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .call(|peer| client::account::authenticate(peer, token))
         .await;
-    assert!(
-        matches!(response, ServerMessage::Failed { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Err(_)), "{response:?}");
 
     harness.stop().await;
 }

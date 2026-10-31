@@ -3,23 +3,15 @@ use be_protocol::Listing;
 
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: name.to_vec(),
-            references: Vec::new(),
-        })
+        .call(|peer| client::blocks::set_metadata(peer, block, name.to_vec(), Vec::new()))
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
 }
 
 async fn heard(client: &mut TestClient) -> Uuid {
     match client.graph_change().await {
-        ServerMessage::BlockChanged { block } => block.id,
-        ServerMessage::BlockRemoved { block, .. } => block,
+        Notice::BlockChanged { block } => block.id,
+        Notice::BlockRemoved { block, .. } => block,
         other => panic!("{other:?}"),
     }
 }
@@ -51,12 +43,9 @@ async fn a_connection_hears_only_of_the_blocks_it_listed() {
     let inside = author.create_block(BlockParent::Block(listed)).await;
     assert_eq!(heard(&mut other).await, inside);
     let response = author
-        .send(|request| ClientMessage::DeleteBlock {
-            request,
-            block: inside,
-        })
+        .call(|peer| client::blocks::delete_block(peer, inside))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(
         heard(&mut other).await,
         inside,
@@ -64,12 +53,9 @@ async fn a_connection_hears_only_of_the_blocks_it_listed() {
     );
 
     let response = other
-        .send(|request| ClientMessage::Unlist {
-            request,
-            listing: Listing::Children(BlockParent::Root),
-        })
+        .call(|peer| client::blocks::unlist(peer, Listing::Children(BlockParent::Root)))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     rename(&mut author, closed, b"unheard").await;
     let last = author.create_block(BlockParent::Block(listed)).await;
     assert_eq!(

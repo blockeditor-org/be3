@@ -29,13 +29,10 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let mut client = TestClient::connect(&format!("ws://{address}")).await;
 
     let resumed = client
-        .send(|request| ClientMessage::Authenticate {
-            request,
-            token: token.clone(),
-        })
+        .call(|peer| client::account::authenticate(peer, token.clone()))
         .await;
     assert!(
-        matches!(resumed, ServerMessage::Authenticated { .. }),
+        matches!(resumed, Ok(_)),
         "a device already signed in was turned away: {resumed:?}"
     );
     client.open(organization).await;

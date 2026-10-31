@@ -3,8 +3,11 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use be_commit::CommitId;
 use be_graph::BlockParent;
-use be_protocol::{BlockSummary, Listing, OrganizationRole, ServerMessage};
+use be_protocol::{
+    BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
+};
 use tokio::sync::{
     Mutex,
     mpsc::{Sender, error::TrySendError},
@@ -12,6 +15,38 @@ use tokio::sync::{
 
 use crate::Identity;
 use uuid::Uuid;
+
+#[derive(Clone, Debug)]
+pub enum Push {
+    BlockChanged(BlockSummary),
+    BlockRemoved {
+        block: Uuid,
+        revision: u64,
+    },
+    HeadChanged {
+        block: Uuid,
+        head: CommitId,
+        author: Uuid,
+    },
+    BlockDeleted {
+        block: Uuid,
+    },
+    Unwatched {
+        block: Uuid,
+    },
+    SessionChanged {
+        block: Uuid,
+        state: SessionState,
+    },
+    Relayed {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+    },
+    Paired(PairingMessage),
+    ContactsChanged,
+    KeyWorkChanged,
+}
 
 #[derive(Default)]
 struct Joined {
@@ -120,7 +155,7 @@ impl Joined {
 #[derive(Default)]
 pub struct WatchHub {
     next: AtomicU64,
-    clients: Mutex<HashMap<u64, Sender<ServerMessage>>>,
+    clients: Mutex<HashMap<u64, Sender<Push>>>,
     joined: Mutex<Joined>,
 }
 
@@ -129,7 +164,7 @@ impl WatchHub {
         Self::default()
     }
 
-    pub async fn register(&self, sender: Sender<ServerMessage>) -> u64 {
+    pub async fn register(&self, sender: Sender<Push>) -> u64 {
         let client = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         self.clients.lock().await.insert(client, sender);
         client
@@ -179,15 +214,13 @@ impl WatchHub {
             .collect();
     }
 
-    pub async fn tell(&self, client: u64, message: ServerMessage, entry: bool) {
+    pub async fn tell(&self, client: u64, message: Push, entry: bool) {
         let told = {
             let mut joined = self.joined.lock().await;
             let interest = joined.interests.entry(client).or_default();
             match &message {
-                ServerMessage::BlockChanged { block } => {
-                    interest.told(block.id, Facts::of(block, entry))
-                }
-                ServerMessage::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
+                Push::BlockChanged(block) => interest.told(block.id, Facts::of(block, entry)),
+                Push::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
                 _ => true,
             }
         };
@@ -218,11 +251,7 @@ impl WatchHub {
         };
         let mut clients = self.clients.lock().await;
         for target in targets {
-            deliver(
-                &mut clients,
-                target,
-                ServerMessage::BlockRemoved { block, revision },
-            );
+            deliver(&mut clients, target, Push::BlockRemoved { block, revision });
         }
     }
 
@@ -243,7 +272,7 @@ impl WatchHub {
         account: Uuid,
         from: u64,
         to: Option<u64>,
-        message: &ServerMessage,
+        message: &Push,
     ) -> usize {
         let targets: Vec<u64> = self
             .joined
@@ -364,7 +393,7 @@ impl WatchHub {
         }
     }
 
-    pub async fn announce(&self, organization: Uuid, message: ServerMessage) {
+    pub async fn announce(&self, organization: Uuid, message: Push) {
         let targets: Vec<u64> = self
             .joined
             .lock()
@@ -393,11 +422,11 @@ impl WatchHub {
         self.clients.lock().await.remove(&client);
     }
 
-    pub async fn send_to(&self, client: u64, message: ServerMessage) {
+    pub async fn send_to(&self, client: u64, message: Push) {
         deliver(&mut *self.clients.lock().await, client, message);
     }
 
-    pub async fn send_all(&self, clients: &[u64], from: u64, message: &ServerMessage) {
+    pub async fn send_all(&self, clients: &[u64], from: u64, message: &Push) {
         let mut senders = self.clients.lock().await;
         for client in clients {
             if *client != from {
@@ -406,7 +435,7 @@ impl WatchHub {
         }
     }
 
-    pub async fn broadcast(&self, block: Uuid, from: u64, message: ServerMessage) {
+    pub async fn broadcast(&self, block: Uuid, from: u64, message: Push) {
         let targets: Vec<u64> = self
             .joined
             .lock()
@@ -425,11 +454,7 @@ impl WatchHub {
     }
 }
 
-fn deliver(
-    clients: &mut HashMap<u64, Sender<ServerMessage>>,
-    client: u64,
-    message: ServerMessage,
-) -> bool {
+fn deliver(clients: &mut HashMap<u64, Sender<Push>>, client: u64, message: Push) -> bool {
     let Some(sender) = clients.get(&client) else {
         return false;
     };

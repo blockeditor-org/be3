@@ -11,25 +11,29 @@ async fn join(
     let mut member = harness.client().await;
     let account = member.register(email).await;
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(invitation),
-            organization,
-            email: email.into(),
-            role: OrganizationRole::Editor,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(invitation),
+                organization,
+                email.into(),
+                OrganizationRole::Editor,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    member
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(invitation),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = member
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(invitation),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     member.open(organization).await;
@@ -38,22 +42,17 @@ async fn join(
 
 async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Access) {
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block,
-            account,
-            access,
-        })
+        .call(|peer| client::blocks::set_access(peer, block, account, access))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
 }
 
 async fn changes(client: &mut TestClient, count: usize) -> Vec<(Uuid, bool)> {
     let mut seen = Vec::new();
     for _ in 0..count {
         seen.push(match client.graph_change().await {
-            ServerMessage::BlockChanged { block } => (block.id, true),
-            ServerMessage::BlockRemoved { block, .. } => (block, false),
+            Notice::BlockChanged { block } => (block.id, true),
+            Notice::BlockRemoved { block, .. } => (block, false),
             other => panic!("{other:?}"),
         });
     }
@@ -95,17 +94,11 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     );
 
     let response = owner
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block: inside,
-            metadata: b"sealed name".to_vec(),
-            references: Vec::new(),
+        .call(|peer| {
+            client::blocks::set_metadata(peer, inside, b"sealed name".to_vec(), Vec::new())
         })
         .await;
-    assert!(
-        matches!(response, ServerMessage::Block { .. }),
-        "{response:?}"
-    );
+    assert!(matches!(response, Ok(_)), "{response:?}");
     assert_eq!(changes(&mut viewer, 1).await, [(inside, true)]);
 
     grant(&mut owner, folder, account, Access::None).await;

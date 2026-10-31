@@ -13,11 +13,11 @@ use be_block::{
     OrganizationPoliciesContent, Root, Settings, SettingsContent,
 };
 use be_cli::{cli, tracker::Tracker};
-use be_client::{Connection, Credentials, Peer, PeerConfig};
+use be_client::{Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::{Access, BlockParent};
 use be_keys::{InviteCode, RecoveryPhrase};
-use be_protocol::{ClientMessage, OrganizationKind, OrganizationRole, ServerMessage};
+use be_protocol::{OrganizationKind, OrganizationRole, client};
 use be_server::{
     ServerConfig,
     backup::{self, BackupKey, Directory},
@@ -317,14 +317,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
     let organization = owner.organization();
     let owner_token = owner.token().to_owned();
-    let ServerMessage::Organizations { organizations, .. } =
-        request(&owner.connection(), |request| {
-            ClientMessage::ListOrganizations { request }
-        })
-        .await?
-    else {
-        return Err("the owner's organizations were not listed".to_owned());
-    };
+    let organizations = ask(client::organizations::list_organizations(
+        &owner.connection(),
+    ))
+    .await?;
     let personal = organizations
         .iter()
         .find(|listed| listed.kind == OrganizationKind::Personal)
@@ -387,35 +383,31 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
 
     let agent_phrase = RecoveryPhrase::generate();
     let agent_public = agent_phrase.secret().public();
-    let ServerMessage::AgentCreated {
+    let be_protocol::CreatedAgent {
         agent,
         token: agent_token,
-        ..
-    } = request(&owner.connection(), |request| ClientMessage::CreateAgent {
-        request,
+    } = ask(client::members::create_agent(
+        &owner.connection(),
         organization,
-        name: scene::AGENT_NAME.into(),
-        recovery: agent_public.0,
-        contact: owner_card.seal_own(&agent_phrase.secret()),
-        escrow: owner.keys().escrow().map_or_else(Vec::new, |escrow| {
+        scene::AGENT_NAME.into(),
+        agent_public.0,
+        owner_card.seal_own(&agent_phrase.secret()),
+        owner.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_client::contacts::seal_pin(&agent_phrase.secret(), organization, &escrow)
         }),
-    })
-    .await?
-    else {
-        return Err("the agent was not created".to_owned());
-    };
+    ))
+    .await?;
     let agent_card = be_keys::ContactCard {
         account: agent.account.into_bytes(),
         public: agent_public,
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    request(&owner.connection(), |request| ClientMessage::PutContact {
-        request,
-        contact: agent.account,
-        sealed: agent_card.seal_own(owner.keys().identity()),
-    })
+    ask(client::contacts::put_contact(
+        &owner.connection(),
+        agent.account,
+        agent_card.seal_own(owner.keys().identity()),
+    ))
     .await?;
     owner.refresh_contacts().await.map_err(text)?;
 
@@ -716,13 +708,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let fresh = RecoveryPhrase::generate();
-    let ServerMessage::RecoveryKey { sealed, own, .. } = request(&friend.connection(), |request| {
-        ClientMessage::GetRecoveryKey { request }
-    })
-    .await?
-    else {
-        return Err("the friend's keys were not sent".to_owned());
-    };
+    let be_protocol::RecoveryKey { sealed, own, .. } =
+        ask(client::keys::get_recovery_key(&friend.connection())).await?;
     let resealed = be_client::contacts::new_identity(
         friend.account(),
         friend.keys().identity(),
@@ -731,15 +718,13 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         own,
     )
     .ok_or("the friend's old phrase did not open what was sealed to it")?;
-    request(&friend.connection(), |request| {
-        ClientMessage::SetRecoveryKey {
-            request,
-            public: fresh.secret().public().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-        }
-    })
+    ask(client::keys::set_recovery_key(
+        &friend.connection(),
+        fresh.secret().public().0,
+        resealed.sealed,
+        resealed.own,
+        resealed.changes,
+    ))
     .await?;
 
     Ok(Written {
@@ -773,11 +758,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     })
 }
 
-async fn request(
-    connection: &Connection,
-    build: impl FnOnce(u64) -> ClientMessage,
-) -> Result<ServerMessage, String> {
-    connection.request(build).await.map_err(text)
+async fn ask<T: be_ops::DeserializeOwned>(
+    pending: be_ops::net::Pending<Result<T, be_protocol::Error>>,
+) -> Result<T, String> {
+    be_client::ask(pending).await.map_err(text)
 }
 
 async fn run(tracker: &Tracker<MemoryStore>, arguments: &[&str]) -> Result<String, String> {

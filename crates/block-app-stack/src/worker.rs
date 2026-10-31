@@ -8,9 +8,10 @@ use wasi_threads::Mutex;
 
 use be_block::BlockMetadata;
 use be_client::{ClientError, Credentials, Peer, PeerConfig};
+use be_client::{Event, ask};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
-use be_protocol::{AccessList, BlockSummary, ClientMessage, ServerMessage};
+use be_protocol::{AccessList, BlockSummary, client};
 use be_types_host::Conflict;
 use block_type_api::{Change, Description, EditorId};
 use block_type_guest::editor::FromEditor;
@@ -620,7 +621,7 @@ type Reaching = std::pin::Pin<Box<dyn Future<Output = Result<crate::link::Link, 
 
 enum Line {
     Up {
-        events: tokio::sync::broadcast::Receiver<ServerMessage>,
+        events: tokio::sync::broadcast::Receiver<Event>,
         gone: tokio::sync::watch::Receiver<bool>,
         _open: Opened,
     },
@@ -721,7 +722,6 @@ impl Session<'_> {
                         peer,
                         shared,
                         replicas: &mut *self.replicas,
-                        tasks: &self.tasks.0,
                     })
                     .await;
                 report(peer, shared);
@@ -914,7 +914,6 @@ impl Session<'_> {
                     peer,
                     shared,
                     replicas: &mut *self.replicas,
-                    tasks: &self.tasks.0,
                 })
                 .await;
             moved |= version_revisions(shared) != before;
@@ -1046,7 +1045,6 @@ impl Session<'_> {
                 peer,
                 shared,
                 replicas: &mut *self.replicas,
-                tasks: &self.tasks.0,
             })
             .await;
         report(peer, shared);
@@ -1232,7 +1230,7 @@ enum Woken {
     Command(Command),
     Finished,
     Uploaded,
-    Event(Option<ServerMessage>),
+    Event(Option<Event>),
     Module,
     Deadline,
     Disconnected,
@@ -1476,13 +1474,12 @@ async fn approve_pairing(
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
     let sealed = key.seal(&peer.keys().identity().to_bytes());
     let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
-    peer.connection()
-        .request(|request| ClientMessage::Pair {
-            request,
-            to: Some(from),
-            payload,
-        })
-        .await?;
+    ask(client::account::pair(
+        &peer.connection(),
+        Some(from),
+        payload,
+    ))
+    .await?;
     Ok(())
 }
 
@@ -1610,35 +1607,29 @@ async fn create_agent(
     let phrase = be_keys::RecoveryPhrase::generate();
     let secret = phrase.secret();
     let public = secret.public();
-    let ServerMessage::AgentCreated { agent, token, .. } = peer
-        .connection()
-        .request(|request| ClientMessage::CreateAgent {
-            request,
-            organization,
-            name,
-            recovery: public.0,
-            contact: me.seal_own(&secret),
-            escrow: peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-                be_client::contacts::seal_pin(&secret, organization, &escrow)
-            }),
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
+    let be_protocol::CreatedAgent { agent, token } = ask(client::members::create_agent(
+        &peer.connection(),
+        organization,
+        name,
+        public.0,
+        me.seal_own(&secret),
+        peer.keys().escrow().map_or_else(Vec::new, |escrow| {
+            be_client::contacts::seal_pin(&secret, organization, &escrow)
+        }),
+    ))
+    .await?;
     let card = be_keys::ContactCard {
         account: agent.account.into_bytes(),
         public,
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    peer.connection()
-        .request(|request| ClientMessage::PutContact {
-            request,
-            contact: agent.account,
-            sealed: card.seal_own(identity),
-        })
-        .await?;
+    ask(client::contacts::put_contact(
+        &peer.connection(),
+        agent.account,
+        card.seal_own(identity),
+    ))
+    .await?;
     Ok(crate::accounts::AgentCredentials {
         name: agent.name,
         server: config.server_url.clone(),
@@ -1816,7 +1807,6 @@ async fn apply(
                         peer,
                         shared,
                         replicas,
-                        tasks,
                     },
                     block,
                     command,
@@ -2365,10 +2355,10 @@ async fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
-    event: Option<ServerMessage>,
+    event: Option<Event>,
 ) {
     match event {
-        Some(ServerMessage::BlockChanged { block }) => {
+        Some(Event::BlockChanged(block)) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
             }
@@ -2385,25 +2375,25 @@ async fn heard(
                 held.graph.relist_open_settings();
             }
         }
-        Some(ServerMessage::BlockRemoved { block, revision }) => {
+        Some(Event::BlockRemoved { block, revision }) => {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
                 .remove(block, revision);
         }
-        Some(ServerMessage::HeadChanged { block, head, .. }) => {
+        Some(Event::HeadChanged { block, head, .. }) => {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
                 .set_head(block, Some(head));
         }
-        Some(ServerMessage::Paired { from, payload }) => {
+        Some(Event::Paired(be_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
-        Some(ServerMessage::ContactsChanged) => tasks.contacts(peer, shared),
-        Some(ServerMessage::KeyWorkChanged) => {
+        Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
+        Some(Event::KeyWorkChanged) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move { tend(&peer, &shared).await });
         }

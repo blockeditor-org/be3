@@ -87,7 +87,12 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `uuid::Uuid`, whose serde writes its 16 bytes with a length in front, which works
   because both ends of a type module's link are block-type-api), so `with` is never for
   a type with fields or cases of its own: generate it, and convert explicitly where Rust code wants another shape (a
-  menu's tree, AccessKit's tree update); `uses` (a map) takes a whole interface of another package from the crate
+  menu's tree, AccessKit's tree update). The one exception is a network world, whose
+  client and server are both the crate that generates it: be-protocol maps
+  `access-level`, `block-parent` and `escrow-key` onto `be_graph::Access`,
+  `be_graph::BlockParent` and its own frozen `EscrowKey`, so the wire uses the very
+  Rust types the graph and the sealed escrow bytes use, and a test of be-protocol
+  holds the escrow key's bytes; `uses` (a map) takes a whole interface of another package from the crate
   generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
   mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
   or enum's first case is the default); `inline` records that are a variant case's

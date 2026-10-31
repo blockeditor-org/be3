@@ -148,29 +148,25 @@ async fn agent(
     let public = phrase.secret().public();
     let peer = owner.peer();
     let organization = peer.organization();
-    let response = peer
-        .connection()
-        .request(|request| be_protocol::ClientMessage::CreateAgent {
-            request,
+    let be_protocol::CreatedAgent { agent, token } =
+        be_client::ask(be_protocol::client::members::create_agent(
+            &peer.connection(),
             organization,
-            name: "Claude".into(),
-            recovery: public.0,
-            contact: be_client::contacts::card(
+            "Claude".into(),
+            public.0,
+            be_client::contacts::card(
                 peer.account(),
                 peer.keys().identity(),
                 "Owner",
                 "owner@example.com",
             )
             .seal_own(&phrase.secret()),
-            escrow: peer.keys().escrow().map_or_else(Vec::new, |escrow| {
+            peer.keys().escrow().map_or_else(Vec::new, |escrow| {
                 be_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
             }),
-        })
+        ))
         .await
-        .unwrap();
-    let be_protocol::ServerMessage::AgentCreated { agent, token, .. } = response else {
-        panic!("creating the agent failed: {response:?}");
-    };
+        .expect("creating the agent failed");
     let credentials = serde_json::json!({
         "server": harness.url,
         "organization": organization,

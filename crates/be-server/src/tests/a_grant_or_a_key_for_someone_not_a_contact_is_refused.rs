@@ -16,12 +16,9 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
     assert!(refused_as(&granted, ErrorCode::NotAContact), "{granted:?}");
     assert!(refused_as(&keyed, ErrorCode::NotAContact), "{keyed:?}");
     let listed = owner
-        .send(|request| ClientMessage::ListAccess {
-            request,
-            block: shared.block,
-        })
+        .call(|peer| client::blocks::list_access(peer, shared.block))
         .await;
-    let ServerMessage::AccessList { list, .. } = listed else {
+    let Ok(list) = listed else {
         panic!("listing access failed: {listed:?}");
     };
     assert_eq!(
@@ -35,10 +32,10 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
 
     let link = owner.link(None).await;
     let accepted = stranger.accept(link, &[]).await;
-    assert!(matches!(accepted, ServerMessage::Ok { .. }), "{accepted:?}");
+    assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let (granted, keyed) = attempts(&mut owner, &shared, stranger_id).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
-    assert!(matches!(keyed, ServerMessage::Ok { .. }), "{keyed:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
+    assert!(matches!(keyed, Ok(())), "{keyed:?}");
 
     harness.stop().await;
 }
@@ -47,7 +44,7 @@ async fn attempts(
     owner: &mut TestClient,
     shared: &Scoped,
     stranger: Uuid,
-) -> (ServerMessage, ServerMessage) {
+) -> (Result<(), Error>, Result<(), Error>) {
     let keys = KeySet {
         keys: Vec::new(),
         wrapped: vec![wrap(
@@ -58,8 +55,6 @@ async fn attempts(
     };
     (
         owner.grant(shared.block, stranger, Access::View).await,
-        owner
-            .send(|request| ClientMessage::PutKeys { request, keys })
-            .await,
+        owner.call(|peer| client::keys::put_keys(peer, keys)).await,
     )
 }

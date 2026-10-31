@@ -1,6 +1,6 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_protocol::ClientMessage;
+use be_protocol::client;
 
 #[tokio::test]
 async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
@@ -16,14 +16,10 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
 
     relay.jam_at_next_request();
     let heard = relay.heard();
-    let answer = connection
-        .send(|request| ClientMessage::Relay {
-            request,
-            block: Uuid::nil(),
-            to: None,
-            payload: vec![7; be_protocol::MAX_FRAME_BYTES - 1024],
-        })
-        .unwrap();
+    let answer = crate::ask(client::objects::put_objects(
+        &connection,
+        vec![vec![7; be_protocol::MAX_FRAME_BYTES - 1024]],
+    ));
     relay.heard_beyond(heard).await;
     clock.advance(PING_INTERVAL + PONG_WAIT);
 

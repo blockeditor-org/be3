@@ -3,12 +3,14 @@ use super::*;
 #[tokio::test]
 async fn cancelled_and_expired_authorizations_cannot_be_claimed() {
     let sessions = Arc::new(Sessions::default());
-    let hub = Arc::new(WatchHub::new());
-    let (first, first_secret) = sessions.begin(1, Arc::clone(&hub)).unwrap();
-    let (second, second_secret) = sessions.begin(1, Arc::clone(&hub)).unwrap();
+    let (first, first_secret) = sessions.begin(1).unwrap();
+    let (second, second_secret) = sessions.begin(1).unwrap();
     assert!(sessions.finish(1, &first, &first_secret).is_err());
-    assert_eq!(sessions.finish(2, &second, &second_secret).unwrap(), None);
-    let (expired, expired_secret) = sessions.begin(1, hub).unwrap();
+    assert!(matches!(
+        sessions.finish(2, &second, &second_secret),
+        Ok(Finished::Waiting(_))
+    ));
+    let (expired, expired_secret) = sessions.begin(1).unwrap();
     {
         let mut entries = sessions.pending.lock().unwrap();
         let entry = entries.get_mut(&expired).unwrap();

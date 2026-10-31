@@ -12,10 +12,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
         watcher.create_block(BlockParent::Root).await,
     ];
     for block in blocks {
-        let response = watcher
-            .send(|request| ClientMessage::Watch { request, block })
-            .await;
-        assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+        watcher.watch(block).await;
     }
 
     let mut publisher = harness
@@ -30,31 +27,31 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
             .await;
         heads.push((block, head, chunks));
     }
-    for (index, (block, head, chunks)) in heads.iter().cloned().enumerate() {
-        let message = ClientMessage::Publish {
-            request: 100 + index as u64,
-            block,
-            commit: head,
-            expected: None,
-            parents: Vec::new(),
-            chunks,
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
-        };
-        publisher
-            .socket
-            .send(WsMessage::Binary(encode_message(&message).unwrap()))
-            .await
-            .unwrap();
-    }
-    publisher.socket.close(None).await.unwrap();
+    let sent: Vec<_> = heads
+        .iter()
+        .cloned()
+        .map(|(block, head, chunks)| {
+            client::blocks::publish(
+                &publisher.peer,
+                block,
+                head,
+                None,
+                Vec::new(),
+                chunks,
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+        })
+        .collect();
+    publisher.close().await;
+    drop(sent);
 
     let mut moved = Vec::new();
     while moved.len() < heads.len() {
-        if let ServerMessage::HeadChanged { block, head, .. } = watcher.notification().await {
+        if let Notice::HeadChanged { block, head, .. } = watcher.notification().await {
             moved.push((block, head));
         }
     }

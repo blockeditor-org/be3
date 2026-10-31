@@ -1,35 +1,35 @@
 use super::*;
 use be_graph::{Access, SETTINGS_TYPE};
 
-async fn create_settings(client: &mut TestClient, parent: Uuid) -> (Uuid, ServerMessage) {
+async fn create_settings(
+    client: &mut TestClient,
+    parent: Uuid,
+) -> (Uuid, Result<BlockSummary, Error>) {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let response = client
-        .send(|request| ClientMessage::CreateBlock {
-            request,
-            block,
-            content_type: SETTINGS_TYPE,
-            parent: BlockParent::Block(parent),
-            metadata: Vec::new(),
-            references: Vec::new(),
-            key,
-            keys: KeySet {
-                keys: vec![row(key, block, KeyKind::Data)],
-                wrapped: Vec::new(),
-            },
+        .call(|peer| {
+            client::blocks::create_block(
+                peer,
+                block,
+                SETTINGS_TYPE,
+                BlockParent::Block(parent),
+                Vec::new(),
+                Vec::new(),
+                key,
+                KeySet {
+                    keys: vec![row(key, block, KeyKind::Data)],
+                    wrapped: Vec::new(),
+                },
+            )
         })
         .await;
     (block, response)
 }
 
-async fn set_metadata(client: &mut TestClient, block: Uuid) -> ServerMessage {
+async fn set_metadata(client: &mut TestClient, block: Uuid) -> Result<BlockSummary, Error> {
     client
-        .send(|request| ClientMessage::SetMetadata {
-            request,
-            block,
-            metadata: b"changed".to_vec(),
-            references: Vec::new(),
-        })
+        .call(|peer| client::blocks::set_metadata(peer, block, b"changed".to_vec(), Vec::new()))
         .await
 }
 
@@ -43,27 +43,21 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let editor_id = editor.register("editor@example.com").await;
     editor.personal().await;
     let link = owner.link(None).await;
-    editor.accept(link, &[]).await;
+    let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;
     let folder = owner.create_block(BlockParent::Block(workspace)).await;
     let (workspace_settings, created) = create_settings(&mut owner, workspace).await;
-    assert!(
-        matches!(created, ServerMessage::Block { .. }),
-        "{created:?}"
-    );
+    assert!(matches!(created, Ok(_)), "{created:?}");
     let (folder_settings, created) = create_settings(&mut owner, folder).await;
-    assert!(
-        matches!(created, ServerMessage::Block { .. }),
-        "{created:?}"
-    );
+    assert!(matches!(created, Ok(_)), "{created:?}");
     assert_eq!(
         owner.read_block(folder_settings).await.access,
         Access::Manage
     );
 
     let granted = owner.grant(workspace, editor_id, Access::Edit).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     assert_eq!(editor.read_block(folder).await.access, Access::Edit);
     for settings in [workspace_settings, folder_settings] {
         assert_eq!(editor.read_block(settings).await.access, Access::View);
@@ -89,16 +83,10 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     );
     let own = editor.create_block(BlockParent::Root).await;
     let (planted, created) = create_settings(&mut editor, own).await;
-    assert!(
-        matches!(created, ServerMessage::Block { .. }),
-        "{created:?}"
-    );
+    assert!(matches!(created, Ok(_)), "{created:?}");
     let moved = editor
-        .send(|request| ClientMessage::SetParent {
-            request,
-            block: planted,
-            parent: BlockParent::Block(folder),
-            keys: KeySet::default(),
+        .call(|peer| {
+            client::blocks::set_parent(peer, planted, BlockParent::Block(folder), KeySet::default())
         })
         .await;
     assert!(
@@ -109,16 +97,13 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     assert_eq!(editor.read_block(inside).await.access, Access::Manage);
 
     let granted = owner.grant(folder, editor_id, Access::Manage).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     assert_eq!(
         editor.read_block(folder_settings).await.access,
         Access::Manage
     );
     let changed = set_metadata(&mut editor, folder_settings).await;
-    assert!(
-        matches!(changed, ServerMessage::Block { .. }),
-        "{changed:?}"
-    );
+    assert!(matches!(changed, Ok(_)), "{changed:?}");
     let changed = set_metadata(&mut editor, workspace_settings).await;
     assert!(
         refused_as(&changed, ErrorCode::PermissionDenied),

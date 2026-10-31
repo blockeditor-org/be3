@@ -4,11 +4,11 @@ use std::{
     time::Duration,
 };
 
-use be_protocol::{ErrorCode, ServerMessage};
+use be_protocol::ErrorCode;
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use crate::{ServerError, Services, watch::WatchHub};
+use crate::{ServerError, Services};
 
 const LIFETIME: Duration = Duration::from_secs(600);
 const LIMIT: usize = 1024;
@@ -26,7 +26,13 @@ struct Pending {
     expires: Instant,
     account: Option<Uuid>,
     approved_by: String,
+    decided: tokio::sync::watch::Sender<()>,
     _cancel: tokio::sync::oneshot::Sender<()>,
+}
+
+pub(crate) enum Finished {
+    Approved { account: Uuid, issuer: String },
+    Waiting(tokio::sync::watch::Receiver<()>),
 }
 
 fn invalid(message: &str) -> ServerError {
@@ -34,11 +40,7 @@ fn invalid(message: &str) -> ServerError {
 }
 
 impl Sessions {
-    pub(crate) fn begin(
-        self: &Arc<Self>,
-        client: u64,
-        hub: Arc<WatchHub>,
-    ) -> Result<(String, String), ServerError> {
+    pub(crate) fn begin(self: &Arc<Self>, client: u64) -> Result<(String, String), ServerError> {
         let mut pending = self.pending.lock().unwrap();
         pending.retain(|_, entry| entry.client != client && entry.expires > Instant::now());
         if pending.len() >= LIMIT {
@@ -57,6 +59,7 @@ impl Sessions {
                 expires: Instant::now() + LIFETIME,
                 account: None,
                 approved_by: String::new(),
+                decided: tokio::sync::watch::Sender::new(()),
                 _cancel: cancel,
             },
         );
@@ -65,17 +68,7 @@ impl Sessions {
         tokio::spawn(async move {
             tokio::select! { _ = tokio::time::sleep(LIFETIME) => {}, _ = cancelled => return }
             if let Some(sessions) = sessions.upgrade() {
-                let expired = sessions.pending.lock().unwrap().remove(&expiring).is_some();
-                if expired {
-                    hub.send_to(
-                        client,
-                        ServerMessage::BrowserLoginFinished {
-                            approved: false,
-                            message: "This sign-in expired. Try again.".into(),
-                        },
-                    )
-                    .await;
-                }
+                sessions.pending.lock().unwrap().remove(&expiring);
             }
         });
         Ok((code, secret))
@@ -86,7 +79,7 @@ impl Sessions {
         client: u64,
         code: &str,
         secret: &str,
-    ) -> Result<Option<(Uuid, String)>, ServerError> {
+    ) -> Result<Finished, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let entry = pending
             .get_mut(code)
@@ -97,11 +90,11 @@ impl Sessions {
         }
         entry.client = client;
         let Some(account) = entry.account else {
-            return Ok(None);
+            return Ok(Finished::Waiting(entry.decided.subscribe()));
         };
         let issuer = entry.approved_by.clone();
         pending.remove(code);
-        Ok(Some((account, issuer)))
+        Ok(Finished::Approved { account, issuer })
     }
 
     pub(crate) fn form(&self, owner: &str) -> Result<String, ServerError> {
@@ -162,29 +155,13 @@ pub(crate) async fn decide(
         return Err(invalid("This server is not accepting sign-ins."));
     }
     let code = code.trim().to_ascii_lowercase();
-    let client = {
-        let mut pending = services.browser_auth.pending.lock().unwrap();
-        let entry = pending.get_mut(&code).filter(|entry| entry.expires > Instant::now() && entry.account.is_none() && !entry.denied)
-            .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in Block."))?;
-        entry.account = account;
-        entry.approved_by = issuer.into();
-        entry.denied = account.is_none();
-        entry.client
-    };
-    services
-        .hub
-        .send_to(
-            client,
-            ServerMessage::BrowserLoginFinished {
-                approved: account.is_some(),
-                message: if account.is_some() {
-                    String::new()
-                } else {
-                    "Sign-in was denied in the browser.".into()
-                },
-            },
-        )
-        .await;
+    let mut pending = services.browser_auth.pending.lock().unwrap();
+    let entry = pending.get_mut(&code).filter(|entry| entry.expires > Instant::now() && entry.account.is_none() && !entry.denied)
+        .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in Block."))?;
+    entry.account = account;
+    entry.approved_by = issuer.into();
+    entry.denied = account.is_none();
+    entry.decided.send_replace(());
     Ok(())
 }
 

@@ -56,7 +56,7 @@ be-store     objects, chunking, encryption        client + server
 be-commit    commit DAG, retention, merge         client + server
 be-session   ownership lease, sequencer, resume   client + server
 be-graph     parents, edges, access, refcounts    server
-be-protocol  the wire format                      client + server
+be-protocol  the wire format (WIT be3:server)      client + server
 be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-vcs       snapshot trees, diff, tree merge      client
@@ -198,6 +198,43 @@ time, so notifications wait for the next post.
   one with `build_id::install`. Server and clients are upgraded
   together from one commit, so the protocol itself is postcard and never
   versioned.
+- After the greeting every frame is a be-ops frame (guides/type_modules.md,
+  "Operations and WIT"): the protocol is the WIT package `be3:server`
+  (`crates/be-protocol/wit`), generated with `network: true`, so each call is
+  an op and its id the only correlation; there are no request ids. A function
+  answers `result<T, error>`, whose `error` (an `ErrorCode` and a message)
+  `be_client::ClientError::Refused` carries; `be_client::ask` turns a call's
+  `Pending` into a `Result<T, ClientError>`, so client code is
+  `client::blocks::read_block(&connection, block).await??` or
+  `ask(...).await?`. What the server pushes is a stream: `blocks.changes` (the
+  graph announcements below), `blocks.watch(block)` (head moves and the
+  deletion of one block; it checks the caller may read the block),
+  `account.paired`, `contacts.contacts-changed` and `keys.key-work-changed`
+  (latest-value streams), and a `sessions.session` resource whose `join` stream
+  starts with `joined` or `refused` and carries the session's changes and
+  relayed messages; dropping it leaves the session, and claims, heartbeats and
+  relays are its methods. `finish-browser-login` waits until the browser
+  approves or denies the code; a client that loses its connection calls it again
+  on the next one.
+- The server runs each connection as a `be_ops::net::Peer` (`Side::Host`,
+  `be-server/src/client.rs`): it takes the Start frames in the order they
+  arrived and answers each call before the next, except a call that waits
+  (`finish-browser-login`), which a task answers and hands back to the
+  connection's loop when it must change the connection's state (`Late`). The
+  hub (`WatchHub`) sends each connection `Push`es, which it writes to the
+  matching open streams. A stream sends while its consumer has granted credit
+  and keeps up to `STREAM_BUFFER` (4096) items beyond that; a client that lets
+  one fill up is disconnected, as is one whose hub queue fills. The loop takes
+  no new frame while more than `OUTBOUND_FRAMES` frames wait to be written, so
+  a client that does not read its socket is slowed rather than buffered.
+- The client runs its `Connection` as a `be_ops::net::Peer` (`Side::Guest`)
+  that `Connection` implements `Caller` around, so the generated
+  `be_protocol::client::<interface>` functions take `&connection`. It opens
+  the connection-wide streams on the first `subscribe()` and the per-block ones
+  as `watch` and `join_session` are called, and pumps every stream into one
+  `broadcast` of `be_client::Event` in the connection's worker, which the app's
+  loop and `be` follow; a receiver that falls behind it re-lists what it wants
+  and joins its sessions again, as after a reconnect.
 - A publish is a compare-and-swap on the head. A publish against a stale head
   comes back `Rejected` with the head to merge against, rather than being
   silently ordered after it.
@@ -270,8 +307,9 @@ time, so notifications wait for the next post.
   since who may know they exist changed too; an id no block has (one linked
   before it is made) is never announced. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
-- A connection hears only of what it listed. `ListChildren`, `ListShared`,
-  `ListBackrefs`, `ListReferences` and `ReadBlock` each register a `Listing` with `WatchHub`
+- A connection hears only of what it listed. `list-blocks` (a `Listing`: a
+  parent's children, the shared blocks, a block's backrefs or references) and
+  `read-block` each register their `Listing` with `WatchHub`
   before reading (so nothing changed during the read is missed), and the hub
   remembers each block a connection has been told of. A change is sent when a
   listing matches the block as it now is (its parent, its own id, an entry point
@@ -279,7 +317,7 @@ time, so notifications wait for the next post.
   block whose references are listed, as the connection last heard of that
   block) or when the connection was
   told of it before, so a block moving out of a listed folder is still
-  announced, and then forgotten. `Unlist` drops a listing and the blocks only it
+  announced, and then forgotten. `unlist` drops a listing and the blocks only it
   matched; a refused listing stays until then, so a block read before it is
   made is announced once it is.
 - Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
@@ -400,11 +438,12 @@ stopped forwarding) and the transport never says so:
   deadline of its own: every one is answered or fails with `Disconnected` when
   the connection closes. `ClientError::is_unreachable` covers both.
 - After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
-  sends `ClientMessage::Ping`. A browser cannot send websocket pings, so this
-  is a protocol message, and any frame proves the server is alive. The server
-  reads frames in a task of its own (`serve_socket`) and answers a `Ping` (and
-  a websocket ping) at once, ahead of the requests queued for its answering
-  loop, so a slow request does not make the client think the server is gone.
+  calls `connection.ping`, written ahead of anything else queued. A browser
+  cannot send websocket pings, so this is a protocol call, and any frame proves
+  the server is alive. The server reads frames in a task of its own
+  (`serve_socket`) and answers a ping's Start frame (and a websocket ping) at
+  once, ahead of the calls queued for its answering loop, so a slow call does
+  not make the client think the server is gone.
   `PONG_WAIT` (20 s) after the ping was actually written, with still nothing
   heard, the connection closes itself, and everything waiting on it sees a
   disconnect. Only an unanswered ping closes it: a process that was suspended
@@ -429,8 +468,9 @@ stopped forwarding) and the transport never says so:
   without ever reaching the server, or `jam_at_next_request` (stop reading
   altogether, so the client's writes back up; it accepts with a 64 KiB receive
   buffer so that takes megabytes, not tens of them). `count(predicate)` counts
-  the client messages that match from then on (a `watch` of the count), so a
-  test waits for a `Ping` or a `Heartbeat` to be sent. The block-app
+  the calls the client starts whose method id matches from then on (a `watch`
+  of the count; the ids are `be_protocol::__args::<INTERFACE>_<FUNCTION>`), so
+  a test waits for a ping or a heartbeat to be sent. The block-app
   `Harness::miss_a_ping` advances the manual clock to each `Connection::due()`
   until the connection gives up.
 
@@ -440,7 +480,7 @@ stopped forwarding) and the transport never says so:
   trip. A merge, or new objects over half a frame, are uploaded first instead:
   only what `MissingObjects` says the server lacks, in `PutObjects` of up to
   2 MiB each.
-- There is no batch request. The server answers a connection's requests in
+- There is no batch request. The server takes a connection's calls in
   order and both transports send whatever is queued together (the HTTP one in
   one post), so independent requests go out without awaiting each other; only a
   chain where each request needs the last one's answer is worth a request of its
@@ -843,8 +883,8 @@ undone.
   changes; it watches the checkout's blocks and holds each followed checkout's
   tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
   before each operation so every head is current.
-- A replica's owner reconciles when someone publishes past it (`HeadChanged`
-  → `head-moved`), which is what lets a checkout replace the content of a
+- A replica's owner reconciles when someone publishes past it (the block's
+  `watch` stream's `moved`, `Event::HeadChanged` → `head-moved`), which is what lets a checkout replace the content of a
   block that someone has open; the worker calls `head-moved` with `from-this-device`
   for what it publishes itself.
 
@@ -1038,11 +1078,11 @@ blocks whose content it watches (`Owner::Editor`); the worker the parents of
 every open block and of every revision preview's source (`Owner::Open`) and the
 roots (`Owner::Host`, for Settings and My files); version control its
 checkouts' subtrees (`Owner::Version`). After every change the graph turns
-what is wanted into `Listing`s - a parent's children (`ListChildren`), the
-blocks shared into view (`ListShared`), a block's backrefs (`ListBackrefs`), the
-blocks a block references (`ListReferences`, one request however many there
+what is wanted into `Listing`s - a parent's children (`Listing::Children`), the
+blocks shared into view (`Listing::Shared`), a block's backrefs (`Listing::Backrefs`), the
+blocks a block references (`Listing::References`, one request however many there
 are; the server stores references already resolved to real ids, checkouts'
-included), one block (`ReadBlock`) - expanding `Parents` and `Subtree` as the
+included), one block (`read-block`) - expanding `Parents` and `Subtree` as the
 blocks they name arrive, and listing a block's references again when they
 change, and the worker fetches the new ones together
 (`fetch_listings`; its own loop spawns them as a task, `spawn_listings`, and is
@@ -1054,12 +1094,12 @@ replica after a reconnect (`Replicas::reconnect` spawns them, `Io::Rejoined`,
 holding the server's events for each until its own lands). A changed scope key
 asks for a seal without waiting for it (`Replicas::seal_later`). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
-empties it from the mirror; the worker sends `Unlist` for it, ahead of that
+empties it from the mirror; the worker calls `unlist` for it, ahead of that
 round's new listings, so the server stops announcing it. A block already held
 is asked for on its own all the same, so the server keeps announcing it once
 the listing that brought it is gone, but its query is ready at once. A query is answered only once its listings have
 loaded (`block_app_stack::ready`), so an editor never sees a folder as empty while it
-loads. The server's `BlockChanged` and `BlockRemoved` events keep what is
+loads. The `changes` stream's `changed` and `removed` events (`Event::BlockChanged` and `Event::BlockRemoved`) keep what is
 listed current: a block is kept only while a listing holds it (a new child of a
 listed folder joins that listing, one that moves out leaves it), and news of a
 block shared into view re-lists `Shared`. Reconnecting, or falling behind the
@@ -1867,11 +1907,14 @@ head and is then moved to the remote one, so its next publish builds on them.
 Heartbeats (`Peer::heartbeat` sends at once and returns the answer to await)
 are answered off the worker loop, like relays; so are lease claims
 (`Peer::claim_ownership`, `Io::Claimed`), leaving and unwatching a closed
-block (`leave_session`, `unwatch`) and the joins after the host fell behind the
+block (`leave_session` closes the block's `session` resource, `unwatch` drops
+its watch stream) and the joins after the host fell behind the
 broadcast (`Replicas::resynchronize`, `Io::Resynchronized`): these session
-requests are written the moment they are made, so a block's leave and its next
+calls are written the moment they are made, so a block's leave and its next
 join reach the server in order, and an answer older than the replica's session
-is dropped. A relayed message is unsealed
+is dropped. A join while the connection already holds a session for the block
+opens a second `session` resource and drops the first after; the server leaves
+a block's session only when the last of a connection's resources for it goes. A relayed message is unsealed
 on the spot (`Peer::unseal`, no network); one whose key this device lacks
 (`ClientError::Locked`) and has not yet looked for (`Peer::first_search_for`)
 fetches the keys in a task, and that block's later events wait behind it so
@@ -2181,7 +2224,7 @@ carries one kind of it to everyone in the session, sealed like every other
 session message. A replica sends a value (or takes it away with `None`) only
 when it changed, keeps what the other peers show keyed by their `ClientId` and
 the kind, and never shows a peer its own.
-When `SessionChanged` names a participant it has not seen, a peer shows that
+When the session's `changed` event (`Event::SessionChanged`) names a participant it has not seen, a peer shows that
 participant what it is showing, so a late joiner sees everyone at once; when a
 participant leaves, what it showed is dropped.
 

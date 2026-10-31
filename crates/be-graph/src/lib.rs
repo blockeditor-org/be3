@@ -23,7 +23,9 @@ pub const TAGS_TYPE: Uuid = Uuid::from_u128(0x7461_6773_2d6b_696e_642d_6265_3364
 
 pub const EDIT_KINDS: [Uuid; 2] = [PREFIXES_TYPE, TAGS_TYPE];
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub enum BlockParent {
     #[default]
     Detached,

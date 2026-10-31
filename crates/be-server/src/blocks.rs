@@ -285,7 +285,7 @@ impl ServerStore {
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
-    ) -> Result<Vec<Vec<(be_protocol::ServerMessage, bool)>>, ServerError> {
+    ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
         self.with_graph(organization, move |graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
@@ -316,13 +316,10 @@ impl ServerStore {
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
                                 let entry = found.access.can_view() && shared.contains(block);
-                                (
-                                    be_protocol::ServerMessage::BlockChanged { block: found },
-                                    entry,
-                                )
+                                (crate::watch::Push::BlockChanged(found), entry)
                             }
                             _ => (
-                                be_protocol::ServerMessage::BlockRemoved {
+                                crate::watch::Push::BlockRemoved {
                                     block: *block,
                                     revision,
                                 },

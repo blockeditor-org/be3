@@ -3,15 +3,17 @@ use be_graph::Access;
 
 async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
     let response = client
-        .send(|request| match shared {
-            true => ClientMessage::ListShared { request },
-            false => ClientMessage::ListChildren {
-                request,
-                parent: BlockParent::Root,
-            },
+        .call(|peer| {
+            client::blocks::list_blocks(
+                peer,
+                match shared {
+                    true => Listing::Shared,
+                    false => Listing::Children(BlockParent::Root),
+                },
+            )
         })
         .await;
-    let ServerMessage::Blocks { blocks, .. } = response else {
+    let Ok(blocks) = response else {
         panic!("listing failed: {response:?}");
     };
     let mut ids: Vec<Uuid> = blocks.into_iter().map(|block| block.id).collect();
@@ -31,31 +33,35 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
 
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(1),
-            organization,
-            email: "guest@example.com".into(),
-            role: OrganizationRole::Editor,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(1),
+                organization,
+                "guest@example.com".into(),
+                OrganizationRole::Editor,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    guest
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(1),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = guest
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(1),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     guest.open(organization).await;
     let token = guest.token.clone();
-    let ServerMessage::Authenticated { account, .. } = guest
-        .send(|request| ClientMessage::Authenticate { request, token })
+    let Ok(Authenticated { account, .. }) = guest
+        .call(|peer| client::account::authenticate(peer, token))
         .await
     else {
         panic!("the guest could not re-authenticate");
@@ -65,14 +71,9 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     assert!(listed(&mut guest, true).await.is_empty());
 
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block: inside,
-            account,
-            access: Access::View,
-        })
+        .call(|peer| client::blocks::set_access(peer, inside, account, Access::View))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(
         listed(&mut guest, true).await,
         [inside],
@@ -81,14 +82,9 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     assert_eq!(listed(&mut guest, false).await, [own]);
 
     let response = owner
-        .send(|request| ClientMessage::SetAccess {
-            request,
-            block: folder,
-            account,
-            access: Access::View,
-        })
+        .call(|peer| client::blocks::set_access(peer, folder, account, Access::View))
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert!(
         listed(&mut guest, true).await.is_empty(),
         "once its folder is visible, the block is reached through the folder"

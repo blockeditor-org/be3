@@ -785,6 +785,7 @@ dependencies = [
  "be-commit",
  "be-graph",
  "be-keys",
+ "be-ops",
  "be-protocol",
  "be-server",
  "be-store",
@@ -857,6 +858,7 @@ dependencies = [
  "be-client",
  "be-graph",
  "be-keys",
+ "be-ops",
  "be-protocol",
  "be-server",
  "be-store",
@@ -1036,6 +1038,7 @@ dependencies = [
  "be-commit",
  "be-graph",
  "be-keys",
+ "be-ops",
  "be-portal",
  "be-protocol",
  "be-session",
@@ -3894,7 +3897,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 name = "fault-relay"
 version = "0.1.0"
 dependencies = [
- "be-protocol",
+ "be-ops",
  "tokio",
 ]
 

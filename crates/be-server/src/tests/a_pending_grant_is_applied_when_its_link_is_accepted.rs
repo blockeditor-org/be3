@@ -18,16 +18,18 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
         sealed: b"the scope key, sealed with the code".to_vec(),
     };
     let wrong_key = owner
-        .send(|request| ClientMessage::CreateContactLink {
-            request,
-            link: Uuid::new_v4(),
-            card: Vec::new(),
-            code: Vec::new(),
-            grant: Some(pending(other_root.scope)),
+        .call(|peer| {
+            client::contacts::create_contact_link(
+                peer,
+                Uuid::new_v4(),
+                Vec::new(),
+                Vec::new(),
+                Some(pending(other_root.scope)),
+            )
         })
         .await;
     assert!(
-        matches!(wrong_key, ServerMessage::Failed { .. }),
+        matches!(wrong_key, Err(_)),
         "a link carried another block's key: {wrong_key:?}"
     );
     let link = owner.link(Some(pending(shared.scope))).await;
@@ -36,17 +38,14 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     let other_id = other.register("other@example.com").await;
     other.personal().await;
     let hidden = other
-        .send(|request| ClientMessage::ReadBlock {
-            request,
-            block: shared.block,
-        })
+        .call(|peer| client::blocks::read_block(peer, shared.block))
         .await;
-    assert!(matches!(hidden, ServerMessage::Failed { .. }), "{hidden:?}");
+    assert!(matches!(hidden, Err(_)), "{hidden:?}");
 
     let accepted = other
         .accept(link, b"the scope key, sealed to the accepter")
         .await;
-    assert!(matches!(accepted, ServerMessage::Ok { .. }), "{accepted:?}");
+    assert!(matches!(accepted, Ok(())), "{accepted:?}");
     assert_eq!(other.read_block(shared.block).await.access, Access::View);
     let keys = other.keys(Some(vec![shared.block])).await;
     assert!(

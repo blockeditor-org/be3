@@ -14,17 +14,17 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
     let third_id = third.register("third@example.com").await;
     third.personal().await;
     let link = owner.link(None).await;
-    editor.accept(link, &[]).await;
+    let _ = editor.accept(link, &[]).await;
     let link = owner.link(None).await;
-    third.accept(link, &[]).await;
+    let _ = third.accept(link, &[]).await;
     let link = editor.link(None).await;
-    third.accept(link, &[]).await;
+    let _ = third.accept(link, &[]).await;
     let workspace = owner.create_block(BlockParent::Root).await;
     let folder = owner.create_block(BlockParent::Block(workspace)).await;
     assert_eq!(owner.read_block(folder).await.access, Access::Manage);
 
     let granted = owner.grant(workspace, editor_id, Access::Edit).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     assert_eq!(editor.read_block(folder).await.access, Access::Edit);
     let shared = editor.grant(folder, third_id, Access::View).await;
     assert!(
@@ -32,10 +32,7 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
         "an editor shared a block: {shared:?}"
     );
     let listed = editor
-        .send(|request| ClientMessage::ListAccess {
-            request,
-            block: folder,
-        })
+        .call(|peer| client::blocks::list_access(peer, folder))
         .await;
     assert!(
         refused_as(&listed, ErrorCode::PermissionDenied),
@@ -50,21 +47,19 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
         (Access::Manage, Access::Edit),
     ] {
         let granted = owner.grant(workspace, editor_id, above).await;
-        assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+        assert!(matches!(granted, Ok(())), "{granted:?}");
         let granted = owner.grant(folder, editor_id, below).await;
-        assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+        assert!(matches!(granted, Ok(())), "{granted:?}");
         assert_eq!(editor.read_block(folder).await.access, above);
     }
 
     let shared = editor.grant(folder, third_id, Access::View).await;
-    assert!(matches!(shared, ServerMessage::Ok { .. }), "{shared:?}");
+    assert!(matches!(shared, Ok(())), "{shared:?}");
     assert_eq!(third.read_block(folder).await.access, Access::View);
     let revoked = editor.grant(folder, third_id, Access::None).await;
-    assert!(matches!(revoked, ServerMessage::Ok { .. }), "{revoked:?}");
-    let response = owner
-        .send(|request| ClientMessage::GetKeyWork { request })
-        .await;
-    let ServerMessage::KeyWork { work, .. } = response else {
+    assert!(matches!(revoked, Ok(())), "{revoked:?}");
+    let response = owner.call(|peer| client::keys::get_key_work(peer)).await;
+    let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };
     assert_eq!(work.rotations, [folder]);

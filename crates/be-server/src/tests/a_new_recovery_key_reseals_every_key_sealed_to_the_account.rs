@@ -3,9 +3,9 @@ use be_protocol::SealedKey;
 
 async fn recovery(client: &mut TestClient) -> (Option<[u8; 32]>, Vec<SealedKey>) {
     let response = client
-        .send(|request| ClientMessage::GetRecoveryKey { request })
+        .call(|peer| client::keys::get_recovery_key(peer))
         .await;
-    let ServerMessage::RecoveryKey { public, sealed, .. } = response else {
+    let Ok(be_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
     (public, sealed)
@@ -20,15 +20,11 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     assert_eq!(recovery(&mut owner).await, (None, Vec::new()));
 
     let response = owner
-        .send(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: [1; 32],
-            sealed: Vec::new(),
-            own: Vec::new(),
-            changes: Vec::new(),
+        .call(|peer| {
+            client::keys::set_recovery_key(peer, [1; 32], Vec::new(), Vec::new(), Vec::new())
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     let workspace = owner.scope_root(account, BlockParent::Root).await;
     let (public, sealed) = recovery(&mut owner).await;
     assert_eq!(public, Some([1; 32]));
@@ -43,19 +39,21 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     );
 
     let response = owner
-        .send(|request| ClientMessage::PutKeys {
-            request,
-            keys: KeySet {
-                keys: Vec::new(),
-                wrapped: vec![wrap(
-                    workspace.scope,
-                    WrappedBy::Account(account),
-                    b"a forgery",
-                )],
-            },
+        .call(|peer| {
+            client::keys::put_keys(
+                peer,
+                KeySet {
+                    keys: Vec::new(),
+                    wrapped: vec![wrap(
+                        workspace.scope,
+                        WrappedBy::Account(account),
+                        b"a forgery",
+                    )],
+                },
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(
         recovery(&mut owner).await.1[0].sealed,
         b"scope sealed to its author",
@@ -63,35 +61,33 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     );
 
     let refused = owner
-        .send(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: [2; 32],
-            sealed: Vec::new(),
-            own: Vec::new(),
-            changes: Vec::new(),
+        .call(|peer| {
+            client::keys::set_recovery_key(peer, [2; 32], Vec::new(), Vec::new(), Vec::new())
         })
         .await;
     assert!(
-        matches!(refused, ServerMessage::Failed { .. }),
+        matches!(refused, Err(_)),
         "a new recovery key left a key sealed to the old one: {refused:?}"
     );
     assert_eq!(recovery(&mut owner).await.0, Some([1; 32]));
 
     let response = owner
-        .send(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: [2; 32],
-            sealed: vec![SealedKey {
-                organization,
-                key: workspace.scope,
-                sender: account,
-                sealed: b"resealed to the new phrase".to_vec(),
-            }],
-            own: Vec::new(),
-            changes: Vec::new(),
+        .call(|peer| {
+            client::keys::set_recovery_key(
+                peer,
+                [2; 32],
+                vec![SealedKey {
+                    organization,
+                    key: workspace.scope,
+                    sender: account,
+                    sealed: b"resealed to the new phrase".to_vec(),
+                }],
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(
         recovery(&mut owner).await,
         (

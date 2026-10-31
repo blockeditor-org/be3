@@ -13,19 +13,21 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
     client
         .upload(&author.store, &author.objects_of(base, &base_chunks))
         .await;
-    client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: base,
-            expected: None,
-            parents: Vec::new(),
-            chunks: base_chunks,
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = client
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                base,
+                None,
+                Vec::new(),
+                base_chunks,
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
 
@@ -34,43 +36,47 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .upload(&author.store, &author.objects_of(ours, &ours_chunks))
         .await;
     let response = client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: ours,
-            expected: None,
-            parents: Vec::new(),
-            chunks: ours_chunks.clone(),
-            time: 2_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                ours,
+                None,
+                Vec::new(),
+                ours_chunks.clone(),
+                2_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Rejected { head, .. } if head == Some(base)),
+        matches!(response, Ok(be_protocol::PublishOutcome::Rejected(head)) if head == Some(base)),
         "{response:?}"
     );
     assert_eq!(client.read_block(block).await.head, Some(base));
 
     let response = client
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: ours,
-            expected: Some(base),
-            parents: Some(base).into_iter().collect(),
-            chunks: ours_chunks,
-            time: 2_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                ours,
+                Some(base),
+                Some(base).into_iter().collect(),
+                ours_chunks,
+                2_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
         "{response:?}"
     );
 

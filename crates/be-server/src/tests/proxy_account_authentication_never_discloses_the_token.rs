@@ -15,43 +15,30 @@ async fn proxy_account_authentication_never_discloses_the_token() {
         let (mut socket, _) = connect_async(request).await.unwrap();
         socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
         next_binary(&mut socket).await.unwrap();
-        let mut client = TestClient {
-            directory: None,
-            socket,
-            next: 0,
-            notifications: Vec::new(),
-            token: String::new(),
-        };
+        let mut client = TestClient::over(socket);
         let response = client
-            .send(|request| ClientMessage::AuthenticateHeader { request })
+            .call(|peer| client::account::authenticate_header(peer))
             .await;
         match token {
             Some(token) if token == owner.token => {
-                assert!(
-                    matches!(response, ServerMessage::Authenticated { token, .. } if token.is_empty())
-                );
+                assert!(matches!(response, Ok(Authenticated { token, .. }) if token.is_empty()));
                 assert!(matches!(
                     client
-                        .send(|request| ClientMessage::ListOrganizations { request })
+                        .call(|peer| client::organizations::list_organizations(peer))
                         .await,
-                    ServerMessage::Organizations { .. }
+                    Ok(_)
                 ));
-                client
-                    .send(|request| ClientMessage::Logout { request })
-                    .await;
+                let _ = client.call(|peer| client::account::logout(peer)).await;
             }
-            _ => assert!(matches!(response, ServerMessage::Failed { .. })),
+            _ => assert!(matches!(response, Err(_))),
         }
     }
     let mut client = harness.client().await;
     assert!(matches!(
         client
-            .send(|request| ClientMessage::Authenticate {
-                request,
-                token: owner.token.clone()
-            })
+            .call(|peer| client::account::authenticate(peer, owner.token.clone()))
             .await,
-        ServerMessage::Failed { .. }
+        Err(_)
     ));
     harness.stop().await;
 }

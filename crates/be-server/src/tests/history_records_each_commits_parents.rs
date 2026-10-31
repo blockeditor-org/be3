@@ -11,10 +11,10 @@ async fn history_records_each_commits_parents() {
 
     let (first, first_chunks) = author.compose(b"a first draft\n", 1_000, None);
     let (second, second_chunks) = author.compose(b"a second draft\n", 2_000, Some(first));
-    client
+    let _ = client
         .publish(&author, block, first, first_chunks, None, 1_000)
         .await;
-    client
+    let _ = client
         .publish(&author, block, second, second_chunks, Some(first), 2_000)
         .await;
 

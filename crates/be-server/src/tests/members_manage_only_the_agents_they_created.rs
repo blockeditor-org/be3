@@ -16,55 +16,43 @@ async fn members_manage_only_the_agents_they_created() {
         .unwrap();
     for organization in [personal, company] {
         let response = other
-            .send(|request| ClientMessage::CreateAgent {
-                request,
-                organization,
-                name: "Helper".into(),
-                recovery: [7; 32],
-                contact: Vec::new(),
-                escrow: Vec::new(),
+            .call(|peer| {
+                client::members::create_agent(
+                    peer,
+                    organization,
+                    "Helper".into(),
+                    [7; 32],
+                    Vec::new(),
+                    Vec::new(),
+                )
             })
             .await;
-        let ServerMessage::AgentCreated { agent, token, .. } = response else {
+        let Ok(be_protocol::CreatedAgent { agent, token }) = response else {
             panic!("a member could not create an agent: {response:?}");
         };
         let listed = owner
-            .send(|request| ClientMessage::ListAgents {
-                request,
-                organization,
-            })
+            .call(|peer| client::members::list_agents(peer, organization))
             .await;
-        assert!(matches!(listed, ServerMessage::Agents { agents, .. } if agents.is_empty()));
+        assert!(matches!(listed, Ok(agents) if agents.is_empty()));
         let listed = other
-            .send(|request| ClientMessage::ListAgents {
-                request,
-                organization,
-            })
+            .call(|peer| client::members::list_agents(peer, organization))
             .await;
         assert!(
-            matches!(listed, ServerMessage::Agents { agents, .. } if agents.len() == 1 && agents[0].account == agent.account)
+            matches!(listed, Ok(agents) if agents.len() == 1 && agents[0].account == agent.account)
         );
         let denied = owner
-            .send(|request| ClientMessage::RemoveAgent {
-                request,
-                organization,
-                account: agent.account,
-            })
+            .call(|peer| client::members::remove_agent(peer, organization, agent.account))
             .await;
-        assert!(matches!(denied, ServerMessage::Failed { .. }));
+        assert!(matches!(denied, Err(_)));
         let removed = other
-            .send(|request| ClientMessage::RemoveAgent {
-                request,
-                organization,
-                account: agent.account,
-            })
+            .call(|peer| client::members::remove_agent(peer, organization, agent.account))
             .await;
-        assert!(matches!(removed, ServerMessage::Ok { .. }), "{removed:?}");
+        assert!(matches!(removed, Ok(())), "{removed:?}");
         let mut bot = harness.client().await;
         let refused = bot
-            .send(|request| ClientMessage::Authenticate { request, token })
+            .call(|peer| client::account::authenticate(peer, token))
             .await;
-        assert!(matches!(refused, ServerMessage::Failed { .. }));
+        assert!(matches!(refused, Err(_)));
     }
     harness.stop().await;
 }

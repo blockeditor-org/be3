@@ -2,9 +2,11 @@ use std::{path::PathBuf, time::Duration};
 
 use be_commit::{Commit, CommitId, CommitStore};
 use be_graph::BlockParent;
+use be_ops::net::{Peer, Pending, Stream};
 use be_protocol::{
-    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet,
-    OrganizationRole, ServerMessage, SessionState, WrappedBy, WrappedKey, encode as encode_message,
+    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
+    KeyKind, KeyRow, KeySet, Listing, OrganizationRole, PairingMessage, SessionEvent, SessionState,
+    WrappedBy, WrappedKey, client,
 };
 use be_session::{Resume, resume, takeover_needs_merge};
 use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -160,16 +162,11 @@ impl Harness {
 
     async fn second_connection(&self, token: &str, organization: Uuid) -> TestClient {
         let mut client = self.client().await;
+        let token = token.to_owned();
         let response = client
-            .send(|request| ClientMessage::Authenticate {
-                request,
-                token: token.to_owned(),
-            })
+            .call(|peer| client::account::authenticate(peer, token))
             .await;
-        assert!(
-            matches!(response, ServerMessage::Authenticated { .. }),
-            "{response:?}"
-        );
+        assert!(response.is_ok(), "{response:?}");
         client.open(organization).await;
         client
     }
@@ -195,12 +192,121 @@ impl Harness {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum Notice {
+    BlockChanged {
+        block: BlockSummary,
+    },
+    BlockRemoved {
+        block: Uuid,
+        revision: u64,
+    },
+    HeadChanged {
+        block: Uuid,
+        head: CommitId,
+        author: Uuid,
+    },
+    BlockDeleted {
+        block: Uuid,
+    },
+    SessionChanged {
+        block: Uuid,
+        state: SessionState,
+    },
+    Relayed {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+    },
+    Paired {
+        from: ClientId,
+        payload: Vec<u8>,
+    },
+    ContactsChanged,
+    KeyWorkChanged,
+}
+
+enum Heard {
+    Changes(Stream<BlockChange>),
+    Paired(Stream<PairingMessage>),
+    Contacts(Stream<()>),
+    KeyWork(Stream<()>),
+    Watch(Uuid, Stream<BlockEvent>),
+    Session(Uuid, Stream<SessionEvent>),
+}
+
+impl Heard {
+    fn poll(&mut self, context: &mut std::task::Context<'_>) -> std::task::Poll<Option<Notice>> {
+        use std::task::Poll;
+        match self {
+            Heard::Changes(stream) => stream.poll_recv(context).map(|change| {
+                change.map(|change| match change {
+                    BlockChange::Changed(block) => Notice::BlockChanged { block },
+                    BlockChange::Removed { block, revision } => {
+                        Notice::BlockRemoved { block, revision }
+                    }
+                })
+            }),
+            Heard::Paired(stream) => stream.poll_recv(context).map(|message| {
+                message.map(|PairingMessage { from, payload }| Notice::Paired { from, payload })
+            }),
+            Heard::Contacts(stream) => stream
+                .poll_recv(context)
+                .map(|changed| changed.map(|()| Notice::ContactsChanged)),
+            Heard::KeyWork(stream) => stream
+                .poll_recv(context)
+                .map(|changed| changed.map(|()| Notice::KeyWorkChanged)),
+            Heard::Watch(block, stream) => {
+                let block = *block;
+                stream.poll_recv(context).map(|event| {
+                    event.map(|event| match event {
+                        BlockEvent::Moved { head, author } => Notice::HeadChanged {
+                            block,
+                            head,
+                            author,
+                        },
+                        BlockEvent::Deleted => Notice::BlockDeleted { block },
+                    })
+                })
+            }
+            Heard::Session(block, stream) => {
+                let block = *block;
+                loop {
+                    return match stream.poll_recv(context) {
+                        Poll::Ready(Some(SessionEvent::Changed(state))) => {
+                            Poll::Ready(Some(Notice::SessionChanged { block, state }))
+                        }
+                        Poll::Ready(Some(SessionEvent::Relayed { from, payload })) => {
+                            Poll::Ready(Some(Notice::Relayed {
+                                block,
+                                from,
+                                payload,
+                            }))
+                        }
+                        Poll::Ready(Some(_)) => continue,
+                        other => other.map(|_| None),
+                    };
+                }
+            }
+        }
+    }
+}
+
 struct TestClient {
     directory: Option<PathBuf>,
-    socket: Socket,
-    next: u64,
-    notifications: Vec<ServerMessage>,
+    peer: Peer,
+    heard: Vec<Heard>,
+    sessions: std::collections::HashMap<Uuid, client::sessions::Session>,
+    notifications: Vec<Notice>,
     token: String,
+    closing: Option<oneshot::Sender<()>>,
+    pump: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Drop for TestClient {
+    fn drop(&mut self) {
+        self.closing.take();
+    }
 }
 
 impl TestClient {
@@ -215,83 +321,174 @@ impl TestClient {
             Some(BUILD),
             "the server did not greet a client of its own build"
         );
+        Self::over(socket)
+    }
+
+    fn over(socket: Socket) -> Self {
+        let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
+        let peer = Peer::new(be_ops::Side::Guest, move |frame| {
+            let _ = sending.send(frame);
+        });
+        let (closing, closed) = oneshot::channel();
+        let pump = tokio::spawn(pump(socket, peer.clone(), outbound, closed));
+        let heard = vec![
+            Heard::Changes(client::blocks::changes(&peer)),
+            Heard::Paired(client::account::paired(&peer)),
+            Heard::Contacts(client::contacts::contacts_changed(&peer)),
+            Heard::KeyWork(client::keys::key_work_changed(&peer)),
+        ];
         Self {
             directory: None,
-            socket,
-            next: 0,
+            peer,
+            heard,
+            sessions: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
+            closing: Some(closing),
+            pump: Some(pump),
         }
     }
 
-    async fn send(&mut self, build: impl FnOnce(u64) -> ClientMessage) -> ServerMessage {
-        self.next += 1;
-        let request = self.next;
-        self.socket
-            .send(WsMessage::Binary(encode_message(&build(request)).unwrap()))
+    async fn ended(&mut self) {
+        if let Some(pump) = self.pump.take() {
+            let _ = pump.await;
+        }
+    }
+
+    async fn close(mut self) {
+        self.closing.take();
+        if let Some(pump) = self.pump.take() {
+            let _ = pump.await;
+        }
+    }
+
+    async fn call<T: be_ops::DeserializeOwned>(
+        &mut self,
+        start: impl FnOnce(&Peer) -> Pending<Result<T, Error>>,
+    ) -> Result<T, Error> {
+        let answered = start(&self.peer).await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    async fn round_trip(&mut self) {
+        client::connection::ping(&self.peer)
             .await
-            .unwrap();
-        loop {
-            let message = self
-                .socket
-                .next()
-                .await
-                .expect("the connection stayed open")
-                .unwrap();
-            let WsMessage::Binary(bytes) = message else {
-                continue;
-            };
-            let response: ServerMessage = be_protocol::decode(&bytes).unwrap();
-            match response.request() {
-                Some(id) if id == request => return response,
-                Some(_) => panic!("the server answered a request that was not outstanding"),
-                None => self.notifications.push(response),
+            .expect("the connection stayed open");
+        self.collect();
+    }
+
+    fn collect(&mut self) {
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut index = 0;
+        while index < self.heard.len() {
+            match self.heard[index].poll(&mut context) {
+                std::task::Poll::Ready(Some(notice)) => self.notifications.push(notice),
+                std::task::Poll::Ready(None) => {
+                    self.heard.remove(index);
+                }
+                std::task::Poll::Pending => index += 1,
             }
         }
     }
 
-    async fn notification(&mut self) -> ServerMessage {
+    async fn watch(&mut self, block: Uuid) {
+        self.heard.push(Heard::Watch(
+            block,
+            client::blocks::watch(&self.peer, block),
+        ));
+        self.round_trip().await;
+    }
+
+    async fn try_join(&mut self, block: Uuid) -> Result<(ClientId, SessionState), Error> {
+        let session = client::sessions::Session::new(&self.peer, block);
+        let mut events = session.join();
+        let joined = match events.recv().await {
+            Some(SessionEvent::Joined { client, state }) => Ok((client, state)),
+            Some(SessionEvent::Refused(error)) => Err(error),
+            other => panic!("joining answered {other:?}"),
+        };
+        if joined.is_ok() {
+            self.sessions.insert(block, session);
+            self.heard.push(Heard::Session(block, events));
+        }
+        self.collect();
+        joined
+    }
+
+    async fn join_session(&mut self, block: Uuid) -> (ClientId, SessionState) {
+        self.try_join(block).await.expect("joining failed")
+    }
+
+    async fn heartbeat(
+        &mut self,
+        block: Uuid,
+        generation: u64,
+        clean_at: Option<CommitId>,
+    ) -> Result<SessionState, Error> {
+        let beat = self.sessions[&block].heartbeat(generation, clean_at);
+        let answered = beat.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    async fn relay(
+        &mut self,
+        block: Uuid,
+        to: Option<ClientId>,
+        payload: Vec<u8>,
+    ) -> Result<(), Error> {
+        let relayed = self.sessions[&block].relay(to, payload);
+        let answered = relayed.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    async fn notification(&mut self) -> Notice {
         loop {
             let next = self.next_notification().await;
             if !matches!(
                 next,
-                ServerMessage::BlockChanged { .. } | ServerMessage::BlockRemoved { .. }
+                Notice::BlockChanged { .. } | Notice::BlockRemoved { .. }
             ) {
                 return next;
             }
         }
     }
 
-    async fn graph_change(&mut self) -> ServerMessage {
+    async fn graph_change(&mut self) -> Notice {
         loop {
             let next = self.next_notification().await;
             if matches!(
                 next,
-                ServerMessage::BlockChanged { .. } | ServerMessage::BlockRemoved { .. }
+                Notice::BlockChanged { .. } | Notice::BlockRemoved { .. }
             ) {
                 return next;
             }
         }
     }
 
-    async fn next_notification(&mut self) -> ServerMessage {
+    async fn next_notification(&mut self) -> Notice {
+        self.collect();
         if !self.notifications.is_empty() {
             return self.notifications.remove(0);
         }
-        loop {
-            let message = self
-                .socket
-                .next()
-                .await
-                .expect("the connection stayed open")
-                .unwrap();
-            if let WsMessage::Binary(bytes) = message {
-                let response: ServerMessage = be_protocol::decode(&bytes).unwrap();
-                if response.request().is_none() {
-                    return response;
+        std::future::poll_fn(|context| {
+            let mut index = 0;
+            while index < self.heard.len() {
+                match self.heard[index].poll(context) {
+                    std::task::Poll::Ready(Some(notice)) => {
+                        return std::task::Poll::Ready(notice);
+                    }
+                    std::task::Poll::Ready(None) => {
+                        self.heard.remove(index);
+                    }
+                    std::task::Poll::Pending => index += 1,
                 }
             }
-        }
+            std::task::Poll::Pending
+        })
+        .await
     }
 
     async fn register(&mut self, email: &str) -> Uuid {
@@ -301,9 +498,9 @@ impl TestClient {
             .await
             .unwrap();
         let response = self
-            .send(|request| ClientMessage::Authenticate { request, token })
+            .call(|peer| client::account::authenticate(peer, token))
             .await;
-        let ServerMessage::Authenticated { account, token, .. } = response else {
+        let Ok(Authenticated { account, token, .. }) = response else {
             panic!("registration failed: {response:?}");
         };
         self.token = token;
@@ -312,30 +509,21 @@ impl TestClient {
 
     async fn organization(&mut self, name: &str) -> Uuid {
         let response = self
-            .send(|request| ClientMessage::CreateOrganization {
-                request,
-                name: name.into(),
-            })
+            .call(|peer| client::organizations::create_organization(peer, name.into()))
             .await;
-        let ServerMessage::Organizations { organizations, .. } = response else {
+        let Ok(organization) = response else {
             panic!("organization creation failed: {response:?}");
         };
-        let organization = organizations[0].id;
+        let organization = organization.id;
         self.open(organization).await;
         organization
     }
 
     async fn open(&mut self, organization: Uuid) {
         let response = self
-            .send(|request| ClientMessage::OpenOrganization {
-                request,
-                organization,
-            })
+            .call(|peer| client::organizations::open_organization(peer, organization))
             .await;
-        assert!(
-            matches!(response, ServerMessage::OrganizationOpened { .. }),
-            "{response:?}"
-        );
+        assert!(response.is_ok(), "{response:?}");
     }
 
     async fn create_block(&mut self, parent: BlockParent) -> Uuid {
@@ -351,65 +539,52 @@ impl TestClient {
 
     async fn create_keyed(&mut self, block: Uuid, parent: BlockParent, key: Uuid, keys: KeySet) {
         let response = self
-            .send(|request| ClientMessage::CreateBlock {
-                request,
-                block,
-                content_type: CONTENT,
-                parent,
-                metadata: Vec::new(),
-                references: Vec::new(),
-                key,
-                keys,
+            .call(|peer| {
+                client::blocks::create_block(
+                    peer,
+                    block,
+                    CONTENT,
+                    parent,
+                    Vec::new(),
+                    Vec::new(),
+                    key,
+                    keys,
+                )
             })
             .await;
-        assert!(
-            matches!(response, ServerMessage::Block { .. }),
-            "{response:?}"
-        );
+        assert!(response.is_ok(), "{response:?}");
     }
 
     async fn keys(&mut self, blocks: Option<Vec<Uuid>>) -> KeySet {
-        let response = self
-            .send(|request| ClientMessage::GetKeys { request, blocks })
-            .await;
-        let ServerMessage::Keys { keys, .. } = response else {
-            panic!("reading keys failed: {response:?}");
-        };
-        keys
+        self.call(|peer| client::keys::get_keys(peer, blocks))
+            .await
+            .expect("reading keys failed")
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {
         let objects = hashes
             .iter()
-            .map(|hash| be_protocol::ByteBuf::from(store.get(*hash).unwrap().unwrap()))
+            .map(|hash| store.get(*hash).unwrap().unwrap())
             .collect();
         let response = self
-            .send(|request| ClientMessage::PutObjects { request, objects })
+            .call(|peer| client::objects::put_objects(peer, objects))
             .await;
         assert!(
-            matches!(&response, ServerMessage::Stored { hashes: stored, .. } if stored == hashes),
+            matches!(&response, Ok(stored) if stored == hashes),
             "{response:?}"
         );
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
-        let response = self
-            .send(|request| ClientMessage::ReadBlock { request, block })
-            .await;
-        let ServerMessage::Block { block, .. } = response else {
-            panic!("read failed: {response:?}");
-        };
-        block
+        self.call(|peer| client::blocks::read_block(peer, block))
+            .await
+            .expect("read failed")
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
-        let response = self
-            .send(|request| ClientMessage::ListChildren { request, parent })
-            .await;
-        let ServerMessage::Blocks { blocks, .. } = response else {
-            panic!("listing failed: {response:?}");
-        };
-        blocks
+        self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
+            .await
+            .expect("listing failed")
     }
 
     async fn publish(
@@ -420,43 +595,31 @@ impl TestClient {
         chunks: Vec<Hash>,
         expected: Option<CommitId>,
         time: i64,
-    ) -> ServerMessage {
+    ) -> Result<be_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
-        self.send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit,
-            expected,
-            parents: expected.into_iter().collect(),
-            chunks,
-            time,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+        self.call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                commit,
+                expected,
+                expected.into_iter().collect(),
+                chunks,
+                time,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await
     }
 
-    async fn join_session(&mut self, block: Uuid) -> (be_protocol::ClientId, SessionState) {
-        let response = self
-            .send(|request| ClientMessage::JoinSession { request, block })
-            .await;
-        let ServerMessage::Session { client, state, .. } = response else {
-            panic!("joining failed: {response:?}");
-        };
-        (client, state)
-    }
-
     async fn history(&mut self, block: Uuid) -> Vec<HistoryEntry> {
-        let response = self
-            .send(|request| ClientMessage::ListHistory { request, block })
-            .await;
-        let ServerMessage::History { entries, .. } = response else {
-            panic!("history failed: {response:?}");
-        };
-        entries
+        self.call(|peer| client::blocks::list_history(peer, block))
+            .await
+            .expect("history failed")
     }
 }
 
@@ -511,22 +674,24 @@ impl TestClient {
         self.upload(&author.store, &author.objects_of(head, &chunks))
             .await;
         let response = self
-            .send(|request| ClientMessage::Publish {
-                request,
-                block: parent,
-                commit: head,
-                expected: None,
-                parents: Vec::new(),
-                chunks,
-                time: 1_000,
-                pinned: false,
-                references: children,
-                metadata: Vec::new(),
-                objects: Vec::new(),
+            .call(|peer| {
+                client::blocks::publish(
+                    peer,
+                    parent,
+                    head,
+                    None,
+                    Vec::new(),
+                    chunks,
+                    1_000,
+                    false,
+                    children,
+                    Vec::new(),
+                    Vec::new(),
+                )
             })
             .await;
         assert!(
-            matches!(response, ServerMessage::Published { .. }),
+            matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
             "{response:?}"
         );
     }
@@ -598,6 +763,41 @@ async fn greeted(url: &str, build: &str) -> Socket {
     socket
 }
 
+async fn pump(
+    socket: Socket,
+    peer: Peer,
+    mut outbound: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
+    mut closed: oneshot::Receiver<()>,
+) {
+    let (mut write, mut read) = socket.split();
+    loop {
+        tokio::select! {
+            frame = outbound.recv() => {
+                let Some(frame) = frame else { break };
+                if write.send(WsMessage::Binary(frame)).await.is_err() {
+                    break;
+                }
+            }
+            message = read.next() => match message {
+                Some(Ok(WsMessage::Binary(bytes))) => {
+                    let _ = peer.receive(&bytes);
+                }
+                Some(Ok(_)) => {}
+                _ => break,
+            },
+            _ = &mut closed => {
+                while let Ok(frame) = outbound.try_recv() {
+                    let _ = write.send(WsMessage::Binary(frame)).await;
+                }
+                let _ = write.close().await;
+                while let Some(Ok(_)) = read.next().await {}
+                break;
+            }
+        }
+    }
+    peer.close();
+}
+
 async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
     loop {
         match socket.next().await? {
@@ -610,12 +810,10 @@ async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
 
 impl TestClient {
     async fn personal(&mut self) -> Uuid {
-        let response = self
-            .send(|request| ClientMessage::ListOrganizations { request })
-            .await;
-        let ServerMessage::Organizations { organizations, .. } = response else {
-            panic!("listing organizations failed: {response:?}");
-        };
+        let organizations = self
+            .call(|peer| client::organizations::list_organizations(peer))
+            .await
+            .expect("listing organizations failed");
         let personal = organizations
             .iter()
             .find(|organization| organization.kind == be_protocol::OrganizationKind::Personal)
@@ -628,47 +826,42 @@ impl TestClient {
     async fn link(&mut self, grant: Option<be_protocol::PendingGrant>) -> Uuid {
         let link = Uuid::new_v4();
         let response = self
-            .send(|request| ClientMessage::CreateContactLink {
-                request,
-                link,
-                card: b"the owner's card".to_vec(),
-                code: b"the code, sealed for the owner".to_vec(),
-                grant,
+            .call(|peer| {
+                client::contacts::create_contact_link(
+                    peer,
+                    link,
+                    b"the owner's card".to_vec(),
+                    b"the code, sealed for the owner".to_vec(),
+                    grant,
+                )
             })
             .await;
-        assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+        assert!(response.is_ok(), "{response:?}");
         link
     }
 
-    async fn accept(&mut self, link: Uuid, key: &[u8]) -> ServerMessage {
-        self.send(|request| ClientMessage::AcceptContactLink {
-            request,
-            link,
-            card: b"the accepter's card".to_vec(),
-            contact: b"the owner's key, sealed for the accepter".to_vec(),
-            key: key.to_vec(),
+    async fn accept(&mut self, link: Uuid, key: &[u8]) -> Result<(), Error> {
+        self.call(|peer| {
+            client::contacts::accept_contact_link(
+                peer,
+                link,
+                b"the accepter's card".to_vec(),
+                b"the owner's key, sealed for the accepter".to_vec(),
+                key.to_vec(),
+            )
         })
         .await
     }
 
     async fn contacts(&mut self) -> Vec<be_protocol::ContactRow> {
-        let response = self
-            .send(|request| ClientMessage::ListContacts { request })
-            .await;
-        let ServerMessage::Contacts { contacts, .. } = response else {
-            panic!("listing contacts failed: {response:?}");
-        };
-        contacts
+        self.call(|peer| client::contacts::list_contacts(peer))
+            .await
+            .expect("listing contacts failed")
     }
 
-    async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> ServerMessage {
-        self.send(|request| ClientMessage::SetParent {
-            request,
-            block,
-            parent,
-            keys: KeySet::default(),
-        })
-        .await
+    async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> Result<(), Error> {
+        self.call(|peer| client::blocks::set_parent(peer, block, parent, KeySet::default()))
+            .await
     }
 
     async fn grant(
@@ -676,19 +869,19 @@ impl TestClient {
         block: Uuid,
         account: Uuid,
         access: be_graph::Access,
-    ) -> ServerMessage {
-        self.send(|request| ClientMessage::SetAccess {
-            request,
-            block,
-            account,
-            access,
-        })
-        .await
+    ) -> Result<(), Error> {
+        self.call(|peer| client::blocks::set_access(peer, block, account, access))
+            .await
     }
 }
 
-fn refused_as(response: &ServerMessage, expected: ErrorCode) -> bool {
-    matches!(response, ServerMessage::Failed { code, .. } if *code == expected)
+fn poll<F: Future + Unpin>(future: &mut F) -> std::task::Poll<F::Output> {
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+    std::pin::Pin::new(future).poll(&mut context)
+}
+
+fn refused_as<T>(response: &Result<T, Error>, expected: ErrorCode) -> bool {
+    matches!(response, Err(Error { code, .. }) if *code == expected)
 }
 
 async fn http(
@@ -711,13 +904,11 @@ async fn http(
     (status, response)
 }
 async fn begin_session(client: &mut TestClient) -> (String, String) {
-    let ServerMessage::BrowserLogin { code, secret, .. } = client
-        .send(|request| ClientMessage::BeginBrowserLogin { request })
+    let begun = client
+        .call(|peer| client::account::begin_browser_login(peer))
         .await
-    else {
-        panic!("a browser authorization session starts")
-    };
-    (code, secret)
+        .expect("a browser authorization session starts");
+    (begun.code, begun.secret)
 }
 async fn fixture_account(
     directory: &std::path::Path,

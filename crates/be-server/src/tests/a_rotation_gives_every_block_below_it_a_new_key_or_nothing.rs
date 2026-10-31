@@ -13,24 +13,17 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, _) = owner.inside(&shared).await;
     let link = owner.link(None).await;
-    reader.accept(link, &[]).await;
+    let _ = reader.accept(link, &[]).await;
     let granted = owner.grant(shared.block, reader_id, Access::View).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     reader.join_session(inside).await;
 
     let revoked = owner.grant(shared.block, reader_id, Access::None).await;
-    assert!(matches!(revoked, ServerMessage::Ok { .. }), "{revoked:?}");
+    assert!(matches!(revoked, Ok(())), "{revoked:?}");
     assert_eq!(work(&mut owner).await.rotations, [shared.block]);
-    let spoken = reader
-        .send(|request| ClientMessage::Relay {
-            request,
-            block: inside,
-            to: None,
-            payload: b"still here".to_vec(),
-        })
-        .await;
+    let spoken = reader.relay(inside, None, b"still here".to_vec()).await;
     assert!(
-        matches!(spoken, ServerMessage::Failed { .. }),
+        matches!(spoken, Err(_)),
         "a reader taken off a block kept speaking in its session: {spoken:?}"
     );
 
@@ -69,7 +62,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
         b"the new data key below",
     ));
     let rotated = rotate(&mut owner, shared.block, whole).await;
-    assert!(matches!(rotated, ServerMessage::Ok { .. }), "{rotated:?}");
+    assert!(matches!(rotated, Ok(())), "{rotated:?}");
     assert!(work(&mut owner).await.rotations.is_empty());
     assert_eq!(owner.read_block(inside).await.key, Some(below));
 
@@ -77,21 +70,15 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
 }
 
 async fn work(client: &mut TestClient) -> be_protocol::KeyWork {
-    let response = client
-        .send(|request| ClientMessage::GetKeyWork { request })
-        .await;
-    let ServerMessage::KeyWork { work, .. } = response else {
+    let response = client.call(|peer| client::keys::get_key_work(peer)).await;
+    let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };
     work
 }
 
-async fn rotate(client: &mut TestClient, root: Uuid, keys: KeySet) -> ServerMessage {
+async fn rotate(client: &mut TestClient, root: Uuid, keys: KeySet) -> Result<(), Error> {
     client
-        .send(|request| ClientMessage::Rotate {
-            request,
-            roots: vec![root],
-            keys,
-        })
+        .call(|peer| client::keys::rotate(peer, vec![root], keys))
         .await
 }

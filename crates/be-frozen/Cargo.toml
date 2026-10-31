@@ -13,6 +13,7 @@ be-cli = { path = "../be-cli" }
 be-client = { path = "../be-client" }
 be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }
+be-ops = { path = "../be-ops" }
 be-protocol = { path = "../be-protocol" }
 be-server = { path = "../be-server" }
 be-store = { path = "../be-store" }

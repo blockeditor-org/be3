@@ -29,7 +29,7 @@ struct State {
 }
 
 type Counter = (
-    Box<dyn Fn(&be_protocol::ClientMessage) -> bool + Send>,
+    Box<dyn Fn(be_ops::MethodId) -> bool + Send>,
     watch::Sender<u64>,
 );
 
@@ -132,7 +132,7 @@ impl Relay {
 
     pub fn count(
         &self,
-        counted: impl Fn(&be_protocol::ClientMessage) -> bool + Send + 'static,
+        counted: impl Fn(be_ops::MethodId) -> bool + Send + 'static,
     ) -> watch::Receiver<u64> {
         let (sender, receiver) = watch::channel(0);
         self.state
@@ -255,7 +255,7 @@ async fn pump(
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner);
                 for (counted, count) in counters.iter() {
-                    let matched = messages.iter().filter(|message| counted(message)).count();
+                    let matched = messages.iter().filter(|method| counted(**method)).count();
                     if matched > 0 {
                         count.send_modify(|count| *count += matched as u64);
                     }
@@ -282,7 +282,7 @@ struct Frames {
 }
 
 impl Frames {
-    fn messages_in(&mut self, bytes: &[u8]) -> Vec<be_protocol::ClientMessage> {
+    fn messages_in(&mut self, bytes: &[u8]) -> Vec<be_ops::MethodId> {
         self.unread.extend_from_slice(bytes);
         if !self.upgraded {
             let Some(end) = self
@@ -297,8 +297,8 @@ impl Frames {
         }
         let mut messages = Vec::new();
         while let Some((payload, length)) = frame(&self.unread) {
-            if let Ok(message) = be_protocol::decode(&payload) {
-                messages.push(message);
+            if let Ok(be_ops::Frame::Start { method, .. }) = be_ops::decode_frame(&payload) {
+                messages.push(method);
             }
             self.unread.drain(..length);
         }

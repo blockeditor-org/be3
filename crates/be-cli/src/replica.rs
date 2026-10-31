@@ -5,9 +5,10 @@ use std::time::Instant;
 use wasi_threads::Mutex;
 
 use be_block::LiveEdit;
+use be_client::Event;
 use be_client::{ClientError, Peer};
 use be_commit::CommitId;
-use be_protocol::{ClientId, ServerMessage, SessionState};
+use be_protocol::{ClientId, SessionState};
 use be_store::ObjectStore;
 use be_types_host::{Conflict, HOST_EDITOR, Replicas, Source};
 use block_type_api::{Description, EditorId, Status};
@@ -105,7 +106,7 @@ impl<S: ObjectStore + 'static> be_types_host::Host for Held<S> {
 }
 
 pub enum Woken {
-    Event(Box<Option<ServerMessage>>),
+    Event(Box<Option<Event>>),
     Module,
     Deadline,
     Closed,
@@ -116,7 +117,7 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     block: Uuid,
     shared: Arc<Mutex<Held<S>>>,
     replicas: Replicas<Held<S>>,
-    events: broadcast::Receiver<ServerMessage>,
+    events: broadcast::Receiver<Event>,
     closed: watch::Receiver<bool>,
     mirror: EditorMirror<C>,
 }

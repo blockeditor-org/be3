@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use be_graph::{Access, BlockParent};
-use be_protocol::{
-    BlockSummary, ClientMessage, KeyKind, KeySet, KeyWork, Member, OrganizationRole, ServerMessage,
-};
+use be_protocol::{BlockSummary, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client};
 use be_store::ObjectStore;
 use uuid::Uuid;
 
@@ -12,14 +10,7 @@ use crate::ClientError;
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn key_work(&self) -> Result<KeyWork, ClientError> {
-        match self
-            .connection()
-            .request(|request| ClientMessage::GetKeyWork { request })
-            .await?
-        {
-            ServerMessage::KeyWork { work, .. } => Ok(work),
-            _ => Err(ClientError::Unexpected),
-        }
+        Ok(client::keys::get_key_work(&self.connection()).await??)
     }
 
     pub async fn tend(&self) -> Result<(), ClientError> {
@@ -71,9 +62,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(());
         };
         let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &escrow);
-        self.connection()
-            .request(|request| ClientMessage::PinEscrow { request, sealed })
-            .await?;
+        client::keys::pin_escrow(&self.connection(), sealed).await??;
         self.adopt_pinned(Some(escrow));
         Ok(())
     }
@@ -140,13 +129,7 @@ impl<S: ObjectStore> Peer<S> {
             let (_, minted) = self.keys.mint_data(node.id, under)?;
             keys.extend(minted);
         }
-        self.connection()
-            .request(|request| ClientMessage::Rotate {
-                request,
-                roots: vec![root],
-                keys: keys.clone(),
-            })
-            .await?;
+        client::keys::rotate(&self.connection(), vec![root], keys.clone()).await??;
         self.recorded(&keys);
         Ok(())
     }
@@ -170,13 +153,7 @@ impl<S: ObjectStore> Peer<S> {
                 keys.wrapped.push(wrap);
             }
         }
-        self.connection()
-            .request(|request| ClientMessage::CreateEscrow {
-                request,
-                escrow: escrow.clone(),
-                keys: keys.clone(),
-            })
-            .await?;
+        client::keys::create_escrow(&self.connection(), escrow.clone(), keys.clone()).await??;
         self.recorded(&keys);
         self.save_pin().await
     }
@@ -201,31 +178,16 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn members(&self) -> Result<Vec<Member>, ClientError> {
-        match self
-            .connection()
-            .request(|request| ClientMessage::ListMembers { request })
-            .await?
-        {
-            ServerMessage::Members { members, .. } => Ok(members),
-            _ => Err(ClientError::Unexpected),
-        }
+        Ok(client::members::list_members(&self.connection()).await??)
     }
 
     pub async fn set_role(&self, account: Uuid, role: OrganizationRole) -> Result<(), ClientError> {
-        self.connection()
-            .request(|request| ClientMessage::SetRole {
-                request,
-                account,
-                role,
-            })
-            .await?;
+        client::members::set_role(&self.connection(), account, role).await??;
         Ok(())
     }
 
     pub async fn remove_member(&self, account: Uuid) -> Result<(), ClientError> {
-        self.connection()
-            .request(|request| ClientMessage::RemoveMember { request, account })
-            .await?;
+        client::members::remove_member(&self.connection(), account).await??;
         Ok(())
     }
 }

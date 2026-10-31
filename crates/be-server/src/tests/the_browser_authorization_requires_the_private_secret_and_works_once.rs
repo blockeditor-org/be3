@@ -5,6 +5,8 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
     let mut app = harness.client().await;
     let mut other = harness.client().await;
     let (code, secret) = begin_session(&mut app).await;
+    let mut finishing =
+        client::account::finish_browser_login(&app.peer, code.clone(), secret.clone());
     let mut browser = Browser::default();
     let (status, page) = browser
         .submit(
@@ -22,15 +24,11 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         .await;
     assert_eq!(status, 303, "{page}");
     assert!(!page.contains("correct horse"));
-    assert!(matches!(
-        app.send(|request| ClientMessage::FinishBrowserLogin {
-            request,
-            code: code.clone(),
-            secret: secret.clone()
-        })
-        .await,
-        ServerMessage::Ok { .. }
-    ));
+    app.round_trip().await;
+    assert!(
+        poll(&mut finishing).is_pending(),
+        "a sign-in finished before the browser approved it"
+    );
     let token = harness.mail_token("ada@example.com");
     let path = format!("/auth/verify?token={token}");
     assert_eq!(
@@ -40,15 +38,11 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
             .0,
         303
     );
-    assert!(matches!(
-        app.send(|request| ClientMessage::FinishBrowserLogin {
-            request,
-            code: code.clone(),
-            secret: secret.clone()
-        })
-        .await,
-        ServerMessage::Ok { .. }
-    ));
+    app.round_trip().await;
+    assert!(
+        poll(&mut finishing).is_pending(),
+        "a sign-in finished before the browser approved it"
+    );
     assert_eq!(
         browser
             .submit(
@@ -62,43 +56,29 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         303
     );
     assert!(matches!(
-        app.notification().await,
-        ServerMessage::BrowserLoginFinished { approved: true, .. }
-    ));
-    assert!(matches!(
         other
-            .send(|request| ClientMessage::FinishBrowserLogin {
-                request,
-                code: code.clone(),
-                secret: "wrong secret".into()
-            })
+            .call(|peer| client::account::finish_browser_login(
+                peer,
+                code.clone(),
+                "wrong secret".into()
+            ))
             .await,
-        ServerMessage::Failed { .. }
+        Err(_)
     ));
-    let session = app
-        .send(|request| ClientMessage::FinishBrowserLogin {
-            request,
-            code: code.clone(),
-            secret: secret.clone(),
-        })
-        .await;
-    let ServerMessage::Authenticated { token, email, .. } = session else {
+    let session = finishing.await.expect("the connection stayed open");
+    let Ok(Authenticated { token, email, .. }) = session else {
         panic!("{session:?}")
     };
     assert_eq!(email, "ada@example.com");
     assert!(matches!(
-        app.send(|request| ClientMessage::FinishBrowserLogin {
-            request,
-            code,
-            secret
-        })
-        .await,
-        ServerMessage::Failed { .. }
+        app.call(|peer| client::account::finish_browser_login(peer, code, secret))
+            .await,
+        Err(_)
     ));
     assert!(matches!(
         other
-            .send(|request| ClientMessage::Authenticate { request, token })
+            .call(|peer| client::account::authenticate(peer, token))
             .await,
-        ServerMessage::Authenticated { .. }
+        Ok(_)
     ));
 }

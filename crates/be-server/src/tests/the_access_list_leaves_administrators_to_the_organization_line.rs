@@ -11,25 +11,29 @@ async fn join(
     role: OrganizationRole,
 ) {
     let response = owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_u128(invitation),
-            organization,
-            email: email.into(),
-            role,
-            sealed: Vec::new(),
-            code: Vec::new(),
-            escrow: Vec::new(),
+        .call(|peer| {
+            client::organizations::invite(
+                peer,
+                Uuid::from_u128(invitation),
+                organization,
+                email.into(),
+                role,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    member
-        .send(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: Uuid::from_u128(invitation),
-            card: Vec::new(),
-            contact: Vec::new(),
-            escrow: Vec::new(),
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let _ = member
+        .call(|peer| {
+            client::organizations::accept_invitation(
+                peer,
+                Uuid::from_u128(invitation),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     member.open(organization).await;
@@ -37,9 +41,9 @@ async fn join(
 
 async fn access_list(client: &mut TestClient, block: Uuid) -> AccessList {
     let response = client
-        .send(|request| ClientMessage::ListAccess { request, block })
+        .call(|peer| client::blocks::list_access(peer, block))
         .await;
-    let ServerMessage::AccessList { list, .. } = response else {
+    let Ok(list) = response else {
         panic!("listing access failed: {response:?}");
     };
     list
@@ -75,7 +79,7 @@ async fn the_access_list_leaves_administrators_to_the_organization_line() {
     let folder = owner.create_block(BlockParent::Root).await;
     let inner = owner.create_block(BlockParent::Block(folder)).await;
     let granted = owner.grant(folder, guest_id, Access::Edit).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
 
     let list = access_list(&mut owner, inner).await;
     assert!(list.company);
@@ -110,7 +114,7 @@ async fn the_access_list_leaves_administrators_to_the_organization_line() {
     assert_eq!(guest_entry.effective, Access::Edit);
 
     let granted = owner.grant(inner, guest_id, Access::Manage).await;
-    assert!(matches!(granted, ServerMessage::Ok { .. }), "{granted:?}");
+    assert!(matches!(granted, Ok(())), "{granted:?}");
     let guest_entry = entry(&access_list(&mut owner, inner).await);
     assert_eq!(guest_entry.granted, Some(Access::Manage));
     assert_eq!(

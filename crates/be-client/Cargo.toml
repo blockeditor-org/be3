@@ -10,6 +10,7 @@ be-block = { path = "../be-block" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-keys = { path = "../be-keys" }
+be-ops = { path = "../be-ops" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 build-id = { path = "../build-id" }
