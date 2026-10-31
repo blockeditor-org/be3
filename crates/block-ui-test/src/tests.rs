@@ -16,6 +16,7 @@ use block_editor_beui::{BlockInfo, BlockParent};
 
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
+mod a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window;
 mod a_floating_overlay_covers_only_the_children_painted_beneath_it;
 mod a_hosted_window_is_kept_off_the_band_of_its_docks_bars;
 mod a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area;

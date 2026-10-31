@@ -2,10 +2,10 @@ use super::*;
 use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
-fn a_dock_bar_thrown_towards_an_edge_springs_into_its_band_and_settles() {
+fn a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = bar_dock(
-        DockBarPlacement::Over(DockEdge::Top, DockAlign::Center),
+        DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
         false,
     );
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -27,24 +27,24 @@ fn a_dock_bar_thrown_towards_an_edge_springs_into_its_band_and_settles() {
     harness.release_at(at);
     assert_eq!(
         dock.layout.bar_placement(&9),
-        Some(DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center)),
-        "let go in the middle of the pane while moving fast to the right, the bar is thrown to the right edge"
+        Some(DockBarPlacement::Over(DockEdge::Right, DockAlign::Center)),
+        "let go in the middle of the pane while moving fast to the right, the bar is thrown to float over the right edge, never docked"
     );
     let released = harness.rect(harness.find("bar.9"));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let flying = harness.rect(harness.find("bar.9"));
-    let band = harness.rect(harness.find("dock.bar.band.right"));
     assert!(
-        flying.left() > released.left() && flying.left() < band.left() - 20.0,
-        "it flies on towards the band rather than jumping there: {released:?} then {flying:?}, band {band:?}"
+        flying.left() > released.left() && flying.right() < body.right() - 20.0,
+        "it flies on towards the edge rather than jumping there: {released:?} then {flying:?} in {body:?}"
     );
     let frames = harness.frames_to_settle();
     assert!(frames < 120, "the spring settles: {frames} frames");
-    let band = harness.rect(harness.find("dock.bar.band.right"));
-    let docked = harness.rect(harness.find("bar.9"));
+    let floating = harness.rect(harness.find("bar.9"));
     assert!(
-        band.contains_rect(docked.shrink(0.5)) && docked.height() > docked.width(),
-        "and comes to rest standing in the band: {docked:?} in {band:?}"
+        body.contains_rect(floating)
+            && body.right() - floating.right() < 16.0
+            && floating.height() > floating.width(),
+        "and comes to rest standing over the right edge of the pane: {floating:?} in {body:?}"
     );
 }

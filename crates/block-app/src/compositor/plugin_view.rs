@@ -408,6 +408,7 @@ pub(crate) fn PluginView(
         }
     });
     let rect = create_memo(move || state.with(|view| view.rect));
+    let children = ChildNodes::new(state, rect, child_view);
     let (reports, tick) = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
@@ -429,9 +430,9 @@ pub(crate) fn PluginView(
     if offscreen {
         return view! {
             <Layers>
-                <ViewChildren state={state} rect={rect} child_view below=true />
+                <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Embed slot={slot} punch=false />
-                <ViewChildren state rect child_view below=false />
+                <ViewChildren state rect nodes={children} below=false />
             </Layers>
         };
     }
@@ -616,8 +617,7 @@ pub(crate) fn PluginView(
         host: super::anchored::anchor_host(),
         state,
         revision,
-        child_view,
-        scope: reactive::current_scope(),
+        children,
         catcher,
     });
     let blocked = create_memo(move || state.with(|view| view.blocks_owner));
@@ -875,7 +875,7 @@ pub(crate) fn PluginView(
     let built = view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
-                <ViewChildren state={state} rect={rect} child_view below=true />
+                <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Interactive
                     @node_ref={&catcher}
                     focusable=true
@@ -907,7 +907,7 @@ pub(crate) fn PluginView(
                 <Show condition={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
-                <ViewChildren state rect child_view below=false />
+                <ViewChildren state rect nodes={children} below=false />
                 <Scrims state />
                 <Drawing draw={floating} />
                 <Show condition={blocked}>||
@@ -1391,7 +1391,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
 fn ViewChildren(
     state: Memo<PlacedView>,
     rect: Memo<Rect>,
-    child_view: ChildView,
+    nodes: ChildNodes,
     below: bool,
 ) -> NodeId {
     let keys = create_memo(move || {
@@ -1422,12 +1422,96 @@ fn ViewChildren(
                 let y = create_memo(move || clip.get().min.y);
                 let width = create_memo(move || clip.get().width());
                 let height = create_memo(move || clip.get().height());
-                let built = child_view.with(|view| view(key, child, rect));
+                let built = nodes.node(key);
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
+                    <CanvasItem x={x} y={y} width={width} height={height}>
+                        <Portal node={Some(built)} />
+                    </CanvasItem>
                 }
             }</ForEach>
         </Canvas>
+    }
+}
+
+struct BuiltChildren {
+    state: Memo<PlacedView>,
+    rect: Memo<Rect>,
+    child_view: ChildView,
+    region: Option<reactive::ScopeContext>,
+    built: RefCell<HashMap<ChildId, (NodeId, Option<reactive::Scope>)>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ChildNodes(Stored<BuiltChildren>);
+
+impl ChildNodes {
+    fn new(state: Memo<PlacedView>, rect: Memo<Rect>, child_view: ChildView) -> Self {
+        let nodes = Self(store(BuiltChildren {
+            state,
+            rect,
+            child_view,
+            region: reactive::current_scope(),
+            built: RefCell::new(HashMap::new()),
+        }));
+        create_effect(move || {
+            let shown: Vec<ChildId> =
+                state.with(|view| view.children.iter().map(|child| child.child).collect());
+            untrack(|| nodes.keep(&shown));
+        });
+        on_cleanup(move || nodes.keep(&[]));
+        nodes
+    }
+
+    fn keep(self, shown: &[ChildId]) {
+        if !self.0.is_alive() {
+            return;
+        }
+        let gone: Vec<Option<reactive::Scope>> = self.0.with(|held| {
+            let mut built = held.built.borrow_mut();
+            let stale: Vec<ChildId> = built
+                .keys()
+                .filter(|key| !shown.contains(key))
+                .copied()
+                .collect();
+            stale
+                .into_iter()
+                .filter_map(|key| built.remove(&key).map(|(_, scope)| scope))
+                .collect()
+        });
+        for scope in gone.into_iter().flatten() {
+            scope.dispose();
+        }
+    }
+
+    pub(crate) fn node(self, key: ChildId) -> NodeId {
+        if let Some(node) = self
+            .0
+            .with(|held| held.built.borrow().get(&key).map(|(node, _)| *node))
+        {
+            return node;
+        }
+        let (state, rect, child_view, region) = self
+            .0
+            .with(|held| (held.state, held.rect, held.child_view, held.region.clone()));
+        let build = move || {
+            let child = create_memo(move || {
+                state.with(|view| {
+                    view.children
+                        .iter()
+                        .find(|child| child.child == key)
+                        .cloned()
+                })
+            });
+            child_view.with(|view| view(key, child, rect))
+        };
+        let scope = region.as_ref().and_then(super::anchored::closed_with);
+        let node = match &scope {
+            Some(scope) => scope.run(build),
+            None => build(),
+        };
+        self.0
+            .with(|held| held.built.borrow_mut().insert(key, (node, scope)));
+        node
     }
 }
 

@@ -51,13 +51,14 @@ fn a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place() {
         tools.bottom() < stage.bottom() - 4.0,
         "thrown down, the bar is still on its way: {tools:?} over {stage:?}"
     );
-    test.snapshot("a_tool_bar_thrown_down_springing_into_the_band_along_the_bottom");
+    test.snapshot("a_tool_bar_thrown_down_springing_to_float_over_the_bottom");
 
     test.settle();
-    let stage = test.rect_of("bars.stage");
     let tools = test.rect_of("bars.tools");
     assert!(
-        tools.width() > tools.height() && tools.top() >= stage.bottom() - 0.5,
-        "and settles docked along the bottom, below the stage: {tools:?} under {stage:?}"
+        tools.width() > tools.height()
+            && stage.contains_rect(tools)
+            && tools.bottom() > stage.bottom() - 24.0,
+        "and settles floating over the bottom of the stage, a throw never docking it: {tools:?} over {stage:?}"
     );
 }

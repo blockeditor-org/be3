@@ -28,11 +28,12 @@ struct Hosted {
     parent: Option<ViewId>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Anchored {
     layer: u64,
     screen: ScreenId,
     rect: Rect,
+    takes: Vec<Rect>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -165,7 +166,7 @@ impl Desk {
         self.anchored
             .iter()
             .rev()
-            .find(|anchored| anchored.rect.contains(at))
+            .find(|anchored| anchored.takes.iter().any(|rect| rect.contains(at)))
             .map(|anchored| anchored.screen)
             .or_else(|| {
                 self.windows
@@ -467,6 +468,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     layer: escaped.layer.id,
                     screen,
                     rect: escaped.layer.rect,
+                    takes: escaped.layer.floating.clone(),
                 })
             })
             .collect();

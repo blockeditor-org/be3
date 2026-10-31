@@ -10,7 +10,7 @@ use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, WindowId
 use block_app_plugin_host::{AnchoredBlits, HostAnchored, HostChild, PlacedView};
 use block_plugin_api::{ChildId, EditorInstanceId, ViewId};
 
-use super::plugin_view::ChildView;
+use super::plugin_view::ChildNodes;
 
 #[derive(Clone, Copy)]
 pub(crate) struct AnchorBounds(pub(crate) Memo<Rect>);
@@ -32,8 +32,7 @@ pub(crate) struct AnchorOwner {
     pub(crate) host: Option<AnchorHost>,
     pub(crate) state: Memo<PlacedView>,
     pub(crate) revision: ReadSignal<u64>,
-    pub(crate) child_view: ChildView,
-    pub(crate) scope: Option<reactive::ScopeContext>,
+    pub(crate) children: ChildNodes,
     pub(crate) catcher: NodeRef,
 }
 
@@ -432,7 +431,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     }
 }
 
-fn closed_with(region: &reactive::ScopeContext) -> Option<reactive::Scope> {
+pub(crate) fn closed_with(region: &reactive::ScopeContext) -> Option<reactive::Scope> {
     region.is_alive().then(|| region.run(reactive::Scope::new))
 }
 
@@ -453,27 +452,15 @@ fn AnchoredChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
                     })
                 });
                 let clip = create_memo(move || child.get().map_or(Rect::ZERO, |child: HostChild| child.clip));
-                let rect = create_memo(move || {
-                    owner(mount)
-                        .filter(|owner| owner.state.is_alive())
-                        .map_or(Rect::ZERO, |owner| owner.state.with(|view| view.rect))
-                });
-                let built = held
-                    .and_then(|owner| {
-                        let scope = closed_with(owner.scope.as_ref()?)?;
-                        let built = scope.run(|| owner.child_view.with(|view| view(id, child, rect)));
-                        on_cleanup(move || scope.dispose());
-                        Some(built)
-                    })
-                    .unwrap_or_else(|| view! {
-                        <Frame />
-                    });
+                let built = held.map(|owner| owner.children.node(id));
                 let x = create_memo(move || clip.get().min.x);
                 let y = create_memo(move || clip.get().min.y);
                 let width = create_memo(move || clip.get().width());
                 let height = create_memo(move || clip.get().height());
                 view! {
-                    <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
+                    <CanvasItem x={x} y={y} width={width} height={height}>
+                        <Portal node={built} />
+                    </CanvasItem>
                 }
             }</ForEach>
         </Canvas>

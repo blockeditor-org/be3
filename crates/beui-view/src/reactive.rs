@@ -204,8 +204,12 @@ pub fn above_embeds(node: NodeId, above: impl IntoProp<Option<crate::types::Abov
 pub fn window_point(pos: Pos2, from: WindowId, to: WindowId) -> Option<Pos2> {
     match from == to {
         true => Some(pos),
-        false => core::window_point(pos, from, to),
+        false => Some(to_host(to)?.inverse_point(to_host(from)?.point(pos))),
     }
+}
+
+pub fn to_host(window: WindowId) -> Option<crate::types::HostTransform> {
+    core::to_host(window)
 }
 
 pub fn arrow_focus(row: NodeRef, direction: impl IntoProp<Direction>) {

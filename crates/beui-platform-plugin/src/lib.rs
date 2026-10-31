@@ -83,6 +83,7 @@ impl Platform for PluginPlatform {
                 floated: HashMap::default(),
                 asks: Vec::new(),
                 escaped: HashMap::default(),
+                spaces: HashMap::default(),
                 placements: HashMap::default(),
                 ratio: 1.0,
             };
@@ -169,6 +170,7 @@ struct ModuleRunner {
     floated: HashMap<WindowId, Floated>,
     asks: Vec<(ViewRef, block_plugin_api::WindowRequest)>,
     escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
+    spaces: HashMap<ViewRef, block_plugin_api::AnchorSpace>,
     placements: HashMap<ViewRef, ViewPlacement>,
     ratio: f32,
 }
@@ -233,6 +235,10 @@ impl ModuleRunner {
         self.sized.retain(|window, _| windows.contains(window));
         self.origins.retain(|window, _| windows.contains(window));
         self.escaped.retain(|id, _| shown(id));
+        self.spaces = regions
+            .iter()
+            .filter_map(|region| Some((region.id(), region.anchor_space?)))
+            .collect();
         self.placements = regions
             .iter()
             .map(|region| (region.id(), region.view.placement))
@@ -729,22 +735,28 @@ impl ViewHandler for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
-        } else if region.view.is_anchored() {
-            if let (Some(space), Some(layer)) =
-                (region.anchor_space, anchored_layer(region.view.id))
-            {
-                let input = escaped::to_host(event.input.clone(), space.to_host);
-                self.runner.push(Incoming::layer(layer, input));
-            }
         } else {
-            let incoming = input::translate(event);
-            let window = over
-                .and_then(|over| self.windows.get(&over).copied())
-                .or(window);
-            self.runner.push(match window {
-                Some(window) => incoming.in_window(window),
-                None => incoming,
-            });
+            let target = over.unwrap_or(id);
+            match anchored_layer(target.view) {
+                Some(layer) => {
+                    let space = match target == id {
+                        true => region.anchor_space,
+                        false => self.spaces.get(&target).copied(),
+                    };
+                    if let Some(space) = space {
+                        let input = escaped::to_host(event.input.clone(), space.to_host);
+                        self.runner.push(Incoming::layer(layer, input));
+                    }
+                }
+                None => {
+                    let incoming = input::translate(event);
+                    let window = self.windows.get(&target).copied().or(window);
+                    self.runner.push(match window {
+                        Some(window) => incoming.in_window(window),
+                        None => incoming,
+                    });
+                }
+            }
         }
         if let Some(at) = input::time(event) {
             self.runner.push(Incoming::Time(at));

@@ -87,13 +87,15 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
         "the bar lies along the top edge it came from again: {floating:?}"
     );
 
+    let below_its_place = pos2(body.center().x, body.top() + body.height() * 0.35);
+    harness.hover(below_its_place);
     harness.pause(Duration::from_millis(200));
-    harness.release_at(held);
+    harness.release_at(below_its_place);
     harness.settle();
     assert_eq!(
         dock.layout.bar_placement(&9),
         Some(DockBarPlacement::Over(DockEdge::Top, DockAlign::Center)),
-        "let go in the middle of its pane, the bar goes back where it was"
+        "let go at rest away from every edge but nearest the middle of the top, the bar floats back over it"
     );
     let home = harness.rect(harness.find("bar.9"));
     assert!(

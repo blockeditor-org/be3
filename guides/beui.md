@@ -3059,15 +3059,17 @@ with a last row that hides the bar, and
 the drag threshold with the press that went down, then with each move. The dock
 carries the drag, and the bar itself is what shows it: lifted out of its place into a
 layer of its own (`LayerPolicy::Inert`, at the bars' level), it follows the pointer exactly from
-where it was grabbed. A plugin's bar carried by the root (`DockRequest::MoveBar`) stays where it
-is until it is let go, since moving the plugin's view mid-press would lose the press: its landing
-place still opens as below, and it springs there from where it was once let go. Each move
+where it was grabbed, a plugin's bar carried by the root (`DockRequest::MoveBar`) too, except one
+popped out into a window, which stays in it until it is let go. The dock
+reads every point in its own window (`window_point`), so a press that began in another layer
+(a bar floating over an edge escapes into one of its own) still steers it. Each move
 resolves where it would land as if it were let go there: the outer band of the pane
 (through any band already beside that edge) docks it beside that edge, the next band in, or
 any bar already floating there, floats it over it, at the start, centre or end by which third
 of the edge the pointer is over, or, docking, at the alignment of the bars on the band the
-pointer is over; further in it lands nowhere (let go there, it goes back where it was), and
-away from the pane it pops out where it is let go. The layout shows that landing place as if
+pointer is over; further in it would land nowhere while it moves, and let go there at rest it
+floats over the pane's nearest edge, at the third the pointer is over; away from the pane it
+pops out where it is let go. The layout shows that landing place as if
 the bar were already there (a preview `DockState` with the bar placed, which `bars_at`, the
 bands and the bar windows read while a bar is lifted): its slot holds a gap of the bar's
 size that grows open over `GAP_SECONDS` (eased) while the gap it leaves closes up, so bars
@@ -3078,9 +3080,10 @@ turns to lie along that edge and its `DockBarSurface` takes the band's fill, and
 in the band across the edge while it follows the pointer along it. At a placement that
 already holds bars the slot is chosen among its own layer's bars by where the pointer is
 against their middles (across the edge for floating bars, along it for docked ones). Let
-go, it keeps its momentum: the pointer's recent `Velocity` (the tracker scrolls use) projects
-a throw as far as a `Fling` of that speed would travel, kept inside the pane, and the bar
-lands where that projection does; the placement is saved at once, and the bar springs from
+go while moving (the pointer's recent `Velocity`, the tracker scrolls use, at `THROW_SPEED` or
+more), it is thrown: it floats over the edge of the pane its path runs into, at the third of
+that edge where it would cross it, and a throw never docks it; docking takes letting go at rest
+near an edge. The placement is saved at once, and the bar springs from
 where it was let go into its gap (a softer `Spring`, starting at the pointer's velocity), then
 drops back into its place in the layout. Under `Motion::Instant` it is wherever the pointer is
 and in its place the moment it is let go. A bar popped out by being dropped away from the pane
@@ -3101,13 +3104,16 @@ platform that builds a joined bar's body itself provides
 `DockBarControl::hosted(bar, hosted, request)` there (`is_hosted` tells it
 apart): its reads follow the hosted state, and `place`, `pop_out`, `hide`, `show` and
 `begin_move` become `DockRequest::PlaceBar`, `DockRequest::HideBar` and `DockRequest::MoveBar` (a
-`DockBarMove`: the pointer in the body's own coordinates and a
+`DockBarMove`: the pointer in the body's own coordinates as they were when the press began,
+through `to_host` of the body's window then and now, and a
 `DockDragStage`), which the root's `Docking` carries as if its own grip were
-dragged, a popped-out bar from where its window is in the dock. A press held in
+dragged, from where the body was when the carry began (a popped-out bar from where its window
+is in the dock), so a body that moves under the pointer while the messages are on their way
+does not run away from it. A press held in
 one window that the pointer carries over another of the same program reports
 its position in that other window (`PointerPress::window`); `begin_move` turns
 it back into the bar's own window with `window_point(pos, from, to)`, which maps
-a point between windows through their layer spaces, so the move stays in the
+a point between windows through their layer spaces (`to_host(window)`), so the move stays in the
 body's points wherever the pointer goes; such a handle calls `end_move` when its press ends, which drops the
 bar (a local control ignores it). `DockingLayout::place_bar` of a joined dock
 asks the root the same way.

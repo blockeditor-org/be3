@@ -119,17 +119,8 @@ pub(crate) fn above_embeds(node: NodeId, above: Prop<Option<crate::types::AboveE
     });
 }
 
-pub(crate) fn window_point(
-    pos: crate::types::Pos2,
-    from: crate::types::WindowId,
-    to: crate::types::WindowId,
-) -> Option<crate::types::Pos2> {
-    try_with_document(|document| {
-        let context = document.context()?;
-        let host = context.layer_space(from)?.to_host.point(pos);
-        Some(context.layer_space(to)?.to_host.inverse_point(host))
-    })
-    .flatten()
+pub(crate) fn to_host(window: crate::types::WindowId) -> Option<crate::types::HostTransform> {
+    try_with_document(|document| Some(document.context()?.layer_space(window)?.to_host)).flatten()
 }
 
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
