@@ -18,6 +18,7 @@ use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
+use super::raster::{RasterGuideDrawing, raster_image, rastering};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
@@ -254,6 +255,13 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
     let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let raster_resized = create_memo(move || {
+        state
+            .raster_resizes()
+            .into_iter()
+            .map(|(resized, ..)| resized)
+            .collect::<Vec<_>>()
+    });
     let drawn_line = create_memo(move || {
         state.gesture.with(|gesture| match gesture {
             Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
@@ -262,7 +270,12 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     });
     create_effect(move || {
         let selection = state.selection.get();
-        let selected = state.entities.among(&selection);
+        let mut selected = state.entities.among(&selection);
+        for resized in raster_resized.get() {
+            if let Some(held) = selected.iter_mut().find(|held| held.id == resized.id) {
+                *held = resized;
+            }
+        }
         let scale = scale.get();
         let selected_path = state.selected_path();
         let mut overlay = Overlay {
@@ -453,6 +466,12 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         });
         freehand && state.being_drawn(id)
     });
+    let raster = state.entities.watch(id).raster();
+    let image = create_memo(move || raster.with(|raster| raster.as_ref().map(raster_image)));
+    let rastered = create_memo(move || raster.with(Option::is_some));
+    let raster_profile = rastering(state);
+    let guided = create_memo(move || !state.previewing() && raster_profile.get() && rastered.get());
+    let corner = create_memo(move || bounds.get().min);
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
@@ -521,6 +540,7 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
             glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
             automatic: label.is_some_and(|label| label.automatic),
             placeholder: placeholder.get(),
+            raster: image.get(),
             entity,
         };
         if shown.borrow().as_ref() == Some(&paint) {
@@ -541,6 +561,9 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         >
             <Layers>
                 <Drawing draw={draw} />
+                <Show condition={guided}>
+                    <RasterGuideDrawing state entity raster corner />
+                </Show>
                 <Show condition={live}>
                     <EntityText state id entity outer={bounds} editing />
                 </Show>

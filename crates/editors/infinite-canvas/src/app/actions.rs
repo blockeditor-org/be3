@@ -1,12 +1,14 @@
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWN, ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD,
-    ICON_COMPONENT, ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS,
+    ICON_ALIGN_HORIZONTAL_SPACE_BETWEEN, ICON_ALIGN_VERTICAL_SPACE_BETWEEN, ICON_ARROW_DOWN,
+    ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD, ICON_COMPONENT,
+    ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS, ICON_GRID_2X2,
     ICON_IMAGE, ICON_LAYERS_ARROW_UP, ICON_LINE_SQUIGGLE, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN,
-    ICON_PENCIL, ICON_PIN, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK,
-    ICON_SLASH, ICON_SPLINE_POINTER, ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER,
-    ICON_TRASH, ICON_TYPE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_MINUS, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIN, ICON_PLUS, ICON_RECTANGLE_HORIZONTAL,
+    ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK, ICON_SLASH, ICON_SPLINE_POINTER,
+    ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER, ICON_TRASH, ICON_TYPE, ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::use_theme;
@@ -17,6 +19,7 @@ use super::export::{ExportFormat, ExportTo, Exporter};
 use super::grid::{GridActions, grid_actions};
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 use super::touch::TouchChoice;
+use crate::raster::PixelTool;
 
 #[derive(Clone)]
 pub(crate) struct CanvasActions {
@@ -73,6 +76,32 @@ pub(crate) struct CanvasActions {
     pub(crate) grid: GridActions,
     pub(crate) prototyping: Action,
     pub(crate) vector: Action,
+    pub(crate) raster_profile: Action,
+    pub(crate) pixel: Vec<Action>,
+    pub(crate) raster: RasterActions,
+}
+
+#[derive(Clone)]
+pub(crate) struct RasterActions {
+    pub(crate) larger: Action,
+    pub(crate) smaller: Action,
+    pub(crate) filled: Action,
+    pub(crate) mirror_horizontal: Action,
+    pub(crate) mirror_vertical: Action,
+    pub(crate) grid: Action,
+}
+
+impl RasterActions {
+    pub(crate) fn all(&self) -> [&Action; 6] {
+        [
+            &self.larger,
+            &self.smaller,
+            &self.filled,
+            &self.mirror_horizontal,
+            &self.mirror_vertical,
+            &self.grid,
+        ]
+    }
 }
 
 impl CanvasActions {
@@ -89,7 +118,18 @@ impl CanvasActions {
             Tool::Text => self.text.clone(),
             Tool::Pen => self.pen.clone(),
             Tool::Eraser => self.eraser.clone(),
+            Tool::Pixel(pixel) => self.pixel[PixelTool::ALL
+                .iter()
+                .position(|tool| *tool == pixel)
+                .expect("every pixel tool is listed")]
+            .clone(),
         }
+    }
+
+    pub(crate) fn pixel_tools(&self) -> Vec<&Action> {
+        std::iter::once(&self.select)
+            .chain(self.pixel.iter())
+            .collect()
     }
 
     pub(crate) fn tools(&self) -> [&Action; 11] {
@@ -137,8 +177,11 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         Action::new(id, label, move || state.set_tool(tool))
             .glyph(tool.glyph())
             .radio(create_memo(move || state.tool.get() == tool))
-            .enabled(free)
+            .enabled(create_memo(move || {
+                free.get() && tool.usable_in(state.profile.get())
+            }))
     };
+    let rastering = create_memo(move || free.get() && state.profile.get() == CanvasProfile::Raster);
     let command = |id: &str, label: &'static str, glyph: Glyph, command: CanvasCommand| {
         Action::new(id, label, move || state.run(command)).glyph(glyph)
     };
@@ -312,6 +355,92 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         ICON_SPLINE_POINTER,
         CanvasProfile::Vector,
     );
+    let raster_profile = profile(
+        "canvas.profile.raster",
+        "Raster profile",
+        ICON_GRID_2X2,
+        CanvasProfile::Raster,
+    );
+    let pixel = PixelTool::ALL
+        .into_iter()
+        .map(|pixel| {
+            let action = tool(
+                &format!("canvas.tool.{}", pixel.id()),
+                pixel.name(),
+                Tool::Pixel(pixel),
+            );
+            let action = match pixel {
+                PixelTool::Pencil => action
+                    .shortcut(Chord::key(Key::B))
+                    .shortcut(Chord::key(Key::P)),
+                PixelTool::Eraser => action.shortcut(Chord::key(Key::E)),
+                PixelTool::Fill => action.shortcut(Chord::key(Key::G)),
+                PixelTool::Eyedropper => action.shortcut(Chord::key(Key::I)),
+                PixelTool::ReplaceColor => action.shortcut(Chord::key(Key::C)),
+                PixelTool::Line => action.shortcut(Chord::key(Key::L)),
+                PixelTool::Rectangle => action.shortcut(Chord::key(Key::R)),
+                PixelTool::Ellipse => action.shortcut(Chord::key(Key::O)),
+            };
+            action.register()
+        })
+        .collect();
+    let tools = state.raster;
+    let toggle = |signal: Signal<bool>| move || signal.update(|on| *on = !*on);
+    let raster = RasterActions {
+        larger: Action::new("canvas.brush.larger", "Larger brush", move || {
+            tools.resize_brush(1)
+        })
+        .glyph(ICON_PLUS)
+        .shortcut(Chord::key(Key::BracketRight))
+        .enabled(rastering)
+        .register(),
+        smaller: Action::new("canvas.brush.smaller", "Smaller brush", move || {
+            tools.resize_brush(-1)
+        })
+        .glyph(ICON_MINUS)
+        .shortcut(Chord::key(Key::BracketLeft))
+        .enabled(rastering)
+        .register(),
+        filled: Action::new(
+            "canvas.brush.filled",
+            "Fill pixel rectangles and ellipses",
+            toggle(tools.filled),
+        )
+        .glyph(ICON_PAINT_BUCKET)
+        .shortcut(Chord::key(Key::X))
+        .checked(tools.filled)
+        .enabled(rastering)
+        .register(),
+        mirror_horizontal: Action::new(
+            "canvas.brush.mirror-horizontal",
+            "Mirror left and right",
+            toggle(tools.mirror_horizontal),
+        )
+        .glyph(ICON_ALIGN_HORIZONTAL_SPACE_BETWEEN)
+        .shortcut(Chord::key(Key::H))
+        .checked(tools.mirror_horizontal)
+        .enabled(rastering)
+        .register(),
+        mirror_vertical: Action::new(
+            "canvas.brush.mirror-vertical",
+            "Mirror top and bottom",
+            toggle(tools.mirror_vertical),
+        )
+        .glyph(ICON_ALIGN_VERTICAL_SPACE_BETWEEN)
+        .shortcut(Chord::key(Key::H).shift())
+        .checked(tools.mirror_vertical)
+        .enabled(rastering)
+        .register(),
+        grid: Action::new(
+            "canvas.pixel-grid",
+            "Show the pixel grid",
+            toggle(tools.grid),
+        )
+        .glyph(ICON_GRID_2X2)
+        .checked(tools.grid)
+        .enabled(rastering)
+        .register(),
+    };
     let select = tool("canvas.tool.select", "Select", Tool::Select)
         .shortcut(Chord::key(Key::V))
         .shortcut(Chord::key(Key::One))
@@ -537,6 +666,9 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         grid,
         prototyping,
         vector,
+        raster_profile,
+        pixel,
+        raster,
     }
 }
 

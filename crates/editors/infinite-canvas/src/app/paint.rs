@@ -85,6 +85,7 @@ pub(crate) struct EntityPaint {
     pub(crate) automatic: bool,
     pub(crate) covered: bool,
     pub(crate) placeholder: Option<Image>,
+    pub(crate) raster: Option<Image>,
     pub(crate) sketch: Rc<Sketch>,
 }
 
@@ -98,6 +99,7 @@ impl PartialEq for EntityPaint {
             && self.automatic == other.automatic
             && self.covered == other.covered
             && self.placeholder == other.placeholder
+            && self.raster == other.raster
             && Rc::ptr_eq(&self.sketch, &other.sketch)
     }
 }
@@ -123,7 +125,8 @@ impl EntityPaint {
             | CanvasShape::Diamond
             | CanvasShape::Path
             | CanvasShape::Freehand => self.sketch.draw(painter, color, fill),
-            CanvasShape::Text | CanvasShape::Frame | CanvasShape::Raster => {}
+            CanvasShape::Text | CanvasShape::Frame => {}
+            CanvasShape::Raster => self.draw_raster(painter, opacity),
             CanvasShape::Image => {
                 let painter = self.turned(painter);
                 self.fill_uncovered(&painter, self.box_rect(), opacity);
@@ -171,6 +174,19 @@ impl EntityPaint {
             });
         if solid {
             turned.rect_stroke(rect, radius, width, color);
+        }
+    }
+
+    fn draw_raster(&self, painter: &Painter, opacity: f32) {
+        if let Some(image) = &self.raster {
+            painter.image(
+                self.box_rect(),
+                Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
+                image,
+                with_opacity(Color32::WHITE, opacity),
+                0.0,
+                false,
+            );
         }
     }
 

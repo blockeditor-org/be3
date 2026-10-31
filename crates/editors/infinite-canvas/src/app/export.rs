@@ -13,7 +13,9 @@ use block_editor_beui::beui::{
     Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
-use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
+use infinite_canvas_types::{
+    CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTextWeight,
+};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
@@ -24,6 +26,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use crate::raster::nearest_upscaled;
 use beui::{Align, Direction, ItemSize};
 use image_block_types::ImageContent;
 
@@ -97,6 +100,7 @@ pub(crate) struct Scene {
     pub(crate) background: Color32,
     pub(crate) palette: Palette,
     pub(crate) embeds: BTreeMap<Uuid, Embed>,
+    pub(crate) rasters: BTreeMap<Uuid, CanvasRaster>,
     pub(crate) name: String,
 }
 
@@ -183,6 +187,11 @@ impl Scene {
                 ))
             })
             .collect();
+        let rasters = entities
+            .iter()
+            .filter(|entity| entity.shape == CanvasShape::Raster)
+            .filter_map(|entity| Some((entity.id, state.raster_of(entity.id)?)))
+            .collect();
         Some(Self {
             entities,
             area,
@@ -190,6 +199,7 @@ impl Scene {
             background,
             palette,
             embeds,
+            rasters,
             name,
         })
     }
@@ -380,7 +390,10 @@ pub(crate) fn png(
         }
         let camera = Camera::item(scene.area.min, 1.0);
         for entity in &scene.entities {
-            draw(&painter, scene, entity, camera, &decoded);
+            match scene.rasters.get(&entity.id) {
+                Some(raster) => draw_raster(&painter, entity, raster, camera, scale),
+                None => draw(&painter, scene, entity, camera, &decoded),
+            }
         }
     });
     let painted = painting(
@@ -392,6 +405,41 @@ pub(crate) fn png(
     )?;
     let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     encode_png(raster.size, raster.rgba.into_iter().flatten().collect())
+}
+
+const MAX_RASTER_UPSCALE: u32 = 64;
+const MAX_UPSCALED_PIXELS: u32 = 16 * 1024 * 1024;
+
+fn draw_raster(
+    painter: &Painter,
+    entity: &CanvasEntity,
+    raster: &CanvasRaster,
+    camera: Camera,
+    scale: f32,
+) {
+    if entity.hidden {
+        return;
+    }
+    let rect = camera.rect(entity_bounds(entity));
+    let (width, height) = (u32::from(raster.width()), u32::from(raster.height()));
+    let wanted = (rect.width() * scale / width.max(1) as f32).ceil().max(1.0) as u32;
+    let room = (MAX_UPSCALED_PIXELS / (width * height).max(1))
+        .isqrt()
+        .max(1);
+    let factor = wanted.min(MAX_RASTER_UPSCALE).min(room);
+    let image = Image::from_rgba(
+        width * factor,
+        height * factor,
+        nearest_upscaled(raster.width(), raster.height(), raster.rgba_bytes(), factor),
+    );
+    painter.image(
+        rect,
+        Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
+        &image,
+        with_opacity(Color32::WHITE, entity.style.opacity.clamp(0.0, 1.0)),
+        0.0,
+        false,
+    );
 }
 
 fn decode(data: &[u8]) -> Option<Image> {
@@ -457,6 +505,7 @@ fn draw(
         automatic: false,
         covered: false,
         placeholder: None,
+        raster: None,
         sketch: Rc::new(
             Sketch::of(entity, false).translated(Vec2::new(camera.origin.x, camera.origin.y)),
         ),
@@ -618,6 +667,24 @@ fn svg_entity(
     );
     let world = Camera::item(Pos2::ZERO, 1.0);
     let turn = turn(entity);
+    if let Some(raster) = scene.rasters.get(&entity.id) {
+        let rect = world.rect(entity_bounds(entity));
+        let data = encode_png(
+            [u32::from(raster.width()), u32::from(raster.height())],
+            raster.rgba_bytes().to_vec(),
+        )
+        .unwrap_or_default();
+        out.push_str(&format!(
+            "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"none\" image-rendering=\"pixelated\" style=\"image-rendering:pixelated\"{} href=\"data:image/png;base64,{}\"/>\n",
+            number(rect.min.x),
+            number(rect.min.y),
+            number(rect.width()),
+            number(rect.height()),
+            opacity_of(opacity),
+            base64(&data)
+        ));
+        return;
+    }
     if entity.shape == CanvasShape::Text {
         svg_written(out, painter, entity, ink, &turn);
         return;
@@ -943,7 +1010,7 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
-const DIALOG_SPACING: Space = Space::Lg;
+pub(crate) const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {

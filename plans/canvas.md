@@ -33,12 +33,43 @@ shared live state.
 It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
 pressure-aware pen tools; resize, rotate, group, lock, layers, align and
 distribute; peers' cursors and selections; child blocks edited in place; and a
-phone dock and selection bar. A viewer picks a profile from the frame's menu or
-the context menu: Prototyping (the default: a style popover in the selection
-bar, hand-drawn shapes, no frame tool) or Vector (the accordion inspector).
-The profile lives in the editor's `CanvasState`; `Canvas::profile` only keeps
-the last one used, and `Root::undoable` keeps that write out of undo. New
-shapes take the viewer's last style, kept per profile.
+phone dock and selection bar. A viewer picks a profile from the mode dock (a
+dock bar of radio buttons at the top-left of the stage, `app/mode.rs`; on a
+narrow frame it folds into a menu button at the start of the tool dock, since
+it would not fit beside the zoom pill), the frame's menu, the context menu or
+the palette: Prototyping (the default: a style popover in the selection bar,
+hand-drawn shapes, no frame tool), Vector (the accordion inspector) or Raster
+(pixel tools and the raster panel). The profile lives in the editor's
+`CanvasState`; `Canvas::profile` only keeps the last one used, and
+`Root::undoable` keeps that write out of undo. New shapes take the viewer's
+last style, kept per profile. A tool belongs to profiles (`Tool::belongs_to`,
+which picks the dock's tools); a tool that does not belong is disabled, so one
+letter picks a different tool per profile: R, O, L, E and P draw pixel
+rectangles, ellipses, lines, erase pixels and draw with the pencil in Raster,
+and shapes, lines, the eraser and the pen elsewhere.
+
+The Raster profile (`app/raster.rs`, with the rasterization pixel-art had in
+`src/raster.rs`) has pencil (B or P), pixel eraser (E), fill (G), eyedropper
+(I), replace colour (C), and pixel line, rectangle and ellipse (L, R, O), with
+a brush size (`[` and `]`), a square or round brush, filled shapes (X), mirror
+symmetry (H left to right, Shift+H top to bottom; pixel-art's V selects here)
+and Shift for straight lines and squares. Its sidebar holds the brush, the
+colour and the canvas-wide palette, the selected layer's size, Resize… (an
+anchored card with width, height and anchor) and Clear… (an alert), the
+layer's opacity, the pixel size and the pixel grid toggle, and the layers. A
+drawing tool paints into the topmost raster layer under the pointer, or starts
+a `DEFAULT_RASTER_SIZE` layer centred on the press; a stroke is a gesture
+(`Gesture::Raster`, its pixels in `CanvasCells::stroke`) whose `Paint`s go out
+live and undo as one step, and a shape tool puts back the pixels it no longer
+covers as it is dragged. Each layer is drawn as one texture sampled nearest,
+made again only when that layer's grid changes (`EntitySignals::raster`), with
+its outline and, from 12 screen points a pixel, the pixel grid over it.
+Dragging a layer's handles sends `Resize`, anchored opposite the handle, on
+release; its outline previews the new size meanwhile. Export embeds a layer as
+a PNG `<image>` with `image-rendering="pixelated"` in SVG and upscales it
+nearest before the CPU rasterizer in PNG, which samples bilinearly. Paintings
+show raster layers blurred for the same reason: `paint_format` has no nearest
+sampling.
 
 The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
 `shape` names what it is (`CanvasShape`: rectangle, ellipse, diamond, path,

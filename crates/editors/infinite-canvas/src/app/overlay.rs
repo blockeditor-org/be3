@@ -375,6 +375,7 @@ impl Live {
             | Some(Gesture::Endpoint { .. })
             | Some(Gesture::Bend { .. })
             | Some(Gesture::Pen { .. })
+            | Some(Gesture::Raster { .. })
             | None => {}
         }
     }

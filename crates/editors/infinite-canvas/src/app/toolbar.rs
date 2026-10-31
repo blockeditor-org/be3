@@ -9,21 +9,51 @@ use block_editor_beui::sheet_open;
 use infinite_canvas_types::CanvasProfile;
 
 use super::actions::CanvasActions;
+use super::mode::ModeMenu;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
+use crate::raster::PixelTool;
 use beui::{Align, Align2, Direction, Vec2};
 
-const TOOLS_SHOWN: [(Tool, &str); 10] = [
-    (Tool::Select, "Select"),
-    (Tool::Pen, "Pen"),
-    (Tool::Rectangle, "Rectangle"),
-    (Tool::Ellipse, "Ellipse"),
-    (Tool::Diamond, "Diamond"),
-    (Tool::Arrow, "Arrow"),
-    (Tool::Line, "Line"),
-    (Tool::Text, "Text"),
-    (Tool::Frame, "Frame"),
-    (Tool::Eraser, "Eraser"),
+const TOOLS_SHOWN: [(Tool, &str, &str); 18] = [
+    (Tool::Select, "Select", "Select"),
+    (Tool::Pen, "Pen", "Pen"),
+    (Tool::Rectangle, "Rectangle", "Rectangle"),
+    (Tool::Ellipse, "Ellipse", "Ellipse"),
+    (Tool::Diamond, "Diamond", "Diamond"),
+    (Tool::Arrow, "Arrow", "Arrow"),
+    (Tool::Line, "Line", "Line"),
+    (Tool::Text, "Text", "Text"),
+    (Tool::Pixel(PixelTool::Pencil), "Pencil", "pencil"),
+    (
+        Tool::Pixel(PixelTool::Eraser),
+        "Pixel eraser",
+        "pixel-eraser",
+    ),
+    (Tool::Pixel(PixelTool::Fill), "Fill", "fill"),
+    (
+        Tool::Pixel(PixelTool::Eyedropper),
+        "Eyedropper",
+        "eyedropper",
+    ),
+    (
+        Tool::Pixel(PixelTool::ReplaceColor),
+        "Replace colour",
+        "replace-color",
+    ),
+    (Tool::Pixel(PixelTool::Line), "Pixel line", "pixel-line"),
+    (
+        Tool::Pixel(PixelTool::Rectangle),
+        "Pixel rectangle",
+        "pixel-rectangle",
+    ),
+    (
+        Tool::Pixel(PixelTool::Ellipse),
+        "Pixel ellipse",
+        "pixel-ellipse",
+    ),
+    (Tool::Frame, "Frame", "Frame"),
+    (Tool::Eraser, "Eraser", "Eraser"),
 ];
 const PILL_MARGIN: Space = Space::Lg;
 const BAR_MARGIN: Space = Space::Md;
@@ -53,6 +83,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
             .filter(|index| TOOLS_SHOWN[*index].0.belongs_to(profile))
             .collect::<Vec<usize>>()
     });
+    let narrow = block_editor_beui::narrow_chrome();
     let block_button = NodeRef::new();
     let add_block = move || state.open_block_picker_at(block_button);
     create_effect(move || {
@@ -67,6 +98,9 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                 <Frame @test_id={"infinite-canvas.dock.grip"}>
                     <DockBarGrip />
                 </Frame>
+                <Show condition={narrow}>
+                    <ModeMenu state />
+                </Show>
                 <ToggleButton
                     icon_only=true
                     action={actions.tool_lock.clone()}
@@ -129,12 +163,15 @@ pub(crate) fn SelectionDock(
     });
     let edge = create_memo(move || placement.get().edge());
     let direction = create_memo(move || edge.get().direction());
+    let narrow = block_editor_beui::narrow_chrome();
     let chosen = create_memo(move || {
         let tool = state.tool.get();
+        let profile = state.profile.get();
         open.get()
             && (!state.selection.get().is_empty()
                 || tool.draws_a_line()
-                || (state.profile.get() == CanvasProfile::Prototyping && tool.styles()))
+                || (profile == CanvasProfile::Prototyping && tool.styles())
+                || (profile == CanvasProfile::Raster && narrow.get()))
     });
     let align = create_memo(move || match edge.get() {
         DockEdge::Top => Align2::new(Align::Center, Align::Start),
@@ -231,7 +268,7 @@ pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
 
 #[component]
 fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeId {
-    let (tool, name) = TOOLS_SHOWN[index];
+    let (tool, name, id) = TOOLS_SHOWN[index];
     let (label, glyph, action) = match tool {
         Tool::Select => {
             let mode = create_memo(move || state.select_tool());
@@ -256,7 +293,7 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
             glyph={glyph}
             icon_only=true
             action={action}
-            @test_id={format!("infinite-canvas.dock.tool.{name}")}
+            @test_id={format!("infinite-canvas.dock.tool.{id}")}
         />
     }
 }

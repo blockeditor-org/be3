@@ -2,6 +2,7 @@ use super::*;
 
 const TOOL_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 const ZOOM_BAR: &str = "GenericContainer #infinite-canvas.zoom-pill at";
+const MODE_BAR: &str = "GenericContainer #infinite-canvas.mode at";
 
 #[test]
 fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
@@ -47,12 +48,17 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     );
     let tools = app.place(TOOL_BAR);
     let zoom = app.place(ZOOM_BAR);
+    let mode = app.place(MODE_BAR);
     assert!(
-        tools.0 - pane.0 < 16.0 && tools.1 - pane.1 < 16.0 && tools.2 > tools.3,
-        "the tool bar floats over the top at its left, at {tools:?}"
+        tools.0 - pane.0 < 16.0
+            && mode.1 - pane.1 < 16.0
+            && tools.1 >= mode.1 + mode.3
+            && tools.1 - (mode.1 + mode.3) < 16.0
+            && tools.2 > tools.3,
+        "the tool bar floats over the top at its left, under the mode dock there, at {tools:?}"
     );
     assert!(
-        right - (zoom.0 + zoom.2) < 16.0 && (zoom.1 - tools.1).abs() < 1.0,
+        right - (zoom.0 + zoom.2) < 16.0 && (zoom.1 - mode.1).abs() < 1.0,
         "and the zoom bar beside it on the same edge, at its right, at {zoom:?}"
     );
     app.snapshot("both_canvas_bars_float_over_the_top_at_either_end");
