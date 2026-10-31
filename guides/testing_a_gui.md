@@ -380,8 +380,8 @@ recorded, and a child's statuses are whatever the test reports. What happens bet
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
 press, a tab closing its editor) lives in block-app's compositor and plugin host, so it is
 tested in crates/app-tests instead, against the app itself. Each test there starts the native
-app headless with every plugin and the dev organization open, exactly as `:dev` does, in a data
-directory of its own; drives it with the commands `drive` has (guides/running/drive.md); paints
+app headless with the dev organization open, exactly as `:dev` does, in a data
+directory of its own, with the editors it names (below); drives it with the commands `drive` has (guides/running/drive.md); paints
 the whole window, every plugin included; and fails unless the app exits cleanly when it closes,
 which close() checks, so a test that ends without calling it fails too.
 
@@ -429,6 +429,19 @@ which close() checks, so a test that ends without calling it fails too.
   `AppTest::start_drawing_previews()` start it with the renderer, drawing through lavapipe.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
+- Each test names the editors it uses in `EDITORS` in crates/app-tests/BUCK, by their
+  directory under crates/editors: the editor of every block type it creates or opens, the
+  canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text-block`
+  for a deck's slides. Its app stages those beside the ones every app needs to show the Files
+  (`BASE` in crates/app-tests/apps.bzl), each only as its precompiled module, so the test builds
+  only those editors, and a change to an editor reruns only the tests that name it. A test not
+  in `EDITORS` stages every editor: leave a test out whose paintings show what every editor
+  adds, such as the add menu's types or the type search, since fewer editors would paint fewer
+  rows. A block whose editor is missing fails the test within a few seconds, naming the editor
+  to add; a painting that changes where only the editors changed means the test needs another
+  editor (a file's row menu offers Opens in only for a type that two editors edit, such as
+  text-block and block-debug), and a test named `foo` runs against its own app with
+  `./scripts/test foo`, as verify runs it.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log, after every panic the app logged before it, each whole with its message and backtrace. A step
@@ -437,8 +450,9 @@ which close() checks, so a test that ends without calling it fails too.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running
   the harness on this machine, all the tests at once and as often as needed. Build it with what
   its `run_env` in crates/app-tests/BUCK names (`./scripts/buck build
-  //crates/app-tests:test-harness //crates/block-app:native //buck/sysroot:amd64-test
-  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`), then run
+  //crates/app-tests:test-harness //crates/app-tests:app-all //buck/sysroot:amd64-test
+  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:app-all` the app every
+  test can run against), then run
   `buck-out/v2/art/root/*/crates/app-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
   `CARGO_MANIFEST_DIR` to crates/app-tests. While a test hangs, `gdb -p PID -batch -ex 'thread

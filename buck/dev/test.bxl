@@ -37,11 +37,7 @@ def _impl(ctx: bxl.Context):
         runs = []
         if RemoteTestInfo in providers:
             info = providers[RemoteTestInfo]
-            apart = [
-                test
-                for test in info.apart
-                if not args.name or args.name in "tests::{}::{}".format(test, test)
-            ]
+            apart = [test for test in info.apart if not args.name or args.name in "tests::{}::{}".format(test, test)]
             for test in apart:
                 runs.append(("-run-" + test, info.command, info.apart[test], ["--nocapture", "tests::{}::".format(test)]))
             if not apart:

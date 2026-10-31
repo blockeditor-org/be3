@@ -265,12 +265,14 @@ def _painting_command(ctx, env):
 # paintings.
 # `apart` is a run_apart test's environment for each file under src/tests/, by
 # the file's name.
-RemoteTestInfo = provider(fields = {
-    "apart": provider_field(dict, default = {}),
-    "command": provider_field(typing.Any),
-    "env": provider_field(dict),
-    "hidden": provider_field(list),
-})
+RemoteTestInfo = provider(
+    fields = {
+        "apart": provider_field(dict, default = {}),
+        "command": provider_field(typing.Any),
+        "env": provider_field(dict),
+        "hidden": provider_field(list),
+    }
+)
 
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)

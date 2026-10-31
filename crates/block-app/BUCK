@@ -43,7 +43,7 @@ cargo_binary(
 )
 
 # Every editor's modules precompiled for the platform the app is built for,
-# once, for :native and the apps crates/app-tests stages per test.
+# once, for :native, :dev-app and the apps crates/app-tests stages per test.
 precompiled_plugins(
     name = "precompiled",
     modules = ["//{}:module".format(package) for package in editor_packages()],
@@ -279,7 +279,7 @@ app(
     manifests = ["//{}:manifest".format(package) for package in dev_plugins],
     modules = ["//{}:module".format(package) for package in dev_plugins],
     plugin_types = ["//{}:types".format(package) for package in dev_plugins],
-    precompiler = "//crates/plugin-test-runner:precompiler",
+    precompiled = ":precompiled",
 )
 
 headless(

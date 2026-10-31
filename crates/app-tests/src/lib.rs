@@ -122,7 +122,10 @@ impl AppTest {
         let editors = match &self.editors {
             Some(editors) => format!(
                 "its app stages only the editors {editors}: add {} to this test's editors in crates/app-tests/BUCK",
-                needle.as_deref().map_or_else(Vec::new, editors_naming).join(" or ")
+                needle
+                    .as_deref()
+                    .map_or_else(Vec::new, editors_naming)
+                    .join(" or ")
             ),
             None => "its app stages every editor, and none edits this block's type".to_owned(),
         };

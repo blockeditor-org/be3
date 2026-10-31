@@ -85,7 +85,7 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/editors/desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with every plugin, driven and painted as a whole |
+| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with the editors each test names, driven and painted as a whole |
 | `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
