@@ -482,7 +482,10 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   query), and `roles ROLE COUNT`, which waits for exactly COUNT visible elements with
   that role, whatever their names (`roles dialog 1` while one dialog is open). It also runs
   `checks()`, the live DOM backend's checks in src/web/live.rs (mounting, hydration, listeners),
-  failing on any line that is not `ok`. It runs on this machine, not a worker, which have no
+  failing on any line that is not `ok`. `settle` there waits until no frame is wanted at once:
+  one a timer will ask for later, such as an indeterminate progress bar's next tick, does not
+  count, as natively. It prints `ok NAME` for a script that passes, and for one that fails its
+  commands so far with their answers, the failure, the tree and the page's console. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
   package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
   `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.

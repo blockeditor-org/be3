@@ -369,32 +369,34 @@ async function close(opened) {
 }
 
 async function report(opened, failure) {
-    console.log(`FAILED: ${failure}`);
-    for (const error of opened.errors) console.log(`page error: ${error}`);
+    const lines = [`FAILED: ${failure}`];
+    for (const error of opened.errors) lines.push(`page error: ${error}`);
     try {
         const tree = await automate(opened.page, ["tree"]);
-        if (tree.text) console.log(`the tree:\n${tree.text}`);
+        if (tree.text) lines.push(`the tree:\n${tree.text}`);
     } catch {}
-    if (opened.log.length) console.log(`the page's console:\n${opened.log.join("\n")}`);
+    if (opened.log.length) lines.push(`the page's console:\n${opened.log.join("\n")}`);
+    return lines.join("\n");
 }
 
 async function runScript(script) {
     const name = basename(script, ".drive");
-    console.log(`\n${name} (${script})`);
+    const transcript = [];
     const opened = await open(`?fixture=${encodeURIComponent(name)}`);
     try {
         if (opened.errors.length) throw new Failure(opened.errors[0]);
         for (const { line, words } of commands(await readFile(script, "utf8"))) {
-            console.log(`> ${line}`);
+            transcript.push(`> ${line}`);
             const output = await step(opened.page, words);
-            if (output) process.stdout.write(output.endsWith("\n") ? output : `${output}\n`);
+            if (output) transcript.push(output.replace(/\n$/, ""));
             if (opened.errors.length) throw new Failure(`the page failed: ${opened.errors[0]}`);
             await pageChecks(opened.page);
         }
         console.log(`ok ${name}`);
         return true;
     } catch (error) {
-        await report(opened, error instanceof Failure ? error.message : String(error?.stack ?? error));
+        const failure = await report(opened, error instanceof Failure ? error.message : String(error?.stack ?? error));
+        console.log(`\n${name} (${script})\n${transcript.join("\n")}\n${failure}\n`);
         return false;
     } finally {
         await close(opened);
@@ -420,7 +422,7 @@ async function runChecks(colorScheme) {
         }
         return true;
     } catch (error) {
-        await report(opened, error instanceof Failure ? error.message : String(error?.stack ?? error));
+        console.log(await report(opened, error instanceof Failure ? error.message : String(error?.stack ?? error)));
         return false;
     } finally {
         await close(opened);

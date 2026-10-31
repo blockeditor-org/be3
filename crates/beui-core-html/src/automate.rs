@@ -503,7 +503,7 @@ mod web {
         let deadline = wall_milliseconds() + timeout.as_secs_f64() * 1000.0;
         loop {
             next_frame().await;
-            if !crate::frame::pending() {
+            if !crate::frame::busy() {
                 return Ok(());
             }
             if wall_milliseconds() > deadline {
