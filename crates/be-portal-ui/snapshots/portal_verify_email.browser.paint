@@ -68,7 +68,7 @@ BE3BROWSER 1
     "<input type=\"hidden\" name=\"code\" value=\"\">",
     "<input type=\"hidden\" name=\"token\" value=\"snapshot-mail-token\">",
     "<div style=\"display: flex; flex-direction: column; align-items: stretch; gap: 12px;\">",
-    "<button type=\"submit\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); pointer-events: auto; cursor: pointer; flex: 0 0 auto;\" tabindex=\"0\">",
+    "<button type=\"submit\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); pointer-events: auto; cursor: pointer; flex: 0 0 auto;\" tabindex=\"0\" aria-label=\"Verify email\">",
     "<div style=\"display: flex; flex-direction: column; align-items: stretch; pointer-events: auto;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: stretch; align-items: stretch; border-radius: 8px 8px 8px 8px; flex: 0 0 auto;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 8px 16px 8px 16px; justify-items: stretch; align-items: stretch; background-color: var(--v-17dfe159); border-radius: 6px 6px 6px 6px;\">",

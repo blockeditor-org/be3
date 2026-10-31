@@ -387,10 +387,7 @@ pub(super) fn AddAccountDialog(
                                             @sizing=ItemSize::Percent(100.0)
                                             child_size=ItemSize::Percent(100.0)
                                         >
-                                            <Text
-                                                size=TextSize::Xl
-                                                @test_id="account.browser-code"
-                                            >
+                                            <Text size=TextSize::Xl @test_id="account.browser-code">
                                                 {browser_code}
                                             </Text>
                                         </SelectableText>

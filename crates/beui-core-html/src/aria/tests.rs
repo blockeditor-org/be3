@@ -13,8 +13,8 @@ fn with(role: Role, set: impl FnOnce(&mut accesskit::Node)) -> accesskit::Node {
     node
 }
 
+mod a_changed_role_drops_the_attributes_it_no_longer_has;
 mod a_checked_switch_reads_as_a_checked_aria_switch;
+mod a_native_element_keeps_its_own_semantics;
 mod a_selected_tab_reads_as_a_selected_aria_tab;
 mod a_slider_carries_its_value_and_range;
-mod a_native_element_keeps_its_own_semantics;
-mod a_changed_role_drops_the_attributes_it_no_longer_has;

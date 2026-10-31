@@ -172,7 +172,8 @@ pub(crate) fn attributes(node: &accesskit::Node, tag: Option<&str>) -> Vec<(&'st
     });
     let flag = |set: bool| set.then(|| "true".to_owned());
     let boolean = |value: Option<bool>| value.map(|value| value.to_string());
-    let number = |value: Option<f64>| value.map(|value| ((value * 1000.0).round() / 1000.0).to_string());
+    let number =
+        |value: Option<f64>| value.map(|value| ((value * 1000.0).round() / 1000.0).to_string());
     let toggled = node.toggled().map(|toggled| {
         match toggled {
             Toggled::True => "true",
