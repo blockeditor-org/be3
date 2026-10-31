@@ -29,6 +29,7 @@ use crate::node::{
 };
 use crate::paint::{self, PaintCache, verify};
 use crate::painter::{Painter, PainterState, Zoom};
+use beui_types::layout::Direction;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -131,6 +132,7 @@ pub struct Document {
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     min_widths: NodeMap<f32>,
+    least_lengths: NodeMap<Vec<(Direction, f32, f32)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -233,6 +235,8 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
 pub struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
+    least_lengths: Cell<usize>,
+    reused_least_lengths: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
@@ -245,6 +249,8 @@ impl WorkCounters {
     fn reset(&self) {
         self.measured.set(0);
         self.reused_measurements.set(0);
+        self.least_lengths.set(0);
+        self.reused_least_lengths.set(0);
         self.placed.set(0);
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
@@ -262,6 +268,8 @@ impl WorkCounters {
         FrameWork {
             measured: self.measured.get(),
             reused_measurements: self.reused_measurements.get(),
+            least_lengths: self.least_lengths.get(),
+            reused_least_lengths: self.reused_least_lengths.get(),
             placed: self.placed.get(),
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
@@ -365,6 +373,7 @@ impl Document {
             offer_dependent: false,
             baselines: NodeMap::default(),
             min_widths: NodeMap::default(),
+            least_lengths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -1154,6 +1163,7 @@ impl Document {
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.min_widths.remove(&id);
+        self.least_lengths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1976,6 +1986,7 @@ impl Document {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
             self.min_widths.remove(&id);
+            self.least_lengths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -2071,6 +2082,44 @@ impl Document {
             return;
         }
         self.min_widths.insert(id, width);
+    }
+
+    pub fn measured_least_length(&self, id: NodeId, direction: Direction, cross: f32) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.least_lengths
+            .get(&id)?
+            .iter()
+            .find(|(held, offered, _)| *held == direction && offered.to_bits() == cross.to_bits())
+            .map(|(_, _, least)| *least)
+    }
+
+    pub fn remember_least_length(
+        &mut self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+        least: f32,
+        watermark: u64,
+    ) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        let held = self.least_lengths.get_or_default(id);
+        held.retain(|(held, offered, _)| *held != direction || offered.to_bits() != cross.to_bits());
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((direction, cross, least));
+    }
+
+    pub fn note_least_length(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.reused_least_lengths,
+            false => &self.work.least_lengths,
+        };
+        counter.set(counter.get() + 1);
     }
 
     pub fn note_measured(&self, reused: bool) {

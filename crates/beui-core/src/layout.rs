@@ -76,6 +76,12 @@ pub fn least_length(
     if !doc.arena.contains(id) {
         return 0.0;
     }
+    if let Some(least) = doc.measured_least_length(id, direction, cross) {
+        doc.note_least_length(true);
+        return least;
+    }
+    doc.note_least_length(false);
+    let watermark = doc.arena.layout_revision;
     let element = doc.arena.take(id);
     let outer = doc.enter_measure(id);
     let least = element.least_length(doc, painter, direction, cross);
@@ -85,7 +91,9 @@ pub fn least_length(
         let natural = measure(doc, painter, id, direction.axes(f32::INFINITY, cross));
         direction.main(natural)
     });
-    doc.pixel_grid().snap_up(least)
+    let least = doc.pixel_grid().snap_up(least);
+    doc.remember_least_length(id, direction, cross, least, watermark);
+    least
 }
 
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {

@@ -1487,7 +1487,10 @@ a column, the widest child's least width; text that wraps or ellipsises at its
 and a node that does not say (a row asked for its height, a wrapping list) counts
 at its natural length. Unlike `min_width`, which floors a shrinking child and lets
 what will not fit overflow it, it never undercounts. It walks the subtree once,
-stopping at scrolls along the same axis, so a full layout stays linear. `ToolPill`
+stopping at scrolls along the same axis, so a full layout stays linear, and it is
+memoised beside the measurements for each direction and cross length, so laying an
+overflowing scroll out again walks only what changed (`FrameWork::least_lengths`
+counts the nodes asked afresh, `reused_least_lengths` the answers reused). `ToolPill`
 lets its content shrink this way, so a child sized `.shrink(..)` in a bar of either
 direction narrows before the bar scrolls: the desktop's Windows bar scrolls only its
 chips, its grip staying put, along the bottom or down the side.
