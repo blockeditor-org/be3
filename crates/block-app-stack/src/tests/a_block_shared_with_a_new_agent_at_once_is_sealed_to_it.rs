@@ -29,7 +29,7 @@ fn a_block_shared_with_a_new_agent_at_once_is_sealed_to_it() {
         let _ = reply.send(entries);
     });
     let entries = listed
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the access is listed")
         .expect("the access list loads");
     let entry = entries

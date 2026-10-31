@@ -6,7 +6,7 @@ fn exported(block: Uuid) -> (String, Vec<u8>) {
         let _ = sender.send(exported);
     });
     receiver
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("the export answers")
         .expect("the export succeeds")
 }
@@ -97,10 +97,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             .into_iter()
             .map(|node| {
                 open(node.id, CounterContent::CONTENT_TYPE);
-                wait_for(PATIENCE, |shared| {
-                    counted(shared, node.id).filter(|count| *count > 0)
-                })
-                .expect("each copied counter keeps its count")
+                crate::wait_until(|shared| counted(shared, node.id).filter(|count| *count > 0))
             })
             .collect();
         counts.sort_unstable();

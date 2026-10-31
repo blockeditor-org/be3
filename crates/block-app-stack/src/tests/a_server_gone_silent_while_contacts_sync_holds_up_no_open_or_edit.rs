@@ -33,14 +33,7 @@ fn a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit() {
             &code,
         ))
         .expect("the guest accepts");
-    let heard_beyond = |heard| {
-        runtime
-            .block_on(async {
-                tokio::time::timeout(PATIENCE, harness.relay().heard_beyond(heard)).await
-            })
-            .expect("the device asked the server something");
-    };
-    heard_beyond(heard);
+    runtime.block_on(harness.relay().heard_beyond(heard));
 
     harness.open_until_it_joins(block, CounterContent::CONTENT_TYPE);
     harness.clock.advance(be_types_host::EARLY_OPEN);

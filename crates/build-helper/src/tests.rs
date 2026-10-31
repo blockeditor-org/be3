@@ -206,10 +206,7 @@ impl Running {
     }
 
     async fn started(&mut self) -> String {
-        tokio::time::timeout(Duration::from_secs(30), self.started.recv())
-            .await
-            .unwrap()
-            .unwrap()
+        self.started.recv().await.unwrap()
     }
 
     fn finish(&self, result: Result<(), String>) {

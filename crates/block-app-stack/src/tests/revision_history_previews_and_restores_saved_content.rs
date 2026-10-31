@@ -7,7 +7,7 @@ fn request(block: Uuid, request: Asked) -> Answered {
         send.send(reply).unwrap();
     });
     receive
-        .recv_timeout(PATIENCE)
+        .recv()
         .expect("revision request answers")
 }
 

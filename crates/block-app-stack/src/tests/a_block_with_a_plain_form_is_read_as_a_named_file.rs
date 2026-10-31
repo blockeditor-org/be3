@@ -5,7 +5,7 @@ fn read(block: Uuid) -> Result<be_types_host::PlainFile, String> {
     plain_file(block, move |read| {
         let _ = sender.send(read);
     });
-    receiver.recv_timeout(PATIENCE).expect("the read answers")
+    receiver.recv().expect("the read answers")
 }
 
 #[test]

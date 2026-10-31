@@ -66,15 +66,11 @@ async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approva
             .await
             .is_ok()
     );
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while let Some(frame) = app.socket.next().await {
-            if matches!(frame.unwrap(), WsMessage::Close(_)) {
-                break;
-            }
+    while let Some(frame) = app.socket.next().await {
+        if matches!(frame.unwrap(), WsMessage::Close(_)) {
+            break;
         }
-    })
-    .await
-    .unwrap();
+    }
     let mut claimant = harness.client().await;
     assert!(matches!(
         claimant

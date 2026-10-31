@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use be_block::{BlockContent, ContentError};
 use be_commit::{RetentionPolicy, retention::MINUTE};
@@ -351,5 +351,3 @@ impl BlockContent for Link {
         self.targets.clone()
     }
 }
-
-const PATIENCE: Duration = Duration::from_secs(20);
