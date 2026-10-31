@@ -4391,6 +4391,9 @@ pub(crate) fn DockBarsPage() -> NodeId {
             <DockBar id=7u64 placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End)}>
                 <DemoToolBar name="zoom" tools={ZOOM_TOOLS.to_vec()} />
             </DockBar>
+            <DockBar id=8u64 placement={DockBarPlacement::Over(DockEdge::Right, DockAlign::Center)}>
+                <DemoToolBar name="history" tools={HISTORY_TOOLS.to_vec()} />
+            </DockBar>
             <DockBar
                 id=2u64
                 parent=1u64
@@ -4409,7 +4412,7 @@ pub(crate) fn DockBarsPage() -> NodeId {
     }
 }
 
-const BARS: [u64; 5] = [2, 3, 5, 6, 7];
+const BARS: [u64; 6] = [2, 3, 5, 6, 7, 8];
 
 #[component]
 fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
@@ -4420,8 +4423,12 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
                         "This page is a Docking of its own with a bare stage with two tool bars, a side \
-                     pane and three status bars of the whole dock. Drag a bar by its grip to float it over an edge of the stage, to dock it along an edge \
-                     beside the stage, or away from the stage to pop it out into a window. Bars \
+                     pane, three status bars of the whole dock and a history bar floating over the \
+                     whole dock's right edge. A bar follows its grip as it is dragged: near an edge \
+                     it grows into the band along it, which opens to make room, and let go it \
+                     springs into place, carried on by how fast it was thrown. Drag a bar to float \
+                     it over an edge of the stage, to dock it along an edge beside the stage, or \
+                     away from the stage to pop it out into a window. Bars \
                      floating over one edge stack, bars docked along one edge share its band side \
                      by side, and a bar dropped between or beside them takes that place. The \
                      grip's menu moves it without dragging, or hides it: a hidden bar takes no \
@@ -4465,6 +4472,11 @@ const PAGE_TOOLS: [(&str, Glyph); 2] = [
 const ZOOM_TOOLS: [(&str, Glyph); 2] = [
     ("Zoom out", beui::icons::ICON_ZOOM_OUT),
     ("Zoom in", beui::icons::ICON_ZOOM_IN),
+];
+
+const HISTORY_TOOLS: [(&str, Glyph); 2] = [
+    ("Undo", beui::icons::ICON_UNDO_2),
+    ("Redo", beui::icons::ICON_REDO_2),
 ];
 
 const STYLE_TOOLS: [(&str, Glyph); 3] = [

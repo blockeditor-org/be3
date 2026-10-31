@@ -26,7 +26,7 @@ use super::state::{
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
-    DockBarTargetHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
+    DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockState, DockStripHandle, DockSwitchHandle,
     DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
     TabId,
@@ -1588,7 +1588,6 @@ pub fn Docking<K>(
     #[prop(default = Color::TRANSPARENT)] dialog_scrim: Prop<Color>,
     #[prop(default = 0.0)] window_border: f32,
     #[prop(default = 0.0)] bar_margin: f32,
-    bar_target: Option<RenderFn<DockBarTargetHandle>>,
     bar_band: Option<RenderFn<DockBarBandHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
@@ -1909,7 +1908,6 @@ where
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 window_border,
                 bar_margin,
-                bar_target,
                 bar_band,
                 covers: layout.covers,
                 floats: layout.floats,

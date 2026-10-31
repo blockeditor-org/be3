@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -7,12 +6,10 @@ use beui_view::reactive::*;
 use beui_view::types::{
     AutoscrollGesture, Direction, DragGesture, PointerButton, PointerId, PointerInput,
     PointerStage, Pos2, ScrollGesture, SecondaryDrag, TOUCH_DRAG_THRESHOLD, Vec2, WheelInput,
-    ZoomGesture, vec2,
+    Velocity, ZoomGesture, vec2,
 };
 
 pub const AUTOSCROLL_DEAD_ZONE: f32 = 10.0;
-const TOUCH_VELOCITY_WINDOW: f32 = beui_view::types::input::TOUCH_VELOCITY_WINDOW;
-const MAX_TOUCH_VELOCITY: f32 = beui_view::types::input::MAX_TOUCH_VELOCITY;
 
 pub fn first_of<T: Copy + 'static>(
     handlers: impl IntoIterator<Item = Callback<T, bool>>,
@@ -60,8 +57,7 @@ struct Track {
     last: Pos2,
     axis: Option<Direction>,
     started: bool,
-    samples: VecDeque<(Instant, Pos2)>,
-    velocity: Vec2,
+    velocity: Velocity,
 }
 
 impl Track {
@@ -72,33 +68,12 @@ impl Track {
             last: input.pos,
             axis: None,
             started: false,
-            samples: VecDeque::from([(input.time, input.pos)]),
-            velocity: Vec2::ZERO,
+            velocity: Velocity::new(input.time, input.pos),
         }
     }
 
     fn sample(&mut self, now: Instant, pos: Pos2) {
-        self.samples.push_back((now, pos));
-        while self.samples.len() > 2
-            && self.samples.front().is_some_and(|(when, _)| {
-                now.duration_since(*when).as_secs_f32() > TOUCH_VELOCITY_WINDOW
-            })
-        {
-            self.samples.pop_front();
-        }
-        let Some((then, origin)) = self.samples.front().copied() else {
-            return;
-        };
-        let elapsed = now.duration_since(then).as_secs_f32();
-        if elapsed <= f32::EPSILON {
-            return;
-        }
-        let measured = (pos - origin) * elapsed.recip();
-        let speed = measured.x.hypot(measured.y);
-        self.velocity = match speed > MAX_TOUCH_VELOCITY {
-            true => measured * (MAX_TOUCH_VELOCITY / speed),
-            false => measured,
-        };
+        self.velocity.sample(now, pos);
     }
 
     fn gesture(&mut self, delta: Vec2, scale: f32, ended: bool, cancelled: bool) -> DragGesture {
@@ -108,7 +83,7 @@ impl Track {
             ended,
             cancelled,
             delta: delta / scale,
-            velocity: self.velocity / scale,
+            velocity: self.velocity.get() / scale,
         }
     }
 }

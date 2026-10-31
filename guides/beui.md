@@ -3033,15 +3033,34 @@ items out, across for the top and bottom edges) and `is_hidden()` are tracked re
 with a last row that hides the bar, and
 `begin_move(press)` starts a drag, called from the handle's `on_drag` once past
 the drag threshold with the press that went down, then with each move. The dock
-carries the drag: over the tab's body it draws Docking's `bar_target` for the 24
-placements (the outer band of the pane, through any band already beside that edge,
-docks the bar beside it, the next band in, or any bar already floating there,
-floats it over it, at the start, centre or end by which third of the edge the
-pointer is over, or, docking, at the alignment of the bars on the band the pointer is
-over), and dropped away from the pane it pops out where it was let
-go. At a placement that already holds bars the drop slots the bar in among its own
-layer's bars by where the pointer is against their middles (across the edge for
-floating bars, along it for docked ones), and the highlight shows that slot. The bars floating over an edge are kept clear together
+carries the drag, and the bar itself is what shows it: lifted out of its place into a
+layer of its own (`LayerPolicy::Inert`, at the bars' level), it follows the pointer exactly from
+where it was grabbed. A plugin's bar carried by the root (`DockRequest::MoveBar`) stays where it
+is until it is let go, since moving the plugin's view mid-press would lose the press: its landing
+place still opens as below, and it springs there from where it was once let go. Each move
+resolves where it would land as if it were let go there: the outer band of the pane
+(through any band already beside that edge) docks it beside that edge, the next band in, or
+any bar already floating there, floats it over it, at the start, centre or end by which third
+of the edge the pointer is over, or, docking, at the alignment of the bars on the band the
+pointer is over; further in it lands nowhere (let go there, it goes back where it was), and
+away from the pane it pops out where it is let go. The layout shows that landing place as if
+the bar were already there (a preview `DockState` with the bar placed, which `bars_at`, the
+bands and the bar windows read while a bar is lifted): its slot holds a gap of the bar's
+size that grows open over `GAP_SECONDS` (eased) while the gap it leaves closes up, so bars
+in that run slide aside, and a band that had no bars grows open from nothing, the panes and the
+windows' area giving it room as it does, and closes again when the bar is pulled away. While it
+would dock, the lifted bar's `DockBarControl::placement()` is that landing place, so its body
+turns to lie along that edge and its `DockBarSurface` takes the band's fill, and it is held
+in the band across the edge while it follows the pointer along it. At a placement that
+already holds bars the slot is chosen among its own layer's bars by where the pointer is
+against their middles (across the edge for floating bars, along it for docked ones). Let
+go, it keeps its momentum: the pointer's recent `Velocity` (the tracker scrolls use) projects
+a throw as far as a `Fling` of that speed would travel, kept inside the pane, and the bar
+lands where that projection does; the placement is saved at once, and the bar springs from
+where it was let go into its gap (a softer `Spring`, starting at the pointer's velocity), then
+drops back into its place in the layout. Under `Motion::Instant` it is wherever the pointer is
+and in its place the moment it is let go. A bar popped out by being dropped away from the pane
+opens its window where it was let go, with no spring. The bars floating over an edge are kept clear together
 (`keep_clear` on their list). Where a host opens windows, dragging a popped-out bar asks the host
 to move its window, and the menu docks it again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens

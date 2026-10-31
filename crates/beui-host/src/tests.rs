@@ -109,6 +109,9 @@ mod a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it;
 mod a_dock_bar_sits_at_each_placement_of_its_pane;
 mod a_dock_bars_grip_menu_moves_it_without_dragging;
 mod a_dock_dialog_hangs_from_its_parents_tab_and_hides_with_it;
+mod with_motion_reduced_a_dragged_dock_bar_moves_and_docks_at_once;
+mod a_dock_bar_thrown_towards_an_edge_springs_into_its_band_and_settles;
+mod a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears;
 mod a_dock_dialog_is_never_a_tab;
 mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
@@ -1229,6 +1232,16 @@ impl Harness {
 
     pub(crate) fn press_at(&mut self, pos: Pos2) {
         self.down(pos, PointerButton::Primary);
+    }
+
+    pub(crate) fn drag_and_rest(&mut self, from: Pos2, to: Pos2) {
+        self.press_at(from);
+        for step in 1..=8 {
+            self.hover(from + (to - from) * (step as f32 / 8.0));
+        }
+        self.pause(Duration::from_millis(200));
+        self.release_at(to);
+        self.settle();
     }
 
     pub(crate) fn release_at(&mut self, pos: Pos2) {

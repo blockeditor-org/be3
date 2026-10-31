@@ -276,6 +276,27 @@ impl DockState {
         self.bars.insert(at, moved);
     }
 
+    pub fn bar_slot(&self, bar: TabId) -> usize {
+        let Some(held) = self.bar(bar) else {
+            return 0;
+        };
+        let pane = |owner: Option<TabId>| {
+            owner
+                .and_then(|owner| self.owner_pane(owner))
+                .map(|(tab, _)| tab)
+        };
+        let tab = pane(held.owner);
+        self.bars
+            .iter()
+            .take_while(|other| other.bar != bar)
+            .filter(|other| {
+                other.owner == held.owner
+                    && other.placement.same_place(held.placement)
+                    && pane(other.owner) == tab
+            })
+            .count()
+    }
+
     pub fn bar_windows(&self, key: &dyn Fn(TabId) -> String) -> Vec<(String, Vec<TabId>)> {
         let mut windows: Vec<(String, Vec<TabId>)> = Vec::new();
         for held in self.bars.iter().filter(|held| held.placement.is_window()) {

@@ -15,7 +15,7 @@ pub use crate::unstyled::{
     dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockBarTargetHandle, DockChromeHandle,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle,
     DockDialogHandle, DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSplitterHandle,
     DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
 };
@@ -167,9 +167,6 @@ where
                 <DockDropHighlight />
             }}
             bar_margin={BAR_MARGIN.px()}
-            bar_target={move |handle: DockBarTargetHandle| view! {
-                <DockBarTargetFace handle />
-            }}
             bar_band={move |handle: DockBarBandHandle| view! {
                 <DockBarBandFace handle />
             }}
@@ -1046,26 +1043,6 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         create_memo(move || border.get().map(|_| AboveEmbeds::Paints)),
     );
     ring
-}
-
-#[component]
-fn DockBarTargetFace(handle: DockBarTargetHandle) -> NodeId {
-    let DockBarTargetHandle { placement, active } = handle;
-    let fill = create_memo(move || match active.get() {
-        true => ColorRole::Accent,
-        false => ColorRole::SurfaceRaised,
-    });
-    let border = create_memo(move || match active.get() {
-        true => Some(Border::FOCUS),
-        false => Some(Border::DEFAULT),
-    });
-    let marker = match placement {
-        DockBarPlacement::Window { .. } => String::new(),
-        placement => format!("dock.bar.target.{}", placement.name()),
-    };
-    view! {
-        <Frame @test_id={marker} fill={fill} border={border} radius=Radius::Sm />
-    }
 }
 
 #[component]

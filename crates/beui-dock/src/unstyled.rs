@@ -53,8 +53,8 @@ use beui_view::window::{
 };
 
 pub(crate) use bars::{BarCovers, BarFloats};
-use bars::{BarHolder, BarPanels, DockBarTargets, DockBarWindows, DockBarred};
-pub use bars::{DockBarBandHandle, DockBarControl, DockBarTargetHandle, use_dock_bar};
+use bars::{BarHolder, BarPanels, DockBarLifted, DockBarWindows, DockBarred, Lifting};
+pub use bars::{DockBarBandHandle, DockBarControl, use_dock_bar};
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
@@ -524,7 +524,6 @@ struct TabBar {
 struct Drag {
     dragged: DockDragged,
     target: Option<DockDrop>,
-    bar_target: Option<DockBarPlacement>,
     highlight: Option<Rect>,
     refused: Option<(LeafId, Rect)>,
 }
@@ -608,8 +607,8 @@ struct State {
     floats: Signal<BarFloats>,
     covered: Signal<bool>,
     bars_away: Memo<bool>,
-    bar_target: RenderFn<DockBarTargetHandle>,
     bar_band: RenderFn<DockBarBandHandle>,
+    lifting: Lifting,
     dragged_edits: Stored<RefCell<Vec<Box<dyn FnOnce(&mut DockState)>>>>,
 }
 
@@ -1239,7 +1238,6 @@ impl State {
         self.drag.set(Some(Drag {
             dragged,
             target: None,
-            bar_target: None,
             highlight: None,
             refused: None,
         }));
@@ -1249,15 +1247,9 @@ impl State {
         let Some(mut drag) = self.drag.get_untracked() else {
             return;
         };
-        if let DockDragged::Bar(bar) = drag.dragged {
-            let (target, highlight) = match point {
-                Some(point) => self.resolve_bar(point, bar),
-                None => (None, None),
-            };
-            drag.bar_target = target.map(|(placement, _)| placement);
-            drag.highlight = highlight;
-            if self.drag.get_untracked() != Some(drag) {
-                self.drag.set(Some(drag));
+        if let DockDragged::Bar(_) = drag.dragged {
+            if let Some(point) = point {
+                self.move_lift(point);
             }
             return;
         }
@@ -1272,6 +1264,7 @@ impl State {
     }
 
     fn end_drag(&self) {
+        self.drop_lift();
         self.drag.set(None);
     }
 
@@ -1715,7 +1708,6 @@ pub(crate) struct DockConfig {
     pub(crate) floats: Signal<BarFloats>,
     pub(crate) covered: Signal<bool>,
     pub(crate) area: Signal<Rect>,
-    pub(crate) bar_target: Option<RenderFn<DockBarTargetHandle>>,
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
     pub(crate) bar_key: Func<TabId, Option<String>>,
@@ -1770,7 +1762,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_scrim,
         window_border,
         bar_margin,
-        bar_target,
         bar_band,
         covers,
         floats,
@@ -1850,13 +1841,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bars_away,
         bar_band: bar_band
             .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),
-        bar_target: bar_target.unwrap_or_else(|| {
-            RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
+        lifting: Lifting::new(state),
         dragged_edits: store(RefCell::default()),
         thickness: splitter_thickness,
         reach: splitter_reach,
@@ -1943,6 +1928,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             })
         }),
     };
+    dock.start_lifting();
     api.fill(DockApi(dock));
     on_shortcut(move |press: KeyPress| {
         if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {
@@ -2396,7 +2382,7 @@ fn DockTiles(dock: State) -> NodeId {
                     }</ForEach>
                     <DockBarWindows dock />
                     <DockDragLayer dock />
-                    <DockBarTargets dock />
+                    <DockBarLifted dock />
                 </List>
             }
         }</DropTarget>
@@ -3969,8 +3955,7 @@ fn DockDragLayer(dock: State) -> NodeId {
         drag.with(|drag| {
             let drag = drag.as_ref()?;
             let floats = matches!(drag.target, Some(DockDrop::Window { .. }));
-            let bar = matches!(drag.dragged, DockDragged::Bar(_));
-            (floats || bar).then_some(drag.highlight).flatten()
+            floats.then_some(drag.highlight).flatten()
         })
     });
     let marking = create_memo(move || marked.get().is_some());

@@ -105,7 +105,7 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
     );
 
     let grip = harness.center(harness.find("dock.bar.9.grip"));
-    harness.drag(grip, pos2(4.0, WIDE_VIEWPORT.y / 2.0));
+    harness.drag_and_rest(grip, pos2(4.0, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

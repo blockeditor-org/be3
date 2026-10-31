@@ -29,10 +29,7 @@ fn a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window() {
     test.snapshot("a_tool_bar_docked_along_the_bottom_of_its_stage");
 
     let grip = test.rect_of("bars.grip").center();
-    test.drag(
-        Target::point(grip),
-        Target::point(pos2(stage.center().x, stage.top() + 4.0)),
-    );
+    drop_bar(&mut test, grip, pos2(stage.center().x, stage.top() + 4.0));
     test.frame(Vec::new());
     test.settle();
     let tools = test.rect_of("bars.tools");
@@ -43,10 +40,7 @@ fn a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window() {
     test.snapshot("a_tool_bar_dragged_to_the_top_of_its_stage");
 
     let grip = test.rect_of("bars.grip").center();
-    test.drag(
-        Target::point(grip),
-        Target::point(pos2(60.0, WIDE.y - 80.0)),
-    );
+    drop_bar(&mut test, grip, pos2(60.0, WIDE.y - 80.0));
     test.frame(Vec::new());
     test.settle();
     let tools = test.rect_of("bars.tools");

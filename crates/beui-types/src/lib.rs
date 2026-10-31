@@ -30,7 +30,7 @@ pub use ui_types::files::{FileFilter, FilePick, FileSave, PickedFile, SavedFile}
 pub use ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 
 pub use action::{ActionGroup, ActionInfo};
-pub use animation::{Easing, Fling, Spring, tween};
+pub use animation::{Easing, Fling, Spring, Velocity, tween};
 pub use color::{
     Color, Color32, ColorDefinitions, ColorScheme, ColorSource, ColorVar, Hsva, Oklch,
     SchemeColors, format_hex, parse_hex,

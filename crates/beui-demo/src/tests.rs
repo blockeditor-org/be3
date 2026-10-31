@@ -49,6 +49,7 @@ mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
 mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place;
 mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod animations_paint_their_progress_and_instant_targets;
@@ -154,6 +155,16 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
+}
+
+fn drop_bar(test: &mut DocumentTest, from: Pos2, to: Pos2) {
+    use beui_host::native::testing::Target;
+    test.down(Target::point(from), beui::PointerButton::Primary);
+    for step in 1..=8 {
+        test.hover(Target::point(from + (to - from) * (step as f32 / 8.0)));
+    }
+    test.pause(std::time::Duration::from_millis(200));
+    test.up(Target::point(to), beui::PointerButton::Primary);
 }
 
 fn open(test: &mut DocumentTest, page: Page) {
