@@ -422,7 +422,10 @@ fn draw_raster(
     }
     let rect = camera.rect(entity_bounds(entity));
     let (width, height) = (u32::from(raster.width()), u32::from(raster.height()));
-    let wanted = (rect.width() * scale / width.max(1) as f32).ceil().max(1.0) as u32;
+    let wanted = (scale
+        * (rect.width() / width.max(1) as f32).max(rect.height() / height.max(1) as f32))
+    .ceil()
+    .max(1.0) as u32;
     let room = (MAX_UPSCALED_PIXELS / (width * height).max(1))
         .isqrt()
         .max(1);

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_raster_layer_is_drawn_pixel_sharp_with_its_grid() {
     let layer = raster_layer(1, CanvasPoint::new(0.0, 0.0), 8);
-    let mut faded = raster_layer(2, CanvasPoint::new(-80.0, 0.0), 4);
+    let mut faded = raster_layer(2, CanvasPoint::new(-10.0, 0.0), 4);
     faded.style.opacity = 0.4;
     let mut editor = raster_editor(&[layer.clone(), faded.clone()]).with_top_bar(false);
     let heart = [

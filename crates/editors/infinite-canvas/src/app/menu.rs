@@ -94,6 +94,7 @@ fn tools_menu(actions: &CanvasActions) -> MenuNode {
                 MenuNode::Separator,
                 act(&actions.tool_lock),
                 act(&actions.bind_lines),
+                act(&actions.snap),
             ])
             .collect(),
     )

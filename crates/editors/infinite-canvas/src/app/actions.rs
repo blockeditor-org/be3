@@ -5,10 +5,10 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD, ICON_COMPONENT,
     ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS, ICON_GRID_2X2,
     ICON_IMAGE, ICON_LAYERS_ARROW_UP, ICON_LINE_SQUIGGLE, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN,
-    ICON_MINUS, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIN, ICON_PLUS, ICON_RECTANGLE_HORIZONTAL,
-    ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK, ICON_SLASH, ICON_SPLINE_POINTER,
-    ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER, ICON_TRASH, ICON_TYPE, ICON_ZOOM_IN,
-    ICON_ZOOM_OUT,
+    ICON_MAGNET, ICON_MINUS, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIN, ICON_PLUS,
+    ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK, ICON_SLASH,
+    ICON_SPLINE_POINTER, ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER, ICON_TRASH,
+    ICON_TYPE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::use_theme;
@@ -37,6 +37,7 @@ pub(crate) struct CanvasActions {
     pub(crate) eraser: Action,
     pub(crate) tool_lock: Action,
     pub(crate) bind_lines: Action,
+    pub(crate) snap: Action,
     pub(crate) add_rectangle: Action,
     pub(crate) add_line: Action,
     pub(crate) add_text: Action,
@@ -508,6 +509,13 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .checked(state.binds)
     .enabled(free)
     .register();
+    let snap = Action::new("canvas.snap", "Snap to whole pixels", move || {
+        state.toggle_snapping()
+    })
+    .glyph(ICON_MAGNET)
+    .checked(state.snaps)
+    .enabled(free)
+    .register();
     let add_rectangle = add(
         "canvas.add.rectangle",
         "Add a rectangle",
@@ -627,6 +635,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         eraser,
         tool_lock,
         bind_lines,
+        snap,
         add_rectangle,
         add_line,
         add_text,

@@ -1,9 +1,8 @@
 use super::*;
-use infinite_canvas_types::DEFAULT_PIXEL_SIZE;
 
 #[test]
 fn at_full_size_a_raster_pixel_is_one_screen_point() {
-    let mut editor = open(&raster_canvas(DEFAULT_PIXEL_SIZE, &[]), false, &[]);
+    let mut editor = open(&raster_canvas(&[]), false, &[]);
     editor.click("infinite-canvas.dock.tool.pencil");
     editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();

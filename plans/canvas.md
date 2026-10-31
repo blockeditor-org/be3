@@ -15,7 +15,8 @@ finished in another.
 - **Prototyping**: like Excalidraw. Quick, imprecise, hand-drawn by default.
 - **Vector**: precise vector editing: bezier paths, the numeric inspector the
   canvas has today, boolean operations.
-- **Raster**: one consistent pixel size, which lets display take shortcuts.
+- **Raster**: pixel layers, one world unit a pixel at their natural size,
+  scaled like images, and snapping to whole pixels.
   It replaces the pixel-art editor, which was removed for it and whose tools
   move into the canvas: a raster layer is an entity in the canvas. A game level made of pixel art is a canvas
   holding such layers, or child editors.
@@ -56,16 +57,24 @@ symmetry (H left to right, Shift+H top to bottom; pixel-art's V selects here)
 and Shift for straight lines and squares. Its sidebar holds the brush, the
 colour and the canvas-wide palette, the selected layer's size, Resize… (an
 anchored card with width, height and anchor) and Clear… (an alert), the
-layer's opacity, the pixel size and the pixel grid toggle, and the layers. A
+layer's opacity, the pixel grid and snapping toggles, and the layers. A
 drawing tool paints into the topmost raster layer under the pointer, or starts
 a `DEFAULT_RASTER_SIZE` layer centred on the press; a stroke is a gesture
 (`Gesture::Raster`, its pixels in `CanvasCells::stroke`) whose `Paint`s go out
 live and undo as one step, and a shape tool puts back the pixels it no longer
 covers as it is dragged. Each layer is drawn as one texture sampled nearest,
 made again only when that layer's grid changes (`EntitySignals::raster`), with
-its outline and, from 12 screen points a pixel, the pixel grid over it.
-Dragging a layer's handles sends `Resize`, anchored opposite the handle, on
-release; its outline previews the new size meanwhile. Export embeds a layer as
+its outline and, once a layer pixel is 12 screen points on its shorter side,
+the pixel grid over it. A pixel is one world unit at a layer's natural size,
+so one screen pixel at 100% on a 1x display; a layer is created that size,
+its corner on whole units. Its handles scale it like an image, keeping its
+proportions unless Shift is held, and the pixels draw larger or smaller,
+sampled nearest; drawing maps the pointer to a pixel through the layer's
+transform. Only Resize… changes the pixel count. Snap to whole pixels
+(`CanvasState::snaps`, the Tools menu, the palette and the Raster panel) is
+a per-viewer choice kept per profile, on by default in Raster only: while it
+is on, moving, nudging, resizing and drawing any shape (not freehand
+strokes) put its corners on whole world units. Export embeds a layer as
 a PNG `<image>` with `image-rendering="pixelated"` in SVG and upscales it
 nearest before the CPU rasterizer in PNG, which samples bilinearly. Paintings
 show raster layers blurred for the same reason: `paint_format` has no nearest
@@ -91,12 +100,12 @@ resize lands where it was painted, and one cropped away by the other side
 counts as a conflict. The pixels are not in `CanvasEntity`: read them with
 `Canvas::raster(content, id)` or `Entity::raster`, which share the grid's bytes
 (`be_model::Cells` holds them copy-on-write) rather than copy them. The canvas
-root holds one `pixel_size` (world units per pixel) and the raster `palette`.
-A layer is never rotated, and its transform always covers its width by height
-pixels with its corner on the canvas-wide pixel grid: `Add` derives the pixel
-count from the transform's size, `Update` keeps the size and snaps the
-center, `Canvas::set_pixel_size` rescales every layer, and `Resize` moves the
-transform by its anchor so the pixels stay where they were. `Paint`, `Fill`,
+root holds the raster `palette`. A layer is never rotated, and its transform
+may be any size, which scales its pixels: `Add` derives the pixel count from
+the transform's size, one pixel a world unit, and puts the corner on whole
+units; `Update` moves and scales it like any shape; and `Resize` keeps the
+layer's world units per pixel on each axis and moves the transform by its
+anchor so the pixels stay where they were. `Paint`, `Fill`,
 `ReplaceColor`, `Clear`, `Resize` and `SetPalette` are pixel-art's operations,
 ported, and undo like every other edit.
 

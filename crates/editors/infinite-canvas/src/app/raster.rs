@@ -13,12 +13,11 @@ use block_editor_beui::beui::{Color32, Image, NodeId, Pos2, Rect, pos2, reactive
 use infinite_canvas_types::{
     Canvas, CanvasEntity, CanvasPixel, CanvasPixelUpdate, CanvasPoint, CanvasProfile, CanvasRaster,
     CanvasRasterAnchor, CanvasShape, CanvasTransform, DEFAULT_RASTER_SIZE, InfiniteCanvasOperation,
-    MAX_RASTER_PALETTE_COLORS, MAX_RASTER_SIZE, default_raster_palette, pixel_size_or_default,
-    raster_dimensions,
+    MAX_RASTER_PALETTE_COLORS, MAX_RASTER_SIZE, default_raster_palette,
 };
 use uuid::Uuid;
 
-use crate::geometry::{ResizeHandle, entity_bounds};
+use crate::geometry::entity_bounds;
 use crate::raster::{
     ActiveDrawing, Brush, BrushShape, MAX_BRUSH_SIZE, PixelTool, format_hex_color, parse_hex_color,
     rasterize_drawing, stamp,
@@ -205,85 +204,10 @@ impl Stroke {
     }
 }
 
-pub(crate) fn anchor_of(handle: ResizeHandle) -> CanvasRasterAnchor {
-    match (-handle.x, -handle.y) {
-        (-1, -1) => CanvasRasterAnchor::TopLeft,
-        (0, -1) => CanvasRasterAnchor::Top,
-        (1, -1) => CanvasRasterAnchor::TopRight,
-        (-1, 0) => CanvasRasterAnchor::Left,
-        (1, 0) => CanvasRasterAnchor::Right,
-        (-1, 1) => CanvasRasterAnchor::BottomLeft,
-        (0, 1) => CanvasRasterAnchor::Bottom,
-        (1, 1) => CanvasRasterAnchor::BottomRight,
-        _ => CanvasRasterAnchor::Center,
-    }
-}
-
-pub(crate) fn resized_raster(
-    original: &CanvasEntity,
-    resized: &CanvasEntity,
-    pixel_size: f32,
-    anchor: CanvasRasterAnchor,
-) -> (u16, u16, CanvasEntity) {
-    let (width, height) = raster_dimensions(pixel_size, resized.transform.size);
-    let size = CanvasPoint::new(
-        f32::from(width) * pixel_size,
-        f32::from(height) * pixel_size,
-    );
-    let bounds = entity_bounds(original);
-    let (horizontal, vertical) = anchor_sides(anchor);
-    let place = |side: i8, min: f32, max: f32, extent: f32| match side {
-        -1 => min + extent * 0.5,
-        1 => max - extent * 0.5,
-        _ => (min + max) * 0.5,
-    };
-    let center = CanvasPoint::new(
-        place(horizontal, bounds.min.x, bounds.max.x, size.x),
-        place(vertical, bounds.min.y, bounds.max.y, size.y),
-    );
-    let mut previewed = original.clone();
-    previewed.transform = CanvasTransform::raster(pixel_size, center, width, height);
-    (width, height, previewed)
-}
-
-fn anchor_sides(anchor: CanvasRasterAnchor) -> (i8, i8) {
-    match anchor {
-        CanvasRasterAnchor::TopLeft => (-1, -1),
-        CanvasRasterAnchor::Top => (0, -1),
-        CanvasRasterAnchor::TopRight => (1, -1),
-        CanvasRasterAnchor::Left => (-1, 0),
-        CanvasRasterAnchor::Center => (0, 0),
-        CanvasRasterAnchor::Right => (1, 0),
-        CanvasRasterAnchor::BottomLeft => (-1, 1),
-        CanvasRasterAnchor::Bottom => (0, 1),
-        CanvasRasterAnchor::BottomRight => (1, 1),
-    }
-}
-
 impl CanvasState {
-    pub(crate) fn pixel_size(&self) -> f32 {
-        self.content()
-            .read(Canvas::pixel_size_in)
-            .unwrap_or_else(|_| pixel_size_or_default(0.0))
-    }
-
-    pub(crate) fn pixel_size_signal(&self) -> Memo<f32> {
-        let held = self.content().field(ObjectId::ROOT, Canvas::PIXEL_SIZE);
-        create_memo(move || pixel_size_or_default(held.get()))
-    }
-
     pub(crate) fn palette(&self) -> Memo<Vec<CanvasPixel>> {
         let held = self.content().field(ObjectId::ROOT, Canvas::PALETTE);
         create_memo(move || held.get().unwrap_or_else(default_raster_palette))
-    }
-
-    pub(crate) fn set_pixel_size(&self, pixel_size: f32) {
-        let content = self.content();
-        if let Ok(edit) = content.read(|canvas| Canvas::set_pixel_size(canvas, pixel_size))
-            && !edit.0.is_empty()
-        {
-            content.operate(edit);
-        }
     }
 
     pub(crate) fn raster_of(&self, id: Uuid) -> Option<CanvasRaster> {
@@ -393,12 +317,7 @@ impl CanvasState {
                 (layer, None, held)
             }
             None => {
-                let entity = CanvasEntity::raster(
-                    self.pixel_size(),
-                    world,
-                    DEFAULT_RASTER_SIZE,
-                    DEFAULT_RASTER_SIZE,
-                );
+                let entity = CanvasEntity::raster(world, DEFAULT_RASTER_SIZE, DEFAULT_RASTER_SIZE);
                 (entity.clone(), Some(entity), None)
             }
         };
@@ -488,64 +407,6 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn raster_resizes(&self) -> Vec<(CanvasEntity, u16, u16, CanvasRasterAnchor)> {
-        self.gesture.with(|gesture| match gesture {
-            Some(gesture) => self.raster_resizes_of(gesture),
-            None => Vec::new(),
-        })
-    }
-
-    pub(crate) fn raster_resizes_of(
-        &self,
-        gesture: &Gesture,
-    ) -> Vec<(CanvasEntity, u16, u16, CanvasRasterAnchor)> {
-        let Gesture::Resize {
-            handle, originals, ..
-        } = gesture
-        else {
-            return Vec::new();
-        };
-        if !originals
-            .iter()
-            .any(|entity| entity.shape == CanvasShape::Raster)
-        {
-            return Vec::new();
-        }
-        let pixel_size = untrack(|| self.pixel_size());
-        let anchor = anchor_of(*handle);
-        super::state::gesture_entities(gesture)
-            .into_iter()
-            .filter(|entity| entity.shape == CanvasShape::Raster)
-            .filter_map(|resized| {
-                let original = originals.iter().find(|held| held.id == resized.id)?;
-                let (width, height, previewed) =
-                    resized_raster(original, &resized, pixel_size, anchor);
-                Some((previewed, width, height, anchor))
-            })
-            .collect()
-    }
-
-    pub(crate) fn finish_raster_resize(
-        &self,
-        resized: Vec<(CanvasEntity, u16, u16, CanvasRasterAnchor)>,
-    ) {
-        let operations: Vec<InfiniteCanvasOperation> = resized
-            .into_iter()
-            .map(
-                |(entity, width, height, anchor)| InfiniteCanvasOperation::Resize {
-                    id: entity.id,
-                    width,
-                    height,
-                    anchor,
-                },
-            )
-            .collect();
-        if !operations.is_empty() {
-            self.open_writes();
-            self.record_all(&operations);
-        }
-    }
-
     pub(crate) fn selected_raster(&self) -> Option<CanvasEntity> {
         match self.selected_entities().as_slice() {
             [entity] if entity.shape == CanvasShape::Raster => Some(entity.clone()),
@@ -618,18 +479,18 @@ impl RasterGuide {
         let hairline = 1.0 / self.scale.max(f32::EPSILON);
         let rect = self.layer;
         painter.rect_stroke(rect, 0.0, hairline, self.color);
-        let cell = rect.width() / f32::from(self.width.max(1));
-        if !self.grid || cell * self.scale < GRID_MIN_CELL {
+        let column_width = rect.width() / f32::from(self.width.max(1));
+        let row_height = rect.height() / f32::from(self.height.max(1));
+        if !self.grid || column_width.min(row_height) * self.scale < GRID_MIN_CELL {
             return;
         }
         let faint = super::paint::with_opacity(self.color, GRID_OPACITY);
         for column in 1..self.width {
-            let x = rect.left() + f32::from(column) * cell;
+            let x = rect.left() + f32::from(column) * column_width;
             painter.line(pos2(x, rect.top()), pos2(x, rect.bottom()), hairline, faint);
         }
-        let cell = rect.height() / f32::from(self.height.max(1));
         for row in 1..self.height {
-            let y = rect.top() + f32::from(row) * cell;
+            let y = rect.top() + f32::from(row) * row_height;
             painter.line(pos2(rect.left(), y), pos2(rect.right(), y), hairline, faint);
         }
     }
@@ -695,7 +556,7 @@ pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
             <Show condition={layer}>
                 <LayerSection state={state} />
             </Show>
-            <PixelSection state={state} />
+            <PixelSection />
             <LayersSection state={state} />
             <Show condition={roomy}>
                 <List spacing=SPACING>
@@ -901,24 +762,19 @@ fn LayerSection(state: CanvasState) -> NodeId {
 }
 
 #[component]
-fn PixelSection(state: CanvasState) -> NodeId {
+fn PixelSection() -> NodeId {
     let open = create_signal(true);
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
-    let pixel_size = state.pixel_size_signal();
-    let value = create_memo(move || f64::from(pixel_size.get()));
     view! {
         <Accordion title="Pixels" open={open}>
             <List spacing=Space::Sm>
-                <NumberInput
-                    value={Binding::new(value, move |size: f64| state.set_pixel_size(size as f32))}
-                    min=1.0
-                    max=256.0
-                    label="Pixel size"
-                    @test_id={"infinite-canvas.raster.pixel-size"}
-                />
                 <ToggleButton
                     action={actions.raster.grid.clone()}
                     @test_id={"infinite-canvas.raster.grid"}
+                />
+                <ToggleButton
+                    action={actions.snap.clone()}
+                    @test_id={"infinite-canvas.raster.snap"}
                 />
             </List>
         </Accordion>

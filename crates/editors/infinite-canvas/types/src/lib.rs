@@ -10,9 +10,8 @@ pub use canvas::{
     InfiniteCanvasOperation, normalized_entity,
 };
 pub use raster::{
-    CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, DEFAULT_PIXEL_SIZE,
-    DEFAULT_RASTER_SIZE, MAX_RASTER_PALETTE_COLORS, MAX_RASTER_SIZE, default_raster_palette,
-    pixel_size_or_default, raster_dimensions, snap_to_pixels,
+    CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, DEFAULT_RASTER_SIZE,
+    MAX_RASTER_PALETTE_COLORS, MAX_RASTER_SIZE, default_raster_palette, raster_dimensions,
 };
 
 block_type_guest::be_block_types![CanvasContent { undo }];

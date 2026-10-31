@@ -128,6 +128,7 @@ impl CanvasState {
                     pointer: world,
                     from_center: press.modifiers.alt,
                     detached: press.modifiers.ctrl,
+                    snapped: self.snaps.get_untracked(),
                 }));
             }
             Tool::Pen => {
@@ -242,6 +243,7 @@ impl CanvasState {
                 preserve_aspect_ratio,
                 scale_text,
                 scale_editors,
+                snapped: self.snaps.get_untracked(),
             }));
             return;
         }
@@ -326,12 +328,14 @@ impl CanvasState {
                 grab,
                 snap: modifiers.shift,
                 detached: modifiers.ctrl,
+                snapped: self.snaps.get_untracked(),
             },
             _ => Gesture::Bend {
                 original,
                 index,
                 current: at,
                 grab,
+                snapped: self.snaps.get_untracked(),
             },
         }));
     }
@@ -548,24 +552,21 @@ impl CanvasState {
         };
         if let Some((x, y)) = nudge {
             let before = self.selected_unlocked();
-            let step = match before
-                .iter()
-                .any(|entity| entity.shape == CanvasShape::Raster)
-            {
-                true => self.pixel_size(),
+            let amount = match modifiers.shift {
+                true => 10.0,
                 false => 1.0,
             };
-            let amount = match modifiers.shift {
-                true => 10.0 * step,
-                false => step,
-            };
+            let snapped = self.snaps.get_untracked();
             let after = before
                 .iter()
                 .cloned()
                 .map(|mut entity| {
                     entity.transform.center.x += x * amount;
                     entity.transform.center.y += y * amount;
-                    entity
+                    match snapped {
+                        true => super::state::moved_to_whole_units(entity),
+                        false => entity,
+                    }
                 })
                 .collect();
             self.record_update(before, after);

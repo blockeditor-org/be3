@@ -16,7 +16,7 @@ fn drawing_on_the_canvas_paints_a_raster_layer() {
     let raster = raster_of(&editor, layer.id);
     assert_eq!((raster.width(), raster.height()), (32, 32));
     assert!(
-        entity_bounds(layer).contains(CanvasPoint::new(4.0, 4.0)),
+        entity_bounds(layer).contains(CanvasPoint::new(0.5, 0.5)),
         "the layer is centred on where the stroke began"
     );
     let black: Vec<(u16, u16)> = (0..32)

@@ -59,7 +59,7 @@ mod a_png_export_draws_formatted_text_as_the_canvas_does;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
 mod a_raster_layer_is_exported_pixel_sharp;
-mod a_raster_layer_resized_by_its_handles_keeps_its_pixels;
+mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
 mod a_raster_stroke_is_one_undo_step_and_escape_calls_it_off;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
 mod a_second_finger_calls_off_the_shape_being_drawn;
@@ -123,6 +123,7 @@ mod scrubbing_a_number_is_one_undo_step;
 mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod simulated_pressure_is_the_same_at_any_sample_rate;
+mod snapping_to_whole_pixels_is_on_in_raster_and_off_elsewhere;
 mod switching_the_profile_changes_this_viewers_chrome_and_the_default;
 mod switching_to_vector_draws_the_next_shape_clean;
 mod tabbing_through_the_dock_shows_each_focus_ring_whole;
@@ -431,12 +432,11 @@ fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
     to.run();
 }
 
-const TEST_PIXEL_SIZE: f32 = 8.0;
+const RASTER_ZOOM: f32 = 8.0;
 
-fn raster_canvas(pixel_size: f32, entities: &[CanvasEntity]) -> Canvas {
+fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
     let mut content = CanvasContent::new(&Canvas {
         profile: CanvasProfile::Raster,
-        pixel_size,
         ..Canvas::default()
     });
     for entity in entities {
@@ -452,11 +452,15 @@ fn raster_canvas(pixel_size: f32, entities: &[CanvasEntity]) -> Canvas {
 }
 
 fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
-    open(&raster_canvas(TEST_PIXEL_SIZE, entities), false, &[])
+    let mut editor = open(&raster_canvas(entities), false, &[]);
+    let center = editor.rect_of("infinite-canvas.canvas").center();
+    editor.pinch(center, RASTER_ZOOM);
+    editor.run();
+    editor
 }
 
 fn raster_layer(id: u128, center: CanvasPoint, side: u16) -> CanvasEntity {
-    let mut layer = CanvasEntity::raster(TEST_PIXEL_SIZE, center, side, side);
+    let mut layer = CanvasEntity::raster(center, side, side);
     layer.id = Uuid::from_u128(id);
     layer
 }

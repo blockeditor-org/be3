@@ -11,9 +11,8 @@ use be_block::{ChildChange, Root};
 use database_types::database::DatabaseValue;
 
 use crate::raster::{
-    self, CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, DEFAULT_PIXEL_SIZE,
-    default_raster_palette, normalized_palette, pixel_size_or_default, raster_dimensions,
-    valid_dimension,
+    self, CanvasPixel, CanvasPixelUpdate, CanvasRaster, CanvasRasterAnchor, default_raster_palette,
+    normalized_palette, raster_dimensions, valid_dimension,
 };
 
 pub const BINDING_GAP: f32 = 4.0;
@@ -631,7 +630,6 @@ pub struct Canvas {
     pub entities: List<Entity>,
     pub grid: CanvasGrid,
     pub profile: CanvasProfile,
-    pub pixel_size: f32,
     pub palette: Option<Vec<CanvasPixel>>,
 }
 
@@ -718,12 +716,11 @@ impl Entity {
         }
     }
 
-    fn placed(entity: &CanvasEntity, pixel_size: f32) -> Self {
+    fn placed(entity: &CanvasEntity) -> Self {
         let mut held = Self::of(entity);
         if entity.shape == CanvasShape::Raster {
-            let (width, height) = raster_dimensions(pixel_size, entity.transform.size);
-            let transform =
-                CanvasTransform::raster(pixel_size, entity.transform.center, width, height);
+            let (width, height) = raster_dimensions(entity.transform.size);
+            let transform = CanvasTransform::raster(entity.transform.center, width, height);
             held.center = transform.center;
             held.size = transform.size;
             held.rotation = 0.0;
@@ -809,16 +806,8 @@ impl Canvas {
         Self::GRID.set(ObjectId::ROOT, &grid).into()
     }
 
-    pub fn resolved_pixel_size(&self) -> f32 {
-        pixel_size_or_default(self.pixel_size)
-    }
-
     pub fn resolved_palette(&self) -> Vec<CanvasPixel> {
         self.palette.clone().unwrap_or_else(default_raster_palette)
-    }
-
-    pub fn pixel_size_in(content: &CanvasContent) -> f32 {
-        pixel_size_or_default(content.field(ObjectId::ROOT, Self::PIXEL_SIZE))
     }
 
     pub fn palette_in(content: &CanvasContent) -> Vec<CanvasPixel> {
@@ -837,41 +826,6 @@ impl Canvas {
         CanvasRaster::of(&content.field(object, Entity::PIXELS))
     }
 
-    pub fn set_pixel_size(content: &CanvasContent, pixel_size: f32) -> Edit {
-        if !pixel_size.is_finite()
-            || pixel_size <= 0.0
-            || Self::pixel_size_in(content) == pixel_size
-        {
-            return Edit::default();
-        }
-        let mut changes = vec![Self::PIXEL_SIZE.set(ObjectId::ROOT, &pixel_size)];
-        for object in content.ids(ObjectId::ROOT, Self::ENTITIES) {
-            let Some(raster) = Self::raster(content, object.as_uuid()) else {
-                continue;
-            };
-            let center: CanvasPoint = content.field(object, Entity::CENTER);
-            let size: CanvasPoint = content.field(object, Entity::SIZE);
-            let held = CanvasPoint::new(
-                size.x / f32::from(raster.width()),
-                size.y / f32::from(raster.height()),
-            );
-            let corner = CanvasPoint::new(
-                ((center.x - size.x * 0.5) / held.x).round() * pixel_size,
-                ((center.y - size.y * 0.5) / held.y).round() * pixel_size,
-            );
-            let size = CanvasPoint::new(
-                f32::from(raster.width()) * pixel_size,
-                f32::from(raster.height()) * pixel_size,
-            );
-            changes.push(Entity::CENTER.set(
-                object,
-                &CanvasPoint::new(corner.x + size.x * 0.5, corner.y + size.y * 0.5),
-            ));
-            changes.push(Entity::SIZE.set(object, &size));
-        }
-        Edit(changes)
-    }
-
     pub fn with_entities(entities: impl IntoIterator<Item = CanvasEntity>) -> Self {
         let mut seen = HashSet::new();
         Self {
@@ -882,7 +836,7 @@ impl Canvas {
                     .map(|entity| {
                         (
                             ObjectId::from_uuid(entity.id),
-                            Entity::placed(&normalized_entity(entity), DEFAULT_PIXEL_SIZE),
+                            Entity::placed(&normalized_entity(entity)),
                         )
                     }),
             ),
@@ -933,10 +887,7 @@ impl Canvas {
                         ObjectId::from_uuid(entity.id),
                         ObjectId::ROOT,
                         Anchor::End,
-                        &Entity::placed(
-                            &normalized_entity(entity.as_ref().clone()),
-                            Self::pixel_size_in(content),
-                        ),
+                        &Entity::placed(&normalized_entity(entity.as_ref().clone())),
                     )
                     .into()
             }
@@ -953,14 +904,6 @@ impl Canvas {
                     shown.follow(unbound);
                     if shown.shape == CanvasShape::Raster || update.shape == CanvasShape::Raster {
                         update.shape = shown.shape;
-                    }
-                    if let Some(raster) = held.raster() {
-                        update.transform = CanvasTransform::raster(
-                            shown.transform.size.x / f32::from(raster.width()),
-                            update.transform.center,
-                            raster.width(),
-                            raster.height(),
-                        );
                     }
                     update_entity(content, &held, &shown, &update)
                 })
@@ -1518,10 +1461,10 @@ impl CanvasEntity {
         }
     }
 
-    pub fn raster(pixel_size: f32, center: CanvasPoint, width: u16, height: u16) -> Self {
+    pub fn raster(center: CanvasPoint, width: u16, height: u16) -> Self {
         Self::new(
             CanvasShape::Raster,
-            CanvasTransform::raster(pixel_size, center, width, height),
+            CanvasTransform::raster(center, width, height),
         )
     }
 

@@ -212,6 +212,7 @@ pub(crate) enum Gesture {
         pointer: CanvasPoint,
         from_center: bool,
         detached: bool,
+        snapped: bool,
     },
     Pen {
         id: Uuid,
@@ -236,6 +237,7 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         originals: Vec<CanvasEntity>,
         duplicate: bool,
+        snapped: bool,
     },
     Resize {
         handle: ResizeHandle,
@@ -248,6 +250,7 @@ pub(crate) enum Gesture {
         preserve_aspect_ratio: bool,
         scale_text: bool,
         scale_editors: bool,
+        snapped: bool,
     },
     Endpoint {
         original: Box<CanvasEntity>,
@@ -256,12 +259,14 @@ pub(crate) enum Gesture {
         grab: CanvasPoint,
         snap: bool,
         detached: bool,
+        snapped: bool,
     },
     Bend {
         original: Box<CanvasEntity>,
         index: usize,
         current: CanvasPoint,
         grab: CanvasPoint,
+        snapped: bool,
     },
     Rotate {
         frame: SelectionFrame,
@@ -290,6 +295,7 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             start,
             current,
             originals,
+            snapped,
             ..
         } => {
             let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
@@ -301,7 +307,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
                     .map(|mut entity| {
                         entity.transform.center.x += delta.x;
                         entity.transform.center.y += delta.y;
-                        entity
+                        match snapped {
+                            true => moved_to_whole_units(entity),
+                            false => entity,
+                        }
                     })
                     .collect(),
             )
@@ -314,10 +323,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             preserve_aspect_ratio,
             scale_text,
             scale_editors,
+            snapped,
             ..
-        } => unbound_from_the_rest(
-            originals,
-            resize_entities(
+        } => {
+            let resized = resize_entities(
                 *handle,
                 *frame,
                 *current,
@@ -325,8 +334,15 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
                 *preserve_aspect_ratio,
                 *scale_text,
                 *scale_editors,
-            ),
-        ),
+            );
+            unbound_from_the_rest(
+                originals,
+                match snapped {
+                    true => resized.into_iter().map(sized_to_whole_units).collect(),
+                    false => resized,
+                },
+            )
+        }
         Gesture::Rotate {
             frame,
             start_angle,
@@ -342,8 +358,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             end,
             current,
             snap,
+            snapped,
             ..
         } => {
+            let current = &snapped_point(*current, *snapped);
             let at = match snap {
                 true => constrain_point_angle(
                     path_neighbour(original, *end),
@@ -360,8 +378,13 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             original,
             index,
             current,
+            snapped,
             ..
-        } => vec![with_point(original.as_ref().clone(), *index, *current)],
+        } => vec![with_point(
+            original.as_ref().clone(),
+            *index,
+            snapped_point(*current, *snapped),
+        )],
         Gesture::Erase { erased, .. } => erased
             .iter()
             .cloned()
@@ -376,6 +399,39 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
         | Gesture::Lasso { .. }
         | Gesture::Raster { .. } => Vec::new(),
     }
+}
+
+pub(crate) fn snapped_point(point: CanvasPoint, snapped: bool) -> CanvasPoint {
+    match snapped {
+        true => CanvasPoint::new(point.x.round(), point.y.round()),
+        false => point,
+    }
+}
+
+pub(crate) fn moved_to_whole_units(mut entity: CanvasEntity) -> CanvasEntity {
+    let transform = &mut entity.transform;
+    let corner = |center: f32, size: f32| center - size.abs() * 0.5;
+    let left = corner(transform.center.x, transform.size.x);
+    let top = corner(transform.center.y, transform.size.y);
+    transform.center.x += left.round() - left;
+    transform.center.y += top.round() - top;
+    entity
+}
+
+pub(crate) fn sized_to_whole_units(mut entity: CanvasEntity) -> CanvasEntity {
+    let transform = &mut entity.transform;
+    let whole = |center: &mut f32, size: &mut f32| {
+        let (start, end) = (*center - *size * 0.5, *center + *size * 0.5);
+        let (start, mut end) = (start.round(), end.round());
+        if start == end && *size != 0.0 {
+            end = start + size.signum();
+        }
+        *center = (start + end) * 0.5;
+        *size = end - start;
+    };
+    whole(&mut transform.center.x, &mut transform.size.x);
+    whole(&mut transform.center.y, &mut transform.size.y);
+    entity
 }
 
 fn unbound_from_the_rest(
@@ -459,6 +515,8 @@ pub(crate) struct CanvasState {
     pub(crate) tool: Signal<Tool>,
     pub(crate) tool_locked: Signal<bool>,
     pub(crate) binds: Signal<bool>,
+    snap_choices: Signal<HashMap<CanvasProfile, bool>>,
+    pub(crate) snaps: Memo<bool>,
     pub(crate) profile: Signal<CanvasProfile>,
     pub(crate) raster: RasterTools,
     styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
@@ -496,6 +554,16 @@ impl CanvasState {
             }
         });
         let styles = create_signal(HashMap::new());
+        let snap_choices = create_signal(HashMap::new());
+        let snaps = create_memo(move || {
+            let profile = profile.get();
+            snap_choices.with(|choices: &HashMap<CanvasProfile, bool>| {
+                choices
+                    .get(&profile)
+                    .copied()
+                    .unwrap_or(profile == CanvasProfile::Raster)
+            })
+        });
         let selection = create_signal(HashSet::new());
         let entered_group = create_signal(None);
         let gesture = create_signal(None);
@@ -598,6 +666,8 @@ impl CanvasState {
             tool,
             tool_locked: create_signal(false),
             binds: create_signal(true),
+            snap_choices,
+            snaps,
             profile,
             raster: RasterTools::new(),
             styles,
@@ -627,13 +697,27 @@ impl CanvasState {
             current,
             from_center,
             detached,
+            snapped,
             ..
         } = *gesture
         else {
             return None;
         };
-        let entity = self.created_entity(tool, start, current, from_center, detached)?;
+        let entity = self.created_entity(
+            tool,
+            snapped_point(start, snapped),
+            snapped_point(current, snapped),
+            from_center,
+            detached,
+        )?;
         Some(seeded(entity, id, start))
+    }
+
+    pub(crate) fn toggle_snapping(&self) {
+        let (profile, snaps) = (self.profile.get_untracked(), self.snaps.get_untracked());
+        self.snap_choices.update(|choices| {
+            choices.insert(profile, !snaps);
+        });
     }
 
     pub(crate) fn is_alive(&self) -> bool {
@@ -876,10 +960,6 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn record_all(&self, operations: &[InfiniteCanvasOperation]) {
-        self.operate_all(operations);
-    }
-
     pub(crate) fn with_stroke<R>(&self, change: impl FnOnce(&mut Option<Stroke>) -> R) -> R {
         change(&mut self.cells.value().stroke.borrow_mut())
     }
@@ -1006,16 +1086,8 @@ impl CanvasState {
                 entities: self.endpoint_entities(&gesture),
             }),
             Gesture::Raster { .. } => self.write_stroke(),
-            Gesture::Resize { .. } => {
-                let updates: Vec<CanvasEntity> = gesture_entities(&gesture)
-                    .into_iter()
-                    .filter(|entity| entity.shape != CanvasShape::Raster)
-                    .collect();
-                if !updates.is_empty() {
-                    self.operate(&InfiniteCanvasOperation::Update { entities: updates });
-                }
-            }
             Gesture::Move { .. }
+            | Gesture::Resize { .. }
             | Gesture::Rotate { .. }
             | Gesture::Bend { .. }
             | Gesture::Erase { .. } => {
@@ -1711,6 +1783,7 @@ impl CanvasState {
             current: world,
             originals,
             duplicate,
+            snapped: self.snaps.get_untracked(),
         }));
     }
 
@@ -2345,11 +2418,12 @@ impl CanvasState {
 
     pub(crate) fn selection_defaults_to_proportional(&self) -> bool {
         self.selected_unlocked().iter().any(|entity| {
-            entity.shape.embeds_block()
-                && self
-                    .peek_child(entity.id)
-                    .capabilities
-                    .preserve_aspect_ratio
+            entity.shape == CanvasShape::Raster
+                || entity.shape.embeds_block()
+                    && self
+                        .peek_child(entity.id)
+                        .capabilities
+                        .preserve_aspect_ratio
         })
     }
 
@@ -2485,7 +2559,6 @@ impl CanvasState {
     }
 
     pub(crate) fn finish_gesture(&self, gesture: Gesture) {
-        self.finish_raster_resize(self.raster_resizes_of(&gesture));
         match gesture {
             Gesture::Create { .. } => {
                 let Some(entity) = self.drawn_shape(&gesture) else {

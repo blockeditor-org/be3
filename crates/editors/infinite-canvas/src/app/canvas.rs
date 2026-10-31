@@ -255,13 +255,6 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
     let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
-    let raster_resized = create_memo(move || {
-        state
-            .raster_resizes()
-            .into_iter()
-            .map(|(resized, ..)| resized)
-            .collect::<Vec<_>>()
-    });
     let drawn_line = create_memo(move || {
         state.gesture.with(|gesture| match gesture {
             Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
@@ -270,12 +263,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     });
     create_effect(move || {
         let selection = state.selection.get();
-        let mut selected = state.entities.among(&selection);
-        for resized in raster_resized.get() {
-            if let Some(held) = selected.iter_mut().find(|held| held.id == resized.id) {
-                *held = resized;
-            }
-        }
+        let selected = state.entities.among(&selection);
         let scale = scale.get();
         let selected_path = state.selected_path();
         let mut overlay = Overlay {

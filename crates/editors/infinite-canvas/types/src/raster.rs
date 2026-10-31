@@ -6,7 +6,6 @@ use crate::canvas::{CanvasPoint, CanvasTransform, Entity};
 pub const DEFAULT_RASTER_SIZE: u16 = 32;
 pub const MAX_RASTER_SIZE: u16 = 2048;
 pub const MAX_RASTER_PALETTE_COLORS: usize = 32;
-pub const DEFAULT_PIXEL_SIZE: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Hash, PartialEq, Eq, Serialize)]
 pub struct CanvasPixel {
@@ -104,31 +103,12 @@ impl CanvasRaster {
     }
 }
 
-pub fn pixel_size_or_default(pixel_size: f32) -> f32 {
-    match pixel_size.is_finite() && pixel_size > 0.0 {
-        true => pixel_size,
-        false => DEFAULT_PIXEL_SIZE,
-    }
-}
-
-pub fn snap_to_pixels(pixel_size: f32, world: CanvasPoint) -> CanvasPoint {
-    let pixel_size = pixel_size_or_default(pixel_size);
-    CanvasPoint::new(
-        (world.x / pixel_size).round() * pixel_size,
-        (world.y / pixel_size).round() * pixel_size,
-    )
-}
-
 impl CanvasTransform {
-    pub fn raster(pixel_size: f32, center: CanvasPoint, width: u16, height: u16) -> Self {
-        let pixel_size = pixel_size_or_default(pixel_size);
-        let size = CanvasPoint::new(
-            f32::from(width) * pixel_size,
-            f32::from(height) * pixel_size,
-        );
-        let corner = snap_to_pixels(
-            pixel_size,
-            CanvasPoint::new(center.x - size.x * 0.5, center.y - size.y * 0.5),
+    pub fn raster(center: CanvasPoint, width: u16, height: u16) -> Self {
+        let size = CanvasPoint::new(f32::from(width), f32::from(height));
+        let corner = CanvasPoint::new(
+            (center.x - size.x * 0.5).round(),
+            (center.y - size.y * 0.5).round(),
         );
         Self::new(
             CanvasPoint::new(corner.x + size.x * 0.5, corner.y + size.y * 0.5),
@@ -148,12 +128,9 @@ impl CanvasTransform {
     }
 }
 
-pub fn raster_dimensions(pixel_size: f32, size: CanvasPoint) -> (u16, u16) {
-    let pixel_size = pixel_size_or_default(pixel_size);
+pub fn raster_dimensions(size: CanvasPoint) -> (u16, u16) {
     let count = |extent: f32| match extent.is_finite() {
-        true => (extent.abs() / pixel_size)
-            .round()
-            .clamp(1.0, f32::from(MAX_RASTER_SIZE)) as u16,
+        true => extent.abs().round().clamp(1.0, f32::from(MAX_RASTER_SIZE)) as u16,
         false => DEFAULT_RASTER_SIZE,
     };
     (count(size.x), count(size.y))
