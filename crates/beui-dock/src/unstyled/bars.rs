@@ -717,7 +717,7 @@ impl State {
             speed: Vec2::ZERO,
             pointer,
             grab: pointer - rect.min,
-            velocity: Velocity::new(now(), pointer),
+            velocity: Velocity::default(),
             grow: 1.0,
             shrink: 0.0,
         };
@@ -748,7 +748,6 @@ impl State {
             let flight = self.lifting.flight.value();
             let mut flight = flight.borrow_mut();
             flight.pointer = point.pos;
-            flight.velocity.sample(now(), point.pos);
         }
         let target = self
             .resolve_bar(point, lift.bar)
@@ -848,12 +847,7 @@ impl State {
     }
 
     fn thrown(&self, bar: TabId, point: DragPoint) -> DragPoint {
-        let velocity = {
-            let flight = self.lifting.flight.value();
-            let mut flight = flight.borrow_mut();
-            flight.velocity.sample(now(), point.pos);
-            flight.velocity.get()
-        };
+        let velocity = self.lifting.flight.value().borrow().velocity.get();
         let Some((_, pane)) = self.bar_areas(bar) else {
             return point;
         };
@@ -906,6 +900,10 @@ impl State {
         }
         let flight = lifting.flight.value();
         let mut flight = flight.borrow_mut();
+        if !lift.settling {
+            let pointer = flight.pointer;
+            flight.velocity.sample(frame.now, pointer);
+        }
         flight.grow = (flight.grow + seconds / GAP_SECONDS).min(1.0);
         flight.shrink = (flight.shrink - seconds / GAP_SECONDS).max(0.0);
         if flight.shrink <= 0.0 && lifting.gone.get_untracked().is_some() {
@@ -938,7 +936,8 @@ impl State {
         let resting = goal == Some(flight.pos) && flight.speed == Vec2::ZERO;
         let growing = flight.grow < 1.0 || flight.shrink > 0.0;
         if !lift.settling {
-            return !resting || growing;
+            let moving = flight.velocity.get().length() >= THROW_SPEED;
+            return !resting || growing || moving;
         }
         let placed = lifting.gap.get_untracked().is_some();
         !(resting && placed && !growing)
