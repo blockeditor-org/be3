@@ -366,8 +366,18 @@ impl Element for ListNode {
         total
     }
 
-    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
         if self.wrap {
+            return None;
+        }
+        let along = direction == self.direction;
+        if !along && direction == Direction::Vertical {
             return None;
         }
         let grid = doc.pixel_grid();
@@ -375,22 +385,26 @@ impl Element for ListNode {
         let mut total = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
             let size = item.size;
-            let length = match (self.direction, size.size) {
-                (Direction::Horizontal, ItemSize::Fixed(fixed)) => grid.snap(fixed.max(0.0)),
-                (Direction::Horizontal, _) if size.yields() => {
-                    let least = crate::layout::least_width(doc, painter, item.child);
+            if !along {
+                let least =
+                    crate::layout::least_length(doc, painter, item.child, direction, f32::INFINITY);
+                total = total.max(least);
+                continue;
+            }
+            let length = match size.size {
+                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
+                _ if size.yields() => {
+                    let least =
+                        crate::layout::least_length(doc, painter, item.child, direction, cross);
                     size.clamp(least)
                 }
-                (Direction::Horizontal, _) => {
-                    let unbounded = Vec2::splat(f32::INFINITY);
-                    size.clamp(crate::layout::measure(doc, painter, item.child, unbounded).x)
+                _ => {
+                    let offered = direction.axes(f32::INFINITY, cross);
+                    let natural = crate::layout::measure(doc, painter, item.child, offered);
+                    size.clamp(direction.main(natural))
                 }
-                (Direction::Vertical, _) => crate::layout::least_width(doc, painter, item.child),
             };
-            total = match self.direction {
-                Direction::Horizontal => total + gap + length,
-                Direction::Vertical => total.max(length),
-            };
+            total += gap + length;
         }
         Some(total)
     }

@@ -7,7 +7,7 @@ use super::dialogs::OpenDialog;
 use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, ItemSize, Overflow};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -113,6 +113,7 @@ pub(crate) fn ArtifactBar(
                         </Show>
                         <Show condition={described}>
                             <List
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=SPACING
@@ -128,7 +129,13 @@ pub(crate) fn ArtifactBar(
                                         }
                                     }}
                                 />
-                                <Text style=TextStyle::CAPTION>{summary}</Text>
+                                <Text
+                                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                    style=TextStyle::CAPTION
+                                    overflow=Overflow::Ellipsis
+                                >
+                                    {summary}
+                                </Text>
                             </List>
                         </Show>
                         <Spacer @sizing=ItemSize::Percent(100.0) />

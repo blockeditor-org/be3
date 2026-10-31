@@ -70,10 +70,10 @@ impl OffsetNode {
             child,
             self.direction.axes(f32::INFINITY, cross),
         ));
-        if self.direction == Direction::Vertical || natural <= main {
+        if natural <= main {
             return natural;
         }
-        crate::layout::least_width(doc, painter, child)
+        crate::layout::least_length(doc, painter, child, self.direction, cross)
             .max(main)
             .min(natural)
     }
@@ -285,8 +285,20 @@ impl Element for OffsetNode {
         self.direction.axes(length, content)
     }
 
-    fn least_width(&self, _doc: &mut Document, _painter: &Painter) -> Option<f32> {
-        Some(0.0)
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if direction == self.direction {
+            return Some(0.0);
+        }
+        let child = self.child?;
+        Some(crate::layout::least_length(
+            doc, painter, child, direction, cross,
+        ))
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

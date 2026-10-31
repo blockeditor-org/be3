@@ -10,7 +10,7 @@ use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, ItemSize, Overflow};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -86,8 +86,19 @@ pub(crate) fn LinkedBar(
                     </Text>
                     <Text>"Linked block"</Text>
                     <Show condition={via_reference}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION>{elsewhere}</Text>
+                        <List
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=SPACING
+                        >
+                            <Text
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                style=TextStyle::CAPTION
+                                overflow=Overflow::Ellipsis
+                            >
+                                {elsewhere}
+                            </Text>
                             <Button
                                 @test_id={"workspace.linked.original"}
                                 label="Go to original"
@@ -119,8 +130,19 @@ pub(crate) fn LinkedBar(
                         </List>
                     </Show>
                     <Show condition={original}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION>{everywhere}</Text>
+                        <List
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=SPACING
+                        >
+                            <Text
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                style=TextStyle::CAPTION
+                                overflow=Overflow::Ellipsis
+                            >
+                                {everywhere}
+                            </Text>
                             <ReferenceMenu
                                 workspace={workspace}
                                 name="Show references"

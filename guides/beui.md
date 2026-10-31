@@ -1474,18 +1474,23 @@ Content shorter than the scroll is laid out as long as the scroll, as a browser'
 `minmax(100%, max-content)` track is, so a percent-sized child of a scroll (a
 `Spacer`, a field filling a toolbar that scrolls when narrow) fills the rest of it
 whether or not the content overflows.
-Content longer than a horizontal scroll is laid out as short as it can be
-without overflowing, down to the scroll's length, as a flex row in a browser's
+Content longer than a scroll is laid out as short as it can be
+without overflowing, down to the scroll's length, as a flex box in a browser's
 `overflow: auto` box is: its shrinking children give up length first, and the
-scroll scrolls only what is left past that. How short is `Element::least_width`
-(`layout::least_width`): a row's children that neither shrink nor are a
-`Percent` count at their natural width, the rest at their own least width (text
-that wraps or ellipsises at its `min_width`, a scroll at nothing), and a node
-that does not say counts at its natural width. Unlike `min_width`, which floors
-a shrinking child and lets what will not fit overflow it, it never undercounts. `ToolPill` lets its content
-shrink this way, so a child sized `.shrink(..)` in a bar narrows before the bar
-scrolls (the desktop's window chips). A vertical scroll lays its content out at
-its full length, as nothing gives a height a floor.
+scroll scrolls only what is left past that. How short is `Element::least_length`
+(`layout::least_length(doc, painter, id, direction, cross)`, the length along
+`direction` when `cross` long the other way): a list's children along its own
+axis that neither shrink nor are a `Percent` count at their natural length, the
+rest at their own least length (a scroll along the same axis at nothing); across
+a column, the widest child's least width; text that wraps or ellipsises at its
+`min_width` for a width, at its height for a height; a frame adds its padding;
+and a node that does not say (a row asked for its height, a wrapping list) counts
+at its natural length. Unlike `min_width`, which floors a shrinking child and lets
+what will not fit overflow it, it never undercounts. It walks the subtree once,
+stopping at scrolls along the same axis, so a full layout stays linear. `ToolPill`
+lets its content shrink this way, so a child sized `.shrink(..)` in a bar of either
+direction narrows before the bar scrolls: the desktop's Windows bar scrolls only its
+chips, its grip staying put, along the bottom or down the side.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 `max_length` (a `Prop<Option<Size>>`, so a signal or memo can move it) makes it fit

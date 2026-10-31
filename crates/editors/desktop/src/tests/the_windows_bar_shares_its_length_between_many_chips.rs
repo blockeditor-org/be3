@@ -102,6 +102,13 @@ fn the_windows_bar_shares_its_length_between_many_chips() {
         shown_within(&fixture, 39, bar),
         "a bar down the side scrolls to the focused chip too"
     );
+    let grip = fixture
+        .test
+        .rect_of(&format!("dock.bar.{}.grip", SHELL_BARS + WINDOWS_BAR));
+    assert!(
+        bar.contains_rect(grip) && grip.top() - bar.top() < grip.height(),
+        "only the chips scroll: the grip stays at the top of the bar: {grip:?} in {bar:?}"
+    );
     fixture
         .test
         .snapshot("the_windows_bar_down_the_left_with_many_windows");

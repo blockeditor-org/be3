@@ -230,11 +230,16 @@ impl Element for InteractiveNode {
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
-    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
-        Some(
-            self.child
-                .map_or(0.0, |child| crate::layout::least_width(doc, painter, child)),
-        )
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

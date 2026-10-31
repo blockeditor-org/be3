@@ -5,7 +5,7 @@ use block_editor_beui::beui::styled::*;
 
 use super::panel::Info;
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, ItemSize, Overflow};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;
@@ -53,7 +53,13 @@ pub(crate) fn DeletedBar(
                         <Icon glyph=ICON_TRASH />
                     </Text>
                     <Text>"Deleted block"</Text>
-                    <Text style=TextStyle::CAPTION>{caption}</Text>
+                    <Text
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        style=TextStyle::CAPTION
+                        overflow=Overflow::Ellipsis
+                    >
+                        {caption}
+                    </Text>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"

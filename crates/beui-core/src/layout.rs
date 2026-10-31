@@ -2,6 +2,7 @@ pub mod share;
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
+use beui_types::layout::Direction;
 
 use crate::document::Document;
 use crate::node::{NodeId, Rects};
@@ -65,16 +66,25 @@ pub fn min_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
     width
 }
 
-pub fn least_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
+pub fn least_length(
+    doc: &mut Document,
+    painter: &Painter,
+    id: NodeId,
+    direction: Direction,
+    cross: f32,
+) -> f32 {
     if !doc.arena.contains(id) {
         return 0.0;
     }
     let element = doc.arena.take(id);
     let outer = doc.enter_measure(id);
-    let least = element.least_width(doc, painter);
+    let least = element.least_length(doc, painter, direction, cross);
     doc.leave_measure(outer);
     doc.arena.put_back(id, element);
-    let least = least.unwrap_or_else(|| measure(doc, painter, id, Vec2::splat(f32::INFINITY)).x);
+    let least = least.unwrap_or_else(|| {
+        let natural = measure(doc, painter, id, direction.axes(f32::INFINITY, cross));
+        direction.main(natural)
+    });
     doc.pixel_grid().snap_up(least)
 }
 

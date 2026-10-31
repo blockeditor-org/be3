@@ -198,8 +198,7 @@ every chip shows only its icon, and past that the chips scroll inside the row (t
 `Scroll`, so the bar's grip stays put) and the focused chip is revealed whenever the focus, the
 chip count or the icon-only switch changes. The row measures the room it was given
 (`measure` on the chip list), never its own content, so switching to icons does not shrink the
-room it asks for. Down a side the chips are icons already, and the whole bar scrolls, grip
-included, since a vertical scroll lays its content out at full length. The focused chip (the dock's
+room it asks for. Down a side the chips are icons already, and they scroll inside the row the same way, the grip staying at the top. The focused chip (the dock's
 focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
 focuses it (`focus`); a click on the focused chip hides it (`hide`, or for a block window the shell
 stops declaring it) and the next shown window in the dock's focus order takes the focus. Each chip
