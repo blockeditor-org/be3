@@ -203,10 +203,9 @@ fn found<'a>(target: &str, lines: &'a [Line]) -> Result<Found<'a>, String> {
 pub fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
     match found(target, lines)? {
         Found::Line(line) => placed(line),
-        Found::Inside(line, offset) => Ok(Rect::from_min_size(
-            placed(line)?.min + offset,
-            Vec2::ZERO,
-        )),
+        Found::Inside(line, offset) => {
+            Ok(Rect::from_min_size(placed(line)?.min + offset, Vec2::ZERO))
+        }
         Found::Area(rect) => Ok(rect),
     }
 }

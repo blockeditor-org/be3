@@ -735,7 +735,9 @@ impl Session {
                 immediate,
                 changes,
                 skipped,
-            }) = self.active.take_if(|active| matches!(active.phase, Phase::Revealing { .. }))
+            }) = self
+                .active
+                .take_if(|active| matches!(active.phase, Phase::Revealing { .. }))
         {
             self.pending = Some(Pending {
                 request,

@@ -61,10 +61,9 @@ fn found<'a>(target: &str, lines: &'a [Rc<Line>]) -> Result<Found<'a>, String> {
 pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
     match found(target, lines)? {
         Found::Line(line) => placed(line),
-        Found::Inside(line, offset) => Ok(Rect::from_min_size(
-            placed(line)?.min + offset,
-            Vec2::ZERO,
-        )),
+        Found::Inside(line, offset) => {
+            Ok(Rect::from_min_size(placed(line)?.min + offset, Vec2::ZERO))
+        }
         Found::Area(rect) => Ok(rect),
     }
 }
