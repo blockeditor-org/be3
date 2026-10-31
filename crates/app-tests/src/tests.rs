@@ -139,12 +139,10 @@ fn row_menu(app: &mut AppTest, title: &str) -> String {
 }
 
 fn open_beui_demo(app: &mut AppTest) {
-    open_add_to_my_files(app);
-    choose_type(app, "beui demo");
+    add_to_my_files(app, "beui demo");
     app.wait("Tab \"Components\"");
     app.wait("Tab \"Docking\"");
     app.gone("#editor.loading");
-    app.key("Enter");
     app.run(&["settle"]);
 }
 
