@@ -21,7 +21,7 @@ fn a_program_window_dragged_to_another_display_shows_on_both_on_the_way() {
     );
     assert_eq!(fixture.test.desk_window_scales(), [1.0]);
 
-    let grab = fixture.window_grip("todo-1.txt");
+    let grab = fixture.window_grip(1);
     let seam = left.max.x - windows[0].center().x;
     let halfway = grab + vec2(seam, 200.0);
     fixture.test.desk_press(grab);

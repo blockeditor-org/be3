@@ -16,7 +16,7 @@ fn a_window_on_the_second_display_is_kept_above_its_bars() {
     fixture.settle();
     fixture.test.click("desktop.windows.1.display.1");
     fixture.settle();
-    let grab = fixture.window_grip("todo-1.txt");
+    let grab = fixture.window_grip(1);
     fixture.test.desk_drag(grab, grab + vec2(0.0, 300.0), 8);
     fixture.settle();
     let window = fixture.test.desk_windows()[0];

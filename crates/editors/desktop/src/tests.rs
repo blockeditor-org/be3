@@ -418,15 +418,12 @@ impl Fixture {
             .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
     }
 
-    fn window_grip(&self, words: &str) -> Pos2 {
-        let title = self.desk_text(words);
-        let middle = title.center().y;
+    fn window_grip(&self, window: u64) -> Pos2 {
+        let id = format!("dock.window.grip.window.{window}");
         self.test
-            .desk_rects_of("dock.window.grip")
-            .into_iter()
-            .filter(|grip| grip.max.x <= title.min.x && grip.min.y <= middle && middle <= grip.max.y)
-            .max_by(|left, right| left.max.x.total_cmp(&right.max.x))
-            .unwrap_or_else(|| panic!("the window showing {words:?} has a grip"))
+            .desk_rects_of(&id)
+            .first()
+            .unwrap_or_else(|| panic!("window {window} shows its grip"))
             .center()
     }
 

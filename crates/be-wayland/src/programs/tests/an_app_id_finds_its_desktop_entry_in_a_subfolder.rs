@@ -28,12 +28,13 @@ fn an_app_id_finds_its_desktop_entry_in_a_subfolder() {
         "however deep the subfolder"
     );
     assert_eq!(
-        environment
-            .entry("kde-org.kde-kate")
-            .map(|entry| entry.id),
+        environment.entry("kde-org.kde-kate").map(|entry| entry.id),
         Some("kde-org.kde-kate.desktop".to_owned()),
         "the entry keeps the id it was asked by"
     );
     assert!(named("kde-").is_none() && named("-kate").is_none());
-    assert!(named("..-outside").is_none(), "no id reaches out of the folder");
+    assert!(
+        named("..-outside").is_none(),
+        "no id reaches out of the folder"
+    );
 }

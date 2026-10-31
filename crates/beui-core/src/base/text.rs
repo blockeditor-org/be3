@@ -810,6 +810,13 @@ impl Element for TextNode {
         }
     }
 
+    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
+        match self.overflow {
+            Overflow::Wrap { .. } | Overflow::Ellipsis => Some(self.min_width(doc, painter)),
+            Overflow::Visible => None,
+        }
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let layout = self.rich_layout(doc, painter, available.x);
         layout.lines.first().map(|line| line.top + line.baseline)
@@ -1147,6 +1154,13 @@ impl Element for TextItemNode {
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         self.child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
+    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
+        Some(
+            self.child
+                .map_or(0.0, |child| crate::layout::least_width(doc, painter, child)),
+        )
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

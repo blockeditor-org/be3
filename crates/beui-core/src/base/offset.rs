@@ -73,13 +73,9 @@ impl OffsetNode {
         if self.direction == Direction::Vertical || natural <= main {
             return natural;
         }
-        let fitted = self.direction.main(crate::layout::measure(
-            doc,
-            painter,
-            child,
-            self.direction.axes(main, cross),
-        ));
-        fitted.min(natural)
+        crate::layout::least_width(doc, painter, child)
+            .max(main)
+            .min(natural)
     }
 
     fn snaps_to_end(&self) -> bool {
@@ -287,6 +283,10 @@ impl Element for OffsetNode {
             false => 0.0,
         };
         self.direction.axes(length, content)
+    }
+
+    fn least_width(&self, _doc: &mut Document, _painter: &Painter) -> Option<f32> {
+        Some(0.0)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

@@ -352,10 +352,6 @@ impl Element for ListNode {
                 ItemSize::Fixed(fixed) if self.direction == Direction::Horizontal => {
                     grid.snap(fixed.max(0.0))
                 }
-                ItemSize::Intrinsic if in_line && !size.yields() => {
-                    let unbounded = Vec2::splat(f32::INFINITY);
-                    crate::layout::measure(doc, painter, item.child, unbounded).x
-                }
                 _ => crate::layout::min_width(doc, painter, item.child),
             };
             let length = match self.direction {
@@ -368,6 +364,35 @@ impl Element for ListNode {
             };
         }
         total
+    }
+
+    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
+        if self.wrap {
+            return None;
+        }
+        let grid = doc.pixel_grid();
+        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let mut total = 0.0f32;
+        for (item, gap) in self.items.iter().zip(gaps) {
+            let size = item.size;
+            let length = match (self.direction, size.size) {
+                (Direction::Horizontal, ItemSize::Fixed(fixed)) => grid.snap(fixed.max(0.0)),
+                (Direction::Horizontal, _) if size.yields() => {
+                    let least = crate::layout::least_width(doc, painter, item.child);
+                    size.clamp(least)
+                }
+                (Direction::Horizontal, _) => {
+                    let unbounded = Vec2::splat(f32::INFINITY);
+                    size.clamp(crate::layout::measure(doc, painter, item.child, unbounded).x)
+                }
+                (Direction::Vertical, _) => crate::layout::least_width(doc, painter, item.child),
+            };
+            total = match self.direction {
+                Direction::Horizontal => total + gap + length,
+                Direction::Vertical => total.max(length),
+            };
+        }
+        Some(total)
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

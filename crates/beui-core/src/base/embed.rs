@@ -129,6 +129,13 @@ impl Element for EmbedNode {
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
+    fn least_width(&self, doc: &mut Document, painter: &Painter) -> Option<f32> {
+        Some(
+            self.child
+                .map_or(0.0, |child| crate::layout::least_width(doc, painter, child)),
+        )
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
         let placed = grid.snap_rect(painter.to_screen(rect));

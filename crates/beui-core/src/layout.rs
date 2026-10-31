@@ -65,6 +65,19 @@ pub fn min_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
     width
 }
 
+pub fn least_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
+    if !doc.arena.contains(id) {
+        return 0.0;
+    }
+    let element = doc.arena.take(id);
+    let outer = doc.enter_measure(id);
+    let least = element.least_width(doc, painter);
+    doc.leave_measure(outer);
+    doc.arena.put_back(id, element);
+    let least = least.unwrap_or_else(|| measure(doc, painter, id, Vec2::splat(f32::INFINITY)).x);
+    doc.pixel_grid().snap_up(least)
+}
+
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
     if !doc.arena.contains(id) {
         return;

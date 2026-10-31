@@ -98,6 +98,10 @@ pub trait Element: Any {
         0.0
     }
 
+    fn least_width(&self, _doc: &mut Document, _painter: &Painter) -> Option<f32> {
+        None
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
     fn unplaced(&mut self, _doc: &mut Document) {}

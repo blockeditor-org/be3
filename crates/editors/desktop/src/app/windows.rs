@@ -6,7 +6,9 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::button::ButtonFace;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2};
+use block_editor_beui::beui::{
+    Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2,
+};
 use block_editor_beui::desktop;
 use block_editor_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_name, window_picture};
@@ -319,9 +321,10 @@ pub(crate) fn WindowChips(
     let least = use_size(CHIP_LEAST);
     let spacing = use_space(CHIP_SPACING);
     let count = create_memo(move || chips.with(Vec::len));
+    let listed = create_memo(move || count.get() > 0);
     let gaps = move || spacing.get() * count.get().saturating_sub(1) as f32;
     let wanted = create_memo(move || match vertical.get() {
-        true => Extent::px(0.0),
+        true => Extent::INTRINSIC,
         false => Extent::at_most(widest.get() * count.get() as f32 + gaps()),
     });
     let row = NodeRef::new();
@@ -357,12 +360,14 @@ pub(crate) fn WindowChips(
             <Show condition={waiting}>
                 <RestoreChip placeholders vertical />
             </Show>
-            <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction fit=true>
-                <Layers @sizing={ItemSize::Intrinsic.shrink(1.0)}>
-                    <Frame width={wanted} height=Extent::px(0.0) />
-                    {chips_row}
-                </Layers>
-            </Scroll>
+            <Show condition={listed}>
+                <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction fit=true>
+                    <Layers @sizing={ItemSize::Intrinsic.shrink(1.0)}>
+                        <Frame width={wanted} />
+                        {chips_row}
+                    </Layers>
+                </Scroll>
+            </Show>
         </List>
     }
 }
@@ -390,7 +395,12 @@ fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
 }
 
 #[component]
-fn WindowChip(windows: DeskWindows, chip: ChipKey, icons: Memo<bool>, count: Memo<usize>) -> NodeId {
+fn WindowChip(
+    windows: DeskWindows,
+    chip: ChipKey,
+    icons: Memo<bool>,
+    count: Memo<usize>,
+) -> NodeId {
     let workspace = windows.workspace;
     let entries = workspace.entries();
     let entry = create_memo(move || match chip {
