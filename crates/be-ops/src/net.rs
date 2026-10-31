@@ -30,6 +30,8 @@ pub trait Caller: Send + Sync + 'static {
     fn credit(&self, op: OpId, items: u32, bytes: u64);
 
     fn cancel(&self, op: OpId);
+
+    fn request_cancel(&self, op: OpId);
 }
 
 impl<C: Caller + ?Sized> Caller for Arc<C> {
@@ -47,6 +49,10 @@ impl<C: Caller + ?Sized> Caller for Arc<C> {
 
     fn cancel(&self, op: OpId) {
         (**self).cancel(op);
+    }
+
+    fn request_cancel(&self, op: OpId) {
+        (**self).request_cancel(op);
     }
 }
 
@@ -258,6 +264,15 @@ impl Resource {
 
     pub fn closed(&mut self) -> Closed<'_> {
         Closed { resource: self }
+    }
+
+    pub fn close(mut self) -> impl Future<Output = Result<(), OpError>> + Send {
+        async move {
+            if self.ended.is_none() {
+                self.caller.request_cancel(self.op);
+            }
+            self.closed().await
+        }
     }
 }
 
@@ -510,6 +525,14 @@ impl Caller for Peer {
         }
         if state.connection.is_pending(op) {
             state.forgotten.insert(op);
+            state.connection.cancel(op);
+        }
+        state.flush(&self.0.sink);
+    }
+
+    fn request_cancel(&self, op: OpId) {
+        let mut state = self.state();
+        if state.calls.contains_key(&op) {
             state.connection.cancel(op);
         }
         state.flush(&self.0.sink);

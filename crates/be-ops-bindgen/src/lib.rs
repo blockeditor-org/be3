@@ -633,6 +633,14 @@ impl Generator {
                     pub fn closed(&mut self) -> ::be_ops::net::Closed<'_> {
                         self.0.closed()
                     }
+
+                    pub fn close(
+                        self,
+                    ) -> impl ::core::future::Future<
+                        Output = ::core::result::Result<(), ::be_ops::OpError>,
+                    > + ::core::marker::Send {
+                        self.0.close()
+                    }
                 }
             });
         }
