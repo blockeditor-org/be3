@@ -39,9 +39,17 @@ fn a_dialog_is_modal_to_accessibility_and_a_popover_is_not() {
         .trigger();
     harness.click(harness.center(trigger));
     harness.settle();
-    assert_eq!(modal(&harness, "Filters"), Some(false), "a popover blocks nothing");
+    assert_eq!(
+        modal(&harness, "Filters"),
+        Some(false),
+        "a popover blocks nothing"
+    );
 
     open.set(true);
     harness.settle();
-    assert_eq!(modal(&harness, "Discard"), Some(true), "a dialog blocks the whole app");
+    assert_eq!(
+        modal(&harness, "Discard"),
+        Some(true),
+        "a dialog blocks the whole app"
+    );
 }
