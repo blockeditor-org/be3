@@ -552,6 +552,16 @@ impl Document {
         viewers
     }
 
+    pub fn is_cut(&self, node: NodeId) -> bool {
+        let Some(rect) = self.node_rect(node) else {
+            return false;
+        };
+        self.enclosing_viewers(node).into_iter().any(|viewer| {
+            self.node_rect(viewer)
+                .is_some_and(|shown| !shown.expand(0.5).contains_rect(rect))
+        })
+    }
+
     pub fn reveal_node(&mut self, node: NodeId) {
         for viewer in self.enclosing_viewers(node) {
             self.reveal_in(viewer, node);

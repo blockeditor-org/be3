@@ -94,8 +94,8 @@ nothing it does (a handler's effect, a row added, a dialog opened) shows in show
 or the model until the next run(). Call run() after every gesture — the view only sees an
 event on the frame it is delivered in — and click a text field before typing into it. click() first scrolls a target that is out of view into it
 (`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
-DocumentTest alike (BeuiTest also when it is only partly in view, such as a row its menu's
-scroll cuts), so a test need not know how much fits on its screen. It panics when no
+DocumentTest alike (BeuiTest also when a scroll only partly shows it, such as a row a menu's
+scroll cuts, `Document::is_cut`), so a test need not know how much fits on its screen. It panics when no
 node has that test id, which is usually a node that was never given one, or one a virtualized
 list has not built; shown() and label() ask about one without clicking it.
 

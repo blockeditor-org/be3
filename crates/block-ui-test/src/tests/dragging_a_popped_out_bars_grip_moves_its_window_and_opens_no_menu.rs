@@ -5,7 +5,7 @@ use beui::dock::styled::{
 };
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
-const DISPLAY: Vec2 = vec2(900.0, 800.0);
+const DISPLAY: Vec2 = vec2(900.0, 600.0);
 
 struct PoppedApp;
 
@@ -88,6 +88,13 @@ fn dragging_a_popped_out_bars_grip_moves_its_window_and_opens_no_menu() {
         "the menu escapes the bar's small window to show whole: {hide:?} {window:?}"
     );
 
+    test.reveal("grip.dock.bar.hide");
+    let display = Rect::from_min_size(Pos2::ZERO, DISPLAY);
+    let hide = test.desk_rects_of("grip.dock.bar.hide")[0];
+    assert!(
+        display.contains_rect(hide),
+        "the menu, taller than the room on either side of its grip, fits the display and scrolls its last row into it: {hide:?}"
+    );
     test.click("grip.dock.bar.hide");
     test.run();
     test.run();

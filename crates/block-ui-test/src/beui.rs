@@ -1860,12 +1860,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        let whole = self
-            .test_ids()
-            .iter()
-            .find(|(named, _)| *named == test_id)
-            .is_some_and(|(_, shown)| shown.iter().all(|at| at.whole));
-        if whole && self.rect().contains_rect(self.rect_of(test_id)) {
+        let cut = {
+            let document = self.document();
+            document
+                .find_test_ids(test_id)
+                .into_iter()
+                .any(|node| document.is_cut(node))
+        };
+        if !cut && (self.desk.is_some() || self.rect().contains_rect(self.rect_of(test_id))) {
             return;
         }
         {
@@ -2113,6 +2115,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn point(&mut self, target: Target) -> Pos2 {
         match target {
             Target::Id(id, offset) if self.desk.is_some() => {
+                self.reveal(&id);
                 self.desk_point(&id, offset).unwrap_or_else(|| {
                     panic!(
                         "no element with test id {id:?} on the desk\n{}",
