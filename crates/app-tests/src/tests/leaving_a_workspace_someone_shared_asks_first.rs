@@ -54,7 +54,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.type_text("dev");
     app.click("Button \"Dev\"");
     app.click("#share.add");
-    app.wait("Heading \"Dev\"");
+    app.wait("Label value=\"Dev\"");
     app.click("#share.close");
 
     app.click("#file-tree.app-menu");

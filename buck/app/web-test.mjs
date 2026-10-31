@@ -13,6 +13,9 @@
 // does), so the browser's own focus, key and text paths run.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
+// `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
+// visible element with that ARIA role and exact accessible name, in each STATE given (checked,
+// disabled, expanded, pressed, selected, each also as not-STATE, or level=N).
 // After every command the document itself must not scroll or overflow the
 // viewport (a beui app owns its viewport, and only its Scrolls scroll), and the
 // browser must not draw its focus ring on what beui draws its own for.
@@ -266,6 +269,26 @@ async function step(page, words) {
             const selected = await page.evaluate(() => String(getSelection() ?? ""));
             if ((selected.trim() !== "") !== wanted) {
                 throw new Failure(selected ? `the page selected ${JSON.stringify(selected)}` : "the page selected nothing");
+            }
+            return "";
+        }
+        case "role": {
+            const [role, name, ...states] = args;
+            if (!role || name === undefined) throw new Failure("role takes a ROLE, a NAME and any STATEs");
+            const query = { name, exact: true };
+            for (const state of states) {
+                const level = state.match(/^level=(\d+)$/);
+                const [key, value] = level ? ["level", Number(level[1])]
+                    : state.startsWith("not-") ? [state.slice(4), false] : [state, true];
+                if (!["checked", "disabled", "expanded", "pressed", "selected", "level"].includes(key)) {
+                    throw new Failure(`role takes checked, disabled, expanded, pressed, selected or level=N, not ${state}`);
+                }
+                query[key] = value;
+            }
+            try {
+                await page.getByRole(role, query).waitFor({ timeout: timeout * 1000 });
+            } catch (error) {
+                throw new Failure(`getByRole(${JSON.stringify(role)}, ${JSON.stringify(query)}): ${error.message.split("\n")[0]}`);
             }
             return "";
         }

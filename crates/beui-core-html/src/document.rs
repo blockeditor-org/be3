@@ -16,6 +16,8 @@ pub(crate) struct Shared {
     style: Vec<(&'static str, String)>,
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
+    described_by: Option<u32>,
+    aria: Vec<(&'static str, String)>,
 }
 
 pub(crate) struct Entry {
@@ -360,19 +362,27 @@ pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
 }
 
 pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
-    let heading = (accessibility.role() == accesskit::Role::Heading)
-        .then(|| accessibility.level().unwrap_or(2).clamp(1, 6));
-    let was_heading = with_entry(node, |entry| {
-        entry
-            .accessibility
-            .replace(accessibility)
-            .is_some_and(|old| old.role() == accesskit::Role::Heading)
-    })
-    .unwrap_or(false);
-    if heading.is_some() || was_heading {
-        set_attribute(node, "role", heading.map(|_| "heading".to_owned()));
-        set_attribute(node, "aria-level", heading.map(|level| level.to_string()));
+    let Some((element, shared, wraps)) = with_entry(node, |entry| {
+        (entry.element.clone(), entry.shared.clone(), entry.wraps)
+    }) else {
+        return;
+    };
+    let attributes = crate::aria::attributes(&accessibility, element.tag());
+    with_entry(node, |entry| entry.accessibility = Some(accessibility));
+    let mut shared = shared.borrow_mut();
+    if shared.described_by.is_some_and(|outer| outer > wraps) {
+        return;
     }
+    shared.described_by = Some(wraps);
+    for (name, _) in &shared.aria {
+        if !attributes.iter().any(|(set, _)| set == name) {
+            element.set_attribute(name, None);
+        }
+    }
+    for (name, value) in &attributes {
+        element.set_attribute(name, Some(value.clone()));
+    }
+    shared.aria = attributes;
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
@@ -414,7 +424,7 @@ pub struct About {
 pub fn about_elements() -> Vec<About> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
-        let mut found: Vec<(About, u32)> = Vec::new();
+        let mut found: Vec<(About, u32, Option<u32>)> = Vec::new();
         let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::default();
         for (index, (generation, entry)) in arena.slots.iter().enumerate() {
             let Some(entry) = entry.as_ref() else {
@@ -433,20 +443,22 @@ pub fn about_elements() -> Vec<About> {
                             accessibility: None,
                         },
                         entry.wraps,
+                        None,
                     ));
                     found.len() - 1
                 });
-            let (about, wraps) = &mut found[at];
+            let (about, wraps, described) = &mut found[at];
             if *wraps < entry.wraps {
                 about.node = node;
                 *wraps = entry.wraps;
             }
             about.kinds.push(entry.kind);
-            if about.accessibility.is_none() {
+            if entry.accessibility.is_some() && described.is_none_or(|outer| outer < entry.wraps) {
                 about.accessibility = entry.accessibility.clone();
+                *described = Some(entry.wraps);
             }
         }
-        found.into_iter().map(|(about, _)| about).collect()
+        found.into_iter().map(|(about, ..)| about).collect()
     })
 }
 

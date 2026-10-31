@@ -1,0 +1,20 @@
+# Controls carry their ARIA roles and states on the HTML core, so the browser's
+# accessibility tree (Playwright's getByRole) finds them as a screen reader would,
+# and a state that changes follows.
+clock stop
+click '#demo.catalog.Choices'
+wait 'Tab "Choices" selected'
+role tab Choices selected
+role button 'Close tab'
+role heading 'Radio group' level=2
+role radio Automatic checked
+role radio Manual not-checked
+role option Blue selected
+role option Amber not-selected
+role combobox 'Favorite fruit'
+role switch Kitchen checked
+role switch Hall not-checked
+click 'RadioButton "Manual"'
+wait 'RadioButton "Manual" toggled=True'
+role radio Manual checked
+role radio Automatic not-checked

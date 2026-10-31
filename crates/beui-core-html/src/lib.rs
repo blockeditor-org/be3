@@ -1,3 +1,4 @@
+mod aria;
 pub mod automate;
 pub mod canvas;
 pub mod colors;

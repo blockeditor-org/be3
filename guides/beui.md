@@ -753,6 +753,18 @@ through a hidden textarea on HTML. The one exception is a plain single-line
 `TextInput`, which is a real `<input>` on HTML ([Forms and text
 fields](#forms-and-text-fields)).
 
+On the HTML core a component's accessibility node (`component_accessibility`)
+becomes ARIA on its element: its role, name (`aria-label`) and states
+(checked or pressed, selected, expanded, disabled, a range's value, minimum and
+maximum, a heading's level, ...), all mapped by the one table in
+`beui-core-html`'s `aria.rs`. An element that already is the matching native
+element (the `<input>` of a plain `TextInput`, a `<button>`, an `<a>`, an
+overlay's `<dialog>`) keeps its own role. When one element holds several
+components' nodes (a component whose root is its child's), the outermost
+node describes it, in the DOM and in `automate`'s tree alike. The drive lines
+come from the accessibility nodes, not the ARIA, so they read the same on both
+cores; a web drive script checks the ARIA itself with `role` (guides/testing_a_gui.md).
+
 An app on the HTML core starts with `beui::html::run(element_id, build)` in
 the browser. To serve a page that shows before any script runs, render it on
 the host with `beui::html::render_to_string(build)` (a program built for

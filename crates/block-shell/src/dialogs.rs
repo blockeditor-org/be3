@@ -549,7 +549,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             <Text align=TextAlign::Center>
                                 <Icon glyph=ICON_USER />
                             </Text>
-                            <Text style=TextStyle::HEADING>{name}</Text>
+                            <Text size=TextSize::Lg>{name}</Text>
                         </List>
                         <Text style=TextStyle::CAPTION>{email}</Text>
                         <Show condition={is_fixed}>
