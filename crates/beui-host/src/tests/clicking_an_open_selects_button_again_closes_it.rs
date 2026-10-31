@@ -19,17 +19,15 @@ fn clicking_an_open_selects_button_again_closes_it() {
                     traps_focus=false
                     open=true
                     on_dismiss={|_: Dismiss| {}}
-                >
-                    || {
-                        let options = view! {
-                            <unstyled::ChoiceOption label="Apple" />
-                            <unstyled::ChoiceOption label="Banana" />
-                        };
-                        view! {
-                            <Select api={select} options />
-                        }
+                >|| {
+                    let options = view! {
+                        <unstyled::ChoiceOption label="Apple" />
+                        <unstyled::ChoiceOption label="Banana" />
+                    };
+                    view! {
+                        <Select api={select} options />
                     }
-                </Overlay>
+                }</Overlay>
             </Frame>
         }
     });
