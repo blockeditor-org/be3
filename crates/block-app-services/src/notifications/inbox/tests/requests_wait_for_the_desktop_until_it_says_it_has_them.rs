@@ -2,15 +2,15 @@ use super::*;
 
 #[test]
 fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
-    let (mut inbox, ids, sender, receiver) = inbox();
-    let first = notify(&ids, &sender, 0);
-    sender.send(NotificationRequest::Close(first)).unwrap();
-    let (changed, signals) = inbox.frame(&receiver, Vec::new());
+    let (mut inbox, ids, mut sent) = inbox();
+    let first = notify(&ids, &mut sent, 0);
+    sent.push(NotificationRequest::Close(first));
+    let (changed, signals) = inbox.frame(std::mem::take(&mut sent), Vec::new());
     assert!(changed);
     assert!(signals.is_empty());
     assert_eq!(sequences(&inbox), vec![1, 2]);
 
-    let (changed, _) = inbox.frame(&receiver, Vec::new());
+    let (changed, _) = inbox.frame(std::mem::take(&mut sent), Vec::new());
     assert!(!changed, "nothing new arrived");
 
     let report = NotificationReport {
@@ -21,7 +21,7 @@ fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
         }],
         kept: vec![first],
     };
-    let (changed, signals) = inbox.frame(&receiver, vec![report]);
+    let (changed, signals) = inbox.frame(std::mem::take(&mut sent), vec![report]);
     assert!(changed);
     assert_eq!(
         sequences(&inbox),
@@ -38,9 +38,9 @@ fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
     );
 
     for _ in 0..MAX_PENDING + 2 {
-        notify(&ids, &sender, 0);
+        notify(&ids, &mut sent, 0);
     }
-    let (_, signals) = inbox.frame(&receiver, Vec::new());
+    let (_, signals) = inbox.frame(std::mem::take(&mut sent), Vec::new());
     assert_eq!(inbox.published().requests.len(), MAX_PENDING);
     assert_eq!(
         signals.len(),

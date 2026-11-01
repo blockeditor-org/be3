@@ -18,7 +18,7 @@ use block_app_stack::{discovery, revisions};
 
 type Visit<'a> = dyn FnMut(&mut [u8; 16]) + 'a;
 
-struct Delivered {
+pub(super) struct Delivered {
     epoch: u64,
     instance: EditorInstanceId,
     op: OpId,
@@ -37,27 +37,14 @@ struct Work {
     aborted: Aborted,
 }
 
+#[derive(Default)]
 pub(super) struct Services {
-    sender: host::WakingSender<Delivered>,
-    receiver: std::sync::mpsc::Receiver<Delivered>,
     serving: HashMap<OpId, Work>,
     answers: Vec<(OpId, Outcome)>,
 }
 
-impl Default for Services {
-    fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self {
-            sender,
-            receiver,
-            serving: HashMap::default(),
-            answers: Vec::new(),
-        }
-    }
-}
-
 struct Answering<T, E = wire::Plain> {
-    sender: host::WakingSender<Delivered>,
+    sender: host::Post<Delivered>,
     epoch: u64,
     instance: EditorInstanceId,
     op: OpId,
@@ -71,7 +58,7 @@ impl<T, E> Answering<T, E> {
     }
 
     fn deliver(self, answer: Answer) {
-        let _ = self.sender.send(Delivered {
+        self.sender.send(Delivered {
             epoch: self.epoch,
             instance: self.instance,
             op: self.op,
@@ -135,7 +122,7 @@ impl Instances {
     ) -> Answering<T, E> {
         let aborted = self.work(instance, reply.op()).flag();
         Answering {
-            sender: self.services.sender.clone(),
+            sender: self.mail.answers.1.clone(),
             epoch: self.epoch,
             instance,
             op: reply.op(),
@@ -456,60 +443,57 @@ impl Instances {
         self.services.answers.clear();
     }
 
-    pub(super) fn deliver_answers(&mut self) {
-        while let Ok(delivered) = self.services.receiver.try_recv() {
-            let live = delivered.epoch == self.epoch
-                && self.entries.contains_key(&delivered.instance)
-                && self
-                    .services
-                    .serving
-                    .get(&delivered.op)
-                    .is_some_and(|work| work.instance == delivered.instance);
-            if live {
-                self.services.serving.remove(&delivered.op);
+    pub(super) fn service_answered(&mut self, delivered: Delivered) {
+        let live = delivered.epoch == self.epoch
+            && self.entries.contains_key(&delivered.instance)
+            && self
+                .services
+                .serving
+                .get(&delivered.op)
+                .is_some_and(|work| work.instance == delivered.instance);
+        if live {
+            self.services.serving.remove(&delivered.op);
+        }
+        let instance = delivered.instance;
+        let outcome = match delivered.answer {
+            Answer::Done(outcome) => outcome,
+            Answer::Previewed(Ok(preview)) if !live => {
+                revisions::release(preview);
+                return;
             }
-            let instance = delivered.instance;
-            let outcome = match delivered.answer {
-                Answer::Done(outcome) => outcome,
-                Answer::Previewed(Ok(preview)) if !live => {
-                    revisions::release(preview);
-                    continue;
+            Answer::Previewed(previewed) => {
+                if let (Ok(preview), Some(entry)) = (&previewed, self.entries.get_mut(&instance)) {
+                    entry.revision_previews.insert(*preview);
                 }
-                Answer::Previewed(previewed) => {
-                    if let (Ok(preview), Some(entry)) =
-                        (&previewed, self.entries.get_mut(&instance))
-                    {
-                        entry.revision_previews.insert(*preview);
-                    }
-                    let previewed: Result<[u8; 16], Failure> =
-                        previewed.map(|preview| self.local(instance, preview.into_bytes()));
-                    Outcome::returned(&previewed)
-                }
-                Answer::Imported(imported) => {
-                    let imported = imported.map(|imported| {
-                        imported.map(|imported| ImportedBlock {
-                            block_id: self.local(instance, imported.block_id),
-                            ..imported
-                        })
-                    });
-                    Outcome::returned(&imported)
-                }
-                Answer::Listed(listed) => {
-                    let listed = listed.map(|mut listed| {
-                        listed.visit_block_ids(&mut |_, id| *id = self.local(instance, *id));
-                        listed
-                    });
-                    Outcome::returned(&listed)
-                }
-            };
-            if live {
-                self.services.answers.push((delivered.op, outcome));
+                let previewed: Result<[u8; 16], Failure> =
+                    previewed.map(|preview| self.local(instance, preview.into_bytes()));
+                Outcome::returned(&previewed)
             }
+            Answer::Imported(imported) => {
+                let imported = imported.map(|imported| {
+                    imported.map(|imported| ImportedBlock {
+                        block_id: self.local(instance, imported.block_id),
+                        ..imported
+                    })
+                });
+                Outcome::returned(&imported)
+            }
+            Answer::Listed(listed) => {
+                let listed = listed.map(|mut listed| {
+                    listed.visit_block_ids(&mut |_, id| *id = self.local(instance, *id));
+                    listed
+                });
+                Outcome::returned(&listed)
+            }
+        };
+        if live {
+            self.services.answers.push((delivered.op, outcome));
         }
     }
 
     pub fn take_answers(&mut self) -> Vec<(OpId, Outcome)> {
-        self.deliver_answers();
+        let desk = self.mail.desk;
+        desk.deliver(self);
         std::mem::take(&mut self.services.answers)
     }
 }

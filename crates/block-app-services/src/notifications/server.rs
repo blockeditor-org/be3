@@ -17,7 +17,7 @@ use zbus::zvariant::OwnedValue;
 
 use super::hints;
 use super::inbox::Ids;
-use block_app_base::host::WakingSender;
+use block_app_base::host::Post;
 
 const NAME: &str = "org.freedesktop.Notifications";
 const PATH: &str = "/org/freedesktop/Notifications";
@@ -41,7 +41,7 @@ struct Looks {
 }
 
 struct Server {
-    requests: WakingSender<NotificationRequest>,
+    requests: Post<NotificationRequest>,
     ids: Arc<Mutex<Ids>>,
     looks: OnceLock<Looks>,
 }
@@ -210,14 +210,12 @@ impl Server {
         let mut ids = self.ids.lock().unwrap_or_else(PoisonError::into_inner);
         incoming.id = ids.assign(replaces_id);
         let id = incoming.id;
-        self.requests
-            .send(NotificationRequest::Notify(incoming))
-            .map_err(|_| fdo::Error::Failed("the desktop has closed".to_owned()))?;
+        self.requests.send(NotificationRequest::Notify(incoming));
         Ok(id)
     }
 
     async fn close_notification(&self, id: u32) {
-        let _ = self.requests.send(NotificationRequest::Close(id));
+        self.requests.send(NotificationRequest::Close(id));
     }
 
     fn get_capabilities(&self) -> Vec<String> {
@@ -250,7 +248,7 @@ impl Server {
 }
 
 pub async fn run(
-    requests: WakingSender<NotificationRequest>,
+    requests: Post<NotificationRequest>,
     mut signals: UnboundedReceiver<NotificationSignal>,
     ids: Arc<Mutex<Ids>>,
 ) {

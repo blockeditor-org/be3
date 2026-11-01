@@ -22,7 +22,7 @@ use super::{
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
-    heads::{HeadReads, Heads},
+    heads::{HeadRead, Heads},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
@@ -64,8 +64,8 @@ pub(super) struct Instances {
     services: services::Services,
     epoch: u64,
     graph_seen: Option<u64>,
-    audio_changes: AudioChanges,
-    head_reads: HeadReads,
+    mail: Mail,
+    mailed: Vec<Outbound>,
     published: Published,
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
@@ -77,15 +77,22 @@ pub(super) struct Instances {
     relaying: HashSet<EditorInstanceId>,
 }
 
-struct AudioChanges {
-    sender: host::WakingSender<EditorInstanceId>,
-    receiver: std::sync::mpsc::Receiver<EditorInstanceId>,
+struct Mail {
+    desk: host::Desk<Instances>,
+    head_reads: (host::Mailbox, host::Post<HeadRead>),
+    audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
+    answers: (host::Mailbox, host::Post<services::Delivered>),
 }
 
-impl Default for AudioChanges {
+impl Default for Mail {
     fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
+        let desk = host::Desk::default();
+        Self {
+            desk,
+            head_reads: desk.mailbox(Instances::head_read),
+            audio_changes: desk.mailbox(Instances::audio_changed),
+            answers: desk.mailbox(Instances::service_answered),
+        }
     }
 }
 
@@ -2044,11 +2051,14 @@ impl Instances {
             if stale || graph_moved {
                 entry.offer_histories();
                 let mut heads = Vec::new();
-                entry
-                    .heads
-                    .request(instance, self.epoch, &self.head_reads, |block, head| {
+                entry.heads.request(
+                    instance,
+                    self.epoch,
+                    &self.mail.head_reads.1,
+                    |block, head| {
                         heads.push((block, head));
-                    });
+                    },
+                );
                 for (block, head) in heads {
                     entry.offer(Subject::Head(block), &head);
                 }
@@ -3203,32 +3213,34 @@ impl Instances {
     }
 
     pub(super) fn pending(&mut self) -> Vec<Outbound> {
-        let entries = &mut self.entries;
-        self.head_reads
-            .arrived(self.epoch, |instance, block, commit, head| {
-                if let Some(entry) = entries.get_mut(&instance)
-                    && entry.heads.wants(block, commit)
-                {
-                    entry.offer(Subject::Head(block), &head);
-                }
-            });
-        let mut messages: Vec<Outbound> = Vec::new();
-        let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
-        played.sort_by_key(|instance| instance.0);
-        played.dedup();
-        for instance in played {
-            if let Some(player) = self
-                .entries
-                .get(&instance)
-                .and_then(|entry| entry.audio.as_ref())
-            {
-                messages.push(Outbound::Editor(
-                    instance,
-                    EditorCall::AudioStatus(player.status()),
-                ));
-            }
+        let desk = self.mail.desk;
+        desk.deliver(self);
+        std::mem::take(&mut self.mailed)
+    }
+
+    fn head_read(&mut self, read: HeadRead) {
+        if let Some((instance, block, commit, head)) = read.opened(self.epoch)
+            && let Some(entry) = self.entries.get_mut(&instance)
+            && entry.heads.wants(block, commit)
+        {
+            entry.offer(Subject::Head(block), &head);
         }
-        messages
+    }
+
+    fn audio_changed(&mut self, instance: EditorInstanceId) {
+        if let Some(player) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.audio.as_ref())
+        {
+            self.mailed.retain(|mailed| {
+                !matches!(mailed, Outbound::Editor(to, EditorCall::AudioStatus(_)) if *to == instance)
+            });
+            self.mailed.push(Outbound::Editor(
+                instance,
+                EditorCall::AudioStatus(player.status()),
+            ));
+        }
     }
 
     pub(super) fn watch_published(
@@ -3405,12 +3417,10 @@ impl Instances {
                 return changed;
             }
             ShellCall::PlayAudio { command, .. } => {
-                let changes = self.audio_changes.sender.clone();
-                let player = entry.audio.get_or_insert_with(|| {
-                    AudioPlayer::new(move || {
-                        let _ = changes.send(instance);
-                    })
-                });
+                let changes = self.mail.audio_changes.1.clone();
+                let player = entry
+                    .audio
+                    .get_or_insert_with(|| AudioPlayer::new(move || changes.send(instance)));
                 match command {
                     AudioCommand::Load(source) => player.load(source),
                     AudioCommand::Toggle => player.toggle(),

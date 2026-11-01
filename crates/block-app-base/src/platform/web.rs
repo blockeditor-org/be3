@@ -1,12 +1,9 @@
-use std::{future::Future, sync::mpsc::Receiver};
+use std::future::Future;
 
-pub fn spawn_request<T>(future: impl Future<Output = T> + 'static) -> Receiver<T>
-where
-    T: 'static,
-{
-    let (sender, receiver) = crate::host::waking_channel();
-    wasm_bindgen_futures::spawn_local(async move {
-        let _ = sender.send(future.await);
-    });
-    receiver
+pub trait Request<T>: Future<Output = T> + 'static {}
+
+impl<T, F: Future<Output = T> + 'static> Request<T> for F {}
+
+pub fn spawn_request(request: impl Request<()>) {
+    wasm_bindgen_futures::spawn_local(request);
 }

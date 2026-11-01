@@ -116,7 +116,17 @@ the `ProgramSource` that lists the installed programs, their icons and openers a
 `programs/installed.rs` is the one `Programs<S>` over it that scans on a thread, holds launches
 until the list is in and publishes `ProgramsWatch`. The scan's results reach the UI thread through
 `block_app_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
-them. The web and Android apps have no `--desktop`: a desktop with none of
+them.
+
+That mailbox is the one way any work in block-app hands a result back to the UI thread: a worker
+`Post::send`s a value, which wakes the event loop, and the handler runs on the thread that made
+the mailbox. Dropping the `Mailbox` cancels it: whatever is still on its way is dropped. A handler
+that needs `&mut` state its owner holds is made on a `host::Desk<C>`, and runs, given the
+`&mut C`, when the owner calls `desk.deliver(&mut c)`: `BlockApp`'s account, organization, key,
+member and contact requests and logind's events go through its desk at the start of its frame
+(`request(work, handler)` in main.rs spawns one), each plugin's `Instances` delivers head reads,
+audio changes and service answers on its own, and so do `Programs` and `ScreenLock`. The web and
+Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to

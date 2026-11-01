@@ -4,10 +4,14 @@ mod players;
 #[cfg(test)]
 mod tests;
 
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
+use block_app_base::host::{self, Mailbox};
+
+use block_plugin_api::{
+    AudioOutput, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AudioRequest {
@@ -54,26 +58,30 @@ pub enum MediaEvent {
 
 pub struct Media {
     backends: Backends,
-    events: Receiver<MediaEvent>,
-    levels: MediaLevels,
+    _events: Mailbox,
 }
 
 impl Media {
     pub fn start() -> Self {
-        let (sender, events) = block_app_base::host::waking_channel();
+        let levels = RefCell::new(MediaLevels::default());
+        block_app_base::watches::publish::<MediaWatch>(&levels.borrow());
+        let (events, post) = host::mailbox(move |event: MediaEvent| {
+            let mut levels = levels.borrow_mut();
+            heard(&mut levels, event);
+            block_app_base::watches::publish::<MediaWatch>(&levels);
+        });
         let backends = Backends {
-            audio: Rc::new(audio::PulseAudio::start(sender.clone())),
-            backlight: Rc::new(backlight::LogindBacklight::start(sender)),
+            audio: Rc::new(audio::PulseAudio::start(post.clone())),
+            backlight: Rc::new(backlight::LogindBacklight::start(post)),
             players: Rc::new(players::Mpris::start()),
         };
         Self::with(backends, events)
     }
 
-    pub fn with(backends: Backends, events: Receiver<MediaEvent>) -> Self {
+    pub fn with(backends: Backends, events: Mailbox) -> Self {
         Self {
             backends,
-            events,
-            levels: MediaLevels::default(),
+            _events: events,
         }
     }
 
@@ -106,21 +114,17 @@ impl Media {
             MediaRequest::Player(command) => backends.players.request(command),
         }
     }
+}
 
-    pub fn frame(&mut self) -> Option<MediaLevels> {
-        let before = self.levels.clone();
-        for event in self.events.try_iter() {
-            match event {
-                MediaEvent::Audio(audio) => {
-                    self.levels.output = audio.output;
-                    self.levels.input = audio.input;
-                    self.levels.outputs = audio.outputs;
-                    self.levels.default_output = audio.default_output;
-                }
-                MediaEvent::Brightness(level) => self.levels.brightness = Some(level),
-            }
+fn heard(levels: &mut MediaLevels, event: MediaEvent) {
+    match event {
+        MediaEvent::Audio(audio) => {
+            levels.output = audio.output;
+            levels.input = audio.input;
+            levels.outputs = audio.outputs;
+            levels.default_output = audio.default_output;
         }
-        (self.levels != before).then(|| self.levels.clone())
+        MediaEvent::Brightness(level) => levels.brightness = Some(level),
     }
 }
 

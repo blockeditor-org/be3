@@ -7,12 +7,11 @@ mod pam;
 mod power;
 mod sleep;
 
-use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use block_plugin_api::{PowerAction, PowerAvailability};
 
-use block_app_base::host::{WakingSender, waking_channel};
+use block_app_base::host::{Desk, Mailbox, Post};
 use block_app_base::password::Password;
 use block_app_desktop::desktop_host::{DesktopHost, Host};
 pub(crate) use environment::export as export_environment;
@@ -20,7 +19,8 @@ pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Trigger};
 pub(crate) use log::start_log;
-use logind::{Logind, LogindEvent};
+use logind::Logind;
+pub(crate) use logind::LogindEvent;
 use power::{LogindCall, Power, SessionControl};
 use sleep::{Inhibit, SleepGuard};
 
@@ -33,6 +33,8 @@ pub(crate) fn owns_a_seat(setup: &beui::native::Setup) -> bool {
 
 pub(crate) struct ScreenLock {
     lock: Lock,
+    desk: Desk<ScreenLock>,
+    _answers: Mailbox,
     pam: Pam,
     user: String,
     drawn: u32,
@@ -50,9 +52,16 @@ impl ScreenLock {
             .as_ref()
             .map(|(_, shown)| shown.clone())
             .unwrap_or_default();
+        let desk = Desk::default();
+        let (answers, post) = desk.mailbox(|lock: &mut ScreenLock, (attempt, verdict)| {
+            lock.lock
+                .answered(attempt, verdict, block_app_base::host::now());
+        });
         Self {
             lock: Lock::default(),
-            pam: Pam::new(user.map(|(name, _)| name)),
+            desk,
+            _answers: answers,
+            pam: Pam::new(user.map(|(name, _)| name), post),
             user: shown,
             drawn: 0,
         }
@@ -79,11 +88,9 @@ impl ScreenLock {
     }
 
     pub(crate) fn frame(&mut self) {
-        let now = block_app_base::host::now();
-        for (attempt, verdict) in self.pam.answers.try_iter().collect::<Vec<_>>() {
-            self.lock.answered(attempt, verdict, now);
-        }
-        if let Some(wait) = self.lock.wait(now) {
+        let desk = self.desk;
+        desk.deliver(self);
+        if let Some(wait) = self.lock.wait(block_app_base::host::now()) {
             block_app_base::host::request_repaint_after(until_next_second(wait));
         }
     }
@@ -118,19 +125,16 @@ fn until_next_second(wait: Duration) -> Duration {
 struct Pam {
     user: Option<String>,
     service: &'static str,
-    sender: WakingSender<(u64, Verdict)>,
-    answers: Receiver<(u64, Verdict)>,
+    answers: Post<(u64, Verdict)>,
 }
 
 impl Pam {
-    fn new(user: Option<String>) -> Self {
-        let (sender, answers) = waking_channel();
+    fn new(user: Option<String>, answers: Post<(u64, Verdict)>) -> Self {
         let service = pam::service();
         eprintln!("block-app: the lock screen checks passwords with PAM's {service} service");
         Self {
             user,
             service,
-            sender,
             answers,
         }
     }
@@ -139,13 +143,13 @@ impl Pam {
 impl Authenticate for Pam {
     fn start(&mut self, attempt: u64, password: Password) {
         let Some(user) = self.user.clone() else {
-            let _ = self.sender.send((
+            self.answers.send((
                 attempt,
                 Verdict::Failed("this user has no account entry".to_owned()),
             ));
             return;
         };
-        let (sender, service) = (self.sender.clone(), self.service);
+        let (answers, service) = (self.answers.clone(), self.service);
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
@@ -155,10 +159,10 @@ impl Authenticate for Pam {
                 let verdict = checked.unwrap_or_else(|_| {
                     Verdict::Failed("the check stopped unexpectedly".to_owned())
                 });
-                let _ = sender.send((attempt, verdict));
+                answers.send((attempt, verdict));
             });
         if let Err(error) = spawned {
-            let _ = self.sender.send((
+            self.answers.send((
                 attempt,
                 Verdict::Failed(format!("the check did not start: {error}")),
             ));
@@ -167,6 +171,7 @@ impl Authenticate for Pam {
 }
 
 pub(crate) struct LoginSession {
+    _events: Mailbox,
     logind: Logind,
     power: Power,
     sleep: SleepGuard,
@@ -175,11 +180,12 @@ pub(crate) struct LoginSession {
 }
 
 impl LoginSession {
-    pub(crate) fn start() -> Self {
-        let logind = Logind::connect();
+    pub(crate) fn start((events, post): (Mailbox, Post<LogindEvent>)) -> Self {
+        let logind = Logind::connect(post);
         let mut sleep = SleepGuard::default();
         sleep.hold(&mut Inhibitor(&logind));
         Self {
+            _events: events,
             logind,
             power: Power::default(),
             sleep,
@@ -196,28 +202,31 @@ impl LoginSession {
         self.power.availability()
     }
 
-    pub(crate) fn frame(&mut self, context: &beui::native::Context, lock: &mut ScreenLock) {
+    pub(crate) fn heard(&mut self, event: LogindEvent, lock: &mut ScreenLock) {
+        let mut control = Live {
+            logind: &self.logind,
+        };
+        match event {
+            LogindEvent::Abilities(abilities) => self.power.set_abilities(abilities),
+            LogindEvent::Called(call, result) => self.power.called(call, result, &mut control),
+            LogindEvent::PrepareForSleep(starting) => {
+                match starting {
+                    true => eprintln!("block-app: logind is suspending the computer"),
+                    false => eprintln!("block-app: the computer woke up"),
+                }
+                self.sleep
+                    .prepare(starting, &mut lock.lock, &mut Inhibitor(&self.logind));
+                block_app_base::host::request_repaint();
+            }
+            LogindEvent::Lock => lock.lock(Trigger::Logind),
+        }
+    }
+
+    pub(crate) fn frame(&mut self, lock: &mut ScreenLock) {
         let now = block_app_base::host::now();
         let mut control = Live {
             logind: &self.logind,
-            context,
         };
-        for event in self.logind.events() {
-            match event {
-                LogindEvent::Abilities(abilities) => self.power.set_abilities(abilities),
-                LogindEvent::Called(call, result) => self.power.called(call, result, &mut control),
-                LogindEvent::PrepareForSleep(starting) => {
-                    match starting {
-                        true => eprintln!("block-app: logind is suspending the computer"),
-                        false => eprintln!("block-app: the computer woke up"),
-                    }
-                    self.sleep
-                        .prepare(starting, &mut lock.lock, &mut Inhibitor(&self.logind));
-                    block_app_base::host::request_repaint();
-                }
-                LogindEvent::Lock => lock.lock(Trigger::Logind),
-            }
-        }
         let wait = self
             .requested
             .take()
@@ -253,7 +262,6 @@ impl Inhibit for Inhibitor<'_> {
 
 struct Live<'a> {
     logind: &'a Logind,
-    context: &'a beui::native::Context,
 }
 
 impl SessionControl for Live<'_> {
@@ -273,7 +281,7 @@ impl SessionControl for Live<'_> {
     }
 
     fn exit(&mut self) {
-        self.context.close_window();
+        block_app_base::host::close_window();
     }
 
     fn report(&mut self, problem: String) {

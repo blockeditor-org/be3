@@ -4,13 +4,16 @@ use be_keys::{RecoveryPhrase, RecoveryPublic, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
+use block_app_base::host::{Mailbox, Post};
 use block_app_base::platform;
+
+pub type Answer<T> = (Mailbox, Post<Result<T, AccountError>>);
 
 #[derive(Default)]
 pub struct KeyState {
     keys: Option<Keys>,
     setup: Option<RecoverySetup>,
-    saving: Option<platform::RequestResult<Result<(), AccountError>>>,
+    saving: Option<Mailbox>,
     pairing: Option<PairingWait>,
     error: Option<String>,
     derived: Cell<Option<([u8; 32], RecoveryPublic)>>,
@@ -24,7 +27,7 @@ struct RecoverySetup {
 
 struct PairingWait {
     code: String,
-    receiver: platform::RequestResult<Result<[u8; 32], AccountError>>,
+    _answer: Mailbox,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -118,6 +121,7 @@ impl KeyState {
         server_url: String,
         token: String,
         identity: Option<[u8; 32]>,
+        saved: Answer<()>,
     ) {
         let Some(setup) = &self.setup else {
             return;
@@ -134,7 +138,7 @@ impl KeyState {
                 Some("Those words do not match the phrase. Check them and try again.".into());
             return;
         }
-        self.save_recovery(server_url, token, identity);
+        self.save_recovery(server_url, token, identity, saved);
     }
 
     pub fn skip_confirmation(
@@ -142,11 +146,18 @@ impl KeyState {
         server_url: String,
         token: String,
         identity: Option<[u8; 32]>,
+        saved: Answer<()>,
     ) {
-        self.save_recovery(server_url, token, identity);
+        self.save_recovery(server_url, token, identity, saved);
     }
 
-    fn save_recovery(&mut self, server_url: String, token: String, identity: Option<[u8; 32]>) {
+    fn save_recovery(
+        &mut self,
+        server_url: String,
+        token: String,
+        identity: Option<[u8; 32]>,
+        (mailbox, post): Answer<()>,
+    ) {
         let Some(setup) = &self.setup else {
             return;
         };
@@ -184,9 +195,9 @@ impl KeyState {
             return;
         };
         self.error = None;
-        self.saving = Some(platform::spawn_request(accounts::set_recovery_key(
-            server_url, token, public, resealed,
-        )));
+        let saving = accounts::set_recovery_key(server_url, token, public, resealed);
+        platform::spawn_request(async move { post.send(saving.await) });
+        self.saving = Some(mailbox);
     }
 
     pub fn unlock_with_phrase(&mut self, typed: &str) -> Option<[u8; 32]> {
@@ -214,10 +225,16 @@ impl KeyState {
         }
     }
 
-    pub fn start_pairing(&mut self, server_url: String, token: String, account: Uuid) {
+    pub fn start_pairing(
+        &mut self,
+        server_url: String,
+        token: String,
+        account: Uuid,
+        (mailbox, post): Answer<[u8; 32]>,
+    ) {
         let code = be_keys::pairing_code();
         let (cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
-        let receiver = platform::spawn_request(accounts::pair(
+        let pairing = accounts::pair(
             server_url,
             token,
             account,
@@ -226,11 +243,12 @@ impl KeyState {
             Box::pin(async move {
                 let _ = cancelled.await;
             }),
-        ));
+        );
+        platform::spawn_request(async move { post.send(pairing.await) });
         self.error = None;
         self.pairing = Some(PairingWait {
             code,
-            receiver,
+            _answer: mailbox,
             _cancel: cancel,
         });
     }
@@ -239,42 +257,42 @@ impl KeyState {
         self.pairing = None;
     }
 
-    pub fn poll(&mut self) -> Option<KeyEvent> {
-        if let Some(saving) = &self.saving
-            && let Ok(result) = saving.try_recv()
-        {
-            self.saving = None;
-            match result {
-                Ok(()) => {
-                    self.keys = None;
-                    if let Some(setup) = self.setup.take() {
-                        return Some(KeyEvent::RecoverySaved(setup.phrase.secret().to_bytes()));
-                    }
-                }
-                Err(error) => self.error = Some(error.message),
+    pub fn saved(&mut self, result: Result<(), AccountError>) -> Option<KeyEvent> {
+        self.saving = None;
+        match result {
+            Ok(()) => {
+                self.keys = None;
+                let setup = self.setup.take()?;
+                Some(KeyEvent::RecoverySaved(setup.phrase.secret().to_bytes()))
+            }
+            Err(error) => {
+                self.error = Some(error.message);
+                None
             }
         }
-        if let Some(pairing) = &self.pairing
-            && let Ok(result) = pairing.receiver.try_recv()
-        {
-            self.pairing = None;
-            match result {
-                Ok(secret) => {
-                    let matches = self.keys.as_ref().and_then(|keys| keys.recovery)
-                        == Some(RecoverySecret::from_bytes(secret).public());
-                    if matches {
-                        return Some(KeyEvent::Unlocked(secret));
-                    }
-                    self.error = Some(
-                        "The other device handed over a key that is not this account's. Try \
-                         again from a device that is unlocked."
-                            .into(),
-                    );
+    }
+
+    pub fn paired(&mut self, result: Result<[u8; 32], AccountError>) -> Option<KeyEvent> {
+        self.pairing = None;
+        match result {
+            Ok(secret) => {
+                let matches = self.keys.as_ref().and_then(|keys| keys.recovery)
+                    == Some(RecoverySecret::from_bytes(secret).public());
+                if matches {
+                    return Some(KeyEvent::Unlocked(secret));
                 }
-                Err(error) => self.error = Some(error.message),
+                self.error = Some(
+                    "The other device handed over a key that is not this account's. Try \
+                     again from a device that is unlocked."
+                        .into(),
+                );
+                None
+            }
+            Err(error) => {
+                self.error = Some(error.message);
+                None
             }
         }
-        None
     }
 
     pub fn recovery_view(&self) -> RecoveryView {

@@ -147,8 +147,8 @@ signal. Logging out closes the app the way closing its window does; `beui-platfo
 `Session::end` then drops the app, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
-learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus. `dbus::session()` is the shared session bus connection.
+learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
+nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
 
 
 ## Notifications

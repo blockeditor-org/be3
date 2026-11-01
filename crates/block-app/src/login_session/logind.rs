@@ -1,5 +1,4 @@
 use std::future::pending;
-use std::sync::mpsc::Receiver;
 
 use futures_util::future::{Either, select};
 use futures_util::{StreamExt, pin_mut};
@@ -9,7 +8,7 @@ use zbus::proxy::SignalStream;
 use zbus::zvariant::{OwnedFd, OwnedObjectPath};
 
 use super::power::{LogindAbilities, LogindCall};
-use block_app_base::host::{WakingSender, waking_channel};
+use block_app_base::host::Post;
 
 const DESTINATION: &str = "org.freedesktop.login1";
 const PATH: &str = "/org/freedesktop/login1";
@@ -34,25 +33,19 @@ enum Request {
 
 pub(crate) struct Logind {
     requests: UnboundedSender<Request>,
-    sender: WakingSender<LogindEvent>,
-    events: Receiver<LogindEvent>,
+    events: Post<LogindEvent>,
 }
 
 impl Logind {
-    pub(crate) fn connect() -> Self {
+    pub(crate) fn connect(events: Post<LogindEvent>) -> Self {
         let (requests, requested) = unbounded_channel();
-        let (sender, events) = waking_channel();
-        block_app_services::dbus::spawn(run(requested, sender.clone()));
-        Self {
-            requests,
-            sender,
-            events,
-        }
+        block_app_services::dbus::spawn(run(requested, events.clone()));
+        Self { requests, events }
     }
 
     pub(crate) fn call(&self, call: LogindCall) {
         if self.requests.send(Request::Call(call)).is_err() {
-            let _ = self.sender.send(LogindEvent::Called(
+            self.events.send(LogindEvent::Called(
                 call,
                 Err("logind is not reachable".to_owned()),
             ));
@@ -70,10 +63,6 @@ impl Logind {
     pub(crate) fn set_locked_hint(&self, locked: bool) {
         let _ = self.requests.send(Request::LockedHint(locked));
     }
-
-    pub(crate) fn events(&self) -> Vec<LogindEvent> {
-        self.events.try_iter().collect()
-    }
 }
 
 enum Next {
@@ -82,7 +71,7 @@ enum Next {
     Lock(Option<()>),
 }
 
-async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<LogindEvent>) {
+async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent>) {
     let Some(connection) = block_app_services::dbus::system().await else {
         return;
     };
@@ -98,7 +87,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<Log
         reboot: can(&manager, "CanReboot").await,
         power_off: can(&manager, "CanPowerOff").await,
     };
-    let _ = events.send(LogindEvent::Abilities(abilities));
+    events.send(LogindEvent::Abilities(abilities));
     let mut sleeps = match manager.receive_signal("PrepareForSleep").await {
         Ok(sleeps) => Some(sleeps),
         Err(error) => {
@@ -136,7 +125,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<Log
                     .call::<_, _, ()>(call.method(), &(false,))
                     .await
                     .map_err(|error| error.to_string());
-                let _ = events.send(LogindEvent::Called(call, result));
+                events.send(LogindEvent::Called(call, result));
             }
             Next::Request(Some(Request::Inhibit)) => {
                 if inhibitor.is_none() {
@@ -153,11 +142,11 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<Log
             }
             Next::Request(None) => return,
             Next::Sleep(Some(starting)) => {
-                let _ = events.send(LogindEvent::PrepareForSleep(starting));
+                events.send(LogindEvent::PrepareForSleep(starting));
             }
             Next::Sleep(None) => sleeps = None,
             Next::Lock(Some(())) => {
-                let _ = events.send(LogindEvent::Lock);
+                events.send(LogindEvent::Lock);
             }
             Next::Lock(None) => locks = None,
         }
