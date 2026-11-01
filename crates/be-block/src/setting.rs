@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use be_model::Edit;
+use be_model::{Edit, FieldRef, ObjectId, Register};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -82,6 +82,22 @@ impl<R, V: Clone> Setting<R, V> {
             get: Rc::new(get),
             set: Rc::new(set),
         }
+    }
+
+    pub fn field(
+        key: impl Into<String>,
+        name: impl Into<String>,
+        field: FieldRef<R, Option<V>>,
+        get: impl Fn(&R) -> Option<V> + 'static,
+    ) -> Self
+    where
+        R: 'static,
+        V: 'static,
+        Option<V>: Register,
+    {
+        Self::new(key, name, get, move |_, value| {
+            field.set(ObjectId::ROOT, &value).into()
+        })
     }
 
     pub fn with_default(mut self, default: Option<V>) -> Self {

@@ -34,6 +34,14 @@ pub enum KindVisibility {
     Members,
 }
 
+pub fn union<K: Ord + Clone, V: Clone>(upper: &Map<K, V>, lower: &Map<K, V>) -> Map<K, V> {
+    lower
+        .iter()
+        .chain(upper.iter())
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
 pub fn layered<R: Layered>(layers: impl IntoIterator<Item = R>) -> R {
     layers
         .into_iter()
@@ -52,13 +60,6 @@ pub struct Settings {
 
 impl Settings {
     pub fn merged(held: impl IntoIterator<Item = Self>) -> Self {
-        fn union<K: Ord + Clone, V: Clone>(upper: &Map<K, V>, lower: &Map<K, V>) -> Map<K, V> {
-            lower
-                .iter()
-                .chain(upper.iter())
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect()
-        }
         held.into_iter()
             .reduce(|upper, lower| Self {
                 kinds: union(&upper.kinds, &lower.kinds),
