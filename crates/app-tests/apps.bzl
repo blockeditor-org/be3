@@ -30,7 +30,10 @@ def app_test_apps(editors):
     every = [package.removeprefix("crates/editors/") for package in editor_packages()]
     apps = {"app-all": every}
     apart_env = {}
+    tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in glob(["src/tests/*.rs"])]
     for test, wanted in editors.items():
+        if test not in tests:
+            fail("{} names no test under crates/app-tests/src/tests".format(test))
         for editor in wanted:
             if editor not in every:
                 fail("{} names {}, which is not an editor under crates/editors".format(test, editor))
