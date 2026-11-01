@@ -11,7 +11,7 @@ fn bar(bar: u64, owner: Option<u64>, placement: DockBarPlacement) -> DockSpecBar
 }
 
 #[test]
-fn a_layout_with_bars_reads_back_from_the_bytes_it_is_saved_as() {
+fn a_layout_with_bars_reads_back_from_its_spec() {
     let mut state = DockState::default();
     state.reconcile(&DockSpec {
         bars: vec![
@@ -46,10 +46,10 @@ fn a_layout_with_bars_reads_back_from_the_bytes_it_is_saved_as() {
         },
     );
 
-    let bytes = postcard::to_stdvec(&state).expect("the layout is written");
-    let read: DockState = postcard::from_bytes(&bytes).expect("the layout is read back");
+    let read = DockState::from_spec(&state.spec());
     assert_eq!(
-        read, state,
-        "postcard, the format a view's saved state uses, reads back a layout's bars: hidden, placed, the dock's own and a tab's"
+        read.spec(),
+        state.spec(),
+        "a layout's spec, the form it is saved in, carries its bars: hidden, placed, the dock's own and a tab's"
     );
 }

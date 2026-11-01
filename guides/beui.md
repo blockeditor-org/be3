@@ -2615,7 +2615,11 @@ code adds is placed beside its declared sibling when the saved layout lacks it.
 it builds) and derefs to it.
 
 `DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
-one back; restore it before the effects of the write that declares its tabs run (any
+one back. A snapshot has no serialized form of its own: to save one keyed by
+`TabId`, save block-editor-beui's `SavedDockLayout::of(snapshot)`: the plugin
+protocol's `DockLayout`, the form plugin docks are saved in, with the order the
+tabs were shown and the visits going back retraces. `SavedDockLayout::snapshot`
+turns it back. Restore it before the effects of the write that declares its tabs run (any
 writes made together do, with no `flush()` between), since a tab not
 declared when the dock reconciles is closed. `reset` goes back to the layout the
 children describe. The handle also shows a tab (`show`) and reads which is

@@ -17,7 +17,6 @@ use beui_view::types::Direction;
 use beui_view::types::Image;
 use beui_view::types::Modifiers;
 use beui_view::types::{Pos2, Rect, Vec2};
-use serde::{Deserialize, Serialize};
 
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
@@ -299,7 +298,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DockingSnapshot<K> {
     state: DockState,
     keys: Vec<(K, TabId)>,

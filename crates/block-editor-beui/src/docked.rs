@@ -8,7 +8,7 @@ use beui::dock::unstyled::{
     DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
     DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace,
     DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
-    DockSpecPlace, DockSpecWindow, DockState, TabId,
+    DockSpecPlace, DockSpecWindow, DockState, DockVisit, DockingSnapshot, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
@@ -17,6 +17,7 @@ use beui::styled::WindowHandle;
 use block_editor_plugin::{EditorHost, Pushed, ViewId, ViewRef};
 use block_plugin_api as api;
 use block_plugin_api::{ChildId, DockTabPath};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::child::{ChildDockTab, MenuMirror, MenuPicks};
@@ -1264,6 +1265,52 @@ fn declaration_from_api(
         dialogs,
         bars,
     })
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SavedDockLayout {
+    layout: api::DockLayout,
+    recent: Vec<u64>,
+    history: Vec<(u64, u64, bool)>,
+}
+
+impl SavedDockLayout {
+    pub fn of(snapshot: &DockingSnapshot<TabId>) -> Self {
+        let state = snapshot.state();
+        Self {
+            layout: spec_to_layout(&state.spec(), &own_path),
+            recent: state.recent_tabs().iter().map(|tab| tab.value()).collect(),
+            history: state
+                .history()
+                .iter()
+                .map(|visit| (visit.from.value(), visit.to.value(), visit.opened))
+                .collect(),
+        }
+    }
+
+    pub fn snapshot(&self) -> DockingSnapshot<TabId> {
+        let spec = layout_to_spec(&self.layout, &mut |path| {
+            path.is_own().then(|| TabId::new(path.tab))
+        });
+        let mut state = DockState::from_spec(&spec);
+        state.keep_visits(
+            self.recent.iter().copied().map(TabId::new).collect(),
+            self.history
+                .iter()
+                .map(|&(from, to, opened)| DockVisit {
+                    from: TabId::new(from),
+                    to: TabId::new(to),
+                    opened,
+                })
+                .collect(),
+        );
+        let mut tabs = state.all_tabs();
+        tabs.extend(state.bars());
+        tabs.extend(state.outside().iter().map(|outside| outside.tab));
+        tabs.sort();
+        tabs.dedup();
+        DockingSnapshot::new(state, tabs.into_iter().map(|tab| (tab, tab)))
+    }
 }
 
 fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {

@@ -79,7 +79,8 @@ Display 0's bars are dock bars of the main view's dock, which holds every window
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
 display's three bars as its dock bars, on its own `DockingLayout` (`bar::display_layout`). The main
 dock's state is saved in the session's layout as ever; each further display's is saved beside it,
-under the session view's `display-bars` state, by the display's place in the list. A display that has
+under the session view's `display-bars` state as a `SavedDockLayout`, by the display's
+place in the list. A display that has
 none saved starts from display 0's placements and hidden bars. Toasts stay on display 0, in the
 corner nearest its Status bar.
 

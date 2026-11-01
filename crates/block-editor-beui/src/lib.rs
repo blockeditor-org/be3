@@ -37,6 +37,7 @@ pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,
 };
 pub use content::{ContentProjection, OwnedContentProjection};
+pub use docked::SavedDockLayout;
 pub use editor::{
     Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind, node_anchor,
 };

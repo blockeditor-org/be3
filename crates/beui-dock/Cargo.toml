@@ -11,11 +11,7 @@ beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
-serde = { version = "1", features = ["derive"] }
 stable-hash = { path = "../stable-hash" }
-
-[dev-dependencies]
-postcard = { version = "1", features = ["use-std"] }
 
 [lints]
 workspace = true

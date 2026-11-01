@@ -5,7 +5,6 @@ use std::rc::Rc;
 
 use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect, Vec2};
-use serde::{Deserialize, Serialize};
 
 mod bars;
 mod history;
@@ -26,7 +25,7 @@ pub use spec::{
 };
 pub use switch::DockSwitch;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TabId(u64);
 
 impl TabId {
@@ -39,13 +38,13 @@ impl TabId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct LeafId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SplitId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SurfaceId(u64);
 
 impl LeafId {
@@ -60,10 +59,10 @@ impl SplitId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GroupId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Entry {
     Tab(TabId),
     Group(GroupId),
@@ -147,7 +146,7 @@ pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 struct Leaf {
     id: LeafId,
     entries: Vec<Entry>,
@@ -158,7 +157,6 @@ struct Leaf {
     key: Option<String>,
     keep: bool,
     area: Option<String>,
-    #[serde(default)]
     bare: bool,
 }
 
@@ -179,10 +177,9 @@ impl Leaf {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 struct Split {
     id: SplitId,
-    #[serde(with = "direction")]
     direction: Direction,
     fraction: f32,
     first: Box<Node>,
@@ -191,7 +188,7 @@ struct Split {
     adjusted: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 enum Node {
     Leaf(Leaf),
     Split(Split),
@@ -300,16 +297,15 @@ impl Node {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 struct Surface {
     id: SurfaceId,
     root: Node,
-    #[serde(with = "window")]
     window: Option<Rect>,
     key: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 struct Group {
     id: GroupId,
     root: Node,
@@ -441,17 +437,16 @@ impl DockTree {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DockHome {
     Group(GroupId),
     Area(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 struct Home {
     tab: TabId,
     place: DockHome,
-    #[serde(default)]
     within: Option<GroupId>,
 }
 
@@ -521,33 +516,24 @@ pub struct DockFullscreen {
     pub area: Option<Rect>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
     homes: Vec<Home>,
-    #[serde(default)]
     unlocked: Vec<DockHome>,
-    #[serde(default)]
     unlocked_keys: Vec<String>,
     focus: Option<LeafId>,
     recent: Vec<TabId>,
     history: Vec<DockVisit>,
     next: u64,
     seeded: bool,
-    #[serde(default)]
     bars: Vec<Bar>,
-    #[serde(default)]
     outside: Vec<DockOutside>,
-    #[serde(skip)]
     fullscreen: Option<DockFullscreen>,
-    #[serde(skip)]
     switch: Option<DockSwitch>,
-    #[serde(skip)]
     lookup: Lookup,
-    #[serde(skip)]
     shows: u64,
-    #[serde(skip)]
     see_through: Vec<TabId>,
 }
 
@@ -2387,49 +2373,4 @@ pub fn fraction_moved(
         return fraction;
     }
     (fraction + moved / length).clamp(MIN_FRACTION, 1.0 - MIN_FRACTION)
-}
-
-mod direction {
-    use beui_view::types::Direction;
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(
-        direction: &Direction,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_bool(matches!(direction, Direction::Vertical))
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Direction, D::Error> {
-        Ok(match bool::deserialize(deserializer)? {
-            true => Direction::Vertical,
-            false => Direction::Horizontal,
-        })
-    }
-}
-
-mod window {
-    use beui_view::types::{Pos2, Rect};
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(
-        window: &Option<Rect>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        window
-            .map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y])
-            .serialize(serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Option<Rect>, D::Error> {
-        Ok(
-            Option::<[f32; 4]>::deserialize(deserializer)?.map(|[left, top, right, bottom]| {
-                Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom))
-            }),
-        )
-    }
 }
