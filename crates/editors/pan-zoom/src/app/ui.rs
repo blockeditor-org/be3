@@ -229,7 +229,7 @@ fn Rail(open: Signal<bool>) -> NodeId {
 fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
     let scale = editor.scale();
     view! {
-        <Canvas view={editor.canvas()}>
+        <Canvas view={editor.canvas()} @test_id={"pan_zoom.stage"}>
             <ForEach keys={card_indices()}>|index: usize|
                 <CardView index scale={scale} selected={selected} />
             </ForEach>

@@ -43,10 +43,6 @@ pub fn sources() -> Vec<Source> {
         in_process::<map_types::BlockTypes>("be3.map", map_types::registrations()),
         in_process::<pan_zoom_types::BlockTypes>("be3.pan_zoom", pan_zoom_types::registrations()),
         in_process::<pdf_types::BlockTypes>("be3.pdf", pdf_types::registrations()),
-        in_process::<pixel_ray_tracer_types::BlockTypes>(
-            "be3.pixel_ray_tracer",
-            pixel_ray_tracer_types::registrations(),
-        ),
         in_process::<presentation_types::BlockTypes>(
             "be3.presentation",
             presentation_types::registrations(),
@@ -92,7 +88,6 @@ pub fn knows(content_type: Uuid) -> bool {
         map_types::block_types(),
         pan_zoom_types::block_types(),
         pdf_types::block_types(),
-        pixel_ray_tracer_types::block_types(),
         presentation_types::block_types(),
         scene_3d_types::block_types(),
         settings_types::block_types(),

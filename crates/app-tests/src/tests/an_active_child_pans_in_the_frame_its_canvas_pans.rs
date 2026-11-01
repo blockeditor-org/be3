@@ -1,16 +1,16 @@
 use super::*;
 
-const ARTWORK: &str = "#pixel_ray_tracer.artwork";
+const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn an_active_child_pans_in_the_frame_its_canvas_pans() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Canvas");
-    add_to_canvas(&mut app, "Pixel Ray Tracer");
+    add_to_canvas(&mut app, "Pan and Zoom");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     app.run(&["click", &inside]);
-    app.wait("Pane \"Pixel Ray Tracer\"");
+    app.wait("Pane \"Pan and Zoom\"");
     app.gone("#infinite-canvas.dock");
     app.run(&["settle"]);
 
@@ -22,11 +22,11 @@ fn an_active_child_pans_in_the_frame_its_canvas_pans() {
         let settled = app.place(ARTWORK);
         assert!(
             settled.1 < before.1,
-            "the wheel pans the canvas under the ray tracer, from {before:?} to {settled:?}"
+            "the wheel pans the canvas under the editor, from {before:?} to {settled:?}"
         );
         assert_eq!(
             first, settled,
-            "the ray tracer is where the pan leaves it in the frame that took the wheel"
+            "the editor is where the pan leaves it in the frame that took the wheel"
         );
     }
     app.close();
