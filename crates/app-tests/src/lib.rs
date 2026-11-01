@@ -75,8 +75,13 @@ impl AppTest {
     }
 
     pub fn run(&mut self, words: &[&str]) -> String {
+        let answered = self.driven().request(words);
+        self.answered(words, answered)
+    }
+
+    fn answered(&mut self, words: &[&str], answered: Result<Reply, String>) -> String {
         self.steps.push(line(words));
-        match self.driven().request(words) {
+        match answered {
             Ok(Reply::Text(text)) => text,
             Ok(_) => self.fail(&format!(
                 "{} answered with something other than text",
@@ -139,13 +144,21 @@ impl AppTest {
     }
 
     pub fn click(&mut self, target: &str) -> String {
-        self.wait(target);
-        self.run(&["click", target])
+        self.when_shown(target, &["click", target])
     }
 
     pub fn double_click(&mut self, target: &str) -> String {
-        self.wait(target);
-        self.run(&["click", target, "double"])
+        self.when_shown(target, &["click", target, "double"])
+    }
+
+    fn when_shown(&mut self, target: &str, words: &[&str]) -> String {
+        match self.driven().request(words) {
+            Err(error) if missing(&error) => {
+                self.wait(target);
+                self.run(words)
+            }
+            answered => self.answered(words, answered),
+        }
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
@@ -303,6 +316,11 @@ fn editors_naming(text: &str) -> Vec<String> {
             parts.nth(1).map(str::to_owned)
         })
         .collect()
+}
+
+fn missing(error: &str) -> bool {
+    error.starts_with("no line of the tree contains")
+        || error.starts_with("no node on screen has the test id")
 }
 
 fn line(words: &[&str]) -> String {

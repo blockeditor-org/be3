@@ -1887,9 +1887,9 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
-        let (programs, program_editors) = block_app_base::program_editors::listed();
-        if self.sent_block_types != Some(programs)
-            && let Some(block_types) = &self.block_types
+        if let Some(block_types) = &self.block_types
+            && let Some((programs, program_editors)) =
+                block_app_base::program_editors::listed_since(self.sent_block_types)
         {
             self.sent_block_types = Some(programs);
             let debug_templates = block_types.debug_templates.clone();

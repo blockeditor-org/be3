@@ -1,4 +1,6 @@
-use be_keys::{RecoveryPhrase, RecoverySecret};
+use std::cell::Cell;
+
+use be_keys::{RecoveryPhrase, RecoveryPublic, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
@@ -11,6 +13,7 @@ pub struct KeyState {
     saving: Option<platform::RequestResult<Result<(), AccountError>>>,
     pairing: Option<PairingWait>,
     error: Option<String>,
+    derived: Cell<Option<([u8; 32], RecoveryPublic)>>,
 }
 
 struct RecoverySetup {
@@ -73,7 +76,18 @@ impl KeyState {
         let Some(recovery) = self.keys.as_ref().and_then(|keys| keys.recovery) else {
             return false;
         };
-        identity.is_none_or(|secret| RecoverySecret::from_bytes(secret).public() != recovery)
+        identity.is_none_or(|secret| self.public_of(secret) != recovery)
+    }
+
+    fn public_of(&self, secret: [u8; 32]) -> RecoveryPublic {
+        match self.derived.get() {
+            Some((held, public)) if held == secret => public,
+            _ => {
+                let public = RecoverySecret::from_bytes(secret).public();
+                self.derived.set(Some((secret, public)));
+                public
+            }
+        }
     }
 
     pub fn replacing(&self) -> bool {

@@ -1976,6 +1976,7 @@ dependencies = [
  "pollster",
  "rodio",
  "serde",
+ "serde_bytes",
  "serde_json",
  "stable-hash",
  "text-block-types",

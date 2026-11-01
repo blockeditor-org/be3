@@ -46,7 +46,7 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
-    painting: HashMap<OpId, Ticket<Vec<u8>>>,
+    painting: stable_hash::HashSet<OpId>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
     published: HashMap<OpId, PublishedWatch>,
     extensions: Vec<String>,
@@ -106,7 +106,7 @@ impl Default for Wire {
             editors: HashMap::default(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
-            painting: HashMap::default(),
+            painting: stable_hash::HashSet::default(),
             audio: HashMap::default(),
             published: HashMap::default(),
             extensions: Vec::new(),
@@ -194,8 +194,7 @@ impl Wire {
                 plugin::node_action(connection, screen, request)
             }
             PluginCall::Paintings => {
-                let painted = paintings::paintings(connection);
-                self.painting.insert(painted.op(), painted);
+                self.painting.insert(paintings::paintings(connection).op());
             }
         }
     }
@@ -726,9 +725,12 @@ impl Wire {
                 }
             }
             Incoming::Completed { op, outcome } => {
-                if let Some(painted) = self.painting.remove(&op) {
+                if self.painting.remove(&op) {
+                    let painted = outcome.decode::<serde_bytes::ByteBuf>();
                     heard.push(Heard::Paintings(
-                        painted.decode(outcome).unwrap_or_default(),
+                        painted
+                            .map(serde_bytes::ByteBuf::into_vec)
+                            .unwrap_or_default(),
                     ));
                     return Ok(());
                 }

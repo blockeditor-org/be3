@@ -213,6 +213,7 @@ impl Layer for Drive {
             }
             session.start_pending(self.tap, &view, frame);
         }
+        context.want_overflows(session.reading_overflows(self.tap));
         session.push_steps(self.tap, incoming);
     }
 
@@ -713,11 +714,13 @@ impl Session {
         busy.extend(frame.app.busy());
         self.inbox
             .note_busy(&busy, frame_held(run, self.clock_stopped));
+        let owed = !busy.is_empty();
         let settled = Settled {
             busy,
             drawing: frame.app.drawing(),
         };
         self.settle(view, settled, output, &frame.above);
+        run.unpaced |= self.clock_stopped && owed && self.active.is_some();
         let wanted = self.wants_frame(view.now);
         if let Some(after) = wanted {
             run.repaint |= after.is_zero();
@@ -1004,6 +1007,20 @@ impl Session {
                 },
                 ..
             })
+        )
+    }
+
+    fn reading_overflows(&self, tap: usize) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Painting {
+                    overflows: true,
+                    ..
+                },
+                tap: reading,
+                ..
+            }) if reading == tap
         )
     }
 

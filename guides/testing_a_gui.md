@@ -404,7 +404,8 @@ which close() checks, so a test that ends without calling it fails too.
   `clock`).
   The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
   clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
-  click() first waits for its target, and record() and snapshot() wait for every editor's
+  click() waits for its target when it is not on screen yet (it clicks at once when it is, and
+  sends `wait` only when the click finds nothing), and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
 - Target nodes by test id or by a line of the tree, never by fixed coordinates: where a gesture needs a point, take it from `place(target)`, and send it with `run`, since `click` waits for its target first. Block ids are random,
   so a test id or a painting that holds one, or the order of blocks the file tree sorts by id,

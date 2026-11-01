@@ -230,8 +230,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   snapshot.
 - `drive overflows` lists, one per line, what the window shows out of bounds
   (beui-core's `Document::overflows`, guides/testing_a_gui.md, 4), the host's documents and every
-  plugin shown included. Each document checks itself on every frame while it is driven, and a
-  plugin's findings come back with its painting, so it waits as `paint` does.
+  plugin shown included. The host's documents check themselves only while the command waits
+  (`Context::want_overflows`); a plugin's document checks itself on every frame while it is
+  described, and its findings come back with its painting, so it waits as `paint` does.
 
 ## Targets
 
@@ -335,7 +336,9 @@ every run, and an app that animates forever still settles. A plugin that asks to
 is drawn again only once the clock has moved, so an animating plugin settles too. `drive clock run` starts it again.
 While the clock is stopped the headless platform runs a frame that drive asks for (a `pause`,
 the steps of a gesture, input waiting) at once rather than at the next 60 Hz tick, so `pause`
-costs only the frames it runs, not the time it names; a frame the app asks for on its own is
+costs only the frames it runs, not the time it names. So is a frame the app asks for while a
+command waits on it and it says it is busy (`busy`, such as a plugin's change it still has to
+show), so a click settles in the frames it takes; any other frame the app asks for on its own is
 still paced, so an app that animates forever does not spin.
 A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
 animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
