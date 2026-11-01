@@ -8,6 +8,7 @@ fn bar(bar: u64, owner: Option<u64>) -> DockSpecBar {
         bar: TabId::new(bar),
         owner: owner.map(TabId::new),
         placement: BOTTOM,
+        hidden: false,
     }
 }
 
@@ -69,10 +70,10 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
         Some(DockBarPlacement::Over(DockEdge::Top, DockAlign::End)),
         "declared again, the bar keeps where it was moved"
     );
-    let plain = DockState::from_plain(&state.plain());
-    assert_eq!(plain.bars_of(None), state.bars_of(None));
+    let restored = DockState::from_spec(&state.spec());
+    assert_eq!(restored.bars_of(None), state.bars_of(None));
     assert_eq!(
-        plain.bar_placement(TabId::new(20)),
+        restored.bar_placement(TabId::new(20)),
         state.bar_placement(TabId::new(20))
     );
 

@@ -72,9 +72,8 @@ pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockAlign, DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout,
-    DockMapping, DockOutside, DockOutsidePlace, DockPlain, DockPlainBar, DockPlainEntry,
-    DockPlainHome, DockPlainNode, DockPlainPlace, DockPlainWindow, DockSpec, DockSpecBar,
-    DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockSplitter, DockState, DockSwitch,
+    DockMapping, DockOutside, DockOutsidePlace, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
+    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockSplitter, DockState, DockSwitch,
     DockTree, DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId,
     TabPosition, Tree, layout_surface, layout_tree,
 };

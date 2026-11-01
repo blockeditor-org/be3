@@ -45,9 +45,9 @@ fn a_bare_pane_shows_its_one_tab_and_takes_no_other() {
     );
     state.drop_tab(TabId::new(2), DockDrop::Pane { leaf: stage });
     assert_eq!(state.entries(stage), vec![Entry::Tab(TabId::new(1))]);
-    let plain = DockState::from_plain(&state.plain());
+    let restored = DockState::from_spec(&state.spec());
     assert!(
-        plain.is_bare(leaf_of(&plain, 1)),
-        "a plain layout carries a bare pane"
+        restored.is_bare(leaf_of(&restored, 1)),
+        "a restored layout carries a bare pane"
     );
 }

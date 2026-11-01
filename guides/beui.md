@@ -2870,7 +2870,7 @@ it. A group's tab inside another area of its group is not at home. A tab away
 from home is free, so locking a place again holds only the tabs in it, and a
 tab dropped back home is held again. "Pop out into a window" is disabled while
 a tab is held. Seeding and reconciling move a tab that has just been given an
-area as its home into it while the area is locked; `plain` and `restore` keep
+area as its home into it while the area is locked; `spec` and `from_spec` keep
 the homes and the unlocked places. A stacked dock ignores locks and keeps them
 for when it tiles again.
 
@@ -2911,9 +2911,9 @@ plugin's, guides/adding_a_plugin_editor.md) and restores it before or after it j
 joins is grafted in once the group stands). An outer `restore` while an inner
 dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
 `DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
-`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::plain` and
-`from_plain` read and build a state as plain `DockPlain` data, bars and
-`outside` included; `DockTree` keeps a pane's `bare` too), and a platform
+`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::spec` and
+`from_spec` read and build a state exactly as the `DockSpec` that seeding takes, bars,
+homes and `outside` included; `DockTree` keeps a pane's `bare` too), and a platform
 implements it too: a `Docking` that finds no outer dock claims the
 `DockHostSlot` context if one is provided above it, and joins that host the same
 way. A slot made with `DockHostSlot::bars(link)` (`joins_bars`) is joined by

@@ -4,15 +4,15 @@ use std::rc::{Rc, Weak};
 
 use be_block::DisplaySettings;
 use beui::dock::unstyled::{
-    DockHostLink, DockKeeper, DockKept, DockOutside, DockOutsidePlace, DockPlain, DockPlainEntry,
-    DockPlainNode, DockPlainWindow, DockRequest, DockState, SIDEBAR_WIDTH, TabId,
+    DockHostLink, DockKeeper, DockKept, DockOutside, DockOutsidePlace, DockRequest, DockSpec,
+    DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockState, SIDEBAR_WIDTH, TabId,
 };
 use beui::reactive::*;
 use block_editor_plugin::EditorHost;
 use block_plugin_api as api;
 use serde::{Deserialize, Serialize};
 
-use super::{ProtocolLink, layout_to_plain, own_path, plain_to_layout};
+use super::{ProtocolLink, layout_to_spec, own_path, spec_to_layout};
 use crate::{Editor, LayeredSettings};
 
 #[derive(Serialize, Deserialize)]
@@ -31,7 +31,7 @@ trait Kept {
     fn saving(&self) -> &Saving;
     fn layout(&self) -> Option<api::DockLayout>;
     fn keys(&self) -> Vec<(u64, String)>;
-    fn restore(&self, plain: DockPlain);
+    fn restore(&self, spec: DockSpec);
 }
 
 pub(super) fn dock_layout_key(block_type: uuid::Uuid) -> String {
@@ -147,12 +147,12 @@ fn follow_saved(kept: &impl Kept, saved: Option<String>) {
         .map(|(tab, key)| (key, TabId::new(tab)))
         .collect();
     let old: HashMap<u64, String> = saved.keys.into_iter().collect();
-    let plain = layout_to_plain(&saved.layout, &mut |path| {
+    let spec = layout_to_spec(&saved.layout, &mut |path| {
         let key = old.get(&path.tab).filter(|_| path.is_own())?;
         current.get(key).copied()
     });
     saving.stale.replace(Some(encoded(kept)));
-    kept.restore(plain);
+    kept.restore(spec);
 }
 
 fn changed_layout(kept: &impl Kept) -> Option<String> {
@@ -206,9 +206,9 @@ impl Kept for ProtocolLink {
         keys
     }
 
-    fn restore(&self, plain: DockPlain) {
-        let plain = windows_outside(plain);
-        self.request(DockRequest::Restore(DockState::from_plain(&plain)));
+    fn restore(&self, spec: DockSpec) {
+        let spec = windows_outside(spec);
+        self.request(DockRequest::Restore(DockState::from_spec(&spec)));
     }
 }
 
@@ -223,8 +223,8 @@ impl Kept for Standalone {
     }
 
     fn layout(&self) -> Option<api::DockLayout> {
-        let plain = self.kept.layout.with_untracked(DockState::plain);
-        Some(plain_to_layout(&plain, &own_path))
+        let spec = self.kept.layout.with_untracked(DockState::spec);
+        Some(spec_to_layout(&spec, &own_path))
     }
 
     fn keys(&self) -> Vec<(u64, String)> {
@@ -235,42 +235,41 @@ impl Kept for Standalone {
         })
     }
 
-    fn restore(&self, plain: DockPlain) {
-        let plain = outside_windows(plain);
-        self.kept.restore.call(DockState::from_plain(&plain));
+    fn restore(&self, spec: DockSpec) {
+        let spec = outside_windows(spec);
+        self.kept.restore.call(DockState::from_spec(&spec));
     }
 }
 
-fn windows_outside(mut plain: DockPlain) -> DockPlain {
-    for window in std::mem::take(&mut plain.windows) {
+fn windows_outside(mut spec: DockSpec) -> DockSpec {
+    for window in std::mem::take(&mut spec.windows) {
         let mut tabs = Vec::new();
         if let Some(root) = &window.root {
             node_tabs(root, &mut tabs);
         }
-        plain
-            .outside
-            .extend(tabs.into_iter().map(|tab| DockOutside {
-                tab,
-                place: DockOutsidePlace::Window { rect: window.rect },
-            }));
+        spec.outside.extend(tabs.into_iter().map(|tab| DockOutside {
+            tab,
+            place: DockOutsidePlace::Window { rect: window.rect },
+        }));
     }
-    plain
+    spec
 }
 
-fn outside_windows(mut plain: DockPlain) -> DockPlain {
-    let (windows, kept): (Vec<DockOutside>, Vec<DockOutside>) = std::mem::take(&mut plain.outside)
+fn outside_windows(mut spec: DockSpec) -> DockSpec {
+    let (windows, kept): (Vec<DockOutside>, Vec<DockOutside>) = std::mem::take(&mut spec.outside)
         .into_iter()
         .partition(|outside| matches!(outside.place, DockOutsidePlace::Window { .. }));
-    plain.outside = kept;
+    spec.outside = kept;
     for outside in windows {
         let DockOutsidePlace::Window { rect } = outside.place else {
             continue;
         };
-        plain.windows.push(DockPlainWindow {
+        spec.windows.push(DockSpecWindow {
             key: String::new(),
             rect,
-            root: Some(DockPlainNode::Pane {
+            root: Some(DockSpecNode::Pane(DockSpecPane {
                 key: String::new(),
+                entries: vec![DockSpecEntry::Tab(outside.tab)],
                 active: 0,
                 vertical: false,
                 icons_only: false,
@@ -278,24 +277,23 @@ fn outside_windows(mut plain: DockPlain) -> DockPlain {
                 keep: false,
                 area: None,
                 bare: false,
-                entries: vec![DockPlainEntry::Tab(outside.tab)],
-            }),
+            })),
         });
     }
-    plain
+    spec
 }
 
-fn node_tabs(node: &DockPlainNode, tabs: &mut Vec<TabId>) {
+fn node_tabs(node: &DockSpecNode, tabs: &mut Vec<TabId>) {
     match node {
-        DockPlainNode::Split { first, second, .. } => {
+        DockSpecNode::Split { first, second, .. } => {
             node_tabs(first, tabs);
             node_tabs(second, tabs);
         }
-        DockPlainNode::Pane { entries, .. } => {
-            for entry in entries {
+        DockSpecNode::Pane(pane) => {
+            for entry in &pane.entries {
                 match entry {
-                    DockPlainEntry::Tab(tab) => tabs.push(*tab),
-                    DockPlainEntry::Group { root, .. } => node_tabs(root, tabs),
+                    DockSpecEntry::Tab(tab) => tabs.push(*tab),
+                    DockSpecEntry::Group { root, .. } => node_tabs(root, tabs),
                 }
             }
         }

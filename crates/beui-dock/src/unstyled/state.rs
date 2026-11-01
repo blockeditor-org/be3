@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 mod bars;
 mod history;
 mod joined;
-mod plain;
+mod snapshot;
 mod spec;
 mod switch;
 
@@ -20,11 +20,10 @@ pub use history::DockVisit;
 pub use joined::{
     DockMapping, DockOutside, DockOutsidePlace, joined_host, joined_key, joined_prefix,
 };
-pub use plain::{
-    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
-    DockPlainWindow,
+pub use spec::{
+    DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane, DockSpecPlace,
+    DockSpecWindow,
 };
-pub use spec::{DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

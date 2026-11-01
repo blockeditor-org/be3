@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_plain_layout_read_from_a_state_rebuilds_the_same_state() {
+fn a_spec_read_from_a_state_rebuilds_the_same_state() {
     let mut state = DockState::default();
     let inner = split(
         "inner",
@@ -23,11 +23,11 @@ fn a_plain_layout_read_from_a_state_rebuilds_the_same_state() {
     });
     state.reconcile(&spec(main));
     state.show(TabId::new(12));
-    let plain = state.plain();
+    let spec = state.spec();
 
-    let rebuilt = DockState::from_plain(&plain);
+    let rebuilt = DockState::from_spec(&spec);
 
-    assert_eq!(rebuilt.plain(), plain);
+    assert_eq!(rebuilt.spec(), spec);
     assert_eq!(rebuilt.focused_tab(), Some(TabId::new(12)));
     assert_eq!(rebuilt.all_tabs(), state.all_tabs());
     let group = rebuilt
