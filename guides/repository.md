@@ -51,8 +51,7 @@ that build on it. VISION.md says why each part exists.
 
 ## Debug and example editors
 
-counter, triangle, pan-zoom, beui-gallery, block-debug, checklist and
-pixel-ray-tracer. They exercise the platform; they are not apps.
+counter, triangle, pan-zoom, beui-gallery, block-debug and checklist. They exercise the platform; they are not apps.
 
 ## Separate projects
 

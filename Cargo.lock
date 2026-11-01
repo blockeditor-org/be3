@@ -3979,7 +3979,6 @@ dependencies = [
  "map-types",
  "pan-zoom-types",
  "pdf-types",
- "pixel-ray-tracer-types",
  "presentation-types",
  "scene-3d-types",
  "settings-types",
@@ -6483,30 +6482,6 @@ dependencies = [
  "atomic-waker",
  "fastrand",
  "futures-io",
-]
-
-[[package]]
-name = "pixel-ray-tracer-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "pixel_ray_tracer"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-host",
- "block-editor-beui",
- "block-ui-test",
- "pixel-ray-tracer-types",
- "uuid",
 ]
 
 [[package]]

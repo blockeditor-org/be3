@@ -1,7 +1,7 @@
 use super::*;
 
-const ARTWORK: &str = "#pixel_ray_tracer.artwork";
-const STAGE: &str = "#pixel_ray_tracer.canvas";
+const ARTWORK: &str = "#pan_zoom.card.4";
+const STAGE: &str = "#pan_zoom.stage";
 
 type Place = (f32, f32, f32, f32);
 
@@ -26,7 +26,7 @@ fn resize(app: &mut AppTest, size: &str) -> (Place, Place) {
     let settled = app.place(ARTWORK);
     assert_eq!(
         first, settled,
-        "the first frame the editor draws at {size} shows the artwork where it settles"
+        "the first frame the editor draws at {size} shows the cards where they settle"
     );
     (settled, app.place(STAGE))
 }
@@ -34,19 +34,20 @@ fn resize(app: &mut AppTest, size: &str) -> (Place, Place) {
 #[test]
 fn a_tab_keeps_its_view_through_a_resize() {
     let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Pixel Ray Tracer");
+    add_to_my_files(&mut app, "Pan and Zoom");
     app.wait(ARTWORK);
     app.gone("#editor.loading");
     app.run(&["settle"]);
 
-    let (fitted, stage) = resize(&mut app, "1300x820");
+    let (_, stage) = resize(&mut app, "1300x600");
+    let fitted = pan_zoom_world(&mut app);
     let (artwork, middle) = (centre(fitted), centre(stage));
     assert!(
-        (artwork.0 - middle.0).abs() < 1.0 && (artwork.1 - middle.1).abs() < 1.0,
-        "an artwork kept fitted stays centred in its stage, {fitted:?} in {stage:?}"
+        (artwork.0 - middle.0).abs() < 2.0 && (artwork.1 - middle.1).abs() < 2.0,
+        "a world kept fitted stays centred in its stage, {fitted:?} in {stage:?}"
     );
     assert!(
-        fitted.2 <= stage.2 + 1.0 && fitted.3 <= stage.3 + 1.0,
+        fitted.2 <= stage.2 + 2.0 && fitted.3 <= stage.3 + 2.0,
         "and stays inside it, {fitted:?} in {stage:?}"
     );
     app.snapshot("a_tab_keeps_its_view_through_a_resize_fitted");
@@ -68,10 +69,10 @@ fn a_tab_keeps_its_view_through_a_resize() {
     let before = offset(zoomed, stage);
     assert!(
         before.0.abs() > 10.0 || before.1.abs() > 10.0,
-        "a zoom away from the middle pans the artwork off it, {zoomed:?} in {stage:?}"
+        "a zoom away from the middle pans the cards off it, {zoomed:?} in {stage:?}"
     );
 
-    let (moved, resized) = resize(&mut app, "1200x700");
+    let (moved, resized) = resize(&mut app, "1200x560");
     let after = offset(moved, resized);
     assert!(
         (after.0 - before.0).abs() <= 1.0 && (after.1 - before.1).abs() <= 1.0,

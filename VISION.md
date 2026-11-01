@@ -335,8 +335,8 @@ planned.
 
 ### Debug and example editors
 
-The counter, triangle, pan-and-zoom, beui gallery, block-debug, checklist and
-pixel ray tracer editors are examples, tests and experiments, not apps.
+The counter, triangle, pan-and-zoom, beui gallery, block-debug and checklist
+editors are examples, tests and experiments, not apps.
 
 ## Open questions
 
