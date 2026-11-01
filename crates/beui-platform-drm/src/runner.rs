@@ -1019,6 +1019,11 @@ impl Session {
         self.push_sample(Incoming::points(input(local)).in_window(window));
     }
 
+    fn scroll(&mut self, delta: ScrollDelta) {
+        let (window, _) = self.at(self.pointer());
+        self.push_sample(Incoming::points(beui::Input::Scroll(delta)).in_window(window));
+    }
+
     fn pressed_at(&mut self, position: Pos2) {
         let (window, _) = self.at(position);
         if !window.is_main() {
@@ -1245,7 +1250,7 @@ impl Session {
                 let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
                 let delta =
                     ScrollDelta::Pixels(vec2(amount(Axis::Horizontal), amount(Axis::Vertical)));
-                self.push(Incoming::points(beui::Input::Scroll(delta)));
+                self.scroll(delta);
             }
             InputEvent::TouchDown { event } => {
                 self.escape_touch(event.slot(), true);
@@ -1450,10 +1455,7 @@ impl Session {
             }
             RawInput::Wheel { x, y } => {
                 let notches = |v120: i32| -v120 as f32 / 120.0;
-                self.push(beui::Input::Scroll(ScrollDelta::Lines(vec2(
-                    notches(x),
-                    notches(y),
-                ))));
+                self.scroll(ScrollDelta::Lines(vec2(notches(x), notches(y))));
             }
         }
     }
