@@ -1,4 +1,3 @@
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use counter_types::{Counter as CounterModel, CounterContent};
 use uuid::Uuid;
@@ -18,11 +17,8 @@ struct Harness {
 impl Harness {
     fn new() -> Self {
         let block = Uuid::new_v4();
-        let host = EditorHost::default();
-        host.set_editable(true);
-        let editor = OwnedEditor::new(host, block);
         let mut harness = Self {
-            editor: BeuiTest::new(editor),
+            editor: BeuiTest::editing(block),
         };
         harness
             .editor

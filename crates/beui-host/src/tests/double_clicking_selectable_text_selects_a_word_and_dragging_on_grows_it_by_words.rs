@@ -66,7 +66,7 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
         "alpha beta",
         "and keeps the first word when dragging back past it"
     );
-    harness.release_at(on_alpha);
+    harness.up(on_alpha, PointerButton::Primary);
 
     harness.advance(Duration::from_secs(1));
     let on_delta = pos2(bottom.left() + 4.0, bottom.center().y);

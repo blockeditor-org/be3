@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
 
-use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
+use block_editor_beui::{BlockInfo, BlockParent};
 use block_ui_test::BeuiTest;
 use logic_grid_types::{CompiledLogic, CompiledLogicDocument};
 use logic_grid_types::{CompiledLogicContent, LogicGridContent};
@@ -63,10 +63,7 @@ fn compiled(source: Uuid) -> CompiledLogic {
 
 fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = BeuiTest::editing(block);
     let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
     if let Some(name) = name {
         grid.set_name(name);

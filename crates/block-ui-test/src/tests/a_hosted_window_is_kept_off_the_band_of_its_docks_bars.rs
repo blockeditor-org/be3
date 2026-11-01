@@ -49,9 +49,7 @@ impl BeuiApp for BandedApp {
 
 #[test]
 fn a_hosted_window_is_kept_off_the_band_of_its_docks_bars() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<BandedApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<BandedApp>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

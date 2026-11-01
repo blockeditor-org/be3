@@ -44,9 +44,7 @@ fn a_list_waits_for_the_rows_its_relations_name() {
     let mut shown = DatabaseViewContent::new(&DatabaseView::of(database));
     shown.apply(&DatabaseView::set_kind(DatabaseViewKind::List));
 
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut harness = BeuiTest::<DatabaseViewApp>::new(OwnedEditor::new(host, view));
+    let mut harness = BeuiTest::<DatabaseViewApp>::editing(view);
     harness.store().add_block(BlockInfo::new(
         projects,
         DatabaseContent::CONTENT_TYPE,

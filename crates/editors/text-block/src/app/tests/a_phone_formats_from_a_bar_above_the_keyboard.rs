@@ -1,6 +1,5 @@
 use beui::Vec2;
 use block_editor_beui::beui::TouchPhase;
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -10,10 +9,7 @@ use text_block_types::TextBlock;
 
 #[test]
 fn a_phone_formats_from_a_bar_above_the_keyboard() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host, Uuid::new_v4());
-    let mut editor = BeuiTest::<TextApp>::new(editor)
+    let mut editor = BeuiTest::<TextApp>::editing(Uuid::new_v4())
         .with_size(Vec2::new(390.0, 760.0))
         .on_phone();
     editor.hold(None, TextBlock::of("word"));

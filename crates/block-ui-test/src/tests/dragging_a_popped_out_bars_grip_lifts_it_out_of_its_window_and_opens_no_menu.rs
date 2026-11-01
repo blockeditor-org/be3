@@ -43,9 +43,7 @@ impl BeuiApp for PoppedApp {
 
 #[test]
 fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<PoppedApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<PoppedApp>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

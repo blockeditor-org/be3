@@ -183,6 +183,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
+    pub fn editing(block: Uuid) -> Self {
+        let host = EditorHost::default();
+        host.set_editable(true);
+        Self::new(OwnedEditor::new(host, block))
+    }
+
     pub fn with_view(
         editor: OwnedEditor,
         view: impl FnOnce() -> beui::styled::Root + 'static,

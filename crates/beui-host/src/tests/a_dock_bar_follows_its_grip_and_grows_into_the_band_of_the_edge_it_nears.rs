@@ -16,7 +16,7 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
     let grip = harness.center(harness.find("dock.bar.9.grip"));
     let grab = grip - bar.min;
 
-    harness.press_at(grip);
+    harness.down(grip, PointerButton::Primary);
     let held = pos2(body.center().x - 80.0, body.center().y + 40.0);
     harness.hover(grip + vec2(0.0, 20.0));
     harness.hover(held);
@@ -90,7 +90,7 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
     let below_its_place = pos2(body.center().x, body.top() + body.height() * 0.35);
     harness.hover(below_its_place);
     harness.pause(Duration::from_millis(200));
-    harness.release_at(below_its_place);
+    harness.up(below_its_place, PointerButton::Primary);
     harness.settle();
     assert_eq!(
         dock.layout.bar_placement(&9),

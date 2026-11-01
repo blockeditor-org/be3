@@ -25,9 +25,9 @@ fn a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.press_at(pos2(50.0, 50.0));
+    harness.down(pos2(50.0, 50.0), PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(pos2(300.0, 250.0))]);
-    harness.release_at(pos2(300.0, 250.0));
+    harness.up(pos2(300.0, 250.0), PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(pos2(310.0, 250.0))]);
 
     let log = log.get_untracked();

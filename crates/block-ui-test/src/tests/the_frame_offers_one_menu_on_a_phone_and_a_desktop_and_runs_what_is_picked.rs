@@ -70,9 +70,7 @@ const MENU: [&str; 9] = [
 #[test]
 fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<ActionApp>::new(OwnedEditor::new(host, block))
+    let mut test = BeuiTest::<ActionApp>::editing(block)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
     assert_eq!(ids(&test), MENU, "the frame hands its parent its menu");

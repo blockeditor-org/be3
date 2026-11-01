@@ -2,7 +2,6 @@ use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDes
 use settings_types::EditorSettingsContent;
 
 use block_editor_beui::beui::{Key, Modifiers};
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -12,9 +11,7 @@ use crate::default_editors::DefaultEditorsApp;
 fn choosing_a_default_editor_stores_it() {
     let block_type = Uuid::from_u128(1);
     let (built_in, debug) = (Uuid::from_u128(2), Uuid::from_u128(3));
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut editor = BeuiTest::<DefaultEditorsApp>::new(OwnedEditor::new(host, Uuid::from_u128(4)));
+    let mut editor = BeuiTest::<DefaultEditorsApp>::editing(Uuid::from_u128(4));
     editor.hold(None, EditorSettingsContent::default());
     editor.catalog(Catalog {
         types: vec![BlockTypeDescriptor {

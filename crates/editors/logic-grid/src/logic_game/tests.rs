@@ -1,5 +1,4 @@
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use logic_grid_types::LogicGame;
 use logic_grid_types::LogicGameContent;
@@ -18,13 +17,10 @@ fn editor() -> BeuiTest<LogicGameApp> {
 
 fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = match size {
-        Some(size) => BeuiTest::new(editor).with_size(size),
-        None => BeuiTest::new(editor),
-    };
+    let mut editor = BeuiTest::editing(block);
+    if let Some(size) = size {
+        editor = editor.with_size(size);
+    }
     editor.store().register(logic_grid_types::registrations());
     editor.hold(None, LogicGameContent::default());
     editor.run();

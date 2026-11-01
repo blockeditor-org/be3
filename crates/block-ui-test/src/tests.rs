@@ -85,9 +85,7 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
 }
 
 fn editor() -> BeuiTest<ChildApp> {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    BeuiTest::new(OwnedEditor::new(host, Uuid::new_v4()))
+    BeuiTest::editing(Uuid::new_v4())
 }
 
 fn status(test: &BeuiTest<ChildApp>) -> String {
@@ -104,9 +102,7 @@ fn status(test: &BeuiTest<ChildApp>) -> String {
 
 fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<ChildApp>::new(OwnedEditor::new(host, block)).with_top_bar(false);
+    let mut test = BeuiTest::<ChildApp>::editing(block).with_top_bar(false);
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {

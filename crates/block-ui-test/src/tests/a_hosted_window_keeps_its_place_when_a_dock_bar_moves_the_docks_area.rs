@@ -54,9 +54,7 @@ impl BeuiApp for HostedApp {
 
 #[test]
 fn a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<HostedApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<HostedApp>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();
