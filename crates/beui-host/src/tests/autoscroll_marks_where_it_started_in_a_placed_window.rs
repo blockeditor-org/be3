@@ -24,10 +24,7 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
                 placement={WindowPlacement::Host(HostPlacement("display".to_owned()))}
             >|_: WindowHandle|
                 <List spacing=0.0>
-                    <Scroll
-                        @sizing=ItemSize::Percent(100.0)
-                        marker={marker}
-                    >
+                    <Scroll @sizing=ItemSize::Percent(100.0) marker={marker}>
                         <ForEach keys={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>
@@ -51,9 +48,10 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
     harness.frame(Vec::new());
     let marked = |output: &crate::native::FrameOutput| {
         output.window(window).is_some_and(|shown| {
-            shown.shapes().iter().any(
-                |shape| matches!(shape, Shape::Rect { color, .. } if *color == MARKER),
-            )
+            shown
+                .shapes()
+                .iter()
+                .any(|shape| matches!(shape, Shape::Rect { color, .. } if *color == MARKER))
         })
     };
     let at = pos2(100.0, 100.0);
@@ -79,7 +77,10 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
         })
         .expect("the marker is painted");
     assert!(
-        shown.changed && shown.damage().is_some_and(|damage| damage.contains_rect(painted)),
+        shown.changed
+            && shown
+                .damage()
+                .is_some_and(|damage| damage.contains_rect(painted)),
         "the frame that shows the marker damages where it is"
     );
 }
