@@ -248,12 +248,12 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
-  a crate's snapshots/ that differs from HEAD, which frame changed and what moved in it. With
-  -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
-  and a changes image for every frame that differs, where magenta marks every pixel that
-  differs - and prints which is which. --base compares against another revision, and
-  --images takes a folder to write to in place of target/changed-paintings.
+  ./scripts/buck run //crates/local-tools:bin -- changed says, for every native painting in a
+  crate's snapshots/ that differs from HEAD (untracked ones too), what moved and which frames
+  changed, and writes those frames into target/changed-paintings as the pull request's
+  painting comment does: a before, an after and a changes PNG for each, where magenta marks
+  every pixel that differs, named by hash and listed beside the frame. --base compares
+  against another revision, and --images writes to another folder.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests

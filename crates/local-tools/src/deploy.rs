@@ -8,6 +8,8 @@ use std::{
 
 use sha2::{Digest, Sha256};
 
+use crate::hex;
+
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
                         [--skip-downloads] [--skip-android] [--android-id ID]
@@ -758,10 +760,6 @@ fn read_build(path: &Path) -> Result<String, String> {
         ));
     }
     Ok(metadata.id)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn stored_sha256(agent: &ureq::Agent, url: &str, key: &str) -> Result<Option<String>, String> {
