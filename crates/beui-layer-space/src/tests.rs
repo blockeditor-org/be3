@@ -489,6 +489,5 @@ fn assert_scene(
     let frame = space.scene(windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(name, &snapshot, &format!("./scripts/test {name} --update"));
+    paint_snapshot::assert_painting(name, painting);
 }

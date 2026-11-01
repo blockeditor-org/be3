@@ -8,9 +8,6 @@ license.workspace = true
 [dependencies]
 beui = { path = "../beui" }
 
-[dev-dependencies]
-paint-snapshot = { path = "../paint-snapshot" }
-
 [target.'cfg(not(beui_html))'.dev-dependencies]
 beui-host = { path = "../beui-host", default-features = false }
 

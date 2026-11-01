@@ -9,17 +9,8 @@ use beui_host::native::build;
 const SIZE: Vec2 = vec2(1100.0, 720.0);
 
 fn paint(stepped: &mut Stepped, name: &str) {
-    let output = stepped.frame(Vec::new());
-    let painted = beui::native::painting::painting(
-        output.main(),
-        SIZE,
-        1.0,
-        output.main().window.appearance.clear_color,
-        beui::native::painting::Punches::Shown,
-    )
-    .unwrap();
-    let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-    paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+    stepped.frame(Vec::new());
+    stepped.snapshot(name);
 }
 
 fn shown(content: impl FnOnce() -> NodeId + 'static) -> Stepped {

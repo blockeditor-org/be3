@@ -46,12 +46,12 @@ pub type HostCall = Call;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
-use crate::document::FRAME_INTERVAL;
+use crate::ContentStore;
 use crate::link::Sent;
-use crate::{ContentStore, overflow, snapshot};
 use beui_host::native::drive::gestures::{Frames, Gestures};
+use beui_host::native::testing::{FRAME_INTERVAL, assert_fits};
+use paint_snapshot::Snapshot;
 
-pub(crate) mod capture;
 mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -118,7 +118,7 @@ pub struct BeuiTest<A: BeuiApp> {
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
-    recording: Option<snapshot::Snapshot>,
+    recording: Option<Snapshot>,
     overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
@@ -2147,8 +2147,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
-        let found = overflow::overflows(&self.document());
-        self.overflows.extend(found);
+        self.note_overflows();
         match &mut self.recording {
             Some(recording) => recording.append(frame),
             None => self.recording = Some(frame),
@@ -2159,22 +2158,38 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = match self.recording.take() {
             Some(recording) => recording,
             None => {
-                let found = overflow::overflows(&self.document());
-                self.overflows.extend(found);
+                self.note_overflows();
                 self.painted()
             }
         };
-        snapshot::assert_snapshot(name, &painting);
-        overflow::assert_fits(name, std::mem::take(&mut self.overflows));
+        paint_snapshot::assert_accepted(name, &painting, paint_snapshot::HOW_TO_ACCEPT);
+        assert_fits(name, std::mem::take(&mut self.overflows));
     }
 
-    fn painted(&mut self) -> snapshot::Snapshot {
+    fn note_overflows(&mut self) {
+        let found: Vec<String> = self
+            .document()
+            .overflows()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        self.overflows.extend(found);
+    }
+
+    fn painted(&mut self) -> Snapshot {
         let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
         let shown = self
             .shown_output()
             .expect("the editor has not drawn its window yet");
-        capture::capture(shown, self.size, shown.pixels_per_point, behind)
-            .expect("the painting could not be rendered")
+        let painting = beui::native::painting::painting(
+            shown,
+            self.size,
+            shown.pixels_per_point,
+            behind,
+            beui::native::painting::Punches::Shown,
+        )
+        .and_then(Snapshot::of_painting);
+        painting.expect("the painting could not be rendered")
     }
 }
 

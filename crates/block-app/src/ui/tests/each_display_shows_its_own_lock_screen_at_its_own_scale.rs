@@ -71,18 +71,10 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
         ("lock_screen_on_a_doubled_laptop", 2.0),
         ("lock_screen_on_a_monitor", 1.0),
     ]) {
-        let windows = stepped.windows();
-        let output = windows.output(*window).expect("each display window paints");
+        let output = stepped.windows().output(*window).cloned();
+        let output = output.expect("each display window paints");
         assert_eq!(output.pixels_per_point, scale, "at its display's own scale");
-        let painted = beui::native::painting::painting(
-            output,
-            *size,
-            scale,
-            output.window.appearance.clear_color,
-            beui::native::painting::Punches::Shown,
-        )
-        .unwrap();
-        let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-        paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+        assert_eq!(output.size, *size, "at its display's own size");
+        stepped.snapshot_window(name, *window);
     }
 }

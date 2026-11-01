@@ -1574,6 +1574,7 @@ dependencies = [
  "beui-layer-drive",
  "beui-renderer-wgpu",
  "beui-runner",
+ "paint-snapshot",
  "pollster",
 ]
 
@@ -1850,7 +1851,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-host",
- "paint-snapshot",
 ]
 
 [[package]]
@@ -1884,7 +1884,6 @@ dependencies = [
  "directories-next",
  "futures-util",
  "libc",
- "paint-snapshot",
  "reactive",
  "serde_json",
  "tokio",
@@ -1942,7 +1941,6 @@ dependencies = [
  "bytemuck",
  "image",
  "notify",
- "paint-snapshot",
  "pollster",
  "uuid",
  "wgpu",

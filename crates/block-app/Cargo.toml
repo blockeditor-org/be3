@@ -77,7 +77,6 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The block stack with the plugins' type modules in process.
 block-app-testing = { path = "../block-app-testing" }
-paint-snapshot = { path = "../paint-snapshot" }
 block-ui-test = { path = "../block-ui-test" }
 
 # Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the

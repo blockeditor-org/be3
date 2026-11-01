@@ -2523,7 +2523,7 @@ on a press outside). Each frame's `FrameOutput::escaped` carries an
 `EscapedOutput` per layer: that record and a `WindowOutput` (clear colour transparent) painted in host units from the
 layer's top-left at `pixels_per_point = window raster / to_host.scale` (the app window's density,
 since a zoomed window's raster counts its zoom), ready for a surface of its own; `composite_layers` draws a window and its layers as the host would, which
-`DocumentTest::snapshot_layers` paints.
+`Stepped::snapshot_layers` paints.
 
 Input that landed on a layer is pushed as `Incoming::layer(id, input)` with host positions; the
 runner maps it into the owning window and it is hit-tested there like any other.
@@ -3994,7 +3994,7 @@ its size and reports `Resized` and `Placed` back the next frame.
 `frame_in(window, inputs)` sends input to a window, `take_window_requests`
 reads what the app asked, `report_window` reports as a host would, `windows()`
 lists the open windows and each one's latest `WindowOutput`, and
-`DocumentTest::snapshot_window(name, id)` takes a window's painting.
+`Stepped::snapshot_window(name, id)` takes a window's painting.
 `Stepped::hosted(context, app, window, layer, setup)` runs under a real
 window-hosting layer instead, such as `beui_layer_space::Space`, stacked over
 its drive layer, with the `Setup` it is given (space wants `GpuSetup` and the
@@ -6189,6 +6189,11 @@ runner an `Event` directly, and input reaches a `Context` only through a `Runner
 export) or a test of painting alone. A test that stamps samples with times pushes `Incoming::Time`
 through `runner().push` and then paints `frame(Vec::new())`. A failure prints the steps so far as `drive`
 commands (guides/running/drive.md), which replay against a `:dev` app.
+A `Stepped` showing a document compares paintings (guides/testing_a_gui.md, 4) of the latest frame,
+painting one first only if none has been: `snapshot(name)` the main window, which also fails on
+what it shows out of bounds; `snapshot_layers(name)` the main window composited with the layers
+that escaped it; and `snapshot_window(name, id)` a window it hosts. Any other painting goes through
+`paint_snapshot::assert_painting(name, painting)`.
 
 beui's own tests use `Harness::new(document)` or `Harness::sized(document, size)` from
 `crates/beui-host/src/tests.rs`: a `Stepped` with settling turned off, plus what those tests

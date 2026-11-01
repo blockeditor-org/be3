@@ -35,17 +35,8 @@ fn painting(name: &str, secure: bool, off_screen: Vec<Rect>) {
         stepped.advance(Duration::from_millis(300));
         stepped.frame(Vec::new());
     }
-    let output = stepped.frame(Vec::new());
-    let painted = beui::native::painting::painting(
-        output.main(),
-        SIZE,
-        1.0,
-        output.main().window.appearance.clear_color,
-        beui::native::painting::Punches::Shown,
-    )
-    .unwrap();
-    let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-    paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+    stepped.frame(Vec::new());
+    stepped.snapshot(name);
 }
 
 fn part(left: f32, top: f32, right: f32, bottom: f32) -> Rect {

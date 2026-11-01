@@ -88,10 +88,8 @@ fn a_toplevel_and_its_popup_are_panels_of_their_own_in_space() {
     );
 
     let painting = harness.stepped.painting();
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
+    paint_snapshot::assert_painting(
         "a_toplevel_and_its_popup_are_panels_of_their_own_in_space",
-        &snapshot,
-        "./scripts/test a_toplevel_and_its_popup_are_panels_of_their_own_in_space --update",
+        painting,
     );
 }

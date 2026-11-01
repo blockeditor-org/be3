@@ -17,17 +17,8 @@ fn painting_of(name: &str, document: beui::native::Document) {
         stepped.frame(Vec::new());
     }
     stepped.advance(Duration::from_secs(1));
-    let output = stepped.frame(Vec::new());
-    let painted = beui::native::painting::painting(
-        output.main(),
-        size,
-        1.0,
-        output.main().window.appearance.clear_color,
-        beui::native::painting::Punches::Shown,
-    )
-    .unwrap();
-    let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-    paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+    stepped.frame(Vec::new());
+    stepped.snapshot(name);
 }
 
 mod an_account_in_a_company_says_its_administrators_can_read_it;

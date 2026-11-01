@@ -5,6 +5,14 @@ use crate::Snapshot;
 const REVIEW: &str =
     "commit it, and review it among the paintings on the pull request's summary comment";
 
+pub const HOW_TO_ACCEPT: &str =
+    "./scripts/verify, or ./scripts/test with the test's name and --update";
+
+pub fn assert_painting(name: &str, painting: paint_format::Painting) {
+    let snapshot = Snapshot::of_painting(painting).expect("the painting could not be encoded");
+    assert_accepted(name, &snapshot, HOW_TO_ACCEPT);
+}
+
 pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
     let body = snapshot.body().expect("the painting could not be encoded");
     assert_bytes(
