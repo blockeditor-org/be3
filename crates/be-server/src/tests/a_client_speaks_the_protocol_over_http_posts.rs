@@ -103,8 +103,9 @@ fn refs(frames: &[Vec<u8>]) -> Vec<&[u8]> {
 #[tokio::test]
 async fn a_client_speaks_the_protocol_over_http_posts() {
     let harness = Harness::start().await;
-    let address = harness.url.trim_start_matches("ws://").to_owned();
-    let mut stream = tokio::net::TcpStream::connect(&address).await.unwrap();
+    let mut stream = tokio::net::TcpStream::connect(harness.address)
+        .await
+        .unwrap();
 
     let (status, session, frames) = post(&mut stream, None, &[&hello(BUILD)]).await;
     assert_eq!(status, 200);
@@ -156,7 +157,9 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let (status, _, _) = post(&mut stream, Some("not-a-session"), &refs(&list)).await;
     assert_eq!(status, 404);
 
-    let mut stranger = tokio::net::TcpStream::connect(&address).await.unwrap();
+    let mut stranger = tokio::net::TcpStream::connect(harness.address)
+        .await
+        .unwrap();
     let (status, session, frames) = post(&mut stranger, None, &[&hello("another build")]).await;
     assert_eq!(status, 200);
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
@@ -166,7 +169,9 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         panic!("not authenticated")
     };
     let authorization = format!("Bearer {token}");
-    let mut proxy = tokio::net::TcpStream::connect(&address).await.unwrap();
+    let mut proxy = tokio::net::TcpStream::connect(harness.address)
+        .await
+        .unwrap();
     let (_, session, _) =
         post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
     let session = session.unwrap();

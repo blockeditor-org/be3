@@ -6,7 +6,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
     let harness = Harness::start().await;
     let owner = harness.member("proxy@example.com").await;
     for token in [Some(owner.token.as_str()), Some("invalid"), None] {
-        let mut request = harness.url.as_str().into_client_request().unwrap();
+        let mut request = harness.socket().into_client_request().unwrap();
         if let Some(token) = token {
             request
                 .headers_mut()

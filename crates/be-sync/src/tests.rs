@@ -4,8 +4,9 @@ use workspace_ui_types::{FileContent, FolderContent, WorkspaceContent};
 use be_block::{BlockContent, BlockMetadata, EXECUTABLE, LiveEdit};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
+use be_server::Running;
 use be_store::MemoryStore;
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use crate::{Report, Target};
@@ -22,54 +23,21 @@ mod files_made_on_disk_become_blocks;
 mod ignored_files_stay_off_the_server;
 mod the_watcher_syncs_both_ways;
 
-struct Harness {
-    directory: PathBuf,
-    shutdown: Option<oneshot::Sender<()>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
-    url: String,
-}
+struct Harness(Running);
 
 impl Harness {
     async fn start() -> Self {
         build_id::install("test");
-        let directory = std::env::temp_dir().join(format!("be-sync-test-{}", Uuid::new_v4()));
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let (shutdown, receiver) = oneshot::channel();
-        let data = directory.join("server");
-        let handle = tokio::spawn(async move {
-            let _ = be_server::serve_with_config(
-                listener,
-                data,
-                be_server::ServerConfig::OPEN,
-                receiver,
-            )
-            .await;
-        });
-        Self {
-            url: format!("http://{address}"),
-            directory,
-            shutdown: Some(shutdown),
-            handle: Some(handle),
-        }
+        Self(Running::start(be_server::ServerConfig::OPEN).await)
     }
 
     async fn peer(&self) -> Peer<MemoryStore> {
-        let token = be_server::ServerStore::open(self.directory.join("server"))
-            .unwrap()
-            .register(
-                &format!("{}@example.com", Uuid::new_v4().simple()),
-                "Owner",
-                "correct horse battery",
-            )
-            .await
-            .unwrap()
-            .1;
+        let email = format!("{}@example.com", Uuid::new_v4().simple());
         Peer::connect(
             PeerConfig::new(
-                be_client::socket_url(&self.url),
+                be_client::socket_url(&self.0.url),
                 be_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Token(token),
+                Credentials::Token(self.0.register(&email, "Owner").await),
             ),
             MemoryStore::new(),
         )
@@ -78,20 +46,13 @@ impl Harness {
     }
 
     fn checkout(&self, name: &str) -> PathBuf {
-        let path = self.directory.join(name);
+        let path = self.0.directory.join(name);
         std::fs::create_dir_all(&path).unwrap();
         path
     }
 
-    async fn stop(mut self) {
-        if let Some(shutdown) = self.shutdown.take() {
-            let _ = shutdown.send(());
-        }
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-        let _ = std::fs::remove_dir_all(&self.directory);
+    async fn stop(self) {
+        self.0.stop().await;
     }
 }
 

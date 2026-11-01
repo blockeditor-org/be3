@@ -18,22 +18,9 @@ async fn main() {
     };
     let (source, work) = (PathBuf::from(source), PathBuf::from(work));
     build_id::install("scale");
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
-    let data = work.join("server");
-    let token = be_server::ServerStore::open(&data)
-        .unwrap()
-        .register("scale@example.com", "Scale", "correct horse battery")
-        .await
-        .unwrap()
-        .1;
-    let (_shutdown, stopped) = tokio::sync::oneshot::channel::<()>();
-    tokio::spawn(be_server::serve_with_config(
-        listener,
-        data.clone(),
-        be_server::ServerConfig::OPEN,
-        stopped,
-    ));
+    let server = be_server::Running::at(work.join("server"), be_server::ServerConfig::OPEN).await;
+    let url = server.url.clone();
+    let token = server.register("scale@example.com", "Scale").await;
     let phrase = be_keys::RecoveryPhrase::generate();
     let organization = std::sync::Mutex::new(None);
     let connect = async |cache: &str| {

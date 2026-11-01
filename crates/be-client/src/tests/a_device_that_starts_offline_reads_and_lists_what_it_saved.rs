@@ -6,7 +6,7 @@ use text_block_types::{TextBlock, TextContent};
 async fn a_device_that_starts_offline_reads_and_lists_what_it_saved() {
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
-    let path = harness.directory.join("device").join("refs.sqlite3");
+    let path = harness.server.directory.join("device").join("refs.sqlite3");
     let store = MemoryStore::new();
     let (team, note, head) = {
         let refs = refs::RefsDb::open(&path).unwrap();

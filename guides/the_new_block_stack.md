@@ -907,7 +907,10 @@ instead, and the web build always does (`./scripts/buck run
 //crates/block-app:web` starts be-server beside it, closed to new
 accounts).
 
-Tests start their own server on an ephemeral port; see `Harness` in
+Tests and examples start their own server on an ephemeral port with
+`be_server::Running`, which serves a fresh temporary directory (or one it is
+given) on a task of the current runtime, registers accounts, and stops and
+removes the directory when dropped; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
 own tests do the same through the embedded server, register an account and
 create an organization, and then start the app's peer against it the way the app

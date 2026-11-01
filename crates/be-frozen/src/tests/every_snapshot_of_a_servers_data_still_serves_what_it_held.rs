@@ -25,12 +25,12 @@ async fn every_snapshot_of_a_servers_data_still_serves_what_it_held() {
     }
 }
 
-fn socket(server: &Server) -> String {
+fn socket(server: &Running) -> String {
     be_client::socket_url(&server.url)
 }
 
 async fn portal_http(
-    server: &Server,
+    server: &Running,
     method: &str,
     path: &str,
     cookie: &str,
@@ -55,7 +55,7 @@ fn csrf(page: &str) -> &str {
 fn form_value(value: &str) -> String {
     value.bytes().map(|byte| format!("%{byte:02X}")).collect()
 }
-async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connection>, String) {
+async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connection>, String) {
     let connection = Connection::connect(&socket(server), &be_client::Clock::real())
         .await
         .unwrap();
@@ -107,7 +107,12 @@ async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connectio
     (connection, token)
 }
 
-async fn peer(server: &Server, phrase: &str, token: &str, organization: Uuid) -> Peer<MemoryStore> {
+async fn peer(
+    server: &Running,
+    phrase: &str,
+    token: &str,
+    organization: Uuid,
+) -> Peer<MemoryStore> {
     Peer::connect(
         PeerConfig::new(
             socket(server),
@@ -121,19 +126,12 @@ async fn peer(server: &Server, phrase: &str, token: &str, organization: Uuid) ->
     .unwrap()
 }
 
-async fn register(server: &Server, email: &str, organization: Uuid) -> Peer<MemoryStore> {
+async fn register(server: &Running, email: &str, organization: Uuid) -> Peer<MemoryStore> {
     Peer::connect(
         PeerConfig::new(
             socket(server),
             RecoveryPhrase::generate().secret(),
-            Credentials::Token(
-                be_server::ServerStore::open(&server.data)
-                    .unwrap()
-                    .register(email, email, "a password long enough")
-                    .await
-                    .unwrap()
-                    .1,
-            ),
+            Credentials::Token(server.register(email, email).await),
         )
         .organization(Some(organization)),
         MemoryStore::new(),
@@ -150,13 +148,13 @@ async fn text<S: be_store::ObjectStore>(peer: &Peer<S>, block: &str) -> String {
 async fn check(snapshot: &Snapshot) {
     let name = snapshot.name;
     let unpacked = unpack(snapshot);
-    let server = Server::serve(unpacked.data.clone()).await;
+    let server = start(Some(unpacked.data.clone())).await;
     let organization = id(snapshot.organization);
     let personal = id(snapshot.personal);
 
     let (by_password, owner_token) =
         sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
-    let store = be_server::ServerStore::open(&server.data).unwrap();
+    let store = be_server::ServerStore::open(&server.directory).unwrap();
     let kept = snapshot.name >= scene::SESSIONS_KEPT_SINCE;
     assert_eq!(
         store.resolve_token(snapshot.owner_token).await.is_ok(),
@@ -554,7 +552,7 @@ async fn check(snapshot: &Snapshot) {
     .unwrap_or_else(|error| panic!("{name}: the backup no longer restores: {error}"));
     assert!(report.objects > 0);
     assert!(backup::verify(&restored).unwrap().missing.is_empty());
-    let server = Server::serve(restored).await;
+    let server = start(Some(restored)).await;
     let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
     assert_eq!(text(&owner, snapshot.shopping).await, scene::SHOPPING[2]);

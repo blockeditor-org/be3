@@ -2,6 +2,7 @@ mod browser_auth;
 mod client;
 pub mod mail;
 mod portal;
+mod running;
 use std::{
     error::Error,
     fmt, io,
@@ -46,6 +47,7 @@ pub mod store;
 pub mod watch;
 
 pub use blocks::PublishOutcome;
+pub use running::Running;
 pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
 pub use watch::{Push, WatchHub};
