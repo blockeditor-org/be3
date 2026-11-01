@@ -99,21 +99,12 @@ impl Host {
             return Deadline::after(STOPPED_CLOCK_FRAME_BUDGET);
         }
         let now = Instant::now();
-        let composite = self
-            .composites
-            .iter()
-            .max()
-            .copied()
-            .unwrap_or(UNMEASURED_COMPOSITE)
-            + SUBMIT_MARGIN;
-        let (mut present, interval) = self
+        let origin = self.present.map_or(now, |(at, _)| at.min(now));
+        let present = self
             .present
-            .unwrap_or((now + UNKNOWN_REFRESH, UNKNOWN_REFRESH));
-        let interval = interval.max(Duration::from_millis(1));
-        while present < now + composite {
-            present += interval;
-        }
-        Deadline::at(present - composite)
+            .map(|(at, interval)| (at.duration_since(origin), interval));
+        let wait = frame_wait(now.duration_since(origin), present, &self.composites);
+        Deadline::at(now + wait)
     }
 
     fn request_frames(&mut self, asked: &[String]) {
@@ -1685,6 +1676,25 @@ pub fn settle() -> bool {
         host.settled_at = Some(Instant::now());
         relaid
     })
+}
+
+fn frame_wait(
+    now: Duration,
+    present: Option<(Duration, Duration)>,
+    composites: &VecDeque<Duration>,
+) -> Duration {
+    let composite = composites
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or(UNMEASURED_COMPOSITE)
+        + SUBMIT_MARGIN;
+    let (mut present, interval) = present.unwrap_or((now + UNKNOWN_REFRESH, UNKNOWN_REFRESH));
+    let interval = interval.max(Duration::from_millis(1));
+    while present < now + composite {
+        present += interval;
+    }
+    present - composite - now
 }
 
 pub fn begin_frame(

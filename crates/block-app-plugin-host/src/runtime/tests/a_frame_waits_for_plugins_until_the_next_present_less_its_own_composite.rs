@@ -1,30 +1,25 @@
 use super::*;
 
 const MILLISECOND: Duration = Duration::from_millis(1);
+const REFRESH: Duration = Duration::from_micros(16_667);
 
 #[test]
 fn a_frame_waits_for_plugins_until_the_next_present_less_its_own_composite() {
-    let now = Instant::now();
-    let refresh = Duration::from_micros(16_667);
-    let mut host = Host::new();
-    host.present = Some((now + refresh, refresh));
-    host.composites = VecDeque::from([3 * MILLISECOND, 5 * MILLISECOND, 2 * MILLISECOND]);
-    let left = host
-        .frame_deadline()
-        .remaining()
-        .expect("the deadline is ahead");
-    assert!(
-        left <= refresh - 6 * MILLISECOND && left > refresh - 8 * MILLISECOND,
-        "the host keeps its longest recent composite and a millisecond to submit before the present, {left:?}"
+    let composites = VecDeque::from([3 * MILLISECOND, 5 * MILLISECOND, 2 * MILLISECOND]);
+    let now = Duration::from_secs(5);
+    assert_eq!(
+        frame_wait(now, Some((now + REFRESH, REFRESH)), &composites),
+        REFRESH - 6 * MILLISECOND,
+        "the host keeps its longest recent composite and a millisecond to submit before the present"
     );
-
-    host.present = Some((now + MILLISECOND, refresh));
-    let left = host
-        .frame_deadline()
-        .remaining()
-        .expect("the deadline is ahead");
-    assert!(
-        left > 8 * MILLISECOND && left <= refresh + MILLISECOND - 6 * MILLISECOND,
-        "a frame too late for this present waits for the one after it rather than not at all, {left:?}"
+    assert_eq!(
+        frame_wait(now, Some((now + MILLISECOND, REFRESH)), &composites),
+        REFRESH + MILLISECOND - 6 * MILLISECOND,
+        "a frame too late for this present waits for the one after it rather than not at all"
+    );
+    assert_eq!(
+        frame_wait(now, None, &VecDeque::new()),
+        UNKNOWN_REFRESH - UNMEASURED_COMPOSITE - SUBMIT_MARGIN,
+        "a display that reports no refresh is taken as 60 Hz, and an unmeasured composite as 4 ms"
     );
 }
