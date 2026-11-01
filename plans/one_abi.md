@@ -138,14 +138,12 @@ Two ways a call travels, chosen by who answers it, and the WIT says which:
 The generator refuses a `func` in any interface that is not `local`, with the message
 the network world gives today ("make it an async func"). `Shape::Direct` goes.
 
-### A call has happened once it returns; dropping it only asks to cancel
+### A call has happened once it returns; a drop only asks to cancel
 
 Most of today's sync imports are notifications (`shell.copy-text`,
 `host.frame-needed`, `blocks.write-content`). As `async func`s returning nothing they
-come back to the guest as `Pending<()>`. The case that has to work is the plain
-statement `guest::shell::copy_text(instance, text);`, whose `Pending` is dropped at
-the end of the statement, before the step's frames are flushed. The rule, as in Zig's
-async, where a call has either happened or failed as a unit:
+come back to the guest as `Pending<()>`. The rule for what happens to that `Pending`
+follows Zig's async, where a call has either happened or failed as a unit:
 
 - **A call has happened when the generated function returns.** The function encodes
   the arguments and pushes the `Start` frame onto the `Connection`'s outbound before it
@@ -165,28 +163,52 @@ async, where a call has either happened or failed as a unit:
   not know (`wire.rs`'s `ended`, be-types-host's `sleeping` check, the network
   server's rule in guides/type_modules.md).
 - **A host applies a notification when it accepts the `Start`.** That is when each of
-  today's sync imports takes effect, and it answers `()` straight away. The `Start`
-  and the `Cancel` of a dropped notification usually arrive in the same batch, so the
-  op is already marked canceled when the host reaches its `Started`. The host still
-  applies the call and answers it, since it took effect as a unit. Only work a host
-  does later, after an await, is cut short by a cancel, and then only before it takes
-  effect.
+  today's sync imports takes effect, and it answers `()` straight away. If a dropped
+  notification's `Cancel` arrives in the same batch as its `Start`, the op is already
+  marked canceled when the host reaches its `Started`. The host still applies the call
+  and answers it, since it took effect as a unit. Only work a host does later, after
+  an await, is cut short by a cancel, and then only before it takes effect.
 
 This is what be-ops does today: `Connection::start` queues at call time, and a drop
 sends a `Cancel` request that a callee is already allowed to answer with the real
 result (guides/type_modules.md: "Cancel ... is a request: the callee answers
-`Err(Canceled)` or the real result"). So the kernel needs no change and no `detach`.
-What is new is writing the rule down: in the guide, and as a test that a dropped
-`Pending<()>` still reaches a host, which applies it.
+`Err(Canceled)` or the real result"). The kernel needs no change for the rule, only
+a written statement of it, in the guide and as tests.
 
 It lines up with the component model's async ABI. As far as I know it from the
 specification (not checked against a runtime here), lowering an async import's
 arguments starts the subtask, and `subtask.cancel` is a request: the callee may still
-return, and the caller sees either "returned" or "cancelled". The difference is that
-there a caller may drop a subtask only once it has resolved. Here the kernel absorbs
-the late `Complete` for the caller, which is what makes a plain statement possible.
+return, and the caller sees either "returned" or "cancelled". There a caller may drop
+a subtask only once it has resolved. Here the kernel absorbs the late `Complete` for
+the caller.
 
-The options weighed:
+### Saying that nobody waits: `#[must_use]` and `detach`
+
+A call whose `Pending` is dropped by accident looks the same as one meant to be
+fire-and-forget, and with the rule above the accident is quiet: the call happened,
+and a cancel request followed it. So every call has to say what it does with its
+answer:
+
+- **`Pending` is `#[must_use]`.** This applies to `be_ops::guest::Pending` and
+  `be_ops::net::Pending`, and it is a kernel change: neither has the attribute today.
+  `Pending` is a concrete type, and `Future`'s own `#[must_use]` reaches only
+  `impl Future` and `dyn Future`, so a statement `f();` compiles now. With the
+  attribute, `unused_must_use` makes the statement an error under `-D warnings`
+  (buck/toolchains/BUCK). `let _ = f();` is already one, through clippy's
+  `let_underscore_future`.
+- **`Pending::detach(self)` is the one way to say nobody waits for this answer.** It
+  removes the call from `calls` without sending a `Cancel`, and the `Complete` that
+  comes back finds nothing to wake, as for a dropped call. With the rule above,
+  detaching and dropping differ only in whether a `Cancel` is sent: the call has
+  happened either way. Detach says "do it", while a drop says "I no longer need it,
+  stop if you can". So a notification is
+  `guest::shell::copy_text(instance, text).detach();`. It is about five lines in
+  each `Pending`. For `net::Pending` it needs a `forget(op)` on `net::Caller`, since
+  `cancel` there both forgets the call and sends the `Cancel`.
+- **An explicit drop stays a cancel request**: `drop(pending)`, a `Pending` held in a
+  struct and dropped with it, or the loser of a `select!`.
+
+The options weighed for what a drop means:
 
 - **(a) The `Start` is committed at call time, and a drop appends a best-effort
   `Cancel`.** Chosen; it is the rule above.
@@ -201,24 +223,29 @@ The options weighed:
   - A dropped resource would stay open until its connection closes, unless resources
     keep drop-closes, which makes the rule different per kind of handle.
   - Every `select!` and timeout over a host call would leak the host's work.
-- **(c) `#[must_use]` on `Pending`, with verify denying unused results.** Rejected.
-  It forbids the plain statement the notifications want and puts `let _ =` or a
-  `detach` at about seventy call sites. Today `Pending` is a concrete type without
-  `#[must_use]`, so a statement that drops one compiles. `let _ = call(..)` already
-  trips clippy's `let_underscore_future`, an error under `-D warnings`
-  (buck/toolchains/BUCK), which keeps the statement as the one way to write a call
-  whose answer is not wanted.
+- **(c) `#[must_use]` on `Pending`.** Taken on top of (a), with `detach`, so that a
+  call never drops its answer silently.
+
+What `#[must_use]` affects:
+
+- **Today: nothing.** With the attribute on both `Pending`s, `./scripts/verify`
+  passed unchanged (tried in November 2026, then reverted). No code in the tree drops a
+  `Pending` in a bare statement today: every async call is awaited, held or spawned.
+- **After the 58 imports become async: about 80 guest call sites.** Each needs
+  `.detach()`, or an `.await` where the caller wants the host's answer. The count comes
+  from a search for the imports' names: block-editor-plugin's `editor_session.rs` (28),
+  `link.rs` (7), `runtime.rs` (3), `host.rs` (2) and `screens.rs` (1); block-type-guest's
+  `lib.rs` (9); the desktop editor's `wifi`, `windows`, `tray`, `volume`, `power`,
+  `launcher`, `placeholders`, `media`, `notifications` and `fullscreen` (about 25);
+  block-shell's `window.rs` (5) and `workspace.rs` (3); and two host tests.
+  Several sit in closures such as `host.act(move || windows::request(..))`, which now
+  return a `Pending`. The `.detach()` inside the closure also keeps the closure's
+  type `()`.
 
 On the host side, each of these imports' `embed` cases now carries a `Reply<()>`,
 which the host answers once it has acted. A guest that cares can await it, for
 example await `write-content` before it reports a save. A host that drops a `Reply`
 unanswered leaves the op open until the connection closes, as with any op today.
-
-The cost of a dropped notification is a `Cancel` of about six bytes on top of the
-`Start`, and a `Complete` coming back. If that ever shows, the connection could skip
-the `Cancel` for an op whose `Start` is still in its unflushed outbound. That changes
-no meaning, since the host would answer the real result anyway. It is not part of
-this plan.
 
 ### Exports the guest finishes in the same step
 
@@ -295,8 +322,8 @@ thread itself may not block, but it need not). Turned down:
 Every non-local `func` that does not return a stream becomes an `async func`. That is
 91 funcs, by the file each is in.
 
-Imports, 58, all returning nothing. A guest call site stays a plain statement (or
-awaits, where it wants the host's answer), and each host arm gains a `reply.send(..)`:
+Imports, 58, all returning nothing. Each guest call site gains `.detach()` (or an
+`.await`, where it wants the host's answer), and each host arm gains a `reply.send(..)`:
 
 - `crates/block-plugin-api/wit/blocks.wit` (`blocks`), 7: `open-block`, `act`,
   `version`, `create-block`, `set-parent`, `define`, `write-content`.
@@ -335,8 +362,8 @@ streams), `crates/block-gpu-abi/wit/device.wit` (local, 89 sync funcs).
 
 The callers affected:
 
-- **Guest call sites of the imports**: about 70, which compile unchanged as statements
-  that drop the `Pending`, nearly all one wrapper each in the
+- **Guest call sites of the imports**: about 80, each gaining `.detach()`, nearly all
+  one wrapper each in the
   plugin side of the stack (block-editor-plugin, beui-platform-plugin, the
   `be3:desktop` users in workspace-ui and the shell editors) and in block-type-guest's
   host calls. The busiest names (`windows::request`, 13; `wifi::request`, 5) are
@@ -408,17 +435,23 @@ None of these are measured as hot. If they turn out to be, the next saving is
 Each lands alone, with `./scripts/verify` green, and leaves the guide describing what
 is there.
 
-1. **Kernel.** `dispatch` polls an async export's future once before boxing it. Tests:
-   a `Pending<()>` dropped right after the call still reaches the host, which applies
-   it and whose answer the guest ignores; a host that already answered an op ignores
-   its `Cancel`; an async export that is ready at once answers in the same step
-   without a task. Adds ~50 lines, most of them tests.
+1. **Kernel.** `#[must_use]` and `detach` on `guest::Pending` and `net::Pending`;
+   `net::Caller` gains `forget(op)`, which drops a call's slot without a `Cancel`.
+   `dispatch` polls an async export's future once before boxing it. Nothing in the
+   tree breaks, since no bare `f();` exists today. Tests:
+   - a detached call sends no `Cancel` and its `Complete` is ignored;
+   - a `Pending<()>` dropped right after the call still reaches the host, which
+     applies it;
+   - a host that already answered an op ignores its `Cancel`;
+   - an async export that is ready at once answers in the same step without a task.
+
+   Adds ~70 lines, most of them tests.
 2. **block-type-api.** Mark host.wit's 8 imports and replicas.wit's 14 exports
-   `async`. Update block-type-guest (its `replicas` impl
+   `async`. Update block-type-guest (its 9 host calls `.detach()`, its `replicas` impl
    returns `ready(..)`), be-types-host, host-types and the `Sim`'s host, which now
    replies. That world then has no sync funcs.
-3. **block-plugin-api imports.** Mark the 50 imports `async`; update the guest call
-   sites and the host arms listed above.
+3. **block-plugin-api imports.** Mark the 50 imports `async`; add `.detach()` (or an
+   `.await`) at the ~70 guest call sites, and update the host arms listed above.
 4. **block-plugin-api exports.** Mark plugin.wit's 19 exports `async`; update the
    plugin SDK's impls and the host callers. Steps 3 and 4 can land in either order.
 5. **Delete the direct path.** No WIT has a non-local sync func any more, so:
@@ -439,8 +472,8 @@ is there.
 6. **Guide.** Rewrite guides/type_modules.md's "Operations and WIT":
    - the direct-item paragraph, "The rule" and the closing three-ways summary become
      the rule above;
-   - add the drop rule beside `Pending`: a call has happened once it returns, and
-     dropping it only asks to cancel.
+   - add the drop rule beside `Pending`: a call has happened once it returns, a drop
+     only asks to cancel, and `detach` says nobody waits.
 
    Drop `export_<world>!` from guides/adding_a_plugin_editor.md and
    guides/plugin_libraries.md where they name it.
@@ -484,17 +517,17 @@ Removed, about 850 lines:
 | the generator's `Shape::Direct` arms, import and export shims, `IMPORTS`, `export_<world>!`, `accept_direct` | ~250 |
 | the hosts' `Called` branches | ~120 |
 
-Added, about 240 lines:
+Added, about 260 lines:
 
 | Code | Lines |
 |---|---|
-| the poll-once fast path and the drop-rule tests | ~50 |
+| `#[must_use]` and `detach` on both `Pending`s (with a `forget` on `net::Caller`), the poll-once fast path, and the tests | ~70 |
 | a `reply.send(..)` in each of 58 host arms | ~60 |
 | `ready(..)` and signature lines in 33 export impls | ~70 |
 | `requested.rs` returning the reply | ~20 |
 | test hosts answering | ~40 |
 
-Guest call sites of the imports do not change. Net about -600.
+About 80 guest call sites also gain `.detach()` in place. Net about -590.
 
 Worth doing: it removes a whole wire format and the only JS that had to track a Rust
 byte layout, and makes in-process and wasm guests take one path. It also makes every
