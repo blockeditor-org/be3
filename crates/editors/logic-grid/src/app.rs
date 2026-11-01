@@ -206,55 +206,23 @@ impl Tool {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Camera {
-    center: [f32; 2],
-    zoom: f32,
-}
-
-impl Default for Camera {
-    fn default() -> Self {
-        Self {
-            center: [0.0, 0.0],
-            zoom: CELL,
-        }
-    }
-}
-
-impl Camera {
-    fn from_view(view: Option<CanvasView>, world: Option<Vec2>, rect: Rect) -> Self {
-        let view = view.unwrap_or_else(|| CanvasView::new(rect.min, 1.0));
-        let scale = view.scale.max(f32::EPSILON);
-        let world = world.unwrap_or_else(|| Vec2::new(rect.width() / scale, rect.height() / scale));
-        let center = view.to_canvas(rect.center());
-        Self {
-            center: [
-                (center.x - world.x * 0.5) / CELL,
-                (center.y - world.y * 0.5) / CELL,
-            ],
-            zoom: CELL * scale,
-        }
-    }
-
-    fn view(self, rect: Rect) -> CanvasView {
-        CanvasView::new(
-            Pos2::new(
-                rect.center().x - self.center[0] * self.zoom,
-                rect.center().y - self.center[1] * self.zoom,
-            ),
-            self.zoom,
-        )
-    }
-
-    fn screen_to_world(self, screen: Pos2, rect: Rect) -> [f32; 2] {
-        let world = self.view(rect).to_canvas(screen);
-        [world.x, world.y]
-    }
-
-    #[cfg(test)]
-    fn world_to_screen(self, world: [f32; 2], rect: Rect) -> Pos2 {
-        self.view(rect).to_screen(Pos2::new(world[0], world[1]))
-    }
+fn grid_view(view: Option<CanvasView>, world: Option<Vec2>, rect: Rect) -> CanvasView {
+    let view = view.unwrap_or_else(|| CanvasView::new(rect.min, 1.0));
+    let scale = view.scale.max(f32::EPSILON);
+    let world = world.unwrap_or_else(|| Vec2::new(rect.width() / scale, rect.height() / scale));
+    let center = view.to_canvas(rect.center());
+    let center = Pos2::new(
+        (center.x - world.x * 0.5) / CELL,
+        (center.y - world.y * 0.5) / CELL,
+    );
+    let zoom = CELL * scale;
+    CanvasView::new(
+        Pos2::new(
+            rect.center().x - center.x * zoom,
+            rect.center().y - center.y * zoom,
+        ),
+        zoom,
+    )
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -608,7 +576,7 @@ pub(super) struct LogicGridEditor {
     compiled: HashMap<Uuid, CompiledSource>,
     tool: Tool,
     placement_orientation: ComponentOrientation,
-    camera: Camera,
+    camera: CanvasView,
     gesture: Option<Gesture>,
     selection: Selection,
     configured_storage: Option<ComponentId>,
@@ -652,7 +620,7 @@ impl LogicGridEditor {
                 merger_out_scale: Scale::new(4).expect("default scale is valid"),
             },
             placement_orientation: ComponentOrientation::Right,
-            camera: Camera::default(),
+            camera: CanvasView::new(Pos2::ZERO, CELL),
             gesture: None,
             selection: Selection::default(),
             configured_storage: None,
