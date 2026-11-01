@@ -75,8 +75,8 @@ pub struct ScreenReader {
     bar: Rect,
 }
 
-impl Default for ScreenReader {
-    fn default() -> Self {
+impl ScreenReader {
+    pub(crate) fn new(now: Instant) -> Self {
         Self {
             enabled: false,
             active: false,
@@ -86,7 +86,7 @@ impl Default for ScreenReader {
             spoken: None,
             reported: None,
             live: false,
-            now: Instant::now(),
+            now,
             last_spoke: None,
             fingers: Vec::new(),
             finger_at: None,

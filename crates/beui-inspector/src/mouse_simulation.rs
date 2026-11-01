@@ -100,8 +100,8 @@ pub struct MouseSimulation {
     painted: Rect,
 }
 
-impl Default for MouseSimulation {
-    fn default() -> Self {
+impl MouseSimulation {
+    fn new(now: Instant) -> Self {
         Self {
             enabled: false,
             active: false,
@@ -118,7 +118,7 @@ impl Default for MouseSimulation {
             scroll: Vec2::ZERO,
             left: Left::Up,
             scrolling: false,
-            now: Instant::now(),
+            now,
             keyboard: None,
             keyboard_toggled: false,
             passed: Vec::new(),
@@ -676,7 +676,7 @@ pub fn simulate(ctx: &Context, enabled: bool) {
         .is_none()
         && enabled
     {
-        let mut simulation = MouseSimulation::default();
+        let mut simulation = MouseSimulation::new(ctx.now());
         simulation.enable(true);
         ctx.set_input_simulation(Box::new(simulation));
     }

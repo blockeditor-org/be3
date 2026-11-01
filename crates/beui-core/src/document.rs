@@ -399,7 +399,7 @@ impl Document {
             copied_text: None,
             copied_image: None,
             next_paint: None,
-            now: Instant::now(),
+            now: crate::timer::frame_clock(),
             reactive_scope: ::reactive::Scope::new(),
             zone,
             extensions: HashMap::default(),
