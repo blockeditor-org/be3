@@ -1,156 +1,15 @@
-use std::fmt::Write as _;
 use std::time::Duration;
 
-use beui_types::Rect;
-use beui_types::target::TreeLine;
-pub use beui_types::target::{locate, place, shown_at};
+use beui_types::drive::Command;
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
 const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, reveal TARGET (scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input, ending in revealed when it scrolled), shown TARGET (says where a target shows, without scrolling), wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Line {
-    pub depth: usize,
-    pub text: String,
-    pub test_ids: Vec<String>,
-    pub bounds: Option<Rect>,
-    pub visible: bool,
-    pub shown: Option<Rect>,
-    pub node: Option<crate::node::NodeId>,
-}
-
-pub struct Description<'a> {
-    pub role: &'a str,
-    pub label: Option<&'a str>,
-    pub value: Option<&'a str>,
-    pub toggled: Option<&'a str>,
-    pub disabled: bool,
-    pub selected: bool,
-    pub focused: bool,
-    pub test_ids: &'a [String],
-    pub bounds: Option<Rect>,
-    pub clip: Rect,
-    pub node: Option<crate::node::NodeId>,
-}
-
-pub fn describe(depth: usize, description: Description) -> Line {
-    let mut text = description.role.to_owned();
-    if let Some(label) = description.label.filter(|label| !label.is_empty()) {
-        let _ = write!(text, " {label:?}");
-    }
-    if let Some(value) = description.value.filter(|value| !value.is_empty()) {
-        let _ = write!(text, " value={value:?}");
-    }
-    if let Some(toggled) = description.toggled {
-        let _ = write!(text, " toggled={toggled}");
-    }
-    if description.disabled {
-        text.push_str(" disabled");
-    }
-    if description.selected {
-        text.push_str(" selected");
-    }
-    if description.focused {
-        text.push_str(" focused");
-    }
-    for test_id in description.test_ids {
-        let _ = write!(text, " #{test_id}");
-    }
-    let mut visible = true;
-    let mut shown = description.bounds;
-    if let Some(rect) = description.bounds {
-        let _ = write!(text, " {}", place(rect));
-        let part = description.clip.intersect(rect);
-        if area(part) <= 0.0 && area(rect) > 0.0 {
-            text.push_str(" offscreen");
-            visible = false;
-            shown = None;
-        } else if area(part) < area(rect) {
-            text.push_str(" partly offscreen");
-            shown = Some(part);
-        }
-    }
-    Line {
-        depth,
-        text,
-        test_ids: description.test_ids.to_vec(),
-        bounds: description.bounds,
-        visible,
-        shown,
-        node: description.node,
-    }
-}
-
-fn area(rect: Rect) -> f32 {
-    rect.width().max(0.0) * rect.height().max(0.0)
-}
-
-pub fn render(lines: &[Line]) -> String {
-    let mut text = String::new();
-    for line in lines {
-        for _ in 0..line.depth {
-            text.push_str("  ");
-        }
-        text.push_str(&line.text);
-        text.push('\n');
-    }
-    text
-}
-
-pub fn ids(lines: &[Line]) -> String {
-    let mut named: Vec<(&str, &Line)> = lines
-        .iter()
-        .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), line)))
-        .collect();
-    named.sort_by(|a, b| a.0.cmp(b.0));
-    named
-        .into_iter()
-        .map(|(id, line)| {
-            let place = line.bounds.map(place).unwrap_or_default();
-            let hidden = if line.visible { "" } else { " offscreen" };
-            format!("#{id} {place}{hidden}\n")
-        })
-        .collect()
-}
-
-impl TreeLine for Line {
-    fn depth(&self) -> usize {
-        self.depth
-    }
-    fn text(&self) -> &str {
-        &self.text
-    }
-    fn test_ids(&self) -> &[String] {
-        &self.test_ids
-    }
-    fn bounds(&self) -> Option<Rect> {
-        self.bounds
-    }
-    fn visible(&self) -> bool {
-        self.visible
-    }
-    fn shown(&self) -> Option<Rect> {
-        self.shown
-    }
-}
+pub type Line = beui_types::drive::Line<Option<crate::node::NodeId>>;
 
 pub fn hidden(target: &str, lines: &[Line]) -> Option<crate::node::NodeId> {
     beui_types::target::hidden(target, lines).and_then(|line| line.node)
-}
-
-pub enum Command {
-    Tree,
-    Ids,
-    Find(String),
-    Reveal(String),
-    Shown(String),
-    Wait(String),
-    Gone(String),
-    Settle,
-    Pause(Duration),
-    Clock(bool),
-    Help,
 }
 
 pub struct Request {
@@ -177,37 +36,13 @@ pub fn parse(words: &[String]) -> Result<Request, String> {
     let Some((command, arguments)) = rest.split_first() else {
         return Err(format!("no command; {ANSWERS}"));
     };
-    let joined = || arguments.join(" ");
-    let named = |what: &str| -> Result<String, String> {
-        match arguments.is_empty() {
-            true => Err(format!("{command} needs {what}")),
-            false => Ok(joined()),
-        }
-    };
-    let command = match command.as_str() {
-        "tree" => Command::Tree,
-        "ids" => Command::Ids,
-        "find" => Command::Find(named("a TARGET")?),
-        "reveal" => Command::Reveal(named("a TARGET")?),
-        "shown" => Command::Shown(named("a TARGET")?),
-        "wait" => Command::Wait(named("TEXT")?),
-        "gone" => Command::Gone(named("TEXT")?),
-        "settle" => Command::Settle,
-        "help" => Command::Help,
-        "pause" => {
-            let milliseconds: u64 = named("MILLISECONDS")?
-                .parse()
-                .map_err(|_| format!("{} is not a number of milliseconds", joined()))?;
-            Command::Pause(Duration::from_millis(milliseconds))
-        }
-        "clock" => match joined().as_str() {
-            "stop" => Command::Clock(false),
-            "run" => Command::Clock(true),
-            other => return Err(format!("clock takes stop or run, not {other:?}")),
-        },
-        other => return Err(format!("{other} is not a command here: {ANSWERS}")),
-    };
-    Ok(Request { command, timeout })
+    match beui_types::drive::parse(command, arguments) {
+        Some(command) => Ok(Request {
+            command: command?,
+            timeout,
+        }),
+        None => Err(format!("{command} is not a command here: {ANSWERS}")),
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -221,9 +56,10 @@ mod web {
     use beui_types::{Rect, pos2, vec2};
     use wasm_bindgen::JsCast;
 
-    use super::{
-        Command, Description, Line, describe, hidden, ids, locate, parse, place, render, shown_at,
-    };
+    use beui_types::drive::{Description, describe, ids, render, waited};
+    use beui_types::target::{locate, place, shown_at};
+
+    use super::{Command, Line, hidden, parse};
     use crate::document::{About, about_elements};
 
     fn clip_everywhere() -> Rect {
@@ -329,9 +165,8 @@ mod web {
                 .contains(&"Text")
                 .then(|| text_of(dom, &self.abouts, &self.keys))
                 .filter(|text| !text.is_empty());
-            let line = match (&about.accessibility, &text) {
+            let described = match (&about.accessibility, &text) {
                 (Some(node), text) => {
-                    let role = format!("{:?}", node.role());
                     let numeric = node
                         .numeric_value()
                         .map(|value| ((value * 1000.0).round() / 1000.0).to_string());
@@ -344,58 +179,35 @@ mod web {
                         (true, Some(text)) => (Some(text.as_str()), None),
                         _ => (node.label(), value),
                     };
-                    let toggled = node.toggled().map(|toggled| format!("{toggled:?}"));
-                    Some(describe(
-                        depth,
-                        Description {
-                            role: &role,
-                            label,
-                            value: value.as_deref(),
-                            toggled: toggled.as_deref(),
-                            disabled: node.is_disabled(),
-                            selected: node.is_selected() == Some(true),
-                            focused,
-                            test_ids: &about.test_ids,
-                            bounds: Some(rect),
-                            clip,
-                            node: Some(about.node),
-                        },
-                    ))
+                    Some((format!("{:?}", node.role()), label, value, Some(node)))
                 }
-                (None, Some(text)) => Some(describe(
-                    depth,
-                    Description {
-                        role: "Label",
-                        label: None,
-                        value: Some(text),
-                        toggled: None,
-                        disabled: false,
-                        selected: false,
-                        focused,
-                        test_ids: &about.test_ids,
-                        bounds: Some(rect),
-                        clip,
-                        node: Some(about.node),
-                    },
-                )),
-                (None, None) if !about.test_ids.is_empty() => Some(describe(
-                    depth,
-                    Description {
-                        role: "GenericContainer",
-                        label: None,
-                        value: None,
-                        toggled: None,
-                        disabled: false,
-                        selected: false,
-                        focused,
-                        test_ids: &about.test_ids,
-                        bounds: Some(rect),
-                        clip,
-                        node: Some(about.node),
-                    },
-                )),
+                (None, Some(text)) => Some(("Label".to_owned(), None, Some(text.clone()), None)),
+                (None, None) if !about.test_ids.is_empty() => {
+                    Some(("GenericContainer".to_owned(), None, None, None))
+                }
                 (None, None) => None,
             };
+            let line = described.map(|(role, label, value, node)| {
+                let toggled = node
+                    .and_then(accesskit::Node::toggled)
+                    .map(|toggled| format!("{toggled:?}"));
+                describe(
+                    depth,
+                    Description {
+                        role: &role,
+                        label,
+                        value: value.as_deref(),
+                        toggled: toggled.as_deref(),
+                        disabled: node.is_some_and(accesskit::Node::is_disabled),
+                        selected: node.is_some_and(|node| node.is_selected() == Some(true)),
+                        focused,
+                        test_ids: about.test_ids.clone(),
+                        bounds: Some(rect),
+                        clip,
+                    },
+                    Some(about.node),
+                )
+            });
             let shown = line.is_some();
             self.lines.extend(line);
             if about.kinds.contains(&"Text") {
@@ -460,11 +272,11 @@ mod web {
                 disabled: false,
                 selected: false,
                 focused: false,
-                test_ids: &[],
+                test_ids: Vec::new(),
                 bounds: root_rect,
                 clip: clip_everywhere(),
-                node: None,
             },
+            None,
         ));
         walk.children(&root_dom, 1, viewport);
         walk.lines
@@ -515,30 +327,26 @@ mod web {
         }
     }
 
-    async fn wait(text: &str, shown: bool, timeout: Duration) -> Result<String, String> {
+    async fn wait(
+        text: &str,
+        over: Option<&str>,
+        present: bool,
+        timeout: Duration,
+    ) -> Result<String, String> {
         let deadline = wall_milliseconds() + timeout.as_secs_f64() * 1000.0;
+        let over = match over {
+            Some(at) => Some(locate(at, &lines())?.center()),
+            None => None,
+        };
         loop {
             let lines = lines();
-            let (wanted, over) = match text.rsplit_once(" over ") {
-                Some((wanted, at)) => match super::locate(at, &lines) {
-                    Ok(rect) => (wanted, Some(rect.center())),
-                    Err(_) => (text, None),
-                },
-                None => (text, None),
-            };
-            let found = lines.iter().find(|line| {
-                line.text.contains(wanted)
-                    && over.is_none_or(|point| {
-                        line.visible && line.bounds.is_some_and(|bounds| bounds.contains(point))
-                    })
-            });
-            match (found, shown) {
+            match (waited(&lines, text, over), present) {
                 (Some(line), true) => return Ok(format!("{}\n", line.text)),
                 (None, false) => return Ok(String::new()),
                 _ => {}
             }
             if wall_milliseconds() > deadline {
-                let what = match shown {
+                let what = match present {
                     true => "no line of the tree contains",
                     false => "a line of the tree still contains",
                 };
@@ -571,8 +379,11 @@ mod web {
                 ))
             }
             Command::Shown(target) => Ok(format!("{}\n", place(shown_at(&target, &lines())?))),
-            Command::Wait(text) => wait(&text, true, timeout).await,
-            Command::Gone(text) => wait(&text, false, timeout).await,
+            Command::Wait {
+                text,
+                over,
+                present,
+            } => wait(&text, over.as_deref(), present, timeout).await,
             Command::Settle => settle(timeout).await.map(|()| String::new()),
             Command::Pause(by) => {
                 if crate::frame::frozen() {

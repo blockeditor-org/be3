@@ -1,6 +1,5 @@
 use stable_hash::{HashMap, HashSet};
 use std::cell::{OnceCell, RefCell};
-use std::fmt::Write as _;
 use std::rc::Rc;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
@@ -67,17 +66,8 @@ pub struct Rendered {
 
 impl Rendered {
     pub fn text(&self) -> &str {
-        self.written.get_or_init(|| {
-            let mut text = String::new();
-            for line in &self.lines {
-                for _ in 0..line.depth {
-                    text.push_str("  ");
-                }
-                text.push_str(&line.text);
-                text.push('\n');
-            }
-            text
-        })
+        self.written
+            .get_or_init(|| beui_types::drive::render(&self.lines))
     }
 
     pub fn lines(&self) -> &[Rc<Line>] {
@@ -388,51 +378,23 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
     if !shown {
         return None;
     }
-    let mut text = String::new();
-    let mut visible_part = true;
-    let mut shown = rect;
-    let _ = write!(text, "{:?}", node.role());
-    if let Some(label) = label {
-        let _ = write!(text, " {label:?}");
-    }
-    if let Some(value) = value {
-        let _ = write!(text, " value={value:?}");
-    }
-    if let Some(toggled) = node.toggled() {
-        let _ = write!(text, " toggled={toggled:?}");
-    }
-    if node.is_disabled() {
-        text.push_str(" disabled");
-    }
-    if node.is_selected() == Some(true) {
-        text.push_str(" selected");
-    }
-    if placed.focused {
-        text.push_str(" focused");
-    }
-    for test_id in &test_ids {
-        let _ = write!(text, " #{test_id}");
-    }
-    if let Some(rect) = rect {
-        let _ = write!(
-            text,
-            " at {},{} size {}x{}",
-            rect.x0.round(),
-            rect.y0.round(),
-            rect.width().round(),
-            rect.height().round()
-        );
-        let part = placed.clip.intersect(rect);
-        let visible = part.area();
-        if visible <= 0.0 && rect.area() > 0.0 {
-            text.push_str(" offscreen");
-            visible_part = false;
-            shown = None;
-        } else if visible < rect.area() {
-            text.push_str(" partly offscreen");
-            shown = Some(part);
-        }
-    }
+    let toggled = node.toggled().map(|toggled| format!("{toggled:?}"));
+    let described = beui_types::drive::describe(
+        placed.depth,
+        beui_types::drive::Description {
+            role: &format!("{:?}", node.role()),
+            label,
+            value,
+            toggled: toggled.as_deref(),
+            disabled: node.is_disabled(),
+            selected: node.is_selected() == Some(true),
+            focused: placed.focused,
+            test_ids,
+            bounds: rect.map(geometry_rect),
+            clip: geometry_rect(placed.clip),
+        },
+        (),
+    );
     Some(Line {
         id,
         actions: ACTIONS
@@ -446,10 +408,10 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
         toggled: node.toggled(),
         disabled: node.is_disabled(),
         focused: placed.focused,
-        text,
-        bounds: rect.map(geometry_rect),
-        visible: visible_part,
-        shown: shown.map(geometry_rect),
-        test_ids,
+        text: described.text,
+        bounds: described.bounds,
+        visible: described.visible,
+        shown: described.shown,
+        test_ids: described.test_ids,
     })
 }

@@ -17,6 +17,7 @@ use beui_core::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButto
 use beui_core::window::{Resize, WindowId, WindowSize, WindowState};
 use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
+use beui_types::drive;
 
 use crate::gestures::{Frames, Gestures};
 use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
@@ -917,7 +918,9 @@ impl Session {
                     text,
                     present,
                     over,
-                } if shown(view, text, *over) == *present => Some(Reply::Text(String::new())),
+                } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
+                    Some(Reply::Text(String::new()))
+                }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 Phase::Components => output
                     .comps
@@ -1082,11 +1085,14 @@ impl Session {
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
         let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        if kind(command) == Some(Kind::Session) {
-            return self.session(command, arguments, view, frame);
-        }
         let reveal = Cell::new(None);
-        let started = self.command(tap, command, arguments, view, frame, revealed, &reveal);
+        let started = match drive::parse(command, arguments) {
+            Some(parsed) => self.shared(parsed?, view, frame, revealed, &reveal),
+            None if kind(command) == Some(Kind::Session) => {
+                return self.session(command, arguments, view, frame);
+            }
+            None => self.command(tap, command, arguments, view, frame, revealed, &reveal),
+        };
         let Some(id) = reveal.get() else {
             return started;
         };
@@ -1104,6 +1110,60 @@ impl Session {
         }))
     }
 
+    fn shared(
+        &mut self,
+        command: drive::Command,
+        view: &View<'_>,
+        frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
+    ) -> Result<Started, String> {
+        let rendered = view.rendered();
+        let lines = rendered.lines();
+        let text = |text: String| Ok(Started::Done(Reply::Text(text)));
+        let shown = |target: &str| {
+            let scrolled = if revealed.is_empty() { "" } else { " revealed" };
+            text(format!("{}{scrolled}\n", place(shown_part(target, lines)?)))
+        };
+        match command {
+            drive::Command::Help => text(format!("{USAGE}\n")),
+            drive::Command::Settle => Ok(Started::Phase(Phase::Settling { before: None })),
+            drive::Command::Clock(running) => {
+                match running {
+                    true => frame.context.run_clock(),
+                    false => frame.context.stop_clock(),
+                }
+                self.clock_stopped = !running;
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            drive::Command::Pause(by) => Ok(Started::Phase(Phase::Pausing {
+                until: view.now + by,
+            })),
+            drive::Command::Tree => text(rendered.text().to_owned()),
+            drive::Command::Ids => text(drive::ids(lines)),
+            drive::Command::Find(target) => text(format!("{}\n", place(locate(&target, lines)?))),
+            drive::Command::Reveal(target) => match hidden(&target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => shown(&target),
+            },
+            drive::Command::Shown(target) => shown(&target),
+            drive::Command::Wait {
+                text,
+                over,
+                present,
+            } => Ok(Started::Phase(Phase::Waiting {
+                text,
+                present,
+                over: over
+                    .map(|at| locate(&at, lines).map(|rect| rect.center()))
+                    .transpose()?,
+            })),
+        }
+    }
+
     fn session(
         &mut self,
         command: &str,
@@ -1118,9 +1178,7 @@ impl Session {
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
         match command {
-            "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
-            "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "close" => match frame.app.close_requested() {
                 true => {
                     frame.close();
@@ -1132,15 +1190,6 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
-            "clock" => {
-                match argument(0)? {
-                    "stop" => frame.context.stop_clock(),
-                    "run" => frame.context.run_clock(),
-                    other => return Err(format!("clock takes stop or run, not {other}")),
-                }
-                self.clock_stopped = argument(0)? == "stop";
-                Ok(Started::Phase(Phase::Settling { before: None }))
-            }
             "hurry" => {
                 self.unhurried = match argument(0)? {
                     "on" => false,
@@ -1149,14 +1198,6 @@ impl Session {
                 };
                 frame.context.set_hurried(!self.unhurried);
                 Ok(Started::Phase(Phase::Settling { before: None }))
-            }
-            "pause" => {
-                let milliseconds: u64 = argument(0)?
-                    .parse()
-                    .map_err(|_| "pause takes milliseconds".to_owned())?;
-                Ok(Started::Phase(Phase::Pausing {
-                    until: view.now + Duration::from_millis(milliseconds),
-                }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
@@ -1288,43 +1329,6 @@ impl Session {
         };
         let input = |frames: Frames| incoming(points(frames));
         match command.as_str() {
-            "tree" => Ok(Started::Done(Reply::Text(
-                view.rendered().text().to_owned(),
-            ))),
-            "ids" => {
-                let rendered = view.rendered();
-                let mut ids: Vec<(&str, &Line)> = rendered
-                    .lines()
-                    .iter()
-                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), &**line)))
-                    .collect();
-                ids.sort_by(|a, b| a.0.cmp(b.0));
-                let text = ids
-                    .into_iter()
-                    .map(|(id, line)| {
-                        let place = line.bounds.map(place).unwrap_or_default();
-                        let hidden = if line.visible { "" } else { " offscreen" };
-                        format!("#{id} {place}{hidden}\n")
-                    })
-                    .collect();
-                Ok(Started::Done(Reply::Text(text)))
-            }
-            "find" => {
-                let rect = locate(argument(0)?, rendered.lines())?;
-                Ok(Started::Done(Reply::Text(format!("{}\n", place(rect)))))
-            }
-            "reveal" | "shown" => {
-                let target = argument(0)?;
-                if command == "reveal" {
-                    at(target)?;
-                }
-                let rect = shown_part(target, lines)?;
-                let scrolled = if revealed.is_empty() { "" } else { " revealed" };
-                Ok(Started::Done(Reply::Text(format!(
-                    "{}{scrolled}\n",
-                    place(rect)
-                ))))
-            }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
                 {
@@ -1776,20 +1780,6 @@ impl Session {
                     });
                 input(vec![Vec::new()])
             }
-            "wait" | "gone" => {
-                let (text, over) = match arguments {
-                    [text @ .., over, at] if !text.is_empty() && over == "over" => {
-                        let at = locate(at, rendered.lines())?;
-                        (text, Some(at.center()))
-                    }
-                    text => (text, None),
-                };
-                Ok(Started::Phase(Phase::Waiting {
-                    text: text.join(" "),
-                    present: command == "wait",
-                    over,
-                }))
-            }
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
@@ -2071,20 +2061,6 @@ fn finger_target(spec: &str) -> (u64, Option<&str>) {
         Ok(finger) => (finger, None),
         Err(_) => (0, Some(spec)),
     }
-}
-
-fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
-    let matches = |line: &Line| match text.strip_prefix('#') {
-        Some(id) => line.test_ids.iter().any(|named| named == id),
-        None => line.text.contains(text),
-    };
-    let reaches = |line: &Line| {
-        over.is_none_or(|over| line.bounds.is_some_and(|bounds| bounds.contains(over)))
-    };
-    view.rendered()
-        .lines()
-        .iter()
-        .any(|line| matches(line) && reaches(line))
 }
 
 fn controller(
