@@ -10,12 +10,14 @@ use beui_core::app::Waker;
 
 mod diff;
 pub mod gestures;
+mod plan;
 mod session;
 #[cfg(all(unix, not(target_arch = "wasm32")))]
 pub mod socket;
 mod target;
 
 pub use diff::changes;
+pub use plan::plan;
 pub use session::{Drive, PANE, USAGE};
 
 pub enum Reply {
