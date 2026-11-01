@@ -9,11 +9,13 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
             bar: TabId::new(20),
             owner: Some(TabId::new(1)),
             placement: DockBarPlacement::Over(DockEdge::Left, DockAlign::Center),
+            hidden: false,
         },
         DockSpecBar {
             bar: TabId::new(21),
             owner: Some(TabId::new(1)),
             placement: DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
+            hidden: false,
         },
     ];
     let declared = DockSpec {
@@ -59,13 +61,13 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     );
     assert!(state.is_bar_shown(TabId::new(20), false));
 
-    let plain = DockState::from_plain(&state.plain());
+    let restored = DockState::from_spec(&state.spec());
     assert_eq!(
-        plain.bars_of(Some(TabId::new(1))),
+        restored.bars_of(Some(TabId::new(1))),
         state.bars_of(Some(TabId::new(1)))
     );
     assert_eq!(
-        plain.bar_placement(TabId::new(21)),
+        restored.bar_placement(TabId::new(21)),
         Some(DockBarPlacement::Beside(
             DockEdge::Bottom,
             DockAlign::Center

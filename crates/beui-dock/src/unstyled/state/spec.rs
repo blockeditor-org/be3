@@ -4,9 +4,9 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPlacement, DockHome, DockState, Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf,
-    LeafId, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface, SurfaceId, TabId,
-    Tree,
+    Bar, DockBarPlacement, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE, Group, GroupId,
+    Home, Leaf, LeafId, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface,
+    SurfaceId, TabId, Tree,
 };
 
 const FLOAT_ORIGIN: Pos2 = Pos2::new(64.0, 48.0);
@@ -18,6 +18,9 @@ pub struct DockSpec {
     pub focus: Option<TabId>,
     pub see_through: Vec<TabId>,
     pub bars: Vec<DockSpecBar>,
+    pub homes: Vec<DockSpecHome>,
+    pub outside: Vec<DockOutside>,
+    pub unlocked: Vec<DockSpecPlace>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,6 +28,19 @@ pub struct DockSpecBar {
     pub bar: TabId,
     pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
+    pub hidden: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DockSpecHome {
+    pub tab: TabId,
+    pub place: DockSpecPlace,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DockSpecPlace {
+    Area(String),
+    Group(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -50,13 +66,19 @@ pub enum DockSpecNode {
 pub struct DockSpecPane {
     pub key: String,
     pub entries: Vec<DockSpecEntry>,
-    pub active: Option<TabId>,
+    pub active: usize,
     pub vertical: bool,
     pub icons_only: bool,
     pub sidebar: f32,
     pub keep: bool,
-    pub locked: bool,
+    pub area: Option<String>,
     pub bare: bool,
+}
+
+impl DockSpecPane {
+    pub fn locked(&self) -> bool {
+        self.area.as_deref() == Some(self.key.as_str())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -326,7 +348,7 @@ impl DockState {
                     bar: declared.bar,
                     owner: declared.owner,
                     placement: declared.placement,
-                    hidden: false,
+                    hidden: declared.hidden,
                 },
             );
         }
@@ -439,11 +461,14 @@ impl DockState {
     fn spec_leaf(&mut self, pane: &DockSpecPane, entries: Vec<Entry>) -> Leaf {
         let mut leaf = self.new_leaf(entries);
         leaf.active = pane
-            .active
-            .and_then(|tab| {
-                leaf.entries
-                    .iter()
-                    .position(|entry| *entry == Entry::Tab(tab))
+            .entries
+            .get(pane.active)
+            .and_then(|entry| {
+                let entry = match entry {
+                    DockSpecEntry::Tab(tab) => Entry::Tab(*tab),
+                    DockSpecEntry::Group { key, .. } => Entry::Group(self.group_by_key(key)?),
+                };
+                leaf.entries.iter().position(|held| *held == entry)
             })
             .unwrap_or(0);
         leaf.vertical = pane.vertical;
@@ -451,7 +476,7 @@ impl DockState {
         leaf.sidebar = pane.sidebar.max(MIN_SIDEBAR_WIDTH);
         leaf.key = Some(pane.key.clone());
         leaf.keep = pane.keep;
-        leaf.area = pane.locked.then(|| pane.key.clone());
+        leaf.area = pane.locked().then(|| pane.key.clone());
         leaf.bare = pane.bare;
         leaf
     }
@@ -783,7 +808,7 @@ impl DockState {
     }
 
     fn settle_areas(&mut self, sites: &[Site<'_>]) {
-        let locked: Vec<&Site<'_>> = sites.iter().filter(|site| site.pane.locked).collect();
+        let locked: Vec<&Site<'_>> = sites.iter().filter(|site| site.pane.locked()).collect();
         let areas: HashSet<&str> = locked.iter().map(|site| site.pane.key.as_str()).collect();
         let mut declared: Vec<(TabId, String)> = Vec::new();
         for site in &locked {
@@ -883,7 +908,7 @@ impl DockState {
             self.focus(id);
             return;
         }
-        if (site.pane.locked || matches!(site.holder, Holder::Group(_)))
+        if (site.pane.locked() || matches!(site.holder, Holder::Group(_)))
             && let Some(leaf) = self.recreate(site)
         {
             self.insert_entry(leaf, 0, entry);
@@ -981,10 +1006,9 @@ fn hosted_root(node: &DockSpecNode, host: TabId) -> Option<&DockSpecNode> {
 fn first_shown(node: &DockSpecNode) -> Option<TabId> {
     match node {
         DockSpecNode::Split { first, .. } => first_shown(first),
-        DockSpecNode::Pane(pane) => match (pane.active, pane.entries.first()?) {
-            (Some(active), _) => Some(active),
-            (None, DockSpecEntry::Tab(tab)) => Some(*tab),
-            (None, DockSpecEntry::Group { root, .. }) => first_shown(root),
+        DockSpecNode::Pane(pane) => match pane.entries.get(pane.active).or(pane.entries.first())? {
+            DockSpecEntry::Tab(tab) => Some(*tab),
+            DockSpecEntry::Group { root, .. } => first_shown(root),
         },
     }
 }
@@ -1009,7 +1033,7 @@ fn area_node_tabs(node: &DockSpecNode, out: &mut Vec<TabId>) {
             area_node_tabs(first, out);
             area_node_tabs(second, out);
         }
-        DockSpecNode::Pane(pane) if pane.locked => {}
+        DockSpecNode::Pane(pane) if pane.locked() => {}
         DockSpecNode::Pane(pane) => area_tabs(&pane.entries, out),
     }
 }

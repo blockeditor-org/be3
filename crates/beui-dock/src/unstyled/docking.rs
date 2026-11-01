@@ -1132,6 +1132,7 @@ impl<K: DockKey> DockingLayout<K> {
                     bar,
                     owner,
                     placement: *placement,
+                    hidden: false,
                 });
             }
         }
@@ -1225,20 +1226,25 @@ impl<K: DockKey> DockingLayout<K> {
                 if empty.is_some() {
                     found.panes.insert(key.clone(), Rc::clone(node));
                 }
-                let entries = entries
+                let entries: Vec<DockSpecEntry> = entries
                     .items()
                     .iter()
                     .filter_map(|entry| self.entry(entry, found))
                     .collect();
+                let active = active
+                    .as_ref()
+                    .map(|key| DockSpecEntry::Tab(self.mint(key)))
+                    .and_then(|active| entries.iter().position(|entry| *entry == active))
+                    .unwrap_or(0);
                 Some(DockSpecNode::Pane(DockSpecPane {
                     key: key.clone(),
                     entries,
-                    active: active.as_ref().map(|key| self.mint(key)),
+                    active,
                     vertical: *vertical,
                     icons_only: *icons_only,
                     sidebar: *sidebar,
                     keep: empty.is_some() || *bare,
-                    locked: *locked,
+                    area: locked.then(|| key.clone()),
                     bare: *bare,
                 }))
             }
@@ -1324,6 +1330,7 @@ impl<K: DockKey> DockingLayout<K> {
                 bar,
                 owner: Some(owner),
                 placement: declared.placement,
+                hidden: false,
             });
         }
         for window in &spec.windows {
@@ -1387,7 +1394,7 @@ impl<K: DockKey> DockingLayout<K> {
                 DockSpecNode::Pane(DockSpecPane {
                     key: format!("{prefix}{}", pane.key),
                     entries,
-                    active: pane.active.map(|inner| self.mint_foreign(host, inner)),
+                    area: pane.area.as_ref().map(|area| format!("{prefix}{area}")),
                     ..pane.clone()
                 })
             }

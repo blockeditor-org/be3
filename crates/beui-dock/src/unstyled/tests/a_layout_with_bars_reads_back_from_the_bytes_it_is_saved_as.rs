@@ -6,6 +6,7 @@ fn bar(bar: u64, owner: Option<u64>, placement: DockBarPlacement) -> DockSpecBar
         bar: TabId::new(bar),
         owner: owner.map(TabId::new),
         placement,
+        hidden: false,
     }
 }
 

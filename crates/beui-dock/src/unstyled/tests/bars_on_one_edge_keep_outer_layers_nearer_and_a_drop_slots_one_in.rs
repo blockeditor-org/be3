@@ -8,6 +8,7 @@ fn bar(bar: u64, owner: u64) -> DockSpecBar {
         bar: TabId::new(bar),
         owner: Some(TabId::new(owner)),
         placement: TOP,
+        hidden: false,
     }
 }
 
@@ -42,9 +43,9 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         tabs(&[21, 20]),
         "the code declaring its bars again keeps the order the user chose"
     );
-    let plain = DockState::from_plain(&state.plain());
+    let restored = DockState::from_spec(&state.spec());
     assert_eq!(
-        plain.pane_bars(TabId::new(2)),
+        restored.pane_bars(TabId::new(2)),
         tabs(&[21, 20]),
         "the order is saved with the layout"
     );

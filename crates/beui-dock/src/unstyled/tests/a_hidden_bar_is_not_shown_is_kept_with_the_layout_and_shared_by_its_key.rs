@@ -8,6 +8,7 @@ fn bar(bar: u64, owner: Option<u64>) -> DockSpecBar {
         bar: TabId::new(bar),
         owner: owner.map(TabId::new),
         placement: BOTTOM,
+        hidden: false,
     }
 }
 
@@ -37,7 +38,7 @@ fn a_hidden_bar_is_not_shown_is_kept_with_the_layout_and_shared_by_its_key() {
         "it keeps its placement while hidden"
     );
 
-    let kept = DockState::from_plain(&state.plain());
+    let kept = DockState::from_spec(&state.spec());
     assert!(
         kept.is_bar_hidden(TabId::new(20)),
         "the hidden flag is saved and restored with the layout"

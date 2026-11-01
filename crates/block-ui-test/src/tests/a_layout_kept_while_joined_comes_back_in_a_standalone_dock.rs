@@ -104,11 +104,11 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
     );
     let notes = layout.tab_of(&2).expect("the notes tab is declared");
     let stage = layout.tab_of(&1).expect("the stage tab is declared");
-    let plain = layout.state().get_untracked().plain();
-    let windowed = plain.windows.iter().find(|held| {
+    let spec = layout.state().get_untracked().spec();
+    let windowed = spec.windows.iter().find(|held| {
         held.root.as_ref().is_some_and(|root| {
-            matches!(root, beui::dock::unstyled::DockPlainNode::Pane { entries, .. }
-                if entries.contains(&beui::dock::unstyled::DockPlainEntry::Tab(notes)))
+            matches!(root, beui::dock::unstyled::DockSpecNode::Pane(pane)
+                if pane.entries.contains(&beui::dock::unstyled::DockSpecEntry::Tab(notes)))
         })
     });
     assert_eq!(
@@ -117,13 +117,12 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
         "a tab moved out into a window while joined opens in a window of its own"
     );
     assert!(
-        plain
-            .outside
+        spec.outside
             .iter()
             .all(|outside| !matches!(outside.place, Outside::Window { .. })),
         "the window is no longer kept as outside the dock"
     );
-    let main = format!("{:?}", plain.main);
+    let main = format!("{:?}", spec.main);
     assert!(
         main.contains(&format!("Tab({stage:?})")),
         "the stage stays in the main area: {main}"

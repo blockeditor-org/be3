@@ -7,9 +7,8 @@ use beui::dock::unstyled::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration,
     DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
     DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace,
-    DockPlain, DockPlainBar, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
-    DockPlainWindow, DockRequest, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane,
-    DockSpecWindow, DockState, TabId,
+    DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
+    DockSpecPlace, DockSpecWindow, DockState, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
@@ -934,7 +933,7 @@ fn nested_restore(
     let group = group_key(&nodes, owner)?;
     let from = {
         let mut paths = paths.borrow_mut();
-        DockState::from_plain(&layout_to_plain(layout, &mut |path| Some(paths.tab(path))))
+        DockState::from_spec(&layout_to_spec(layout, &mut |path| Some(paths.tab(path))))
     };
     let hosted = untrack(|| link.hosted().get_untracked())?;
     let mut state = hosted.state;
@@ -1016,57 +1015,47 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
             second: Box::new(spec_node(second, path, empty)),
         },
         DockSpecNode::Pane(pane) => {
-            let entries: Vec<(Option<TabId>, api::DockEntry)> = pane
-                .entries
-                .iter()
-                .filter_map(|entry| match entry {
-                    DockSpecEntry::Tab(tab) => Some((Some(*tab), api::DockEntry::Tab(path(*tab)?))),
-                    DockSpecEntry::Group { key, pinned, root } => Some((
-                        None,
-                        api::DockEntry::Group {
-                            group: api::DockGroup {
-                                key: key.clone(),
-                                pinned: *pinned,
-                                child: None,
-                            },
-                            root: Box::new(spec_node(root, path, empty)),
+            let mut kept = Vec::new();
+            let mut shown = None;
+            for (index, entry) in pane.entries.iter().enumerate() {
+                let entry = match entry {
+                    DockSpecEntry::Tab(tab) => path(*tab).map(api::DockEntry::Tab),
+                    DockSpecEntry::Group { key, pinned, root } => Some(api::DockEntry::Group {
+                        group: api::DockGroup {
+                            key: key.clone(),
+                            pinned: *pinned,
+                            child: None,
                         },
-                    )),
-                })
-                .collect();
-            let active = pane.active.and_then(|active| {
-                entries
-                    .iter()
-                    .position(|(tab, _)| *tab == Some(active))
-                    .map(|index| index as u32)
-            });
+                        root: Box::new(spec_node(root, path, empty)),
+                    }),
+                };
+                if let Some(entry) = entry {
+                    if index == pane.active {
+                        shown = Some(kept.len() as u32);
+                    }
+                    kept.push(entry);
+                }
+            }
             api::DockNode::Pane {
                 pane: api::DockPane {
                     key: pane.key.clone(),
-                    active,
+                    active: shown.or((!kept.is_empty()).then_some(0)),
                     vertical: pane.vertical,
                     icons_only: pane.icons_only,
                     sidebar: pane.sidebar,
                     keep: pane.keep,
-                    area: pane.locked.then(|| pane.key.clone()),
+                    area: pane.area.clone(),
                     empty: empty(pane),
                     bare: pane.bare,
                 },
-                entries: entries.into_iter().map(|(_, entry)| entry).collect(),
+                entries: kept,
             }
         }
     }
 }
 
-pub(crate) fn declaration_to_api(
-    declaration: &DockDeclaration,
-    path: PathOf<'_>,
-    empty: EmptyOf<'_>,
-    size: &dyn Fn(TabId) -> api::Size,
-    kind: &dyn Fn(&str) -> String,
-) -> api::DockDeclaration {
-    let spec = &declaration.spec;
-    let nodes = api::DockNodes {
+fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::DockNodes {
+    api::DockNodes {
         main: spec.main.as_ref().map(|main| spec_node(main, path, empty)),
         windows: spec
             .windows
@@ -1082,7 +1071,18 @@ pub(crate) fn declaration_to_api(
                     .map(|root| spec_node(root, path, empty)),
             })
             .collect(),
-    };
+    }
+}
+
+pub(crate) fn declaration_to_api(
+    declaration: &DockDeclaration,
+    path: PathOf<'_>,
+    empty: EmptyOf<'_>,
+    size: &dyn Fn(TabId) -> api::Size,
+    kind: &dyn Fn(&str) -> String,
+) -> api::DockDeclaration {
+    let spec = &declaration.spec;
+    let nodes = spec_nodes(spec, path, empty);
     api::DockDeclaration {
         tree: api::DockTree::flatten(&nodes, spec.focus.and_then(path)),
         tabs: declaration
@@ -1144,7 +1144,7 @@ pub(crate) fn declaration_to_api(
     }
 }
 
-fn api_node(node: &api::DockNode, paths: &mut Paths) -> DockSpecNode {
+fn api_node(node: &api::DockNode, tab: TabOf<'_>) -> DockSpecNode {
     match node {
         api::DockNode::Split {
             split,
@@ -1154,40 +1154,56 @@ fn api_node(node: &api::DockNode, paths: &mut Paths) -> DockSpecNode {
             key: split.key.clone(),
             direction: direction_from_api(split.direction),
             fraction: split.fraction,
-            first: Box::new(api_node(first, paths)),
-            second: Box::new(api_node(second, paths)),
+            first: Box::new(api_node(first, tab)),
+            second: Box::new(api_node(second, tab)),
         },
         api::DockNode::Pane { pane, entries } => {
-            let entries: Vec<DockSpecEntry> = entries
-                .iter()
-                .map(|entry| match entry {
-                    api::DockEntry::Tab(tab) => DockSpecEntry::Tab(paths.tab(tab)),
-                    api::DockEntry::Group { group, root } => DockSpecEntry::Group {
+            let mut kept = Vec::new();
+            let mut active = 0;
+            for (index, entry) in entries.iter().enumerate() {
+                let entry = match entry {
+                    api::DockEntry::Tab(path) => tab(path).map(DockSpecEntry::Tab),
+                    api::DockEntry::Group { group, root } => Some(DockSpecEntry::Group {
                         key: group.key.clone(),
                         pinned: group.pinned,
-                        root: Box::new(api_node(root, paths)),
-                    },
-                })
-                .collect();
-            let active = pane
-                .active
-                .and_then(|active| entries.get(active as usize))
-                .and_then(|entry| match entry {
-                    DockSpecEntry::Tab(tab) => Some(*tab),
-                    DockSpecEntry::Group { .. } => None,
-                });
+                        root: Box::new(api_node(root, tab)),
+                    }),
+                };
+                if let Some(entry) = entry {
+                    if pane.active == Some(index as u32) {
+                        active = kept.len();
+                    }
+                    kept.push(entry);
+                }
+            }
             DockSpecNode::Pane(DockSpecPane {
                 key: pane.key.clone(),
-                entries,
+                entries: kept,
                 active,
                 vertical: pane.vertical,
                 icons_only: pane.icons_only,
                 sidebar: pane.sidebar,
                 keep: pane.keep,
-                locked: pane.area.as_ref() == Some(&pane.key),
+                area: pane.area.clone(),
                 bare: pane.bare,
             })
         }
+    }
+}
+
+fn nodes_spec(nodes: &api::DockNodes, tab: TabOf<'_>) -> DockSpec {
+    DockSpec {
+        main: nodes.main.as_ref().map(|main| api_node(main, tab)),
+        windows: nodes
+            .windows
+            .iter()
+            .map(|window| DockSpecWindow {
+                key: window.window.key.clone(),
+                rect: window.window.rect,
+                root: window.root.as_ref().map(|root| api_node(root, tab)),
+            })
+            .collect(),
+        ..DockSpec::default()
     }
 }
 
@@ -1196,24 +1212,14 @@ fn declaration_from_api(
     paths: &mut Paths,
 ) -> Option<DockDeclaration> {
     let nodes = declaration.nest().ok()?;
+    let spec = nodes_spec(&nodes, &mut |path| Some(paths.tab(path)));
     let spec = DockSpec {
-        main: nodes.main.as_ref().map(|main| api_node(main, paths)),
-        windows: nodes
-            .windows
-            .iter()
-            .map(|window| DockSpecWindow {
-                key: window.window.key.clone(),
-                rect: window.window.rect,
-                root: window.root.as_ref().map(|root| api_node(root, paths)),
-            })
-            .collect(),
         focus: declaration
             .tree
             .focus
             .as_ref()
             .map(|focus| paths.tab(focus)),
-        see_through: Vec::new(),
-        bars: Vec::new(),
+        ..spec
     };
     let tabs = declaration
         .tabs
@@ -1260,91 +1266,11 @@ fn declaration_from_api(
     })
 }
 
-fn plain_node(node: &DockPlainNode, path: PathOf<'_>) -> api::DockNode {
-    match node {
-        DockPlainNode::Split {
-            key,
-            direction,
-            fraction,
-            first,
-            second,
-        } => api::DockNode::Split {
-            split: api::DockSplit {
-                key: key.clone(),
-                direction: direction_to_api(*direction),
-                fraction: *fraction,
-            },
-            first: Box::new(plain_node(first, path)),
-            second: Box::new(plain_node(second, path)),
-        },
-        DockPlainNode::Pane {
-            key,
-            active,
-            vertical,
-            icons_only,
-            sidebar,
-            keep,
-            area,
-            bare,
-            entries,
-        } => {
-            let mut kept = Vec::new();
-            let mut shown = None;
-            for (index, entry) in entries.iter().enumerate() {
-                let entry = match entry {
-                    DockPlainEntry::Tab(tab) => path(*tab).map(api::DockEntry::Tab),
-                    DockPlainEntry::Group { key, pinned, root } => Some(api::DockEntry::Group {
-                        group: api::DockGroup {
-                            key: key.clone(),
-                            pinned: *pinned,
-                            child: None,
-                        },
-                        root: Box::new(plain_node(root, path)),
-                    }),
-                };
-                if let Some(entry) = entry {
-                    if index == *active {
-                        shown = Some(kept.len() as u32);
-                    }
-                    kept.push(entry);
-                }
-            }
-            api::DockNode::Pane {
-                pane: api::DockPane {
-                    key: key.clone(),
-                    active: shown.or((!kept.is_empty()).then_some(0)),
-                    vertical: *vertical,
-                    icons_only: *icons_only,
-                    sidebar: *sidebar,
-                    keep: *keep,
-                    area: area.clone(),
-                    empty: None,
-                    bare: *bare,
-                },
-                entries: kept,
-            }
-        }
-    }
-}
-
-fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
-    let nodes = api::DockNodes {
-        main: plain.main.as_ref().map(|main| plain_node(main, path)),
-        windows: plain
-            .windows
-            .iter()
-            .map(|window| api::DockFloating {
-                window: api::DockWindow {
-                    key: window.key.clone(),
-                    rect: window.rect,
-                },
-                root: window.root.as_ref().map(|root| plain_node(root, path)),
-            })
-            .collect(),
-    };
+fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
+    let nodes = spec_nodes(spec, path, &|_| None);
     api::DockLayout {
-        tree: api::DockTree::flatten(&nodes, plain.focus.and_then(path)),
-        homes: plain
+        tree: api::DockTree::flatten(&nodes, spec.focus.and_then(path)),
+        homes: spec
             .homes
             .iter()
             .filter_map(|home| {
@@ -1354,7 +1280,7 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
                 })
             })
             .collect(),
-        bars: plain
+        bars: spec
             .bars
             .iter()
             .filter_map(|bar| {
@@ -1369,7 +1295,7 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
                 })
             })
             .collect(),
-        outside: plain
+        outside: spec
             .outside
             .iter()
             .filter_map(|outside| {
@@ -1387,94 +1313,38 @@ fn plain_to_layout(plain: &DockPlain, path: PathOf<'_>) -> api::DockLayout {
                 })
             })
             .collect(),
-        unlocked: plain.unlocked.iter().map(api_place).collect(),
+        unlocked: spec.unlocked.iter().map(api_place).collect(),
     }
 }
 
-fn api_place(place: &DockPlainPlace) -> api::DockPlace {
+fn api_place(place: &DockSpecPlace) -> api::DockPlace {
     match place {
-        DockPlainPlace::Area(area) => api::DockPlace::Area(area.clone()),
-        DockPlainPlace::Group(group) => api::DockPlace::Group(group.clone()),
+        DockSpecPlace::Area(area) => api::DockPlace::Area(area.clone()),
+        DockSpecPlace::Group(group) => api::DockPlace::Group(group.clone()),
     }
 }
 
-fn plain_place(place: &api::DockPlace) -> DockPlainPlace {
+fn spec_place(place: &api::DockPlace) -> DockSpecPlace {
     match place {
-        api::DockPlace::Area(area) => DockPlainPlace::Area(area.clone()),
-        api::DockPlace::Group(group) => DockPlainPlace::Group(group.clone()),
+        api::DockPlace::Area(area) => DockSpecPlace::Area(area.clone()),
+        api::DockPlace::Group(group) => DockSpecPlace::Group(group.clone()),
     }
 }
 
-fn api_plain_node(node: &api::DockNode, tab: TabOf<'_>) -> DockPlainNode {
-    match node {
-        api::DockNode::Split {
-            split,
-            first,
-            second,
-        } => DockPlainNode::Split {
-            key: split.key.clone(),
-            direction: direction_from_api(split.direction),
-            fraction: split.fraction,
-            first: Box::new(api_plain_node(first, tab)),
-            second: Box::new(api_plain_node(second, tab)),
-        },
-        api::DockNode::Pane { pane, entries } => {
-            let mut kept = Vec::new();
-            let mut active = 0;
-            for (index, entry) in entries.iter().enumerate() {
-                let entry = match entry {
-                    api::DockEntry::Tab(path) => tab(path).map(DockPlainEntry::Tab),
-                    api::DockEntry::Group { group, root } => Some(DockPlainEntry::Group {
-                        key: group.key.clone(),
-                        pinned: group.pinned,
-                        root: Box::new(api_plain_node(root, tab)),
-                    }),
-                };
-                if let Some(entry) = entry {
-                    if pane.active == Some(index as u32) {
-                        active = kept.len();
-                    }
-                    kept.push(entry);
-                }
-            }
-            DockPlainNode::Pane {
-                key: pane.key.clone(),
-                active,
-                vertical: pane.vertical,
-                icons_only: pane.icons_only,
-                sidebar: pane.sidebar,
-                keep: pane.keep,
-                area: pane.area.clone(),
-                bare: pane.bare,
-                entries: kept,
-            }
-        }
-    }
-}
-
-fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
+fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
     let Ok(nodes) = layout.tree.nest() else {
-        return DockPlain::default();
+        return DockSpec::default();
     };
-    DockPlain {
-        main: nodes.main.as_ref().map(|main| api_plain_node(main, tab)),
-        windows: nodes
-            .windows
-            .iter()
-            .map(|window| DockPlainWindow {
-                key: window.window.key.clone(),
-                rect: window.window.rect,
-                root: window.root.as_ref().map(|root| api_plain_node(root, tab)),
-            })
-            .collect(),
+    let spec = nodes_spec(&nodes, tab);
+    DockSpec {
         focus: layout.tree.focus.as_ref().and_then(&mut *tab),
         homes: layout
             .homes
             .iter()
             .filter_map(|home| {
-                Some(DockPlainHome {
+                Some(DockSpecHome {
                     tab: tab(&home.tab)?,
-                    place: plain_place(&home.place),
+                    place: spec_place(&home.place),
                 })
             })
             .collect(),
@@ -1482,7 +1352,7 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
             .bars
             .iter()
             .filter_map(|bar| {
-                Some(DockPlainBar {
+                Some(DockSpecBar {
                     bar: tab(&bar.bar)?,
                     owner: match &bar.owner {
                         Some(owner) => Some(tab(owner)?),
@@ -1511,12 +1381,13 @@ fn layout_to_plain(layout: &api::DockLayout, tab: TabOf<'_>) -> DockPlain {
                 })
             })
             .collect(),
-        unlocked: layout.unlocked.iter().map(plain_place).collect(),
+        unlocked: layout.unlocked.iter().map(spec_place).collect(),
+        ..spec
     }
 }
 
 fn hosted_from_api(hosted: &api::DockHosted, tab: TabOf<'_>) -> DockHosted {
-    let state = DockState::from_plain(&layout_to_plain(&hosted.layout, tab));
+    let state = DockState::from_spec(&layout_to_spec(&hosted.layout, tab));
     let mut list =
         |paths: &[DockTabPath]| -> Vec<TabId> { paths.iter().filter_map(&mut *tab).collect() };
     let tabs = list(&hosted.tabs);
@@ -1544,7 +1415,7 @@ fn hosted_from_api(hosted: &api::DockHosted, tab: TabOf<'_>) -> DockHosted {
 fn hosted_to_api(hosted: &DockHosted, path: PathOf<'_>) -> api::DockHosted {
     let list = |tabs: &[TabId]| tabs.iter().filter_map(|tab| path(*tab)).collect();
     api::DockHosted {
-        layout: plain_to_layout(&hosted.state.plain(), path),
+        layout: spec_to_layout(&hosted.state.spec(), path),
         tabs: list(&hosted.tabs),
         focused: hosted.focused.and_then(path),
         shown: hosted.shown.and_then(path),
@@ -1568,7 +1439,7 @@ fn request_to_api(request: &DockRequest, path: PathOf<'_>) -> Option<api::DockRe
     Some(match request {
         DockRequest::Show(tab) => api::DockRequest::Show(path(*tab)?),
         DockRequest::Restore(state) => {
-            api::DockRequest::Restore(plain_to_layout(&state.plain(), path))
+            api::DockRequest::Restore(spec_to_layout(&state.spec(), path))
         }
         DockRequest::Fullscreen(None) => api::DockRequest::Fullscreen(None),
         DockRequest::Fullscreen(Some((tab, area))) => {
@@ -1600,9 +1471,11 @@ fn request_to_api(request: &DockRequest, path: PathOf<'_>) -> Option<api::DockRe
 fn request_from_api(request: &api::DockRequest, paths: &mut Paths) -> Option<DockRequest> {
     Some(match request {
         api::DockRequest::Show(tab) => DockRequest::Show(paths.tab(tab)),
-        api::DockRequest::Restore(layout) => DockRequest::Restore(DockState::from_plain(
-            &layout_to_plain(layout, &mut |path| Some(paths.tab(path))),
-        )),
+        api::DockRequest::Restore(layout) => {
+            DockRequest::Restore(DockState::from_spec(&layout_to_spec(layout, &mut |path| {
+                Some(paths.tab(path))
+            })))
+        }
         api::DockRequest::Fullscreen(None) => DockRequest::Fullscreen(None),
         api::DockRequest::Fullscreen(Some(fullscreen)) => {
             DockRequest::Fullscreen(Some((paths.tab(&fullscreen.tab), fullscreen.area)))

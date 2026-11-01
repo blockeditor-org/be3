@@ -19,7 +19,7 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
         .host_group(TabId::new(2), &joined_key(TabId::new(2)), &bare, None)
         .expect("the hosted dock declares a tab");
     let mut editors = pane_spec("editors");
-    editors.locked = true;
+    editors.area = Some("editors".to_owned());
     editors.entries = vec![DockSpecEntry::Group {
         key: joined_key(TabId::new(2)),
         pinned: true,
