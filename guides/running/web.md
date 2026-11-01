@@ -158,7 +158,10 @@ files.js answers from memory and nothing survives a reload.
   `serve` has returned (`block-app-stack/src/web.rs`). The page's thread
   may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
   lock the page shares with that worker is `wasi_threads::Mutex`, which spins
-  on wasm, and the beui waker takes no lock.
+  on wasm, and the beui waker takes no lock. A server connection's `Peer` locks a
+  `std::sync::Mutex`, so no connection crosses between them: `block_app_stack::link`
+  keeps the connections it hands out per thread on wasm, and the page's account calls
+  and the stack each open their own.
 - One tab owns the files: the page takes the `block-files` Web Lock before it
   starts the module, and a second tab says it is open in another tab and waits
   for the lock.
