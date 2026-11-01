@@ -653,7 +653,8 @@ impl replicas::GuestReplica for OpenReplica {
         self.module.open(self.id, opening);
     }
 
-    fn message(&self, from: Endpoint, bytes: Vec<u8>) {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) {
+        self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
     }
 

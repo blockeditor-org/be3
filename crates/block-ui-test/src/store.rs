@@ -413,8 +413,9 @@ impl Inner {
         message: be_session::SessionMessage,
     ) {
         let bytes = Wire::Session(message).encode();
+        let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(host, Endpoint::Peer(client), bytes);
+            replica.message(host, Endpoint::Peer(client), bytes, now);
         });
     }
 
@@ -537,8 +538,9 @@ impl Inner {
             return;
         };
         let send = move |inner: &mut Self| {
+            let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame);
+                replica.message(host, Endpoint::Editor(editor), frame, now);
             });
         };
         match message {

@@ -253,6 +253,12 @@ What the host owes a replica:
   `be_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
   stamped with the frame clock's instant, which `Clock::at` places on that clock), and
   the host yields the time on it whenever the clock moved, ahead of any other frame.
+  The stream waits for the module's credit, so a tick can reach the module after a
+  message sent later: each `message` therefore carries `at`, the clock when the host
+  sent it (an editor's message at its frame's instant), and the module moves its clock
+  there before applying it. The host's own clock reading follows the frame clock in
+  order with its commands (`block_app_stack::hold_clock`), so it never runs ahead of
+  a message it has yet to relay.
   `host.sleep-until(at)` asks to be woken: the host yields a time at or after `at` and
   then completes it; the module cancels it when it wants another time. The replica
   never reads a clock, so a test moves time by yielding.
@@ -285,7 +291,7 @@ What the host owes a replica:
   session; calls for it until then still reach it.
 - **Relaying.** `send(to, bytes)` is opaque bytes for `one(peer)`, `peers` (every
   other participant), `one(editor)` or `one(host)`. The host seals and relays peer
-  bytes and delivers them as `message(peer(client), bytes)`.
+  bytes and delivers them as `message(peer(client), bytes, at)`.
 - **Reports.** `report-status` (head, owner, clean, owes a seal, incompatible,
   diverged, unreadable), `described` (after the visible content changed, for the graph
   mirror), `history` (can undo or redo), `conflict` (a merge kept both sides),
@@ -351,7 +357,7 @@ head. Every editor is sent a snapshot of the replacement.
 A local editor follows the local replica as a peer follows an owner. The host calls
 `attach(editor, editable)` when an editor instance starts following a block
 (again to change `editable`) and `detach` when it stops; the editor's messages arrive
-as `message(editor(instance), bytes)` and are `editor::FromEditor`: `Operate`,
+as `message(editor(instance), bytes, at)` and are `editor::FromEditor`: `Operate`,
 `Gesture` (`Begin`, `Commit`, `Cancel`), `Replace`, `ShowPresence`, `SendToPeers`,
 `Resend`. A replica drops edits from an editor attached read-only. It answers with
 `editor::ToEditor`:

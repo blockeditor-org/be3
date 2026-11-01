@@ -213,6 +213,7 @@ enum Replayed {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
+        at: u64,
     },
     Moved {
         head: CommitId,
@@ -244,8 +245,8 @@ impl Replayed {
             Replayed::Change { change, .. } => {
                 return Some(replica.change(connection, change).op());
             }
-            Replayed::Message { from, bytes } => {
-                replica.message(connection, from, bytes);
+            Replayed::Message { from, bytes, at } => {
+                replica.message(connection, from, bytes, at);
             }
             Replayed::Moved {
                 head,
@@ -969,11 +970,13 @@ impl<H: Host> Replicas<H> {
         if let Some(open) = self.open.get_mut(&replica) {
             open.unreported = true;
         }
+        let at = self.modules.millis_at(at);
         self.replay(
             replica,
             Replayed::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
+                at,
             },
         );
     }
@@ -1499,6 +1502,7 @@ impl<H: Host> Replicas<H> {
                 let replayed = Replayed::Message {
                     from: Endpoint::Peer(*from),
                     bytes,
+                    at: self.modules.now(),
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining

@@ -69,20 +69,6 @@ pub fn kinds_revision() -> u64 {
     KINDS.load(Ordering::Relaxed)
 }
 
-static HELD: wasi_threads::Mutex<Option<Instant>> = wasi_threads::Mutex::new(None);
-
-pub fn hold_clock(at: Option<Instant>) {
-    *HELD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = at;
-}
-
-fn held() -> Option<Instant> {
-    *HELD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
 
 pub type Started = Result<(Boxed, SessionTag), String>;
@@ -203,6 +189,7 @@ pub struct Modules {
     routes: HashMap<Uuid, usize>,
     described: HashSet<Uuid>,
     clock: Clock,
+    held: Option<Instant>,
 }
 
 const RESTART_LIMIT: usize = 8;
@@ -266,6 +253,7 @@ impl Modules {
             routes: HashMap::new(),
             described: HashSet::new(),
             clock,
+            held: None,
         };
         for module in 0..modules.modules.len() {
             match modules.modules[module].source.declared.clone() {
@@ -522,11 +510,15 @@ impl Modules {
         Some(result)
     }
 
+    pub fn millis_at(&self, at: Instant) -> u64 {
+        self.clock.at(at).as_millis() as u64
+    }
+
     pub fn tick_at(&mut self, module: usize, at: Instant) {
         if self.modules[module].worker.is_none() {
             return;
         }
-        let now = self.clock.at(held().unwrap_or(at)).as_millis() as u64;
+        let now = self.millis_at(at);
         self.advance(module, now);
         self.flush(module);
     }
@@ -552,8 +544,12 @@ impl Modules {
         std::mem::take(&mut self.restarted)
     }
 
+    pub fn hold_clock(&mut self, at: Option<Instant>) {
+        self.held = at;
+    }
+
     pub fn now(&self) -> u64 {
-        held()
+        self.held
             .map_or_else(|| self.clock.now(), |at| self.clock.at(at))
             .as_millis() as u64
     }

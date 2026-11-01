@@ -109,6 +109,7 @@ pub(super) enum Command {
         bytes: Vec<u8>,
         at: Instant,
     },
+    HoldClock(Option<Instant>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -217,6 +218,7 @@ impl Command {
             self,
             Command::Operate(..)
                 | Command::FromEditor { .. }
+                | Command::HoldClock(_)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -281,7 +283,8 @@ impl Command {
             | Command::Members(_)
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
-            | Command::Sync => None,
+            | Command::Sync
+            | Command::HoldClock(_) => None,
         }
     }
 
@@ -484,6 +487,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     changed: Arc<Condvar>,
 ) {
     let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
+    replicas.modules.hold_clock(super::held_clock());
     replicas.modules.ready().await;
     block_app_base::host::wake();
     let started = match cached(&config, &make_store) {
@@ -1942,6 +1946,10 @@ async fn apply(
             at,
         } => {
             replicas.relay_from_editor(block, editor, bytes, at);
+            false
+        }
+        Command::HoldClock(at) => {
+            replicas.modules.hold_clock(at);
             false
         }
         Command::ChangeChild {

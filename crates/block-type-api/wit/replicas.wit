@@ -30,7 +30,9 @@ interface replicas {
         /// host reconnected. The host replays what it kept.
         reopen: func(opening: opening);
 
-        message: func(%from: endpoint, bytes: list<u8>);
+        /// `at` is the module's clock when the host sent it, which the replica
+        /// reads the message at even when the clock's stream has yet to say so.
+        message: func(%from: endpoint, bytes: list<u8>, at: u64);
 
         attach: func(editor: editor-id, editable: bool);
 

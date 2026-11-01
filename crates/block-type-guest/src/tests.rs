@@ -501,8 +501,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
+        let now = self.now;
         self.with_replica(device, |replica, host| {
-            replica.message(host, Endpoint::Editor(editor), message.encode())
+            replica.message(host, Endpoint::Editor(editor), message.encode(), now)
         });
     }
 
@@ -879,8 +880,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if self.deaf.contains(&to) {
             return;
         }
+        let now = self.now;
         self.with_replica(to, |replica, host| {
-            replica.message(host, Endpoint::Peer(from), bytes)
+            replica.message(host, Endpoint::Peer(from), bytes, now)
         });
     }
 }
