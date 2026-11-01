@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::native::{core_painter, wrap_painter};
 use std::collections::BTreeMap;
@@ -13,7 +15,9 @@ use block_editor_beui::beui::{
     Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
 use block_editor_beui::{FileSave, SavedFile};
-use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
+use infinite_canvas_types::{
+    CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTextWeight,
+};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
@@ -24,6 +28,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use crate::raster::nearest_upscaled;
 use beui::{Align, Direction, ItemSize};
 use image_block_types::ImageContent;
 
@@ -97,6 +102,7 @@ pub(crate) struct Scene {
     pub(crate) background: Color32,
     pub(crate) palette: Palette,
     pub(crate) embeds: BTreeMap<Uuid, Embed>,
+    pub(crate) rasters: BTreeMap<Uuid, CanvasRaster>,
     pub(crate) name: String,
 }
 
@@ -183,6 +189,11 @@ impl Scene {
                 ))
             })
             .collect();
+        let rasters = entities
+            .iter()
+            .filter(|entity| entity.shape == CanvasShape::Raster)
+            .filter_map(|entity| Some((entity.id, state.raster_of(entity.id)?)))
+            .collect();
         Some(Self {
             entities,
             area,
@@ -190,6 +201,7 @@ impl Scene {
             background,
             palette,
             embeds,
+            rasters,
             name,
         })
     }
@@ -380,7 +392,10 @@ pub(crate) fn png(
         }
         let camera = Camera::item(scene.area.min, 1.0);
         for entity in &scene.entities {
-            draw(&painter, scene, entity, camera, &decoded);
+            match scene.rasters.get(&entity.id) {
+                Some(raster) => draw_raster(&painter, entity, raster, camera, scale),
+                None => draw(&painter, scene, entity, camera, &decoded),
+            }
         }
     });
     let painted = painting(
@@ -392,6 +407,44 @@ pub(crate) fn png(
     )?;
     let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     encode_png(raster.size, raster.rgba.into_iter().flatten().collect())
+}
+
+const MAX_RASTER_UPSCALE: u32 = 64;
+const MAX_UPSCALED_PIXELS: u32 = 16 * 1024 * 1024;
+
+fn draw_raster(
+    painter: &Painter,
+    entity: &CanvasEntity,
+    raster: &CanvasRaster,
+    camera: Camera,
+    scale: f32,
+) {
+    if entity.hidden {
+        return;
+    }
+    let rect = camera.rect(entity_bounds(entity));
+    let (width, height) = (u32::from(raster.width()), u32::from(raster.height()));
+    let wanted = (scale
+        * (rect.width() / width.max(1) as f32).max(rect.height() / height.max(1) as f32))
+    .ceil()
+    .max(1.0) as u32;
+    let room = (MAX_UPSCALED_PIXELS / (width * height).max(1))
+        .isqrt()
+        .max(1);
+    let factor = wanted.min(MAX_RASTER_UPSCALE).min(room);
+    let image = Image::from_rgba(
+        width * factor,
+        height * factor,
+        nearest_upscaled(raster.width(), raster.height(), raster.rgba_bytes(), factor),
+    );
+    painter.image(
+        rect,
+        Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
+        &image,
+        with_opacity(Color32::WHITE, entity.style.opacity.clamp(0.0, 1.0)),
+        0.0,
+        false,
+    );
 }
 
 fn decode(data: &[u8]) -> Option<Image> {
@@ -457,6 +510,7 @@ fn draw(
         automatic: false,
         covered: false,
         placeholder: None,
+        raster: None,
         sketch: Rc::new(
             Sketch::of(entity, false).translated(Vec2::new(camera.origin.x, camera.origin.y)),
         ),
@@ -618,6 +672,19 @@ fn svg_entity(
     );
     let world = Camera::item(Pos2::ZERO, 1.0);
     let turn = turn(entity);
+    if let Some(raster) = scene.rasters.get(&entity.id) {
+        let rect = world.rect(entity_bounds(entity));
+        out.push_str(&format!(
+            "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"none\" image-rendering=\"pixelated\" style=\"image-rendering:pixelated\"{} href=\"data:image/png;base64,{}\"/>\n",
+            number(rect.min.x),
+            number(rect.min.y),
+            number(rect.width()),
+            number(rect.height()),
+            opacity_of(opacity),
+            encode_raster(raster).unwrap_or_default()
+        ));
+        return;
+    }
     if entity.shape == CanvasShape::Text {
         svg_written(out, painter, entity, ink, &turn);
         return;
@@ -639,7 +706,7 @@ fn svg_entity(
                 "<image {place} preserveAspectRatio=\"none\"{} href=\"data:{};base64,{}\"/>\n",
                 opacity_of(opacity),
                 escape(&image.media_type),
-                base64(&image.data)
+                BASE64.encode(&image.data)
             )),
             None => {
                 let surface = with_opacity(scene.palette.surface, opacity);
@@ -923,27 +990,28 @@ fn escape(text: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn base64(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let bytes = [
-            chunk[0],
-            *chunk.get(1).unwrap_or(&0),
-            *chunk.get(2).unwrap_or(&0),
-        ];
-        let joined = (u32::from(bytes[0]) << 16) | (u32::from(bytes[1]) << 8) | u32::from(bytes[2]);
-        for index in 0..4 {
-            match index <= chunk.len() {
-                true => out.push(ALPHABET[(joined >> (18 - 6 * index) & 63) as usize] as char),
-                false => out.push('='),
-            }
-        }
-    }
-    out
+pub(crate) fn encode_raster(raster: &CanvasRaster) -> Option<String> {
+    encode_png(
+        [u32::from(raster.width()), u32::from(raster.height())],
+        raster.rgba_bytes().to_vec(),
+    )
+    .ok()
+    .map(|png| BASE64.encode(png))
 }
 
-const DIALOG_SPACING: Space = Space::Lg;
+pub(crate) fn decode_raster(encoded: &str) -> Option<CanvasRaster> {
+    let png = BASE64.decode(encoded).ok()?;
+    let image = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+        .ok()?
+        .into_rgba8();
+    CanvasRaster::from_rgba(
+        u16::try_from(image.width()).ok()?,
+        u16::try_from(image.height()).ok()?,
+        image.as_raw(),
+    )
+}
+
+pub(crate) const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {

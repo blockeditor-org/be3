@@ -7,7 +7,7 @@ use block_editor_beui::be_block::be_model::Place;
 use block_editor_beui::be_block::{ObjectId, Touched};
 use block_editor_beui::beui::reactive::*;
 use infinite_canvas_types::{
-    Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform, Entity,
+    Canvas, CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTransform, Entity,
 };
 use uuid::Uuid;
 
@@ -20,11 +20,16 @@ pub(crate) struct EntitySignals {
     stored: Memo<Option<CanvasEntity>>,
     frame: Memo<bool>,
     embeds: Memo<bool>,
+    raster: Memo<Option<CanvasRaster>>,
 }
 
 impl EntitySignals {
     pub(crate) fn stored(&self) -> Memo<Option<CanvasEntity>> {
         self.stored
+    }
+
+    pub(crate) fn raster(&self) -> Memo<Option<CanvasRaster>> {
+        self.raster
     }
 }
 
@@ -406,6 +411,11 @@ impl Entities {
         self.signals(id).stored.get()
     }
 
+    pub(crate) fn raster(&self, id: Uuid) -> Memo<Option<CanvasRaster>> {
+        self.ids.with(|_| ());
+        self.signals(id).raster
+    }
+
     pub(crate) fn get_untracked(&self, id: Uuid) -> Option<CanvasEntity> {
         untrack(|| self.get(id))
     }
@@ -528,11 +538,15 @@ impl Entities {
                         })
                     })
                 });
+                let raster = create_memo(move || {
+                    object_held.with(|entity| entity.as_ref().and_then(Entity::raster))
+                });
                 EntitySignals {
                     held,
                     stored,
                     frame,
                     embeds,
+                    raster,
                 }
             })
         });

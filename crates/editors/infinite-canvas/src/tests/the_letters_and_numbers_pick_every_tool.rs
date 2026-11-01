@@ -5,7 +5,7 @@ use block_editor_beui::beui::{Key, Modifiers, Vec2};
 fn the_letters_and_numbers_pick_every_tool() {
     let mut editor = editor(&[]);
     let canvas = editor.rect_of("infinite-canvas.canvas");
-    let origin = canvas.min + Vec2::new(40.0, 40.0);
+    let origin = canvas.min + Vec2::new(40.0, 100.0);
     let tools = [
         (Key::R, CanvasShape::Rectangle),
         (Key::Two, CanvasShape::Rectangle),
@@ -53,14 +53,19 @@ fn the_letters_and_numbers_pick_every_tool() {
     }
 
     let count = entities(&editor).len();
-    for key in [Key::V, Key::One] {
+    for (row, key) in [Key::V, Key::One].into_iter().enumerate() {
         editor.key(Key::R, Modifiers::NONE);
         editor.key(key, Modifiers::NONE);
         editor.run();
-        let from = origin + Vec2::new(620.0, 0.0);
+        let from = origin + Vec2::new(620.0, row as f32 * 120.0);
         editor.drag(from, from + Vec2::new(60.0, 40.0));
         editor.run();
-        assert_eq!(entities(&editor).len(), count, "{key:?} selects");
+        assert_eq!(
+            entities(&editor).len(),
+            count,
+            "{key:?} selects, drew {:?}",
+            entities(&editor).last()
+        );
     }
     editor.key(Key::R, Modifiers::NONE);
     editor.key(
@@ -71,7 +76,7 @@ fn the_letters_and_numbers_pick_every_tool() {
         },
     );
     editor.run();
-    let from = origin + Vec2::new(620.0, 120.0);
+    let from = origin + Vec2::new(620.0, 240.0);
     editor.drag(from, from + Vec2::new(60.0, 40.0));
     editor.run();
     assert_eq!(

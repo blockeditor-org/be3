@@ -29,6 +29,7 @@ fn fit_all_on_an_empty_canvas_returns_to_the_default_view() {
         &mut editor,
         InfiniteCanvasOperation::Add {
             entity: Box::new(home.clone()),
+            pixels: None,
         },
     );
     editor.run();

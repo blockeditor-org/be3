@@ -2287,7 +2287,7 @@ window's frame shows to the user, in the window's points: block-editor-beui prov
 tab (the handle in the dock's strip that shows it, or the rect a parent placed it at when it has
 no tab, or the anchor of the last menu pick), and `None` when nothing of it is visible, such as a
 fullscreen tab. Which to pass: a small form about one object, opened from a control, passes
-`Control` of that control (pixel-art's Resize button, database's Filter and display button).
+`Control` of that control (database's Filter and display button).
 Opened from a menu row, it fills its `NodeRef` with `focused_node()` in the row's `on_click`,
 since a `MenuItem` is no node (file-tree's Inspect). Opened from a point on a canvas, it passes
 `Control` of an empty `Frame` in a `CanvasItem` over that point (logic-grid's storage, a calendar

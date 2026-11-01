@@ -4,11 +4,13 @@ use infinite_canvas_types::CanvasContent;
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::beui::dock::styled::{DockBar, DockPane, DockTab, Docking, DockingLayout};
+use block_editor_beui::beui::dock::styled::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+};
 use block_editor_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{Creation, Editor};
+use block_editor_beui::{Creation, Editor, narrow_chrome};
 use uuid::Uuid;
 
 pub(crate) mod actions;
@@ -20,8 +22,10 @@ pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod layers;
 pub(crate) mod menu;
+pub(crate) mod mode;
 pub(crate) mod overlay;
 pub(crate) mod paint;
+pub(crate) mod raster;
 pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
 pub(crate) mod sketch;
@@ -34,13 +38,18 @@ pub(crate) mod touch;
 use actions::canvas_actions;
 use canvas::CanvasStage;
 use export::ExportDialog;
-use sidebar::CanvasSidebar;
+use mode::{MODE, ModeBar};
+use raster::RasterDialogs;
+use sidebar::{CanvasInspector, CanvasSidebar};
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
-use beui::{Direction, ItemSize};
+use beui::ItemSize;
+
+const INSPECTOR: &str = "inspector";
+const INSPECTOR_SHARE: f32 = 0.3;
 
 pub struct CanvasApp;
 
@@ -96,7 +105,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
+        chrome.get() && state.profile.get() != infinite_canvas_types::CanvasProfile::Prototyping
     });
     let scope = NodeRef::new();
     action_scope(&scope);
@@ -107,29 +116,43 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     provide_context(actions);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
+    let narrow = narrow_chrome();
+    let sheet = create_memo(move || inspected.get() && narrow.get());
+    let docked = create_memo(move || inspected.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout>
-            <DockPane id="canvas" bare=true>
-                <DockTab id=STAGE title="Canvas">
-                    <List @node_ref=&scope spacing=Space::None>
-                        <TouchSetting editor choice={touch} />
-                        <ImportError state={state} />
-                        <ExportDialog exporter />
-                        <List
-                            @sizing=ItemSize::Percent(100.0)
-                            direction=Direction::Horizontal
-                            spacing=Space::None
-                        >
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="canvas" fraction={1.0 - INSPECTOR_SHARE}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Canvas">
+                        <List @node_ref=&scope spacing=Space::None>
+                            <TouchSetting editor choice={touch} />
+                            <ImportError state={state} />
+                            <ExportDialog exporter />
+                            <RasterDialogs state />
                             <Layers @sizing=ItemSize::Percent(100.0)>
                                 <CanvasStage @node_ref={&content} state={state} />
                                 <SelectionDock state layout open bar={bar_size.read_only()} />
                             </Layers>
-                            <CanvasSidebar state={state} shown={inspected} />
+                            <CanvasSidebar state={state} shown={sheet} />
                         </List>
-                    </List>
-                </DockTab>
-            </DockPane>
+                    </DockTab>
+                </DockPane>
+                <Show condition={docked}>
+                    <DockPane id="inspector" locked=true>
+                        <DockTab id=INSPECTOR title="Inspector">
+                            <CanvasInspector state={state} />
+                        </DockTab>
+                    </DockPane>
+                </Show>
+            </DockSplit>
+            <DockBar
+                id=MODE
+                parent=STAGE
+                placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
+            >
+                <ModeBar open />
+            </DockBar>
             <DockBar
                 id=TOOLS
                 parent=STAGE

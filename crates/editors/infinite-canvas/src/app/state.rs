@@ -36,8 +36,11 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::entities::Entities;
+use super::export::{decode_raster, encode_raster};
+use super::raster::{RasterTools, Stroke};
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
+use crate::raster::PixelTool;
 use beui::Pasted;
 use image_block_types::{ImageContent, ImageFile};
 
@@ -47,6 +50,8 @@ const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
 #[derive(Deserialize, Serialize)]
 struct CanvasClipboardPayload {
     entities: Vec<CanvasEntity>,
+    #[serde(default)]
+    rasters: BTreeMap<Uuid, String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -99,6 +104,7 @@ pub(crate) enum Tool {
     Text,
     Pen,
     Eraser,
+    Pixel(PixelTool),
 }
 
 impl Tool {
@@ -115,6 +121,7 @@ impl Tool {
             Tool::Text => ICON_TYPE,
             Tool::Pen => ICON_BRUSH,
             Tool::Eraser => ICON_ERASER,
+            Tool::Pixel(tool) => tool.glyph(),
         }
     }
 
@@ -134,14 +141,20 @@ impl Tool {
     }
 
     pub(crate) fn styles(self) -> bool {
-        !self.selects() && self != Tool::Eraser
+        !self.selects() && !matches!(self, Tool::Eraser | Tool::Pixel(_))
     }
 
     pub(crate) fn belongs_to(self, profile: CanvasProfile) -> bool {
         match self {
-            Tool::Frame => profile == CanvasProfile::Vector,
-            _ => true,
+            Tool::Select | Tool::Lasso => true,
+            Tool::Frame => profile != CanvasProfile::Prototyping,
+            Tool::Pixel(_) => profile == CanvasProfile::Raster,
+            _ => profile != CanvasProfile::Raster,
         }
+    }
+
+    pub(crate) fn usable_in(self, profile: CanvasProfile) -> bool {
+        self == Tool::Frame || self.belongs_to(profile)
     }
 }
 
@@ -157,7 +170,7 @@ pub(crate) fn profile_style(profile: CanvasProfile) -> CanvasStyle {
             look: CanvasLook::HandDrawn,
             ..CanvasStyle::default()
         },
-        CanvasProfile::Vector => CanvasStyle::default(),
+        CanvasProfile::Vector | CanvasProfile::Raster => CanvasStyle::default(),
     }
 }
 
@@ -202,6 +215,7 @@ pub(crate) enum Gesture {
         pointer: CanvasPoint,
         from_center: bool,
         detached: bool,
+        snapped: bool,
     },
     Pen {
         id: Uuid,
@@ -226,6 +240,8 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         originals: Vec<CanvasEntity>,
         duplicate: bool,
+        rasters: Rasters,
+        snapped: bool,
     },
     Resize {
         handle: ResizeHandle,
@@ -238,6 +254,7 @@ pub(crate) enum Gesture {
         preserve_aspect_ratio: bool,
         scale_text: bool,
         scale_editors: bool,
+        snapped: bool,
     },
     Endpoint {
         original: Box<CanvasEntity>,
@@ -246,12 +263,14 @@ pub(crate) enum Gesture {
         grab: CanvasPoint,
         snap: bool,
         detached: bool,
+        snapped: bool,
     },
     Bend {
         original: Box<CanvasEntity>,
         index: usize,
         current: CanvasPoint,
         grab: CanvasPoint,
+        snapped: bool,
     },
     Rotate {
         frame: SelectionFrame,
@@ -264,6 +283,11 @@ pub(crate) enum Gesture {
         trail: Vec<CanvasPoint>,
         erased: Vec<CanvasEntity>,
     },
+    Raster {
+        layer: Uuid,
+        at: (i32, i32),
+        constrained: bool,
+    },
 }
 
 pub(crate) const ERASER_TRAIL: usize = 24;
@@ -275,6 +299,7 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             start,
             current,
             originals,
+            snapped,
             ..
         } => {
             let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
@@ -286,7 +311,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
                     .map(|mut entity| {
                         entity.transform.center.x += delta.x;
                         entity.transform.center.y += delta.y;
-                        entity
+                        match snapped {
+                            true => moved_to_whole_units(entity),
+                            false => entity,
+                        }
                     })
                     .collect(),
             )
@@ -299,10 +327,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             preserve_aspect_ratio,
             scale_text,
             scale_editors,
+            snapped,
             ..
-        } => unbound_from_the_rest(
-            originals,
-            resize_entities(
+        } => {
+            let resized = resize_entities(
                 *handle,
                 *frame,
                 *current,
@@ -310,8 +338,15 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
                 *preserve_aspect_ratio,
                 *scale_text,
                 *scale_editors,
-            ),
-        ),
+            );
+            unbound_from_the_rest(
+                originals,
+                match snapped {
+                    true => resized.into_iter().map(sized_to_whole_units).collect(),
+                    false => resized,
+                },
+            )
+        }
         Gesture::Rotate {
             frame,
             start_angle,
@@ -327,8 +362,10 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             end,
             current,
             snap,
+            snapped,
             ..
         } => {
+            let current = &snapped_point(*current, *snapped);
             let at = match snap {
                 true => constrain_point_angle(
                     path_neighbour(original, *end),
@@ -345,8 +382,13 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             original,
             index,
             current,
+            snapped,
             ..
-        } => vec![with_point(original.as_ref().clone(), *index, *current)],
+        } => vec![with_point(
+            original.as_ref().clone(),
+            *index,
+            snapped_point(*current, *snapped),
+        )],
         Gesture::Erase { erased, .. } => erased
             .iter()
             .cloned()
@@ -358,8 +400,42 @@ pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
         Gesture::Create { .. }
         | Gesture::Pen { .. }
         | Gesture::SelectBox { .. }
-        | Gesture::Lasso { .. } => Vec::new(),
+        | Gesture::Lasso { .. }
+        | Gesture::Raster { .. } => Vec::new(),
     }
+}
+
+pub(crate) fn snapped_point(point: CanvasPoint, snapped: bool) -> CanvasPoint {
+    match snapped {
+        true => CanvasPoint::new(point.x.round(), point.y.round()),
+        false => point,
+    }
+}
+
+pub(crate) fn moved_to_whole_units(mut entity: CanvasEntity) -> CanvasEntity {
+    let transform = &mut entity.transform;
+    let corner = |center: f32, size: f32| center - size.abs() * 0.5;
+    let left = corner(transform.center.x, transform.size.x);
+    let top = corner(transform.center.y, transform.size.y);
+    transform.center.x += left.round() - left;
+    transform.center.y += top.round() - top;
+    entity
+}
+
+pub(crate) fn sized_to_whole_units(mut entity: CanvasEntity) -> CanvasEntity {
+    let transform = &mut entity.transform;
+    let whole = |center: &mut f32, size: &mut f32| {
+        let (start, end) = (*center - *size * 0.5, *center + *size * 0.5);
+        let (start, mut end) = (start.round(), end.round());
+        if start == end && *size != 0.0 {
+            end = start + size.signum();
+        }
+        *center = (start + end) * 0.5;
+        *size = end - start;
+    };
+    whole(&mut transform.center.x, &mut transform.size.x);
+    whole(&mut transform.center.y, &mut transform.size.y);
+    entity
 }
 
 fn unbound_from_the_rest(
@@ -428,6 +504,8 @@ struct CanvasCells {
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
+    stroke: RefCell<Option<Stroke>>,
+    drawing_tool: Cell<PixelTool>,
 }
 
 #[derive(Clone, Copy)]
@@ -441,7 +519,10 @@ pub(crate) struct CanvasState {
     pub(crate) tool: Signal<Tool>,
     pub(crate) tool_locked: Signal<bool>,
     pub(crate) binds: Signal<bool>,
+    snap_choices: Signal<HashMap<CanvasProfile, bool>>,
+    pub(crate) snaps: Memo<bool>,
     pub(crate) profile: Signal<CanvasProfile>,
+    pub(crate) raster: RasterTools,
     styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
     pub(crate) entered_group: Signal<Option<Uuid>>,
@@ -477,6 +558,16 @@ impl CanvasState {
             }
         });
         let styles = create_signal(HashMap::new());
+        let snap_choices = create_signal(HashMap::new());
+        let snaps = create_memo(move || {
+            let profile = profile.get();
+            snap_choices.with(|choices: &HashMap<CanvasProfile, bool>| {
+                choices
+                    .get(&profile)
+                    .copied()
+                    .unwrap_or(profile == CanvasProfile::Raster)
+            })
+        });
         let selection = create_signal(HashSet::new());
         let entered_group = create_signal(None);
         let gesture = create_signal(None);
@@ -551,6 +642,8 @@ impl CanvasState {
             drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
+            stroke: RefCell::new(None),
+            drawing_tool: Cell::new(PixelTool::Pencil),
         });
 
         let peers = editor.peers::<CanvasCursor>();
@@ -577,7 +670,10 @@ impl CanvasState {
             tool,
             tool_locked: create_signal(false),
             binds: create_signal(true),
+            snap_choices,
+            snaps,
             profile,
+            raster: RasterTools::new(),
             styles,
             selection,
             entered_group,
@@ -605,13 +701,27 @@ impl CanvasState {
             current,
             from_center,
             detached,
+            snapped,
             ..
         } = *gesture
         else {
             return None;
         };
-        let entity = self.created_entity(tool, start, current, from_center, detached)?;
+        let entity = self.created_entity(
+            tool,
+            snapped_point(start, snapped),
+            snapped_point(current, snapped),
+            from_center,
+            detached,
+        )?;
         Some(seeded(entity, id, start))
+    }
+
+    pub(crate) fn toggle_snapping(&self) {
+        let (profile, snaps) = (self.profile.get_untracked(), self.snaps.get_untracked());
+        self.snap_choices.update(|choices| {
+            choices.insert(profile, !snaps);
+        });
     }
 
     pub(crate) fn is_alive(&self) -> bool {
@@ -854,7 +964,19 @@ impl CanvasState {
         }
     }
 
-    fn open_writes(&self) {
+    pub(crate) fn with_stroke<R>(&self, change: impl FnOnce(&mut Option<Stroke>) -> R) -> R {
+        change(&mut self.cells.value().stroke.borrow_mut())
+    }
+
+    pub(crate) fn hold_stroke(&self, stroke: Option<Stroke>) {
+        *self.cells.value().stroke.borrow_mut() = stroke;
+    }
+
+    pub(crate) fn last_drawing_tool(&self) -> PixelTool {
+        self.cells.value().drawing_tool.get()
+    }
+
+    pub(crate) fn open_writes(&self) {
         if !self.cells.value().writing.replace(true) {
             self.content().begin_gesture();
         }
@@ -904,13 +1026,14 @@ impl CanvasState {
             .unwrap_or(false)
     }
 
-    fn put_live(&self, entities: Vec<CanvasEntity>) {
+    fn put_live(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {
         let (held, added): (Vec<_>, Vec<_>) = entities
             .into_iter()
             .partition(|entity| self.holds(entity.id));
         let mut operations: Vec<InfiniteCanvasOperation> = added
             .into_iter()
             .map(|entity| InfiniteCanvasOperation::Add {
+                pixels: rasters.get(&entity.id).cloned(),
                 entity: Box::new(entity),
             })
             .collect();
@@ -932,7 +1055,7 @@ impl CanvasState {
                 current,
                 ..
             } if start != current => match self.drawn_shape(&gesture) {
-                Some(entity) => self.put_live(vec![entity]),
+                Some(entity) => self.put_live(vec![entity], &Rasters::new()),
                 None if self.holds(*id) => {
                     self.operate(&InfiniteCanvasOperation::Remove { ids: vec![*id] })
                 }
@@ -957,16 +1080,19 @@ impl CanvasState {
                 } else if let [start, _, ..] = points[..] {
                     let entity =
                         pen_entity(points.clone(), pressures.clone(), self.default_style());
-                    self.put_live(vec![seeded(entity, *id, start)]);
+                    self.put_live(vec![seeded(entity, *id, start)], &Rasters::new());
                 }
                 written.set(points.len());
             }
             Gesture::Move {
-                duplicate: true, ..
-            } => self.put_live(gesture_entities(&gesture)),
+                duplicate: true,
+                rasters,
+                ..
+            } => self.put_live(gesture_entities(&gesture), rasters),
             Gesture::Endpoint { .. } => self.operate(&InfiniteCanvasOperation::Update {
                 entities: self.endpoint_entities(&gesture),
             }),
+            Gesture::Raster { .. } => self.write_stroke(),
             Gesture::Move { .. }
             | Gesture::Resize { .. }
             | Gesture::Rotate { .. }
@@ -981,12 +1107,13 @@ impl CanvasState {
         }
     }
 
-    fn add_selected(&self, entities: Vec<CanvasEntity>) {
+    fn add_selected(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {
         self.selection
             .set(entities.iter().map(|entity| entity.id).collect());
         let operations = entities
             .into_iter()
             .map(|entity| InfiniteCanvasOperation::Add {
+                pixels: rasters.get(&entity.id).cloned(),
                 entity: Box::new(entity),
             })
             .collect::<Vec<_>>();
@@ -1062,6 +1189,11 @@ impl CanvasState {
         if tool.selects() {
             self.cells.value().select_tool.set(tool);
         }
+        if let Tool::Pixel(pixel) = tool
+            && pixel.draws()
+        {
+            self.cells.value().drawing_tool.set(pixel);
+        }
         self.tool.set(tool);
         if self.gesture.with_untracked(Option::is_some) {
             self.begin_gesture(None);
@@ -1091,6 +1223,9 @@ impl CanvasState {
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
         self.cancel_writes();
+        if !matches!(gesture, Some(Gesture::Raster { .. })) {
+            self.hold_stroke(None);
+        }
         self.cells.value().written_points.set(0);
         self.gesture.set(gesture);
         self.write_gesture();
@@ -1616,6 +1751,7 @@ impl CanvasState {
         }
         self.record(InfiniteCanvasOperation::Add {
             entity: Box::new(entity),
+            pixels: None,
         });
         self.select_added(id, shape);
     }
@@ -1637,17 +1773,34 @@ impl CanvasState {
     }
 
     pub(crate) fn duplicate_selection(&self) {
-        let duplicates = duplicate_entities(
-            self.selected_entities(),
+        let selected = self.selected_entities();
+        let rasters = self.rasters_of(&selected);
+        let (duplicates, rasters) = duplicate_entities(
+            selected,
             CanvasPoint::new(IMPORT_CASCADE_OFFSET, IMPORT_CASCADE_OFFSET),
+            &rasters,
         );
-        self.add_selected(duplicates);
+        self.add_selected(duplicates, &rasters);
+    }
+
+    fn rasters_of(&self, entities: &[CanvasEntity]) -> Rasters {
+        self.content()
+            .read(|canvas| {
+                entities
+                    .iter()
+                    .filter(|entity| entity.shape == CanvasShape::Raster)
+                    .filter_map(|entity| Some((entity.id, Canvas::raster(canvas, entity.id)?)))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn begin_move(&self, world: CanvasPoint, duplicate: bool) {
         let mut originals = self.selected_unlocked();
+        let mut rasters = Rasters::new();
         if duplicate {
-            originals = duplicate_entities(originals, CanvasPoint::default());
+            let held = self.rasters_of(&originals);
+            (originals, rasters) = duplicate_entities(originals, CanvasPoint::default(), &held);
             self.selection
                 .set(originals.iter().map(|entity| entity.id).collect());
         }
@@ -1656,6 +1809,8 @@ impl CanvasState {
             current: world,
             originals,
             duplicate,
+            rasters,
+            snapped: self.snaps.get_untracked(),
         }));
     }
 
@@ -1933,7 +2088,12 @@ impl CanvasState {
         if entities.is_empty() {
             return false;
         }
-        match serde_json::to_string(&CanvasClipboardPayload { entities }) {
+        let rasters = self
+            .rasters_of(&entities)
+            .into_iter()
+            .filter_map(|(id, raster)| Some((id, encode_raster(&raster)?)))
+            .collect();
+        match serde_json::to_string(&CanvasClipboardPayload { entities, rasters }) {
             Ok(json) => {
                 block_editor_beui::beui::reactive::copy_text(format!(
                     "{CANVAS_CLIPBOARD_PREFIX}{json}"
@@ -1982,11 +2142,17 @@ impl CanvasState {
         };
         let from = bounds.center();
         let to = self.paste_center();
-        let duplicates = duplicate_entities(
+        let rasters = payload
+            .rasters
+            .iter()
+            .filter_map(|(id, png)| Some((*id, decode_raster(png)?)))
+            .collect();
+        let (duplicates, rasters) = duplicate_entities(
             payload.entities,
             CanvasPoint::new(to.x - from.x, to.y - from.y),
+            &rasters,
         );
-        self.add_selected(duplicates);
+        self.add_selected(duplicates, &rasters);
         self.put_down_tool();
         true
     }
@@ -2290,11 +2456,12 @@ impl CanvasState {
 
     pub(crate) fn selection_defaults_to_proportional(&self) -> bool {
         self.selected_unlocked().iter().any(|entity| {
-            entity.shape.embeds_block()
-                && self
-                    .peek_child(entity.id)
-                    .capabilities
-                    .preserve_aspect_ratio
+            entity.shape == CanvasShape::Raster
+                || entity.shape.embeds_block()
+                    && self
+                        .peek_child(entity.id)
+                        .capabilities
+                        .preserve_aspect_ratio
         })
     }
 
@@ -2316,7 +2483,7 @@ impl CanvasState {
                     let state = self.peek_child(entity.id);
                     !state.placed || state.capabilities.rotation
                 }
-                CanvasShape::Frame | CanvasShape::Text => false,
+                CanvasShape::Frame | CanvasShape::Text | CanvasShape::Raster => false,
                 _ => true,
             })
     }
@@ -2365,6 +2532,7 @@ impl CanvasState {
         self.selection.set(HashSet::from([entity_id]));
         self.record(InfiniteCanvasOperation::Add {
             entity: Box::new(entity),
+            pixels: None,
         });
     }
 
@@ -2439,7 +2607,7 @@ impl CanvasState {
                 if shape == CanvasShape::Text {
                     self.draft_text(created);
                 }
-                self.put_live(vec![entity]);
+                self.put_live(vec![entity], &Rasters::new());
                 self.select_added(created, shape);
                 if !self.tool_locked.get_untracked() {
                     self.put_down_tool();
@@ -2454,7 +2622,7 @@ impl CanvasState {
             } => {
                 if let Some(&start) = points.first() {
                     let entity = pen_entity(points, pressures, self.default_style());
-                    self.put_live(vec![seeded(entity, id, start)]);
+                    self.put_live(vec![seeded(entity, id, start)], &Rasters::new());
                     self.select_added(id, CanvasShape::Freehand);
                 }
             }
@@ -2513,6 +2681,7 @@ impl CanvasState {
             Gesture::Endpoint { .. } => self.record(InfiniteCanvasOperation::Update {
                 entities: self.endpoint_entities(&gesture),
             }),
+            Gesture::Raster { .. } => self.hold_stroke(None),
             Gesture::Move { .. }
             | Gesture::Resize { .. }
             | Gesture::Rotate { .. }
@@ -2599,9 +2768,13 @@ impl CanvasState {
                 frame.text = format!("Frame {}", count + 1).as_str().into();
                 Some(frame)
             }
-            Tool::Line | Tool::Arrow | Tool::Select | Tool::Lasso | Tool::Pen | Tool::Eraser => {
-                None
-            }
+            Tool::Line
+            | Tool::Arrow
+            | Tool::Select
+            | Tool::Lasso
+            | Tool::Pen
+            | Tool::Eraser
+            | Tool::Pixel(_) => None,
         }
     }
 }

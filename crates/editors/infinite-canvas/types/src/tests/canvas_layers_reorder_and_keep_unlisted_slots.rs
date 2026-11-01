@@ -26,6 +26,7 @@ fn canvas(ids: &[Uuid]) -> CanvasContent {
             &mut content,
             InfiniteCanvasOperation::Add {
                 entity: Box::new(entity(*id)),
+                pixels: None,
             },
         );
     }
@@ -72,6 +73,7 @@ fn canvas_layers_reorder_and_keep_unlisted_slots() {
         &mut content,
         InfiniteCanvasOperation::Add {
             entity: Box::new(entity(a)),
+            pixels: None,
         },
     );
     run(

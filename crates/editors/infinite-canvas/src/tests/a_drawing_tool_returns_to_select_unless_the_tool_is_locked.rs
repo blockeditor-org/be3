@@ -6,7 +6,7 @@ fn a_drawing_tool_returns_to_select_unless_the_tool_is_locked() {
     let mut editor = vector_editor(&[]);
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let at =
-        |column: f32, row: f32| canvas.min + Vec2::new(40.0 + column * 140.0, 40.0 + row * 140.0);
+        |column: f32, row: f32| canvas.min + Vec2::new(40.0 + column * 140.0, 100.0 + row * 140.0);
     let draw = |editor: &mut BeuiTest<CanvasApp>, from| {
         editor.drag(from, from + Vec2::new(100.0, 60.0));
         editor.run();

@@ -14,6 +14,7 @@ use infinite_canvas_types::{
     CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
     CanvasTransform, InfiniteCanvasOperation,
 };
+use infinite_canvas_types::{CanvasPixel, CanvasPixelUpdate, CanvasRaster};
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
@@ -44,6 +45,7 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
+mod a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale;
 mod a_peer_sees_a_labelled_shape_while_it_is_moved;
 mod a_peer_sees_a_move_called_off_put_back;
 mod a_peer_sees_a_shape_while_it_is_dragged;
@@ -56,6 +58,11 @@ mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_phone_opens_a_context_submenu_as_a_page_of_its_sheet;
 mod a_png_export_draws_formatted_text_as_the_canvas_does;
 mod a_preview_with_no_camera_fits_its_frame;
+mod a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale;
+mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
+mod a_raster_layer_is_exported_pixel_sharp;
+mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
+mod a_raster_stroke_is_one_undo_step_and_escape_calls_it_off;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
 mod a_second_finger_calls_off_the_shape_being_drawn;
 mod a_selected_bound_arrow_shows_where_each_end_is_anchored;
@@ -71,7 +78,10 @@ mod a_view_the_host_sets_is_not_fitted_back;
 mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
 mod an_export_marks_the_list_markers_and_quote_bars_it_cannot_draw;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
+mod at_full_size_a_raster_pixel_is_one_screen_point;
 mod attaching_component_fills_only_missing_selected_entities;
+mod choosing_a_pixel_tool_marks_it_in_the_dock;
+mod clearing_a_raster_layer_needs_the_dialog;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
 mod copying_as_svg_writes_every_shape_kind;
 mod double_clicking_a_group_enters_it;
@@ -84,12 +94,14 @@ mod dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release;
 mod dragging_the_middle_of_a_line_bends_it_at_a_new_point;
 mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
+mod drawing_on_the_canvas_paints_a_raster_layer;
 mod drawing_with_a_finger_adds_a_rectangle;
 mod enter_on_a_selected_shape_edits_its_label;
 mod every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape;
 mod every_shape_is_drawn_in_the_clean_look;
 mod every_shape_is_drawn_in_the_hand_drawn_look;
 mod every_transform_field_previews_what_is_typed;
+mod fill_and_the_eyedropper_work_on_the_layer_under_the_pointer;
 mod fit_all_holds_when_the_window_resizes;
 mod fit_all_on_an_empty_canvas_returns_to_the_default_view;
 mod fit_all_without_frames_zooms_to_everything;
@@ -106,12 +118,14 @@ mod pasting_puts_the_objects_under_the_pointer;
 mod pen_strokes_are_smooth_curves_at_any_zoom;
 mod removing_component_deletes_its_values_from_all_selected_entities;
 mod replacing_a_referenced_block_rewrites_the_entity;
+mod resizing_a_raster_layer_opens_a_card_on_its_button;
 mod resizing_an_editor_that_cannot_resize_scales_it;
 mod rotating_with_the_handle_is_drawn;
 mod scrubbing_a_number_is_one_undo_step;
 mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod simulated_pressure_is_the_same_at_any_sample_rate;
+mod snapping_to_whole_pixels_is_on_in_raster_and_off_elsewhere;
 mod switching_the_profile_changes_this_viewers_chrome_and_the_default;
 mod switching_to_vector_draws_the_next_shape_clean;
 mod tabbing_through_the_dock_shows_each_focus_ring_whole;
@@ -134,10 +148,12 @@ mod the_intrinsic_size_follows_the_first_frame;
 mod the_lasso_selects_only_what_it_encloses;
 mod the_layers_panel_selects_reorders_and_hides;
 mod the_letters_and_numbers_pick_every_tool;
+mod the_mode_dock_switches_the_profile;
 mod the_palette_and_the_shortcuts_run_the_canvas_actions;
 mod the_pen_barrel_button_opens_the_context_menu;
 mod the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed;
 mod the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail;
+mod the_pixel_rectangle_previews_and_lands_as_it_is_dragged;
 mod the_preview_fills_the_frame_with_its_background;
 mod the_preview_shows_the_first_frame;
 mod the_style_popover_fits_a_phone_above_the_dock;
@@ -417,3 +433,104 @@ fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
     }
     to.run();
 }
+
+const RASTER_ZOOM: f32 = 8.0;
+
+fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
+    let mut content = CanvasContent::new(&Canvas {
+        profile: CanvasProfile::Raster,
+        ..Canvas::default()
+    });
+    for entity in entities {
+        let edit = Canvas::edit_in(
+            &content,
+            &InfiniteCanvasOperation::Add {
+                entity: Box::new(entity.clone()),
+                pixels: None,
+            },
+        );
+        content.apply(&edit);
+    }
+    content.root()
+}
+
+fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+    let mut editor = open(&raster_canvas(entities), false, &[]);
+    let center = editor.rect_of("infinite-canvas.canvas").center();
+    editor.pinch(center, RASTER_ZOOM);
+    editor.run();
+    editor
+}
+
+fn raster_layer(id: u128, center: CanvasPoint, side: u16) -> CanvasEntity {
+    let mut layer = CanvasEntity::raster(center, side, side);
+    layer.id = Uuid::from_u128(id);
+    layer
+}
+
+fn raster_of(editor: &BeuiTest<CanvasApp>, id: Uuid) -> CanvasRaster {
+    Canvas::raster(&editor.content::<CanvasContent>(None), id).expect("the layer holds pixels")
+}
+
+fn painted(raster: &CanvasRaster) -> usize {
+    raster
+        .rgba_bytes()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|pixel| pixel[3] != 0)
+        .count()
+}
+
+fn paint(editor: &mut BeuiTest<CanvasApp>, id: Uuid, pixels: &[(u16, u16)], color: CanvasPixel) {
+    apply(
+        editor,
+        InfiniteCanvasOperation::Paint {
+            id,
+            pixels: pixels
+                .iter()
+                .map(|&(x, y)| CanvasPixelUpdate { x, y, color })
+                .collect(),
+        },
+    );
+    editor.run();
+}
+
+fn painted_scaled_layer() -> (BeuiTest<CanvasApp>, Uuid) {
+    let layer = raster_layer(1, CanvasPoint::default(), 8);
+    let mut editor = raster_editor(std::slice::from_ref(&layer));
+    paint(&mut editor, layer.id, &[(1, 1), (6, 2), (3, 6)], RED);
+    let mut scaled = rasters(&editor).remove(0);
+    scaled.transform.size = CanvasPoint::new(16.0, 16.0);
+    apply(
+        &mut editor,
+        InfiniteCanvasOperation::Update {
+            entities: vec![scaled],
+        },
+    );
+    editor.run();
+    let center = editor.rect_of("infinite-canvas.canvas").center();
+    editor.click(center + Vec2::new(4.0, 4.0));
+    editor.run();
+    (editor, layer.id)
+}
+
+fn rasters(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {
+    entities(editor)
+        .into_iter()
+        .filter(|entity| entity.shape == CanvasShape::Raster)
+        .collect()
+}
+
+fn pressed(editor: &BeuiTest<CanvasApp>, test_id: &str) -> bool {
+    use block_editor_beui::beui::reactive::Get;
+    use block_editor_beui::beui::styled::ToggleApi;
+    let node = editor
+        .document()
+        .find_test_id(test_id)
+        .unwrap_or_else(|| panic!("nothing has the test id {test_id}"));
+    editor.document().api::<ToggleApi>(node).checked().get()
+}
+
+const RED: CanvasPixel = CanvasPixel::new(220, 40, 40, 255);
+const BLACK: CanvasPixel = CanvasPixel::new(0, 0, 0, 255);

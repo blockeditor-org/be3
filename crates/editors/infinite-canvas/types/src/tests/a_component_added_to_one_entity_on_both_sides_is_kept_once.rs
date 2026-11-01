@@ -9,6 +9,7 @@ fn a_component_added_to_one_entity_on_both_sides_is_kept_once() {
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
             entity: Box::new(original.clone()),
+            pixels: None,
         },
     );
     let with = |field: Uuid, value: DatabaseValue| {

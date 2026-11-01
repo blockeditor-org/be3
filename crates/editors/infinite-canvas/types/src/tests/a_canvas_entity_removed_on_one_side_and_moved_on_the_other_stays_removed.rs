@@ -8,6 +8,7 @@ fn a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed() {
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
             entity: Box::new(original.clone()),
+            pixels: None,
         },
     );
     let ours = canvas_run(

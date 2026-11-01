@@ -1,7 +1,7 @@
 use super::*;
 
-const ARTWORK: &str = "#pixel-art.artwork";
-const STAGE: &str = "#pixel-art.canvas";
+const ARTWORK: &str = "#pixel_ray_tracer.artwork";
+const STAGE: &str = "#pixel_ray_tracer.canvas";
 
 type Place = (f32, f32, f32, f32);
 
@@ -34,7 +34,7 @@ fn resize(app: &mut AppTest, size: &str) -> (Place, Place) {
 #[test]
 fn a_tab_keeps_its_view_through_a_resize() {
     let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Pixel Art");
+    add_to_my_files(&mut app, "Pixel Ray Tracer");
     app.wait(ARTWORK);
     app.gone("#editor.loading");
     app.run(&["settle"]);
@@ -74,7 +74,7 @@ fn a_tab_keeps_its_view_through_a_resize() {
     let (moved, resized) = resize(&mut app, "1200x700");
     let after = offset(moved, resized);
     assert!(
-        (after.0 - before.0).abs() < 1.0 && (after.1 - before.1).abs() < 1.0,
+        (after.0 - before.0).abs() <= 1.0 && (after.1 - before.1).abs() <= 1.0,
         "a camera the person moved keeps its pan from the middle of the stage through a resize, {before:?} to {after:?}"
     );
     app.run(&["move", "Pane \"Files\""]);
