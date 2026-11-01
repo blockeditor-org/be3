@@ -8,7 +8,7 @@ use block_gpu_host::{
     block_gpu_abi::embed::device::Caller,
     transport::{Transport, Transported},
 };
-use wasmtime::{AsContextMut, Caller as Calling, Extern, SharedMemory, Store};
+use wasmtime::{AsContextMut, Caller as Calling, Extern, SharedMemory, Store, StoreLimits};
 use wasmtime_wasi::p1::WasiP1Ctx;
 
 use crate::threads::{Spawner, Spawns};
@@ -56,6 +56,7 @@ pub struct State {
     pub(crate) wake: Arc<Wake>,
     pub(crate) gpu_time: Duration,
     pub(crate) submit_time: Duration,
+    pub(crate) limits: StoreLimits,
 }
 
 impl Drop for State {

@@ -980,7 +980,7 @@ a later one), answers its calls with the real primitives (`read`, `publish` thro
 `resume-session`, the lease, relaying sealed with the block key, `sleep-until` from
 the clock), and keeps what it reports (`report-status`, `described`, `history`,
 `conflict`) in `Shared`. Natively the module
-runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
+runs on a thread of its own (`Host::spawn` of a `Host::pure`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
 waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,

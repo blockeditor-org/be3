@@ -200,7 +200,7 @@ module later.
 
 Natively the host keeps one compiled module per library identity per engine (`Host` in
 block-wasm-host; one wasmtime engine per cache directory), so every plugin after the first only
-compiles itself. `Host::load_from` and `PureHost::load_from` take a reader that hands back each
+compiles itself. `Host::load_from` takes a reader that hands back each
 module as a `Stored`: a file (`Stored::file`), whose `.cwasm` wasmtime maps rather than copies,
 or bytes already in memory, as Android's assets are. block-app-stack's `discovery::open` is the
 app's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each plugin's worker fetches each library and compiles it with
@@ -378,7 +378,7 @@ type module is a pure guest whose ABI grows with its WIT world (guides/type_modu
 "Operations and WIT"): its async calls are be-ops frames, and each sync func is a wasm
 import (`(has_parent: i32, parent: i64, pointer, length)`, with no result) or export
 (the same arguments, the host writing them into memory from `plugin_alloc`, returning
-the result's packed pointer and length). The host links `be3_host` and the world's imports (`PureHost::with_imports`,
+the result's packed pointer and length). The host links `be3_host` and the world's imports (`Host::with_direct`,
 `WebGuest::start`'s list) and refuses any other.
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
@@ -395,9 +395,10 @@ guest share:
   transferable buffers and nothing else in the worker: no gpu shim, no dylink, no
   SharedArrayBuffer.
 
-Natively `PureHost` in block-wasm-host loads a pure guest with an engine of its own
-configuration (threads, shared memory and relaxed SIMD off, epoch interruption on), links only
-the `be3_host` imports so a guest that imports anything else is refused, and caps its memory with
-`StoreLimits` (`MEMORY_LIMIT`, or `with_memory_limit`). `PureHost::spawn` puts it on its own
-thread. It reads a `.cwasm` beside the module as `Host` does, and `precompile` compiles either
-kind.
+Natively a pure guest is a `Plugin` of a `Host::pure` in block-wasm-host: the same loading,
+calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
+and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` and direct
+imports linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
+anything else is refused, and its memory capped with `StoreLimits` (`MEMORY_LIMIT`, or
+`with_memory_limit`). `Host::spawn` puts a plugin that presents nothing on its own thread.
+`precompile` compiles either kind.

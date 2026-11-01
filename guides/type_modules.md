@@ -461,7 +461,7 @@ wasmtime and in process in tests:
   `Modules`, which routes each type to the module that listed it (`module_of`, its
   own, so two hosts in one process with different sources each reach their own
   instance), starts each `Source` (`in_process::<G>`, natively
-  `wasm(name, tag, cache, load)` on a `PureHost` thread, on the web
+  `wasm(name, tag, cache, load)` on a `Host::pure` thread, on the web
   `web(name, url, tag)`) with a host `Connection` of its own, restarts one that
   stops, answers its clock and sleeps itself, and hands everything else on as
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
