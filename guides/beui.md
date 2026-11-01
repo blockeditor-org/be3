@@ -304,7 +304,7 @@ apps, demos, test harnesses and the plugin runtime. It re-exports beui
 `beui::native` plus the engine: `build` (a document with the inspector and the
 on-screen keyboard installed), `context()` and the fonts, `testing`, `drive`,
 `Headless`, the renderer's `Renderer`, `GpuSetup` and `OpenDevice`, and the
-runners (`run`, `run_with`, `run_with_platforms`, `run_web`, ...). Its features pick the
+runners (`run`, `run_with` and `run_web`). Its features pick the
 runner: `window` (the default: winit, Android, space and headsets) or `web`. A
 host still depends on beui too, since `view!` names it, and imports only the
 engine through beui-host. An editor's tests reach the engine through
@@ -335,7 +335,7 @@ one direction:
 | `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing, texture_quad}`: the interface a gpu drawing implements, which the renderer runs, and the one pipeline that draws a texture into a rect (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers offer it with `beui_host::native::run_with_platforms`, and `BEUI_PLATFORM=drm` picks it |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers offer it in `RunOptions::platforms`, and `BEUI_PLATFORM=drm` picks it |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
 | `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
@@ -3696,11 +3696,10 @@ focused field into what is left, through every scroll it sits in.
   `./scripts/buck run //crates/beui-web-demo:web` serves it on
   http://127.0.0.1:8070.
 
-`beui_host::native::run_with` takes `RunOptions` (app id, starting size) where
-`beui_host::native::run` takes only the app; both load wgpu, and
-`beui_host::native::run_with_device` takes the `beui_host::native::OpenDevice` to open wgpu's device
-with instead (block-app's opens its device itself, to import Wayland clients' buffers), and
-`beui_host::native::run_with_platforms` also offers platforms of the caller's choosing, such as
+`beui_host::native::run_with` takes `RunOptions` where `beui_host::native::run` takes only the
+app and uses the defaults; both load wgpu. Besides the app id and starting size, `RunOptions`
+carries `device_extensions`, the Vulkan extensions wgpu's device is opened with (block-app's
+import Wayland clients' buffers), and `platforms`, which the native runners offer beside their own, such as
 `beui_platform_drm::Drm`, which drives the displays and input devices itself, for `BEUI_PLATFORM`
 to pick by name (`beui_runner::environment::choose` takes every name a program offers; the first,
 the native one, is the default), beside `beui_host::native::Headless`, which draws offscreen with no
@@ -4057,7 +4056,7 @@ plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_runner::Layer` is middleware between a platform and the app's
 runner. `Launch::layers` is the stack, the layer nearest the platform first;
-the native run functions (`beui_host::native::run_with`, `run_with_platforms`) build it from
+the native run functions (`beui_host::native::run` and `run_with`) build it from
 `BEUI_LAYERS` (`choose_platform` and `stack` in `crates/beui-host/src/runner.rs`).
 Input goes up the stack, from the platform through each layer to the app, and
 the app's output and its calls on the platform go down it. Every hook has a
