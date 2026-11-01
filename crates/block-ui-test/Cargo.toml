@@ -19,6 +19,7 @@ host-types = { path = "../host-types" }
 paint-snapshot = { path = "../paint-snapshot" }
 serde = "1"
 uuid = "1"
+window-stack = { path = "../window-stack" }
 
 [dev-dependencies]
 text-block-types = { path = "../editors/text-block/types" }

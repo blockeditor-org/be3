@@ -199,6 +199,7 @@ members = [
     "crates/wasi-threads",
     "crates/wasm-dylink",
     "crates/wasm-link",
+    "crates/window-stack",
 ]
 resolver = "3"
 

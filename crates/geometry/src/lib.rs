@@ -351,6 +351,11 @@ impl Rect {
     pub fn is_positive(&self) -> bool {
         self.min.x < self.max.x && self.min.y < self.max.y
     }
+
+    pub fn kept_in(&self, keep: Vec2, bounds: Vec2) -> Pos2 {
+        let room = (bounds - keep).max(Vec2::ZERO);
+        Pos2::new(self.min.x.clamp(0.0, room.x), self.min.y.clamp(0.0, room.y))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

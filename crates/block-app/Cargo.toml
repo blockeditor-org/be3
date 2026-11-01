@@ -65,6 +65,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wasi-threads = { path = "../wasi-threads" }
+window-stack = { path = "../window-stack" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }

@@ -86,8 +86,8 @@ corner nearest its Status bar.
 Each display's work area is that display less its own bars' bands: the dock's area
 (`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the plugin reports it on the view's frame report
-(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`,
-`keep_in_work_areas`, `walled`) and block-ui-test's desk keep each of the plugin's windows on a
+(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`) and block-ui-test's
+desk, through window-stack's `keep_in_work_areas` and `walled`, keep each of the plugin's windows on a
 display wholly inside that display's work area on every edge where a band insets it, as the dock's
 `reachable_origin` walls do for windows it draws itself; other edges, and so other displays, stay
 open. A window being moved or resized is let go first, and kept once released.
@@ -247,7 +247,10 @@ opens from them (`windows` in the screen request, set for the shell's frame and 
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
 opens, each of the desktop plugin's dock windows, becomes a window view (`HostView::Window`) that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
-stacking order. A press on one raises it, and so does the plugin's `raise` window request,
+stacking order. The window manager itself, without signals, is the `window-stack` crate: the
+plugin's window requests in (`ask`), stacking (`raise`), moves and resizes (`move_in`, `drag`,
+`resized`), work areas and the `desktop X Y` placement; block-app wraps it in signals and
+block-ui-test's desk (`show_on_displays`) runs it directly, so the plugin tests drive the same one. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the
 program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
 and popups, along in front of it, and moving one (a drag or a `place` request) moves them with it. The dock's windows clear to transparent, so the margin their
