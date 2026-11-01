@@ -292,7 +292,6 @@ impl Lone {
         while let Some(event) = self.host.next_event() {
             match event {
                 Incoming::Started(started) => calls.extend(Call::accept(&mut self.host, started)),
-                Incoming::Called(called) => calls.extend(Call::accept_direct(&called)),
                 Incoming::Completed { op, outcome } => completed.push((op, outcome)),
                 Incoming::Yielded { .. }
                 | Incoming::Canceled { .. }
@@ -677,11 +676,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     });
                 }
             }
-            Incoming::Called(called) => {
-                if let Some(call) = Call::accept_direct(&called) {
-                    self.act(device, call);
-                }
-            }
             Incoming::Credited { op } => {
                 if let Some(mut clock) = self.devices[device].clock.take() {
                     self.to(device, |host| clock.credited(host, op));
@@ -753,38 +747,41 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
             }
-            Call::Send { to, bytes } => match to {
-                Recipients::One(Endpoint::Editor(editor)) => {
-                    let message = ToEditor::decode(&bytes).expect("an editor message");
-                    self.received
-                        .entry((device, editor))
-                        .or_default()
-                        .push(message.clone());
-                    let Some(mirror) = self.editors.get_mut(&(device, editor)) else {
-                        return;
-                    };
-                    if let Some(answer) = mirror.receive(message) {
-                        self.send_from_editor(device, editor, answer);
-                    }
-                }
-                Recipients::One(Endpoint::Peer(peer)) => {
-                    if let Some(to) = self.device_of(peer) {
-                        self.relay(to, client, bytes);
-                    }
-                }
-                Recipients::One(Endpoint::Host) => {}
-                Recipients::Peers => {
-                    let participants = self.lease.state().participants.clone();
-                    for peer in participants {
-                        if peer == client {
-                            continue;
+            Call::Send { reply, to, bytes } => {
+                self.to(device, |host| reply.send(host, &()));
+                match to {
+                    Recipients::One(Endpoint::Editor(editor)) => {
+                        let message = ToEditor::decode(&bytes).expect("an editor message");
+                        self.received
+                            .entry((device, editor))
+                            .or_default()
+                            .push(message.clone());
+                        let Some(mirror) = self.editors.get_mut(&(device, editor)) else {
+                            return;
+                        };
+                        if let Some(answer) = mirror.receive(message) {
+                            self.send_from_editor(device, editor, answer);
                         }
+                    }
+                    Recipients::One(Endpoint::Peer(peer)) => {
                         if let Some(to) = self.device_of(peer) {
-                            self.relay(to, client, bytes.clone());
+                            self.relay(to, client, bytes);
+                        }
+                    }
+                    Recipients::One(Endpoint::Host) => {}
+                    Recipients::Peers => {
+                        let participants = self.lease.state().participants.clone();
+                        for peer in participants {
+                            if peer == client {
+                                continue;
+                            }
+                            if let Some(to) = self.device_of(peer) {
+                                self.relay(to, client, bytes.clone());
+                            }
                         }
                     }
                 }
-            },
+            }
             Call::Publish {
                 reply,
                 expected,
@@ -841,30 +838,49 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let resume = self.resume(local, self.head);
                 self.to(device, |host| reply.send(host, &Ok(resume)));
             }
-            Call::ClaimLease { generation } => {
+            Call::ClaimLease { reply, generation } => {
+                self.to(device, |host| reply.send(host, &()));
                 self.lease.claim(client, generation, self.now as i64);
                 self.lease_changed(None);
             }
             Call::ReportClean {
+                reply,
                 generation,
                 clean_at,
             } => {
+                self.to(device, |host| reply.send(host, &()));
                 self.lease
                     .heartbeat(client, generation, clean_at, self.now as i64);
             }
-            Call::ReportStatus { status } => self.devices[device].status = status,
-            Call::Described { description } => {
+            Call::ReportStatus { reply, status } => {
+                self.to(device, |host| reply.send(host, &()));
+                self.devices[device].status = status;
+            }
+            Call::Described { reply, description } => {
+                self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
             }
-            Call::History { can_undo, can_redo } => {
+            Call::History {
+                reply,
+                can_undo,
+                can_redo,
+            } => {
+                self.to(device, |host| reply.send(host, &()));
                 self.devices[device].history = (can_undo, can_redo);
             }
             Call::Conflict {
+                reply,
                 ours,
                 theirs,
                 count,
-            } => self.conflicts.push((device, ours, theirs, count as usize)),
-            Call::Error { message } => self.errors.push((device, message)),
+            } => {
+                self.to(device, |host| reply.send(host, &()));
+                self.conflicts.push((device, ours, theirs, count as usize));
+            }
+            Call::Error { reply, message } => {
+                self.to(device, |host| reply.send(host, &()));
+                self.errors.push((device, message));
+            }
         }
     }
 

@@ -39,23 +39,23 @@ interface host {
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;
 
     /// Sent once per generation when the owner is gone from the participants.
-    claim-lease: func(generation: u64);
+    claim-lease: async func(generation: u64);
 
     /// The owner's heartbeat.
-    report-clean: func(generation: u64, clean-at: option<commit-id>);
+    report-clean: async func(generation: u64, clean-at: option<commit-id>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
-    send: func(to: recipients, bytes: list<u8>);
+    send: async func(to: recipients, bytes: list<u8>);
 
-    report-status: func(status: status);
+    report-status: async func(status: status);
 
     /// After the visible content changed, for the graph mirror.
-    described: func(description: description);
+    described: async func(description: description);
 
-    history: func(can-undo: bool, can-redo: bool);
+    history: async func(can-undo: bool, can-redo: bool);
 
     /// A merge kept both sides.
-    conflict: func(ours: commit-id, theirs: commit-id, count: u32);
+    conflict: async func(ours: commit-id, theirs: commit-id, count: u32);
 
-    error: func(message: string);
+    error: async func(message: string);
 }

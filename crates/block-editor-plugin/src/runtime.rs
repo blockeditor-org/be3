@@ -68,14 +68,14 @@ impl Runtime {
                 self.asked = false;
                 let commit = surfaces.render(&mut self.screens)?;
                 if surfaces.take_relaid() {
-                    block_plugin_api::guest::host::layout(surfaces.layout().clone());
+                    block_plugin_api::guest::host::layout(surfaces.layout().clone()).detach();
                 }
                 if let Some(commit) = commit {
                     wire.drawn(commit);
                 }
             } else if (changed || replaced) && !self.asked {
                 self.asked = true;
-                block_plugin_api::guest::host::frame_needed();
+                block_plugin_api::guest::host::frame_needed().detach();
             }
         }
         for painted in paintings {
@@ -98,7 +98,7 @@ impl Runtime {
             return Ok(false);
         }
         surfaces.place(layout.clone());
-        block_plugin_api::guest::host::layout(layout);
+        block_plugin_api::guest::host::layout(layout).detach();
         Ok(true)
     }
 }

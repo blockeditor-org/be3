@@ -9,7 +9,7 @@ fn a_pure_guest_may_not_outgrow_its_memory_limit() {
         guest.take_outbound(),
         vec![block_guest_echo::STARTED.to_vec()]
     );
-    guest.send(block_guest_echo::GROW.to_vec());
+    guest.deliver(vec![block_guest_echo::GROW.to_vec()]);
     assert!(
         guest.step().is_err(),
         "a guest that grows past its limit traps"

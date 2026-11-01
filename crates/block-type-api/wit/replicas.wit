@@ -28,24 +28,24 @@ interface replicas {
 
         /// Starts over as if just opened, dropping what it holds, as after the
         /// host reconnected. The host replays what it kept.
-        reopen: func(opening: opening);
+        reopen: async func(opening: opening);
 
         /// `at` is the module's clock when the host sent it, which the replica
         /// reads the message at even when the clock's stream has yet to say so.
-        message: func(%from: endpoint, bytes: list<u8>, at: u64);
+        message: async func(%from: endpoint, bytes: list<u8>, at: u64);
 
-        attach: func(editor: editor-id, editable: bool);
+        attach: async func(editor: editor-id, editable: bool);
 
-        detach: func(editor: editor-id);
+        detach: async func(editor: editor-id);
 
         /// A head landed after the one the replica opened at.
-        head-moved: func(head: commit-id, from-this-device: bool);
+        head-moved: async func(head: commit-id, from-this-device: bool);
 
         /// The session's state changed, or the host fell behind the broadcast.
-        lease: func(session: session-state, resynchronize: bool);
+        lease: async func(session: session-state, resynchronize: bool);
 
         /// Claim a lapsed lease once the replica has caught up, as a terminal host does.
-        claim: func();
+        claim: async func();
 
         /// False when it did not apply.
         change: async func(change: change) -> bool;
@@ -58,29 +58,29 @@ interface replicas {
     }
 
     /// Seeds the module's entropy, starts its clock and lists its types.
-    start: func(entropy: list<u8>) -> list<type-info>;
+    start: async func(entropy: list<u8>) -> list<type-info>;
 
-    blank: func(content-type: content-type-id) -> result<list<u8>, failure>;
+    blank: async func(content-type: content-type-id) -> result<list<u8>, failure>;
 
     /// A side that is none is the type's default.
-    merge3: func(
+    merge3: async func(
         content-type: content-type-id,
         base: option<list<u8>>,
         ours: option<list<u8>>,
         theirs: option<list<u8>>,
     ) -> result<merged, failure>;
 
-    describe: func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
+    describe: async func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
 
-    to-file: func(content-type: content-type-id, bytes: list<u8>) -> result<option<plain-file>, failure>;
+    to-file: async func(content-type: content-type-id, bytes: list<u8>) -> result<option<plain-file>, failure>;
 
     /// Which of the module's types takes a file, by name and first bytes, or
     /// with `directory` a new directory.
-    claims: func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<content-type-id>;
+    claims: async func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<content-type-id>;
 
     /// A child or file change made to content bytes, or to the type's default
     /// for none. None when it does not apply.
-    apply: func(
+    apply: async func(
         content-type: content-type-id,
         bytes: option<list<u8>>,
         client: client-id,

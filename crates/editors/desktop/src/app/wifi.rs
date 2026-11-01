@@ -83,7 +83,7 @@ fn caption(status: &WifiStatus, network: &WifiNetwork) -> String {
 }
 
 pub(crate) fn scan(editor: Editor) {
-    editor.act(move || desktop::wifi::request(WifiRequest::Scan));
+    editor.act(move || desktop::wifi::request(WifiRequest::Scan).detach());
 }
 
 #[component]
@@ -108,7 +108,7 @@ pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callb
                 <BackButton on_click={on_back} />
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
-                    on={Binding::new(enabled, move |on: bool| editor.act(move || desktop::wifi::request(WifiRequest::SetEnabled(on))))}
+                    on={Binding::new(enabled, move |on: bool| editor.act(move || desktop::wifi::request(WifiRequest::SetEnabled(on)).detach()))}
                     label="Wi-Fi"
                     @test_id={"desktop.wifi.enabled"}
                 />
@@ -185,7 +185,7 @@ fn NetworkRow(
                     ssid: chosen.clone(),
                     password: None,
                 };
-                editor.act(move || desktop::wifi::request(request));
+                editor.act(move || desktop::wifi::request(request).detach());
             }
             (false, WifiSecurity::Password) => asking.set(Some(chosen.clone())),
             (false, WifiSecurity::Unsupported) => {}
@@ -220,7 +220,7 @@ fn NetworkRow(
                         label="Disconnect"
                         variant=ButtonVariant::Ghost
                         @test_id={disconnect_id.clone()}
-                        on_click={move || editor.act(move || desktop::wifi::request(WifiRequest::Disconnect))}
+                        on_click={move || editor.act(move || desktop::wifi::request(WifiRequest::Disconnect).detach())}
                     />
                 </Show>
             </List>
@@ -248,7 +248,7 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
             ssid: ssid.clone(),
             password: Some(typed),
         };
-        editor.act(move || desktop::wifi::request(request));
+        editor.act(move || desktop::wifi::request(request).detach());
     };
     let submitted = connect.clone();
     view! {

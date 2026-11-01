@@ -192,7 +192,7 @@ pub(crate) fn WindowPanel(
         create_effect(move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
-                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)).detach());
             }
         });
         create_effect(move || match fullscreen.get() {
@@ -203,14 +203,14 @@ pub(crate) fn WindowPanel(
         let host = editor.host();
         create_effect(move || {
             if given.get().is_some() {
-                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)).detach());
             }
         });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
         create_effect(move || {
             if called.get().is_some() {
-                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)).detach());
             }
         });
         let shown = create_memo(move || tab.fullscreen());
@@ -223,6 +223,7 @@ pub(crate) fn WindowPanel(
                         window,
                         fullscreen: shown,
                     })
+                    .detach()
                 });
             }
         });
@@ -237,7 +238,7 @@ pub(crate) fn WindowPanel(
     let banner = create_memo(move || !responding.get() && !waited.get());
     let host = editor.host();
     let force_close = ClickCallback::new(move || {
-        host.act(move || desktop::windows::request(WindowAction::Close(window)))
+        host.act(move || desktop::windows::request(WindowAction::Close(window)).detach())
     });
     view! {
         <Layers>

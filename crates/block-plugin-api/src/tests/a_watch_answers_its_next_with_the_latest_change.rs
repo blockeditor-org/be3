@@ -19,8 +19,10 @@ fn a_watch_answers_its_next_with_the_latest_change() {
     watch.opened(7);
     watch.change(&mut host, |_| 1);
     watch.change(&mut host, |held| held.unwrap_or_default() + 1);
-    watch.next(&mut host, crate::ops::Reply::new(first));
-    watch.next(&mut host, crate::ops::Reply::new(second));
+    let replies = [first, second].map(|op| crate::ops::Reply::new(&host, op));
+    for reply in replies {
+        watch.next(&mut host, reply);
+    }
     watch.change(&mut host, |_| 5);
     for frame in host.take_outbound() {
         guest.receive(&frame).unwrap();

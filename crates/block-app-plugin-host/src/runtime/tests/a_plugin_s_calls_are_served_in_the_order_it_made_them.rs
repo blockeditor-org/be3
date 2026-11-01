@@ -3,7 +3,7 @@ use crate::EditorBlock;
 use be_block::BlockContent as _;
 use block_plugin_api::{
     __args::{
-        BLOCKS_CREATE_BLOCK_NAME, BlocksCreateBlockArgs, HOST_SERVICES_READ_PLAIN_FILE,
+        BLOCKS_CREATE_BLOCK, BlocksCreateBlockArgs, HOST_SERVICES_READ_PLAIN_FILE,
         HostServicesReadPlainFileArgs,
     },
     BlockLocation, MetadataEntries, OpenBlock,
@@ -99,7 +99,7 @@ fn a_plugin_s_calls_are_served_in_the_order_it_made_them() {
         defined: MetadataEntries::new(),
         content: None,
     };
-    guest.notify_direct(Some(editor), BLOCKS_CREATE_BLOCK_NAME, &encode(&create));
+    guest.start(Some(editor), BLOCKS_CREATE_BLOCK, encode(&create));
     let read = guest.start(
         Some(editor),
         HOST_SERVICES_READ_PLAIN_FILE,

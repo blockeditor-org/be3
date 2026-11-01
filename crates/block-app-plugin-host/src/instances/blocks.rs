@@ -2,7 +2,7 @@ use block_plugin_api::{
     BlockIdRole, BlockQuery, VersionCommand,
     blocks::{BlockHistory, OpenRequest, ShowRequest},
     embed::blocks::Call,
-    ops::{OpId, Serialize, encode},
+    ops::{OpError, OpId, Outcome, Reply, Serialize, encode},
 };
 use uuid::Uuid;
 
@@ -113,9 +113,6 @@ impl Instances {
     }
 
     pub fn blocks_call(&mut self, instance: EditorInstanceId, mut call: Call) -> bool {
-        if let Call::ReplicaSend { reply, .. } = &call {
-            self.accepted.push(reply.op());
-        }
         let mut carries = false;
         call.visit_block_ids(&mut |_, _| carries = true);
         if carries {
@@ -128,12 +125,13 @@ impl Instances {
             .and_then(|entry| entry.role.block())
             .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
         if preview && call.changes() {
+            self.services.answers.push(call.refuse(OpError::Denied));
             return false;
         }
         match call {
-            Call::OpenBlock { request } => {
+            Call::OpenBlock { reply, request } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
+                    return self.acknowledge(reply, None);
                 };
                 entry.opens.push(super::OpenRequest {
                     id: Uuid::from_bytes(request.block_id),
@@ -141,18 +139,26 @@ impl Instances {
                     via: request.via.map(Uuid::from_bytes),
                     editor: request.editor.map(Uuid::from_bytes),
                 });
-                true
+                self.acknowledge(reply, Some(true))
             }
-            Call::Act { block, command } => {
+            Call::Act {
+                reply,
+                block,
+                command,
+            } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
+                    return self.acknowledge(reply, None);
                 };
                 entry
                     .block_commands
                     .push((Uuid::from_bytes(block), command));
-                true
+                self.acknowledge(reply, Some(true))
             }
-            Call::Version { block, command } => {
+            Call::Version {
+                reply,
+                block,
+                command,
+            } => {
                 let block = Uuid::from_bytes(block);
                 let own = self
                     .entries
@@ -160,17 +166,18 @@ impl Instances {
                     .and_then(|entry| entry.role.block())
                     .is_some_and(|own| own.id == block);
                 if !own || !self.editable(block) {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 if let VersionCommand::Adopt { block_id } = &command
                     && !self.editable(Uuid::from_bytes(*block_id))
                 {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 block_app_stack::version(block, command);
-                true
+                self.acknowledge(reply, Some(true))
             }
             Call::WriteContent {
+                reply,
                 block,
                 content_type,
                 bytes,
@@ -185,15 +192,17 @@ impl Instances {
                         .get(&instance)
                         .is_some_and(|entry| entry.holds(block)),
                 };
-                if allowed && block_app_stack::is_known(content_type) {
-                    match replace {
-                        true => block_app_stack::replace(block, content_type, bytes),
-                        false => block_app_stack::seed(block, content_type, bytes),
-                    }
+                if !allowed || !block_app_stack::is_known(content_type) {
+                    return self.acknowledge(reply, None);
                 }
-                false
+                match replace {
+                    true => block_app_stack::replace(block, content_type, bytes),
+                    false => block_app_stack::seed(block, content_type, bytes),
+                }
+                self.acknowledge(reply, Some(false))
             }
             Call::CreateBlock {
+                reply,
                 block,
                 block_type,
                 parent,
@@ -202,11 +211,11 @@ impl Instances {
             } => {
                 let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 let block = Uuid::from_bytes(block);
                 if block_app_stack::node(block).is_some() {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 let mut defined = block_app_stack::plugin_graph::entries_of(defined);
                 defined.remove(&be_block::LOCAL_ID.id);
@@ -221,27 +230,36 @@ impl Instances {
                     metadata,
                     content,
                 );
-                true
+                self.acknowledge(reply, Some(true))
             }
-            Call::SetParent { block, parent } => {
+            Call::SetParent {
+                reply,
+                block,
+                parent,
+            } => {
                 let block = Uuid::from_bytes(block);
                 let parent = block_app_stack::plugin_graph::parent_of(parent);
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 block_app_stack::set_parent(block, parent);
-                true
+                self.acknowledge(reply, Some(true))
             }
-            Call::Define { block, key, value } => {
+            Call::Define {
+                reply,
+                block,
+                key,
+                value,
+            } => {
                 let block = Uuid::from_bytes(block);
                 let key = Uuid::from_bytes(key);
                 if !self.editable(block) || key == be_block::LOCAL_ID.id {
-                    return false;
+                    return self.acknowledge(reply, None);
                 }
                 block_app_stack::define(block, vec![(key, value)]);
-                true
+                self.acknowledge(reply, Some(true))
             }
             Call::ReplicaNew {
                 resource,
@@ -253,7 +271,8 @@ impl Instances {
                 Uuid::from_bytes(block),
                 Uuid::from_bytes(content_type),
             ),
-            Call::ReplicaSend { this, frame, .. } => {
+            Call::ReplicaSend { reply, this, frame } => {
+                self.accepted.push(reply.into_op());
                 let block = self.entries.get(&instance).and_then(|entry| {
                     entry
                         .replicas
@@ -290,14 +309,27 @@ impl Instances {
             Call::ShowRequestsNew { resource } => {
                 self.watch(instance, resource.op(), Subject::Shows)
             }
-            Call::ReplicaFrames { .. }
+            call @ (Call::ReplicaFrames { .. }
             | Call::BlocksWatchNext { .. }
             | Call::HistoryWatchNext { .. }
             | Call::HeadWatchNext { .. }
             | Call::ArtifactWatchNext { .. }
             | Call::VersionWatchNext { .. }
-            | Call::ShowRequestsNext { .. } => false,
+            | Call::ShowRequestsNext { .. }) => {
+                self.services
+                    .answers
+                    .push(call.refuse(OpError::Unsupported));
+                false
+            }
         }
+    }
+
+    fn acknowledge(&mut self, reply: Reply<()>, changed: Option<bool>) -> bool {
+        self.services.answers.push(match changed {
+            Some(_) => reply.answer(&()),
+            None => (reply.into_op(), Outcome::Err(OpError::Denied)),
+        });
+        changed.unwrap_or(false)
     }
 
     fn watch(&mut self, instance: EditorInstanceId, op: OpId, watched: Subject) -> bool {

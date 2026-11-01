@@ -25,11 +25,11 @@ interface debug {
     }
 
     /// Measurements for the host's performance panel.
-    performance: func(group: string, measurements: list<performance-measurement>);
+    performance: async func(group: string, measurements: list<performance-measurement>);
 
     /// Shows the block as if the user had only `access` to it, until the
     /// editor asks again with `edit`.
-    simulate-access: func(block: block-id, access: access-level);
+    simulate-access: async func(block: block-id, access: access-level);
 
     /// A template of a debugging editor, which a picker lists apart: the
     /// editor that declares it and the template's id.

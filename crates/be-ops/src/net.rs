@@ -32,6 +32,8 @@ pub trait Caller: Send + Sync + 'static {
 
     fn cancel(&self, op: OpId);
 
+    fn forget(&self, op: OpId);
+
     fn request_cancel(&self, op: OpId);
 }
 
@@ -50,6 +52,10 @@ impl<C: Caller + ?Sized> Caller for Arc<C> {
 
     fn cancel(&self, op: OpId) {
         (**self).cancel(op);
+    }
+
+    fn forget(&self, op: OpId) {
+        (**self).forget(op);
     }
 
     fn request_cancel(&self, op: OpId) {
@@ -102,6 +108,7 @@ pub fn open<A: Serialize>(caller: Arc<dyn Caller>, method: MethodId, args: &A) -
     }
 }
 
+#[must_use = "dropping a call asks the other side to cancel it; `.detach()` says nobody waits for its answer"]
 pub struct Pending<T, S = Plain> {
     op: OpId,
     caller: Arc<dyn Caller>,
@@ -118,6 +125,11 @@ impl<T, S> fmt::Debug for Pending<T, S> {
 impl<T, S> Pending<T, S> {
     pub fn op(&self) -> OpId {
         self.op
+    }
+
+    pub fn detach(mut self) {
+        self.finished = true;
+        self.caller.forget(self.op);
     }
 }
 
@@ -529,6 +541,13 @@ impl Caller for Peer {
             state.connection.cancel(op);
         }
         state.flush(&self.0.sink);
+    }
+
+    fn forget(&self, op: OpId) {
+        let mut state = self.state();
+        if state.calls.remove(&op).is_some() && state.connection.is_pending(op) {
+            state.forgotten.insert(op);
+        }
     }
 
     fn request_cancel(&self, op: OpId) {

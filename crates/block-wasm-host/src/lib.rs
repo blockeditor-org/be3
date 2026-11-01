@@ -1,4 +1,3 @@
-mod direct;
 mod dylink;
 mod gpu;
 mod harness;
@@ -68,7 +67,6 @@ pub struct Host {
     libraries: Libraries,
     devices: Devices,
     imports: Imports,
-    direct: Vec<(String, String)>,
     interrupt: Arc<Interrupt>,
     flavor: Flavor,
     memory_limit: Option<usize>,
@@ -136,7 +134,6 @@ impl Host {
             libraries,
             devices,
             imports: Imports::default(),
-            direct: Vec::new(),
             flavor,
             memory_limit: (flavor == Flavor::Pure).then_some(MEMORY_LIMIT),
         })
@@ -144,14 +141,6 @@ impl Host {
 
     pub fn with_memory_limit(mut self, bytes: usize) -> Self {
         self.memory_limit = Some(bytes);
-        self
-    }
-
-    pub fn with_direct(mut self, imports: &[(&str, &str)]) -> Self {
-        self.direct = imports
-            .iter()
-            .map(|(module, name)| ((*module).to_owned(), (*name).to_owned()))
-            .collect();
         self
     }
 
@@ -264,7 +253,6 @@ impl Host {
 
 pub struct Plugin {
     store: Store<State>,
-    instance: Instance,
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
     shutdown: TypedFunc<(), ()>,
@@ -342,7 +330,6 @@ impl Plugin {
         }
         panic::link(&mut linker)?;
         wake::link(&mut linker)?;
-        direct::link(&mut linker, &host.direct)?;
         if pure {
             gpu::link_transport(&mut linker)?;
         } else {
@@ -383,7 +370,6 @@ impl Plugin {
             step: typed(&instance, &mut store, "plugin_step")?,
             shutdown: typed(&instance, &mut store, "plugin_shutdown")?,
             store,
-            instance,
             wake,
             stopped: false,
         };
@@ -435,37 +421,8 @@ impl Plugin {
         }
     }
 
-    pub fn send(&mut self, frame: Vec<u8>) {
-        self.store.data_mut().transport.inbox.push_back(frame);
-    }
-
-    pub fn deliver(&mut self, items: Vec<Vec<u8>>) -> Result<(), String> {
-        for item in items {
-            let Some(block_guest_abi::direct::Item::Call(call)) =
-                block_guest_abi::direct::decode(&item)
-            else {
-                self.send(item);
-                continue;
-            };
-            if !self.store.data().transport.inbox.is_empty() {
-                self.step()?;
-            }
-            if self.stopped {
-                return Ok(());
-            }
-            let returned =
-                direct::call(&self.instance, &mut self.store, &call).inspect_err(|_| {
-                    self.stopped = true;
-                })?;
-            if call.answered {
-                self.store
-                    .data_mut()
-                    .transport
-                    .outbox
-                    .push(block_guest_abi::direct::returned(&returned));
-            }
-        }
-        Ok(())
+    pub fn deliver(&mut self, frames: Vec<Vec<u8>>) {
+        self.store.data_mut().transport.inbox.extend(frames);
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
@@ -541,7 +498,7 @@ impl Runnable for Plugin {
     fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<Infallible>, String> {
         self.take_wake();
         let started = Instant::now();
-        self.deliver(frames)?;
+        self.deliver(frames);
         Plugin::step(self)?;
         let took = StepTime {
             step: started.elapsed(),

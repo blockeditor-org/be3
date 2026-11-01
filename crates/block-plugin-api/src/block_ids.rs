@@ -99,7 +99,7 @@ impl crate::embed::host_services::Call {
             | Self::ListAccess { block, .. }
             | Self::SetAccess { block, .. }
             | Self::MakeContactLink { block, .. } => visit(block),
-            Self::ReleaseRevision { preview } => visit(preview),
+            Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CopyBlocks { source, parent, .. } => {
                 visit(source);
@@ -223,7 +223,7 @@ impl crate::embed::blocks::Call {
                 parent.visit_block_ids(visit);
                 visit(BlockIdRole::Created, block);
             }
-            Self::SetParent { block, parent } => {
+            Self::SetParent { block, parent, .. } => {
                 visit(existing, block);
                 parent.visit_block_ids(visit);
             }
@@ -233,15 +233,15 @@ impl crate::embed::blocks::Call {
             | Self::HistoryWatchNew { block, .. }
             | Self::HeadWatchNew { block, .. }
             | Self::ArtifactWatchNew { block, .. } => visit(existing, block),
-            Self::Act { block, command } => {
+            Self::Act { block, command, .. } => {
                 visit(existing, block);
                 command.visit_block_ids(visit);
             }
-            Self::Version { block, command } => {
+            Self::Version { block, command, .. } => {
                 visit(existing, block);
                 command.visit_block_ids(visit);
             }
-            Self::OpenBlock { request } => request.visit_block_ids(visit),
+            Self::OpenBlock { request, .. } => request.visit_block_ids(visit),
             Self::BlocksWatchNew { query, .. } => query.visit_block_ids(visit),
             Self::ReplicaFrames { .. }
             | Self::ReplicaSend { .. }

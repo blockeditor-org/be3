@@ -29,7 +29,7 @@ fn main() {
     let cache = arguments.next().map(std::path::PathBuf::from);
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let host = match Host::new(device, queue, cache.as_deref()) {
-        Ok(host) => host.with_direct(block_plugin_api::embed::IMPORTS),
+        Ok(host) => host,
         Err(error) => {
             eprintln!("host failed: {error}");
             std::process::exit(1);
@@ -86,7 +86,7 @@ struct Session {
 
 impl Session {
     fn step(&mut self, stage: &str, plugin: &mut Plugin) {
-        check(plugin.deliver(self.connection.take_outbound()));
+        plugin.deliver(self.connection.take_outbound());
         check(plugin.step());
         self.hear(stage, plugin);
     }

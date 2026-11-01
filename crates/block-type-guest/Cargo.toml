@@ -27,6 +27,7 @@ uuid = { version = "1", features = ["rng-getrandom"] }
 [dev-dependencies]
 be-model = { path = "../be-model" }
 be-store = { path = "../be-store" }
+pollster = "0.4"
 
 [lints]
 workspace = true

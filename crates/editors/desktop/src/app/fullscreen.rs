@@ -20,6 +20,7 @@ pub(super) fn bind_fullscreen(editor: Editor) {
                     window,
                     fullscreen: !fullscreen,
                 })
+                .detach()
             });
         }
     })

@@ -218,6 +218,7 @@ impl Workspace {
                             window,
                             fullscreen: true,
                         })
+                        .detach()
                     });
                 }
             }
@@ -1026,7 +1027,7 @@ impl Workspace {
             match self.desk.with_untracked(|desk| desk.window(key)) {
                 Some(window) => self
                     .host()
-                    .act(move || desktop::windows::request(WindowAction::Close(window))),
+                    .act(move || desktop::windows::request(WindowAction::Close(window)).detach()),
                 None if self
                     .desk
                     .with_untracked(|desk| desk.placeholders.contains(&key)) =>
@@ -1035,7 +1036,7 @@ impl Workspace {
                 }
                 None => self
                     .host()
-                    .act(move || desktop::windows::request(WindowAction::Close(key))),
+                    .act(move || desktop::windows::request(WindowAction::Close(key)).detach()),
             }
             return;
         }

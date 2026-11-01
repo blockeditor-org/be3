@@ -113,6 +113,10 @@ impl Caller for Connection {
         self.peer.cancel(op);
     }
 
+    fn forget(&self, op: OpId) {
+        self.peer.forget(op);
+    }
+
     fn request_cancel(&self, op: OpId) {
         self.peer.request_cancel(op);
     }

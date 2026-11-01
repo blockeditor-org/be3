@@ -1440,7 +1440,9 @@ impl<H: Host> Replicas<H> {
 
     pub fn claim(&mut self, block: Uuid) {
         if let Some((replica, _)) = self.replica_of(block) {
-            self.with_replica(replica, |handle, connection| handle.claim(connection));
+            self.with_replica(replica, |handle, connection| {
+                handle.claim(connection);
+            });
         }
     }
 
@@ -1898,17 +1900,20 @@ impl<H: Host> Replicas<H> {
                 match replica {
                     Some(replica) => self.act(ctx, module, replica, call).await,
                     None => {
-                        if let Call::Error { message } = call {
+                        if let Call::Error { message, .. } = call {
                             H::report(ctx.1, None, format!("a type module: {message}"));
                         }
-                        if let Some(op) = op {
-                            self.refuse(module, op);
-                        }
+                        self.refuse(module, op);
                         false
                     }
                 }
             }
         }
+    }
+
+    fn acknowledge(&mut self, module: usize, reply: Reply<()>) {
+        self.modules
+            .call(module, |connection| reply.send(connection, &()));
     }
 
     fn refuse(&mut self, module: usize, op: OpId) {
@@ -1997,21 +2002,24 @@ impl<H: Host> Replicas<H> {
         };
         match call {
             Call::Clock { .. } | Call::SleepUntil { .. } => false,
-            Call::Send { to, bytes } => match to {
-                Recipients::One(Endpoint::Editor(editor)) => {
-                    H::to_editor(shared, block, editor, bytes)
+            Call::Send { reply, to, bytes } => {
+                self.acknowledge(module, reply);
+                match to {
+                    Recipients::One(Endpoint::Editor(editor)) => {
+                        H::to_editor(shared, block, editor, bytes)
+                    }
+                    Recipients::One(Endpoint::Host) => false,
+                    _ if made_up => false,
+                    Recipients::One(Endpoint::Peer(client)) => {
+                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
+                        false
+                    }
+                    Recipients::Peers => {
+                        self.relay(shared, peer.relay(block, None, &bytes).await);
+                        false
+                    }
                 }
-                Recipients::One(Endpoint::Host) => false,
-                _ if made_up => false,
-                Recipients::One(Endpoint::Peer(client)) => {
-                    self.relay(shared, peer.relay(block, Some(client), &bytes).await);
-                    false
-                }
-                Recipients::Peers => {
-                    self.relay(shared, peer.relay(block, None, &bytes).await);
-                    false
-                }
-            },
+            }
             Call::Read {
                 reply,
                 commit,
@@ -2140,7 +2148,8 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
-            Call::ClaimLease { generation } => {
+            Call::ClaimLease { reply, generation } => {
+                self.acknowledge(module, reply);
                 if !peer.is_attached() || made_up {
                     return false;
                 }
@@ -2164,9 +2173,11 @@ impl<H: Host> Replicas<H> {
                 false
             }
             Call::ReportClean {
+                reply,
                 generation,
                 clean_at,
             } => {
+                self.acknowledge(module, reply);
                 if !peer.is_attached() || made_up {
                     return false;
                 }
@@ -2188,7 +2199,8 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
-            Call::ReportStatus { status } => {
+            Call::ReportStatus { reply, status } => {
+                self.acknowledge(module, reply);
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
@@ -2227,7 +2239,8 @@ impl<H: Host> Replicas<H> {
                 self.counted(shared);
                 true
             }
-            Call::Described { description } => {
+            Call::Described { reply, description } => {
+                self.acknowledge(module, reply);
                 let reader = self.open.get(&replica).is_some_and(|open| open.reader);
                 let references = peer.resolve(block, description.references.clone());
                 H::described(shared, block, references, description);
@@ -2243,15 +2256,22 @@ impl<H: Host> Replicas<H> {
                 }
                 true
             }
-            Call::History { can_undo, can_redo } => {
+            Call::History {
+                reply,
+                can_undo,
+                can_redo,
+            } => {
+                self.acknowledge(module, reply);
                 H::history(shared, block, can_undo, can_redo);
                 true
             }
             Call::Conflict {
+                reply,
                 ours,
                 theirs,
                 count,
             } => {
+                self.acknowledge(module, reply);
                 H::conflict(
                     shared,
                     block,
@@ -2263,7 +2283,8 @@ impl<H: Host> Replicas<H> {
                 );
                 true
             }
-            Call::Error { message } => {
+            Call::Error { reply, message } => {
+                self.acknowledge(module, reply);
                 H::report(shared, Some(block), format!("{block}: {message}"));
                 false
             }

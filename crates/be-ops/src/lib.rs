@@ -2,9 +2,9 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     fmt,
     marker::PhantomData,
+    sync::{Arc, Mutex, PoisonError},
 };
 
-use block_guest_abi::direct;
 use serde::Deserialize;
 pub use serde::{Serialize, de::DeserializeOwned};
 
@@ -13,9 +13,6 @@ pub mod guest;
 pub mod net;
 
 pub mod wire;
-
-#[doc(hidden)]
-pub use block_guest_abi as __abi;
 
 pub type OpId = u64;
 
@@ -127,6 +124,7 @@ pub enum OpError {
     Canceled,
     Unsupported,
     Denied,
+    Unanswered,
 }
 
 impl fmt::Display for OpError {
@@ -135,6 +133,7 @@ impl fmt::Display for OpError {
             OpError::Canceled => "the operation was canceled",
             OpError::Unsupported => "the other side does not support the operation",
             OpError::Denied => "the other side refused the operation",
+            OpError::Unanswered => "the other side dropped the operation without answering it",
         })
     }
 }
@@ -257,23 +256,8 @@ pub struct Started {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Called {
-    pub name: String,
-    pub parent: Option<OpId>,
-    pub answered: bool,
-    pub args: Vec<u8>,
-}
-
-impl Called {
-    pub fn method(&self) -> MethodId {
-        method_id(&self.name)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Incoming {
     Started(Started),
-    Called(Called),
     Yielded { op: OpId, item: Vec<u8> },
     Completed { op: OpId, outcome: Outcome },
     Canceled { op: OpId },
@@ -302,10 +286,12 @@ pub struct Connection {
     started: BTreeMap<OpId, Option<OpId>>,
     served: BTreeMap<OpId, Served>,
     canceling: BTreeSet<OpId>,
-    direct: VecDeque<OpId>,
     events: VecDeque<Incoming>,
     outbound: Vec<Vec<u8>>,
+    abandoned: Abandoned,
 }
+
+type Abandoned = Arc<Mutex<Vec<OpId>>>;
 
 impl Connection {
     pub fn new(side: Side) -> Self {
@@ -315,9 +301,9 @@ impl Connection {
             started: BTreeMap::new(),
             served: BTreeMap::new(),
             canceling: BTreeSet::new(),
-            direct: VecDeque::new(),
             events: VecDeque::new(),
             outbound: Vec::new(),
+            abandoned: Abandoned::default(),
         }
     }
 
@@ -344,22 +330,6 @@ impl Connection {
             args,
         });
         op
-    }
-
-    pub fn call_direct(&mut self, parent: Option<OpId>, name: &str, args: Vec<u8>) -> OpId {
-        self.next += 1;
-        let op = self.side.bit() | self.next;
-        self.direct.push_back(op);
-        self.outbound.push(direct::call(name, parent, true, &args));
-        op
-    }
-
-    pub fn notify_direct(&mut self, parent: Option<OpId>, name: &str, args: &[u8]) {
-        self.outbound.push(direct::call(name, parent, false, args));
-    }
-
-    pub fn return_direct(&mut self, outcome: &Outcome) {
-        self.outbound.push(direct::returned(&encode(outcome)));
     }
 
     pub fn cancel(&mut self, op: OpId) {
@@ -450,29 +420,7 @@ impl Connection {
         }
     }
 
-    pub fn receive(&mut self, item: &[u8]) -> Result<(), FrameError> {
-        let malformed = || FrameError::Malformed("a direct call did not decode".to_owned());
-        let frame = match direct::decode(item).ok_or_else(malformed)? {
-            direct::Item::Frame(frame) => frame,
-            direct::Item::Call(call) => {
-                self.events.push_back(Incoming::Called(Called {
-                    name: call.name.to_owned(),
-                    parent: call.parent,
-                    answered: call.answered,
-                    args: call.args.to_vec(),
-                }));
-                return Ok(());
-            }
-            direct::Item::Returned(result) => {
-                let op = self.direct.pop_front().ok_or_else(malformed)?;
-                let outcome = match result.is_empty() {
-                    true => Outcome::Ok(Vec::new()),
-                    false => decode(result).ok_or_else(malformed)?,
-                };
-                self.events.push_back(Incoming::Completed { op, outcome });
-                return Ok(());
-            }
-        };
+    pub fn receive(&mut self, frame: &[u8]) -> Result<(), FrameError> {
         match decode_frame::<Frame>(frame)? {
             Frame::Start {
                 op,
@@ -518,11 +466,25 @@ impl Connection {
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
+        let abandoned = std::mem::take(
+            &mut *self
+                .abandoned
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        for op in abandoned {
+            self.complete(op, Outcome::Err(OpError::Unanswered));
+        }
         std::mem::take(&mut self.outbound)
     }
 
     pub fn has_outbound(&self) -> bool {
         !self.outbound.is_empty()
+            || !self
+                .abandoned
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .is_empty()
     }
 }
 
@@ -564,8 +526,10 @@ impl<T, S: wire::Decode<T>> Ticket<T, S> {
     }
 }
 
+#[must_use = "an op stays open until its reply is sent; dropping the reply answers it with `OpError::Unanswered`"]
 pub struct Reply<T, S = wire::Plain> {
     op: OpId,
+    abandoned: Option<Abandoned>,
     value: PhantomData<fn(T, S)>,
 }
 
@@ -584,9 +548,10 @@ impl<T, S> PartialEq for Reply<T, S> {
 impl<T, S> Eq for Reply<T, S> {}
 
 impl<T, S> Reply<T, S> {
-    pub fn new(op: OpId) -> Self {
+    pub fn new(connection: &Connection, op: OpId) -> Self {
         Self {
             op,
+            abandoned: Some(Arc::clone(&connection.abandoned)),
             value: PhantomData,
         }
     }
@@ -595,18 +560,35 @@ impl<T, S> Reply<T, S> {
         self.op
     }
 
+    pub fn into_op(mut self) -> OpId {
+        self.abandoned = None;
+        self.op
+    }
+
     pub fn fail(self, connection: &mut Connection, error: OpError) {
-        connection.complete(self.op, Outcome::Err(error));
+        connection.complete(self.into_op(), Outcome::Err(error));
     }
 }
 
 impl<T, S: wire::Encode<T>> Reply<T, S> {
-    pub fn outcome(&self, value: &T) -> Outcome {
-        Outcome::Ok(wire::encode::<S, T>(value))
+    pub fn answer(self, value: &T) -> (OpId, Outcome) {
+        (self.into_op(), Outcome::Ok(wire::encode::<S, T>(value)))
     }
 
     pub fn send(self, connection: &mut Connection, value: &T) {
-        connection.complete(self.op, self.outcome(value));
+        let (op, outcome) = self.answer(value);
+        connection.complete(op, outcome);
+    }
+}
+
+impl<T, S> Drop for Reply<T, S> {
+    fn drop(&mut self) {
+        if let Some(abandoned) = self.abandoned.take() {
+            abandoned
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(self.op);
+        }
     }
 }
 

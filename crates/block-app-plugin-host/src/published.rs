@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use block_plugin_api::{
     ContactsWatch, EditorInstanceId, Watched as _,
-    ops::{Called, MethodId, Watching},
+    ops::{MethodId, Started, Watching},
 };
 use block_plugin_manifest::extension_of;
 
@@ -21,8 +21,8 @@ pub(super) fn watching(method: MethodId) -> Option<Watching> {
         .copied()
 }
 
-pub(super) fn interface_of(called: &Called) -> Option<&str> {
-    let (interface, _) = called.name.split_once('#')?;
+pub(super) fn interface_of(started: &Started) -> Option<&'static str> {
+    let (interface, _) = block_plugin_api::embed::method_name(started.method)?.split_once('#')?;
     block_plugin_api::is_published(interface).then_some(interface)
 }
 
@@ -54,7 +54,7 @@ pub(super) type Published = HashMap<MethodId, Arc<Vec<u8>>>;
 #[derive(Default)]
 pub(super) struct Watched {
     reported: HashMap<MethodId, Option<Arc<Vec<u8>>>>,
-    calls: Vec<Called>,
+    calls: Vec<Started>,
 }
 
 impl Watched {
@@ -62,16 +62,16 @@ impl Watched {
         self.reported.entry(open).or_default();
     }
 
-    pub(super) fn call(&mut self, called: Called) -> bool {
+    pub(super) fn call(&mut self, started: Started) -> bool {
         let queued = self
             .calls
             .iter()
-            .filter(|queued| queued.name == called.name)
+            .filter(|queued| queued.method == started.method)
             .count();
-        if queued >= MAX_CALLS || extension_of(&called.name).is_none() {
+        if queued >= MAX_CALLS || interface_of(&started).and_then(extension_of).is_none() {
             return false;
         }
-        self.calls.push(called);
+        self.calls.push(started);
         true
     }
 
@@ -85,7 +85,7 @@ impl Watched {
         }
     }
 
-    pub(super) fn take_calls(&mut self, accept: &mut dyn FnMut(&Called) -> bool) {
+    pub(super) fn take_calls(&mut self, accept: &mut dyn FnMut(&Started) -> bool) {
         self.calls.retain(|called| !accept(called));
     }
 

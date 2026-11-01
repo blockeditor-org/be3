@@ -205,7 +205,7 @@ fn QuickMain(
     };
     let refresh = move || {
         close.call(());
-        editor.act(desktop::epaper::refresh);
+        editor.act(|| desktop::epaper::refresh().detach());
     };
     view! {
         <List spacing=SPACING>

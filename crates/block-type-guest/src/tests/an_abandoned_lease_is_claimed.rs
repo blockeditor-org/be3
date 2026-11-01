@@ -29,7 +29,7 @@ fn an_abandoned_lease_is_claimed() {
         .collect();
     assert!(matches!(
         claims.as_slice(),
-        [Call::ClaimLease { generation: 4 }]
+        [Call::ClaimLease { generation: 4, .. }]
     ));
     replica.lease(&mut lone.host, abandoned(4, 1), false);
     let (again, _) = lone.exchange();
@@ -42,6 +42,6 @@ fn an_abandoned_lease_is_claimed() {
     let (granted, _) = lone.exchange();
     assert!(granted.iter().any(|call| matches!(
         call,
-        Call::ReportStatus { status } if status.owner
+        Call::ReportStatus { status, .. } if status.owner
     )));
 }

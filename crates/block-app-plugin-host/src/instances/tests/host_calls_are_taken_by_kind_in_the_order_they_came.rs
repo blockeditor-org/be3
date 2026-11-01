@@ -80,7 +80,7 @@ fn host_calls_are_taken_by_kind_in_the_order_they_came() {
 
 fn take<C>(
     instances: &mut Instances,
-    accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+    accept: impl Fn(&block_plugin_api::ops::Started) -> Option<C>,
 ) -> Vec<C> {
     let mut taken = Vec::new();
     instances.take_calls(&mut |called| match accept(called) {

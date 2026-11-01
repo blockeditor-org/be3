@@ -7,7 +7,7 @@ fn a_guest_reads_a_frame_the_host_queued() {
          (call $host_send (i32.const 2048) (i32.const 4))",
     );
     let mut plugin = host().load_bytes(source.as_bytes()).unwrap();
-    plugin.send(vec![7, 8, 9, 10]);
+    plugin.deliver(vec![vec![7, 8, 9, 10]]);
     plugin.step().unwrap();
     assert_eq!(plugin.take_outbound(), vec![vec![7, 8, 9, 10]]);
 }

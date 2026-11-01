@@ -123,10 +123,10 @@ fn host_call<W: block_plugin_api::Watched, A: serde::Serialize>(
 ) -> bool {
     instances.published_call(
         INSTANCE,
-        block_plugin_api::ops::Called {
-            name: format!("{}#{function}", W::INTERFACE),
+        block_plugin_api::ops::Started {
+            op: next_op(),
             parent: None,
-            answered: false,
+            method: block_plugin_api::ops::method_id(&format!("{}#{function}", W::INTERFACE)),
             args: block_plugin_api::ops::encode(args),
         },
     )
@@ -179,6 +179,15 @@ static NEXT_OP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new
 
 fn next_op() -> OpId {
     NEXT_OP.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+thread_local! {
+    static HOST: block_plugin_api::ops::Connection =
+        block_plugin_api::ops::Connection::new(block_plugin_api::ops::Side::Host);
+}
+
+fn reply<T, S>(op: OpId) -> block_plugin_api::ops::Reply<T, S> {
+    HOST.with(|host| block_plugin_api::ops::Reply::new(host, op))
 }
 
 fn call(instances: &mut Instances, call: Call) -> bool {
@@ -234,7 +243,7 @@ fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> b
         Call::ReplicaSend {
             this: wire::Replica(replica),
             frame: block_type_api::encode_frame(message),
-            reply: block_plugin_api::ops::Reply::new(next_op()),
+            reply: reply(next_op()),
         },
     )
 }

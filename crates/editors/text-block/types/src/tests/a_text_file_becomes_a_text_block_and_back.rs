@@ -4,25 +4,25 @@ use block_type_guest::api::{Change, FileChange, PlainFile, guest::exports::repli
 use super::*;
 
 fn from_file(current: Option<Vec<u8>>, name: &str, bytes: &[u8]) -> Vec<u8> {
-    crate::block_types()
-        .apply(
-            TextContent::CONTENT_TYPE,
-            current,
-            3,
-            Change::FromFile(FileChange {
-                name: name.into(),
-                bytes: bytes.to_vec(),
-            }),
-        )
-        .expect("the file applies")
-        .expect("the file is content")
+    pollster::block_on(crate::block_types().apply(
+        TextContent::CONTENT_TYPE,
+        current,
+        3,
+        Change::FromFile(FileChange {
+            name: name.into(),
+            bytes: bytes.to_vec(),
+        }),
+    ))
+    .expect("the file applies")
+    .expect("the file is content")
 }
 
 #[test]
 fn a_text_file_becomes_a_text_block_and_back() {
     let module = crate::block_types();
-    let claims =
-        |name: &str, first: &[u8]| module.claims(name.into(), first.to_vec(), false, false);
+    let claims = |name: &str, first: &[u8]| {
+        pollster::block_on(module.claims(name.into(), first.to_vec(), false, false))
+    };
     assert_eq!(
         claims("notes.txt", b"hello"),
         Some(TextContent::CONTENT_TYPE)
@@ -34,7 +34,7 @@ fn a_text_file_becomes_a_text_block_and_back() {
     let decoded = TextContent::decode(&content).unwrap();
     assert_eq!(decoded.root().language, TextLanguage::Rust);
     assert_eq!(
-        module.to_file(TextContent::CONTENT_TYPE, content.clone()),
+        pollster::block_on(module.to_file(TextContent::CONTENT_TYPE, content.clone())),
         Ok(Some(PlainFile {
             bytes: source.to_vec(),
             name: None,

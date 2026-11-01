@@ -10,7 +10,7 @@ fn a_plugin_runs_on_a_thread_of_its_own() {
     let worker = std::thread::spawn(move || {
         let mut plugin = host.load_bytes(source.as_bytes()).unwrap();
         plugin.start().unwrap();
-        plugin.send(vec![1, 2, 3, 4]);
+        plugin.deliver(vec![vec![1, 2, 3, 4]]);
         plugin.step().unwrap();
         plugin.take_outbound()
     });

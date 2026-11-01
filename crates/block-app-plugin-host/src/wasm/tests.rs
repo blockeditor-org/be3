@@ -47,9 +47,7 @@ impl Session {
     }
 
     fn step(&mut self, plugin: &mut Plugin) {
-        plugin
-            .deliver(self.connection.take_outbound())
-            .expect("the plugin takes what the host sends");
+        plugin.deliver(self.connection.take_outbound());
         plugin.step().expect("the plugin steps");
         self.hear(plugin);
     }

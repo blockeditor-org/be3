@@ -16,6 +16,7 @@ uuid = "1"
 
 [dev-dependencies]
 be-commit = { path = "../../../be-commit", default-features = false }
+pollster = "0.4"
 
 [features]
 module = []

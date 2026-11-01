@@ -14,7 +14,7 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Side, Ticket,
+        Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Reply, Side, Ticket,
         guest::Executor, wire,
     },
 };
@@ -73,6 +73,7 @@ struct Inner {
     executor: Executor,
     host: Connection,
     clock: Outlets<()>,
+    sleeping: Vec<Reply<()>>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
@@ -107,6 +108,7 @@ impl Default for Inner {
             module,
             host: Connection::new(Side::Host),
             clock: Outlets::default(),
+            sleeping: Vec::new(),
             now: 0,
             replicas: BTreeMap::new(),
             commits: BTreeMap::new(),
@@ -200,14 +202,6 @@ impl Inner {
                 }
             },
             Incoming::Canceled { op } => self.host.complete(op, Outcome::Err(OpError::Canceled)),
-            Incoming::Called(called) => {
-                if let Some(call) = Call::accept_direct(&called) {
-                    let block = called
-                        .parent
-                        .and_then(|parent| self.replicas.get(&parent).copied());
-                    self.act(block, call);
-                }
-            }
             Incoming::Credited { op } => {
                 self.clock.credited(&mut self.host, op);
             }
@@ -223,9 +217,11 @@ impl Inner {
                 let _ = self.clock.send(&mut self.host, &self.now, |_| true);
             }
             Call::Send {
+                reply,
                 to: Recipients::One(Endpoint::Editor(editor)),
                 bytes,
             } => {
+                reply.send(&mut self.host, &());
                 let Some(block) = block else {
                     return;
                 };
@@ -299,19 +295,20 @@ impl Inner {
                 };
                 reply.send(&mut self.host, &Ok(resume));
             }
-            Call::Described { description } => {
+            Call::Described { reply, description } => {
+                reply.send(&mut self.host, &());
                 if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) {
                     held.references = Some(description.references);
                 }
             }
-            Call::SleepUntil { .. }
-            | Call::Send { .. }
-            | Call::ClaimLease { .. }
-            | Call::ReportClean { .. }
-            | Call::ReportStatus { .. }
-            | Call::History { .. }
-            | Call::Conflict { .. }
-            | Call::Error { .. } => {}
+            Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
+            Call::Send { reply, .. }
+            | Call::ClaimLease { reply, .. }
+            | Call::ReportClean { reply, .. }
+            | Call::ReportStatus { reply, .. }
+            | Call::History { reply, .. }
+            | Call::Conflict { reply, .. }
+            | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
     }
 
@@ -508,7 +505,9 @@ impl Inner {
             removed,
             self.blocks.get(&block).and_then(|held| held.replica),
         ) {
-            self.on_replica(replica, |replica, host| replica.detach(host, editor));
+            self.on_replica(replica, |replica, host| {
+                replica.detach(host, editor);
+            });
         }
     }
 

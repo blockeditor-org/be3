@@ -223,17 +223,17 @@ interface blocks {
     }
 
     /// Asks the host to open a block for the user.
-    open-block: func(request: open-request);
+    open-block: async func(request: open-request);
 
     /// Asks the host to act on a block the editor draws.
-    act: func(block: block-id, command: block-command);
+    act: async func(block: block-id, command: block-command);
 
     /// Asks the host to act on the checkout or repository the editor shows.
-    version: func(block: block-id, command: version-command);
+    version: async func(block: block-id, command: version-command);
 
     /// Creates a block with the id the editor chose, so it can name the block
     /// before the host has seen it.
-    create-block: func(
+    create-block: async func(
         block: block-id,
         block-type: block-type-id,
         parent: block-location,
@@ -241,15 +241,15 @@ interface blocks {
         content: option<list<u8>>,
     );
 
-    set-parent: func(block: block-id, parent: block-location);
+    set-parent: async func(block: block-id, parent: block-location);
 
     /// Sets or, with no value, clears one metadata entry the block defines.
-    define: func(block: block-id, key: uuid, value: option<list<u8>>);
+    define: async func(block: block-id, key: uuid, value: option<list<u8>>);
 
     /// Gives a block content. With `replace`, replaces the content of a block
     /// the editor may edit; without, seeds a block the editor holds, unless it
     /// already has content.
-    write-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>, replace: bool);
+    write-content: async func(block: block-id, content-type: content-type-id, bytes: list<u8>, replace: bool);
 
     /// The editor's link to the replica of a block's content: its own block's,
     /// or one it watches. Opening it holds the block; dropping it lets go.

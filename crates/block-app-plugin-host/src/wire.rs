@@ -20,8 +20,8 @@ use block_plugin_api::{
         shell::Call as ShellCall,
     },
     ops::{
-        Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
-        Started, Ticket, wire,
+        Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side, Started,
+        Ticket, wire,
     },
 };
 
@@ -36,7 +36,6 @@ struct Held {
 #[derive(Debug)]
 pub(super) struct Service {
     pub(super) instance: EditorInstanceId,
-    pub(super) op: Option<OpId>,
     pub(super) call: host_services::Call,
 }
 
@@ -174,8 +173,12 @@ impl Wire {
                 InputBatch::queue(&mut batches, batch);
                 batches
             }),
-            PluginCall::Screens(screens) => plugin::screens(connection, screens),
-            PluginCall::Configure(serial) => plugin::configure(connection, serial),
+            PluginCall::Screens(screens) => {
+                plugin::screens(connection, screens);
+            }
+            PluginCall::Configure(serial) => {
+                plugin::configure(connection, serial);
+            }
             PluginCall::Draw {
                 now_micros,
                 wall_micros,
@@ -188,10 +191,14 @@ impl Wire {
             PluginCall::DebugTemplates(templates) => {
                 self.debug_templates.change(connection, |_| templates)
             }
-            PluginCall::Describe(on) => plugin::describe(connection, on),
-            PluginCall::RunAction { screen, id } => plugin::run_action(connection, screen, id),
+            PluginCall::Describe(on) => {
+                plugin::describe(connection, on);
+            }
+            PluginCall::RunAction { screen, id } => {
+                plugin::run_action(connection, screen, id);
+            }
             PluginCall::NodeAction { screen, request } => {
-                plugin::node_action(connection, screen, request)
+                plugin::node_action(connection, screen, request);
             }
             PluginCall::Paintings => {
                 let painted = paintings::paintings(connection);
@@ -263,28 +270,48 @@ impl Wire {
                     });
             }
             EditorCall::MenuPick { view, id, anchor } => {
-                editor.menu_pick(connection, view, id, anchor)
+                editor.menu_pick(connection, view, id, anchor);
             }
-            EditorCall::Dismiss => editor.dismiss(connection),
+            EditorCall::Dismiss => {
+                editor.dismiss(connection);
+            }
             EditorCall::ChildBar {
                 view,
                 child,
                 action,
-            } => editor.child_bar(connection, view, child, action),
+            } => {
+                editor.child_bar(connection, view, child, action);
+            }
             EditorCall::ChildFocused { view, child } => {
-                editor.child_focused(connection, view, child)
+                editor.child_focused(connection, view, child);
             }
-            EditorCall::SetEditable(editable) => editor.set_editable(connection, editable),
-            EditorCall::ViewChanged { view, scale } => editor.view_changed(connection, view, scale),
+            EditorCall::SetEditable(editable) => {
+                editor.set_editable(connection, editable);
+            }
+            EditorCall::ViewChanged { view, scale } => {
+                editor.view_changed(connection, view, scale);
+            }
             EditorCall::PresentingChanged(presenting) => {
-                editor.presenting_changed(connection, presenting)
+                editor.presenting_changed(connection, presenting);
             }
-            EditorCall::Presence(visible) => editor.presence(connection, visible),
-            EditorCall::FocusChanged(focus) => editor.focus_changed(connection, focus),
-            EditorCall::Resized(size) => editor.resized(connection, size),
-            EditorCall::DragOver(drag) => editor.drag_over(connection, drag),
-            EditorCall::DragLeft => editor.drag_left(connection),
-            EditorCall::ArtifactSettings(data) => editor.artifact_settings(connection, data),
+            EditorCall::Presence(visible) => {
+                editor.presence(connection, visible);
+            }
+            EditorCall::FocusChanged(focus) => {
+                editor.focus_changed(connection, focus);
+            }
+            EditorCall::Resized(size) => {
+                editor.resized(connection, size);
+            }
+            EditorCall::DragOver(drag) => {
+                editor.drag_over(connection, drag);
+            }
+            EditorCall::DragLeft => {
+                editor.drag_left(connection);
+            }
+            EditorCall::ArtifactSettings(data) => {
+                editor.artifact_settings(connection, data);
+            }
             EditorCall::CommitCreation => {
                 let ticket = editor.commit_creation(connection);
                 self.answering
@@ -313,9 +340,8 @@ impl Wire {
     }
 
     pub(super) fn answer(&mut self, op: OpId, outcome: Outcome) {
-        if self.serving.remove(&op).is_some() {
-            self.connection.complete(op, outcome);
-        }
+        self.serving.remove(&op);
+        self.connection.complete(op, outcome);
     }
 
     fn editor_of(&self, parent: Option<OpId>) -> Option<EditorInstanceId> {
@@ -338,11 +364,7 @@ impl Wire {
             return;
         };
         self.serving.insert(op, instance);
-        heard.push(Heard::Service(Service {
-            instance,
-            op: Some(op),
-            call,
-        }));
+        heard.push(Heard::Service(Service { instance, call }));
     }
 
     fn published_watch(&mut self, started: Started, heard: &mut Vec<Heard>) {
@@ -385,15 +407,16 @@ impl Wire {
         (!super::published::offered(interface)).then_some(OpError::Unsupported)
     }
 
-    fn published_call(&mut self, called: Called, heard: &mut Vec<Heard>) {
-        let Some(interface) = super::published::interface_of(&called) else {
-            return;
+    fn published_call(&mut self, started: Started, heard: &mut Vec<Heard>) {
+        let refused = match super::published::interface_of(&started) {
+            Some(interface) => self.refusal(interface),
+            None => Some(OpError::Unsupported),
         };
-        if self.refusal(interface).is_some() {
-            return;
-        }
-        if let Some(instance) = self.editor_of(called.parent) {
-            heard.push(Heard::Called(instance, called));
+        match (refused, self.editor_of(started.parent)) {
+            (None, Some(instance)) => heard.push(Heard::Published(instance, started)),
+            (refused, _) => self
+                .connection
+                .complete(started.op, Outcome::Err(refused.unwrap_or(OpError::Denied))),
         }
     }
 
@@ -452,7 +475,7 @@ impl Wire {
             ShellCall::BlockTypesWatchNext { reply, .. } => {
                 self.block_types.next(connection, reply)
             }
-            _ => {}
+            call => heard.push(Heard::Shell(call)),
         }
     }
 
@@ -486,7 +509,7 @@ impl Wire {
 
     fn blocks(
         &mut self,
-        op: Option<OpId>,
+        op: OpId,
         parent: Option<OpId>,
         call: blocks::Call,
         heard: &mut Vec<Heard>,
@@ -508,28 +531,29 @@ impl Wire {
             _ => self.editor_of(parent),
         };
         let Some(instance) = instance else {
-            if let Some(op) = op {
-                self.connection.complete(op, Outcome::Err(OpError::Denied));
+            self.connection.complete(op, Outcome::Err(OpError::Denied));
+            return Ok(());
+        };
+        let next = match call {
+            Blocks::BlocksWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::HistoryWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::HeadWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::ArtifactWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::VersionWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::ShowRequestsNext { this, reply } => Ok((this.op(), reply.into_op())),
+            call => Err(call),
+        };
+        let call = match next {
+            Ok((watch, next)) => {
+                self.held
+                    .watches
+                    .entry(watch)
+                    .or_default()
+                    .next_encoded(&mut self.connection, next);
+                return Ok(());
             }
-            return Ok(());
+            Err(call) => call,
         };
-        let next = match &call {
-            Blocks::BlocksWatchNext { this, reply } => Some((this.op(), reply.op())),
-            Blocks::HistoryWatchNext { this, reply } => Some((this.op(), reply.op())),
-            Blocks::HeadWatchNext { this, reply } => Some((this.op(), reply.op())),
-            Blocks::ArtifactWatchNext { this, reply } => Some((this.op(), reply.op())),
-            Blocks::VersionWatchNext { this, reply } => Some((this.op(), reply.op())),
-            Blocks::ShowRequestsNext { this, reply } => Some((this.op(), reply.op())),
-            _ => None,
-        };
-        if let Some((watch, next)) = next {
-            self.held
-                .watches
-                .entry(watch)
-                .or_default()
-                .next_encoded(&mut self.connection, next);
-            return Ok(());
-        }
         match call {
             Blocks::ReplicaFrames { this, stream } => {
                 self.held.producers.insert(this.op(), stream);
@@ -633,14 +657,19 @@ impl Wire {
                 self.published_watch(started, heard);
                 return Ok(());
             }
+            Incoming::Started(started) if super::published::interface_of(&started).is_some() => {
+                self.published_call(started, heard);
+                return Ok(());
+            }
             Incoming::Started(started) => {
                 let (op, parent) = (started.op, started.parent);
+                let instance = self.editor_of(parent);
                 let connection = &mut self.connection;
                 match embed::Call::accept(connection, started) {
                     None => return Ok(()),
                     Some(embed::Call::Host(call)) => call,
                     Some(embed::Call::Blocks(call)) => {
-                        return self.blocks(Some(op), parent, call, heard);
+                        return self.blocks(op, parent, call, heard);
                     }
                     Some(embed::Call::HostServices(call)) => {
                         self.serve(op, parent, call, heard);
@@ -654,7 +683,13 @@ impl Wire {
                             DebugCall::DebugTemplatesWatchNext { reply, .. } => {
                                 self.debug_templates.next(connection, reply)
                             }
-                            _ => {}
+                            call => match instance {
+                                Some(instance) => heard.push(Heard::Debug(instance, call)),
+                                None => {
+                                    let (op, outcome) = call.refuse(OpError::Denied);
+                                    connection.complete(op, outcome);
+                                }
+                            },
                         }
                         return Ok(());
                     }
@@ -684,44 +719,6 @@ impl Wire {
                     Some(_) => {
                         connection.complete(op, Outcome::Err(OpError::Unsupported));
                         return Ok(());
-                    }
-                }
-            }
-            Incoming::Called(called) => {
-                if let Some(call) = host_services::Call::accept_direct(&called) {
-                    if let Some(instance) = self.editor_of(called.parent) {
-                        heard.push(Heard::Service(Service {
-                            instance,
-                            op: None,
-                            call,
-                        }));
-                    }
-                    return Ok(());
-                }
-                if super::published::interface_of(&called).is_some() {
-                    self.published_call(called, heard);
-                    return Ok(());
-                }
-                if let Some(call) = DebugCall::accept_direct(&called) {
-                    if let Some(instance) = self.editor_of(called.parent) {
-                        heard.push(Heard::Debug(instance, call));
-                    }
-                    return Ok(());
-                }
-                if let Some(call) = ShellCall::accept_direct(&called) {
-                    heard.push(Heard::Shell(call));
-                    return Ok(());
-                }
-                if let Some(call) = blocks::Call::accept_direct(&called) {
-                    return self.blocks(None, called.parent, call, heard);
-                }
-                match Call::accept_direct(&called) {
-                    Some(call) => call,
-                    None => {
-                        return Err(format!(
-                            "the plugin called {}, which the host does not answer",
-                            called.name
-                        ));
                     }
                 }
             }
@@ -804,9 +801,16 @@ impl Wire {
                 self.connecting = Some(reply);
                 heard.push(Heard::Hello(hello));
             }
-            Call::Layout { layout } => heard.push(Heard::Layout(layout)),
-            Call::FrameNeeded {} => heard.push(Heard::FrameNeeded),
-            Call::MissingCharacters { characters } => {
+            Call::Layout { reply, layout } => {
+                reply.send(connection, &());
+                heard.push(Heard::Layout(layout));
+            }
+            Call::FrameNeeded { reply } => {
+                reply.send(connection, &());
+                heard.push(Heard::FrameNeeded);
+            }
+            Call::MissingCharacters { reply, characters } => {
+                reply.send(connection, &());
                 heard.push(Heard::MissingCharacters(characters));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),

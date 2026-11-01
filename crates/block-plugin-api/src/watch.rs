@@ -71,7 +71,7 @@ impl<T: serde::Serialize> Watch<T> {
     }
 
     pub fn next(&mut self, connection: &mut Connection, reply: Reply<T>) {
-        self.wait(connection, reply.op());
+        self.wait(connection, reply.into_op());
         self.answer(connection, |value| Outcome::returned(&value));
     }
 }

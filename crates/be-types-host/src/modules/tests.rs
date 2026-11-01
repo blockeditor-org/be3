@@ -42,10 +42,10 @@ impl Answering {
             self.connection.receive(&frame).unwrap();
         }
         while let Some(event) = self.connection.next_event() {
-            let Incoming::Called(called) = event else {
+            let Incoming::Started(started) = event else {
                 continue;
             };
-            let method = called.method();
+            let method = started.method;
             let outcome = if method == method_id(START) {
                 Outcome::returned(&types(self.content_type))
             } else if method == method_id(BLANK) {
@@ -55,7 +55,7 @@ impl Answering {
             } else {
                 Outcome::Err(OpError::Unsupported)
             };
-            self.connection.return_direct(&outcome);
+            self.connection.complete(started.op, outcome);
         }
     }
 }

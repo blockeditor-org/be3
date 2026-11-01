@@ -2,7 +2,7 @@ use super::*;
 use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::{
     embed::host_services::Call,
-    ops::{OpError, Outcome, Reply},
+    ops::{OpError, Outcome},
 };
 use counter_types::CounterContent;
 
@@ -44,6 +44,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!call(
             &mut instances,
             wire::Call::WriteContent {
+                reply: reply(next_op()),
                 block: target.into_bytes(),
                 content_type: CounterContent::CONTENT_TYPE.into_bytes(),
                 bytes: CounterContent::default().encode(),
@@ -53,15 +54,16 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!call(
             &mut instances,
             wire::Call::Act {
+                reply: reply(next_op()),
                 block: target.into_bytes(),
                 command: BlockCommand::Undo
             }
         ));
+        instances.take_answers();
         instances.serve(crate::wire::Service {
             instance: INSTANCE,
-            op: Some(1),
             call: Call::RestoreRevision {
-                reply: Reply::new(1),
+                reply: reply(1),
                 block: target.into_bytes(),
                 commit: *head.hash().as_bytes(),
             },

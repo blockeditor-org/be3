@@ -154,7 +154,6 @@ fn start(
     module: &str,
     host: Host,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
-    let host = host.with_direct(block_plugin_api::embed::IMPORTS);
     let module = module.to_owned();
     let waiting = Arc::<AtomicBool>::default();
     let mailbox = host.imports();

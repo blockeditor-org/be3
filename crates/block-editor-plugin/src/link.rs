@@ -10,7 +10,7 @@ use block_plugin_api::{
     blocks::{OpenRequest as WireOpen, ShowRequest},
     guest::blocks,
     ops::{
-        DeserializeOwned, OpError, Window,
+        DeserializeOwned, Window,
         guest::{Pending, spawn},
     },
 };
@@ -60,7 +60,7 @@ fn follow<W: 'static, T: DeserializeOwned + 'static>(
                     deliver(value);
                     waker.wake();
                 }
-                Err(OpError::Canceled | OpError::Unsupported | OpError::Denied) => return,
+                Err(_) => return,
             }
         }
     });
@@ -97,16 +97,18 @@ impl Link {
         for seeded in host.take_seeded_content() {
             let (block, content_type) =
                 (seeded.block.into_bytes(), seeded.content_type.into_bytes());
-            self.under(|| blocks::write_content(block, content_type, seeded.bytes, seeded.replace));
+            self.under(|| {
+                blocks::write_content(block, content_type, seeded.bytes, seeded.replace).detach()
+            });
         }
         for open in host.take_opens() {
-            self.under(|| blocks::open_block(request_of(open)));
+            self.under(|| blocks::open_block(request_of(open)).detach());
         }
         for (block, command) in host.take_block_commands() {
-            self.under(|| blocks::act(block.into_bytes(), command));
+            self.under(|| blocks::act(block.into_bytes(), command).detach());
         }
         for (block, command) in host.take_version_commands() {
-            self.under(|| blocks::version(block.into_bytes(), command));
+            self.under(|| blocks::version(block.into_bytes(), command).detach());
         }
     }
 
@@ -125,12 +127,13 @@ impl Link {
                     parent.encode(),
                     crate::graph::wire_entries(&defined),
                     content,
-                ),
+                )
+                .detach(),
                 GraphCommand::SetParent { id, parent } => {
-                    blocks::set_parent(id.into_bytes(), parent.encode());
+                    blocks::set_parent(id.into_bytes(), parent.encode()).detach();
                 }
                 GraphCommand::Define { id, key, value } => {
-                    blocks::define(id.into_bytes(), key.into_bytes(), value);
+                    blocks::define(id.into_bytes(), key.into_bytes(), value).detach();
                 }
             });
         }

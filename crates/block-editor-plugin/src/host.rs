@@ -1613,7 +1613,7 @@ impl EditorHost {
     }
 
     pub fn release_revision(&self, preview: Uuid) {
-        self.ask(|| host_services::release_revision(preview.into_bytes()));
+        self.ask(|| host_services::release_revision(preview.into_bytes()).detach());
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> Asked<FilePick> {
@@ -1679,7 +1679,9 @@ impl EditorHost {
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
-        self.ask(|| host_services::set_access(block_id.into_bytes(), account.into_bytes(), access));
+        self.ask(|| {
+            host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
+        });
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {

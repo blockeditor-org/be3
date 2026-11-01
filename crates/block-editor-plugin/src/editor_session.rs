@@ -424,18 +424,18 @@ impl EditorSession {
         self.watch_docks();
         crate::asked::asking(Some(instance), || {
             for (group, measurements) in self.host.take_performance() {
-                debug::performance(group, measurements);
+                debug::performance(group, measurements).detach();
             }
             for (block, access) in self.host.take_simulated_access() {
-                debug::simulate_access(block.into_bytes(), access);
+                debug::simulate_access(block.into_bytes(), access).detach();
             }
         });
         for (block, command) in self.host.take_shell_commands() {
-            shell::act(instance, block.into_bytes(), command);
+            shell::act(instance, block.into_bytes(), command).detach();
         }
         self.report_stopped();
         if let Some(accepted) = self.host.take_drag_accepted() {
-            shell::drag_accepted(instance, accepted);
+            shell::drag_accepted(instance, accepted).detach();
         }
         let intrinsic = self.app.intrinsic_size();
         if intrinsic != self.intrinsic {
@@ -446,21 +446,22 @@ impl EditorSession {
                     width: size.x,
                     height: size.y,
                 }),
-            );
+            )
+            .detach();
         }
         let aspect_ratio = self.app.aspect_ratio();
         if aspect_ratio != self.aspect_ratio {
             self.aspect_ratio = aspect_ratio;
-            shell::aspect_ratio(instance, aspect_ratio);
+            shell::aspect_ratio(instance, aspect_ratio).detach();
         }
         if let Some(handles) = self.host.take_handles_dismiss() {
-            shell::handles_dismiss(instance, handles);
+            shell::handles_dismiss(instance, handles).detach();
         }
         for answer in self.host.take_dialog_closes() {
-            shell::close_dialog(instance, answer);
+            shell::close_dialog(instance, answer).detach();
         }
         for child in self.host.take_child_dismissals() {
-            shell::dismiss_child(instance, child);
+            shell::dismiss_child(instance, child).detach();
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
@@ -469,11 +470,11 @@ impl EditorSession {
                     Ok(summary) => ArtifactDescription::Described(summary),
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
-                shell::artifact_described(instance, description);
+                shell::artifact_described(instance, description).detach();
             }
             if artifact.edited {
                 artifact.edited = false;
-                shell::artifact_edited(instance, artifact.draft.clone());
+                shell::artifact_edited(instance, artifact.draft.clone()).detach();
             }
             if artifact.regenerating.is_some()
                 && let Some(result) = self.app.poll_artifact()
@@ -483,67 +484,68 @@ impl EditorSession {
             }
         }
         if self.host.take_leave_frame() {
-            shell::leave_frame(instance);
+            shell::leave_frame(instance).detach();
         }
         for action in self.host.take_bar_actions() {
-            shell::run_bar_action(instance, action);
+            shell::run_bar_action(instance, action).detach();
         }
         let menus = self.host.menus();
         if self.sent_menus != menus {
             for (view, menu) in &menus {
                 if self.sent_menus.get(view) != Some(menu) {
-                    shell::menu(instance, *view, MenuEntry::flatten(menu));
+                    shell::menu(instance, *view, MenuEntry::flatten(menu)).detach();
                 }
             }
             for view in self.sent_menus.keys() {
                 if !menus.contains_key(view) {
-                    shell::menu(instance, *view, Vec::new());
+                    shell::menu(instance, *view, Vec::new()).detach();
                 }
             }
             self.sent_menus = menus;
         }
         for (child, id) in self.host.take_child_menu_picks() {
             let anchor = self.child_anchor(child);
-            shell::child_menu_pick(instance, child, id, anchor);
+            shell::child_menu_pick(instance, child, id, anchor).detach();
         }
         for text in self.host.take_copied_text() {
-            shell::copy_text(instance, text);
+            shell::copy_text(instance, text).detach();
         }
         for png in self.host.take_copied_images() {
-            shell::copy_image(instance, png);
+            shell::copy_image(instance, png).detach();
         }
         if self.host.take_paste_request() {
-            shell::paste(instance);
+            shell::paste(instance).detach();
         }
         let card = self.host.card();
         if self.sent_card != card {
-            shell::show_card(instance, card);
+            shell::show_card(instance, card).detach();
             self.sent_card = card;
         }
         if let Some(pick) = self.host.take_picked() {
-            shell::picked(instance, pick);
+            shell::picked(instance, pick).detach();
         }
         for call in self.host.take_acts() {
             crate::asked::asking(Some(instance), call);
         }
         for commit in self.host.take_child_commits() {
-            shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
+            shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name)
+                .detach();
         }
         for command in self.host.take_audio_commands() {
             self.watch_audio();
-            shell::play_audio(instance, command);
+            shell::play_audio(instance, command).detach();
         }
         for (web_view, command) in self.host.take_web_view_commands() {
             self.command_web_view(web_view, command);
         }
         for presenting in self.host.take_present_requests() {
-            shell::present(instance, presenting);
+            shell::present(instance, presenting).detach();
         }
         for change in self.host.take_view_changes() {
-            shell::change_view(instance, change);
+            shell::change_view(instance, change).detach();
         }
         for (block_id, block_type) in self.host.take_block_drags() {
-            shell::drag_block(instance, block_id.into_bytes(), block_type.into_bytes());
+            shell::drag_block(instance, block_id.into_bytes(), block_type.into_bytes()).detach();
         }
         if let Some(focused) = self.host.take_focus_report() {
             shell::focused(
@@ -553,7 +555,8 @@ impl EditorSession {
                     block_type: focused.block_type.into_bytes(),
                     via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
                 },
-            );
+            )
+            .detach();
         }
         for opening in self.host.take_watch_openings() {
             opening(&self.host, instance);
@@ -633,17 +636,17 @@ impl EditorSession {
             }
             WebViewCommand::Load(url) => {
                 if let Some(shown) = self.web_views.get(&web_view) {
-                    shown.load(url);
+                    shown.load(url).detach();
                 }
             }
             WebViewCommand::Reload => {
                 if let Some(shown) = self.web_views.get(&web_view) {
-                    shown.reload();
+                    shown.reload().detach();
                 }
             }
             WebViewCommand::FocusApp => {
                 if let Some(shown) = self.web_views.get(&web_view) {
-                    shown.focus_app();
+                    shown.focus_app().detach();
                 }
             }
             WebViewCommand::Close => {
@@ -657,7 +660,7 @@ impl EditorSession {
             if let Some(stopped) = &state.stopped
                 && !std::mem::replace(&mut state.reported_stopped, true)
             {
-                shell::view_stopped(self.instance, *view, stopped.clone());
+                shell::view_stopped(self.instance, *view, stopped.clone()).detach();
             }
         }
     }
