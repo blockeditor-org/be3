@@ -17,6 +17,7 @@ thread_local! {
     static PENDING: Cell<bool> = const { Cell::new(false) };
     static WANTED_NOW: Cell<bool> = const { Cell::new(false) };
     static IN_FRAME: Cell<bool> = const { Cell::new(false) };
+    static WOKEN_IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static FIRING: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
@@ -234,7 +235,7 @@ pub fn frame() {
     IN_FRAME.with(|held| held.set(true));
     run_after_input();
     run_timers(now);
-    reactive::flush();
+    flush_in_frame();
     lay_out();
     IN_FRAME.with(|held| held.set(false));
     if !FROZEN.with(Cell::get) {
@@ -247,9 +248,25 @@ fn lay_out() {
         if !layout_pass() {
             break;
         }
-        reactive::flush();
+        flush_in_frame();
     }
     crate::focus::apply_wanted();
+    if WOKEN_IN_FRAME.with(|woken| woken.replace(false)) {
+        request_frame();
+    }
+}
+
+fn flush_in_frame() {
+    WOKEN_IN_FRAME.with(|woken| woken.set(false));
+    reactive::flush();
+}
+
+fn wake() {
+    if IN_FRAME.with(Cell::get) {
+        WOKEN_IN_FRAME.with(|woken| woken.set(true));
+    } else {
+        request_frame();
+    }
 }
 
 pub fn relayout() {
@@ -258,7 +275,7 @@ pub fn relayout() {
         return;
     }
     IN_FRAME.with(|held| held.set(true));
-    reactive::flush();
+    flush_in_frame();
     lay_out();
     IN_FRAME.with(|held| held.set(false));
 }
@@ -275,10 +292,10 @@ pub fn started() -> bool {
     STARTED.with(Cell::get)
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub(crate) fn start() {
     STARTED.with(|started| started.set(true));
-    reactive::wake_with(request_frame);
+    reactive::wake_with(wake);
     request_frame();
 }
 
@@ -312,3 +329,6 @@ fn schedule_after(delay: Duration) {
         crate::dom::set_timeout(delay, timed_frame);
     }
 }
+
+#[cfg(test)]
+mod tests;
