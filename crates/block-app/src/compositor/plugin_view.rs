@@ -74,6 +74,9 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
+struct Placer(Stored<String>);
+
+#[derive(Clone, Copy)]
 struct Enclosing(Memo<Option<NodeRef>>);
 
 #[derive(Clone, Copy)]
@@ -263,8 +266,11 @@ pub(crate) fn PluginView(
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
     })));
+    let placer = use_context::<Placer>().map(|Placer(placer)| placer.value().to_string());
+    provide_context(Placer(plugin_id));
     block_app_plugin_host::mount_view(ViewSlot {
         plugin: &editor.plugin,
+        placer: placer.as_deref(),
         block_types: &editor.block_types,
         client_id: editor.client_id,
         role: editor.role,

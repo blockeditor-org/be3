@@ -283,7 +283,11 @@ impl Shell {
                 </beui::styled::Root>
             }
         });
-        document.on_interacted(block_app_plugin_host::start_frames);
+        document.on_interacted(|| {
+            block_app_plugin_host::start_frames(beui::native::with_document(|document| {
+                document.needs_layout()
+            }));
+        });
         document.on_laid_out(|| {
             while block_app_plugin_host::settle() {
                 compositor::notify_after_layout();

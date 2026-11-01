@@ -72,6 +72,7 @@ EDITORS = {
     "presenting_a_deck_fills_the_screen_until_escape": ["infinite-canvas", "presentation", "text-block"],
     "pressing_the_files_after_a_text_block_moves_the_focus_to_them": ["text-block"],
     "reopening_a_block_keeps_the_view_the_person_moved": ["pan-zoom"],
+    "resizing_the_window_draws_the_workspace_in_the_same_frame_and_its_files_by_the_next": [],
     "revision_history_previews_and_restores_a_text_file": ["text-block"],
     "the_app_menu_opens_under_its_button": [],
     "the_app_opens_its_files_and_closes_cleanly": [],
