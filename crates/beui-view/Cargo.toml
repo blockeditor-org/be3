@@ -18,6 +18,7 @@ beui-core-html = { path = "../beui-core-html" }
 
 [target.'cfg(not(beui_html))'.dependencies]
 beui-core = { path = "../beui-core" }
+grapheme-segmentation = { path = "../grapheme-segmentation" }
 
 [dev-dependencies]
 paint-snapshot = { path = "../paint-snapshot" }

@@ -1713,6 +1713,7 @@ dependencies = [
  "beui-tree",
  "beui-types",
  "beui_macros",
+ "grapheme-segmentation",
  "paint-snapshot",
  "reactive",
  "stable-hash",
