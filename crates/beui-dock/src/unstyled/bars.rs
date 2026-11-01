@@ -2,12 +2,12 @@ use stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_components_unstyled::{DropHandle, DropTarget};
+use beui_components_unstyled::{DropHandle, DropTarget, drag_board};
 use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
-use beui_view::drag::{DragPoint, drag_board};
+use beui_view::drag::DragPoint;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;

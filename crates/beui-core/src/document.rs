@@ -113,7 +113,7 @@ pub struct Document {
     pub(crate) above_embeds: HashMap<NodeId, crate::layer::AboveEmbeds>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
-    pub drags: Rc<crate::drag_board::Board>,
+    pub drags: Option<Rc<dyn beui_types::drag::Driver>>,
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
@@ -312,7 +312,7 @@ impl Document {
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
-            drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
+            drags: None,
             rects,
             tools: None,
             keyboard_host: None,
@@ -485,6 +485,10 @@ impl Document {
         let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
         crate::current::with_reactive_scope(self, || scope.dispose());
         ::reactive::forget_zone(self.zone);
+    }
+
+    pub fn dragging(&self) -> bool {
+        self.drags.as_ref().is_some_and(|drags| drags.carrying())
     }
 
     pub fn extension<T: Clone + 'static>(&self) -> Option<T> {

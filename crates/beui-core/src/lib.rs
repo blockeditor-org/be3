@@ -13,7 +13,6 @@ pub mod current;
 pub mod damage;
 pub mod display;
 pub mod document;
-pub mod drag_board;
 pub mod draw;
 pub mod drawing;
 pub mod drawn_cursor;

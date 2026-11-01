@@ -346,7 +346,9 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
             .is_some_and(|size| Rect::from_min_size(Pos2::ZERO, size).contains(pos))
     };
     let outside = left && frame.ctx.opens_windows() && !pos.is_some_and(within);
-    doc.drag_board().set_outside(outside);
+    if let Some(drags) = &doc.drags {
+        drags.set_outside(outside);
+    }
     grab::frame(doc, frame.ctx);
     long_presses(doc, frame)
 }
@@ -1079,12 +1081,10 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                     true,
                 );
             }
-            if doc.dragging() {
-                doc.drag_board().order(doc);
-                match cancelled {
-                    true => doc.drag_board().end(None),
-                    false => doc.drag_board().finish(),
-                }
+            if doc.dragging()
+                && let Some(drags) = doc.drags.clone()
+            {
+                drags.release(cancelled, &|node| drag_order(doc, node));
             }
         }
         Role::Secondary => {}
@@ -1620,7 +1620,12 @@ fn track(doc: &mut Document, frame: &Frame) {
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, window, touch });
-    let board = doc.drag_board();
-    board.order(doc);
-    board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));
+    if let Some(drags) = doc.drags.clone() {
+        let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(window);
+        drags.track(point, &|node| drag_order(doc, node));
+    }
+}
+
+fn drag_order(doc: &Document, node: NodeId) -> (Vec<usize>, WindowId) {
+    (doc.paint_order(node), doc.window_of(node))
 }

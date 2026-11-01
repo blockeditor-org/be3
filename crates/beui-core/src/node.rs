@@ -409,6 +409,16 @@ pub struct Rects {
     clip_chain: RefCell<Vec<(SpaceId, Space)>>,
 }
 
+impl beui_types::drag::Space for Rects {
+    fn placed(&self, node: NodeId) -> Option<(Rect, f32)> {
+        self.scaled(&node)
+    }
+
+    fn visible(&self, node: NodeId) -> Option<Rect> {
+        Rects::visible(self, &node)
+    }
+}
+
 impl Rects {
     pub fn get(&self, id: &NodeId) -> Option<Rect> {
         let placed = self.placed(id)?;
