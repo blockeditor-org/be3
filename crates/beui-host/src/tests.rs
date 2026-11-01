@@ -1174,35 +1174,26 @@ impl Harness {
         Self::sized(document, VIEWPORT)
     }
 
-    pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
-        crate::native::verify_paint(true);
-        crate::inspector::install(&mut document);
-        let window = beui_core::window::WindowSize {
-            size: viewport,
-            scale: 1.0,
-        };
-        let mut stepped = crate::native::testing::Stepped::new(
-            context(),
-            crate::native::testing::Showing(document),
-            window,
-            None,
-        );
-        stepped.settle_after_gestures(false);
-        Self(stepped)
+    pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
+        Self::start(document, viewport, false)
     }
 
-    pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
+    pub(crate) fn hosting_windows(document: Document, viewport: Vec2) -> Self {
+        Self::start(document, viewport, true)
+    }
+
+    fn start(mut document: Document, viewport: Vec2, hosting: bool) -> Self {
+        use crate::native::testing::{Showing, Stepped};
         crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::native::testing::Stepped::hosting_windows(
-            context(),
-            crate::native::testing::Showing(document),
-            window,
-        );
+        let mut stepped = match hosting {
+            true => Stepped::hosting_windows(context(), Showing(document), window),
+            false => Stepped::new(context(), Showing(document), window, None),
+        };
         stepped.settle_after_gestures(false);
         Self(stepped)
     }

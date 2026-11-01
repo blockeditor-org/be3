@@ -791,8 +791,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                 painting.textures.entry(key).or_insert(pixels);
             }
         }
-        let snapshot = crate::snapshot::Snapshot::of_painting(painting)
-            .expect("the display's painting could not be rendered");
-        crate::snapshot::assert_snapshot(name, &snapshot);
+        paint_snapshot::assert_painting(name, painting);
     }
 }

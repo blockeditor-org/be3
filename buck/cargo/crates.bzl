@@ -11276,6 +11276,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11290,6 +11291,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11304,6 +11306,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11318,6 +11321,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11332,6 +11336,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11345,6 +11350,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "examples": {},
                 "features": [],
@@ -11357,6 +11363,7 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "examples": {},
                 "features": [],
@@ -11370,6 +11377,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -11384,6 +11392,7 @@ crates = {
                     "//crates/beui-layer-drive:beui-layer-drive",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-runner:beui-runner",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
@@ -13137,7 +13146,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13150,7 +13158,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13163,7 +13170,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13174,9 +13180,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -13188,7 +13192,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13201,7 +13204,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13234,7 +13236,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13247,7 +13248,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-host:beui-host",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13335,7 +13335,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13411,7 +13410,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13487,7 +13485,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13553,7 +13550,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13619,7 +13615,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13720,7 +13715,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -13786,7 +13780,6 @@ crates = {
                 "test_deps": [
                     "//crates/block-app-testing:block-app-testing",
                     "//crates/block-ui-test:block-ui-test",
-                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -14016,7 +14009,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14044,7 +14036,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14072,7 +14063,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14096,7 +14086,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14120,7 +14109,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-win32:be-win32",
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14166,7 +14154,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -14192,7 +14179,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
@@ -26119,6 +26105,22 @@ crates = {
                         "features": [],
                     },
                 },
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/paint-format:paint-format",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
                 "features": [],
                 "test_deps": [],
                 "test_features": [],

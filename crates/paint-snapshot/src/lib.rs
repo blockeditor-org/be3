@@ -7,7 +7,7 @@ mod format;
 mod highlight;
 mod raster;
 
-pub use accepted::assert_accepted;
+pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting};
 pub use compare::{Difference, difference};
 pub use fingerprint::fingerprint;
 pub use format::{Snapshot, Texture};

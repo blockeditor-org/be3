@@ -57,12 +57,9 @@ fn panels_through_each_other_are_painted_nearest_first_at_every_pixel() {
             painting.textures.get(&key)
         })
         .expect("the painting rasterises");
-    let snapshot =
-        paint_snapshot::Snapshot::of_painting(painting.clone()).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
+    paint_snapshot::assert_painting(
         "panels_through_each_other_are_painted_nearest_first_at_every_pixel",
-        &snapshot,
-        "./scripts/test panels_through_each_other_are_painted_nearest_first_at_every_pixel --update",
+        painting.clone(),
     );
 
     let mut wrong = Vec::new();

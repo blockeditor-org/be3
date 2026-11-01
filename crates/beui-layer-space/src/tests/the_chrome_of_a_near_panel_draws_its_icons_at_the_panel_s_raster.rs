@@ -73,10 +73,8 @@ fn the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster() {
         [pill.min.x, pill.min.y, pill.max.x, pill.max.y]
             .map(|metres| metres * crate::panel::POINTS_PER_METRE),
     );
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
+    paint_snapshot::assert_painting(
         "the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster",
-        &snapshot,
-        "./scripts/test the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster --update",
+        painting,
     );
 }

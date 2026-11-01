@@ -259,7 +259,7 @@ A beui document that is not an editor - beui's demo, say - is painted the same w
 block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
 are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
-verify changes) with snapshots added: the document runs through the real `Runner`, frame(inputs)
+verify changes), which takes the snapshots: the document runs through the real `Runner`, frame(inputs)
 pushes raw `Input`s in points through the runner's intake as a platform would, and its
 gestures are drive's - `click`, `drag`, `scroll`, `key`, `type_text`, `fingers` - each
 answering after the frame that took it. `click` and `scroll` reveal a test id that is out of
@@ -338,9 +338,12 @@ which reads the accepted paintings as its inputs and outputs the ones that chang
 ./scripts/verify then copies those into the crate's snapshots/, so a failure's output is in the
 build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
 copies what it accepts into the crate's snapshots/.
-Do not build or test an editor package for the host by itself:
-its tests only mean anything as the wasm guest it ships as, and a native run refuses to
-compare a painting rather than making one nothing would agree with.
+A painting is compared wherever its test runs, and each crate's BUCK runs its tests in exactly
+one place: plugin_tests as wasm for an editor, beui-demo and the other crates that paint as
+plugins do, and `cargo_test(paints = True)` natively for the app's own crates (block-app, its
+desktop and accounts crates, beui-layer-space), whose paintings are what the host draws. An
+editor's tests only mean anything as the wasm guest it ships as, so do not build or test an
+editor package for the host by itself.
 
 While working on one editor, run its tests alone:
 

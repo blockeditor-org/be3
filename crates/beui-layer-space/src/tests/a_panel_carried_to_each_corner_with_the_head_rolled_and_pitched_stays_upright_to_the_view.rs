@@ -66,10 +66,8 @@ fn a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright
     let frame = space.scene(&windows, &view(at));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
+    paint_snapshot::assert_painting(
         "a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view",
-        &snapshot,
-        "./scripts/test a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view --update",
+        painting,
     );
 }
