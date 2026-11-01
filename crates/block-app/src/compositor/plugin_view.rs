@@ -31,6 +31,8 @@ use block_app_plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
 };
 
+mod handoff;
+
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
     title: String,
@@ -675,7 +677,11 @@ pub(crate) fn PluginView(
         })
     });
     let steering = StoredCell::new(Steering::IDLE);
+    let handing = StoredCell::new(handoff::Handoff::default());
     let forward = move |input: ForwardedInput| {
+        let mut handed = handing.get();
+        let input = handed.route(input);
+        handing.set(handed);
         let origin = place.map_or(beui::Vec2::ZERO, |place| {
             place.display.get_untracked().min.to_vec2()
         });
@@ -714,6 +720,91 @@ pub(crate) fn PluginView(
             );
         }
     };
+    let forward = Callback::new(forward);
+    if let Some(block) = block.filter(|_| region.is_main()) {
+        let used = create_memo(move || state.with(|view| view.used));
+        create_effect(move || {
+            revision.get();
+            rect.get();
+            let parent = enclosing
+                .and_then(|Enclosing(parent)| parent.get())
+                .and_then(|parent| parent.try_get());
+            if let Some(node) = catcher.try_get() {
+                handoff::register(
+                    node,
+                    handoff::Receiver {
+                        block,
+                        parent,
+                        rect,
+                        used,
+                        forward,
+                    },
+                );
+            }
+        });
+        create_effect(move || {
+            used.get();
+            if let Some(node) = catcher.try_get() {
+                untrack(|| handoff::laid_out(node, now()));
+            }
+        });
+        on_cleanup(move || {
+            if let Some(node) = catcher.try_get() {
+                handoff::forget(node);
+            }
+        });
+    }
+    let promoted = create_memo(move || {
+        state.with(|view| {
+            view.children
+                .iter()
+                .filter(|child| child.mode == block_plugin_api::ChildMode::Active)
+                .filter_map(|child| {
+                    let lands_in = (child.frame_owner && !child.own_frame).then_some(view.rect);
+                    Some((child.block_id()?, (child.rect, lands_in)))
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+    let was_promoted = store(RefCell::new(Vec::<Uuid>::new()));
+    let hand_to = move |to: NodeId, (within, lands_in): (Rect, Option<Rect>)| {
+        let mut handed = handing.get();
+        let cancel = handed.hand_to(to, within, lands_in, now());
+        handing.set(handed);
+        if let Some(cancel) = cancel {
+            block_app_plugin_host::forward_view(
+                &plugin_id.value(),
+                instance,
+                region.id,
+                &cancel,
+                &|_, _| beui::Aim::Own,
+                &|_| None,
+            );
+        }
+    };
+    create_effect(move || {
+        let promoted = promoted.get();
+        untrack(|| {
+            let blocks: Vec<Uuid> = promoted.iter().map(|(block, _)| *block).collect();
+            let before = was_promoted.value().replace(blocks.clone());
+            for gone in before.iter().filter(|block| !blocks.contains(block)) {
+                handoff::stop_awaiting(*gone);
+            }
+            let Some(own) = catcher.try_get() else {
+                return;
+            };
+            for (block, within) in promoted.iter().filter(|(block, _)| !before.contains(block)) {
+                let within = *within;
+                match handoff::receiver_of(own, *block) {
+                    Some(to) => hand_to(to, within),
+                    None => handoff::await_receiver(
+                        *block,
+                        Callback::new(move |to: NodeId| hand_to(to, within)),
+                    ),
+                }
+            }
+        });
+    });
     if let Some(pan_drag) = pan_drag {
         create_effect(move || {
             if pan_drag.asked.get() == 0 {

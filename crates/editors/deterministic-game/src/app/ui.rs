@@ -395,7 +395,7 @@ fn GameDock(
                 <DockBar
                     id=ACTIONS
                     parent=STAGE
-                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                    placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
                 >
                     <ActionBar panel />
                 </DockBar>
