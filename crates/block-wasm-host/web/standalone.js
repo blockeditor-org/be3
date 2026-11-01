@@ -1,32 +1,34 @@
 // The standalone guest (src/tests/standalone.wat) in a browser: a plugin with
 // a memory of its own that is not shared, no library, no WASI and no threads,
-// booted by block-app's plugin.js against block-gpu-shim in this worker, as
-// a plugin's worker boots one. It paints its surface orange, which the shim
+// run by block-guest-host's guest.js with block-app's plugin.js against
+// block-gpu-shim in this worker, as a plugin's worker runs one. It paints its surface orange, which the shim
 // exports as a bitmap that is read back here.
 
-import { boot } from "./bundle/plugin.js";
+import { runtime } from "./bundle/guest.js";
 
 const SURFACE = 7;
 
 async function run() {
-    const plugin = await boot(
-        new URL("./bundle/block_gpu_shim.js", import.meta.url).href,
-        new URL("./standalone.wasm", import.meta.url).href,
-        () => {},
-        [],
-    );
-    plugin.exportSurfaces([SURFACE]);
-    plugin.step();
-    plugin.paint();
-    const failure = plugin.failure();
-    if (failure) {
-        return { error: failure };
+    const posted = [];
+    const guest = runtime((message) => posted.push(message));
+    await guest.receive({
+        kind: "start",
+        url: new URL("./standalone.wasm", import.meta.url).href,
+        extension: new URL("./bundle/plugin.js", import.meta.url).href,
+        imports: [],
+    });
+    await guest.receive({ kind: "export", surfaces: [SURFACE] });
+    await guest.receive({ kind: "step", frames: [] });
+    const failed = posted.find(({ kind }) => kind === "error");
+    if (failed) {
+        return { error: failed.message };
     }
-    const frames = plugin.collect().map((frame) => Array.from(frame));
+    const stepped = posted.find(({ kind }) => kind === "stepped");
+    const frames = posted.flatMap((report) => report.frames ?? []).map((frame) => Array.from(new Uint8Array(frame)));
     if (JSON.stringify(frames) !== "[[1]]") {
         return { error: `the plugin sent ${JSON.stringify(frames)}, not [[1]]` };
     }
-    const picture = plugin.exported().find(({ surface }) => surface === SURFACE);
+    const picture = stepped.pictures.find(({ surface }) => surface === SURFACE);
     if (!picture) {
         return { error: "the plugin's surface was not exported once it presented" };
     }

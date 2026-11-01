@@ -124,7 +124,13 @@ pub fn wasm(
             let load = load.clone();
             let host = block_wasm_host::Host::pure(cache.as_deref())?
                 .with_direct(block_type_api::embed::IMPORTS);
-            let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
+            let channel = host.spawn(
+                name.clone(),
+                move |host| load(host),
+                wake,
+                waiting,
+                block_guest_host::thread::catch,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -137,9 +143,10 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel = block_guest_host::web::WebGuest::start(
+            let channel = block_guest_host::web::WebGuest::<Infallible>::start(
                 &url,
                 block_type_api::embed::IMPORTS,
+                None,
                 wake,
                 waiting,
             )?;

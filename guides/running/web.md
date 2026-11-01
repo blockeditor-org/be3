@@ -85,8 +85,10 @@ the on-screen keyboard and the floating window there (crates/beui-demo-html/src/
 ## Plugins on the page
 
 Each plugin runs in a Web Worker of its own with its own GPU device
-(crates/block-app-plugin-host/src/web, crates/block-app/web/plugin.js, and
-crates/block-gpu-shim, which answers the plugin's gpu abi there). Nothing a
+(crates/block-app-plugin-host/src/web; block-guest-host's worker runtime,
+src/guest.js, which runs type modules too; crates/block-app/web/plugin.js,
+which it loads for a plugin; and crates/block-gpu-shim, which answers the
+plugin's gpu abi there). Nothing a
 plugin draws leaves its worker; the page hands the worker canvases instead:
 - Screens: each shown screen is a `<canvas>` in `#plugins`, behind the app's
   canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed

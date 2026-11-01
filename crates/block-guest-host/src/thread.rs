@@ -21,6 +21,8 @@ pub trait Runnable {
 
     fn take_wake(&mut self) -> bool;
 
+    fn on_wake(&self, wake: Wake);
+
     fn stop(&mut self);
 }
 
@@ -115,7 +117,7 @@ impl<P: Presented> Channel for Threaded<P> {
 
 pub fn spawn<R: Runnable + 'static>(
     options: Spawn,
-    load: impl FnOnce(Wake) -> Result<R, String> + Send + 'static,
+    load: impl FnOnce() -> Result<R, String> + Send + 'static,
 ) -> Result<Threaded<R::Presented>, String> {
     let Spawn {
         name,
@@ -143,7 +145,7 @@ pub fn spawn<R: Runnable + 'static>(
             let failed = reports.clone();
             let failing = Arc::clone(&wake);
             let ran = contain(Box::new(move || {
-                run(move || load(guest_wake), orders, reports, wake, waiting);
+                run(load, guest_wake, orders, reports, wake, waiting);
             }));
             if let Err(panic) = ran {
                 let _ = failed.send(Event::Failed(format!(
@@ -164,6 +166,7 @@ pub fn spawn<R: Runnable + 'static>(
 
 fn run<R: Runnable>(
     load: impl FnOnce() -> Result<R, String>,
+    guest_wake: Wake,
     orders: Receiver<Vec<Vec<u8>>>,
     reports: Sender<Event<R::Presented>>,
     wake: Wake,
@@ -178,7 +181,10 @@ fn run<R: Runnable>(
         sent
     };
     let mut guest = match load() {
-        Ok(guest) => guest,
+        Ok(guest) => {
+            guest.on_wake(guest_wake);
+            guest
+        }
         Err(error) => {
             report(Event::Failed(error), true);
             return;

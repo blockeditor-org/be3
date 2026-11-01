@@ -483,7 +483,8 @@ wasmtime and in process in tests:
   own, so two hosts in one process with different sources each reach their own
   instance), starts each `Source` (`in_process::<G>`, natively
   `wasm(name, tag, cache, load)` on a `Host::pure` thread, on the web
-  `web(name, url, tag)`) with a host `Connection` of its own, restarts one that
+  `web(name, url, tag)`, a `WebGuest` in the worker runtime plugins run in, with
+  no extension) with a host `Connection` of its own, restarts one that
   stops, answers its clock and sleeps itself, and hands everything else on as
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
   A source that declares its types starts lazily: `Modules::new` routes and marks

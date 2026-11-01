@@ -57,7 +57,6 @@ web-sys = { version = "0.3", features = [
     "HtmlMediaElement",
     "ImageBitmap",
     "Location",
-    "MessageEvent",
     "Node",
     "OffscreenCanvas",
     "Performance",
@@ -67,10 +66,7 @@ web-sys = { version = "0.3", features = [
     "Url",
     "UrlSearchParams",
     "Window",
-    "Worker",
     "WorkerGlobalScope",
-    "WorkerOptions",
-    "WorkerType",
     "console",
 ] }
 

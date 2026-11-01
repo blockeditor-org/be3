@@ -3,3 +3,14 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 cargo_library()
 
 cargo_test()
+
+# The worker runtime every guest runs in in a browser (src/guest.js), which the
+# crate embeds; the plugin web tests run it with block-app's plugin.js.
+export_file(
+    name = "guest.js",
+    src = "src/guest.js",
+    visibility = [
+        "//crates/block-wasm-host:",
+        "//crates/tls-diamond:",
+    ],
+)

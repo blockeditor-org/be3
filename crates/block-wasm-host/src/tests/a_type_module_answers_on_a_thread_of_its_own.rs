@@ -18,6 +18,7 @@ fn a_type_module_answers_on_a_thread_of_its_own() {
             |host| host.load_bytes(COUNTER_TYPES),
             std::sync::Arc::new(|| {}),
             std::sync::Arc::clone(&waiting),
+            block_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);

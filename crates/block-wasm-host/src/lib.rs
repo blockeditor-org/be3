@@ -24,7 +24,7 @@ use std::{
 
 use block_guest_host::{
     Produced, StepTime, Wake as HostWake,
-    thread::{self, Runnable, Spawn, Threaded},
+    thread::{self, Contain, Runnable, Spawn, Threaded},
 };
 
 use block_gpu_host::Gpu;
@@ -163,13 +163,14 @@ impl Host {
         Interrupter::new(&self.interrupt)
     }
 
-    pub fn spawn(
+    pub fn spawn<R: Runnable + 'static>(
         self,
         name: String,
-        load: impl FnOnce(&Host) -> Result<Plugin, String> + Send + 'static,
+        load: impl FnOnce(&Host) -> Result<R, String> + Send + 'static,
         wake: HostWake,
         waiting: Arc<AtomicBool>,
-    ) -> Result<Threaded<Infallible>, String> {
+        contain: Contain,
+    ) -> Result<Threaded<R::Presented>, String> {
         let interrupter = self.interrupter();
         thread::spawn(
             Spawn {
@@ -177,13 +178,9 @@ impl Host {
                 wake,
                 waiting,
                 interrupt: Box::new(move || interrupter.interrupt()),
-                contain: thread::catch,
+                contain,
             },
-            move |wake| {
-                let plugin = load(&self)?;
-                plugin.on_wake(move || wake());
-                Ok(plugin)
-            },
+            move || load(&self),
         )
     }
 
@@ -555,6 +552,10 @@ impl Runnable for Plugin {
 
     fn take_wake(&mut self) -> bool {
         Plugin::take_wake(self)
+    }
+
+    fn on_wake(&self, wake: HostWake) {
+        Plugin::on_wake(self, move || wake());
     }
 
     fn stop(&mut self) {

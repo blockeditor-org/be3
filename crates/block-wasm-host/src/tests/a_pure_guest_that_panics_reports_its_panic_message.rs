@@ -12,6 +12,7 @@ fn a_pure_guest_that_panics_reports_its_panic_message() {
             |host| host.load_bytes(ECHO),
             Arc::new(|| {}),
             Arc::clone(&waiting),
+            block_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);

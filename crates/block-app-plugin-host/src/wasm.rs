@@ -1,15 +1,16 @@
 use std::{
     cell::RefCell,
+    convert::Infallible,
     path::PathBuf,
     sync::{Arc, Condvar, Mutex, PoisonError, atomic::AtomicBool},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use block_app_stack::discovery;
 
 use block_guest_host::{
     Presented, Produced,
-    thread::{self, Runnable, Spawn, Threaded},
+    thread::{self, Runnable, Threaded},
 };
 use block_plugin_manifest::PluginManifest;
 use block_wasm_host::{Host, Plugin};
@@ -156,21 +157,13 @@ fn start(
     let host = host.with_direct(block_plugin_api::embed::IMPORTS);
     let module = module.to_owned();
     let waiting = Arc::<AtomicBool>::default();
-    let interrupter = host.interrupter();
     let mailbox = host.imports();
-    let channel = thread::spawn(
-        Spawn {
-            name: format!("plugin {}", plugin.identity.id),
-            wake: Arc::new(block_app_base::host::wake),
-            waiting: Arc::clone(&waiting),
-            interrupt: Box::new(move || interrupter.interrupt()),
-            contain: |run| block_app_base::panic_guard::contain(run),
-        },
-        move |wake| {
-            let plugin = host.load_from(&module, discovery::open)?;
-            plugin.on_wake(move || wake());
-            Ok(Editor(plugin))
-        },
+    let channel = host.spawn(
+        format!("plugin {}", plugin.identity.id),
+        move |host| host.load_from(&module, discovery::open).map(Editor),
+        Arc::new(block_app_base::host::wake),
+        Arc::clone(&waiting),
+        |run| block_app_base::panic_guard::contain(run),
     )?;
     Ok((channel, mailbox, waiting))
 }
@@ -213,23 +206,21 @@ impl Runnable for Editor {
     type Presented = PresentedTexture;
 
     fn start(&mut self) -> Result<Produced<PresentedTexture>, String> {
-        self.0.start()?;
-        Ok(produced(&mut self.0, StepTime::default()))
+        let sent = Runnable::start(&mut self.0)?;
+        Ok(produced(&mut self.0, sent))
     }
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
-        let plugin = &mut self.0;
-        plugin.take_wake();
-        let started = Instant::now();
-        plugin.deliver(frames)?;
-        plugin.step()?;
-        let step = started.elapsed();
-        let (gpu, submit) = plugin.take_gpu_time();
-        Ok(produced(plugin, StepTime { step, gpu, submit }))
+        let sent = Runnable::step(&mut self.0, frames)?;
+        Ok(produced(&mut self.0, sent))
     }
 
     fn take_wake(&mut self) -> bool {
         self.0.take_wake()
+    }
+
+    fn on_wake(&self, wake: block_guest_host::Wake) {
+        Runnable::on_wake(&self.0, wake);
     }
 
     fn stop(&mut self) {
@@ -237,8 +228,8 @@ impl Runnable for Editor {
     }
 }
 
-fn produced(plugin: &mut Plugin, took: StepTime) -> Produced<PresentedTexture> {
-    let outbound = plugin.take_outbound();
+fn produced(plugin: &mut Plugin, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
+    let (gpu, submit) = plugin.take_gpu_time();
     let mut presented: Vec<PresentedTexture> = Vec::new();
     for surface in plugin.take_presented() {
         let Some((texture, generation)) = plugin.surface(surface) else {
@@ -253,9 +244,13 @@ fn produced(plugin: &mut Plugin, took: StepTime) -> Produced<PresentedTexture> {
     }
     Produced {
         painted: !presented.is_empty(),
-        outbound,
+        outbound: sent.outbound,
         presented,
-        took,
+        took: StepTime {
+            gpu,
+            submit,
+            ..sent.took
+        },
     }
 }
 
