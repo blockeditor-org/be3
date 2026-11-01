@@ -9,6 +9,7 @@ use database_types::database_schema::DatabaseField;
 use database_types::database_view::DatabaseViewKind;
 use uuid::Uuid;
 
+use crate::database_view::app::calendar::CalendarView;
 use crate::database_view::app::data::{Data, ViewData};
 use crate::database_view::app::header::ViewHeader;
 use crate::database_view::app::kanban::Kanban;
@@ -36,7 +37,10 @@ fn ViewEditor(editor: Editor) -> NodeId {
     create_effect(move || {
         let size = match data.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(data)),
-            DatabaseViewKind::Kanban | DatabaseViewKind::Scatter | DatabaseViewKind::List => None,
+            DatabaseViewKind::Kanban
+            | DatabaseViewKind::Scatter
+            | DatabaseViewKind::List
+            | DatabaseViewKind::Calendar => None,
         };
         editor.set_intrinsic_size(size);
     });
@@ -105,6 +109,9 @@ fn Content(data: Data, panels: bool) -> NodeId {
                         },
                         DatabaseViewKind::List => view! {
                             <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
+                        DatabaseViewKind::Calendar => view! {
+                            <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
                         },
                     }
                 }</Dynamic>

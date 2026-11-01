@@ -10,8 +10,8 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 beui = { path = "../../beui" }
 block-editor-beui = { path = "../../block-editor-beui" }
-calendar-types = { path = "../calendar/types" }
 block-shell = { path = "../../block-shell" }
+database-types = { path = "../database/types" }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

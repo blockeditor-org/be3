@@ -65,6 +65,8 @@ pub struct ViewData {
     pub groups: Memo<Vec<Group>>,
     pub scatter_x: Memo<Option<Uuid>>,
     pub scatter_y: Memo<Option<Uuid>>,
+    pub calendar_start: Memo<Option<Uuid>>,
+    pub calendar_end: Memo<Option<Uuid>>,
     pub selected: Signal<Option<Selection>>,
     pub error: Signal<Option<String>>,
     pub read_only: Memo<bool>,
@@ -139,6 +141,10 @@ impl ViewData {
         let scatter_x = create_memo(move || scatter_x.get());
         let scatter_y = view.project(|view| view.root().scatter_y);
         let scatter_y = create_memo(move || scatter_y.get());
+        let calendar_start = view.project(|view| view.root().calendar_start);
+        let calendar_start = create_memo(move || calendar_start.get());
+        let calendar_end = view.project(|view| view.root().calendar_end);
+        let calendar_end = create_memo(move || calendar_end.get());
         let filter_items = view.project(|view| {
             view.root()
                 .filters
@@ -228,6 +234,8 @@ impl ViewData {
             name,
             scatter_x,
             scatter_y,
+            calendar_start,
+            calendar_end,
             selected,
             error,
             read_only: editor.read_only(),

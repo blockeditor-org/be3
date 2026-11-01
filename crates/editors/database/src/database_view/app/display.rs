@@ -2,8 +2,8 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
-    ICON_TABLE_PROPERTIES,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CALENDAR, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN,
+    ICON_LIST, ICON_TABLE_PROPERTIES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -19,11 +19,12 @@ use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 96.0;
-pub const KINDS: [(DatabaseViewKind, &str, Glyph); 4] = [
+pub const KINDS: [(DatabaseViewKind, &str, Glyph); 5] = [
     (DatabaseViewKind::List, "List", ICON_LIST),
     (DatabaseViewKind::Kanban, "Board", ICON_KANBAN),
     (DatabaseViewKind::Spreadsheet, "Table", ICON_GRID_3X3),
     (DatabaseViewKind::Scatter, "Scatter", ICON_CHART_SCATTER),
+    (DatabaseViewKind::Calendar, "Calendar", ICON_CALENDAR),
 ];
 
 #[component]
@@ -35,8 +36,14 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             DatabaseViewKind::List | DatabaseViewKind::Kanban
         )
     });
-    let ordered = create_memo(move || data.kind.get() != DatabaseViewKind::Scatter);
+    let ordered = create_memo(move || {
+        !matches!(
+            data.kind.get(),
+            DatabaseViewKind::Scatter | DatabaseViewKind::Calendar
+        )
+    });
     let scatter = create_memo(move || data.kind.get() == DatabaseViewKind::Scatter);
+    let calendar = create_memo(move || data.kind.get() == DatabaseViewKind::Calendar);
     let prefix = data.prefix;
     let prefix_off = data.read_only;
     let reprefix = move |text: String| data.set_prefix(text);
@@ -61,6 +68,9 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </Show>
             <Show condition={scatter}>
                 <AxisPickers data={data} />
+            </Show>
+            <Show condition={calendar}>
+                <DatePickers data={data} />
             </Show>
             <Show condition={listed}>
                 <EmptyGroups data={data} />
@@ -132,12 +142,17 @@ fn KindSwitch(data: Data) -> NodeId {
                     if data.kind.get_untracked() != wanted {
                         data.operate_view(DatabaseView::set_kind(wanted));
                     }
+                    let first = |wanted: DatabaseFieldType| data.fields.with_untracked(|fields| {
+                        fields.iter().find(|field| field.field_type == wanted).map(|field| field.id)
+                    });
                     if wanted == DatabaseViewKind::Kanban && data.group_by.get_untracked().is_none() {
-                        let status = data.fields.with_untracked(|fields| {
-                            fields.iter().find(|field| field.field_type == DatabaseFieldType::Enum).map(|field| field.id)
-                        });
-                        if status.is_some() {
-                            data.operate_view(DatabaseView::set_group_by(status));
+                        if let Some(status) = first(DatabaseFieldType::Enum) {
+                            data.operate_view(DatabaseView::set_group_by(Some(status)));
+                        }
+                    }
+                    if wanted == DatabaseViewKind::Calendar && data.calendar_start.get_untracked().is_none() {
+                        if let Some(date) = first(DatabaseFieldType::Datetime) {
+                            data.operate_view(DatabaseView::set_calendar_start(Some(date)));
                         }
                     }
                 };
@@ -315,6 +330,49 @@ fn AxisPickers(data: Data) -> NodeId {
                     label="Y axis"
                     picker_id={"database-view.scatter-y".to_owned()}
                     on_change={pick_y}
+                />
+            </Labelled>
+        </List>
+    }
+}
+
+#[component]
+fn DatePickers(data: Data) -> NodeId {
+    let options = create_memo(move || {
+        data.fields.with(|fields| {
+            fields
+                .iter()
+                .filter(|field| field.field_type == DatabaseFieldType::Datetime)
+                .cloned()
+                .collect::<Vec<DatabaseField>>()
+        })
+    });
+    let pick_start = move |field: Option<Uuid>| {
+        data.operate_view(DatabaseView::set_calendar_start(field));
+    };
+    let pick_end = move |field: Option<Uuid>| {
+        data.operate_view(DatabaseView::set_calendar_end(field));
+    };
+    view! {
+        <List spacing=SPACING>
+            <Labelled label="Starts">
+                <FieldPicker
+                    options={options}
+                    chosen={data.calendar_start}
+                    none="None"
+                    label="Starts"
+                    picker_id={"database-view.calendar-start".to_owned()}
+                    on_change={pick_start}
+                />
+            </Labelled>
+            <Labelled label="Ends">
+                <FieldPicker
+                    options={options}
+                    chosen={data.calendar_end}
+                    none="None"
+                    label="Ends"
+                    picker_id={"database-view.calendar-end".to_owned()}
+                    on_change={pick_end}
                 />
             </Labelled>
         </List>

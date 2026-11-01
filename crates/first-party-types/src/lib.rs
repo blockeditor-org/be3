@@ -17,7 +17,6 @@ pub fn sources() -> Vec<Source> {
             "be3.browser-tab",
             browser_tab_types::registrations(),
         ),
-        in_process::<calendar_types::BlockTypes>("be3.calendar", calendar_types::registrations()),
         in_process::<checklist_types::BlockTypes>(
             "be3.checklist",
             checklist_types::registrations(),
@@ -77,7 +76,6 @@ pub fn knows(content_type: Uuid) -> bool {
         audio_block_types::block_types(),
         beui_gallery_types::block_types(),
         browser_tab_types::block_types(),
-        calendar_types::block_types(),
         checklist_types::block_types(),
         counter_types::block_types(),
         database_types::block_types(),

@@ -12,7 +12,6 @@ uuid = "1"
 audio-block-types = { path = "../editors/audio-block/types" }
 beui-gallery-types = { path = "../editors/beui-gallery/types" }
 browser-tab-types = { path = "../editors/browser-tab/types" }
-calendar-types = { path = "../editors/calendar/types" }
 checklist-types = { path = "../editors/checklist/types" }
 counter-types = { path = "../editors/counter/types" }
 database-types = { path = "../editors/database/types" }

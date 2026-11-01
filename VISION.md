@@ -240,8 +240,9 @@ a view over blocks with a date and the map one over blocks with a place.
 
 ### Calendar
 
-If BE3 is your computer, it needs a calendar. Possibly a view over dated
-blocks, as above.
+If BE3 is your computer, it needs a calendar. It is a database view that lays
+out rows by a date field, by month, week or day; the desktop's clock opens one.
+Later, a view over dated blocks, as above.
 
 ### Map
 

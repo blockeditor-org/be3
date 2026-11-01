@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::Key;
-use calendar_types::Calendar;
+use database_types::database_view::DatabaseView;
 
 use super::*;
 
@@ -27,7 +27,7 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
         .store()
         .block(calendar)
         .expect("the calendar block was created");
-    assert_eq!(info.block_type, Calendar::CONTENT_TYPE);
+    assert_eq!(info.block_type, DatabaseView::CONTENT_TYPE);
     assert_eq!(
         info.parent,
         Some(BlockParent::Block(desktop)),
@@ -71,9 +71,10 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
     fixture.settle();
     assert_eq!(fixture.calendar(), None, "a click outside closes it");
 
+    let created = fixture.test.store().created();
     assert_eq!(
-        fixture.test.store().created(),
-        vec![calendar],
+        (created.len(), created.last()),
+        (3, Some(&calendar)),
         "the calendar is created once"
     );
 }

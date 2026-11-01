@@ -122,7 +122,7 @@ impl MyBlock {
 
 Every object in a `List` has an `ObjectId`, and an edit names the object, never a position: two people removing what they each saw as the second item remove the same one, and an insert at the head renumbers nothing. A helper that creates an object returns its id, so the caller can address it straight away. Editors key their rows on those ids, which is what lets a row survive an edit to the item next to it - see `guides/reactive.md`. A helper that needs the current content to decide what to write (`clear_done`, `Counter::reset`) takes `&self`; one that does not is an associated function.
 
-`crates/editors/checklist/types/src/checklist.rs` is the smallest complete example; `crates/editors/calendar/types/src/calendar.rs` shows an update that only writes the fields that changed.
+`crates/editors/checklist/types/src/checklist.rs` is the smallest complete example; `BrowserTab::replace` in `crates/editors/browser-tab/types/src/browser_tab.rs` shows an update that only writes the fields that changed.
 
 ## 4. References
 
