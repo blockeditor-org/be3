@@ -7,7 +7,7 @@ use beui_view::reactive::*;
 fn a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it() {
     let mut document = build(|| {
         view! {
-            <Root clear_color={beui_core::color::Color32::BLACK}>
+            <Root clear_color={beui_types::color::Color32::BLACK}>
                 <Scroll @test_id="scroll" scrollbar={ScrollbarStyle::default().fading(16.0)}>
                     <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_: usize|
                         <Frame height=16.0 radius=0.0 fill=Color32::WHITE />

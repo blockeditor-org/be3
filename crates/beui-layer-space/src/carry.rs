@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui_core::window::WindowId;
+use beui_types::WindowId;
 use glam::{Quat, Vec3};
 
 use crate::contact;

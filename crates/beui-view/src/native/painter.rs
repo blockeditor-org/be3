@@ -1,5 +1,5 @@
 use beui_core::current::try_with_document;
-use beui_core::font::{FontId, TextLayout};
+use beui_types::{FontId, TextLayout};
 
 pub(crate) use beui_core::font::Galley as TextBlock;
 pub(crate) use beui_core::painter::Painter;
@@ -19,7 +19,7 @@ pub(crate) fn lay_out(
 
 pub(crate) fn draw_text(
     painter: &Painter,
-    origin: beui_core::geometry::Pos2,
+    origin: beui_types::Pos2,
     block: &TextBlock,
     color: beui_types::Color,
 ) {

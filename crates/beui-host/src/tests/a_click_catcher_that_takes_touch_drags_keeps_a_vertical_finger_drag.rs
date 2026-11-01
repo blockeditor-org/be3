@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 #[test]
 fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {

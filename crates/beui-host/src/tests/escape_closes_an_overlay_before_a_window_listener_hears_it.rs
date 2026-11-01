@@ -1,8 +1,9 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use crate::base::overlay::OverlayNode;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Dismiss, KeyAt, KeyPhase};
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn escape_closes_an_overlay_before_a_window_listener_hears_it() {

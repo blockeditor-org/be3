@@ -1,7 +1,7 @@
 use super::*;
-use crate::node::NodeId;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::NodeId;
 
 struct Note {
     label: String,

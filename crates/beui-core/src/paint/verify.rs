@@ -2,13 +2,14 @@ use stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::context::Moved;
-use crate::damage::{Region, bounds};
+use crate::damage::bounds;
 use crate::display::{Display, Group, Part};
 use crate::fade::Fade;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::NodeId;
 use crate::painter::{Shape, placed_shape};
-use crate::window::WindowId;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Vec2};
 
 type Key = (NodeId, u32);
 

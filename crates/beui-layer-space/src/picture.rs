@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
-use beui_core::geometry::Rect;
 use beui_core::painting::{
     self, Content, Fade, Frame as Paint, Painting, Pixels, Primitive, Punches, RoundedRect,
     Triangle, Turn, Vertex,
 };
+use beui_types::Color32;
+use beui_types::Rect;
 use glam::Vec3;
 
 use crate::chrome::LIFT;

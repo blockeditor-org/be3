@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::{BackEdge, BackGesture};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::input::{BackEdge, BackGesture};
 
 #[test]
 fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {

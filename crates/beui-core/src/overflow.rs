@@ -1,11 +1,12 @@
 use std::fmt;
 
 use crate::base::canvas::CanvasNode;
-use crate::base::list::Direction;
 use crate::base::offset::OffsetNode;
 use crate::document::Document;
-use crate::geometry::Rect;
-use crate::node::{NodeId, Rects, SpaceId};
+use crate::node::{Rects, SpaceId};
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::Rect;
 
 const TOLERANCE: f32 = 1.0;
 const EXACT: f32 = 0.01;

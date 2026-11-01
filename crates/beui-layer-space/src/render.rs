@@ -2,15 +2,15 @@ use stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::drawing::Drawing;
-use beui_core::geometry::{Rect, vec2};
 use beui_core::painting::{Painting, Paints};
-use beui_core::window::WindowId;
 use beui_draw::{Draw, DrawAt};
 use beui_renderer_wgpu::present::GpuSetup;
 use beui_renderer_wgpu::{Repaint, Repainting, wgpu_color_in};
+use beui_types::Color32;
+use beui_types::WindowId;
+use beui_types::{Rect, vec2};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 

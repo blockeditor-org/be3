@@ -4,15 +4,17 @@ use std::time::{Duration, Instant};
 
 use stable_hash::{HashMap, HashSet};
 
-use crate::callback::Callback;
-use crate::child_list::{ChildHost, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, NodeChildren};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, pos2};
-use crate::node::{ANCESTOR_LIMIT, Element, NodeId, NodeOf, Rects, SpaceId};
+use crate::node::{ANCESTOR_LIMIT, Element, NodeOf, Rects, SpaceId};
 use crate::painter::{Painter, Zoom};
+use beui_tree::callback::Callback;
+use beui_tree::child_list::ChildList;
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2, pos2};
 
-pub use beui_types::layout::{CanvasArrangement, CanvasView};
+use beui_types::{CanvasArrangement, CanvasView};
 
 impl ChildHost for CanvasNode {
     type Stored = NodeId;

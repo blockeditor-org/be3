@@ -2,7 +2,7 @@ use accesskit::{Affine, Node, NodeId as AccessNodeId, Rect as AccessRect, Role, 
 use stable_hash::{HashMap, HashSet};
 
 use super::{DOCUMENT_SHIFT, Fragment};
-use crate::geometry::{Rect, Vec2};
+use beui_types::{Rect, Vec2};
 
 const PANE: u64 = 0;
 

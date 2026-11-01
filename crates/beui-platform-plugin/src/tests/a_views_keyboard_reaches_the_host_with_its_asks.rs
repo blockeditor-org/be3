@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::input::{ImeArea, Keyboard};
+use beui::{input::Keyboard, window::ImeArea};
 
 #[test]
 fn a_views_keyboard_reaches_the_host_with_its_asks() {

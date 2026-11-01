@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::KeyPress;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
+use beui::KeyPress;
 
 #[test]
 fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {

@@ -3,14 +3,15 @@ use std::time::{Duration, Instant};
 
 use beui_components_styled::Radius;
 use beui_components_styled::{TextSize, Theme};
-use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
 use beui_core::drawn_cursor;
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::icons;
-use beui_core::input::{CursorIcon, Event, Modifiers, PointerButton, TouchId, TouchPhase};
 use beui_core::painter::Painter;
+use beui_types::Color32;
+use beui_types::Event;
+use beui_types::FontId;
+use beui_types::{CursorIcon, Modifiers, PointerButton, TouchId, TouchPhase};
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 const BAR_HEIGHT: f32 = 56.0;
 const BAR_PADDING: f32 = 6.0;

@@ -1,6 +1,6 @@
 use super::*;
-use crate::input::CursorIcon;
 use crate::painter::Shape;
+use beui::CursorIcon;
 
 #[test]
 fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {

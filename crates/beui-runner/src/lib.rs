@@ -12,13 +12,18 @@ use accesskit::TreeUpdate;
 use crate::renderer::{Capture, Loaded, Rendering};
 use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
-use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
+use beui_core::clipboard::{PasteAnswer, PasteRequest};
 use beui_core::context::{Context, FrameOutput, WindowOutput};
-use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
-use beui_core::geometry::Vec2;
-use beui_core::input::{Event, Input};
-use beui_core::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
+use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
+use beui_core::window::{Resize, WindowReports, WindowState};
+use beui_types::Event;
+use beui_types::FilePick;
+use beui_types::FileSave;
+use beui_types::Input;
+use beui_types::Vec2;
+use beui_types::{PasteKind, Pasted};
+use beui_types::{WindowId, WindowReport};
 
 mod controller;
 pub mod environment;
@@ -167,7 +172,7 @@ impl Frame {
 struct Exited;
 
 impl App for Exited {
-    fn update(&mut self, _context: &Context, _rect: beui_core::geometry::Rect) {}
+    fn update(&mut self, _context: &Context, _rect: beui_types::Rect) {}
 }
 
 pub struct Runner {
@@ -189,7 +194,7 @@ pub struct Runner {
     occluded: bool,
     closing: bool,
     window: WindowState,
-    background: beui_core::color::Color32,
+    background: beui_types::Color32,
     reports: WindowReports,
     native: f32,
     paced: Option<Instant>,
@@ -203,13 +208,13 @@ pub struct Runner {
 
 fn type_pastes(
     pastes: &Receiver<Pasted>,
-    held: beui_core::input::Modifiers,
+    held: beui_types::Modifiers,
     incoming: &mut Vec<Incoming>,
 ) {
     while let Ok(pasted) = pastes.try_recv() {
         if let Pasted::Text(text) = pasted {
             let mut typed = Vec::new();
-            beui_core::input::typing::typed(&text, held, &mut typed);
+            beui_types::input::typing::typed(&text, held, &mut typed);
             incoming.extend(typed.into_iter().map(Incoming::from));
         }
     }
@@ -247,7 +252,7 @@ impl Runner {
             occluded: false,
             closing: false,
             window: WindowState::default(),
-            background: beui_core::color::Color32::BLACK,
+            background: beui_types::color::Color32::BLACK,
             reports: WindowReports::default(),
             native: 1.0,
             paced: None,
@@ -298,7 +303,7 @@ impl Runner {
         self.intake.incoming.push(input.into());
     }
 
-    pub fn modifiers(&self) -> beui_core::input::Modifiers {
+    pub fn modifiers(&self) -> beui_types::Modifiers {
         self.intake.modifiers()
     }
 
@@ -481,7 +486,7 @@ impl Runner {
         }
         if let Some(preferences) = self.reports.take_system_preferences() {
             self.context.set_preference_layer(
-                beui_core::preferences::PreferenceSource::System,
+                beui_types::preferences::PreferenceSource::System,
                 preferences,
             );
         }
@@ -627,7 +632,7 @@ impl Runner {
             .extend(output.typed.drain(..).map(Incoming::from));
         if output.paste == Some(PasteRequest::Typed) {
             let answer = PasteAnswer::new(self.typed_pastes.0.clone(), self.waker.clone());
-            below.paste(&[beui_core::clipboard::PasteKind::Text], answer);
+            below.paste(&[beui_types::PasteKind::Text], answer);
             let held = self.intake.modifiers();
             type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
         }

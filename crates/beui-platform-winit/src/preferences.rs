@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use beui_core::preferences::{PreferenceLayer, ThemeKind};
+use beui_types::{PreferenceLayer, ThemeKind};
 use winit::window::Theme;
 
 #[derive(Default)]
@@ -54,7 +54,7 @@ mod portal {
 
     use ashpd::desktop::settings::Settings;
     use ashpd::zvariant::OwnedValue;
-    use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
+    use beui_types::{Motion, PreferenceLayer, ThemeKind};
     use futures_util::StreamExt;
 
     const APPEARANCE: &str = "org.freedesktop.appearance";

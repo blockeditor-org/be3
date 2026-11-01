@@ -1,9 +1,9 @@
 use super::*;
 use crate::FontId;
-use crate::font::TextAlign;
 use crate::primitives::*;
 use crate::reactive::*;
 use beui::Overflow;
+use beui::TextAlign;
 
 const LABEL: &str = "Unbraced";
 const LABEL_SIZE: f32 = 20.0;

@@ -7,9 +7,10 @@ use accesskit::{Action, ActionRequest, Node as AccessNode, NodeId as AccessNodeI
 
 use beui_core::context::Context;
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::input::{Event, Key, TouchId, TouchPhase};
 use beui_core::painter::Painter;
+use beui_types::Event;
+use beui_types::{Key, TouchId, TouchPhase};
+use beui_types::{Pos2, Rect};
 
 use speech::Nodes;
 

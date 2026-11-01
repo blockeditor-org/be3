@@ -1,17 +1,19 @@
-use crate::window::WindowId;
+use beui_types::WindowId;
 use std::any::Any;
 
-use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::focus::Focus;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, TouchDrags, WheelInput};
 use crate::painter::Painter;
+use beui_types::Direction;
 use beui_types::region::{Area, Claim};
+use beui_types::{CursorIcon, Modifiers};
+use beui_types::{PointerInput, PointerPress, TouchDrags, WheelInput};
+use beui_types::{Pos2, Rect, Vec2};
 
-use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
+use beui_tree::callback::{Callback, ClickCallback};
+use beui_types::NodeId;
 
 pub struct InteractiveNode {
     pub child: Option<NodeId>,
@@ -47,7 +49,7 @@ pub struct InteractiveNode {
     pub on_wheel: Callback<WheelInput, bool>,
     pub gesture_area: Area,
     pub hit_area: Area,
-    pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
+    pub on_forward: Callback<beui_types::ForwardedInput>,
     pub inhibits_shortcuts: bool,
     pub clipboard_keys: bool,
     pub forwards_wheel: bool,
@@ -180,7 +182,7 @@ pub fn press_at(
     time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
-        window: crate::window::WindowId::MAIN,
+        window: beui_types::WindowId::MAIN,
         pos,
         local: local_in(rect, scale, pos),
         size: rect.size() / scale,
@@ -623,7 +625,7 @@ impl Document {
         &mut self,
         rects: &Rects,
         layers: &[NodeOf<OverlayNode>],
-        window: crate::window::WindowId,
+        window: beui_types::WindowId,
         pos: Pos2,
         primary: bool,
     ) {

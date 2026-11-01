@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::input::ScrollDelta;
+use beui::ScrollDelta;
 use beui_runner::{SCROLL_LINE, SCROLL_PAGE};
 
 #[test]

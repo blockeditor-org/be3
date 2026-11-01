@@ -1,7 +1,8 @@
 use super::*;
 use crate::icons::ICON_STAR;
-use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::{Piece, RichOptions};
+use beui::text::{FontId, TextLayout};
+use beui::text::{Piece, RichOptions};
+use beui_core::font::Galley;
 
 const SPACING: f32 = 5.0;
 

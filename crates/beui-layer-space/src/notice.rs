@@ -1,9 +1,11 @@
-use beui_core::color::Color32;
 use beui_core::context::Context;
 use beui_core::display::Layer;
-use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
-use beui_core::painter::{Corners, Shape};
+use beui_core::font::Galley;
+use beui_core::painter::Shape;
+use beui_types::Color32;
+use beui_types::Corners;
+use beui_types::{FontId, TextLayout};
+use beui_types::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 
 pub const MARGIN: f32 = 24.0;
 pub const PADDING: f32 = 16.0;

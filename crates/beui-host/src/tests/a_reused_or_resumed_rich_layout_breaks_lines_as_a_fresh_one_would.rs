@@ -1,7 +1,9 @@
 use super::*;
-use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::Piece;
-use beui_core::rich::{OBJECT, RichOptions};
+use beui::Piece;
+use beui::RichOptions;
+use beui::text::{FontId, TextLayout};
+use beui_core::font::Galley;
+use beui_core::rich::OBJECT;
 
 const BREAK: &str = "|";
 

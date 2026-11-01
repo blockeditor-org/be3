@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
-use beui_core::damage::Region;
 use beui_core::window::WindowState;
+use beui_types::Color32;
+use beui_types::geometry::Region;
 use glam::Quat;
 
 use super::*;

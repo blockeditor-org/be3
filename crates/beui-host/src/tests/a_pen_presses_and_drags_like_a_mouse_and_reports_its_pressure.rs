@@ -1,7 +1,8 @@
 use super::*;
-use crate::input::{Pen, PenPhase, PointerPress};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
+use beui::input::{Pen, PenPhase};
 
 #[test]
 fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {

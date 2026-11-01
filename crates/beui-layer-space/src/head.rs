@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui_core::geometry::Vec2;
+use beui_types::Vec2;
 use glam::{EulerRot, Mat4, Quat, Vec3, Vec4};
 
 pub const EYE_HEIGHT: f32 = 1.6;

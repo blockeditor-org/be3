@@ -1,8 +1,9 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use crate::base::overlay::OverlayNode;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Dismiss, LayerPolicy};
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {

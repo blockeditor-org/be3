@@ -9,6 +9,7 @@ web = ["dep:web-sys", "wgpu/webgpu", "wgpu/webgl"]
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 beui-draw = { path = "../beui-draw" }
 bytemuck = { version = "1", features = ["derive"] }

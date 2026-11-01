@@ -1,10 +1,10 @@
 use std::error::Error;
 
 use beui_core::app::Setup;
-use beui_core::color::Color32;
 use beui_core::context::{RendererInfo, WindowOutput};
-use beui_core::geometry::Vec2;
 use beui_runner::renderer;
+use beui_types::Color32;
+use beui_types::Vec2;
 
 use crate::present::{GpuSetup, surface_format};
 use crate::{Renderer, Repaint, renderer_info, wgpu_color_in};

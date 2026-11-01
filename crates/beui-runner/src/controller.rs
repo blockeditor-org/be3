@@ -31,8 +31,8 @@ pub enum Controller {
     },
     Toward {
         hand: Hand,
-        window: beui_core::window::WindowId,
-        at: beui_core::geometry::Pos2,
+        window: beui_types::WindowId,
+        at: beui_types::Pos2,
     },
     Trigger {
         hand: Hand,

@@ -1,8 +1,8 @@
 use super::*;
-use crate::base::Direction;
 use crate::painter::Shape;
 use crate::reactive::*;
 use crate::styled::{self, Size, TextInput};
+use beui::Direction;
 
 fn texts(output: &crate::native::FrameOutput) -> Vec<(Pos2, Rect)> {
     output

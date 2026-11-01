@@ -1,10 +1,10 @@
-use crate::color::Color32;
-use crate::font::FontId;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::icons;
-use crate::input::CursorIcon;
 use crate::painter::Painter;
 use crate::touch_cursor;
+use beui_types::Color32;
+use beui_types::CursorIcon;
+use beui_types::FontId;
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 pub const SIZE: f32 = 26.0;
 pub const EXTENT: f32 = SIZE * 3.0;

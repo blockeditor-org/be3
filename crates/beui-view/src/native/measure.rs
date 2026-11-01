@@ -1,5 +1,5 @@
-use beui_core::node::NodeId;
 use beui_tree::reactive::ReadSignal;
+use beui_types::NodeId;
 use beui_types::layout::Measured;
 
 use beui_core::current::with_document;

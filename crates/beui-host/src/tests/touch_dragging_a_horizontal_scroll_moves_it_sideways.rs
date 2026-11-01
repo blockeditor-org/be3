@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::Direction;
-use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
+use beui::TOUCH_DRAG_THRESHOLD;
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {

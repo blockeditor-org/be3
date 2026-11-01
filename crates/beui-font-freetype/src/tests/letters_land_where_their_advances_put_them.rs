@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::font::{FontId, Fonts};
+use beui_core::font::Fonts;
+use beui_types::FontId;
 
 #[test]
 fn letters_land_where_their_advances_put_them() {
@@ -20,7 +21,7 @@ fn letters_land_where_their_advances_put_them() {
             let galley = fonts.layout(
                 text,
                 FontId::proportional(size),
-                beui_core::font::TextLayout::DEFAULT,
+                beui_types::text::TextLayout::DEFAULT,
                 1.0,
             );
             let mut pen = 0.0;

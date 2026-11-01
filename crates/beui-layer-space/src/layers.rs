@@ -1,5 +1,5 @@
-use beui_core::geometry::pos2;
-use beui_core::window::WindowId;
+use beui_types::WindowId;
+use beui_types::pos2;
 use glam::{Quat, Vec3};
 
 use crate::panel::Panel;

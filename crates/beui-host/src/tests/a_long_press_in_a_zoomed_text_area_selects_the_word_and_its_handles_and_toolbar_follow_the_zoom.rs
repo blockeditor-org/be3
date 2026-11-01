@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{TextAreaApi, TextAreaState};
-use beui_core::rich::HANDLE_RADIUS;
+use beui::HANDLE_RADIUS;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 

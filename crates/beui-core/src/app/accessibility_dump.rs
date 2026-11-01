@@ -100,12 +100,12 @@ pub struct TestIds {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TestIdAt {
-    pub rect: crate::geometry::Rect,
+    pub rect: beui_types::Rect,
     pub visible: bool,
 }
 
 impl TestIds {
-    pub fn rect(&self, test_id: &str) -> Option<crate::geometry::Rect> {
+    pub fn rect(&self, test_id: &str) -> Option<beui_types::Rect> {
         match self.named.get(test_id).map(Vec::as_slice) {
             None | Some([]) => None,
             Some([shown]) => Some(shown.rect),
@@ -135,9 +135,9 @@ pub struct Line {
     pub disabled: bool,
     pub focused: bool,
     pub text: String,
-    pub bounds: Option<crate::geometry::Rect>,
+    pub bounds: Option<beui_types::Rect>,
     pub visible: bool,
-    pub shown: Option<crate::geometry::Rect>,
+    pub shown: Option<beui_types::Rect>,
     pub test_ids: Vec<String>,
 }
 
@@ -151,13 +151,13 @@ impl beui_types::target::TreeLine for Line {
     fn test_ids(&self) -> &[String] {
         &self.test_ids
     }
-    fn bounds(&self) -> Option<crate::geometry::Rect> {
+    fn bounds(&self) -> Option<beui_types::Rect> {
         self.bounds
     }
     fn visible(&self) -> bool {
         self.visible
     }
-    fn shown(&self) -> Option<crate::geometry::Rect> {
+    fn shown(&self) -> Option<beui_types::Rect> {
         self.shown
     }
 }
@@ -344,10 +344,10 @@ impl Walk<'_> {
     }
 }
 
-fn geometry_rect(rect: Rect) -> crate::geometry::Rect {
-    crate::geometry::Rect::from_min_max(
-        crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
-        crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
+fn geometry_rect(rect: Rect) -> beui_types::Rect {
+    beui_types::Rect::from_min_max(
+        beui_types::pos2(rect.x0 as f32, rect.y0 as f32),
+        beui_types::pos2(rect.x1 as f32, rect.y1 as f32),
     )
 }
 

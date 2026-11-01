@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::CursorIcon;
 use crate::painter::Shape;
 use crate::styled::*;
+use beui::CursorIcon;
 
 #[test]
 fn the_simulated_cursor_takes_the_shape_the_document_asks_for() {

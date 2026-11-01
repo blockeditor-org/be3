@@ -1353,6 +1353,7 @@ name = "beui-draw"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-types",
  "wgpu",
 ]
 
@@ -1361,6 +1362,7 @@ name = "beui-font-browser"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-types",
  "js-sys",
  "stable-hash",
  "wasm-bindgen",
@@ -1373,6 +1375,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "beui-fonts",
+ "beui-types",
  "freetype",
  "harfbuzz_rs",
  "libloading 0.8.9",
@@ -1459,6 +1462,7 @@ dependencies = [
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
+ "beui-types",
  "beui-view",
  "beui_macros",
  "reactive",
@@ -1521,6 +1525,7 @@ dependencies = [
  "beui-layer-space",
  "beui-renderer-wgpu",
  "beui-runner",
+ "beui-types",
  "glam",
  "libloading 0.9.0",
  "openxr",
@@ -1538,6 +1543,7 @@ dependencies = [
  "accesskit_android",
  "beui-core",
  "beui-runner",
+ "beui-types",
  "jni 0.22.4",
  "libc",
  "ndk 0.9.0",
@@ -1555,6 +1561,7 @@ dependencies = [
  "beui-core",
  "beui-host",
  "beui-runner",
+ "beui-types",
  "rustix 1.1.4",
  "smithay",
  "stable-hash",
@@ -1571,6 +1578,7 @@ dependencies = [
  "beui-layer-drive",
  "beui-renderer-wgpu",
  "beui-runner",
+ "beui-types",
  "paint-snapshot",
  "pollster",
 ]
@@ -1586,6 +1594,7 @@ dependencies = [
  "beui-platform-plugin-api",
  "beui-renderer-wgpu",
  "beui-runner",
+ "beui-types",
  "block-editor-plugin",
  "block-plugin-api",
  "stable-hash",
@@ -1609,6 +1618,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "beui-runner",
+ "beui-types",
  "beui-web-input",
  "futures-util",
  "js-sys",
@@ -1629,6 +1639,7 @@ dependencies = [
  "ashpd",
  "beui-core",
  "beui-runner",
+ "beui-types",
  "futures-util",
  "image",
  "pollster",
@@ -1645,6 +1656,7 @@ dependencies = [
  "beui-draw",
  "beui-font-freetype",
  "beui-runner",
+ "beui-types",
  "beui-view",
  "beui_macros",
  "bytemuck",

@@ -1,15 +1,16 @@
 use crate::back::BackHandlerId;
 use crate::base::overlay::OverlayNode;
-use crate::callback::Callback;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect};
-use crate::input::BackGesture;
-use crate::node::{NodeId, NodeOf};
-use crate::window::WindowId;
+use crate::node::NodeOf;
+use beui_tree::callback::Callback;
+use beui_types::BackGesture;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Pos2, Rect};
 
 use crate::node::ANCESTOR_LIMIT;
 
-pub use beui_types::layer::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy, Scrim};
+use beui_types::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy, layer::Scrim};
 
 #[derive(Default)]
 pub struct OpenLayers {
@@ -391,7 +392,7 @@ impl Document {
         {
             self.raise_layer(overlay);
             if let Some(window) = self.real_window(overlay) {
-                self.request_window(crate::window::WindowRequest::Raise(window));
+                self.request_window(beui_types::WindowRequest::Raise(window));
             }
         }
     }

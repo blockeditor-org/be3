@@ -14,7 +14,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
             <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
-                    on_change={move |position: crate::base::ScrollPosition| {
+                    on_change={move |position: beui::ScrollPosition| {
                         reported.set(Some(position.offset));
                     }}
                 >

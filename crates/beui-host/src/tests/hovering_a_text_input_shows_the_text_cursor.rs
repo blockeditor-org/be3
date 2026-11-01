@@ -1,6 +1,6 @@
 use super::*;
-use crate::input::CursorIcon;
 use crate::styled::*;
+use beui::CursorIcon;
 
 #[test]
 fn hovering_a_text_input_shows_the_text_cursor() {

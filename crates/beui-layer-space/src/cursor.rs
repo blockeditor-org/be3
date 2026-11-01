@@ -1,16 +1,16 @@
 use std::f32::consts::TAU;
 
-use beui_core::color::Color32;
 use beui_core::context::{Context, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::drawn_cursor;
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::icons;
-use beui_core::input::CursorIcon;
 use beui_core::painter::Painter;
-use beui_core::window::WindowId;
 use beui_font_freetype::{FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT};
+use beui_types::Color32;
+use beui_types::CursorIcon;
+use beui_types::FontId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Vec2, vec2};
 
 pub const COLOR: Color32 = Color32::WHITE;
 pub const SIZE: Vec2 = Vec2::splat(drawn_cursor::EXTENT);

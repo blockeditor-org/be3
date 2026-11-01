@@ -1,21 +1,24 @@
 use std::any::Any;
 use std::rc::Rc;
 
-use crate::color::Color;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::painter::{Corners, Painter, Zoom};
+use crate::painter::{Painter, Zoom};
+use beui_types::Color;
+use beui_types::Corners;
 use beui_types::layer::LayerSpace;
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 const ESCAPED: u8 = 1;
 
 use crate::base::frame::{FrameNode, FrameStyle};
-use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
-use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
-use crate::node::{Element, NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use crate::node::{Element, NodeOf, Rects};
+use beui_tree::callback::Callback;
+use beui_types::NodeId;
+use beui_types::NodeRef;
+use beui_types::WindowId;
+use beui_types::{Dismiss, LayerLevel, LayerPolicy};
 
-pub use beui_types::layer::OverlayAnchor;
+use beui_types::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Pin {
@@ -66,9 +69,9 @@ impl Pin {
     }
 }
 
-pub use beui_types::layer::Placement;
+use beui_types::Placement;
 
-pub use beui_types::window::WindowSpec;
+use beui_types::WindowSpec;
 
 const TIP_RADIUS: f32 = 2.0;
 

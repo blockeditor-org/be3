@@ -1,8 +1,10 @@
 use super::*;
-use crate::input::{LONG_PRESS_DELAY, Pen, PenPhase, PointerPress, ZoomGesture};
+use crate::input::LONG_PRESS_DELAY;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::{CanvasTouch, PreferenceLayer, PreferenceSource};
+use beui::input::{Pen, PenPhase};
+use beui::input::{PointerPress, ZoomGesture};
 
 #[test]
 fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {

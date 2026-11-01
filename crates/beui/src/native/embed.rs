@@ -1,6 +1,6 @@
+use crate::NodeId;
 use beui_core::base::embed::EmbedSlot;
 use beui_core::current::with_document;
-use beui_core::node::NodeId;
 use beui_macros::component;
 use beui_view::reactive::{Child, Get, Prop, create_effect};
 

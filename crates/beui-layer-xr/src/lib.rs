@@ -67,7 +67,7 @@ pub struct Layers {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Quad {
-    pub window: beui_core::window::WindowId,
+    pub window: beui_types::WindowId,
     pub position: Vec3,
     pub orientation: Quat,
     pub metres: (f32, f32),

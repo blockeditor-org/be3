@@ -8,20 +8,21 @@ use accesskit::{
     Role, Tree, TreeId, TreeUpdate,
 };
 
-use crate::base::list::Direction;
 use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
 use crate::focus::focus_of;
+use beui_types::Direction;
 
 pub const LAYER_CLASS: &str = "beui-layer";
 pub const TEST_ID_SEPARATOR: char = '\u{1f}';
 use crate::base::text::TextNode;
 use crate::document::Document;
-use crate::geometry::{Pos2, Vec2};
-use crate::input::{Key, KeyPress, Modifiers};
-use crate::layer::LayerPolicy;
-use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId, SpaceTransform};
-use crate::window::WindowId;
+use crate::node::{Arena, NodeMap, Placed, Rects, SPACE_SLOTS, SpaceId, SpaceTransform};
+use beui_types::LayerPolicy;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Key, KeyPress, Modifiers};
+use beui_types::{Pos2, Vec2};
 
 mod embedded;
 

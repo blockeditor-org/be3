@@ -1,4 +1,4 @@
-pub use beui_types::action::{ActionGroup, ActionInfo};
+use beui_types::ActionGroup;
 use stable_hash::HashSet;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
@@ -10,25 +10,32 @@ use accesskit::{ActionRequest, TreeUpdate};
 use crate::accessibility::{self, Fragment};
 use crate::app::Waker;
 use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
-use crate::clipboard::{PasteKind, PasteRequest};
-use crate::damage::{self, Region};
+use crate::clipboard::PasteRequest;
+use crate::damage;
 use crate::display::{Display, Group, Layer};
-use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
-use crate::file_saver::{FileSave, FileSaveId, FileSaveRequest, SavedFile};
+use crate::file_picker::{FilePickId, FilePickRequest};
+use crate::file_saver::{FileSaveId, FileSaveRequest};
 use crate::filter::Filter;
-use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
-use crate::geometry::Vec2;
-use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
-use crate::node::NodeId;
+use crate::font::{FontBackend, Fonts, Galley};
+use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
-use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use crate::screen_simulation::ScreenSimulation;
-use crate::window::{
-    Appearance, HostPlacement, WindowHosting, WindowId, WindowReport, WindowRequest, WindowState,
-};
+use crate::window::{Appearance, WindowHosting, WindowState};
+use beui_types::Event;
+use beui_types::NodeId;
+use beui_types::PasteKind;
+use beui_types::Vec2;
+use beui_types::geometry::Region;
 use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
+use beui_types::{CursorIcon, ImeArea, KeyChord};
+use beui_types::{FileFilter, FilePick};
+use beui_types::{FileSave, SavedFile};
+use beui_types::{FontId, TextLayout};
+use beui_types::{HostPlacement, WindowId, WindowReport, WindowRequest};
+use beui_types::{Pos2, Rect, pos2};
+use beui_types::{PreferenceLayer, Preferences};
+use beui_types::{PreferenceLayers, PreferenceSource};
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
@@ -192,7 +199,7 @@ pub struct RendererInfo {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Moved {
     pub from: Rect,
-    pub by: crate::geometry::Vec2,
+    pub by: beui_types::Vec2,
 }
 
 impl Moved {
@@ -272,7 +279,7 @@ pub struct FrameOutput {
     pub comps: Option<Vec<String>>,
     pub overflows: Vec<String>,
     pub window_overflows: Vec<(WindowId, String)>,
-    pub typed: Vec<crate::input::Input>,
+    pub typed: Vec<beui_types::Input>,
     pixels_per_point: f32,
 }
 
@@ -301,7 +308,7 @@ impl FrameOutput {
         self.test_ids().rect(test_id)
     }
 
-    pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
+    pub fn accessibility_tree(&self, title: &str, viewport: beui_types::Vec2) -> TreeUpdate {
         accessibility::tree_update(
             title,
             viewport,
@@ -313,9 +320,9 @@ impl FrameOutput {
     pub fn escaped_accessibility_tree(
         &self,
         layer: u64,
-        viewport: crate::geometry::Vec2,
-        origin: crate::geometry::Pos2,
-        to_host: crate::escape::HostTransform,
+        viewport: beui_types::Vec2,
+        origin: beui_types::Pos2,
+        to_host: beui_types::HostTransform,
     ) -> Option<TreeUpdate> {
         accessibility::escaped_tree_update(
             layer,
@@ -329,7 +336,7 @@ impl FrameOutput {
         &self,
         window: WindowId,
         title: &str,
-        viewport: crate::geometry::Vec2,
+        viewport: beui_types::Vec2,
     ) -> TreeUpdate {
         accessibility::window_tree_update(
             window,
@@ -1292,7 +1299,7 @@ impl Context {
         self.inner.preferences.get().resolve()
     }
 
-    pub fn motion(&self) -> crate::animation::Motion {
+    pub fn motion(&self) -> beui_types::Motion {
         self.preferences().motion
     }
 
@@ -1374,7 +1381,7 @@ impl Context {
         self.inner.keyboard.borrow().trimmed(window, rect)
     }
 
-    pub fn type_events(&self, events: impl IntoIterator<Item = crate::input::Input>) {
+    pub fn type_events(&self, events: impl IntoIterator<Item = beui_types::Input>) {
         self.inner.keyboard.borrow_mut().type_events(events);
         self.request_repaint();
     }

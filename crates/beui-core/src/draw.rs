@@ -1,10 +1,10 @@
-use crate::color::Color32;
 use crate::context::WindowOutput;
 use crate::drawing::Drawing;
 use crate::font::Glyph;
-use crate::geometry::{Rect, Rotation, vec2};
-use crate::image::Image;
 use crate::painter::Shape;
+use beui_types::Color32;
+use beui_types::Image;
+use beui_types::{Rect, Rotation, vec2};
 
 pub enum Quad {
     Rect {

@@ -1,8 +1,9 @@
 use super::*;
 use crate::LayerPolicy;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use crate::base::overlay::OverlayNode;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {

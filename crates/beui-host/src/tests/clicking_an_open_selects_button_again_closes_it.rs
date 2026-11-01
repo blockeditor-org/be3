@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::{Frame, Overlay};
 use crate::reactive::*;
 use crate::styled::*;
 use crate::{Dismiss, LayerPolicy};
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn clicking_an_open_selects_button_again_closes_it() {

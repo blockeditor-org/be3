@@ -5,8 +5,8 @@ use crate::types::{BackGesture, Direction, KeyAt, KeyEvent, KeyPhase, NodeId, No
 use beui_tree::reactive::*;
 
 use beui_core::document::Document;
-use beui_core::geometry::Vec2;
-use beui_core::input::Key;
+use beui_types::Key;
+use beui_types::Vec2;
 
 pub(crate) use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
@@ -71,7 +71,7 @@ pub(crate) fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> b
 pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(BackGesture) + 'static) {
     let at =
         beui_tree::reactive::try_current_component().map(|_| beui_core::tree::component_node());
-    let handler = beui_core::callback::Callback::new(handler);
+    let handler = beui_tree::callback::Callback::new(handler);
     let id = with_document(|document| document.add_back_handler(at, handler));
     create_binding(move || {
         let enabled = enabled.get();
@@ -91,7 +91,7 @@ pub(crate) fn on_scroll_key(
 }
 
 fn listen(at: KeyAt, phase: KeyPhase, reveal: bool, handler: impl Fn(KeyEvent) -> bool + 'static) {
-    let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
+    let handler: Rc<beui_types::keys::KeyHandler> = Rc::new(handler);
     let window = crate::window::use_window().map(|window| window.id);
     with_document(|document| {
         document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
@@ -164,7 +164,7 @@ pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
     });
 }
 
-pub(crate) fn held_modifiers() -> ReadSignal<beui_core::input::Modifiers> {
+pub(crate) fn held_modifiers() -> ReadSignal<beui_types::Modifiers> {
     with_document(|document| document.watch_modifiers())
 }
 
@@ -218,7 +218,7 @@ pub(crate) use crate::core::nodes::{
     use_preference_layer, use_preferences, window_of,
 };
 
-pub(crate) fn use_preference_layers() -> Memo<beui_core::preferences::PreferenceLayers> {
+pub(crate) fn use_preference_layers() -> Memo<beui_types::PreferenceLayers> {
     let layers = crate::core::nodes::use_preference_layers();
     create_memo(move || layers.get())
 }

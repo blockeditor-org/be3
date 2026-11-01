@@ -6,8 +6,9 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::SpanStyle;
 use block_editor_beui::beui::native::painting::{Punches, painting, rasterize};
-use block_editor_beui::beui::native::rich::{RichLayout, SpanKind, SpanStyle};
+use block_editor_beui::beui::native::rich::{RichLayout, SpanKind};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{

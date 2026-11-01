@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::BackGesture;
 use crate::reactive::*;
 use crate::unstyled::BackSlide;
 use crate::{PreferenceLayer, PreferenceSource};
+use beui::BackGesture;
 
 #[test]
 fn instant_back_slides_complete_without_waiting_for_frames() {

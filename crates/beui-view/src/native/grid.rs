@@ -4,10 +4,10 @@ use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
 use crate::types::tree::GridCell;
-use beui_core::base::grid::Track;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
+use beui_types::Track;
 
 pub(crate) fn grid(
     columns: Prop<Vec<Track>>,

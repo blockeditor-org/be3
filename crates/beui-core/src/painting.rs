@@ -7,12 +7,12 @@ pub use paint_format::{
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
 };
 
-use crate::color::Color32;
 use crate::context::{FrameOutput, WindowOutput};
 use crate::draw::Quad;
 use crate::font::GlyphImage;
-use crate::geometry::{Rect, Vec2, pos2};
-use crate::image::Image;
+use beui_types::Color32;
+use beui_types::Image;
+use beui_types::{Rect, Vec2, pos2};
 
 pub trait Paints {
     fn painting(&self, rect: Rect) -> Option<Painting>;

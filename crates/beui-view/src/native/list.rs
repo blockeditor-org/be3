@@ -8,7 +8,7 @@ use crate::types::Direction;
 use crate::types::Justify;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
 
 pub(crate) fn list(
     direction: Prop<Direction>,

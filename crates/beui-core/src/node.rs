@@ -2,14 +2,14 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
-use crate::pixel_grid::PixelGrid;
+use beui_types::PixelGrid;
 use beui_types::layout::Direction;
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::document::Document;
 
-pub use beui_types::node::NodeId;
+use beui_types::NodeId;
 
 #[derive(Default)]
 struct Removals(RefCell<Vec<NodeId>>);

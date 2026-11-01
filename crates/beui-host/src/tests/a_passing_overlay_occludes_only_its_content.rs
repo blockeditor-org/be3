@@ -1,7 +1,7 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::{Dismiss, LayerPolicy};
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_passing_overlay_occludes_only_its_content() {

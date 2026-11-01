@@ -13,10 +13,11 @@ use stable_hash::HashMap;
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster,
-    GlyphRasterizer, Shaping,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster, GlyphRasterizer,
+    Shaping,
 };
-use beui_core::geometry::vec2;
+use beui_types::vec2;
+use beui_types::{FontFamily, FontId};
 
 pub use library::{FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT};
 

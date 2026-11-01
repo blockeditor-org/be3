@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::Direction;
 use crate::native::with_reactive_scope;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 const LABELS: usize = 40;
 

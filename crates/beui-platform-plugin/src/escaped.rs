@@ -1,9 +1,9 @@
 use beui_core::context::{Context, EscapedOutput};
-use beui_core::escape::{HostTransform, LayerEdge, LayerPlacement, LayerSpace};
-use beui_core::geometry::Pos2;
-use beui_core::input::Input;
-use beui_core::window::WindowId;
 use beui_platform_plugin_api::anchored_view;
+use beui_types::Input;
+use beui_types::Pos2;
+use beui_types::WindowId;
+use beui_types::layer::{HostTransform, LayerEdge, LayerPlacement, LayerSpace};
 use block_editor_plugin::{Anchored, Frame};
 use block_plugin_api::accessibility::Color;
 use block_plugin_api::{AnchoredPlacement, Scrim, ViewAnchor, ViewEdge, ViewId};
@@ -54,11 +54,7 @@ pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: W
             },
         };
         shown.changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
-        note(
-            &mut shown.surface,
-            &escaped.output,
-            beui_core::geometry::Vec2::ZERO,
-        );
+        note(&mut shown.surface, &escaped.output, beui_types::Vec2::ZERO);
         shown.escaped = escaped.clone();
         next.push(shown);
     }
@@ -97,7 +93,7 @@ pub(crate) fn framed(
 ) -> Frame {
     let layer = &shown.escaped.layer;
     let from = layer.rect.min.to_vec2();
-    let own = |rects: &[beui_core::geometry::Rect]| -> Vec<beui_core::geometry::Rect> {
+    let own = |rects: &[beui_types::Rect]| -> Vec<beui_types::Rect> {
         rects.iter().map(|rect| rect.translate(-from)).collect()
     };
     Frame {
@@ -108,7 +104,7 @@ pub(crate) fn framed(
             .scrims
             .iter()
             .map(|shown| {
-                scrim(beui_core::layer::Scrim {
+                scrim(beui_types::layer::Scrim {
                     rect: shown.rect.translate(-from),
                     ..*shown
                 })
@@ -119,7 +115,7 @@ pub(crate) fn framed(
     }
 }
 
-pub(crate) fn scrim(shown: beui_core::layer::Scrim) -> Scrim {
+pub(crate) fn scrim(shown: beui_types::layer::Scrim) -> Scrim {
     let [red, green, blue, alpha] = shown.color.to_array();
     Scrim {
         rect: shown.rect,
@@ -155,7 +151,7 @@ pub(crate) fn to_host(input: Input, to_host: block_plugin_api::HostTransform) ->
             button,
             pressed,
         },
-        Input::PointerMotion(delta) => Input::PointerMotion(beui_core::geometry::vec2(
+        Input::PointerMotion(delta) => Input::PointerMotion(beui_types::vec2(
             delta.x * to_host.scale.x,
             delta.y * to_host.scale.y,
         )),

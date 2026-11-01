@@ -4,12 +4,13 @@ use crate::base::embed::EmbedNode;
 use crate::base::interactive::{InteractiveNode, local_in};
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::Modifiers;
-use crate::layer::LayerPolicy;
-use crate::node::{NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use crate::node::{NodeOf, Rects};
+use beui_types::LayerPolicy;
+use beui_types::Modifiers;
+use beui_types::NodeId;
+use beui_types::WindowId;
 use beui_types::region::Area;
+use beui_types::{Pos2, Rect, Vec2};
 
 use super::TOUCH_REACH;
 

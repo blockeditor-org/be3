@@ -1,9 +1,9 @@
 use super::*;
 use crate::color::Hsva;
-use crate::input::CursorIcon;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
+use beui::CursorIcon;
 
 #[test]
 fn the_color_areas_thumb_shows_a_grab_cursor() {

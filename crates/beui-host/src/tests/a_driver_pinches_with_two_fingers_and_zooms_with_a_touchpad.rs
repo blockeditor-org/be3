@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::ZoomGesture;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::ZoomGesture;
 
 #[test]
 fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
