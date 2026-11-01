@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::datetime::{HourCycle, Time};
+use block_editor_beui::beui::datetime::{HourCycle, SECONDS_PER_DAY, Time};
 use block_editor_beui::beui::dock::styled::{
     DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
     DockingSnapshot, TabId, use_dock_bar,
@@ -39,7 +39,6 @@ const DISPLAY_BARS: &str = "display-bars";
 
 const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
-const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
 pub(crate) fn local_minutes(unix: Duration) -> u32 {
     let seconds = i64::try_from(unix.as_secs()).unwrap_or(0) + i64::from(utc_offset());

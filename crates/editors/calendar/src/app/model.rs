@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::{Item, ObjectId};
-use block_editor_beui::beui::datetime::DateTime;
-pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
-use block_ui::datetime::{MONTH_NAMES, civil_from_days, days_from_civil};
+pub(crate) use block_editor_beui::beui::datetime::SECONDS_PER_DAY;
+use block_editor_beui::beui::datetime::{Date, DateTime, MONTH_NAMES};
 use calendar_types::CalendarEvent;
 
 pub(crate) const WEEKDAY_ABBR: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -197,4 +196,13 @@ pub(crate) fn today_days_since_epoch() -> i64 {
 
 pub(crate) fn weekday_from_days(days_since_epoch: i64) -> u8 {
     (days_since_epoch + 4).rem_euclid(7) as u8
+}
+
+pub(crate) fn civil_from_days(days: i64) -> (i32, u8, u8) {
+    let date = Date::from_days(days);
+    (date.year, date.month, date.day)
+}
+
+pub(crate) fn days_from_civil(year: i32, month: u8, day: u8) -> i64 {
+    Date { year, month, day }.days()
 }

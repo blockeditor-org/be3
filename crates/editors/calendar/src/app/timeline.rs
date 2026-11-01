@@ -3,11 +3,10 @@ use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
-use block_ui::datetime::civil_from_days;
 
 use super::model::{
-    SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
-    weekday_from_days,
+    SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, civil_from_days, events_on,
+    today_days_since_epoch, weekday_from_days,
 };
 use super::ui::use_form_opener;
 use beui::{Direction, ItemSize};

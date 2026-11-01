@@ -6,10 +6,8 @@ use database_types::{
 };
 use uuid::Uuid;
 
-use block_ui::{
-    BlockLabel,
-    datetime::{format_datetime_utc, parse_datetime_utc},
-};
+use beui_components_unstyled::datetime::DateTime;
+use block_ui::BlockLabel;
 
 #[derive(Debug, PartialEq)]
 pub struct DatabaseValueChange {
@@ -85,7 +83,7 @@ pub fn database_value_text(
             "#{:02X}{:02X}{:02X}{:02X}",
             color.red, color.green, color.blue, color.alpha
         ),
-        DatabaseValue::Datetime(value) => format_datetime_utc(*value),
+        DatabaseValue::Datetime(value) => DateTime::from_unix(*value).iso(),
         DatabaseValue::Relation(link) => labels.row(link),
         DatabaseValue::Links(links) => links
             .iter()
@@ -139,7 +137,9 @@ pub fn parse_cell_value(value: &str, field: &DatabaseField) -> Option<DatabaseVa
                 alpha: channel(6)?,
             }))
         }
-        DatabaseFieldType::Datetime => parse_datetime_utc(value).map(DatabaseValue::Datetime),
+        DatabaseFieldType::Datetime => {
+            DateTime::parse_iso(value).map(|moment| DatabaseValue::Datetime(moment.to_unix()))
+        }
     }
 }
 
