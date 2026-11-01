@@ -1892,6 +1892,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "window-stack",
  "zbus",
  "zip",
 ]
@@ -2331,6 +2332,7 @@ dependencies = [
  "serde",
  "text-block-types",
  "uuid",
+ "window-stack",
 ]
 
 [[package]]
@@ -10050,6 +10052,14 @@ dependencies = [
  "wasmtime-environ",
  "wasmtime-internal-core",
  "wasmtime-internal-cranelift",
+]
+
+[[package]]
+name = "window-stack"
+version = "0.1.0"
+dependencies = [
+ "block-plugin-api",
+ "geometry",
 ]
 
 [[package]]

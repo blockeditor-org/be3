@@ -1186,9 +1186,7 @@ impl State {
     }
 
     fn clamped_origin(&self, rect: Rect, bounds: Vec2) -> Pos2 {
-        let x = rect.min.x.clamp(0.0, (bounds.x - rect.width()).max(0.0));
-        let y = rect.min.y.clamp(0.0, (bounds.y - rect.height()).max(0.0));
-        pos2(x, y)
+        rect.kept_in(rect.size(), bounds)
     }
 
     fn cycle(&self, backwards: bool) -> bool {
@@ -3387,9 +3385,7 @@ fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32, walls: Walls) -> Pos2 {
         true => rect.height().max(bar),
         false => bar,
     };
-    let x = rect.min.x.clamp(0.0, (bounds.x - keep_x).max(0.0));
-    let y = rect.min.y.clamp(0.0, (bounds.y - keep_y).max(0.0));
-    pos2(x, y)
+    rect.kept_in(vec2(keep_x, keep_y), bounds)
 }
 
 #[component]

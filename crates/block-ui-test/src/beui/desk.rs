@@ -1,17 +1,16 @@
-use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, vec2};
 use beui_host::native::drive::gestures::Frames;
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
-    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics,
-    WindowEdge, WindowPlacement, WindowRequest,
+    AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewRef,
+    ViewportMetrics, WindowOpen, WindowRequest,
 };
+use window_stack::{Gesture, Host, Stacked};
 
 use super::{BeuiTest, INSTANCE, SCREEN};
 
-const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 const FIRST_DISPLAY_SCREEN: u64 = 100;
 const FIRST_WINDOW_SCREEN: u64 = 1000;
-const WALL: f32 = 0.5;
 
 #[derive(Clone, Copy, Debug)]
 struct Display {
@@ -35,12 +34,6 @@ struct Anchored {
     screen: ScreenId,
     rect: Rect,
     takes: Vec<Rect>,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Gesture {
-    Move,
-    Resize(WindowEdge),
 }
 
 #[derive(Default)]
@@ -77,19 +70,6 @@ impl Desk {
         }
     }
 
-    fn owner(&self, rect: Rect) -> Display {
-        let area = |display: &Display| {
-            let shared = display.rect.intersect(rect);
-            shared.width().max(0.0) * shared.height().max(0.0)
-        };
-        self.displays
-            .iter()
-            .copied()
-            .max_by(|a, b| area(a).total_cmp(&area(b)))
-            .filter(|display| area(display) > 0.0)
-            .unwrap_or(self.displays[0])
-    }
-
     fn reported(&mut self, reports: &[block_plugin_api::FrameReport]) -> bool {
         let mut changed = false;
         for display in &mut self.displays {
@@ -107,25 +87,14 @@ impl Desk {
     }
 
     fn keep(&mut self) -> bool {
-        let moving = self.gesture.map(|(window, _)| window);
-        let mut moved = false;
-        for index in 0..self.windows.len() {
-            let held = &self.windows[index];
-            if Some(held.window) == moving {
-                continue;
-            }
-            let display = self.owner(held.rect);
-            let Some(work) = display.work else {
-                continue;
-            };
-            let to = walled(held.rect, display.rect, work);
-            if to != held.rect.min {
-                let size = held.rect.size();
-                self.windows[index].rect = Rect::from_min_size(to, size);
-                moved = true;
-            }
-        }
-        moved
+        let moving = self
+            .gesture
+            .and_then(|(window, _)| self.windows.iter().position(|held| held.window == window));
+        let displays = &self.displays;
+        window_stack::keep_in_work_areas(&mut self.windows, moving, |held| {
+            let display = owner(displays, held.rect);
+            Some((display.rect, display.work?))
+        })
     }
 
     fn origin(&self, screen: ScreenId) -> Pos2 {
@@ -230,7 +199,7 @@ impl Desk {
                 }),
             });
         let windows = self.windows.iter().map(|window| {
-            let display = self.owner(window.rect);
+            let display = owner(&self.displays, window.rect);
             ScreenRequest {
                 screen: window.screen,
                 instance: INSTANCE,
@@ -239,7 +208,7 @@ impl Desk {
                 metrics: metrics(window.rect.size(), display.scale),
                 frame: None,
                 windows: true,
-                host_place: Some(placement(window.rect)),
+                host_place: Some(window_stack::placement(window.rect.min)),
                 origin: Some(window.rect.min),
                 docked: false,
                 anchor_space: Some(AnchorSpace {
@@ -255,81 +224,16 @@ impl Desk {
     }
 
     fn ask(&mut self, request: WindowRequest) {
-        let find = |windows: &[Hosted], window: ViewId| {
-            windows.iter().position(|held| held.window == window)
-        };
-        match request {
-            WindowRequest::Open(open) => {
-                let origin = self.point_of(open.placement);
-                let rect = Rect::from_min_size(origin, vec2(open.size.width, open.size.height));
-                let parent = find(&self.windows, open.opener.view).map(|_| open.opener.view);
-                match find(&self.windows, open.view) {
-                    Some(index) => self.windows[index].rect = rect,
-                    None => {
-                        let screen = match open.screen.is_opened() {
-                            true => open.screen,
-                            false => {
-                                self.next_screen += 1;
-                                ScreenId(self.next_screen)
-                            }
-                        };
-                        self.windows.push(Hosted {
-                            window: open.view,
-                            screen,
-                            rect,
-                            parent,
-                        });
-                    }
-                }
-            }
-            WindowRequest::BeginMove(window) => self.gesture = Some((window, Gesture::Move)),
-            WindowRequest::Raise(window) => {
-                if let Some(index) = find(&self.windows, window) {
-                    let raised = self.windows.remove(index);
-                    self.windows.push(raised);
-                }
-            }
-            WindowRequest::BeginResize(resize) => {
-                self.gesture = Some((resize.view, Gesture::Resize(resize.edge)));
-            }
-            WindowRequest::Resize(resize) => {
-                if let Some(index) = find(&self.windows, resize.view) {
-                    let held = &mut self.windows[index];
-                    held.rect = Rect::from_min_size(
-                        held.rect.min,
-                        vec2(resize.size.width, resize.size.height),
-                    );
-                }
-            }
-            WindowRequest::Close(window) => {
-                if let Some(index) = find(&self.windows, window) {
-                    self.windows.remove(index);
-                }
-            }
-            WindowRequest::Place(place) => {
-                let origin = self.point_of(place.placement);
-                self.move_to(place.view, origin);
-            }
+        let mut windows = std::mem::take(&mut self.windows);
+        if let Some((index, gesture)) = window_stack::ask(&mut windows, self, request) {
+            self.gesture = Some((windows[index].window, gesture));
         }
-    }
-
-    fn point_of(&self, placement: WindowPlacement) -> Pos2 {
-        match placement {
-            WindowPlacement::Over(over) => {
-                let screen = self.view_screen(over.view.view);
-                screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
-            }
-            WindowPlacement::Host(placement) => {
-                read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
-            }
-            WindowPlacement::AtPointer => self.pointer - OPEN_GRAB,
-        }
+        self.windows = windows;
     }
 
     fn raise(&mut self, screen: ScreenId) {
         if let Some(index) = self.windows.iter().position(|held| held.screen == screen) {
-            let held = self.windows.remove(index);
-            self.windows.push(held);
+            window_stack::raise(&mut self.windows, index);
         }
     }
 
@@ -340,100 +244,89 @@ impl Desk {
         let Some((_, pressed, Some((held, rect)))) = self.pressed else {
             return false;
         };
+        let Some(index) = self.windows.iter().position(|held| held.window == window) else {
+            return false;
+        };
         if held != window {
             return false;
         }
-        let moved = at - pressed;
-        match gesture {
-            Gesture::Move => self.move_to(window, rect.min + moved),
-            Gesture::Resize(edge) => {
-                if let Some(window) = self.windows.iter_mut().find(|held| held.window == window) {
-                    window.rect = resized(rect, edge, moved);
-                }
-            }
-        }
+        window_stack::drag(&mut self.windows, index, gesture, rect, at - pressed);
+        true
+    }
+}
+
+impl Stacked for Hosted {
+    fn view(&self) -> ViewId {
+        self.window
+    }
+
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
+    fn opened_over(&self, other: &Self) -> bool {
+        self.parent == Some(other.window)
+    }
+}
+
+impl Host<Hosted> for Desk {
+    fn mine(&self, _: &Hosted) -> bool {
         true
     }
 
-    fn move_to(&mut self, window: ViewId, to: Pos2) {
-        let Some(from) = self
-            .windows
-            .iter()
-            .find(|held| held.window == window)
-            .map(|held| held.rect.min)
-        else {
-            return;
-        };
-        let mut family = vec![window];
-        let mut index = 0;
-        while index < family.len() {
-            let parent = family[index];
-            family.extend(
-                self.windows
-                    .iter()
-                    .filter(|held| held.parent == Some(parent) && !family.contains(&held.window))
-                    .map(|held| held.window)
-                    .collect::<Vec<_>>(),
-            );
-            index += 1;
+    fn pointer(&self) -> Pos2 {
+        self.pointer
+    }
+
+    fn over(&self, view: ViewRef, at: Pos2) -> Pos2 {
+        let screen = self.view_screen(view.view);
+        screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + at.to_vec2()
+    }
+
+    fn open(
+        &mut self,
+        open: &WindowOpen,
+        rect: Rect,
+        held: Option<&Hosted>,
+        opener: Option<&Hosted>,
+    ) -> Hosted {
+        if let Some(held) = held {
+            return Hosted {
+                rect,
+                ..held.clone()
+            };
         }
-        for held in &mut self.windows {
-            if family.contains(&held.window) {
-                held.rect = held.rect.translate(to - from);
+        let screen = match open.screen.is_opened() {
+            true => open.screen,
+            false => {
+                self.next_screen += 1;
+                ScreenId(self.next_screen)
             }
+        };
+        Hosted {
+            window: open.view,
+            screen,
+            rect,
+            parent: opener.map(|opener| opener.window),
         }
     }
 }
 
-fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
-    let mut min = rect.min;
-    if work.max.x < display.max.x - WALL {
-        min.x = min
-            .x
-            .min(work.max.x - rect.width())
-            .max(work.min.x.min(rect.min.x));
-    }
-    if work.max.y < display.max.y - WALL {
-        min.y = min
-            .y
-            .min(work.max.y - rect.height())
-            .max(work.min.y.min(rect.min.y));
-    }
-    if work.min.x > display.min.x + WALL {
-        min.x = min.x.max(work.min.x);
-    }
-    if work.min.y > display.min.y + WALL {
-        min.y = min.y.max(work.min.y);
-    }
-    min
-}
-
-fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
-    let (mut min, mut max) = (rect.min, rect.max);
-    match edge {
-        WindowEdge::Top | WindowEdge::TopLeft | WindowEdge::TopRight => min.y += moved.y,
-        WindowEdge::Bottom | WindowEdge::BottomLeft | WindowEdge::BottomRight => max.y += moved.y,
-        WindowEdge::Left | WindowEdge::Right => {}
-    }
-    match edge {
-        WindowEdge::Left | WindowEdge::TopLeft | WindowEdge::BottomLeft => min.x += moved.x,
-        WindowEdge::Right | WindowEdge::TopRight | WindowEdge::BottomRight => max.x += moved.x,
-        WindowEdge::Top | WindowEdge::Bottom => {}
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn placement(rect: Rect) -> String {
-    format!("desktop {} {}", rect.min.x, rect.min.y)
-}
-
-fn read(placement: &str) -> Option<Pos2> {
-    let mut words = placement.split_whitespace();
-    (words.next()? == "desktop").then_some(())?;
-    Some(pos2(
-        words.next()?.parse().ok()?,
-        words.next()?.parse().ok()?,
-    ))
+fn owner(displays: &[Display], rect: Rect) -> Display {
+    let area = |display: &Display| {
+        let shared = display.rect.intersect(rect);
+        shared.width().max(0.0) * shared.height().max(0.0)
+    };
+    displays
+        .iter()
+        .copied()
+        .max_by(|a, b| area(a).total_cmp(&area(b)))
+        .filter(|display| area(display) > 0.0)
+        .unwrap_or(displays[0])
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
@@ -543,7 +436,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .map(|desk| {
                 desk.windows
                     .iter()
-                    .map(|window| desk.owner(window.rect).scale)
+                    .map(|window| owner(&desk.displays, window.rect).scale)
                     .collect()
             })
             .unwrap_or_default()
