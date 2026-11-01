@@ -26,7 +26,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
 
     let mut bot = harness.client().await;
     let response = bot
-        .call(|peer| client::account::authenticate(peer, token.clone()))
+        .call(|peer| client::account::authenticate(peer, Some(token.clone())))
         .await;
     let Ok(Authenticated { account, .. }) = response else {
         panic!("the agent's token did not sign it in: {response:?}");
@@ -54,7 +54,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     assert!(matches!(response, Ok(())), "{response:?}");
     let mut again = harness.client().await;
     let response = again
-        .call(|peer| client::account::authenticate(peer, token))
+        .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(
         matches!(response, Err(_)),

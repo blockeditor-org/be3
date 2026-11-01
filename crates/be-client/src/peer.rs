@@ -50,10 +50,11 @@ impl Credentials {
         self,
         connection: &Arc<Connection>,
     ) -> Result<be_protocol::Authenticated, ClientError> {
-        Ok(match self {
-            Self::Header => client::account::authenticate_header(connection).await??,
-            Self::Token(token) => client::account::authenticate(connection, token).await??,
-        })
+        let token = match self {
+            Self::Header => None,
+            Self::Token(token) => Some(token),
+        };
+        Ok(client::account::authenticate(connection, token).await??)
     }
 }
 

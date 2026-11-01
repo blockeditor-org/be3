@@ -118,7 +118,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         .await
         .unwrap();
     let mut posted = Posted::new();
-    let mut registering = client::account::authenticate(&posted.peer, token);
+    let mut registering = client::account::authenticate(&posted.peer, Some(token));
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
     posted.heard(&frames);
@@ -176,7 +176,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
     let session = session.unwrap();
     let mut proxied = Posted::new();
-    let mut authenticating = client::account::authenticate_header(&proxied.peer);
+    let mut authenticating = client::account::authenticate(&proxied.peer, None);
     let sent = proxied.frames();
     let (_, _, frames) = post_authorized(
         &mut proxy,

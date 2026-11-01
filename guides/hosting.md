@@ -189,7 +189,7 @@ Backups are scheduled on the host. `be-server backup` writes a backup and
 `Authorization: Bearer <account token>` is reserved for be-server account
 sessions. Native and browser clients can keep sending their account token in
 protocol calls. A proxy can instead inject the header into WebSocket upgrades
-or every HTTP POST; clients call `authenticate-header` to use it. The server
+or every HTTP POST; clients call `authenticate` with no token to use it. The server
 validates the same session tokens and returns an empty token field for this
 request, keeping the injected secret outside the client. HTTP sessions require
 the same account header on every request.
