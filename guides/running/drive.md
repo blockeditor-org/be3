@@ -311,6 +311,7 @@ change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prin
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The app
 has settled once a frame asks for no other and `App::busy` gives no reason; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
+a view is shown at a size its plugin has yet to draw (cropped, guides/pan_and_zoom.md), while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a

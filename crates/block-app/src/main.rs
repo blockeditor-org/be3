@@ -285,7 +285,12 @@ impl Shell {
         });
         document.on_interacted(block_app_plugin_host::start_frames);
         document.on_laid_out(|| {
-            block_app_plugin_host::settle();
+            while block_app_plugin_host::settle() {
+                compositor::notify_after_layout();
+                if beui::native::with_document(|document| document.needs_layout()) {
+                    return;
+                }
+            }
             compositor::notify_after_layout();
         });
         Self {

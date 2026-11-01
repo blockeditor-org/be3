@@ -1,3 +1,4 @@
+pub mod bell;
 mod in_process;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod thread;

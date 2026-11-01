@@ -2718,7 +2718,7 @@ impl Document {
         measured
     }
 
-    fn needs_layout(&self) -> bool {
+    pub fn needs_layout(&self) -> bool {
         self.layout_revision != self.arena.layout_revision
             || self.root.is_some_and(|root| self.arena.unplaced(root))
     }
@@ -2759,6 +2759,7 @@ impl Document {
             passes += 1;
             watermark = self.arena.relaid_len();
             self.report_laid_out();
+            self.run_laid_out();
         }
         passes
     }

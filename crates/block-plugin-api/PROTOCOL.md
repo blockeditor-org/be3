@@ -962,6 +962,15 @@ without any delay is drawn once per host frame rather than as fast as its
 process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
+A host frame runs in rounds. The host asks every plugin it is drawing at
+once and waits on all of them together; when a commit's child placements
+change another plugin's view, the host lays out again and sends that plugin
+its screens, a configure and a draw request within the same frame, and waits
+for it too. The frame stops waiting once no plugin owes it anything or its
+deadline passes. A child that answers in time is shown at its new size in the
+frame its placer resized it in; one that does not is shown at the size it last
+drew, cropped rather than stretched, until a later frame picks it up.
+
 The host shows whatever the plugin has committed by the time it finishes
 building its own frame. Which surface each view is drawn from is settled then
 as well, against the layout that arrived with the frame being shown, so a

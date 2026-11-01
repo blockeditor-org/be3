@@ -58,6 +58,7 @@ EDITORS = {
     "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
     "closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace": ["beui-gallery"],
     "closing_a_tab_shuts_its_editor_down": ["text-block"],
+    "dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame": [],
     "fit_on_an_active_child_fits_its_content_in_its_view": ["infinite-canvas", "pan-zoom"],
     "in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice": ["beui-gallery"],
     "leaving_a_workspace_someone_shared_asks_first": [],

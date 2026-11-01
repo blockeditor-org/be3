@@ -180,19 +180,6 @@ impl Backend {
         self.worker.as_ref().is_none_or(Worker::settled)
     }
 
-    pub(super) fn wait(&mut self, deadline: Deadline) -> bool {
-        let Some(worker) = &mut self.worker else {
-            return false;
-        };
-        match worker.wait(deadline) {
-            Ok(woken) => woken,
-            Err(failure) => {
-                self.fail(failure);
-                true
-            }
-        }
-    }
-
     pub(super) fn took(&mut self) -> Option<StepTime> {
         self.worker.as_mut()?.take_took()
     }

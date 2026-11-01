@@ -167,6 +167,8 @@ pub(super) struct Runtime {
     presents: Presents,
     frames: u64,
     steps: u64,
+    relaid: bool,
+    drawn: HashMap<ScreenId, (u32, u32)>,
 }
 
 enum Answer {
@@ -371,6 +373,8 @@ impl Runtime {
             presents: Presents::default(),
             frames: 0,
             steps: 0,
+            relaid: false,
+            drawn: HashMap::default(),
         }
     }
 
@@ -401,6 +405,7 @@ impl Runtime {
         self.painting = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
+        self.drawn.clear();
         self.instances.reopen();
         super::docks::restarted(&plugin.identity.id);
         self.backend.start(&plugin);
@@ -530,12 +535,12 @@ impl Runtime {
         self.request_frame();
     }
 
-    fn settle(&mut self, deadline: Deadline) -> bool {
-        while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
-            self.pump();
-            self.request_frame();
-        }
+    fn outstanding(&self) -> bool {
         self.error.is_none() && !self.backend.settled()
+    }
+
+    fn take_relaid(&mut self) -> bool {
+        std::mem::take(&mut self.relaid)
     }
 
     pub(super) fn name(&self) -> &str {
@@ -577,6 +582,10 @@ impl Runtime {
             (starting, "is starting"),
             (self.painting, "has yet to answer a paint"),
             (self.drawing(), "is drawing a frame"),
+            (
+                self.shows_undrawn_size(),
+                "shows a view at a size it has yet to draw",
+            ),
             (!self.backend.settled(), "has input or a step in flight"),
             (
                 self.instances.awaiting_content(),
@@ -586,6 +595,29 @@ impl Runtime {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason))
         .collect()
+    }
+
+    fn shows_undrawn_size(&self) -> bool {
+        self.layout
+            .screens
+            .iter()
+            .filter(|placement| placement.view != ViewId::PREVIEW)
+            .any(|placement| {
+                self.instances
+                    .view_request_of(placement.screen)
+                    .is_some_and(|request| {
+                        let requested = super::input::requested_at(
+                            &request.metrics,
+                            super::input::finer(placement),
+                        );
+                        requested.0 > 0
+                            && requested.1 > 0
+                            && self
+                                .drawn
+                                .get(&placement.screen)
+                                .is_some_and(|drawn| *drawn != requested)
+                    })
+            })
     }
 
     fn request_painting(&mut self) {
@@ -1013,8 +1045,16 @@ impl Runtime {
                     self.instances.translate(&mut answered, true);
                     self.instances.answered(answered.0, answered.1)
                 }
-                Answer::Frame(commit) => self.commit(commit),
-                Answer::Laid(laid) => self.lay(laid),
+                Answer::Frame(commit) => {
+                    let changed = self.commit(commit);
+                    self.relaid |= changed;
+                    changed
+                }
+                Answer::Laid(laid) => {
+                    let changed = self.lay(laid);
+                    self.relaid |= changed;
+                    changed
+                }
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
                 Answer::Published(instance, started) => {
@@ -1084,6 +1124,12 @@ impl Runtime {
         if let Some(presented) = presented {
             self.presents.report(presented);
         }
+        self.drawn = self
+            .layout
+            .screens
+            .iter()
+            .map(|placement| (placement.screen, (placement.width, placement.height)))
+            .collect();
         self.instances.adopt_anchored(&reports, &self.layout);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
@@ -1480,7 +1526,7 @@ pub fn poll() {
     });
 }
 
-pub fn settle() {
+pub fn settle() -> bool {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -1496,21 +1542,46 @@ pub fn settle() {
             .runtimes
             .iter_mut()
             .filter_map(|(id, runtime)| {
+                runtime.take_relaid();
                 runtime
                     .contain(|runtime| runtime.ask(pass))
                     .then(|| id.clone())
             })
             .collect();
         let started = std::time::Instant::now();
-        let mut over = false;
-        for id in asked {
-            if let Some(runtime) = host.runtimes.get_mut(&id) {
-                over |= runtime.contain(|runtime| runtime.settle(deadline));
-            }
-        }
+        let (relaid, over) = wait_on(&mut host, &asked, deadline);
         host.waited += started.elapsed();
         host.over_budget += u64::from(over);
-    });
+        relaid
+    })
+}
+
+fn wait_on(host: &mut Host, asked: &[String], deadline: Deadline) -> (bool, bool) {
+    loop {
+        let rung = block_guest_host::bell::rung();
+        let mut relaid = false;
+        let mut outstanding = false;
+        for id in asked {
+            let Some(runtime) = host.runtimes.get_mut(id) else {
+                continue;
+            };
+            runtime.contain(|runtime| {
+                runtime.pump();
+                runtime.request_frame();
+            });
+            relaid |= runtime.take_relaid();
+            outstanding |= runtime.outstanding();
+        }
+        if relaid {
+            return (true, false);
+        }
+        if !outstanding {
+            return (false, false);
+        }
+        if !block_guest_host::bell::wait(rung, deadline) {
+            return (false, true);
+        }
+    }
 }
 
 pub fn busy() -> Vec<String> {
