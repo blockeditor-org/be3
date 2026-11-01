@@ -7597,12 +7597,8 @@ crates = {
                 "name": "open-bench",
             },
             {
-                "crate_root": "examples/space-cursor-bench.rs",
-                "name": "space-cursor-bench",
-            },
-            {
-                "crate_root": "examples/space-resize-bench.rs",
-                "name": "space-resize-bench",
+                "crate_root": "examples/space-bench.rs",
+                "name": "space-bench",
             },
         ],
         "library": {
@@ -7648,25 +7644,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -7734,25 +7712,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -7820,25 +7780,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -7906,25 +7848,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -7992,25 +7916,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -8084,20 +7990,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-host:beui-host",
@@ -8169,25 +8062,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
@@ -8255,25 +8130,7 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "space-cursor-bench": {
-                        "deps": [
-                            "//crates/bench:bench",
-                            "//crates/beui-core:beui-core",
-                            "//crates/beui-host:beui-host",
-                            "//crates/beui-inspector:beui-inspector",
-                            "//crates/beui-layer-space:beui-layer-space",
-                            "//crates/beui-macros:beui_macros",
-                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                            "//crates/beui-runner:beui-runner",
-                            "//crates/beui:beui",
-                            "//crates/block-ui-test:block-ui-test",
-                            "//crates/stable-hash:stable-hash",
-                            "//crates/text-editor-core:text-editor-core",
-                            "//third-party/rust:pollster-0.4.0",
-                        ],
-                        "features": [],
-                    },
-                    "space-resize-bench": {
+                    "space-bench": {
                         "deps": [
                             "//crates/bench:bench",
                             "//crates/beui-core:beui-core",

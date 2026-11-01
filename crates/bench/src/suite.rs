@@ -31,6 +31,12 @@ pub const BENCHMARKS: &[Benchmark] = &[
         about: "opening each beui-demo page, cold and warm",
     },
     Benchmark {
+        name: "space",
+        program: "space-bench",
+        arguments: &[],
+        about: "the beui demo in the VR simulator: switching the cursor's icon and resizing panels",
+    },
+    Benchmark {
         name: "text",
         program: "text-bench",
         arguments: &[],
