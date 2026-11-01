@@ -37,7 +37,4 @@ workspace = true
 name = "open-bench"
 
 [[example]]
-name = "space-resize-bench"
-
-[[example]]
-name = "space-cursor-bench"
+name = "space-bench"
