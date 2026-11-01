@@ -758,6 +758,7 @@ dependencies = [
  "be-store",
  "be-sync",
  "be-types-host",
+ "beui-components-unstyled",
  "block-plugin-manifest",
  "block-type-api",
  "block-type-guest",
@@ -2305,6 +2306,7 @@ dependencies = [
 name = "block-ui-database"
 version = "0.1.0"
 dependencies = [
+ "beui-components-unstyled",
  "block-ui",
  "database-types",
  "uuid",
@@ -2539,7 +2541,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
- "block-ui",
  "block-ui-test",
  "calendar-types",
  "uuid",

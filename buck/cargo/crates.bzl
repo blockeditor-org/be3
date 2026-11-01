@@ -645,6 +645,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -672,6 +673,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -709,6 +711,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -736,6 +739,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -773,6 +777,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -800,6 +805,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -837,6 +843,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -864,6 +871,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -901,6 +909,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -928,6 +937,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -965,6 +975,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -992,6 +1003,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -1029,6 +1041,7 @@ crates = {
                         "//crates/be-store:be-store",
                         "//crates/be-sync:be-sync",
                         "//crates/be-types-host:be-types-host",
+                        "//crates/beui-components-unstyled:beui-components-unstyled",
                         "//crates/block-plugin-manifest:block-plugin-manifest",
                         "//crates/block-type-api:block-type-api",
                         "//crates/block-type-guest:block-type-guest",
@@ -1056,6 +1069,7 @@ crates = {
                     "//crates/be-store:be-store",
                     "//crates/be-sync:be-sync",
                     "//crates/be-types-host:be-types-host",
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-plugin-manifest:block-plugin-manifest",
                     "//crates/block-type-api:block-type-api",
                     "//crates/block-type-guest:block-type-guest",
@@ -17538,6 +17552,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17550,6 +17565,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17562,6 +17578,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17574,6 +17591,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17586,6 +17604,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17598,6 +17617,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17610,6 +17630,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -17622,6 +17643,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/block-ui:block-ui",
                     "//crates/editors/database/types:database-types",
                     "//third-party/rust:uuid-1.23.2",
@@ -19835,7 +19857,6 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/block-ui:block-ui",
                     "//crates/editors/calendar/types:calendar-types",
                     "//third-party/rust:uuid-1.23.2",
                 ],

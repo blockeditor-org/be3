@@ -273,6 +273,29 @@ impl DateTime {
     pub fn now() -> Self {
         Self::new(Date::today(), Time::now())
     }
+
+    pub fn iso(self) -> String {
+        format!("{} {}", self.date.iso(), self.time.format(HourCycle::H24))
+    }
+
+    pub fn parse_iso(text: &str) -> Option<Self> {
+        let (date, time) = text.trim().split_once(' ')?;
+        let mut date = date.split('-');
+        let year = date.next()?.parse::<i32>().ok()?;
+        let month = date.next()?.parse::<u8>().ok()?;
+        let day = date.next()?.parse::<u8>().ok()?;
+        let mut time = time.split(':');
+        let hour = time.next()?.parse::<u8>().ok()?;
+        let minute = time.next()?.parse::<u8>().ok()?;
+        let valid = date.next().is_none()
+            && time.next().is_none()
+            && (Date::MIN_YEAR..=Date::MAX_YEAR).contains(&year)
+            && (1..=12).contains(&month)
+            && (1..=days_in_month(year, month)).contains(&day)
+            && hour <= 23
+            && minute <= 59;
+        valid.then_some(Self::new(Date { year, month, day }, Time { hour, minute }))
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]

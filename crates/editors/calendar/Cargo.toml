@@ -9,7 +9,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui" }
-block-ui = { path = "../../block-ui" }
 block-editor-beui = { path = "../../block-editor-beui" }
 calendar-types = { path = "types" }
 uuid = "1"

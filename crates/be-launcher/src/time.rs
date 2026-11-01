@@ -1,5 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use beui::datetime::Date;
+
 const MINUTE: i64 = 60;
 const HOUR: i64 = 60 * MINUTE;
 const DAY: i64 = 24 * HOUR;
@@ -20,17 +22,12 @@ pub(crate) fn parse_timestamp(text: &str) -> Option<i64> {
     let time = time.split(['.', '+']).next()?;
     let mut time = time.splitn(3, ':').map(str::parse::<i64>);
     let (hour, minute, second) = (time.next()?.ok()?, time.next()?.ok()?, time.next()?.ok()?);
-    Some(days_from_civil(year, month, day) * DAY + hour * HOUR + minute * MINUTE + second)
-}
-
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let year = if month <= 2 { year - 1 } else { year };
-    let era = year.div_euclid(400);
-    let year_of_era = year - era * 400;
-    let month_from_march = (month + 9) % 12;
-    let day_of_year = (153 * month_from_march + 2) / 5 + day - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    era * 146_097 + day_of_era - 719_468
+    Some(
+        Date::new(year as i32, month as u8, day as u8).days() * DAY
+            + hour * HOUR
+            + minute * MINUTE
+            + second,
+    )
 }
 
 pub(crate) fn relative(now: i64, then: i64) -> String {

@@ -4,8 +4,8 @@ use std::{
 };
 
 use block_editor_beui::Revision;
+use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::{NodeId, dock::styled::TabId, reactive::*, styled::*};
-use block_editor_beui::block_ui::datetime::format_datetime_utc;
 use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 
@@ -229,7 +229,7 @@ fn revision_time(time: i64) -> String {
     let seconds = time.div_euclid(1000);
     format!(
         "{}:{:02} UTC",
-        format_datetime_utc(seconds),
+        DateTime::from_unix(seconds).iso(),
         seconds.rem_euclid(60)
     )
 }
