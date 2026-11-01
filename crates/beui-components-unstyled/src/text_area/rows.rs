@@ -312,10 +312,6 @@ impl Row {
                 _ => None,
             })
     }
-
-    pub fn flow_inline(&self, flow: usize) -> Option<&InlineItem> {
-        self.inline.get(self.flow_item(flow)?)
-    }
 }
 
 pub struct RowInputs<'a> {

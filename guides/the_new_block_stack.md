@@ -118,7 +118,7 @@ Content-addressed, encrypted object storage.
   someone left alone for an hour outranks the keystroke bursts around it.
 - `merge` is diff3. `merge_slices` walks the base indices that both sides left
   equal; the regions between those anchors take whichever side changed, or
-  conflict when both did. `merge_lines`, `merge_map` and `render_conflicts` are
+  conflict when both did. `merge_lines` and `render_conflicts` are
   built on it.
 
 ### be-session

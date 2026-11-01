@@ -424,13 +424,6 @@ impl Core {
         Some(anchor.min(focus)..anchor.max(focus))
     }
 
-    pub fn find_matches(&self, query: &str, case_sensitive: bool) -> Vec<Range<usize>> {
-        self.document
-            .read()
-            .map(|read| scan_matches(DocumentView::new(&*read).bytes(), query, case_sensitive))
-            .unwrap_or_default()
-    }
-
     pub fn find_status(&self, query: &str, case_sensitive: bool) -> FindStatus {
         let Some(read) = self.document.read() else {
             return FindStatus::default();
@@ -660,42 +653,6 @@ impl Core {
         Position::at(
             &document,
             line_start(document.bytes(), position.resolve(&document)),
-        )
-    }
-
-    pub fn get_prev_line_start(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        let current = line_start(document.bytes(), position.resolve(&document));
-        let previous = if current == 0 {
-            0
-        } else {
-            line_start(document.bytes(), current - 1)
-        };
-        Position::at(&document, previous)
-    }
-
-    pub fn get_next_line_start(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        Position::at(
-            &document,
-            next_line_start(document.bytes(), position.resolve(&document)),
-        )
-    }
-
-    pub fn get_this_line_end(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        Position::at(
-            &document,
-            line_end(document.bytes(), position.resolve(&document)),
         )
     }
 

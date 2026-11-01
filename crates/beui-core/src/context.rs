@@ -282,13 +282,6 @@ impl FrameOutput {
             .expect("a frame always holds the main window")
     }
 
-    pub fn main_mut(&mut self) -> &mut WindowOutput {
-        self.windows
-            .iter_mut()
-            .find(|window| window.id == WindowId::MAIN)
-            .expect("a frame always holds the main window")
-    }
-
     pub fn window(&self, id: WindowId) -> Option<&WindowOutput> {
         self.windows.iter().find(|window| window.id == id)
     }
@@ -1370,10 +1363,6 @@ impl Context {
         self.request_repaint();
     }
 
-    pub fn keyboard_opened(&self) -> crate::software_keyboard::Opened {
-        self.inner.keyboard.borrow().opened()
-    }
-
     pub fn keyboard_rect(&self) -> Option<Rect> {
         self.inner.keyboard.borrow().rect()
     }
@@ -1420,18 +1409,6 @@ impl Context {
         let simulation = self.inner.input_simulation.borrow();
         let simulation = simulation.as_deref()?.as_any().downcast_ref::<T>()?;
         Some(read(simulation))
-    }
-
-    pub fn input_simulation_as_mut<T: 'static, R>(
-        &self,
-        change: impl FnOnce(&mut T) -> R,
-    ) -> Option<R> {
-        let mut simulation = self.inner.input_simulation.borrow_mut();
-        let simulation = simulation
-            .as_deref_mut()?
-            .as_any_mut()
-            .downcast_mut::<T>()?;
-        Some(change(simulation))
     }
 
     pub fn measure_mouse_simulation(&self, viewport: Rect) -> f32 {

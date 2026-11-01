@@ -169,10 +169,6 @@ pub fn call(
     function.apply(target, &args).ok()
 }
 
-pub fn has_method(target: &wasm_bindgen::JsValue, method: &str) -> bool {
-    js_sys::Reflect::get(target, &method.into()).is_ok_and(|held| held.is_function())
-}
-
 pub fn css_supports(property: &str, value: &str) -> bool {
     let Some(window) = window() else {
         return false;

@@ -24,12 +24,6 @@ pub const ACTIONS: [accesskit::Action; 16] = [
     accesskit::Action::ShowTooltip,
 ];
 
-pub fn action_named(name: &str) -> Option<accesskit::Action> {
-    ACTIONS
-        .into_iter()
-        .find(|action| format!("{action:?}") == name)
-}
-
 #[derive(Default, Clone)]
 pub struct AccessibilityDump {
     held: Rc<Held>,

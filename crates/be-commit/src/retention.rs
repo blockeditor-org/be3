@@ -25,10 +25,6 @@ impl RetentionPolicy {
         self
     }
 
-    pub fn interval_for(&self, age: i64) -> i64 {
-        self.bucket_of(age).1
-    }
-
     fn bucket_of(&self, age: i64) -> (usize, i64) {
         self.buckets
             .iter()

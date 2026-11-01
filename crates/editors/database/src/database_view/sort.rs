@@ -69,18 +69,6 @@ pub fn extra_row_count(len: usize, selected: Option<usize>) -> usize {
     }
 }
 
-pub fn sort_rows(
-    rows: &mut [DatabaseRow],
-    sort: DatabaseViewSort,
-    fields: &[DatabaseField],
-    labels: &BlockLabels,
-) {
-    let Some(field) = fields.iter().find(|field| field.id == sort.field_id) else {
-        return;
-    };
-    rows.sort_by(|a, b| compare_sorted_rows(a, b, sort, field, labels));
-}
-
 fn compare_sorted_rows(
     a: &DatabaseRow,
     b: &DatabaseRow,

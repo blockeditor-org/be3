@@ -1,5 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -159,41 +157,4 @@ pub fn render_conflicts(
     }
     rendered.extend_from_slice(&join_lines(&outcome.merged[cursor..]));
     rendered
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct MapMerge<K, V> {
-    pub merged: BTreeMap<K, V>,
-    pub conflicts: Vec<K>,
-}
-
-pub fn merge_map<K: Clone + Ord, V: Clone + Eq>(
-    base: &BTreeMap<K, V>,
-    ours: &BTreeMap<K, V>,
-    theirs: &BTreeMap<K, V>,
-) -> MapMerge<K, V> {
-    let keys: BTreeSet<_> = base
-        .keys()
-        .chain(ours.keys())
-        .chain(theirs.keys())
-        .collect();
-    let mut merged = BTreeMap::new();
-    let mut conflicts = Vec::new();
-    for key in keys {
-        let in_base = base.get(key);
-        let in_ours = ours.get(key);
-        let in_theirs = theirs.get(key);
-        let resolved = if in_ours == in_base {
-            in_theirs.cloned()
-        } else if in_theirs == in_base || in_theirs == in_ours {
-            in_ours.cloned()
-        } else {
-            conflicts.push(key.clone());
-            in_ours.cloned()
-        };
-        if let Some(value) = resolved {
-            merged.insert(key.clone(), value);
-        }
-    }
-    MapMerge { merged, conflicts }
 }

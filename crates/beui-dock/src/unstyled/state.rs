@@ -1235,25 +1235,6 @@ impl DockState {
         true
     }
 
-    pub fn empty_panes(&self) -> Vec<LeafId> {
-        self.surfaces
-            .iter()
-            .flat_map(|surface| self.leaves(surface.id))
-            .filter(|leaf| self.entries(*leaf).is_empty())
-            .collect()
-    }
-
-    pub fn remove_empty_panes(&mut self) {
-        let main = self.main();
-        for leaf in self.empty_panes() {
-            if self.leaves(main) == [leaf] || self.is_kept(leaf) {
-                continue;
-            }
-            self.prune(leaf);
-        }
-        self.settle_focus();
-    }
-
     pub fn drop_tab(&mut self, tab: TabId, target: DockDrop) {
         self.drop_entry(Entry::Tab(tab), target);
     }

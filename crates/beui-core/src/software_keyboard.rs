@@ -113,10 +113,6 @@ impl KeyboardState {
         std::mem::replace(&mut self.share, share) != share
     }
 
-    pub(crate) fn opened(&self) -> Opened {
-        self.opened
-    }
-
     pub(crate) fn toggle(&mut self) {
         self.toggles = self.toggles.wrapping_add(1);
     }

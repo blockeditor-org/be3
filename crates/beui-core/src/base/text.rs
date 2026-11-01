@@ -1251,10 +1251,6 @@ impl Document {
         }
     }
 
-    pub fn text_glyphs(&self, text: NodeOf<TextNode>) -> &[TextGlyph] {
-        &self.arena.get_as::<TextNode>(text).glyphs
-    }
-
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
         &self.arena.get_as::<TextNode>(text).marks
     }

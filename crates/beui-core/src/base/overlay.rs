@@ -806,10 +806,6 @@ impl Document {
         self.layer_state.changed();
     }
 
-    pub fn is_overlay(&self, node: NodeId) -> bool {
-        self.overlay_of(node).is_some()
-    }
-
     pub fn is_overlay_open(&self, overlay: NodeId) -> bool {
         self.overlay_of(overlay)
             .is_some_and(|overlay| self.arena.get_as(overlay).open)

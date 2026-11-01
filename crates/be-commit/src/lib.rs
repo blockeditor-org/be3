@@ -8,8 +8,7 @@ mod store;
 
 pub use commit::{ChangeId, Commit, CommitId, CommitKind};
 pub use merge::{
-    Conflict, MapMerge, Merge, MergeOutcome, MergeResult, merge_lines, merge_map, merge_slices,
-    render_conflicts,
+    Conflict, Merge, MergeOutcome, MergeResult, merge_lines, merge_slices, render_conflicts,
 };
 pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy, plan as plan_retention};
 #[cfg(feature = "store")]

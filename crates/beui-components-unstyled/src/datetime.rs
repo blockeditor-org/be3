@@ -62,10 +62,6 @@ impl Weekday {
         }
     }
 
-    pub fn short_name(self) -> &'static str {
-        &self.name()[..3]
-    }
-
     pub fn narrow_name(self) -> &'static str {
         &self.name()[..2]
     }

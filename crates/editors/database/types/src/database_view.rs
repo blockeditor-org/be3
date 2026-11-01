@@ -138,10 +138,6 @@ impl DatabaseView {
         Self::SHOW_EMPTY_GROUPS.set(ObjectId::ROOT, &shown).into()
     }
 
-    pub fn shows_field(&self, field: Uuid) -> bool {
-        !self.hidden_fields.contains(&field)
-    }
-
     pub fn set_scatter_x(field: Option<Uuid>) -> Edit {
         Self::SCATTER_X.set(ObjectId::ROOT, &field).into()
     }
