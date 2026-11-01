@@ -14,7 +14,7 @@ use block_editor_beui::{
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::embed::debug::debug::Call as DebugCall;
-use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
+use block_plugin_api::embed::{self, exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
@@ -1197,54 +1197,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         while let Some(event) = self.connection.next_event() {
             let called = match event {
-                Incoming::Started(started) if ShellCall::accepts(&started) => {
-                    let connection = &mut self.connection;
-                    match ShellCall::accept(connection, started) {
-                        Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
-                            self.child_statuses.opened(resource.op())
-                        }
-                        Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
-                            self.child_statuses.next(connection, reply)
-                        }
-                        Some(ShellCall::BlockTypesWatchNew { resource }) => {
-                            self.block_types.opened(resource.op())
-                        }
-                        Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
-                            self.block_types.next(connection, reply)
-                        }
-                        Some(ShellCall::WebViewNew {
-                            resource, id, url, ..
-                        }) => {
-                            let mut watch = block_plugin_api::Watch::default();
-                            watch.opened(resource.op());
-                            self.web_views.insert(resource.op(), (id, watch));
-                            self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                        }
-                        Some(ShellCall::WebViewNextEvents { this, reply }) => {
-                            match self.web_views.get_mut(&this.op()) {
-                                Some((_, watch)) => watch.next(connection, reply),
-                                None => {
-                                    reply.fail(connection, block_plugin_api::ops::OpError::Canceled)
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    continue;
-                }
-                Incoming::Started(started) if DebugCall::accepts(&started) => {
-                    let connection = &mut self.connection;
-                    match DebugCall::accept(connection, started) {
-                        Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
-                            self.debug_templates.opened(resource.op())
-                        }
-                        Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
-                            self.debug_templates.next(connection, reply)
-                        }
-                        _ => {}
-                    }
-                    continue;
-                }
                 Incoming::Started(started) if published(started.method).is_some() => {
                     let connection = &mut self.connection;
                     let watching = published(started.method).unwrap_or_else(|| unreachable!());
@@ -1267,12 +1219,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     continue;
                 }
-                Incoming::Started(started) if BlocksCall::accepts(&started) => {
-                    if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
-                        self.link.call(call, &self.store, &mut self.connection);
-                    }
-                    continue;
-                }
                 Incoming::Canceled { op } if self.link.holds(op) => {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
@@ -1284,10 +1230,53 @@ impl<A: BeuiApp> BeuiTest<A> {
                 }
                 Incoming::Started(started) => {
                     let op = started.op;
-                    if Call::accepts(&started)
-                        && let Some(call) = Call::accept(&mut self.connection, started)
-                    {
-                        self.requests.push((Some(op), call));
+                    let connection = &mut self.connection;
+                    match embed::Call::accept(connection, started) {
+                        Some(embed::Call::Shell(call)) => match call {
+                            ShellCall::ChildStatusesWatchNew { resource, .. } => {
+                                self.child_statuses.opened(resource.op())
+                            }
+                            ShellCall::ChildStatusesWatchNext { reply, .. } => {
+                                self.child_statuses.next(connection, reply)
+                            }
+                            ShellCall::BlockTypesWatchNew { resource } => {
+                                self.block_types.opened(resource.op())
+                            }
+                            ShellCall::BlockTypesWatchNext { reply, .. } => {
+                                self.block_types.next(connection, reply)
+                            }
+                            ShellCall::WebViewNew {
+                                resource, id, url, ..
+                            } => {
+                                let mut watch = block_plugin_api::Watch::default();
+                                watch.opened(resource.op());
+                                self.web_views.insert(resource.op(), (id, watch));
+                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                            }
+                            ShellCall::WebViewNextEvents { this, reply } => {
+                                match self.web_views.get_mut(&this.op()) {
+                                    Some((_, watch)) => watch.next(connection, reply),
+                                    None => reply.fail(connection, OpError::Canceled),
+                                }
+                            }
+                            _ => {}
+                        },
+                        Some(embed::Call::Debug(call)) => match call {
+                            DebugCall::DebugTemplatesWatchNew { resource } => {
+                                self.debug_templates.opened(resource.op())
+                            }
+                            DebugCall::DebugTemplatesWatchNext { reply, .. } => {
+                                self.debug_templates.next(connection, reply)
+                            }
+                            _ => {}
+                        },
+                        Some(embed::Call::Blocks(call)) => {
+                            self.link.call(call, &self.store, connection)
+                        }
+                        Some(embed::Call::HostServices(call)) => {
+                            self.requests.push((Some(op), call))
+                        }
+                        Some(_) | None => {}
                     }
                     continue;
                 }
