@@ -1,5 +1,5 @@
 use block_editor_beui::{EditorHost, OwnedEditor};
-use block_ui_test::{BeuiTest, HostCall, Reply};
+use block_ui_test::{BeuiTest, HostCall, Reply, wire};
 use map_types::MapRegion;
 use map_types::{Map, MapContent};
 use uuid::Uuid;
@@ -139,7 +139,8 @@ fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
-type Fetched = Reply<Result<Vec<u8>, block_editor_beui::Failure>>;
+type Fetched =
+    Reply<Result<Vec<u8>, block_editor_beui::Failure>, wire::Fallible<wire::Bytes, wire::Plain>>;
 
 fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(Fetched, String)> {
     editor

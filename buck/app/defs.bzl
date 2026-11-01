@@ -74,6 +74,44 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
     )
     return artifact
 
+# Every plugin's modules, libraries and type modules precompiled once, for
+# apps that stage some or all of them (crates/app-tests stages a few editors
+# per test): an app given it as `precompiled` takes each .cwasm from here
+# rather than precompiling its own, so apps that share a module share its
+# action, which only runs once an app asks for its output.
+PrecompiledInfo = provider(fields = {"artifacts": provider_field(dict)})
+
+def _precompiled_plugins_impl(ctx: AnalysisContext) -> list[Provider]:
+    artifacts = {}
+    for module in ctx.attrs.modules:
+        info = module.get(WasmLibrariesInfo)
+        for library in info.closure if info else []:
+            if library not in artifacts:
+                name = "library{}-{}".format(len(artifacts), library.basename.removesuffix(".wasm"))
+                artifacts[library] = _precompile(ctx, library, name)
+    for module in ctx.attrs.modules + ctx.attrs.plugin_types:
+        for wasm in module[DefaultInfo].default_outputs[:1]:
+            artifacts[wasm] = _precompile(ctx, wasm)
+    return [DefaultInfo(default_outputs = artifacts.values()), PrecompiledInfo(artifacts = artifacts)]
+
+precompiled_plugins = rule(
+    attrs = {
+        "modules": attrs.list(attrs.dep()),
+        "plugin_types": attrs.list(attrs.dep(), default = []),
+        "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
+        "precompiler": attrs.dep(providers = [RunInfo]),
+    },
+    impl = _precompiled_plugins_impl,
+)
+
+def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
+    if not ctx.attrs.precompiled:
+        return _precompile(ctx, wasm, name)
+    artifacts = ctx.attrs.precompiled[PrecompiledInfo].artifacts
+    if wasm not in artifacts:
+        fail("{} is not among {}'s modules".format(wasm, ctx.attrs.precompiled.label))
+    return artifacts[wasm]
+
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by the precompiler, plugin-test-runner as the workers run
@@ -108,9 +146,9 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
                 libraries.append(library)
     for index, library in enumerate(libraries):
         command.add(cmd_args("--library=", library, delimiter = ""))
-        if ctx.attrs.precompiler:
+        if ctx.attrs.precompiler or ctx.attrs.precompiled:
             artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
-            command.add(cmd_args("--library-artifact=", _precompile(ctx, library, artifact), delimiter = ""))
+            command.add(cmd_args("--library-artifact=", _compiled(ctx, library, artifact), delimiter = ""))
     for module in ctx.attrs.linked:
         command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
@@ -120,12 +158,12 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
             command.add(cmd_args("--data=", files, delimiter = ""))
-        if ctx.attrs.precompiler:
-            command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
+        if ctx.attrs.precompiler or ctx.attrs.precompiled:
+            command.add(cmd_args("--artifact=", _compiled(ctx, wasm), delimiter = ""))
         for type_module in types[DefaultInfo].default_outputs if types else []:
             command.add(cmd_args("--plugin-type=", type_module, delimiter = ""))
-            if ctx.attrs.precompiler:
-                command.add(cmd_args("--type-artifact=", _precompile(ctx, type_module), delimiter = ""))
+            if ctx.attrs.precompiler or ctx.attrs.precompiled:
+                command.add(cmd_args("--type-artifact=", _compiled(ctx, type_module), delimiter = ""))
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -186,6 +224,9 @@ app = rule(
         # block_types give it.
         "plugin_types": attrs.list(attrs.dep(), default = []),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
+        # Where each .cwasm comes from in place of the precompiler: a
+        # precompiled_plugins target over these modules or more.
+        "precompiled": attrs.option(attrs.dep(providers = [PrecompiledInfo]), default = None),
         "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
         # What `buck2 run` runs a bundle without an executable with, followed
         # by the bundle.

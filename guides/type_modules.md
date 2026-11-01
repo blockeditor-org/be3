@@ -76,8 +76,8 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   type another interface `use`s resolves to the interface that defines it, so a crate
   needs a `uses` entry for that interface too even when its WIT reaches the type
   through another package. It emits a module per interface with its types
-  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
-  with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
+  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`),
+  deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
   (no floats, nothing owned). The options, each a list of WIT type names unless said:
   `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
   type in place of a WIT type whose serde data model is the same, which the
@@ -98,7 +98,25 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   or enum's first case is the default); `inline` records that are a variant case's
   fields, so `case(record)` becomes a struct variant; `lenient` records that take
   `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
-  `Copy`; `own_debug` types whose crate writes `Debug` itself; `local` (see below).
+  `Copy`; `own_debug` types whose crate writes `Debug` itself; `encodings` (a map) gives a
+  `with` type that holds bytes the `be_ops::wire` encoding to send it with (block-type-api's
+  `entries`, a `BTreeMap<Uuid, Vec<u8>>`, is `Map<Plain, Bytes>`); `local` (see below).
+  Every `list<u8>`, wherever it sits (a field, a case, an argument, a result, a stream
+  item, inside a list, option, result or tuple), goes over the wire as one run of bytes
+  and never byte by byte through serde: the generator gives each position a
+  `be_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
+  `Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
+  `deserialize_with` on fields and cases and as the second type parameter of
+  `Pending`, `Stream`, `Ticket`, `Reply`, `Producer` and `Latest`, which defaults to
+  `Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
+  with bytes in its result names the encoding the generated function returns, and a
+  helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,
+  `wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::outcome` encodes an
+  answer to send later. With postcard a byte sequence and bytes encode alike, so this
+  changes no byte on the wire. A watched value is a record or variant, never bytes
+  directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
+  on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_ops::wire::serialize`/`deserialize`
+  on deeper nesting.
   WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
   for a case named `type`, generated as `Type`), and a function may not share its name
   with a type of its interface, so a function that takes a `hello` is not `hello`.
@@ -235,6 +253,12 @@ What the host owes a replica:
   `be_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
   stamped with the frame clock's instant, which `Clock::at` places on that clock), and
   the host yields the time on it whenever the clock moved, ahead of any other frame.
+  The stream waits for the module's credit, so a tick can reach the module after a
+  message sent later: each `message` therefore carries `at`, the clock when the host
+  sent it (an editor's message at its frame's instant), and the module moves its clock
+  there before applying it. The host's own clock reading follows the frame clock in
+  order with its commands (`block_app_stack::hold_clock`), so it never runs ahead of
+  a message it has yet to relay.
   `host.sleep-until(at)` asks to be woken: the host yields a time at or after `at` and
   then completes it; the module cancels it when it wants another time. The replica
   never reads a clock, so a test moves time by yielding.
@@ -267,7 +291,7 @@ What the host owes a replica:
   session; calls for it until then still reach it.
 - **Relaying.** `send(to, bytes)` is opaque bytes for `one(peer)`, `peers` (every
   other participant), `one(editor)` or `one(host)`. The host seals and relays peer
-  bytes and delivers them as `message(peer(client), bytes)`.
+  bytes and delivers them as `message(peer(client), bytes, at)`.
 - **Reports.** `report-status` (head, owner, clean, owes a seal, incompatible,
   diverged, unreadable), `described` (after the visible content changed, for the graph
   mirror), `history` (can undo or redo), `conflict` (a merge kept both sides),
@@ -333,7 +357,7 @@ head. Every editor is sent a snapshot of the replacement.
 A local editor follows the local replica as a peer follows an owner. The host calls
 `attach(editor, editable)` when an editor instance starts following a block
 (again to change `editable`) and `detach` when it stops; the editor's messages arrive
-as `message(editor(instance), bytes)` and are `editor::FromEditor`: `Operate`,
+as `message(editor(instance), bytes, at)` and are `editor::FromEditor`: `Operate`,
 `Gesture` (`Begin`, `Commit`, `Cancel`), `Replace`, `ShowPresence`, `SendToPeers`,
 `Resend`. A replica drops edits from an editor attached read-only. It answers with
 `editor::ToEditor`:
@@ -441,7 +465,16 @@ wasmtime and in process in tests:
   `web(name, url, tag)`) with a host `Connection` of its own, restarts one that
   stops, answers its clock and sleeps itself, and hands everything else on as
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
-  `started(sources)` waits for every `start`. Its stateless helpers (`ask`, `blank`,
+  A source that declares its types starts lazily: `Modules::new` routes and marks
+  known (`is_known`) what it declares and starts only sources that declare nothing,
+  and the first `call` to a module starts it, so the app runs only the modules of
+  types its blocks use. What a module's `start` answers (`kind_of`: frozen, schema,
+  plain form, blank, description) is there only once it ran: `load(module)` starts it
+  and awaits that, `Replicas::kind` does so for a content type, and a `Hello` heard
+  later (a module a `call` started) is registered as it is drained. What a host must
+  know without running a module comes from the manifest: names, icons and colors,
+  and `plain_file`. `started(sources)` starts every module and waits for every
+  `start`, as `be` and `be sync` do. Its stateless helpers (`ask`, `blank`,
   `merge3`, `to_files`, `claims`, `apply`, `describe`) are what a host that holds no
   replica uses.
 - `replicas`: `Replicas<H: Host>`, the replica IO of

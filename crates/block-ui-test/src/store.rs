@@ -14,8 +14,7 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Connection, DeserializeOwned, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket,
-        guest::Executor,
+        Connection, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket, guest::Executor, wire,
     },
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
@@ -317,9 +316,9 @@ impl Inner {
         }
     }
 
-    fn ask<T: DeserializeOwned>(
+    fn ask<T, E: wire::Decode<T>>(
         &mut self,
-        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
     ) -> Option<T> {
         let ticket = call(&mut self.host);
         self.run();
@@ -414,8 +413,9 @@ impl Inner {
         message: be_session::SessionMessage,
     ) {
         let bytes = Wire::Session(message).encode();
+        let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(host, Endpoint::Peer(client), bytes);
+            replica.message(host, Endpoint::Peer(client), bytes, now);
         });
     }
 
@@ -538,8 +538,9 @@ impl Inner {
             return;
         };
         let send = move |inner: &mut Self| {
+            let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame);
+                replica.message(host, Endpoint::Editor(editor), frame, now);
             });
         };
         match message {

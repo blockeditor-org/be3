@@ -20,6 +20,7 @@ struct Options {
     path: String,
     world: String,
     with: BTreeMap<String, syn::Type>,
+    encodings: BTreeMap<String, syn::Type>,
     uses: BTreeMap<String, syn::Path>,
     own_debug: BTreeSet<String>,
     copy: BTreeSet<String>,
@@ -44,14 +45,18 @@ impl Parse for Options {
                 "path" => options.path = content.parse::<LitStr>()?.value(),
                 "world" => options.world = content.parse::<LitStr>()?.value(),
                 "network" => options.network = content.parse::<syn::LitBool>()?.value,
-                "with" => {
+                "with" | "encodings" => {
+                    let target = match key.to_string().as_str() {
+                        "with" => &mut options.with,
+                        _ => &mut options.encodings,
+                    };
                     let mapped;
                     braced!(mapped in content);
                     while !mapped.is_empty() {
                         let name: LitStr = mapped.parse()?;
                         mapped.parse::<Token![:]>()?;
                         let path: syn::Type = mapped.parse()?;
-                        options.with.insert(name.value(), path);
+                        target.insert(name.value(), path);
                         if !mapped.is_empty() {
                             mapped.parse::<Token![,]>()?;
                         }
@@ -566,16 +571,18 @@ impl Generator {
             });
             let (returns, start) = match &method.shape {
                 Shape::Call(result) => {
+                    let encoding = self.encoding(result.as_ref());
                     let result = self.optional(result.as_ref())?;
                     (
-                        quote!(::be_ops::net::Pending<#result>),
+                        quote!(::be_ops::net::Pending<#result, #encoding>),
                         quote!(::be_ops::net::call),
                     )
                 }
                 Shape::Stream(item) => {
+                    let encoding = self.encoding(item.as_ref());
                     let item = self.optional(item.as_ref())?;
                     (
-                        quote!(::be_ops::net::Stream<#item>),
+                        quote!(::be_ops::net::Stream<#item, #encoding>),
                         quote!(::be_ops::net::stream),
                     )
                 }
@@ -790,31 +797,69 @@ impl Generator {
         }
     }
 
-    fn is_bytes(&self, ty: &Type) -> bool {
+    fn encoding_of(&self, ty: &Type) -> Option<TokenStream> {
         let Type::Id(id) = ty else {
-            return false;
+            return None;
         };
         let id = self.target(*id);
-        if self.mapped(id).is_some() {
-            return false;
+        let def = &self.resolve.types[id];
+        if let Some(shape) = def
+            .name
+            .as_ref()
+            .and_then(|name| self.options.encodings.get(name))
+        {
+            return Some(quote!(#shape));
         }
-        match &self.resolve.types[id].kind {
-            TypeDefKind::List(Type::U8) => true,
-            TypeDefKind::Option(inner) if self.resolve.types[id].name.is_none() => {
-                matches!(inner, Type::Id(inner) if matches!(
-                    self.resolve.types[self.target(*inner)].kind,
-                    TypeDefKind::List(Type::U8)
-                ) && self.mapped(self.target(*inner)).is_none())
+        if self.mapped(id).is_some() {
+            return None;
+        }
+        match &def.kind {
+            TypeDefKind::List(Type::U8) => Some(quote!(::be_ops::wire::Bytes)),
+            TypeDefKind::List(inner) => {
+                let inner = self.encoding_of(inner)?;
+                Some(quote!(::be_ops::wire::List<#inner>))
             }
-            _ => false,
+            TypeDefKind::Option(inner) => {
+                let inner = self.encoding_of(inner)?;
+                Some(quote!(::be_ops::wire::Optional<#inner>))
+            }
+            TypeDefKind::Result(result) => {
+                let ok = result.ok.as_ref().and_then(|ty| self.encoding_of(ty));
+                let err = result.err.as_ref().and_then(|ty| self.encoding_of(ty));
+                if ok.is_none() && err.is_none() {
+                    return None;
+                }
+                let plain = || quote!(::be_ops::wire::Plain);
+                let (ok, err) = (ok.unwrap_or_else(plain), err.unwrap_or_else(plain));
+                Some(quote!(::be_ops::wire::Fallible<#ok, #err>))
+            }
+            TypeDefKind::Tuple(tuple) => {
+                let shapes: Vec<_> = tuple.types.iter().map(|ty| self.encoding_of(ty)).collect();
+                if shapes.iter().all(Option::is_none) {
+                    return None;
+                }
+                let shapes = shapes
+                    .into_iter()
+                    .map(|shape| shape.unwrap_or_else(|| quote!(::be_ops::wire::Plain)));
+                Some(quote!((#(#shapes,)*)))
+            }
+            TypeDefKind::Type(inner) => self.encoding_of(inner),
+            _ => None,
         }
     }
 
-    fn bytes_attribute(&self, ty: &Type) -> TokenStream {
-        match self.is_bytes(ty) {
-            true => quote!(#[serde(with = "::serde_bytes")]),
-            false => TokenStream::new(),
-        }
+    fn encoding(&self, ty: Option<&Type>) -> TokenStream {
+        ty.and_then(|ty| self.encoding_of(ty))
+            .unwrap_or_else(|| quote!(::be_ops::wire::Plain))
+    }
+
+    fn encoding_attribute(&self, ty: &Type) -> TokenStream {
+        let Some(shape) = self.encoding_of(ty) else {
+            return TokenStream::new();
+        };
+        let serialize = format!("::be_ops::wire::serialize::<{shape}, _, _>");
+        let deserialize = format!("::be_ops::wire::deserialize::<{shape}, _, _>");
+        quote!(#[serde(serialize_with = #serialize, deserialize_with = #deserialize)])
     }
 
     fn copyable(&self, ty: &Type) -> bool {
@@ -930,7 +975,7 @@ impl Generator {
             .map(|field| {
                 let name = snake(&field.name);
                 let ty = self.ty(&field.ty)?;
-                let bytes = self.bytes_attribute(&field.ty);
+                let bytes = self.encoding_attribute(&field.ty);
                 Ok(match public {
                     true => quote! { #bytes pub #name: #ty, },
                     false => quote! { #bytes #name: #ty, },
@@ -997,7 +1042,7 @@ impl Generator {
                                         quote! { #name { #(#fields)* }, }
                                     }
                                     None => {
-                                        let bytes = self.bytes_attribute(ty);
+                                        let bytes = self.encoding_attribute(ty);
                                         let ty = self.ty(ty)?;
                                         quote! { #name(#bytes #ty), }
                                     }
@@ -1274,7 +1319,7 @@ impl Generator {
             let name = &method.name;
             let args = &method.args;
             let fields = method.params.iter().map(|(name, ty)| {
-                let bytes = self.bytes_attribute(ty);
+                let bytes = self.encoding_attribute(ty);
                 let ty = self.ty(ty).unwrap_or_else(|error| {
                     syn::Error::new(Span::call_site(), error).to_compile_error()
                 });
@@ -1344,9 +1389,10 @@ impl Generator {
                         }
                     },
                     (_, Shape::Call(result)) => {
+                        let encoding = self.encoding(result.as_ref());
                         let result = self.optional(result.as_ref())?;
                         quote! {
-                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Pending<#result> {
+                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Pending<#result, #encoding> {
                                 ::be_ops::guest::with_parent(self.0.op(), || {
                                     ::be_ops::guest::call(crate::__args::#constant, &#args)
                                 })
@@ -1354,9 +1400,10 @@ impl Generator {
                         }
                     }
                     (_, Shape::Stream(item)) => {
+                        let encoding = self.encoding(item.as_ref());
                         let item = self.optional(item.as_ref())?;
                         quote! {
-                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Stream<#item> {
+                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Stream<#item, #encoding> {
                                 ::be_ops::guest::with_parent(self.0.op(), || {
                                     ::be_ops::guest::stream(crate::__args::#constant, &#args)
                                 })
@@ -1376,17 +1423,19 @@ impl Generator {
                     }
                 }
                 Shape::Call(result) => {
+                    let encoding = self.encoding(result.as_ref());
                     let result = self.optional(result.as_ref())?;
                     quote! {
-                        pub fn #name(#(#params),*) -> ::be_ops::guest::Pending<#result> {
+                        pub fn #name(#(#params),*) -> ::be_ops::guest::Pending<#result, #encoding> {
                             ::be_ops::guest::call(crate::__args::#constant, &#args)
                         }
                     }
                 }
                 Shape::Stream(item) => {
+                    let encoding = self.encoding(item.as_ref());
                     let item = self.optional(item.as_ref())?;
                     quote! {
-                        pub fn #name(#(#params),*) -> ::be_ops::guest::Stream<#item> {
+                        pub fn #name(#(#params),*) -> ::be_ops::guest::Stream<#item, #encoding> {
                             ::be_ops::guest::stream(crate::__args::#constant, &#args)
                         }
                     }
@@ -1394,6 +1443,12 @@ impl Generator {
             });
         }
         for (resource, open, next, value) in self.watched(methods) {
+            if self.encoding_of(value).is_some() {
+                return Err(format!(
+                    "{}: a watched value is a record, a variant or a type without bytes in it",
+                    next.name
+                ));
+            }
             let name = camel(&resource);
             let value = self.ty(value)?;
             let interface = &open.interface;
@@ -1483,21 +1538,23 @@ impl Generator {
                 ),
                 (Shape::Direct(_), _, _) => (None, None, true),
                 (Shape::Call(result), _, _) => {
+                    let encoding = self.encoding(result.as_ref());
                     let result = self.optional(result.as_ref()).unwrap_or_else(|error| {
                         syn::Error::new(Span::call_site(), error).to_compile_error()
                     });
                     (
-                        Some(quote!(reply: ::be_ops::Reply<#result>)),
+                        Some(quote!(reply: ::be_ops::Reply<#result, #encoding>)),
                         Some(quote!(reply: ::be_ops::Reply::new(op))),
                         false,
                     )
                 }
                 (Shape::Stream(item), _, _) => {
+                    let encoding = self.encoding(item.as_ref());
                     let item = self.optional(item.as_ref()).unwrap_or_else(|error| {
                         syn::Error::new(Span::call_site(), error).to_compile_error()
                     });
                     (
-                        Some(quote!(stream: ::be_ops::Producer<#item>)),
+                        Some(quote!(stream: ::be_ops::Producer<#item, #encoding>)),
                         Some(quote!(stream: ::be_ops::Producer::new(op))),
                         false,
                     )
@@ -1678,6 +1735,10 @@ impl Generator {
                 (false, _) => quote!(-> #result),
             };
             let notify = matches!(method.shape, Shape::Direct(None));
+            let encoding = match &method.shape {
+                Shape::Direct(result) | Shape::Call(result) => self.encoding(result.as_ref()),
+                Shape::Stream(_) => quote!(::be_ops::wire::Plain),
+            };
             let serve = |call: TokenStream| match asynchronous {
                 false if notify => quote! {
                     #call;
@@ -1686,11 +1747,13 @@ impl Generator {
                 true => quote! {
                     let future = #call;
                     ::be_ops::guest::Serve::Later(::std::boxed::Box::pin(async move {
-                        ::be_ops::Outcome::returned(&future.await)
+                        ::be_ops::Outcome::Ok(::be_ops::wire::encode::<#encoding, _>(&future.await))
                     }))
                 },
                 false => quote! {
-                    ::be_ops::guest::Serve::Done(::be_ops::Outcome::returned(&#call))
+                    ::be_ops::guest::Serve::Done(::be_ops::Outcome::Ok(
+                        ::be_ops::wire::encode::<#encoding, _>(&#call),
+                    ))
                 },
             };
             let decode = |body: TokenStream| {
@@ -1819,13 +1882,20 @@ impl Generator {
         }
     }
 
-    fn host_returns(method: &Method<'_>, result: &TokenStream) -> (TokenStream, TokenStream) {
-        match method.shape {
+    fn host_returns(
+        &self,
+        method: &Method<'_>,
+        result: &TokenStream,
+    ) -> (TokenStream, TokenStream) {
+        match &method.shape {
             Shape::Direct(None) => (TokenStream::new(), TokenStream::new()),
-            _ => (
-                quote!(-> ::be_ops::Ticket<#result>),
-                quote!(::be_ops::Ticket::new(op)),
-            ),
+            Shape::Direct(ty) | Shape::Call(ty) | Shape::Stream(ty) => {
+                let encoding = self.encoding(ty.as_ref());
+                (
+                    quote!(-> ::be_ops::Ticket<#result, #encoding>),
+                    quote!(::be_ops::Ticket::new(op)),
+                )
+            }
         }
     }
 
@@ -1848,7 +1918,7 @@ impl Generator {
             match method.function.kind {
                 FunctionKind::Freestanding | FunctionKind::AsyncFreestanding => {
                     let name = snake(method.function.item_name());
-                    let (returns, wrap) = Self::host_returns(method, &result);
+                    let (returns, wrap) = self.host_returns(method, &result);
                     let starting =
                         Self::starting(method, quote!(::core::option::Option::None), &args);
                     let binding = Self::binding(method, starting);
@@ -1875,7 +1945,7 @@ impl Generator {
                 }
                 FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
                     let name = snake(method.function.item_name());
-                    let (returns, wrap) = Self::host_returns(method, &result);
+                    let (returns, wrap) = self.host_returns(method, &result);
                     let starting =
                         Self::starting(method, quote!(::core::option::Option::Some(self.0)), &args);
                     let binding = Self::binding(method, starting);

@@ -17,9 +17,9 @@ use wasmtime::{
 };
 
 use crate::{
-    Flavor, INTERRUPTED, PRECOMPILED_EXTENSION, call_constructors, engine,
+    Flavor, INTERRUPTED, Stored, call_constructors, engine,
     interrupt::{Interrupt, Interrupter},
-    module, panic,
+    module, panic, precompiled,
     wake::{Wake, Wakes},
 };
 
@@ -69,27 +69,23 @@ impl PureHost {
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or_else(|| format!("{} names no module", path.display()))?;
-        self.load_from(entry, |name| {
-            let path = directory.join(name);
-            std::fs::read(&path)
-                .map_err(|error| format!("{} could not be read: {error}", path.display()))
-        })
+        self.load_from(entry, |name| Stored::file(directory.join(name)))
     }
 
     pub fn load_from(
         &self,
         entry: &str,
-        read: impl Fn(&str) -> Result<Vec<u8>, String>,
+        read: impl Fn(&str) -> Result<Stored, String>,
     ) -> Result<PureGuest, String> {
-        let module = match self.precompiled(entry, &read) {
+        let module = match precompiled(&self.engine, entry, &read) {
             Some(module) => module,
-            None => module(&self.engine, &read(entry)?)?,
+            None => module(&self.engine, read(entry)?)?,
         };
         PureGuest::new(self, &module)
     }
 
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<PureGuest, String> {
-        PureGuest::new(self, &module(&self.engine, bytes)?)
+        PureGuest::new(self, &module(&self.engine, Stored::Bytes(bytes.to_vec()))?)
     }
 
     pub fn spawn(
@@ -114,26 +110,6 @@ impl PureHost {
                 Ok(guest)
             },
         )
-    }
-
-    fn precompiled(
-        &self,
-        name: &str,
-        read: &impl Fn(&str) -> Result<Vec<u8>, String>,
-    ) -> Option<Module> {
-        let artifact = Path::new(name)
-            .with_extension(PRECOMPILED_EXTENSION)
-            .to_str()?
-            .to_owned();
-        let bytes = read(&artifact).ok()?;
-        // unsafe(ffi)
-        match unsafe { Module::deserialize(&self.engine, &bytes) } {
-            Ok(module) => Some(module),
-            Err(error) => {
-                eprintln!("{artifact} could not be used, compiling the guest instead: {error}");
-                None
-            }
-        }
     }
 }
 

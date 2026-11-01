@@ -393,10 +393,10 @@ impl Module {
             .unwrap_or_default()
     }
 
-    fn answer_later<T: serde::de::DeserializeOwned + 'static>(
+    fn answer_later<T: 'static, E: be_ops::wire::Decode<T> + 'static>(
         &self,
         replica: ReplicaId,
-        pending: Pending<T>,
+        pending: Pending<T, E>,
         input: impl FnOnce(Result<T, String>) -> Input + 'static,
     ) {
         let module = self.clone();
@@ -653,7 +653,8 @@ impl replicas::GuestReplica for OpenReplica {
         self.module.open(self.id, opening);
     }
 
-    fn message(&self, from: Endpoint, bytes: Vec<u8>) {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) {
+        self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
     }
 

@@ -21,7 +21,7 @@ use block_plugin_api::{
     },
     ops::{
         Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
-        Started, Ticket,
+        Started, Ticket, wire,
     },
 };
 
@@ -29,7 +29,7 @@ use block_plugin_api::{
 struct Held {
     owners: HashMap<OpId, EditorInstanceId>,
     watches: BTreeMap<OpId, Watch<Encoded>>,
-    producers: HashMap<OpId, Producer<Vec<u8>>>,
+    producers: HashMap<OpId, Producer<Vec<u8>, wire::Bytes>>,
     sends: HashMap<OpId, OpId>,
 }
 
@@ -46,7 +46,7 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
-    painting: HashMap<OpId, Ticket<Vec<u8>>>,
+    painting: HashMap<OpId, Ticket<Vec<u8>, wire::Bytes>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
     published: HashMap<OpId, PublishedWatch>,
     extensions: Vec<String>,

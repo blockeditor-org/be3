@@ -4,6 +4,8 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
+use block_wasm_host::Stored;
+
 use super::Plugins;
 
 pub(super) fn scan() -> Plugins {
@@ -21,13 +23,17 @@ pub(super) fn fetch(path: String, deliver: impl FnOnce(Result<Vec<u8>, String>) 
     deliver(read(&path));
 }
 
+fn read(path: &str) -> Result<Vec<u8>, String> {
+    open(path)?.into_bytes()
+}
+
 #[cfg(not(target_os = "android"))]
-pub fn read(path: &str) -> Result<Vec<u8>, String> {
+pub fn open(path: &str) -> Result<Stored, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let root = executable
         .parent()
         .ok_or("the executable is in no directory")?;
-    std::fs::read(root.join(path)).map_err(|error| error.to_string())
+    Stored::file(root.join(path))
 }
 
 #[cfg(target_os = "android")]
@@ -45,7 +51,7 @@ pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + 
 }
 
 #[cfg(target_os = "android")]
-pub fn read(path: &str) -> Result<Vec<u8>, String> {
+pub fn open(path: &str) -> Result<Stored, String> {
     let read_asset = ASSETS.get().ok_or("the app's assets were not given")?;
-    read_asset(path)
+    read_asset(path).map(Stored::Bytes)
 }

@@ -1596,7 +1596,9 @@ impl Document {
                 taken.is_everything() || !taken.of(paint, Rect::EVERYTHING).is_empty()
             })
         });
-        if ctx.automated() {
+        if !ctx.wants_overflows() {
+            self.out_of_bounds = None;
+        } else {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
                 let found = self

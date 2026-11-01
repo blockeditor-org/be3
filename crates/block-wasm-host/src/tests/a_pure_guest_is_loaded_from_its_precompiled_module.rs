@@ -12,7 +12,7 @@ fn a_pure_guest_is_loaded_from_its_precompiled_module() {
     let mut guest = PureHost::new(None)
         .unwrap()
         .load_from("echo.wasm", |name| match name {
-            "echo.cwasm" => Ok(compiled.clone()),
+            "echo.cwasm" => Ok(Stored::Bytes(compiled.clone())),
             _ => Err(format!("{name} is not here")),
         })
         .expect("the precompiled module is used, without the module it was compiled from");

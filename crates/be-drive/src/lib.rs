@@ -15,7 +15,7 @@ use std::time::Duration;
 use beui_layer_drive::socket::{read_reply, write_request};
 use beui_layer_drive::{Reply, USAGE};
 
-pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
+pub const TIMEOUT: Duration = Duration::from_secs(30);
 const ANSWER_GRACE: Duration = Duration::from_secs(5);
 
 pub fn main() -> ExitCode {

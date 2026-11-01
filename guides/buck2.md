@@ -234,10 +234,14 @@ deletes the paintings no test named.
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
 treated the same way: `:test` is what `./scripts/test` runs and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
-runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
+runs with, kept out of its compile. crates/app-tests runs block-app headless, so it runs on Linux x86_64 only.
 It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
 `src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
-then loses only its own paintings, not every one the crate accepts.
+then loses only its own paintings, not every one the crate accepts. `apart_env` adds to
+`run_env` per file: crates/app-tests gives each test the app with only the editors it names
+(guides/testing_a_gui.md, 6), one `:app-<editors>` per distinct set, and `./scripts/test`
+(buck/dev/test.bxl) runs each file of such a test as an action of its own with its own
+environment.
 crates/be-portal-ui captures its SSR portal as text browser paintings without a browser.
 
 **Browser tests** (`web_drive_test` in `buck/app/drive.bzl`, and `page_test` there for a page that
@@ -325,7 +329,11 @@ A native target depends on a wasm one through a transition in
   (each module's `WasmLibrariesInfo`), precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
-  build the workers can run. `plugins.json` lists the manifests: every
+  build the workers can run. Those actions are `:precompiled`'s
+  (`precompiled_plugins`), which an `app()` given it as `precompiled` takes each
+  `.cwasm` from, so the app tests' apps share them rather than precompiling
+  their own: an action's output path names its target, so the same compile in
+  two targets is two cache entries. `plugins.json` lists the manifests: every
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
 - Every `app()` also has `[archive]`, its directory as one zstd-compressed file

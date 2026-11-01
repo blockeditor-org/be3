@@ -380,8 +380,8 @@ recorded, and a child's statuses are whatever the test reports. What happens bet
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
 press, a tab closing its editor) lives in block-app's compositor and plugin host, so it is
 tested in crates/app-tests instead, against the app itself. Each test there starts the native
-app headless with every plugin and the dev organization open, exactly as `:dev` does, in a data
-directory of its own; drives it with the commands `drive` has (guides/running/drive.md); paints
+app headless with the dev organization open, exactly as `:dev` does, in a data
+directory of its own, with the editors it names (below); drives it with the commands `drive` has (guides/running/drive.md); paints
 the whole window, every plugin included; and fails unless the app exits cleanly when it closes,
 which close() checks, so a test that ends without calling it fails too.
 
@@ -400,9 +400,12 @@ which close() checks, so a test that ends without calling it fails too.
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
   Keep it stopped: a closing menu or sheet goes only after a pause as long as its animation.
+  A pause costs only the frames it runs, not the real time it names (guides/running/drive.md,
+  `clock`).
   The wall clock is the headless platform's fixed moment (in UTC) plus the frame clock, so a
   clock in the desktop's bar paints the same too, as long as the app is ready within a minute.
-  click() first waits for its target, and record() and snapshot() wait for every editor's
+  click() waits for its target when it is not on screen yet (it clicks at once when it is, and
+  sends `wait` only when the click finds nothing), and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
 - Target nodes by test id or by a line of the tree, never by fixed coordinates: where a gesture needs a point, take it from `place(target)`, and send it with `run`, since `click` waits for its target first. Block ids are random,
   so a test id or a painting that holds one, or the order of blocks the file tree sorts by id,
@@ -421,8 +424,25 @@ which close() checks, so a test that ends without calling it fails too.
 - `AppTest::start_in_space()` starts the app in the VR simulator (`BEUI_LAYERS=space` on the
   headless platform), where the painting is the 3D view and targets and points are the main
   panel's, so it shows what happens between panels, such as a plugin's window becoming one.
+- The app runs with no GPU renderer (`BEUI_RENDERER=none`), and plugins then draw nothing on
+  the GPU either, since a painting needs neither. The 3D view of space and the previews of
+  blocks (a slide in a deck's filmstrip) are textures, so `start_in_space()` and
+  `AppTest::start_drawing_previews()` start it with the renderer, drawing through lavapipe.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
+- Each test names the editors it uses in `EDITORS` in crates/app-tests/BUCK, by their
+  directory under crates/editors: the editor of every block type it creates or opens, the
+  canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text-block`
+  for a deck's slides. Its app stages those beside the ones every app needs to show the Files
+  (`BASE` in crates/app-tests/apps.bzl), each only as its precompiled module, so the test builds
+  only those editors, and a change to an editor reruns only the tests that name it. A test not
+  in `EDITORS` stages every editor: leave a test out whose paintings show what every editor
+  adds, such as the add menu's types or the type search, since fewer editors would paint fewer
+  rows. A block whose editor is missing fails the test within a few seconds, naming the editor
+  to add; a painting that changes where only the editors changed means the test needs another
+  editor (a file's row menu offers Opens in only for a type that two editors edit, such as
+  text-block and block-debug), and a test named `foo` runs against its own app with
+  `./scripts/test foo`, as verify runs it.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log, after every panic the app logged before it, each whole with its message and backtrace. A step
@@ -431,8 +451,9 @@ which close() checks, so a test that ends without calling it fails too.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running
   the harness on this machine, all the tests at once and as often as needed. Build it with what
   its `run_env` in crates/app-tests/BUCK names (`./scripts/buck build
-  //crates/app-tests:test-harness //crates/block-app:native //buck/sysroot:amd64-test
-  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`), then run
+  //crates/app-tests:test-harness //crates/app-tests:app-all //buck/sysroot:amd64-test
+  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:app-all` the app every
+  test can run against), then run
   `buck-out/v2/art/root/*/crates/app-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
   `CARGO_MANIFEST_DIR` to crates/app-tests. While a test hangs, `gdb -p PID -batch -ex 'thread

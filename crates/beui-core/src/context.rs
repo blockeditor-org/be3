@@ -124,6 +124,7 @@ struct Inner {
     accessibility_active: Cell<bool>,
     accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
+    overflows_wanted: Cell<bool>,
     unhurried: Cell<bool>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
@@ -416,6 +417,7 @@ impl Context {
                 accessibility_active: Cell::new(true),
                 accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
+                overflows_wanted: Cell::new(false),
                 unhurried: Cell::new(false),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
@@ -487,6 +489,14 @@ impl Context {
 
     pub fn automated(&self) -> bool {
         self.inner.automated.get()
+    }
+
+    pub fn want_overflows(&self, wanted: bool) {
+        self.inner.overflows_wanted.set(wanted);
+    }
+
+    pub fn wants_overflows(&self) -> bool {
+        self.inner.overflows_wanted.get()
     }
 
     pub fn set_hurried(&self, hurried: bool) {

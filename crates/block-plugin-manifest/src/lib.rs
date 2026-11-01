@@ -73,6 +73,7 @@ pub struct EditorManifest {
     pub resize: ResizeMode,
     pub views: Vec<ParentView>,
     pub accepts: Vec<ShellRequest>,
+    pub opens: Vec<[u8; 16]>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

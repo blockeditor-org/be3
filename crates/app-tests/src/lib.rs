@@ -1,11 +1,13 @@
 use std::cell::Cell;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use be_drive::Driven;
 use beui_layer_drive::Reply;
 use paint_snapshot::{Painting, Snapshot};
 
 const SIZE: &str = "1100x720";
+const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
+const SLOW_WAIT: Duration = Duration::from_secs(5);
 const ACCEPT: &str = "./scripts/verify --plugin-tests, or ./scripts/buck test //crates/app-tests:test -- --env UPDATE_SNAPSHOTS=1";
 
 pub struct AppTest {
@@ -17,6 +19,7 @@ pub struct AppTest {
     started: Instant,
     reported: Cell<bool>,
     space: bool,
+    editors: Option<String>,
 }
 
 impl AppTest {
@@ -29,14 +32,18 @@ impl AppTest {
     }
 
     pub fn start_in_space() -> Self {
-        Self::launch(&[], "Pane \"Files\"", true)
+        Self::launch(&[], "Pane \"Files\"", true, true)
+    }
+
+    pub fn start_drawing_previews() -> Self {
+        Self::launch(&[], "Pane \"Files\"", false, true)
     }
 
     pub fn start_with(arguments: &[&str], ready: &str) -> Self {
-        Self::launch(arguments, ready, false)
+        Self::launch(arguments, ready, false, false)
     }
 
-    fn launch(arguments: &[&str], ready: &str, space: bool) -> Self {
+    fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
             .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
@@ -48,6 +55,7 @@ impl AppTest {
             SIZE,
             std::env::var("APP_LIBRARIES").ok(),
             space,
+            render,
         )
         .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {
@@ -59,6 +67,7 @@ impl AppTest {
             started,
             reported: Cell::new(false),
             space,
+            editors: std::env::var("APP_TEST_EDITORS").ok(),
         };
         test.wait(ready);
         test.run(&["clock", "stop"]);
@@ -66,8 +75,13 @@ impl AppTest {
     }
 
     pub fn run(&mut self, words: &[&str]) -> String {
+        let answered = self.driven().request(words);
+        self.answered(words, answered)
+    }
+
+    fn answered(&mut self, words: &[&str], answered: Result<Reply, String>) -> String {
         self.steps.push(line(words));
-        match self.driven().request(words) {
+        match answered {
             Ok(Reply::Text(text)) => text,
             Ok(_) => self.fail(&format!(
                 "{} answered with something other than text",
@@ -78,7 +92,51 @@ impl AppTest {
     }
 
     pub fn wait(&mut self, target: &str) {
+        if self.within(SLOW_WAIT, &["wait", target]).is_ok() {
+            self.steps.push(line(&["wait", target]));
+            return;
+        }
+        self.check_editors();
         self.run(&["wait", target]);
+    }
+
+    fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<Reply, String> {
+        let app = self.app.as_mut().expect("the app is still open");
+        app.set_timeout(timeout);
+        let reply = app.request(words);
+        app.set_timeout(be_drive::TIMEOUT);
+        reply
+    }
+
+    fn check_editors(&mut self) {
+        let tree = self.tree();
+        let Some(shown) = MISSING_EDITOR.iter().find(|text| tree.contains(*text)) else {
+            return;
+        };
+        let value = |marker: &str, prefix: &str, end: char| {
+            tree.lines()
+                .skip_while(|line| !line.contains(marker))
+                .find_map(|line| line.split_once(prefix))
+                .map(|(_, rest)| rest.split(end).next().unwrap_or_default().to_owned())
+        };
+        let needle = match *shown == MISSING_EDITOR[0] {
+            true => value("Type: ", "Type: ", '"'),
+            false => value("#picker.search", "value=\"", '"')
+                .map(|search| format!("\"display_name\": \"{search}\"")),
+        };
+        let editors = match &self.editors {
+            Some(editors) => format!(
+                "its app stages only the editors {editors}: add {} to this test's editors in crates/app-tests/BUCK",
+                needle
+                    .as_deref()
+                    .map_or_else(Vec::new, editors_naming)
+                    .join(" or ")
+            ),
+            None => "its app stages every editor, and none edits this block's type".to_owned(),
+        };
+        self.fail(&format!(
+            "the app shows {shown:?}: this test opens or creates a block of a type no staged editor edits; {editors}"
+        ));
     }
 
     pub fn gone(&mut self, target: &str) {
@@ -86,13 +144,21 @@ impl AppTest {
     }
 
     pub fn click(&mut self, target: &str) -> String {
-        self.wait(target);
-        self.run(&["click", target])
+        self.when_shown(target, &["click", target])
     }
 
     pub fn double_click(&mut self, target: &str) -> String {
-        self.wait(target);
-        self.run(&["click", target, "double"])
+        self.when_shown(target, &["click", target, "double"])
+    }
+
+    fn when_shown(&mut self, target: &str, words: &[&str]) -> String {
+        match self.driven().request(words) {
+            Err(error) if missing(&error) => {
+                self.wait(target);
+                self.run(words)
+            }
+            answered => self.answered(words, answered),
+        }
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
@@ -217,8 +283,13 @@ impl AppTest {
                 format!("\n\nWhat the app shows:\n{tree}\n\n{}", app.log_report())
             })
             .unwrap_or_default();
+        let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
+            format!(
+                "\n\nThis test's app stages only the editors {editors}. If it fails for want of another, or a painting changes because the add menu offers fewer types, add the editor to this test's editors in crates/app-tests/BUCK, or remove the test from there to stage every editor."
+            )
+        });
         format!(
-            "The steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",
+            "The steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}{editors}",
             self.steps.join("\n")
         )
     }
@@ -233,6 +304,23 @@ impl Drop for AppTest {
             false => {}
         }
     }
+}
+
+fn editors_naming(text: &str) -> Vec<String> {
+    let manifests = std::env::var("APP_TEST_MANIFESTS").unwrap_or_default();
+    manifests
+        .split(':')
+        .filter(|path| std::fs::read_to_string(path).is_ok_and(|manifest| manifest.contains(text)))
+        .filter_map(|path| {
+            let mut parts = path.split('/').skip_while(|part| *part != "editors");
+            parts.nth(1).map(str::to_owned)
+        })
+        .collect()
+}
+
+fn missing(error: &str) -> bool {
+    error.starts_with("no line of the tree contains")
+        || error.starts_with("no node on screen has the test id")
 }
 
 fn line(words: &[&str]) -> String {

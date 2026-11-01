@@ -14,16 +14,18 @@ pub enum Gesture {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FromEditor {
-    Operate(Vec<u8>),
+    Operate(#[serde(with = "serde_bytes")] Vec<u8>),
     Gesture(Gesture),
-    Replace(Vec<u8>),
+    Replace(#[serde(with = "serde_bytes")] Vec<u8>),
     ShowPresence {
         kind: Uuid,
+        #[serde(with = "serde_bytes")]
         value: Option<Vec<u8>>,
     },
     SendToPeers {
         to: Option<ClientId>,
         channel: Uuid,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
     Resend,
@@ -32,17 +34,28 @@ pub enum FromEditor {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Snapshot {
     pub content_type: Uuid,
+    #[serde(with = "serde_bytes")]
     pub bytes: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     pub session: Vec<u8>,
+    #[serde(
+        serialize_with = "be_ops::wire::serialize::<be_ops::wire::List<be_ops::wire::Bytes>, _, _>",
+        deserialize_with = "be_ops::wire::deserialize::<be_ops::wire::List<be_ops::wire::Bytes>, _, _>"
+    )]
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EditorOperation {
+    #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
     pub unsettled: u64,
+    #[serde(
+        serialize_with = "be_ops::wire::serialize::<be_ops::wire::Optional<be_ops::wire::List<be_ops::wire::Bytes>>, _, _>",
+        deserialize_with = "be_ops::wire::deserialize::<be_ops::wire::Optional<be_ops::wire::List<be_ops::wire::Bytes>>, _, _>"
+    )]
     pub beneath: Option<Vec<Vec<u8>>>,
 }
 
@@ -50,6 +63,7 @@ pub struct EditorOperation {
 pub struct PeerPresence {
     pub client: ClientId,
     pub kind: Uuid,
+    #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
 }
 
@@ -57,6 +71,7 @@ pub struct PeerPresence {
 pub struct PeerMessage {
     pub from: ClientId,
     pub channel: Uuid,
+    #[serde(with = "serde_bytes")]
     pub payload: Vec<u8>,
 }
 

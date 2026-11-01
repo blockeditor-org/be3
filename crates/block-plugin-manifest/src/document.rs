@@ -50,6 +50,8 @@ pub struct EditorDocument {
     pub views: Vec<ParentView>,
     #[serde(default)]
     pub accepts: Vec<ShellRequest>,
+    #[serde(default)]
+    pub opens: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +69,8 @@ pub struct BlockTypeDocument {
     pub module: String,
     #[serde(default)]
     pub exported_whole: bool,
+    #[serde(default)]
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,7 +217,7 @@ impl BlockTypeDocument {
                 icon_codepoint: self.icon,
                 children: self.children,
                 press: self.press,
-                plain_file: false,
+                plain_file: self.plain_file,
             },
             module: self.module,
             exported_whole: self.exported_whole,
@@ -260,6 +264,15 @@ impl EditorDocument {
             resize: self.resize,
             views: self.views,
             accepts: self.accepts,
+            opens: self
+                .opens
+                .iter()
+                .map(|editor| {
+                    Uuid::parse_str(editor)
+                        .map(Uuid::into_bytes)
+                        .map_err(|_| ManifestError::InvalidEditorId)
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 }

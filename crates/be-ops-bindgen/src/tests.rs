@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_network_world_refuses_a_sync_func;
+mod bytes_are_encoded_whole_in_every_position;
 
 fn generated(wit: &str, network: bool) -> Result<String, String> {
     let mut resolve = Resolve::new();

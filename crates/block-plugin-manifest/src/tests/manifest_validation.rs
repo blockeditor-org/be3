@@ -22,6 +22,7 @@ fn manifest_validation() {
         resize: ResizeMode::Both,
         views: vec![ParentView::Main, ParentView::Preview],
         accepts: Vec::new(),
+        opens: Vec::new(),
     };
     let manifest = PluginManifest {
         identity: PluginIdentity {

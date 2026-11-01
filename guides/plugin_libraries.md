@@ -200,7 +200,10 @@ module later.
 
 Natively the host keeps one compiled module per library identity per engine (`Host` in
 block-wasm-host; one wasmtime engine per cache directory), so every plugin after the first only
-compiles itself. In a browser each plugin's worker fetches each library and compiles it with
+compiles itself. `Host::load_from` and `PureHost::load_from` take a reader that hands back each
+module as a `Stored`: a file (`Stored::file`), whose `.cwasm` wasmtime maps rather than copies,
+or bytes already in memory, as Android's assets are. block-app-stack's `discovery::open` is the
+app's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each plugin's worker fetches each library and compiles it with
 `WebAssembly.compileStreaming`, which lets the browser cache the compiled code for the next worker
 that fetches the same file; the server has to give `.wasm` the `application/wasm` type for that,
 and `fetchLibrary` compiles the bytes it hashed otherwise.

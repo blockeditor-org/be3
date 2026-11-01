@@ -62,6 +62,7 @@ struct Host {
     waited: Duration,
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
+    warming: Option<Vec<PluginManifest>>,
     focus: Focus,
     shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
@@ -76,6 +77,7 @@ impl Host {
             waited: Duration::ZERO,
             over_budget: 0,
             runtimes: HashMap::default(),
+            warming: Some(Vec::new()),
             focus: Focus::default(),
             shell: None,
             grabbed: false,
@@ -1203,17 +1205,25 @@ pub fn place_screens(
 
 pub fn install(setup: &beui::native::Setup) {
     let availability = presenter::install(setup);
+    super::backend::hand_over_device();
     HOST.with(|host| {
-        host.borrow_mut().availability = availability;
+        let mut host = host.borrow_mut();
+        host.availability = availability;
+        for plugin in host.warming.take().unwrap_or_default() {
+            let _ = host.runtime(&plugin);
+        }
     });
+    super::backend::discard_prepared();
 }
 
 pub fn exiting() {
     let runtimes = HOST.with(|host| {
         let mut host = host.borrow_mut();
         host.availability = Availability::missing();
+        host.warming = None;
         std::mem::take(&mut host.runtimes)
     });
+    super::backend::discard_prepared();
     for (_, mut runtime) in runtimes {
         runtime.stop();
     }
@@ -1950,7 +1960,18 @@ pub fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec
 
 pub fn warm(plugin: &PluginManifest) {
     HOST.with(|host| {
-        let _ = host.borrow_mut().runtime(plugin);
+        let mut host = host.borrow_mut();
+        let Some(warming) = &mut host.warming else {
+            let _ = host.runtime(plugin);
+            return;
+        };
+        if !warming
+            .iter()
+            .any(|warmed| warmed.identity.id == plugin.identity.id)
+        {
+            warming.push(plugin.clone());
+            super::backend::prepare(plugin);
+        }
     });
 }
 

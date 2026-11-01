@@ -69,6 +69,7 @@ pub struct Host {
 #[derive(Clone)]
 enum Devices {
     Given(wgpu::Device, wgpu::Queue),
+    Awaited(Connect),
     OnDemand(Connect),
 }
 
@@ -78,7 +79,14 @@ impl Devices {
             Self::Given(device, queue) => Device::Ready(Box::new(
                 Gpu::new(device.clone(), queue.clone()).sharing(Arc::clone(imports)),
             )),
-            Self::OnDemand(connect) => Device::Unconnected(Arc::clone(connect)),
+            Self::Awaited(connect) => Device::Unconnected {
+                connect: Arc::clone(connect),
+                wakes: false,
+            },
+            Self::OnDemand(connect) => Device::Unconnected {
+                connect: Arc::clone(connect),
+                wakes: true,
+            },
         }
     }
 }
@@ -95,6 +103,21 @@ impl Host {
             engine,
             libraries,
             devices: Devices::Given(device, queue),
+            imports: Imports::default(),
+            direct: Vec::new(),
+        })
+    }
+
+    pub fn awaiting(
+        device: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
+        cache: Option<&Path>,
+    ) -> Result<Self, String> {
+        let (engine, libraries) = engine(cache, Flavor::Plugin)?;
+        Ok(Self {
+            interrupt: Interrupt::new(engine.clone()),
+            engine,
+            libraries,
+            devices: Devices::Awaited(Arc::new(device)),
             imports: Imports::default(),
             direct: Vec::new(),
         })
@@ -137,49 +160,25 @@ impl Host {
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or_else(|| format!("{} names no module", path.display()))?;
-        self.load_from(entry, |name| {
-            let path = directory.join(name);
-            std::fs::read(&path)
-                .map_err(|error| format!("{} could not be read: {error}", path.display()))
-        })
+        self.load_from(entry, |name| Stored::file(directory.join(name)))
     }
 
     pub fn load_from(
         &self,
         entry: &str,
-        read: impl Fn(&str) -> Result<Vec<u8>, String>,
+        read: impl Fn(&str) -> Result<Stored, String>,
     ) -> Result<Plugin, String> {
-        let plugin = match self.precompiled(entry, &read) {
+        let plugin = match precompiled(&self.engine, entry, &read) {
             Some(plugin) => plugin,
-            None => module(&self.engine, &read(entry)?)?,
+            None => module(&self.engine, read(entry)?)?,
         };
         self.link(plugin, |identity| {
             let library = library_file_name(identity);
-            match self.precompiled(&library, &read) {
+            match precompiled(&self.engine, &library, &read) {
                 Some(module) => Ok(module),
-                None => library_module(&self.engine, identity, &read(&library)?),
+                None => library_module(&self.engine, identity, read(&library)?),
             }
         })
-    }
-
-    fn precompiled(
-        &self,
-        name: &str,
-        read: &impl Fn(&str) -> Result<Vec<u8>, String>,
-    ) -> Option<Module> {
-        let artifact = Path::new(name)
-            .with_extension(PRECOMPILED_EXTENSION)
-            .to_str()?
-            .to_owned();
-        let bytes = read(&artifact).ok()?;
-        // unsafe(ffi)
-        match unsafe { Module::deserialize(&self.engine, &bytes) } {
-            Ok(module) => Some(module),
-            Err(error) => {
-                eprintln!("{artifact} could not be used, compiling the plugin instead: {error}");
-                None
-            }
-        }
     }
 
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
@@ -195,9 +194,9 @@ impl Host {
         bytes: &[u8],
         library: impl Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<Plugin, String> {
-        let plugin = module(&self.engine, bytes)?;
+        let plugin = module(&self.engine, Stored::Bytes(bytes.to_vec()))?;
         self.link(plugin, |identity| {
-            library_module(&self.engine, identity, &library(identity)?)
+            library_module(&self.engine, identity, Stored::Bytes(library(identity)?))
         })
     }
 
@@ -516,36 +515,84 @@ fn memory_import(module: &Module) -> Option<(String, String, MemoryType)> {
     })
 }
 
-fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
-    if Engine::detect_precompiled(bytes).is_some() {
-        // unsafe(ffi)
-        return unsafe { Module::deserialize(engine, bytes) }
+pub enum Stored {
+    File(PathBuf),
+    Bytes(Vec<u8>),
+}
+
+impl Stored {
+    pub fn file(path: PathBuf) -> Result<Self, String> {
+        match path.is_file() {
+            true => Ok(Self::File(path)),
+            false => Err(format!("{} is not a file", path.display())),
+        }
+    }
+
+    pub fn into_bytes(self) -> Result<Vec<u8>, String> {
+        match self {
+            Self::File(path) => std::fs::read(&path)
+                .map_err(|error| format!("{} could not be read: {error}", path.display())),
+            Self::Bytes(bytes) => Ok(bytes),
+        }
+    }
+
+    fn precompiled(&self) -> bool {
+        match self {
+            Self::File(path) => matches!(Engine::detect_precompiled_file(path), Ok(Some(_))),
+            Self::Bytes(bytes) => Engine::detect_precompiled(bytes).is_some(),
+        }
+    }
+
+    fn deserialize(&self, engine: &Engine) -> wasmtime::Result<Module> {
+        match self {
+            // unsafe(ffi)
+            Self::File(path) => unsafe { Module::deserialize_file(engine, path) },
+            // unsafe(ffi)
+            Self::Bytes(bytes) => unsafe { Module::deserialize(engine, bytes) },
+        }
+    }
+}
+
+fn module(engine: &Engine, stored: Stored) -> Result<Module, String> {
+    compile(engine, stored, |_| Ok(()))
+}
+
+fn library_module(engine: &Engine, identity: &str, stored: Stored) -> Result<Module, String> {
+    compile(engine, stored, |bytes| {
+        wasm_dylink::check_library(bytes, identity)
+    })
+}
+
+fn compile(
+    engine: &Engine,
+    stored: Stored,
+    check: impl FnOnce(&[u8]) -> Result<(), String>,
+) -> Result<Module, String> {
+    if stored.precompiled() {
+        return stored
+            .deserialize(engine)
             .map_err(|error| format!("the compiled plugin module could not be loaded: {error}"));
     }
-    Module::new(engine, bytes)
+    let bytes = stored.into_bytes()?;
+    check(&bytes)?;
+    Module::new(engine, &bytes)
         .map_err(|error| format!("the plugin module could not be compiled: {error}"))
 }
 
-fn library_module(engine: &Engine, identity: &str, bytes: &[u8]) -> Result<Module, String> {
-    if Engine::detect_precompiled(bytes).is_none() {
-        wasm_dylink::check_library(bytes, identity)?;
-    }
-    module(engine, bytes)
-}
-
-fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
-    let artifact = path.with_extension(PRECOMPILED_EXTENSION);
-    if !artifact.is_file() {
-        return None;
-    }
-    // unsafe(ffi)
-    match unsafe { Module::deserialize_file(engine, &artifact) } {
+fn precompiled(
+    engine: &Engine,
+    name: &str,
+    read: &impl Fn(&str) -> Result<Stored, String>,
+) -> Option<Module> {
+    let artifact = Path::new(name)
+        .with_extension(PRECOMPILED_EXTENSION)
+        .to_str()?
+        .to_owned();
+    let stored = read(&artifact).ok()?;
+    match stored.deserialize(engine) {
         Ok(module) => Some(module),
         Err(error) => {
-            eprintln!(
-                "{} could not be used, compiling the plugin instead: {error}",
-                artifact.display()
-            );
+            eprintln!("{artifact} could not be used, compiling the module instead: {error}");
             None
         }
     }

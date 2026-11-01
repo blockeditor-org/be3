@@ -168,7 +168,7 @@ pub(super) async fn sources() -> Vec<Source> {
 async fn staged_tag(module: &str) -> Result<block_type_api::SessionTag, String> {
     let name = format!("{}.sha256", module.strip_suffix(".wasm").unwrap_or(module));
     #[cfg(not(target_arch = "wasm32"))]
-    let read = crate::discovery::read(&name);
+    let read = crate::discovery::open(&name).and_then(block_wasm_host::Stored::into_bytes);
     #[cfg(target_arch = "wasm32")]
     let read = block_app_base::platform::http::get(name.clone(), Vec::new()).await;
     let hex = String::from_utf8(read?).map_err(|error| error.to_string())?;
@@ -205,7 +205,7 @@ impl Guest for Crashing {
 async fn staged(name: &str, module: &str) -> Source {
     let entry = module.to_owned();
     be_types_host::modules::wasm(name, staged_tag(module).await, None, move |host| {
-        host.load_from(&entry, crate::discovery::read)
+        host.load_from(&entry, crate::discovery::open)
     })
 }
 

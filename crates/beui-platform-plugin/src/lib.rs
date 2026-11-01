@@ -447,6 +447,7 @@ impl ModuleRunner {
             false => self.runner.accessibility_requested(),
         }
         self.runner.context().set_automated(!described.is_empty());
+        self.runner.context().want_overflows(!described.is_empty());
         self.described = described;
     }
 

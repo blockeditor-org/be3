@@ -219,21 +219,28 @@ impl AccessibilityDump {
 
 impl Nodes {
     fn check_attached(&self, update: &TreeUpdate) {
-        let mut reached = HashSet::default();
-        if let Some(root) = self.root {
-            self.reach(root, &mut reached);
-        }
         let claimed: HashSet<NodeId> = update
             .nodes
             .iter()
             .flat_map(|(_, node)| node.children().iter().copied())
             .collect();
         let root = update.tree.as_ref().map(|tree| tree.root);
-        let detached: Vec<NodeId> = update
+        let unclaimed: Vec<NodeId> = update
             .nodes
             .iter()
             .map(|(id, _)| *id)
-            .filter(|id| Some(*id) != root && !reached.contains(id) && !claimed.contains(id))
+            .filter(|id| Some(*id) != root && !claimed.contains(id))
+            .collect();
+        if unclaimed.is_empty() {
+            return;
+        }
+        let mut reached = HashSet::default();
+        if let Some(root) = self.root {
+            self.reach(root, &mut reached);
+        }
+        let detached: Vec<NodeId> = unclaimed
+            .into_iter()
+            .filter(|id| !reached.contains(id))
             .collect();
         assert!(
             detached.is_empty(),

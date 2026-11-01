@@ -20,6 +20,9 @@ be_ops_bindgen::generate!({
         "resume": be_session::Resume,
         "entries": crate::Entries,
     },
+    encodings: {
+        "entries": ::be_ops::wire::Map<::be_ops::wire::Plain, ::be_ops::wire::Bytes>,
+    },
     copy: ["uuid", "hash", "commit-id", "session-tag"],
     default: ["plain", "description", "plain-file", "status"],
 });

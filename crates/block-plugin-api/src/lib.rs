@@ -1,6 +1,5 @@
 pub use accesskit;
 use serde::{Deserialize, Serialize};
-pub use serde_bytes::ByteBuf;
 use std::fmt;
 
 be_ops_bindgen::generate!({

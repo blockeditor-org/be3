@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use block_plugin_api::{HelloAccepted, ScreenDamage, ops::Outcome};
 use block_plugin_manifest::PluginManifest;
@@ -68,9 +68,8 @@ impl Backend {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
         };
-        let waiting = Arc::default();
-        match platform::spawn(plugin, module, Arc::clone(&waiting)) {
-            Ok((channel, mailbox)) => {
+        match platform::spawn(plugin, module) {
+            Ok((channel, mailbox, waiting)) => {
                 self.worker = Some(Worker::new(channel, waiting));
                 self.mailbox = Some(mailbox);
             }
@@ -283,6 +282,20 @@ impl Backend {
         self.worker = None;
         self.mailbox = None;
     }
+}
+
+pub(super) fn prepare(plugin: &PluginManifest) {
+    if let Some(module) = discovery::entry_point(&plugin.identity.id, &plugin.entry_point) {
+        platform::prepare(plugin, module);
+    }
+}
+
+pub(super) fn hand_over_device() {
+    platform::hand_over_device();
+}
+
+pub(super) fn discard_prepared() {
+    platform::discard_prepared();
 }
 
 pub(super) struct Availability(pub(super) Result<(), String>);

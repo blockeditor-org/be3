@@ -144,7 +144,9 @@ its clock pinned as `--pin-clock` pins it, and its output on its own, runs the c
 waits for the program to exit, and fails unless every command succeeded and the program exited
 cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data and
 its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/app-tests drives
-block-app (guides/testing_a_gui.md, 6).
+block-app (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
+`BEUI_RENDERER=none`: frames are painted but no GPU draws them, so `paint` works and `screenshot`
+does not, and neither do the 3D view of `space` or the previews of blocks, which are textures.
 
 ## Reading the screen
 
@@ -228,8 +230,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   snapshot.
 - `drive overflows` lists, one per line, what the window shows out of bounds
   (beui-core's `Document::overflows`, guides/testing_a_gui.md, 4), the host's documents and every
-  plugin shown included. Each document checks itself on every frame while it is driven, and a
-  plugin's findings come back with its painting, so it waits as `paint` does.
+  plugin shown included. The host's documents check themselves only while the command waits
+  (`Context::want_overflows`); a plugin's document checks itself on every frame while it is
+  described, and its findings come back with its painting, so it waits as `paint` does.
 
 ## Targets
 
@@ -331,6 +334,12 @@ animates without changing anything lets the app settle with the clock running.
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. A plugin that asks to be drawn again
 is drawn again only once the clock has moved, so an animating plugin settles too. `drive clock run` starts it again.
+While the clock is stopped the headless platform runs a frame that drive asks for (a `pause`,
+the steps of a gesture, input waiting) at once rather than at the next 60 Hz tick, so `pause`
+costs only the frames it runs, not the time it names. So is a frame the app asks for while a
+command waits on it and it says it is busy (`busy`, such as a plugin's change it still has to
+show), so a click settles in the frames it takes; any other frame the app asks for on its own is
+still paced, so an app that animates forever does not spin.
 A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
 animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
 when an animation was waiting for the stopped clock, as `drive state` does.

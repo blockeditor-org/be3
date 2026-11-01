@@ -49,8 +49,11 @@ impl Clock {
     pub fn at(&self, instant: std::time::Instant) -> Duration {
         match &self.0 {
             Kind::Real => {
-                let ago = std::time::Instant::now().saturating_duration_since(instant);
-                real::now().saturating_sub(ago)
+                let now = std::time::Instant::now();
+                match instant.checked_duration_since(now) {
+                    Some(ahead) => real::now() + ahead,
+                    None => real::now().saturating_sub(now - instant),
+                }
             }
             Kind::Manual(_) => self.now(),
         }

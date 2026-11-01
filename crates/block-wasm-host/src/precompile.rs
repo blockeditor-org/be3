@@ -7,7 +7,7 @@ use std::{
 
 use wasmtime::{Engine, Module, OptLevel};
 
-use crate::{Flavor, PRECOMPILED_EXTENSION, configuration, module, precompiled_beside};
+use crate::{Flavor, PRECOMPILED_EXTENSION, Stored, configuration, module};
 
 struct Engines {
     plugin: Engine,
@@ -112,18 +112,18 @@ pub(crate) fn test_module(
     precompiled: Option<&Path>,
 ) -> Result<Module, String> {
     if let Some(artifact) = precompiled {
-        // unsafe(ffi)
-        return unsafe { Module::deserialize_file(engine, artifact) }
+        return Stored::File(artifact.to_path_buf())
+            .deserialize(engine)
             .map_err(|error| format!("{} could not be used: {error}", artifact.display()));
     }
     if modified(&wasm.with_extension(PRECOMPILED_EXTENSION)) > modified(wasm)
-        && let Some(compiled) = precompiled_beside(engine, wasm)
+        && let Some(compiled) = wasm.to_str().and_then(|wasm| {
+            crate::precompiled(engine, wasm, &|name| Stored::file(PathBuf::from(name)))
+        })
     {
         return Ok(compiled);
     }
-    let bytes = std::fs::read(wasm)
-        .map_err(|error| format!("{} could not be read: {error}", wasm.display()))?;
-    module(engine, &bytes)
+    module(engine, Stored::file(wasm.to_path_buf())?)
 }
 
 fn modified(path: &Path) -> Option<SystemTime> {

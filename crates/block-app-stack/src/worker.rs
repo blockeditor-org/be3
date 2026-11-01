@@ -109,6 +109,7 @@ pub(super) enum Command {
         bytes: Vec<u8>,
         at: Instant,
     },
+    HoldClock(Option<Instant>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -217,6 +218,7 @@ impl Command {
             self,
             Command::Operate(..)
                 | Command::FromEditor { .. }
+                | Command::HoldClock(_)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -281,7 +283,8 @@ impl Command {
             | Command::Members(_)
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
-            | Command::Sync => None,
+            | Command::Sync
+            | Command::HoldClock(_) => None,
         }
     }
 
@@ -484,6 +487,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     changed: Arc<Condvar>,
 ) {
     let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
+    replicas.modules.hold_clock(super::held_clock());
     replicas.modules.ready().await;
     block_app_base::host::wake();
     let started = match cached(&config, &make_store) {
@@ -1944,6 +1948,10 @@ async fn apply(
             replicas.relay_from_editor(block, editor, bytes, at);
             false
         }
+        Command::HoldClock(at) => {
+            replicas.modules.hold_clock(at);
+            false
+        }
         Command::ChangeChild {
             block,
             content_type,
@@ -2044,8 +2052,10 @@ async fn apply(
                     None
                 }),
             };
-            let bytes =
-                bytes.or_else(|| super::types::kind_of(content_type).map(|kind| kind.blank));
+            let bytes = match bytes {
+                Some(bytes) => Some(bytes),
+                None => replicas.kind(content_type).await.map(|kind| kind.blank),
+            };
             if let Some(bytes) = bytes
                 && let Err(error) =
                     publish_bytes(peer, replicas, shared, to, content_type, bytes, true).await
@@ -2109,7 +2119,7 @@ async fn apply(
             mut metadata,
             bytes,
         } => {
-            let kind = super::types::kind_of(content_type);
+            let kind = replicas.kind(content_type).await;
             let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
             if metadata.derived.is_empty()
                 && let Some(kind) = kind
@@ -2262,7 +2272,9 @@ async fn plain_file(
     };
     let bytes = match content {
         Some(bytes) => bytes,
-        None => super::kind_of(content_type)
+        None => replicas
+            .kind(content_type)
+            .await
             .map(|kind| kind.blank)
             .ok_or("This block's type isn't known.")?,
     };

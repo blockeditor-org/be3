@@ -6,6 +6,11 @@ interface shelf {
         pages: u32,
     }
 
+    record scan {
+        title: string,
+        pages: list<list<u8>>,
+    }
+
     variant shelf-error {
         missing(string),
         full,
@@ -16,6 +21,12 @@ interface shelf {
     hold: async func(title: string);
 
     books: func(first: u32) -> stream<book>;
+
+    cover: async func(title: string) -> result<list<u8>, shelf-error>;
+
+    pages: func(title: string) -> stream<list<u8>>;
+
+    bind: async func(scan: scan, loose: list<tuple<string, list<u8>>>) -> option<list<list<u8>>>;
 
     resource reading {
         constructor(title: string);

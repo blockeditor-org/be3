@@ -17,6 +17,9 @@
         "dialog",
         "panel",
         "window"
+      ],
+      "opens": [
+        "9026bab5-b23e-4b81-a693-d3a250905f9e"
       ]
     },
     "picker": {
@@ -77,7 +80,8 @@
       "display_name": "File",
       "icon": "\ue0c0",
       "color": [65, 145, 210],
-      "module": "workspace_ui_types.wasm"
+      "module": "workspace_ui_types.wasm",
+      "plain_file": true
     }
   },
   "extensions": ["be3:desktop"],

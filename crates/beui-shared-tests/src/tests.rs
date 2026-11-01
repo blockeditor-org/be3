@@ -22,6 +22,7 @@ fn run(fixture: &str, script: &str, delayed: bool) {
         SIZE,
         std::env::var("APP_LIBRARIES").ok(),
         false,
+        false,
     )
     .unwrap_or_else(|error| panic!("{fixture}{mode} did not start: {error}"));
     let commands = be_drive::commands(script)

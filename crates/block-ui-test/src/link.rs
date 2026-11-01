@@ -5,7 +5,7 @@ use block_plugin_api::{
     BlockCommand, EditorInstanceId, Encoded, VersionCommand,
     blocks::{BlockHistory, OpenRequest},
     embed::blocks::Call,
-    ops::{Connection, OpError, OpId, Outcome, Producer, encode},
+    ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
 };
 use uuid::Uuid;
 
@@ -41,7 +41,7 @@ pub(crate) struct Link {
     watches: BTreeMap<OpId, Watch>,
     values: BTreeMap<Subject, Vec<u8>>,
     replicas: BTreeMap<OpId, Uuid>,
-    producers: BTreeMap<OpId, Producer<Vec<u8>>>,
+    producers: BTreeMap<OpId, Producer<Vec<u8>, wire::Bytes>>,
     pub(crate) sent: Vec<Sent>,
 }
 

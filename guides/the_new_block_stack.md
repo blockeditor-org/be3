@@ -939,9 +939,11 @@ refuses a plugin that declares a type someone else already has or edits one
 nobody declares. `block_app_stack::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `block-app-stack/src/types.rs`, which
-lists the app's module sources) holds the types each module's `start` lists, with every type's blank
-content and its description asked for once at start, answers `block_app_stack::kind_of` and
-`block_app_stack::is_known` (frozen, schema fingerprint, blank, which module). Everything else
+lists the app's module sources) knows every type a manifest declares from the start
+(`block_app_stack::is_known`), and a plugin's module runs only once a block of its types
+needs it (guides/type_modules.md, "Hosts"); its `start` then adds what `block_app_stack::kind_of`
+answers (frozen, schema fingerprint, blank content and its description), which is `None`
+until then, so the worker asks `Replicas::kind`, which starts the module and awaits it. Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
 which the worker awaits without blocking (`Replicas::merge`, `describe`). A block
 whose content type no module has has no content in the app.

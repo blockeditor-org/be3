@@ -444,8 +444,24 @@ pub fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {
         block,
         editor,
         bytes,
-        at: block_app_base::host::clock(),
+        at: held_clock().unwrap_or_else(block_app_base::host::clock),
     });
+}
+
+static HELD_CLOCK: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+fn held_clock() -> Option<std::time::Instant> {
+    *HELD_CLOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+pub fn hold_clock(at: Option<std::time::Instant>) {
+    let mut held = HELD_CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    if *held == at {
+        return;
+    }
+    *held = at;
+    drop(held);
+    send(Command::HoldClock(at));
 }
 
 pub use replicas::unframe;
@@ -834,6 +850,7 @@ pub fn identity() -> Option<(Uuid, Uuid)> {
 
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
+        + be_types_host::kinds_revision()
 }
 
 pub fn graph_revision() -> u64 {

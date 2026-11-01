@@ -65,6 +65,7 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
             Some(frame) => {
                 let presenting = runner.present();
                 match frame.next(presenting) {
+                    Some(Duration::ZERO) if frame.unpaced => Some(started),
                     Some(Duration::ZERO) => Some(started + FRAME_INTERVAL),
                     Some(wait) => started.checked_add(wait),
                     None => None,

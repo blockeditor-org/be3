@@ -9,7 +9,7 @@ fn a_guest_stream_grants_credit_as_it_takes_items() {
     let executor = guest::Executor::new(Box::new(move |_, _| {
         let taken = Rc::clone(&kept);
         guest::spawn(async move {
-            let mut items = guest::stream::<u32, _>(method_id("test#items"), &());
+            let mut items = guest::stream::<u32, wire::Plain, _>(method_id("test#items"), &());
             while let Some(item) = items.recv().await {
                 taken.borrow_mut().push(item);
             }

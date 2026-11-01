@@ -1,5 +1,5 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:defs.bzl", "app", "precompiled_plugins")
 load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
@@ -42,6 +42,17 @@ cargo_binary(
     rustc_flags = ["-Clto=fat", "-Ccodegen-units=1"] if read_config("be3", "lto", "false") == "true" else [],
 )
 
+# Every editor's modules precompiled for the platform the app is built for,
+# once, for :native, :dev-app and the apps crates/app-tests stages per test.
+precompiled_plugins(
+    name = "precompiled",
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/plugin-test-runner:precompiler",
+    visibility = ["//crates/app-tests:"],
+)
+
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
 app(
@@ -54,9 +65,8 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     plugin_types = ["//{}:types".format(package) for package in editor_packages()],
-    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
-    precompiler = "//crates/plugin-test-runner:precompiler",
-    visibility = ["//crates/app-tests:", "//crates/bench:", "//crates/local-tools:"],
+    precompiled = ":precompiled",
+    visibility = ["//crates/bench:", "//crates/local-tools:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -269,7 +279,7 @@ app(
     manifests = ["//{}:manifest".format(package) for package in dev_plugins],
     modules = ["//{}:module".format(package) for package in dev_plugins],
     plugin_types = ["//{}:types".format(package) for package in dev_plugins],
-    precompiler = "//crates/plugin-test-runner:precompiler",
+    precompiled = ":precompiled",
 )
 
 headless(

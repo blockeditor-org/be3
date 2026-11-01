@@ -19,6 +19,9 @@ load("//buck/cargo:defs.bzl", "RemoteTestInfo")
 # has a RemoteTestInfo: a painting test, which also reads the crate's snapshots/, and a
 # plugin test, which draws through the sysroot's lavapipe on a worker. A test
 # labelled "local", such as a web_drive_test, which needs a browser, runs here.
+# A run_apart test (crates/app-tests) runs each file under src/tests/ whose test,
+# tests::<file>::<file>, contains the name, or every file without one, as an
+# action of its own with that file's environment, which names its own app.
 
 _RUN = 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }'
 
@@ -31,26 +34,36 @@ def _impl(ctx: bxl.Context):
         target = ctx.configured_targets(label)
         providers = ctx.analysis(target).providers()
         local = False
+        runs = []
         if RemoteTestInfo in providers:
             info = providers[RemoteTestInfo]
-            command, env, hidden = info.command, dict(info.env), info.hidden
+            apart = [test for test in info.apart if not args.name or args.name in "tests::{}::{}".format(test, test)]
+            for test in apart:
+                runs.append(("-run-" + test, info.command, info.apart[test], ["--nocapture", "tests::{}::".format(test)]))
+            if not apart:
+                runs.append(("", info.command, info.env, filters))
+            hidden = info.hidden
         else:
             test = providers[ExternalRunnerTestInfo]
-            command, env, hidden = test.command, dict(test.env or {}), []
+            runs.append(("", test.command, test.env or {}, filters))
+            hidden = []
             local = "local" in (test.labels or [])
-        if args.update:
-            env["UPDATE_SNAPSHOTS"] = "1"
-        if args.nonce:
-            env["BE3_TEST_NONCE"] = args.nonce
-        out = actions.declare_output("test/{}/{}".format(target.label.package, target.label.name), dir = True)
-        actions.run(
-            cmd_args("sh", "-c", _RUN, "sh", out.as_output(), command, filters, hidden = hidden),
-            category = "test",
-            env = env,
-            identifier = str(target.label.raw_target()),
-            local_only = local,
-        )
-        ran.append((str(target.label.raw_target()), out))
+        for suffix, command, env, run_filters in runs:
+            env = dict(env)
+            if args.update:
+                env["UPDATE_SNAPSHOTS"] = "1"
+            if args.nonce:
+                env["BE3_TEST_NONCE"] = args.nonce
+            name = str(target.label.raw_target()) + suffix
+            out = actions.declare_output("test/{}/{}{}".format(target.label.package, target.label.name, suffix), dir = True)
+            actions.run(
+                cmd_args("sh", "-c", _RUN, "sh", out.as_output(), command, run_filters, hidden = hidden),
+                category = "test",
+                env = env,
+                identifier = name,
+                local_only = local,
+            )
+            ran.append((name, out))
     paths = ctx.output.ensure_multiple([out for _, out in ran])
     for (label, _), path in zip(ran, paths):
         ctx.output.print(label, path.abs_path(), sep = "\t")
