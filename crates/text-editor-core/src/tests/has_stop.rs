@@ -69,7 +69,12 @@ fn has_stop() {
             b"|    <\\\\>    <}>\n    <\\\\>    <@|vertex> <fn> <vert|(|in|:> <VertexIn|)|",
         ),
         (CursorLeftRightStop::Word, 0, b"| <myfn|(|crazy|)> |"),
-        (CursorLeftRightStop::Word, 0, "|He|\u{301}|llo|".as_bytes()),
+        (CursorLeftRightStop::Word, 0, "|He\u{301}llo|".as_bytes()),
+        (
+            CursorLeftRightStop::Word,
+            0,
+            "|café|-|naïve> <🇷🇸🇮🇴|".as_bytes(),
+        ),
         (
             CursorLeftRightStop::Line,
             0,
