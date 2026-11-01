@@ -1,5 +1,7 @@
 use super::*;
 
+const INSPECTOR_MENU: &str = "#dock.joined:2/inspector.menu";
+
 #[test]
 fn the_canvas_menu_ticks_its_grid_and_profile_in_submenus() {
     let mut app = AppTest::start();
@@ -19,9 +21,9 @@ fn the_canvas_menu_ticks_its_grid_and_profile_in_submenus() {
     app.click("#dock.editors.menu.canvas.profile.vector");
     app.gone("#dock.editors.menu.canvas.profile.vector");
 
-    app.click("#dock.editors.menu");
-    app.click("#dock.editors.menu.canvas.profile");
-    app.wait("#dock.editors.menu.canvas.profile.vector");
+    app.click(INSPECTOR_MENU);
+    app.click(&format!("{INSPECTOR_MENU}.canvas.profile"));
+    app.wait(&format!("{INSPECTOR_MENU}.canvas.profile.vector"));
     app.snapshot("the_canvas_menu_ticks_the_vector_profile_once_picked");
     app.close();
 }

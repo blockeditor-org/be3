@@ -56,6 +56,7 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
+    unannounced_input: Vec<Outbound>,
     block_types: Option<Arc<crate::PluginCatalog>>,
     sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
@@ -807,7 +808,12 @@ impl Instances {
             match &message {
                 Outbound::Plugin(PluginCall::Input(batch))
                     if !self.announced.contains(&batch.screen)
-                        && !self.is_anchored_screen(batch.screen) => {}
+                        && !self.is_anchored_screen(batch.screen) =>
+                {
+                    if self.is_screen(batch.screen) {
+                        self.unannounced_input.push(message);
+                    }
+                }
                 _ => allowed.push(message),
             }
         }
@@ -1305,7 +1311,6 @@ impl Instances {
                 .find(|(held, at, _)| *held == instance && *at == region)
                 .map(|(_, _, screen)| *screen)
         };
-        let announced = &self.announced;
         let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -1313,9 +1318,6 @@ impl Instances {
         else {
             return (Vec::new(), false);
         };
-        if !announced.contains(&screen.request.screen) {
-            return (Vec::new(), false);
-        }
         let id = screen.request.screen;
         let pressed = input
             .pointer_events()
@@ -3152,6 +3154,32 @@ impl Instances {
     pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Vec<ScreenRequest> {
         self.announced = screens.iter().map(|screen| screen.screen).collect();
         screens
+    }
+
+    fn is_screen(&self, id: ScreenId) -> bool {
+        self.entries
+            .values()
+            .flat_map(|entry| entry.screens.values())
+            .any(|screen| screen.request.screen == id)
+    }
+
+    pub(super) fn take_announced_input(&mut self) -> Vec<Outbound> {
+        let held = std::mem::take(&mut self.unannounced_input);
+        let (announced, waiting): (Vec<Outbound>, Vec<Outbound>) =
+            held.into_iter().partition(|message| match message {
+                Outbound::Plugin(PluginCall::Input(batch)) => {
+                    self.announced.contains(&batch.screen)
+                }
+                _ => true,
+            });
+        self.unannounced_input = waiting
+            .into_iter()
+            .filter(|message| match message {
+                Outbound::Plugin(PluginCall::Input(batch)) => self.is_screen(batch.screen),
+                _ => false,
+            })
+            .collect();
+        announced
     }
 
     pub(super) fn place(

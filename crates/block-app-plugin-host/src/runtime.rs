@@ -446,6 +446,7 @@ impl Runtime {
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
             messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
+            messages.extend(self.instances.take_announced_input());
         }
         messages.extend(self.instances.pending());
         messages.extend(
@@ -2397,6 +2398,7 @@ pub struct PlacedView {
     pub clipboard_keys: bool,
     pub every_sample: bool,
     pub work_area: Option<Rect>,
+    pub used: Option<Vec2>,
 }
 
 impl PlacedView {
@@ -2428,6 +2430,7 @@ impl PlacedView {
             clipboard_keys: false,
             every_sample: false,
             work_area: None,
+            used: None,
         }
     }
 
@@ -2682,6 +2685,7 @@ fn shown_view(
             work_area: report
                 .and_then(|report| report.work_area)
                 .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
+            used: runtime.instances.view_size(instance, region),
         }
     }
 }

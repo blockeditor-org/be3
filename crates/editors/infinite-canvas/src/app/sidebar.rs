@@ -45,19 +45,39 @@ pub(crate) fn CanvasSidebar(
     state: CanvasState,
     shown: block_editor_beui::beui::reactive::Prop<bool>,
 ) -> DynamicSegment<ListChild> {
+    view! {
+        <Sidebar shown={shown}>
+            <CanvasPanels state={state} />
+        </Sidebar>
+    }
+}
+
+#[component]
+pub(crate) fn CanvasInspector(state: CanvasState) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll @test_id={"infinite-canvas.inspector"}>
+                <Frame padding=Space::Lg>
+                    <CanvasPanels state={state} />
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
+#[component]
+fn CanvasPanels(state: CanvasState) -> NodeId {
     let vector = create_memo(move || state.profile.get() == CanvasProfile::Vector);
     let raster = create_memo(move || state.profile.get() == CanvasProfile::Raster);
     view! {
-        <Sidebar shown={shown}>
-            <List spacing=Space::None>
-                <Show condition={vector}>
-                    <Inspector state={state} />
-                </Show>
-                <Show condition={raster}>
-                    <RasterPanel state={state} />
-                </Show>
-            </List>
-        </Sidebar>
+        <List spacing=Space::None>
+            <Show condition={vector}>
+                <Inspector state={state} />
+            </Show>
+            <Show condition={raster}>
+                <RasterPanel state={state} />
+            </Show>
+        </List>
     }
 }
 

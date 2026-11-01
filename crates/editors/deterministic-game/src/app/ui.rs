@@ -2,6 +2,11 @@ use std::rc::Rc;
 
 use block_editor_beui::Fit;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    use_dock_bar,
+};
+use block_editor_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -23,7 +28,10 @@ use layout::Layout;
 use moves::MoveTable;
 use play::Play;
 
-const SIDEBAR_WIDTH: f32 = 280.0;
+const STAGE: &str = "stage";
+const SIDEBAR: &str = "sidebar";
+const ACTIONS: &str = "actions";
+const SIDEBAR_SHARE: f32 = 0.22;
 const PANEL_PADDING: Space = Space::Lg;
 const SECTION_SPACING: Space = Space::Lg;
 const BANNER_MARGIN: Space = Space::Lg;
@@ -325,23 +333,16 @@ fn GamePlay(
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
-                        <List
-                            direction=Direction::Horizontal
-                            spacing=Space::None
+                        <GameDock
                             @sizing=ItemSize::Percent(100.0)
-                        >
-                            <Stage
-                                @sizing=ItemSize::Percent(100.0)
-                                content={stage}
-                                editor
-                                play
-                                drawn
-                                layout
-                                hand
-                                steps
-                            />
-                            <Sidebar @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) panel />
-                        </List>
+                            editor
+                            stage
+                            play
+                            drawn
+                            layout
+                            hand
+                            panel
+                        />
                     },
                     false => view! {
                         <Stage
@@ -363,16 +364,76 @@ fn GamePlay(
 }
 
 #[component]
+fn GameDock(
+    editor: Editor,
+    stage: NodeRef,
+    play: Play,
+    drawn: Memo<Layout>,
+    layout: Memo<Layout>,
+    hand: Memo<Vec<game_api::board::HandCard>>,
+    panel: Panel,
+) -> NodeId {
+    let steps = panel.steps;
+    let controls = panel.controls;
+    let acting = create_memo(move || !controls.with(Vec::is_empty));
+    let dock = DockingLayout::<&'static str>::new();
+    view! {
+        <Docking layout={dock} focus={Some(STAGE)}>
+            <DockSplit id="game" fraction={1.0 - SIDEBAR_SHARE}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Board">
+                        <Stage content={stage} editor play drawn layout hand steps />
+                    </DockTab>
+                </DockPane>
+                <DockPane id="sidebar" locked=true>
+                    <DockTab id=SIDEBAR title="Moves">
+                        <Sidebar panel />
+                    </DockTab>
+                </DockPane>
+            </DockSplit>
+            <Show condition={acting}>
+                <DockBar
+                    id=ACTIONS
+                    parent=STAGE
+                    placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
+                >
+                    <ActionBar panel />
+                </DockBar>
+            </Show>
+        </Docking>
+    }
+}
+
+#[component]
+fn ActionBar(panel: Panel) -> NodeId {
+    let Panel {
+        game,
+        controls,
+        editable,
+        ..
+    } = panel;
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    view! {
+        <DockBarSurface spacing=Space::Sm @test_id={"game.actions"}>
+            <Frame @test_id={"game.actions.grip"}>
+                <DockBarGrip />
+            </Frame>
+            <Controls game controls editable direction />
+        </DockBarSurface>
+    }
+}
+
+#[component]
 fn Sidebar(panel: Panel) -> NodeId {
     let Panel {
         game,
         play,
-        controls,
-        editable,
         seat,
         table,
         shown,
         steps,
+        ..
     } = panel;
     let names = create_memo(move || seat.get().names);
     let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
@@ -414,7 +475,6 @@ fn Sidebar(panel: Panel) -> NodeId {
                         </Show>
                         <Separator />
                         <MoveTable table shown steps />
-                        <Controls game controls editable />
                     </List>
                 </Frame>
             </Scroll>
@@ -427,9 +487,10 @@ fn Controls(
     game: Stored<Rc<dyn GameModel>>,
     controls: Memo<Vec<Action>>,
     editable: Memo<bool>,
+    direction: Memo<Direction>,
 ) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+        <List direction={direction} align=Align::Center spacing=Space::Sm>
             <ForEach keys={controls}>|action: Action|
                 <ControlButton game action editable={editable} />
             </ForEach>
