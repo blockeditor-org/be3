@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use crate::geometry::Rect;
-use crate::geometry::{pos2, vec2};
-use crate::input::{
-    Input, Key, KeyPress, Keystroke, Modifiers, Pen, PenPhase, PointerButton, PointerEvent,
-    PointerPhase, ScrollDelta, TouchId, TouchPhase,
+use beui_types::Rect;
+use beui_types::{Aim, Replay, Replayed, pos2, vec2};
+use beui_types::{
+    Input, Key, KeyPress, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
+    TouchPhase,
 };
+use beui_types::{PointerEvent, PointerPhase};
 
 use super::*;
 
@@ -30,7 +31,7 @@ fn rect() -> Rect {
 fn pointer(pointer: PointerId, phase: PointerPhase, pos: Pos2) -> PointerEvent {
     PointerEvent {
         pointer,
-        window: crate::window::WindowId::MAIN,
+        window: beui_types::WindowId::MAIN,
         phase,
         pos,
         modifiers: Modifiers::NONE,

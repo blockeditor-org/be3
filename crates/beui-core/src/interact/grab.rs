@@ -3,9 +3,10 @@ use ::reactive::Get;
 use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Vec2};
-use crate::input::{Event, PointerEvent, PointerPhase, PointerStage, ScrollGesture, WheelInput};
-use crate::node::{NodeId, Rects};
+use crate::node::Rects;
+use beui_types::NodeId;
+use beui_types::{Event, PointerEvent, PointerPhase, PointerStage, ScrollGesture, WheelInput};
+use beui_types::{Pos2, Vec2};
 
 use super::pointer::input_at;
 
@@ -39,7 +40,7 @@ pub(crate) fn end(doc: &mut Document) -> bool {
     let input = input_at(
         &rects,
         id,
-        crate::input::PointerId::Mouse,
+        beui_types::input::PointerId::Mouse,
         None,
         PointerStage::Cancel,
         pos,

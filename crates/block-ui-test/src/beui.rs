@@ -2007,7 +2007,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui_core::input::typing::chord_name(key, modifiers)
+        let chord = beui::input::typing::chord_name(key, modifiers)
             .unwrap_or_else(|| panic!("drive has no name for {modifiers:?}+{key:?}"));
         self.drive("key", &[chord], &[]);
     }

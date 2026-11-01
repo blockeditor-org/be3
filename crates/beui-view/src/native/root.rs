@@ -3,9 +3,9 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
-use beui_core::color::Color;
 use beui_core::current::with_document;
-use beui_core::window::SystemBars;
+use beui_types::Color;
+use beui_types::SystemBars;
 
 pub(crate) fn root(
     clear_color: Prop<Color>,

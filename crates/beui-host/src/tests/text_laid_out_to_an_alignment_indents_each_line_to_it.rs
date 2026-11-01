@@ -1,6 +1,6 @@
 use super::*;
-use crate::base::TextAlign;
-use crate::font::{FontId, TextLayout};
+use beui::TextAlign;
+use beui::text::{FontId, TextLayout};
 
 #[test]
 fn text_laid_out_to_an_alignment_indents_each_line_to_it() {

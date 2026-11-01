@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use beui_core::app::accessibility_dump::Line;
-use beui_core::geometry::{Pos2, Rect, pos2};
 use beui_types::target::{line_with, shown_at};
+use beui_types::{Pos2, Rect, pos2};
 
 pub(crate) use beui_types::target::{coordinates, locate, place, shown_at as shown_part};
 

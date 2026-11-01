@@ -4,11 +4,12 @@ use std::rc::Rc;
 
 use reactive::{Stored, on_cleanup, store};
 
-use crate::base::list::Direction;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
 use crate::painter::Painter;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmbedPlacement {

@@ -1,5 +1,5 @@
 use crate::document::Document;
-use crate::node::NodeId;
+use beui_types::NodeId;
 
 #[derive(Default)]
 pub struct FocusScopes(Vec<FocusScope>);

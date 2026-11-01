@@ -13,16 +13,16 @@ use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::types::Rect;
-use beui_core::base::overlay::OverlayAnchor;
-use beui_core::base::overlay::Placement;
-use beui_core::base::overlay::WindowSpec;
-use beui_core::color::Color;
 use beui_core::current::with_document;
-use beui_core::layer::Dismiss;
-use beui_core::layer::LayerLevel;
-use beui_core::layer::LayerPolicy;
-use beui_core::node::NodeId;
-use beui_core::window::WindowId;
+use beui_types::Color;
+use beui_types::Dismiss;
+use beui_types::LayerLevel;
+use beui_types::LayerPolicy;
+use beui_types::NodeId;
+use beui_types::OverlayAnchor;
+use beui_types::Placement;
+use beui_types::WindowId;
+use beui_types::WindowSpec;
 use std::cell::RefCell;
 
 struct Mounted {

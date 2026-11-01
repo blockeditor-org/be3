@@ -1,3 +1,4 @@
+pub use crate::geometry::Region;
 pub use beui_core::accessibility;
 pub use beui_core::app::accessibility_dump;
 pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
@@ -9,7 +10,6 @@ pub use beui_core::context::{
 pub use beui_core::current::{
     enter, last_pointer, try_with_document, with_document, with_reactive_scope,
 };
-pub use beui_core::damage::Region;
 pub use beui_core::document::Document;
 pub use beui_core::document::{
     OverRepaint, Tools, detect_over_repaint, fail_unsettled_layout, take_over_repaints,

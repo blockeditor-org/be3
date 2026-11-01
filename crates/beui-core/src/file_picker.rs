@@ -1,4 +1,4 @@
-pub use ui_types::files::{FileFilter, FilePick, PickedFile};
+use beui_types::{FileFilter, FilePick};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FilePickId(pub u64);

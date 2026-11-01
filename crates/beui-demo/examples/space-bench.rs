@@ -5,6 +5,7 @@ mod bench {
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
+    use beui::WindowEdge;
     use beui::datetime::Date;
     use beui::native::Document;
     use beui::reactive::view;
@@ -13,7 +14,6 @@ mod bench {
         native::Waker,
     };
     use beui_core::app::SafeArea;
-    use beui_core::window::WindowEdge;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};

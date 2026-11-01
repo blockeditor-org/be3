@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::{BackEdge, BackGesture};
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::BackSlide;
+use beui::input::{BackEdge, BackGesture};
 
 #[test]
 fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {

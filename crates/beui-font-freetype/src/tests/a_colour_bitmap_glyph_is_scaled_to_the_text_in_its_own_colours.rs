@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn a_colour_bitmap_glyph_is_scaled_to_the_text_in_its_own_colours() {

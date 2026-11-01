@@ -1,4 +1,4 @@
-pub use ui_types::clipboard::{PasteKind, Pasted};
+use beui_types::Pasted;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PasteRequest {

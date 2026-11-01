@@ -3,8 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::context::Context;
-use crate::geometry::{Rect, Vec2, pos2};
-use crate::input::{Event, TouchPhase};
+use beui_types::Event;
+use beui_types::TouchPhase;
+use beui_types::{Rect, Vec2, pos2};
 
 pub mod accessibility_dump;
 
@@ -158,7 +159,7 @@ pub fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
                             ..
                         }
                         | Event::Pen {
-                            phase: crate::input::PenPhase::Down(_),
+                            phase: beui_types::PenPhase::Down(_),
                             ..
                         }
                 )

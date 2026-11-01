@@ -1,4 +1,4 @@
-use beui_core::color::Color32;
+use beui_types::Color32;
 use glam::Vec3;
 
 use crate::head::EYE_HEIGHT;

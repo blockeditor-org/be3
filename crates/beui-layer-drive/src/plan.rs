@@ -1,5 +1,5 @@
-use beui_core::geometry::{Pos2, vec2};
-use beui_core::input::{BackEdge, Key, PointerButton, TouchPhase};
+use beui_types::{BackEdge, Key, PointerButton, TouchPhase};
+use beui_types::{Pos2, vec2};
 
 use crate::USAGE;
 use crate::gestures::{Frames, Gestures};

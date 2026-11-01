@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use beui::native::rich::TextCaret;
+use beui::TextCaret;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{

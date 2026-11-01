@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use beui_core::drawing::Drawing;
-use beui_core::geometry::Vec2;
 use beui_core::painting::Paints;
+use beui_types::Vec2;
 
 pub mod texture_quad;
 

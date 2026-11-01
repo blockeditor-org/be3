@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 #[test]
 fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {

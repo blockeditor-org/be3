@@ -8,6 +8,7 @@ license.workspace = true
 accesskit = "0.24.1"
 accesskit_android = { version = "0.7.5", features = ["embedded-dex"] }
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 jni = "0.22"
 libc = "0.2"

@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use beui_core::file_picker::{FileFilter, FilePick, FilePickAnswer, FilePickRequest, PickedFile};
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_types::{FileFilter, FilePick, PickedFile};
 
 pub fn open(request: FilePickRequest, answer: FilePickAnswer) {
     let unanswered = answer.clone();

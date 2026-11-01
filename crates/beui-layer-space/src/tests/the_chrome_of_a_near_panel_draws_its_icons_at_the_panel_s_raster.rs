@@ -1,10 +1,10 @@
 use beui_core::app::{Setup, Waker};
-use beui_core::color::Color32;
 use beui_core::context::Context;
 use beui_core::display::Layer;
 use beui_core::painter::Shape;
 use beui_core::painting::{self, Punches};
 use beui_font_freetype::FreetypeFonts;
+use beui_types::Color32;
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;

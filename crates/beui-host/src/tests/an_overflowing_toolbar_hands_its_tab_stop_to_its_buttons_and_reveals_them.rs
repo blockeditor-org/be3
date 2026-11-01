@@ -1,8 +1,8 @@
 use super::*;
-use crate::base::Direction;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 #[test]
 fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {

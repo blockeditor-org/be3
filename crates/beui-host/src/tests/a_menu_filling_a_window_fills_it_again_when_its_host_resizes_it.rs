@@ -1,9 +1,9 @@
 use super::*;
 use crate::Dismiss;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Window, WindowHandle, WindowId, WindowReport};
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_menu_filling_a_window_fills_it_again_when_its_host_resizes_it() {

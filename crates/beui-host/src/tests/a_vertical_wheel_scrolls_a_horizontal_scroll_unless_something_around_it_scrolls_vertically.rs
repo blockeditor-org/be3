@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::Direction;
 use crate::geometry::vec2;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 #[component]
 fn Strip() -> NodeId {

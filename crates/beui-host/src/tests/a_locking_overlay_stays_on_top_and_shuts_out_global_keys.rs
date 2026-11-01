@@ -1,12 +1,13 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
-use crate::input::BackGesture;
+use crate::base::overlay::OverlayNode;
 use crate::native::{with_document, with_reactive_scope};
 use crate::primitives::Frame;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::{Dismiss, KeyEvent, LayerLevel};
+use beui::BackGesture;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {

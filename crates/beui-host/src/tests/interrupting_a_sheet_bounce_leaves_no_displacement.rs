@@ -1,6 +1,6 @@
 use super::*;
-use crate::input::BackGesture;
 use crate::{PreferenceLayer, PreferenceSource};
+use beui::BackGesture;
 
 #[test]
 fn interrupting_a_sheet_bounce_leaves_no_displacement() {
@@ -29,7 +29,7 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
             0 => harness.scroll_at(pos2(200.0, 300.0), vec2(0.0, -20.0), Modifiers::NONE),
             1 => {
                 harness.frame(vec![Input::Back(BackGesture::Started {
-                    edge: crate::input::BackEdge::Left,
+                    edge: beui::BackEdge::Left,
                 })]);
                 harness.frame(vec![Input::Back(BackGesture::Progressed(0.2))]);
                 harness.frame(vec![Input::Back(BackGesture::Cancelled)]);

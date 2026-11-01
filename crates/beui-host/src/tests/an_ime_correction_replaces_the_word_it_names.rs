@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::{ImeEvent, ImeText};
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui::input::{ImeEvent, ImeText};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 

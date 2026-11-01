@@ -2,19 +2,19 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
-use beui_core::base::frame::Align2;
-use beui_core::base::frame::Extent;
 use beui_core::base::frame::FrameNode;
 use beui_core::base::frame::FrameStyle;
-use beui_core::base::frame::Outline;
-use beui_core::base::frame::Sides;
-use beui_core::color::Color;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::geometry::Vec2;
-use beui_core::node::NodeId;
 use beui_core::node::NodeOf;
-use beui_core::painter::Corners;
+use beui_types::Align2;
+use beui_types::Color;
+use beui_types::Corners;
+use beui_types::Extent;
+use beui_types::NodeId;
+use beui_types::Outline;
+use beui_types::Sides;
+use beui_types::Vec2;
 
 fn bind<T: Clone + 'static>(
     frame: NodeOf<FrameNode>,

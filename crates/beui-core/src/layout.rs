@@ -1,11 +1,12 @@
 pub mod share;
 
-use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
 use beui_types::layout::Direction;
+use beui_types::{Pos2, Rect, Vec2};
 
 use crate::document::Document;
-use crate::node::{NodeId, Rects};
+use crate::node::Rects;
+use beui_types::NodeId;
 
 pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Vec2 {
     if !doc.arena.contains(id) {

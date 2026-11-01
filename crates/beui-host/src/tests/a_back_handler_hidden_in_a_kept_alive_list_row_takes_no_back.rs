@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::BackGesture;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::BackGesture;
 
 #[test]
 fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {

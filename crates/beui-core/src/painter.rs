@@ -1,20 +1,24 @@
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::color::Color32;
 use crate::context::Context;
 use crate::display::Group;
 use crate::drawing::Drawing;
 use crate::fade::Fade;
-use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Rotation, Vec2};
-use crate::image::Image;
-use crate::node::{NodeId, SpaceId, SpaceTransform};
-use crate::path::{FillRule, Path, PathPaint, PathStyle, Stroke};
-use crate::pixel_grid::PixelGrid;
-use crate::rich::{Piece, RichLayout, RichOptions, Shaper};
+use crate::font::Galley;
+use crate::node::{SpaceId, SpaceTransform};
+use crate::path::PathPaint;
+use crate::rich::{RichLayout, Shaper};
+use beui_types::Color32;
+use beui_types::Image;
+use beui_types::NodeId;
+use beui_types::PixelGrid;
+use beui_types::{FillRule, Path, PathStyle, Stroke};
+use beui_types::{FontId, TextLayout};
+use beui_types::{Piece, RichOptions};
+use beui_types::{Pos2, Rect, Rotation, Vec2};
 
-pub use beui_types::layout::Corners;
+use beui_types::Corners;
 
 #[derive(Clone, PartialEq)]
 pub enum Shape {
@@ -235,13 +239,13 @@ impl PainterState {
 }
 
 thread_local! {
-    static COLORS: std::cell::RefCell<Option<(Rc<crate::color::ColorDefinitions>, crate::color::ColorScheme)>> =
+    static COLORS: std::cell::RefCell<Option<(Rc<beui_types::ColorDefinitions>, beui_types::ColorScheme)>> =
         const { std::cell::RefCell::new(None) };
 }
 
 pub(crate) fn with_colors<R>(
-    definitions: Rc<crate::color::ColorDefinitions>,
-    scheme: crate::color::ColorScheme,
+    definitions: Rc<beui_types::ColorDefinitions>,
+    scheme: beui_types::ColorScheme,
     run: impl FnOnce() -> R,
 ) -> R {
     let held = COLORS.with(|colors| colors.replace(Some((definitions, scheme))));
@@ -258,7 +262,7 @@ pub struct Painter {
 }
 
 impl Painter {
-    pub fn resolve_color(&self, color: crate::color::Color) -> Color32 {
+    pub fn resolve_color(&self, color: beui_types::Color) -> Color32 {
         if let Some(color) = color.as_literal() {
             return color;
         }
@@ -442,7 +446,7 @@ impl Painter {
         &self,
         rect: Rect,
         corner_radius: impl Into<Corners>,
-        color: impl Into<crate::color::Color>,
+        color: impl Into<beui_types::Color>,
     ) {
         let color = self.resolve_color(color.into());
         if color.alpha() == 0 {
@@ -463,7 +467,7 @@ impl Painter {
         rect: Rect,
         corner_radius: impl Into<Corners>,
         width: f32,
-        color: impl Into<crate::color::Color>,
+        color: impl Into<beui_types::Color>,
     ) {
         let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
@@ -479,7 +483,7 @@ impl Painter {
         });
     }
 
-    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: impl Into<crate::color::Color>) {
+    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: impl Into<beui_types::Color>) {
         let color = self.resolve_color(color.into());
         if color.alpha() == 0 || width <= 0.0 {
             return;
@@ -498,7 +502,7 @@ impl Painter {
         rect: Rect,
         source: Rect,
         image: &Image,
-        tint: impl Into<crate::color::Color>,
+        tint: impl Into<beui_types::Color>,
         corner_radius: f32,
         smooth: bool,
     ) {
@@ -541,7 +545,7 @@ impl Painter {
         });
     }
 
-    pub fn fill_path(&self, path: &Path, rule: FillRule, color: impl Into<crate::color::Color>) {
+    pub fn fill_path(&self, path: &Path, rule: FillRule, color: impl Into<beui_types::Color>) {
         self.path(
             path,
             PathStyle::Fill(rule),
@@ -549,7 +553,7 @@ impl Painter {
         );
     }
 
-    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: impl Into<crate::color::Color>) {
+    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: impl Into<beui_types::Color>) {
         if stroke.width.is_nan() || stroke.width <= 0.0 {
             return;
         }
@@ -604,7 +608,7 @@ impl Painter {
         origin: Pos2,
         text: impl Into<String>,
         font: FontId,
-        color: impl Into<crate::color::Color>,
+        color: impl Into<beui_types::Color>,
     ) {
         let color = self.resolve_color(color.into());
         let galley = self.layout(text, font, f32::INFINITY);

@@ -1,9 +1,9 @@
 use beui_core::app::accessibility_dump::AccessibilityDump;
 
 use super::*;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn an_escaped_overlay_under_a_moved_opener_is_described_where_it_is_shown() {

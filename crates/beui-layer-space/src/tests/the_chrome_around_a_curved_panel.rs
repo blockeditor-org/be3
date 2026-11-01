@@ -1,16 +1,17 @@
 use std::rc::Rc;
 
 use beui_core::app::{Setup, Waker};
-use beui_core::color::Color32;
 use beui_core::context::{Context, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::Layer;
-use beui_core::font::{FontId, TextLayout};
-use beui_core::geometry::Rotation;
 use beui_core::icons::{ICON_FOLDER, ICON_SEARCH, ICON_SETTINGS};
-use beui_core::painter::{Corners, Shape};
+use beui_core::painter::Shape;
 use beui_core::window::WindowState;
 use beui_font_freetype::FreetypeFonts;
+use beui_types::Color32;
+use beui_types::Corners;
+use beui_types::Rotation;
+use beui_types::geometry::Region;
+use beui_types::{FontId, TextLayout};
 use glam::Quat;
 
 use super::*;

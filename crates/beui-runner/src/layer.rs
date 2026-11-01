@@ -4,12 +4,14 @@ use accesskit::TreeUpdate;
 
 use crate::renderer::Capture;
 use beui_core::app::{App, Setup};
-use beui_core::clipboard::{PasteAnswer, PasteKind};
+use beui_core::clipboard::PasteAnswer;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Vec2};
-use beui_core::window::{Resize, WindowId, WindowRequest, WindowState};
+use beui_core::window::{Resize, WindowState};
+use beui_types::PasteKind;
+use beui_types::{Pos2, Vec2};
+use beui_types::{WindowId, WindowRequest};
 
 use super::{Frame, Incoming, PlatformServices};
 

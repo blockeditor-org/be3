@@ -6,19 +6,19 @@ use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
 
-use beui_core::color::Color32;
 use beui_core::context::{Moved, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};
 use beui_core::drawing::Drawing;
 use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::image::{Image, ImageId};
 use beui_core::painter::placed_shape;
 use beui_draw::{Draw, DrawAt};
+use beui_types::Color32;
+use beui_types::geometry::Region;
+use beui_types::{Image, ImageId};
+use beui_types::{Rect, Vec2};
 
 pub mod filter;
 pub mod present;

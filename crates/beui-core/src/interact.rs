@@ -8,16 +8,18 @@ use std::rc::Rc;
 
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
-use crate::geometry::Vec2;
-use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
-use crate::keys::{AtNode, Handler, KeyEvent, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
-use crate::layer::Dismiss;
+use crate::keys::{AtNode, Handler, Placed, Stop};
+use beui_types::Dismiss;
+use beui_types::Event;
+use beui_types::Vec2;
+use beui_types::{BackGesture, ImeEvent, Key, KeyPress, Modifiers};
+use beui_types::{KeyEvent, KeyInput, KeyPhase, KeyTarget};
 
 use crate::current::{run_in, with_document};
 use crate::document::{Acted, Document};
-use crate::node::{NodeId, Rects};
+use crate::node::Rects;
+use beui_types::NodeId;
 
-pub use crate::input::WHEEL_LATCH_TIMEOUT;
 const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 
@@ -94,7 +96,7 @@ fn pointer_step(
     document: &mut Document,
     frame: &pointer::Frame,
     index: usize,
-    event: crate::input::PointerEvent,
+    event: beui_types::PointerEvent,
 ) {
     if let Some(down) = run_in(document, |doc| pointer::event(doc, frame, index, event)) {
         run_in(document, |doc| {
@@ -571,11 +573,11 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
             | Event::Scroll(_)
             | Event::Focus(false)
             | Event::Touch {
-                phase: crate::input::TouchPhase::Start,
+                phase: beui_types::TouchPhase::Start,
                 ..
             }
             | Event::Pen {
-                phase: crate::input::PenPhase::Down(_),
+                phase: beui_types::PenPhase::Down(_),
                 ..
             } => doc.tapping = None,
             _ => {}

@@ -1,5 +1,5 @@
 use super::*;
-use crate::input::CursorIcon;
+use beui::CursorIcon;
 
 #[test]
 fn a_split_divider_takes_presses_only_in_its_gap() {

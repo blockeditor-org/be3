@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use beui_core::input::typing::typed;
+use beui::input::typing::typed;
 
 #[test]
 fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {

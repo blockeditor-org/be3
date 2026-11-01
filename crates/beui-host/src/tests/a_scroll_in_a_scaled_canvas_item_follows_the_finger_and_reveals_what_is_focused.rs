@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::TOUCH_DRAG_THRESHOLD;
 
 const SCALE: f32 = 2.0;
 

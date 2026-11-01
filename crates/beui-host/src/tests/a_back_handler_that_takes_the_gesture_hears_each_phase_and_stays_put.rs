@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::{BackEdge, BackGesture};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::input::{BackEdge, BackGesture};
 
 #[test]
 fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {

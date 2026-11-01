@@ -8,22 +8,21 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
-use beui_core::color::Color32;
 use beui_core::context::RendererInfo;
 use beui_core::context::{Context, EscapedOutput, FrameOutput, WindowOutput};
 use beui_core::document::Document;
 pub use beui_core::document::delay_measurement;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::typing;
-use beui_core::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
-use beui_core::window::{
-    HostPlacement, Resize, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowSize,
-};
+use beui_core::window::{Resize, WindowSize};
 use beui_layer_drive::{Drive, Inbox, Reply, ask};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
 };
+use beui_types::Color32;
+use beui_types::input::typing;
+use beui_types::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
+use beui_types::{Input, Key, Modifiers, PointerButton, TouchPhase};
+use beui_types::{Pos2, Rect, Vec2};
 
 use crate::Simulation;
 

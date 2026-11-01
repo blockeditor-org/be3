@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::{BackEdge, BackGesture};
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::BackSlide;
+use beui::input::{BackEdge, BackGesture};
 
 #[test]
 fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {

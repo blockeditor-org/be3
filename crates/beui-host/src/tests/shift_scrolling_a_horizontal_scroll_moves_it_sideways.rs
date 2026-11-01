@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::Direction;
 use crate::geometry::vec2;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {

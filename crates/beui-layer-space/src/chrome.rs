@@ -1,14 +1,16 @@
 use std::rc::Rc;
 
-use beui_core::color::Color32;
 use beui_core::context::{Context, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::Layer;
-use beui_core::font::{FontId, TextLayout};
-use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 use beui_core::icons::{ICON_MOVE, ICON_ROTATE_3D, ICON_ROTATE_CW_SQUARE, ICON_SPLINE};
-use beui_core::painter::{Corners, Shape};
-use beui_core::window::{WindowEdge, WindowId, WindowState};
+use beui_core::painter::Shape;
+use beui_core::window::WindowState;
+use beui_types::Color32;
+use beui_types::Corners;
+use beui_types::geometry::Region;
+use beui_types::{FontId, TextLayout};
+use beui_types::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
+use beui_types::{WindowEdge, WindowId};
 use std::f32::consts::{PI, TAU};
 
 use glam::{Quat, Vec3};

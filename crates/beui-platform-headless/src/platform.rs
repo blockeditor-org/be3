@@ -3,12 +3,12 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::geometry::Vec2;
 use beui_core::window::WindowSize;
 use beui_renderer_wgpu::offscreen::OffscreenSurface;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_runner::renderer::{Loaded, NoRenderer, Renderer};
 use beui_runner::{Launch, Platform, Runner, Running};
+use beui_types::Vec2;
 
 use crate::Simulation;
 

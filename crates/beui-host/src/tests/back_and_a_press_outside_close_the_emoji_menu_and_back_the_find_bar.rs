@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::BackGesture;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui::BackGesture;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 

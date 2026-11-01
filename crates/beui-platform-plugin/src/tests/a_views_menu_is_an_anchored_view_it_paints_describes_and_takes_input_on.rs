@@ -1,5 +1,5 @@
+use beui::PointerButton;
 use beui_core::accesskit::Role;
-use beui_core::input::PointerButton;
 use block_editor_plugin::{AnchorSpace, HostTransform, TimedInput, ViewAnchor};
 
 use super::*;

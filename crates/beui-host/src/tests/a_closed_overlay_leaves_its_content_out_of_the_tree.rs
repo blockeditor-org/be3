@@ -1,7 +1,8 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use crate::base::overlay::OverlayNode;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_closed_overlay_leaves_its_content_out_of_the_tree() {

@@ -1,9 +1,10 @@
 use std::ops::Range;
 
-use crate::color::Color32;
-use crate::font::{FontId, Galley, TextAlign, Wraps};
-use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::font::{Galley, Wraps};
 use crate::painter::Painter;
+use beui_types::Color32;
+use beui_types::{FontId, TextAlign};
+use beui_types::{Rect, Vec2, pos2, vec2};
 
 const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
 const SPAN_STRIKE_OFFSET: f32 = 0.32;
@@ -11,10 +12,7 @@ const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 pub const TAB_COLUMNS: f32 = 4.0;
 const WRAP_SLACK: f32 = 1.0 / 1024.0;
 
-pub use beui_types::text::{
-    CaretHandle, HANDLE_GAP, HANDLE_RADIUS, Piece, RichOptions, SpanBackground, SpanStyle,
-    TOOLBAR_GAP, TextCaret, TextGlyph, TextMark, handle_center, handle_shape, toolbar_anchor,
-};
+use beui_types::{Piece, RichOptions, SpanStyle};
 
 pub const OBJECT: &str = "\u{fffc}";
 
@@ -875,7 +873,7 @@ impl RichLayout {
         Rect::from_min_size(pos2(line.x_of(index), line.top), vec2(width, line.height))
     }
 
-    pub fn index_at(&self, point: crate::geometry::Pos2) -> usize {
+    pub fn index_at(&self, point: beui_types::Pos2) -> usize {
         let Some(line) = self
             .lines
             .iter()
@@ -927,7 +925,7 @@ impl RichLayout {
             .collect()
     }
 
-    pub fn inline_at(&self, point: crate::geometry::Pos2) -> Option<usize> {
+    pub fn inline_at(&self, point: beui_types::Pos2) -> Option<usize> {
         self.inline_rects()
             .into_iter()
             .find(|(_, rect)| rect.contains(point))

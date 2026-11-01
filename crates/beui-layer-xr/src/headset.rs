@@ -13,7 +13,7 @@ use crate::controllers::Controllers;
 use crate::gpu::Vulkan;
 use crate::runtime::{self, Loaded};
 use crate::{Fill, Fov, Frame, Layers, MOST_LAYERS, Quad, Target, View};
-use beui_core::window::WindowId;
+use beui_types::WindowId;
 
 const VIEWS: xr::ViewConfigurationType = xr::ViewConfigurationType::PRIMARY_STEREO;
 

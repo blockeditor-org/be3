@@ -1,6 +1,7 @@
 use super::*;
-use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::{Piece, RichOptions};
+use beui::text::{FontId, TextLayout};
+use beui::text::{Piece, RichOptions};
+use beui_core::font::Galley;
 
 #[test]
 fn wrapped_rich_text_lines_hang_under_the_byte_they_are_told_to() {

@@ -58,9 +58,9 @@ use crate::DrawAt;
 use beui_core::context::Context;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, Filter};
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::painter::Painter;
+use beui_types::FontId;
+use beui_types::{Pos2, Rect, pos2, vec2};
 
 const SIZE: u32 = 64;
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;

@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use crate::damage::Region;
 use crate::painting::Paints;
+use beui_types::geometry::Region;
 
 const REMEMBERED_REDRAWS: usize = 16;
 

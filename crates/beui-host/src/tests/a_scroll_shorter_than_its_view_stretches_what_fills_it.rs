@@ -1,7 +1,7 @@
 use super::*;
-use crate::base::Direction;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::Direction;
 
 #[test]
 fn a_scroll_shorter_than_its_view_stretches_what_fills_it() {

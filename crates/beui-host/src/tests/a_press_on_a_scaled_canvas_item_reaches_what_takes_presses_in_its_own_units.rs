@@ -1,8 +1,8 @@
 use super::*;
 use crate::HitRegion;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 #[test]
 fn a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units() {

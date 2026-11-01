@@ -1,5 +1,5 @@
-use beui_core::geometry::{Pos2, Vec2, pos2};
-use beui_core::window::{HostPlacement, WindowId, WindowRole};
+use beui_types::{HostPlacement, WindowId, WindowRole};
+use beui_types::{Pos2, Vec2, pos2};
 use glam::{Mat4, Quat, Vec3};
 
 use crate::head::Ray;

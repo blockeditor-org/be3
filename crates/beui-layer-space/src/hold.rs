@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use beui_core::input::{Key, Keystroke};
+use beui_types::{Key, Keystroke};
 
 pub const LET_GO_AFTER: Duration = Duration::from_millis(600);
 

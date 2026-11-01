@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaApi, TextAreaState};
+use beui::PointerPress;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 

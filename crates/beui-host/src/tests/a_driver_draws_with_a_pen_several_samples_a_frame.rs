@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::native::Document;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 struct Counted {
     document: Document,

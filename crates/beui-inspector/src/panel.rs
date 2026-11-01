@@ -1,23 +1,23 @@
-use beui_core::font::Overflow;
+use beui_types::Overflow;
 use stable_hash::HashMap;
 use std::time::Duration;
 
 use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
-use beui_core::base::TextAlign;
 use beui_core::base::embed::EmbedSlot;
 use beui_core::current::{enter, with_document};
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
-use beui_core::input::{BackEdge, BackGesture};
-use beui_core::node::NodeId;
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
-use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_dock::styled::Docking;
 use beui_dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, dock_menu, use_dock_tab};
+use beui_types::NodeId;
+use beui_types::TextAlign;
+use beui_types::{BackEdge, BackGesture};
+use beui_types::{Motion, PreferenceLayer, ThemeKind};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};

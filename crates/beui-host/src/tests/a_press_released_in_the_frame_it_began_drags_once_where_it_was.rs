@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 #[test]
 fn a_press_released_in_the_frame_it_began_drags_once_where_it_was() {

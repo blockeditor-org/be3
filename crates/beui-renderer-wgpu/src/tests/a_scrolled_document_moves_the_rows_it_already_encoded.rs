@@ -11,7 +11,7 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
     beui_core::document::verify_paint(true);
     let mut document = build(|| {
         view! {
-            <Root clear_color={beui_core::color::Color32::BLACK}>
+            <Root clear_color={beui_types::color::Color32::BLACK}>
                 <Scroll @test_id="scroll">
                     <ForEach keys={(0..12).collect::<Vec<usize>>()}>|row: usize|
                         <Frame

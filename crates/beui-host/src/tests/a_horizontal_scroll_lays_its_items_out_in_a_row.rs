@@ -1,7 +1,7 @@
 use super::*;
-use crate::base::Direction;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::Direction;
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {

@@ -4,11 +4,11 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use beui_core::base::list::Direction;
 use beui_core::base::offset::OffsetNode;
 use beui_core::base::text::TextNode;
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::node::NodeId;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::{Pos2, Rect};
 
 use crate::core::nodes::tree_local;
 use beui_core::current::with_document;

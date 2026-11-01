@@ -27,18 +27,22 @@ use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
 use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
-use beui_core::geometry::{Vec2, pos2, vec2};
-use beui_core::input::{
+use beui_core::clipboard::PasteAnswer;
+use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
+use beui_core::window::WindowState;
+use beui_runner::renderer::{Loaded, WindowHandle};
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_types::FileSave;
+use beui_types::SystemBars;
+use beui_types::{
     BackEdge, BackGesture, ImeArea, ImeEvent, ImeText, Input, Key, Keyboard, Keystroke, Modifiers,
     Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
-use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_core::window::{SystemBars, WindowState};
-use beui_runner::renderer::{Loaded, WindowHandle};
-use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_types::{FilePick, PickedFile};
+use beui_types::{Motion, PreferenceLayer, ThemeKind};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Vec2, pos2, vec2};
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);

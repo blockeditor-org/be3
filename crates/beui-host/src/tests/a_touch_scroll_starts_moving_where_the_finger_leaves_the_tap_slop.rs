@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::TOUCH_DRAG_THRESHOLD;
 
 #[test]
 fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {

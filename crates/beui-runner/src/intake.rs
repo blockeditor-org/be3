@@ -1,12 +1,11 @@
 use std::time::Instant;
 
-use beui_core::escape::HostTransform;
-use beui_core::geometry::{Pos2, Vec2};
-use beui_core::input::{
-    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase,
-};
-use beui_core::window::{WindowId, WindowReport};
+use beui_types::HostTransform;
 use beui_types::input::enqueue;
+use beui_types::{Event, FileDrag};
+use beui_types::{Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase};
+use beui_types::{Pos2, Vec2};
+use beui_types::{WindowId, WindowReport};
 
 pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
 

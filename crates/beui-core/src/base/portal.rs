@@ -1,10 +1,11 @@
 use std::any::Any;
 
-use crate::base::list::Direction;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
 use crate::painter::Painter;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2};
 
 pub struct PortalNode {
     pub child: Option<NodeId>,

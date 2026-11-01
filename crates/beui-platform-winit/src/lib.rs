@@ -41,17 +41,19 @@ use winit::window::{
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
 use beui_core::app::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{
-    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
-    PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
-};
 use beui_core::window::WindowState;
 use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_types::{
+    CursorIcon, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase, PointerButton,
+    ScrollDelta, TouchId, TouchPhase,
+};
+use beui_types::{DroppedFile, FileDrag};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Pos2, Vec2, pos2, vec2};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
 use wheel::{Wheel, Wheeled};

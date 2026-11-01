@@ -1,8 +1,8 @@
 use super::*;
-use crate::base::Direction;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 #[test]
 fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {

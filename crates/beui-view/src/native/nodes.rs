@@ -1,18 +1,21 @@
 use std::hash::Hash;
 use std::ops::Range;
 
-use beui_core::base::offset::{OffsetNode, ScrollPosition};
+use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::OverlayNode;
 use beui_core::base::text::TextNode;
-use beui_core::color::Color;
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::{NodeId, NodeOf};
-use beui_core::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
-use beui_core::rich::CaretHandle;
-use beui_core::window::WindowId;
+use beui_core::node::NodeOf;
 use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, create_memo};
+use beui_types::CaretHandle;
+use beui_types::Color;
+use beui_types::NodeId;
+use beui_types::ScrollPosition;
+use beui_types::WindowId;
+use beui_types::{Dismiss, LayerPolicy};
+use beui_types::{Pos2, Rect};
+use beui_types::{PreferenceLayer, Preferences};
+use beui_types::{PreferenceLayers, PreferenceSource};
 
 use beui_core::current::{try_with_document, with_document};
 

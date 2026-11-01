@@ -1,6 +1,6 @@
 use super::*;
 
-use beui_core::path::{LineCap, Path, Stroke};
+use beui_types::{LineCap, Path, Stroke};
 
 #[test]
 fn a_stroked_path_joins_caps_and_dashes_its_line() {

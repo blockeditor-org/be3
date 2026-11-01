@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::PointerPress;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
 
 #[test]
 fn a_frame_drags_once_to_each_pointers_latest_move() {

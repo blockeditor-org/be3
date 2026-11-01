@@ -1,7 +1,8 @@
 use super::*;
-use crate::input::{Pen, PenPhase, PointerPress};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
+use beui::input::{Pen, PenPhase};
 
 #[test]
 fn every_coalesced_sample_drags_and_the_last_carries_its_prediction() {

@@ -1,5 +1,5 @@
-use beui_core::geometry::Vec2;
 use beui_core::window::{MAX_PIXELS, WindowSize};
+use beui_types::Vec2;
 
 pub const PLATFORM: &str = "BEUI_PLATFORM";
 pub const LAYERS: &str = "BEUI_LAYERS";

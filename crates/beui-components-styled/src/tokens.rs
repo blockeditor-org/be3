@@ -1,4 +1,5 @@
-use beui_view::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
+use beui_view::reactive::into_prop_via;
+use beui_view::reactive::{Get, IntoProp, Prop};
 use beui_view::types::Corners;
 use beui_view::types::{Extent, Sides};
 
@@ -361,40 +362,6 @@ pub fn use_space(space: impl IntoProp<Space>) -> Prop<f32> {
 
 pub fn use_size(size: impl IntoProp<Size>) -> Prop<f32> {
     resolved(size.into_prop(), Size::resolve)
-}
-
-macro_rules! into_prop_via {
-    ($target:ty, $value:ty, $convert:expr) => {
-        impl IntoProp<$target> for $value {
-            fn into_prop(self) -> Prop<$target> {
-                Prop::Static(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Prop<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                self.map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Memo<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for ReadSignal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Signal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-    };
 }
 
 into_prop_via!(Padding, Space, Padding::all);

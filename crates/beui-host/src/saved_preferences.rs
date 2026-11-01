@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use beui::PreferenceLayer;
+use beui::PreferenceSource;
+use beui::Rect;
 use beui_core::app::{App, FrameTimes, Lifecycle, Setup};
 use beui_core::context::Context;
-use beui_core::geometry::Rect;
-use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 
 pub(crate) struct SavedPreferences<A> {
     app: A,

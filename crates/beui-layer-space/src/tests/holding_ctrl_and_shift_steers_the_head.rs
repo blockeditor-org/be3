@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::input::Modifiers;
+use beui_types::Modifiers;
 
 #[test]
 fn holding_ctrl_and_shift_steers_the_head() {
