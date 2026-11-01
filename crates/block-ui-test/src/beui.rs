@@ -679,8 +679,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         let drag = block_plugin_api::shell_types::DragOver {
             view: self.view().id,
             pos: position,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
+            dragged: block_plugin_api::shell_types::Dragged::Block(
+                block_plugin_api::shell_types::DraggedBlock {
+                    block_id: block_id.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                },
+            ),
             dropped,
         };
         self.call(|editor, connection| editor.drag_over(connection, drag));

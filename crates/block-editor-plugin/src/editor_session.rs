@@ -22,7 +22,7 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, ShownView};
-use crate::{EditorHost, Module, Waker, host::BlockDrag};
+use crate::{EditorHost, Module, Waker, host::Dragged};
 use block_plugin_api::ViewRef;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
@@ -39,8 +39,7 @@ pub struct EditorSession {
     views: HashMap<ViewId, ViewState>,
     host: EditorHost,
     own_block: Option<Uuid>,
-    drag: Option<(ViewId, BlockDrag)>,
-    files: Option<(ViewId, crate::host::FileDrop)>,
+    dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
@@ -155,8 +154,7 @@ impl EditorSession {
             views: HashMap::default(),
             host,
             own_block: None,
-            drag: None,
-            files: None,
+            dragged: None,
             intrinsic: None,
             aspect_ratio: None,
             artifact: None,
@@ -317,12 +315,8 @@ impl EditorSession {
         self.host.set_presenting(presenting);
     }
 
-    pub(crate) fn set_drag(&mut self, drag: Option<(ViewId, BlockDrag)>) {
-        self.drag = drag;
-    }
-
-    pub(crate) fn set_files(&mut self, files: Option<(ViewId, crate::host::FileDrop)>) {
-        self.files = files;
+    pub(crate) fn set_drag(&mut self, dragged: Option<(ViewId, Dragged)>) {
+        self.dragged = dragged;
     }
 
     pub fn connect(&mut self, block_id: Uuid, block_type: Uuid) {
@@ -878,15 +872,11 @@ impl EditorSession {
         if view.is_main() {
             self.host.set_placed_content(context.spec.content);
         }
-        let drag = self
-            .drag
-            .and_then(|(dragged, drag)| (dragged == view).then_some(drag));
-        self.host.set_drag(view, drag);
-        let files = self
-            .files
+        let dragged = self
+            .dragged
             .as_ref()
-            .and_then(|(dropped, files)| (*dropped == view).then(|| files.clone()));
-        self.host.set_files(view, files);
+            .and_then(|(over, dragged)| (*over == view).then(|| dragged.clone()));
+        self.host.set_drag(view, dragged);
         if view == ViewId::ARTIFACT_SETTINGS {
             let draft = self.artifact.as_ref().map(|artifact| crate::SettingsDraft {
                 saved: artifact.data.clone(),
@@ -904,12 +894,9 @@ impl EditorSession {
             _ => None,
         };
         let delivered_drop = self
-            .drag
-            .is_some_and(|(dragged, drag)| dragged == view && drag.dropped);
-        let delivered_files = self
-            .files
+            .dragged
             .as_ref()
-            .is_some_and(|(dropped, files)| *dropped == view && files.dropped);
+            .is_some_and(|(over, dragged)| *over == view && dragged.dropped());
         if let Some(state) = self.views.get_mut(&view)
             && state.stopped.is_none()
         {
@@ -936,12 +923,8 @@ impl EditorSession {
             }
         }
         self.host.set_drag(view, None);
-        self.host.set_files(view, None);
         if delivered_drop {
-            self.drag = None;
-        }
-        if delivered_files {
-            self.files = None;
+            self.dragged = None;
         }
         let screen = self.placement(view).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);

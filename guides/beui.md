@@ -466,7 +466,7 @@ hooks the higher crates fill in:
   its host path or its bytes), or `Incoming::Time`, below. `FileDrag` and
   `DroppedFile` live in beui-core rather than ui-types because they never
   cross the plugin protocol: a plugin's host turns them into its own
-  `FileDrop` messages. An `Input` is
+  `drag-over` messages. An `Input` is
   what any platform reports: pointer moves and buttons, a `Keystroke` (the
   key a shortcut matches, its text and its physical place as an evdev code,
   with no modifiers; guides/beui_keyboard.md), a `ScrollDelta` in pixels,

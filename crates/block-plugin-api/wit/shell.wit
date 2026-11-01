@@ -13,25 +13,28 @@ interface shell-types {
         details,
     }
 
-    /// A block dragged over the editor, where, and whether it was dropped there.
-    record drag-over {
-        view: view-id,
-        pos: pos2,
-        block-id: block-id,
-        block-type: block-type-id,
-        dropped: bool,
-    }
-
     record dropped-file {
         name: string,
         data: list<u8>,
     }
 
-    /// Files dragged over the editor from outside the app.
-    record file-drop {
+    /// What is dragged over the editor: a block from the app, or files from
+    /// outside it, whose data comes only with the drop.
+    variant dragged {
+        block(dragged-block),
+        files(list<dropped-file>),
+    }
+
+    record dragged-block {
+        block-id: block-id,
+        block-type: block-type-id,
+    }
+
+    /// Something dragged over the editor, where, and whether it was dropped there.
+    record drag-over {
         view: view-id,
         pos: pos2,
-        files: list<dropped-file>,
+        dragged: dragged,
         dropped: bool,
     }
 

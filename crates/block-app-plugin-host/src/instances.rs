@@ -23,7 +23,7 @@ use super::{
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadRead, Heads},
-    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputForwarder, viewport_metrics},
+    input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
     sent::Sent,
@@ -559,8 +559,7 @@ struct Screen {
     report: Option<FrameReport>,
     accessibility: Embedded,
     focus_requested: bool,
-    dragging: bool,
-    file_dropping: bool,
+    dragging: Option<DragKind>,
     window: WindowRequests,
     stopped: Option<Stopped>,
     children: ChildTable,
@@ -572,6 +571,12 @@ struct Screen {
     fresh_space: Option<AnchorSpace>,
     serial: u64,
     kept: Option<ViewportMetrics>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum DragKind {
+    Block,
+    Files,
 }
 
 impl Screen {
@@ -588,8 +593,7 @@ impl Screen {
             report: None,
             accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
             focus_requested: false,
-            dragging: false,
-            file_dropping: false,
+            dragging: None,
             window: WindowRequests::default(),
             stopped: None,
             children: ChildTable::default(),
@@ -1345,8 +1349,8 @@ impl Instances {
             .into_iter()
             .map(Outbound::from)
             .collect();
-        let files = super::input::file_drop(input, screen.file_dropping);
-        messages.extend(self.file_drop(instance, region, files));
+        let files = super::input::file_drop(input, screen.dragging == Some(DragKind::Files));
+        messages.extend(self.drag(instance, region, DragKind::Files, files));
         let revoked =
             (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
         (messages, revoked)
@@ -2235,7 +2239,8 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         region: ViewId,
-        event: Option<BlockDragEvent>,
+        kind: DragKind,
+        event: Option<DragEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
@@ -2245,7 +2250,7 @@ impl Instances {
         };
         match event {
             Some(event) => {
-                screen.dragging = !event.dropped;
+                screen.dragging = (!event.dropped).then_some(kind);
                 if event.dropped {
                     entry.drag_accepted = false;
                 }
@@ -2254,49 +2259,15 @@ impl Instances {
                     EditorCall::DragOver(block_plugin_api::shell_types::DragOver {
                         view: region,
                         pos: event.position,
-                        block_id: event.drag.block_id.into_bytes(),
-                        block_type: event.drag.block_type.into_bytes(),
+                        dragged: event.dragged,
                         dropped: event.dropped,
                     }),
                 )]
             }
-            None if screen.dragging => {
-                screen.dragging = false;
+            None if screen.dragging == Some(kind) => {
+                screen.dragging = None;
                 entry.drag_accepted = false;
                 vec![Outbound::Editor(instance, EditorCall::DragLeft)]
-            }
-            None => Vec::new(),
-        }
-    }
-
-    pub(super) fn file_drop(
-        &mut self,
-        instance: EditorInstanceId,
-        region: ViewId,
-        event: Option<FileDropEvent>,
-    ) -> Vec<Outbound> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return Vec::new();
-        };
-        let Some(screen) = entry.screens.get_mut(&region) else {
-            return Vec::new();
-        };
-        match event {
-            Some(event) => {
-                screen.file_dropping = !event.dropped;
-                vec![Outbound::Editor(
-                    instance,
-                    EditorCall::FileDrop(block_plugin_api::shell_types::FileDrop {
-                        view: region,
-                        pos: event.position,
-                        files: event.files,
-                        dropped: event.dropped,
-                    }),
-                )]
-            }
-            None if screen.file_dropping => {
-                screen.file_dropping = false;
-                vec![Outbound::Editor(instance, EditorCall::FileDropLeft)]
             }
             None => Vec::new(),
         }
@@ -2306,7 +2277,7 @@ impl Instances {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
-            .is_some_and(|screen| screen.dragging)
+            .is_some_and(|screen| screen.dragging.is_some())
     }
 
     pub(super) fn drag_accepted(&self, instance: EditorInstanceId) -> bool {

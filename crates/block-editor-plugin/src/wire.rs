@@ -15,7 +15,7 @@ use block_plugin_api::{
         OpId,
         guest::{Executor, Sender, oneshot, spawn, with_parent},
     },
-    shell_types::{DragOver, FileDrop, Focus},
+    shell_types::{DragOver, Dragged, Focus},
 };
 
 use crate::asked::follow;
@@ -322,47 +322,33 @@ impl GuestEditor for OpenEditor {
     }
 
     fn drag_over(&self, drag: DragOver) {
+        let dragged = match drag.dragged {
+            Dragged::Block(block) => crate::host::Dragged::Block(crate::host::BlockDrag {
+                position: drag.pos,
+                block_id: uuid::Uuid::from_bytes(block.block_id),
+                block_type: uuid::Uuid::from_bytes(block.block_type),
+                dropped: drag.dropped,
+            }),
+            Dragged::Files(files) => crate::host::Dragged::Files(crate::host::FileDrop {
+                position: drag.pos,
+                files: files
+                    .into_iter()
+                    .map(|file| crate::PickedFile {
+                        name: file.name,
+                        data: file.data,
+                    })
+                    .collect(),
+                dropped: drag.dropped,
+            }),
+        };
         self.wire.call(self.instance, move |session| {
-            session.set_drag(Some((
-                drag.view,
-                crate::host::BlockDrag {
-                    position: drag.pos,
-                    block_id: uuid::Uuid::from_bytes(drag.block_id),
-                    block_type: uuid::Uuid::from_bytes(drag.block_type),
-                    dropped: drag.dropped,
-                },
-            )))
+            session.set_drag(Some((drag.view, dragged)))
         });
     }
 
     fn drag_left(&self) {
         self.wire
             .call(self.instance, move |session| session.set_drag(None));
-    }
-
-    fn file_drop(&self, drop: FileDrop) {
-        self.wire.call(self.instance, move |session| {
-            session.set_files(Some((
-                drop.view,
-                crate::host::FileDrop {
-                    position: drop.pos,
-                    files: drop
-                        .files
-                        .into_iter()
-                        .map(|file| crate::PickedFile {
-                            name: file.name,
-                            data: file.data,
-                        })
-                        .collect(),
-                    dropped: drop.dropped,
-                },
-            )))
-        });
-    }
-
-    fn file_drop_left(&self) {
-        self.wire
-            .call(self.instance, move |session| session.set_files(None));
     }
 
     fn artifact_settings(&self, data: Vec<u8>) {

@@ -284,8 +284,6 @@ impl Wire {
             EditorCall::Resized(size) => editor.resized(connection, size),
             EditorCall::DragOver(drag) => editor.drag_over(connection, drag),
             EditorCall::DragLeft => editor.drag_left(connection),
-            EditorCall::FileDrop(drop) => editor.file_drop(connection, drop),
-            EditorCall::FileDropLeft => editor.file_drop_left(connection),
             EditorCall::ArtifactSettings(data) => editor.artifact_settings(connection, data),
             EditorCall::CommitCreation => {
                 let ticket = editor.commit_creation(connection);

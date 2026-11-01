@@ -5,7 +5,7 @@ interface plugin {
     use types.{child-id, frame-commit, opening, screen-id, screen-request, size, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
-    use shell-types.{bar-action, drag-over, file-drop, focus};
+    use shell-types.{bar-action, drag-over, focus};
     use be3:ui/types@0.1.0.{rect};
     use host-services.{shell-dialog};
     use types.{failure};
@@ -46,17 +46,11 @@ interface plugin {
         /// The user resized the editor.
         resized: func(size: size);
 
-        /// A block is dragged over the editor, or dropped on it.
+        /// A block or files are dragged over the editor, or dropped on it.
         drag-over: func(drag: drag-over);
 
-        /// The block dragged over the editor left it.
+        /// What was dragged over the editor left it without being dropped.
         drag-left: func();
-
-        /// Files are dragged over the editor, or dropped on it.
-        file-drop: func(drop: file-drop);
-
-        /// The files dragged over the editor left it.
-        file-drop-left: func();
 
         /// The artifact settings the editor shows, saved.
         artifact-settings: func(data: list<u8>);

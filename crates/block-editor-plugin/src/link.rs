@@ -97,10 +97,7 @@ impl Link {
         for seeded in host.take_seeded_content() {
             let (block, content_type) =
                 (seeded.block.into_bytes(), seeded.content_type.into_bytes());
-            self.under(|| match seeded.replace {
-                true => blocks::replace_content(block, content_type, seeded.bytes),
-                false => blocks::seed_content(block, content_type, seeded.bytes),
-            });
+            self.under(|| blocks::write_content(block, content_type, seeded.bytes, seeded.replace));
         }
         for open in host.take_opens() {
             self.under(|| blocks::open_block(request_of(open)));

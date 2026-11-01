@@ -14,6 +14,7 @@ use block_plugin_api::{
     FrameCommit, FrameSpec, HostPanel, HostTransform, Opening, PresentedFrame, PreviewImage,
     ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
     SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
+    shell_types::{Dragged, DraggedBlock},
 };
 use block_plugin_manifest::PluginManifest;
 use uuid::Uuid;
@@ -25,8 +26,8 @@ use super::{
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
-    input::{BlockDrag, BlockDragEvent},
-    instances::{EditorView, Focus, Instances, Placement},
+    input::{BlockDrag, DragEvent},
+    instances::{DragKind, EditorView, Focus, Instances, Placement},
     presenter::{
         self, AnchoredBlits, AnchoredDrawing, AnchoredSource, Blit, Piece, PresenterState,
         PresenterStatus, Quad, Shared, ViewDrawing,
@@ -2763,12 +2764,17 @@ pub fn drag_over_view(
             .placement(instance, region)
             .map_or(Pos2::ZERO, |placement| placement.rect.min);
         let was = runtime.instances.dragging(instance, region);
-        let event = over.map(|(drag, at)| BlockDragEvent {
+        let event = over.map(|(drag, at)| DragEvent {
             position: Pos2::ZERO + (at - origin),
-            drag,
+            dragged: Dragged::Block(DraggedBlock {
+                block_id: drag.block_id.into_bytes(),
+                block_type: drag.block_type.into_bytes(),
+            }),
             dropped,
         });
-        let messages = runtime.instances.drag(instance, region, event);
+        let messages = runtime
+            .instances
+            .drag(instance, region, DragKind::Block, event);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if was != runtime.instances.dragging(instance, region) {

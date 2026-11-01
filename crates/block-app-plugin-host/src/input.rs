@@ -1,7 +1,7 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
     DroppedFile, Input, InputBatch, Pasted, ScreenId, ScreenPlacement, Size, TimedInput,
-    ViewportMetrics,
+    ViewportMetrics, shell_types::Dragged,
 };
 use uuid::Uuid;
 
@@ -11,19 +11,13 @@ pub struct BlockDrag {
     pub block_type: Uuid,
 }
 
-pub(super) struct BlockDragEvent {
+pub(super) struct DragEvent {
     pub(super) position: Pos2,
-    pub(super) drag: BlockDrag,
+    pub(super) dragged: Dragged,
     pub(super) dropped: bool,
 }
 
-pub(super) struct FileDropEvent {
-    pub(super) position: Pos2,
-    pub(super) files: Vec<DroppedFile>,
-    pub(super) dropped: bool,
-}
-
-pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<FileDropEvent> {
+pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<DragEvent> {
     let mut hovering = dropping;
     let mut dropped = false;
     let mut files = Vec::new();
@@ -42,9 +36,9 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
         return None;
     }
     let pointer = input.pointer.filter(|_| input.hovered)?;
-    Some(FileDropEvent {
+    Some(DragEvent {
         position: Pos2::ZERO + (pointer - input.rect.min),
-        files,
+        dragged: Dragged::Files(files),
         dropped,
     })
 }

@@ -4,7 +4,7 @@ use block_plugin_api::{
     Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{DragOver, FileDrop, Focus},
+    shell_types::{DragOver, Dragged, Focus},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -70,8 +70,6 @@ pub(super) enum EditorCall {
     Resized(Size),
     DragOver(DragOver),
     DragLeft,
-    FileDrop(FileDrop),
-    FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
     Watched {
         open: block_plugin_api::ops::MethodId,
@@ -215,7 +213,9 @@ impl BlockIds for Outbound {
                 focus_ids(*instance, focus, visit);
             }
             Self::Editor(instance, EditorCall::DragOver(drag)) => {
-                visit(*instance, BlockIdRole::Existing, &mut drag.block_id);
+                if let Dragged::Block(block) = &mut drag.dragged {
+                    visit(*instance, BlockIdRole::Existing, &mut block.block_id);
+                }
             }
             Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
                 visit(*instance, BlockIdRole::Existing, old);

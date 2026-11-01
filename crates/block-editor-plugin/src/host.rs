@@ -114,6 +114,21 @@ pub struct FileDrop {
     pub dropped: bool,
 }
 
+#[derive(Clone)]
+pub(crate) enum Dragged {
+    Block(BlockDrag),
+    Files(FileDrop),
+}
+
+impl Dragged {
+    pub(crate) fn dropped(&self) -> bool {
+        match self {
+            Self::Block(drag) => drag.dropped,
+            Self::Files(drop) => drop.dropped,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpenRequest {
     pub block_id: Uuid,
@@ -394,8 +409,7 @@ impl Children {
 
 #[derive(Default)]
 struct ViewDrops {
-    drag: Option<BlockDrag>,
-    files: Option<FileDrop>,
+    dragged: Option<Dragged>,
     content: Option<Rect>,
 }
 
@@ -1527,21 +1541,22 @@ impl EditorHost {
 
     pub fn drag(&self) -> Option<BlockDrag> {
         let view = self.shown_view()?;
-        self.drops.borrow().get(&view)?.drag
+        match self.drops.borrow().get(&view)?.dragged {
+            Some(Dragged::Block(drag)) => Some(drag),
+            _ => None,
+        }
     }
 
     pub fn files(&self) -> Option<FileDrop> {
         let view = self.shown_view()?;
-        self.drops.borrow().get(&view)?.files.clone()
+        match &self.drops.borrow().get(&view)?.dragged {
+            Some(Dragged::Files(drop)) => Some(drop.clone()),
+            _ => None,
+        }
     }
 
     fn shown_view(&self) -> Option<ViewId> {
         self.showing.get().map(|shown| shown.id)
-    }
-
-    pub(crate) fn set_files(&self, view: ViewId, drop: Option<FileDrop>) {
-        self.drops.borrow_mut().entry(view).or_default().files = drop;
-        self.changed();
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -2150,8 +2165,8 @@ impl EditorHost {
         std::mem::take(&mut self.view_changes.borrow_mut())
     }
 
-    pub(crate) fn set_drag(&self, view: ViewId, drag: Option<BlockDrag>) {
-        self.drops.borrow_mut().entry(view).or_default().drag = drag;
+    pub(crate) fn set_drag(&self, view: ViewId, dragged: Option<Dragged>) {
+        self.drops.borrow_mut().entry(view).or_default().dragged = dragged;
         self.changed();
     }
 

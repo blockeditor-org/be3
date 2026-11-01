@@ -43,10 +43,11 @@ fn revision_history_editors_cannot_mutate_any_block() {
         ));
         assert!(!call(
             &mut instances,
-            wire::Call::ReplaceContent {
+            wire::Call::WriteContent {
                 block: target.into_bytes(),
                 content_type: CounterContent::CONTENT_TYPE.into_bytes(),
-                bytes: CounterContent::default().encode()
+                bytes: CounterContent::default().encode(),
+                replace: true,
             }
         ));
         assert!(!call(

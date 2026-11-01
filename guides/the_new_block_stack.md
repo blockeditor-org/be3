@@ -789,8 +789,9 @@ type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
 in frames of at most 8 MB. It arrives as a commit instead, which be-store has
-already cut into chunks: a new block's first content comes from `seed-content`,
-and a new file for an existing block from `replace-content` (below).
+already cut into chunks: a new block's first content comes from `write-content`
+seeding it, and a new file for an existing block from `write-content` with
+`replace` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -1217,9 +1218,8 @@ instance and the block's replica.
   it lets go, and the host detaches the instance from that block, and from every
   block when the editor closes. The editor session keeps one per block in
   `editor.watched_content()` (`block-editor-plugin/src/link.rs`).
-- `seed-content` and `replace-content` write a block's content outright, since they
-  may name a block nothing follows; `replace-content` becomes the replica's
-  `Change::Replace`.
+- `write-content` writes a block's content outright, since it may name a block
+  nothing follows; with `replace` it becomes the replica's `Change::Replace`.
 
 `editor.content_of::<C>(block)` is how an editor reads and edits another block:
 it watches the block (a `replica` for it) and hands back the same
@@ -1422,13 +1422,13 @@ id. Creating a database makes two blocks this way:
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
-`editor.seed_content(block, &content)` calls `seed-content` for a
+`editor.seed_content(block, &content)` calls `write-content` without `replace` for a
 block that already exists; the peer writes it as the block's first commit, and
 ignores it for a block that already has content or is open, so it cannot
 overwrite anything.
 
 Replacing a block's whole content is `editor.replace_content(block, &content)`,
-which calls `replace-content`; the host takes it only for a block
+which calls `write-content` with `replace`; the host takes it only for a block
 the account may edit. The worker hands it to the open replica as
 `Change::Replace`, or publishes it straight to the server when nothing has the
 block open. The replica publishes the new content as a commit based on the head it
@@ -1857,7 +1857,7 @@ and waits, `stop()` does the same and then joins the worker, and the close
 handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
 (`status().unsaved` is what says whether anything would be lost). The host
-refuses an `Operate`, a `replace-content` and a graph command for a block the
+refuses an `Operate`, a replacing `write-content` and a graph command for a block the
 account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
