@@ -16,7 +16,7 @@ use block_type_api::ops::wire::Decode;
 use block_type_api::{
     Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
-    ops::{Connection, Incoming, Latest, OpError, OpId, Outcome, Reply, Side, Ticket},
+    ops::{Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Reply, Side, Ticket},
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -153,7 +153,7 @@ struct Module {
     worker: Option<Worker<Boxed>>,
     connection: Connection,
     tag: SessionTag,
-    clock: Option<Latest<u64>>,
+    clock: Outlets<()>,
     ticked: Option<u64>,
     sleeping: Option<(u64, Reply<()>)>,
     started: Option<Ticket<Vec<TypeInfo>>>,
@@ -236,7 +236,7 @@ impl Modules {
                     worker: None,
                     connection: Connection::new(Side::Host),
                     tag: SessionTag::default(),
-                    clock: None,
+                    clock: Outlets::default(),
                     ticked: None,
                     sleeping: None,
                     started: None,
@@ -302,7 +302,7 @@ impl Modules {
         held.generation += 1;
         held.hello = false;
         held.ticked = None;
-        held.clock = None;
+        held.clock = Outlets::default();
         held.sleeping = None;
         held.connection = Connection::new(Side::Host);
         match (held.source.start)(wake, Arc::clone(&waiting)) {
@@ -490,9 +490,7 @@ impl Modules {
             return;
         }
         held.ticked = Some(now);
-        if let Some(clock) = &mut held.clock {
-            clock.send(&mut held.connection, now);
-        }
+        let _ = held.clock.send(&mut held.connection, &now, |_| true);
         if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
             && let Some((_, reply)) = held.sleeping.take()
         {
@@ -624,9 +622,9 @@ impl Modules {
                             Some(Call::Clock { stream }) => {
                                 let now = clock_now;
                                 held.ticked = Some(now);
-                                let mut clock = Latest::new(stream);
-                                clock.send(&mut held.connection, now);
-                                held.clock = Some(clock);
+                                held.clock = Outlets::default();
+                                held.clock.insert(stream, (), Backlog::Latest);
+                                let _ = held.clock.send(&mut held.connection, &now, |_| true);
                             }
                             Some(Call::SleepUntil { reply, at }) => {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
@@ -662,11 +660,11 @@ impl Modules {
                             && let Some((_, reply)) = held.sleeping.take()
                         {
                             reply.fail(&mut held.connection, OpError::Canceled);
-                        } else if held.clock.as_ref().is_some_and(|clock| clock.op() == op)
-                            && let Some(clock) = held.clock.take()
+                        } else if held
+                            .clock
+                            .end(&mut held.connection, op, Some(OpError::Canceled))
+                            .is_none()
                         {
-                            clock.finish(&mut held.connection);
-                        } else {
                             heard.push((module, Heard::Canceled { op }));
                         }
                     }
@@ -683,9 +681,7 @@ impl Modules {
                         }
                     }
                     Incoming::Credited { op } => {
-                        if let Some(clock) = &mut held.clock {
-                            clock.credited(&mut held.connection, op);
-                        }
+                        held.clock.credited(&mut held.connection, op);
                     }
                     Incoming::Yielded { .. } => {}
                 }

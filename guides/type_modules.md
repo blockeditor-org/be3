@@ -55,8 +55,13 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   nothing back: out of credit, `Producer::send` (`Connection::yield_item`) answers
   `WouldBlock` and sends nothing, so the producer stops taking from its own source and
   keeps the item, `Producer::ready` asks first, and `Incoming::Credited { op }` says
-  when room came back. A latest-value stream wraps its producer in `Latest<T>`, which
-  keeps only the newest value it could not send and sends it on `credited`. The guest
+  when room came back. A host serving many streams puts their producers in an
+  `Outlets<K>`, which routes each item to the streams whose key `K` matches and holds
+  back what it could not send, per stream: `Backlog::Latest` keeps only the newest
+  value, `Backlog::Queue(n)` up to `n` items, past which `send` answers
+  `WouldBlock`. `Outlets::credited` sends what was held back, and `Outlets::end`
+  completes a stream, failing it `Canceled` if it ends cleanly with items it could
+  not flush. The guest
   executor's `Stream` grants credit as its task takes items; a host consuming a stream
   calls `Connection::credit` itself. The other way, an import whose items the guest
   produces is an `async func` per item that the host answers once it has taken the
@@ -107,7 +112,7 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `be_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
   `Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
   `deserialize_with` on fields and cases and as the second type parameter of
-  `Pending`, `Stream`, `Ticket`, `Reply`, `Producer` and `Latest`, which defaults to
+  `Pending`, `Stream`, `Ticket`, `Reply` and `Producer`, which defaults to
   `Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
   with bytes in its result names the encoding the generated function returns, and a
   helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,

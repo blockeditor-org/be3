@@ -13,7 +13,7 @@ use block_type_api::{
     Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
     Status,
     embed::{exports::replicas::Replica, host::Call},
-    ops::{Connection, Incoming, Latest, OpId, Outcome, Reply, Side, guest::Executor},
+    ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
 use uuid::Uuid;
 
@@ -324,7 +324,7 @@ struct Device {
     module: Option<Module>,
     executor: Option<Executor>,
     host: Connection,
-    clock: Option<Latest<u64>>,
+    clock: Option<Outlets<()>>,
     replica: Option<Replica>,
     sleeping: Vec<(u64, Reply<()>)>,
     tag: SessionTag,
@@ -573,7 +573,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             let Some(mut clock) = self.devices[device].clock.take() else {
                 continue;
             };
-            self.to(device, |host| clock.send(host, now));
+            let _ = self.to(device, |host| clock.send(host, &now, |_| true));
             self.devices[device].clock = Some(clock);
             let held = std::mem::take(&mut self.devices[device].sleeping);
             let (due, waiting): (Vec<_>, Vec<_>) = held.into_iter().partition(|(at, _)| *at <= now);
@@ -744,8 +744,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         match call {
             Call::Clock { stream } => {
                 let now = self.now;
-                let mut clock = Latest::new(stream);
-                self.to(device, |host| clock.send(host, now));
+                let mut clock = Outlets::default();
+                clock.insert(stream, (), Backlog::Latest);
+                let _ = self.to(device, |host| clock.send(host, &now, |_| true));
                 self.devices[device].clock = Some(clock);
             }
             Call::SleepUntil { reply, at } => {
