@@ -890,7 +890,7 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
-                        heard(peer, shared, &self.tasks.0, event).await;
+                        heard(peer, shared, &self.tasks.0, self.replicas, event).await;
                     }
                     false
                 }
@@ -2363,6 +2363,7 @@ async fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
+    replicas: &Replicas,
     event: Option<Event>,
 ) {
     match event {
@@ -2370,8 +2371,13 @@ async fn heard(
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
             }
-            let node = node_of(peer, &block);
+            let mut node = node_of(peer, &block);
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if replicas.is_open(node.id)
+                && let Some(reported) = held.graph.get(node.id).and_then(|node| node.head)
+            {
+                node.head = Some(reported);
+            }
             let shared_into_view = node.access.can_view()
                 && matches!(node.parent, Some(BlockParent::Block(_)))
                 && !held.graph.covers(node.id);
@@ -2390,7 +2396,7 @@ async fn heard(
                 .graph
                 .remove(block, revision);
         }
-        Some(Event::HeadChanged { block, head, .. }) => {
+        Some(Event::HeadChanged { block, head, .. }) if !replicas.is_open(block) => {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
