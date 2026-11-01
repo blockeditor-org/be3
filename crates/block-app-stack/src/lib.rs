@@ -505,6 +505,11 @@ pub fn show(block: Uuid, kind: Uuid, value: Option<Vec<u8>>) {
 }
 
 #[cfg(test)]
+fn hear_head(block: Uuid, head: be_commit::CommitId) {
+    send(Command::HearHead { block, head });
+}
+
+#[cfg(test)]
 pub fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
     send(Command::SendToPeers {
         block,

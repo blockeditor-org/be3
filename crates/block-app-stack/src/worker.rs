@@ -138,6 +138,11 @@ pub(super) enum Command {
         value: Option<Vec<u8>>,
     },
     #[cfg(test)]
+    HearHead {
+        block: Uuid,
+        head: CommitId,
+    },
+    #[cfg(test)]
     SendToPeers {
         block: Uuid,
         to: Option<u64>,
@@ -271,7 +276,9 @@ impl Command {
             #[cfg(any(test, feature = "testing"))]
             Command::Close(block) => Some(*block),
             #[cfg(test)]
-            Command::Presence { block, .. } | Command::SendToPeers { block, .. } => Some(*block),
+            Command::Presence { block, .. }
+            | Command::SendToPeers { block, .. }
+            | Command::HearHead { block, .. } => Some(*block),
             Command::Export { .. }
             | Command::Unsent { .. }
             | Command::Import(_)
@@ -1992,6 +1999,22 @@ async fn apply(
                 &FromEditor::ShowPresence { kind, value },
                 Instant::now(),
             );
+            false
+        }
+        #[cfg(test)]
+        Command::HearHead { block, head } => {
+            let mut events = vec![Event::HeadChanged {
+                block,
+                head,
+                author: peer.account(),
+            }];
+            if let Some(mut summary) = peer.known_summary(block) {
+                summary.head = Some(head);
+                events.push(Event::BlockChanged(summary));
+            }
+            for event in events {
+                heard(peer, shared, tasks, replicas, Some(event)).await;
+            }
             false
         }
         #[cfg(test)]
