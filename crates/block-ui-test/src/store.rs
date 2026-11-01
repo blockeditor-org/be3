@@ -14,8 +14,7 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Connection, DeserializeOwned, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket,
-        guest::Executor,
+        Connection, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket, guest::Executor, wire,
     },
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
@@ -317,9 +316,9 @@ impl Inner {
         }
     }
 
-    fn ask<T: DeserializeOwned>(
+    fn ask<T, E: wire::Decode<T>>(
         &mut self,
-        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
     ) -> Option<T> {
         let ticket = call(&mut self.host);
         self.run();

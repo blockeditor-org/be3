@@ -11,7 +11,6 @@ be-ops-bindgen = { path = "../be-ops-bindgen" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session", default-features = false }
 serde = { version = "1", features = ["derive"] }
-serde_bytes = "0.11"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [lints]

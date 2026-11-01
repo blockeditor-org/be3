@@ -37,8 +37,8 @@ pub const PONG_WAIT: Duration = Duration::from_secs(20);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
-pub async fn ask<T: be_ops::DeserializeOwned>(
-    pending: be_ops::net::Pending<Result<T, be_protocol::Error>>,
+pub async fn ask<T, E: be_ops::wire::Decode<Result<T, be_protocol::Error>>>(
+    pending: be_ops::net::Pending<Result<T, be_protocol::Error>, E>,
 ) -> Result<T, ClientError> {
     Ok(pending.await??)
 }

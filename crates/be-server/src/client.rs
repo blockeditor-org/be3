@@ -222,7 +222,11 @@ impl Client {
         hub.remove(client).await;
     }
 
-    fn reply<T: Serialize>(&self, reply: Reply<Result<T, Error>>, result: Result<T, ServerError>) {
+    fn reply<T, E: be_ops::wire::Encode<Result<T, Error>>>(
+        &self,
+        reply: Reply<Result<T, Error>, E>,
+        result: Result<T, ServerError>,
+    ) {
         reply.send(&mut self.peer.lock(), &result.map_err(wire));
     }
 

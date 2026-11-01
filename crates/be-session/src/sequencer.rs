@@ -14,6 +14,7 @@ pub struct OpId {
 pub struct SessionOp {
     pub id: OpId,
     pub sequence: u64,
+    #[serde(with = "serde_bytes")]
     pub payload: Vec<u8>,
 }
 
@@ -22,6 +23,7 @@ pub enum SessionMessage {
     Submit {
         id: OpId,
         base: u64,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
     Accepted {
@@ -35,11 +37,13 @@ pub enum SessionMessage {
         sealed: u64,
         sequence: u64,
         ops: Vec<SessionOp>,
+        #[serde(with = "serde_bytes")]
         state: Vec<u8>,
     },
     Sealed {
         head: CommitId,
         sequence: u64,
+        #[serde(with = "serde_bytes")]
         reload: Option<Vec<u8>>,
     },
     Replaced {
@@ -58,10 +62,12 @@ pub enum SessionMessage {
     },
     Presence {
         kind: uuid::Uuid,
+        #[serde(with = "serde_bytes")]
         value: Option<Vec<u8>>,
     },
     Channel {
         channel: uuid::Uuid,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
 }

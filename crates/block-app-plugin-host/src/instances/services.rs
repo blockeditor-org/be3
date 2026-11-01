@@ -4,9 +4,8 @@ use std::marker::PhantomData;
 use block_plugin_api::{
     AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, SavedFile,
     embed::host_services::Call,
-    ops::{OpError, OpId, Outcome, Reply},
+    ops::{OpError, OpId, Outcome, Reply, wire},
 };
-use serde::Serialize;
 use uuid::Uuid;
 
 use super::{Instances, allowed};
@@ -57,16 +56,16 @@ impl Default for Services {
     }
 }
 
-struct Answering<T> {
+struct Answering<T, E = wire::Plain> {
     sender: host::WakingSender<Delivered>,
     epoch: u64,
     instance: EditorInstanceId,
     op: OpId,
     aborted: AbortFlag,
-    answer: PhantomData<fn(T)>,
+    answer: PhantomData<fn(T, E)>,
 }
 
-impl<T> Answering<T> {
+impl<T, E> Answering<T, E> {
     fn withdrawn(&self) -> bool {
         self.aborted.aborted()
     }
@@ -81,16 +80,16 @@ impl<T> Answering<T> {
     }
 }
 
-impl<T: Serialize> Answering<T> {
+impl<T, E: wire::Encode<T>> Answering<T, E> {
     fn send(self, answer: T) {
         if !self.withdrawn() {
-            let outcome = Outcome::returned(&answer);
+            let outcome = Outcome::Ok(wire::encode::<E, T>(&answer));
             self.deliver(Answer::Done(outcome));
         }
     }
 }
 
-impl<T: Serialize> Answering<Result<T, Failure>> {
+impl<T, E: wire::Encode<Result<T, Failure>>> Answering<Result<T, Failure>, E> {
     fn send_or_fail(self, answer: Result<T, String>) {
         self.send(answer.map_err(Failure::Failed));
     }
@@ -129,11 +128,11 @@ impl Instances {
         aborted
     }
 
-    fn answering<T: Serialize>(
+    fn answering<T, E: wire::Encode<T>>(
         &mut self,
         instance: EditorInstanceId,
-        reply: Reply<T>,
-    ) -> Answering<T> {
+        reply: Reply<T, E>,
+    ) -> Answering<T, E> {
         let aborted = self.work(instance, reply.op()).flag();
         Answering {
             sender: self.services.sender.clone(),
@@ -145,10 +144,10 @@ impl Instances {
         }
     }
 
-    fn answer_now<T: Serialize>(&mut self, reply: Reply<T>, answer: T) {
+    fn answer_now<T, E: wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
         self.services
             .answers
-            .push((reply.op(), Outcome::returned(&answer)));
+            .push((reply.op(), reply.outcome(&answer)));
     }
 
     fn refuse(&mut self, op: Option<OpId>, error: OpError) {

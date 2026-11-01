@@ -1,8 +1,6 @@
 use block_type_api::{
-    Failure, Merged, Plain, PlainFile,
-    embed::exports::replicas,
-    guest::exports::replicas::Guest,
-    ops::{OpError, Ticket},
+    Failure, Merged, Plain, PlainFile, embed::exports::replicas, guest::exports::replicas::Guest,
+    ops::OpError,
 };
 
 use super::*;
@@ -85,7 +83,7 @@ fn a_module_answers_stateless_requests() {
     );
     assert_eq!(module.blank(Uuid::nil()), Err(Failure::UnknownType));
 
-    let content: Ticket<Option<Vec<u8>>> = replicas::Replica::from_op(9).content(&mut host);
+    let content = replicas::Replica::from_op(9).content(&mut host);
     crate::abi::Guest::step(&mut guest, host.take_outbound(), false, &mut outbound).unwrap();
     for frame in outbound.drain(..) {
         host.receive(&frame).unwrap();

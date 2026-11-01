@@ -73,10 +73,10 @@ impl Refused for FileSave {
 pub struct Asked<T>(Pin<Box<dyn Future<Output = Option<T>>>>);
 
 impl<T: 'static> Asked<T> {
-    pub(crate) fn of(pending: Pending<T>) -> Self
+    pub(crate) fn of<E: 'static>(pending: Pending<T, E>) -> Self
     where
         T: Refused,
-        Pending<T>: Future<Output = Result<T, OpError>>,
+        Pending<T, E>: Future<Output = Result<T, OpError>>,
     {
         Self(Box::pin(async move {
             match pending.await {

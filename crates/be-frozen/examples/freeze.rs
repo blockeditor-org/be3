@@ -758,8 +758,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     })
 }
 
-async fn ask<T: be_ops::DeserializeOwned>(
-    pending: be_ops::net::Pending<Result<T, be_protocol::Error>>,
+async fn ask<T, E: be_ops::wire::Decode<Result<T, be_protocol::Error>>>(
+    pending: be_ops::net::Pending<Result<T, be_protocol::Error>, E>,
 ) -> Result<T, String> {
     be_client::ask(pending).await.map_err(text)
 }

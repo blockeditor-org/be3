@@ -21,7 +21,7 @@ use block_plugin_api::{
     },
     ops::{
         Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
-        Started, Ticket,
+        Started, Ticket, wire,
     },
 };
 
@@ -29,7 +29,7 @@ use block_plugin_api::{
 struct Held {
     owners: HashMap<OpId, EditorInstanceId>,
     watches: BTreeMap<OpId, Watch<Encoded>>,
-    producers: HashMap<OpId, Producer<Vec<u8>>>,
+    producers: HashMap<OpId, Producer<Vec<u8>, wire::Bytes>>,
     sends: HashMap<OpId, OpId>,
 }
 
@@ -46,7 +46,7 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
-    painting: stable_hash::HashSet<OpId>,
+    painting: HashMap<OpId, Ticket<Vec<u8>, wire::Bytes>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
     published: HashMap<OpId, PublishedWatch>,
     extensions: Vec<String>,
@@ -106,7 +106,7 @@ impl Default for Wire {
             editors: HashMap::default(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
-            painting: stable_hash::HashSet::default(),
+            painting: HashMap::default(),
             audio: HashMap::default(),
             published: HashMap::default(),
             extensions: Vec::new(),
@@ -194,7 +194,8 @@ impl Wire {
                 plugin::node_action(connection, screen, request)
             }
             PluginCall::Paintings => {
-                self.painting.insert(paintings::paintings(connection).op());
+                let painted = paintings::paintings(connection);
+                self.painting.insert(painted.op(), painted);
             }
         }
     }
@@ -725,12 +726,9 @@ impl Wire {
                 }
             }
             Incoming::Completed { op, outcome } => {
-                if self.painting.remove(&op) {
-                    let painted = outcome.decode::<serde_bytes::ByteBuf>();
+                if let Some(painted) = self.painting.remove(&op) {
                     heard.push(Heard::Paintings(
-                        painted
-                            .map(serde_bytes::ByteBuf::into_vec)
-                            .unwrap_or_default(),
+                        painted.decode(outcome).unwrap_or_default(),
                     ));
                     return Ok(());
                 }

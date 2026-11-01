@@ -1080,6 +1080,7 @@ dependencies = [
  "be-protocol",
  "be-store",
  "serde",
+ "serde_bytes",
  "uuid",
 ]
 
@@ -1976,7 +1977,6 @@ dependencies = [
  "pollster",
  "rodio",
  "serde",
- "serde_bytes",
  "serde_json",
  "stable-hash",
  "text-block-types",
@@ -2231,7 +2231,6 @@ dependencies = [
  "block-gpu-abi",
  "block-plugin-manifest",
  "serde",
- "serde_bytes",
  "serde_json",
  "stable-hash",
  "ui-keys",
@@ -2272,7 +2271,6 @@ dependencies = [
  "be-protocol",
  "be-session",
  "serde",
- "serde_bytes",
  "uuid",
 ]
 
@@ -2283,6 +2281,7 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-model",
+ "be-ops",
  "be-protocol",
  "be-session",
  "be-store",
@@ -2292,6 +2291,7 @@ dependencies = [
  "postcard",
  "rand_chacha 0.9.0",
  "serde",
+ "serde_bytes",
  "uuid",
 ]
 
@@ -8868,10 +8868,10 @@ dependencies = [
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "be-ops-bindgen",
  "geometry",
  "serde",
- "serde_bytes",
  "ui-keys",
  "ui-preferences",
 ]

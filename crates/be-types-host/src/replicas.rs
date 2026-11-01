@@ -11,7 +11,7 @@ use be_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, SessionState};
-use block_type_api::ops::DeserializeOwned;
+use block_type_api::ops::wire::{self, Decode};
 use block_type_api::{
     ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
     Recipients, ReplicaId, Resume, Status,
@@ -63,6 +63,8 @@ type Rejoined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
 type Waiting = tokio::sync::oneshot::Sender<Outcome>;
+
+type Content = Ticket<Option<Vec<u8>>, wire::Optional<wire::Bytes>>;
 
 pub(crate) fn answer_in(
     answered: &mut tokio::sync::oneshot::Receiver<Outcome>,
@@ -123,7 +125,10 @@ struct Unanswered {
 }
 
 pub enum Answered {
-    Read(Reply<Result<Vec<u8>, String>>, Result<Vec<u8>, String>),
+    Read(
+        Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
+        Result<Vec<u8>, String>,
+    ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
 }
@@ -322,7 +327,7 @@ pub struct Replicas<H: Host> {
     next: ReplicaId,
     io: UnboundedSender<Io>,
     handles: HashMap<(usize, OpId), ReplicaId>,
-    contents: HashMap<(usize, OpId), ReplicaId>,
+    contents: HashMap<(usize, OpId), (ReplicaId, Content)>,
     replies: HashMap<(usize, OpId), Waiting>,
     asked: HashMap<(usize, OpId), (ReplicaId, Asked)>,
     pending: Vec<Io>,
@@ -459,11 +464,11 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub async fn ask<T: DeserializeOwned>(
+    pub async fn ask<T, E: Decode<T>>(
         &mut self,
         ctx: Ctx<'_, H>,
         module: usize,
-        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
     ) -> Result<T, OpError> {
         let Some((ticket, answered)) = self.ask_later(module, call) else {
             return Err(OpError::Canceled);
@@ -471,10 +476,10 @@ impl<H: Host> Replicas<H> {
         self.wait(ctx, ticket, answered).await
     }
 
-    async fn wait<T: DeserializeOwned>(
+    async fn wait<T, E: Decode<T>>(
         &mut self,
         ctx: Ctx<'_, H>,
-        ticket: Ticket<T>,
+        ticket: Ticket<T, E>,
         mut answered: tokio::sync::oneshot::Receiver<Outcome>,
     ) -> Result<T, OpError> {
         loop {
@@ -486,11 +491,11 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    fn ask_later<T: DeserializeOwned>(
+    fn ask_later<T, E: Decode<T>>(
         &mut self,
         module: usize,
-        call: impl FnOnce(&mut Connection) -> Ticket<T>,
-    ) -> Option<(Ticket<T>, tokio::sync::oneshot::Receiver<Outcome>)> {
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
+    ) -> Option<(Ticket<T, E>, tokio::sync::oneshot::Receiver<Outcome>)> {
         let ticket = self.modules.call(module, call)?;
         let (answer, answered) = tokio::sync::oneshot::channel();
         self.replies.insert((module, ticket.op()), answer);
@@ -1040,18 +1045,19 @@ impl<H: Host> Replicas<H> {
         );
     }
 
-    async fn on_replica<T: DeserializeOwned>(
+    async fn on_replica<T, E: Decode<T>>(
         &mut self,
         ctx: Ctx<'_, H>,
         block: Uuid,
         asked: Asked,
+        _: impl FnOnce(Replica, &mut Connection) -> Ticket<T, E>,
     ) -> Result<T, OpError> {
         let Some((replica, open)) = self.replica_of(block) else {
             return Err(OpError::Canceled);
         };
         let (module, handle) = (open.module, open.handle);
         let Some((ticket, answered)) = self.ask_later(module, |connection| {
-            Ticket::<T>::new(asked.send(handle, connection))
+            Ticket::<T, E>::new(asked.send(handle, connection))
         }) else {
             return Err(OpError::Canceled);
         };
@@ -1083,7 +1089,7 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn content(&mut self, ctx: Ctx<'_, H>, block: Uuid) -> Option<Vec<u8>> {
-        self.on_replica::<Option<Vec<u8>>>(ctx, block, Asked::Content)
+        self.on_replica(ctx, block, Asked::Content, Replica::content)
             .await
             .ok()
             .flatten()
@@ -1102,7 +1108,11 @@ impl<H: Host> Replicas<H> {
 
     pub async fn seal(&mut self, ctx: Ctx<'_, H>, block: Uuid, force: bool) {
         if self.ready_to_seal(block) {
-            let _ = self.on_replica::<()>(ctx, block, Asked::Seal(force)).await;
+            let _ = self
+                .on_replica(ctx, block, Asked::Seal(force), |replica, connection| {
+                    replica.seal(connection, force)
+                })
+                .await;
         }
     }
 
@@ -1918,9 +1928,8 @@ impl<H: Host> Replicas<H> {
             let _ = answer.send(outcome);
             return false;
         }
-        if let Some(replica) = self.contents.remove(&(module, op)) {
-            let (Some(open), Ok(Some(bytes))) =
-                (self.open.get(&replica), outcome.decode::<Option<Vec<u8>>>())
+        if let Some((replica, ticket)) = self.contents.remove(&(module, op)) {
+            let (Some(open), Ok(Some(bytes))) = (self.open.get(&replica), ticket.decode(outcome))
             else {
                 return false;
             };
@@ -2237,7 +2246,8 @@ impl<H: Host> Replicas<H> {
                         .modules
                         .call(module, |connection| handle.content(connection))
                     {
-                        self.contents.insert((module, ticket.op()), replica);
+                        self.contents
+                            .insert((module, ticket.op()), (replica, ticket));
                     }
                 }
                 true

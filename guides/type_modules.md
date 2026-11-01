@@ -76,8 +76,8 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   type another interface `use`s resolves to the interface that defines it, so a crate
   needs a `uses` entry for that interface too even when its WIT reaches the type
   through another package. It emits a module per interface with its types
-  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
-  with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
+  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`),
+  deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
   (no floats, nothing owned). The options, each a list of WIT type names unless said:
   `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
   type in place of a WIT type whose serde data model is the same, which the
@@ -98,7 +98,25 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   or enum's first case is the default); `inline` records that are a variant case's
   fields, so `case(record)` becomes a struct variant; `lenient` records that take
   `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
-  `Copy`; `own_debug` types whose crate writes `Debug` itself; `local` (see below).
+  `Copy`; `own_debug` types whose crate writes `Debug` itself; `encodings` (a map) gives a
+  `with` type that holds bytes the `be_ops::wire` encoding to send it with (block-type-api's
+  `entries`, a `BTreeMap<Uuid, Vec<u8>>`, is `Map<Plain, Bytes>`); `local` (see below).
+  Every `list<u8>`, wherever it sits (a field, a case, an argument, a result, a stream
+  item, inside a list, option, result or tuple), goes over the wire as one run of bytes
+  and never byte by byte through serde: the generator gives each position a
+  `be_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
+  `Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
+  `deserialize_with` on fields and cases and as the second type parameter of
+  `Pending`, `Stream`, `Ticket`, `Reply`, `Producer` and `Latest`, which defaults to
+  `Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
+  with bytes in its result names the encoding the generated function returns, and a
+  helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,
+  `wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::outcome` encodes an
+  answer to send later. With postcard a byte sequence and bytes encode alike, so this
+  changes no byte on the wire. A watched value is a record or variant, never bytes
+  directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
+  on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_ops::wire::serialize`/`deserialize`
+  on deeper nesting.
   WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
   for a case named `type`, generated as `Type`), and a function may not share its name
   with a type of its interface, so a function that takes a `hello` is not `hello`.

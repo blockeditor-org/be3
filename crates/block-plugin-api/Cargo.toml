@@ -11,7 +11,6 @@ block-gpu-abi = { path = "../block-gpu-abi" }
 block-plugin-manifest = { path = "../block-plugin-manifest" }
 be-ops-bindgen = { path = "../be-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
-serde_bytes = "0.11"
 serde_json = "1"
 stable-hash = { path = "../stable-hash" }
 ui-keys = { path = "../ui-keys" }

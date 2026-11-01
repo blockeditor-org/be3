@@ -12,6 +12,8 @@ pub mod guest;
 
 pub mod net;
 
+pub mod wire;
+
 #[doc(hidden)]
 pub use block_guest_abi as __abi;
 
@@ -147,6 +149,13 @@ impl Outcome {
     pub fn decode<T: DeserializeOwned>(self) -> Result<T, OpError> {
         match self {
             Outcome::Ok(bytes) => decode(&bytes).ok_or(OpError::Unsupported),
+            Outcome::Err(error) => Err(error),
+        }
+    }
+
+    fn decode_as<S: wire::Decode<T>, T>(self) -> Result<T, OpError> {
+        match self {
+            Outcome::Ok(bytes) => wire::decode::<S, T>(&bytes).ok_or(OpError::Unsupported),
             Outcome::Err(error) => Err(error),
         }
     }
@@ -517,26 +526,26 @@ impl Connection {
     }
 }
 
-pub struct Ticket<T> {
+pub struct Ticket<T, S = wire::Plain> {
     op: OpId,
-    value: PhantomData<fn() -> T>,
+    value: PhantomData<fn() -> (T, S)>,
 }
 
-impl<T> Clone for Ticket<T> {
+impl<T, S> Clone for Ticket<T, S> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> Copy for Ticket<T> {}
+impl<T, S> Copy for Ticket<T, S> {}
 
-impl<T> fmt::Debug for Ticket<T> {
+impl<T, S> fmt::Debug for Ticket<T, S> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Ticket({})", self.op)
     }
 }
 
-impl<T: DeserializeOwned> Ticket<T> {
+impl<T, S> Ticket<T, S> {
     pub fn new(op: OpId) -> Self {
         Self {
             op,
@@ -547,32 +556,34 @@ impl<T: DeserializeOwned> Ticket<T> {
     pub fn op(self) -> OpId {
         self.op
     }
+}
 
+impl<T, S: wire::Decode<T>> Ticket<T, S> {
     pub fn decode(self, outcome: Outcome) -> Result<T, OpError> {
-        outcome.decode()
+        outcome.decode_as::<S, T>()
     }
 }
 
-pub struct Reply<T> {
+pub struct Reply<T, S = wire::Plain> {
     op: OpId,
-    value: PhantomData<fn(T)>,
+    value: PhantomData<fn(T, S)>,
 }
 
-impl<T> fmt::Debug for Reply<T> {
+impl<T, S> fmt::Debug for Reply<T, S> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Reply({})", self.op)
     }
 }
 
-impl<T> PartialEq for Reply<T> {
+impl<T, S> PartialEq for Reply<T, S> {
     fn eq(&self, other: &Self) -> bool {
         self.op == other.op
     }
 }
 
-impl<T> Eq for Reply<T> {}
+impl<T, S> Eq for Reply<T, S> {}
 
-impl<T: Serialize> Reply<T> {
+impl<T, S> Reply<T, S> {
     pub fn new(op: OpId) -> Self {
         Self {
             op,
@@ -584,35 +595,41 @@ impl<T: Serialize> Reply<T> {
         self.op
     }
 
-    pub fn send(self, connection: &mut Connection, value: &T) {
-        connection.complete(self.op, Outcome::returned(value));
-    }
-
     pub fn fail(self, connection: &mut Connection, error: OpError) {
         connection.complete(self.op, Outcome::Err(error));
     }
 }
 
-pub struct Producer<T> {
-    op: OpId,
-    item: PhantomData<fn(T)>,
+impl<T, S: wire::Encode<T>> Reply<T, S> {
+    pub fn outcome(&self, value: &T) -> Outcome {
+        Outcome::Ok(wire::encode::<S, T>(value))
+    }
+
+    pub fn send(self, connection: &mut Connection, value: &T) {
+        connection.complete(self.op, self.outcome(value));
+    }
 }
 
-impl<T> fmt::Debug for Producer<T> {
+pub struct Producer<T, S = wire::Plain> {
+    op: OpId,
+    item: PhantomData<fn(T, S)>,
+}
+
+impl<T, S> fmt::Debug for Producer<T, S> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Producer({})", self.op)
     }
 }
 
-impl<T> PartialEq for Producer<T> {
+impl<T, S> PartialEq for Producer<T, S> {
     fn eq(&self, other: &Self) -> bool {
         self.op == other.op
     }
 }
 
-impl<T> Eq for Producer<T> {}
+impl<T, S> Eq for Producer<T, S> {}
 
-impl<T: Serialize> Producer<T> {
+impl<T, S> Producer<T, S> {
     pub fn new(op: OpId) -> Self {
         Self {
             op,
@@ -622,13 +639,6 @@ impl<T: Serialize> Producer<T> {
 
     pub fn op(&self) -> OpId {
         self.op
-    }
-
-    pub fn send(&self, connection: &mut Connection, item: &T) -> Result<(), WouldBlock> {
-        if !connection.ready(self.op) {
-            return Err(WouldBlock);
-        }
-        connection.yield_item(self.op, &encode(item))
     }
 
     pub fn ready(&self, connection: &Connection) -> bool {
@@ -644,19 +654,28 @@ impl<T: Serialize> Producer<T> {
     }
 }
 
-pub struct Latest<T> {
-    producer: Producer<T>,
+impl<T, S: wire::Encode<T>> Producer<T, S> {
+    pub fn send(&self, connection: &mut Connection, item: &T) -> Result<(), WouldBlock> {
+        if !connection.ready(self.op) {
+            return Err(WouldBlock);
+        }
+        connection.yield_item(self.op, &wire::encode::<S, T>(item))
+    }
+}
+
+pub struct Latest<T, S = wire::Plain> {
+    producer: Producer<T, S>,
     behind: Option<T>,
 }
 
-impl<T> fmt::Debug for Latest<T> {
+impl<T, S> fmt::Debug for Latest<T, S> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Latest({})", self.producer.op)
     }
 }
 
-impl<T: Serialize> Latest<T> {
-    pub fn new(producer: Producer<T>) -> Self {
+impl<T, S> Latest<T, S> {
+    pub fn new(producer: Producer<T, S>) -> Self {
         Self {
             producer,
             behind: None,
@@ -667,6 +686,12 @@ impl<T: Serialize> Latest<T> {
         self.producer.op
     }
 
+    pub fn finish(self, connection: &mut Connection) {
+        self.producer.finish(connection);
+    }
+}
+
+impl<T, S: wire::Encode<T>> Latest<T, S> {
     pub fn send(&mut self, connection: &mut Connection, value: T) {
         self.behind = match self.producer.send(connection, &value) {
             Ok(()) => None,
@@ -682,10 +707,6 @@ impl<T: Serialize> Latest<T> {
             self.send(connection, value);
         }
         true
-    }
-
-    pub fn finish(self, connection: &mut Connection) {
-        self.producer.finish(connection);
     }
 }
 

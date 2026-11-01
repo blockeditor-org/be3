@@ -10,6 +10,7 @@ mod a_network_stream_grants_credit_as_it_is_read;
 mod a_stream_holds_back_once_a_window_of_bytes_is_in_flight;
 mod a_stream_runs_no_further_ahead_than_its_consumer_grants;
 mod an_op_is_canceled_when_its_parent_ends;
+mod bytes_cross_whole_in_every_position;
 mod closing_a_network_resource_waits_for_its_end;
 mod dropping_a_network_call_cancels_it;
 mod every_op_completes_once_even_after_a_cancel;

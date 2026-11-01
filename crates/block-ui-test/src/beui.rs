@@ -910,7 +910,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .any(|(open, _)| *open == W::OPEN)
     }
 
-    pub fn answer<T: serde::Serialize>(&mut self, reply: Reply<T>, answer: T) {
+    pub fn answer<T, E: crate::wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
         reply.send(&mut self.connection, &answer);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));

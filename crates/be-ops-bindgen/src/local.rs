@@ -596,8 +596,11 @@ impl Generator {
                     }
                     Param::Encoded => {
                         let rust = self.ty(ty)?;
+                        let encoding = self.encoding(Some(ty));
                         guest_params.push(quote!(#name: &#rust));
-                        guest_prepare.push(quote!(let #name = ::be_ops::encode(#name);));
+                        guest_prepare.push(
+                            quote!(let #name = ::be_ops::wire::encode::<#encoding, _>(#name);),
+                        );
                         guest_args.push(quote!(#name.as_ptr() as u32));
                         guest_args.push(quote!(#name.len() as u32));
                     }
@@ -684,13 +687,14 @@ impl Generator {
                 }
                 (Returns::Encoded, _) => {
                     let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
+                    let encoding = self.encoding(call.result.as_ref());
                     let mut args = guest_args.clone();
                     args.push(quote!(pointer));
                     args.push(quote!(capacity));
                     (
                         quote!(-> #rust),
                         quote! {
-                            returned(#key, |pointer, capacity| unsafe { imports::#import(#(#args),*) })
+                            returned::<#encoding, _>(#key, |pointer, capacity| unsafe { imports::#import(#(#args),*) })
                         },
                     )
                 }
@@ -791,10 +795,11 @@ impl Generator {
                             }
                             _ => {
                                 let rust = self.ty(ty)?;
+                                let encoding = self.encoding(Some(ty));
                                 (
                                     rust.clone(),
                                     quote! {
-                                        ::be_ops::decode::<#rust>(&#read).ok_or_else(|| {
+                                        ::be_ops::wire::decode::<#encoding, #rust>(&#read).ok_or_else(|| {
                                             ::std::format!("{} does not decode", ::core::stringify!(#name))
                                         })?
                                     },
@@ -854,12 +859,13 @@ impl Generator {
                 }
                 (Returns::Encoded, _) => {
                     let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
+                    let encoding = self.encoding(call.result.as_ref());
                     let pointer = &abi_names[abi_names.len() - 2];
                     let capacity = &abi_names[abi_names.len() - 1];
                     (
                         quote!(-> #rust),
                         quote! {{
-                            let bytes = ::be_ops::encode(&result);
+                            let bytes = ::be_ops::wire::encode::<#encoding, _>(&result);
                             let length = bytes.len() as u32;
                             if length <= #capacity {
                                 if let ::core::result::Result::Err(message) = caller.write(#pointer, &bytes) {
@@ -938,7 +944,7 @@ impl Generator {
                         const { ::core::cell::RefCell::new(::std::vec::Vec::new()) };
                 }
 
-                fn returned<T: ::serde::de::DeserializeOwned>(
+                fn returned<E: ::be_ops::wire::Decode<T>, T>(
                     name: &str,
                     call: impl FnOnce(u32, u32) -> u32,
                 ) -> T {
@@ -952,7 +958,7 @@ impl Generator {
                             room.resize(length, 0);
                             unsafe { imports::returned(room.as_mut_ptr() as u32) };
                         }
-                        match ::be_ops::decode(&room[..length]) {
+                        match ::be_ops::wire::decode::<E, T>(&room[..length]) {
                             ::core::option::Option::Some(value) => value,
                             ::core::option::Option::None => {
                                 ::core::panic!("{name} returned what does not decode")

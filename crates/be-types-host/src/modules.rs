@@ -12,7 +12,7 @@ use be_client::Clock;
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
-use block_type_api::ops::DeserializeOwned;
+use block_type_api::ops::wire::Decode;
 use block_type_api::{
     Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
@@ -707,13 +707,13 @@ impl Modules {
         self.collect()
     }
 
-    pub async fn ask_all<T: DeserializeOwned>(
+    pub async fn ask_all<T, E: Decode<T>>(
         &mut self,
         module: usize,
-        calls: Vec<impl FnOnce(&mut Connection) -> Ticket<T>>,
+        calls: Vec<impl FnOnce(&mut Connection) -> Ticket<T, E>>,
     ) -> Vec<Result<T, OpError>> {
         let generation = self.modules[module].generation;
-        let tickets: Vec<Ticket<T>> = match self.call(module, |connection| {
+        let tickets: Vec<Ticket<T, E>> = match self.call(module, |connection| {
             calls
                 .into_iter()
                 .map(|call| call(connection))
@@ -753,10 +753,10 @@ impl Modules {
             .collect()
     }
 
-    pub async fn ask<T: DeserializeOwned>(
+    pub async fn ask<T, E: Decode<T>>(
         &mut self,
         module: usize,
-        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
     ) -> Result<T, OpError> {
         self.ask_all(module, vec![call])
             .await
@@ -764,10 +764,10 @@ impl Modules {
             .unwrap_or(Err(OpError::Canceled))
     }
 
-    async fn ask_type<T: DeserializeOwned>(
+    async fn ask_type<T, E: Decode<Result<T, Failure>>>(
         &mut self,
         content_type: Uuid,
-        call: impl FnOnce(&mut Connection) -> Ticket<Result<T, Failure>>,
+        call: impl FnOnce(&mut Connection) -> Ticket<Result<T, Failure>, E>,
     ) -> Result<T, String> {
         let Some(module) = self.module_of(content_type) else {
             return Err(unknown(content_type));

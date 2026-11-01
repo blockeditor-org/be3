@@ -362,9 +362,9 @@ impl TestClient {
         }
     }
 
-    async fn call<T: be_ops::DeserializeOwned>(
+    async fn call<T, E: be_ops::wire::Decode<Result<T, Error>>>(
         &mut self,
-        start: impl FnOnce(&Peer) -> Pending<Result<T, Error>>,
+        start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
     ) -> Result<T, Error> {
         let answered = start(&self.peer).await.expect("the connection stayed open");
         self.collect();

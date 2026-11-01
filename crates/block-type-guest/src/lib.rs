@@ -393,10 +393,10 @@ impl Module {
             .unwrap_or_default()
     }
 
-    fn answer_later<T: serde::de::DeserializeOwned + 'static>(
+    fn answer_later<T: 'static, E: be_ops::wire::Decode<T> + 'static>(
         &self,
         replica: ReplicaId,
-        pending: Pending<T>,
+        pending: Pending<T, E>,
         input: impl FnOnce(Result<T, String>) -> Input + 'static,
     ) {
         let module = self.clone();

@@ -10,9 +10,12 @@ fn a_guest_task_awaits_an_import_and_dropping_it_cancels() {
         let heard = Rc::clone(&kept);
         assert_eq!(started.method, method_id("test#run"));
         guest::spawn(async move {
-            let answer = guest::call::<u32, _>(method_id("test#ask"), &()).await;
+            let answer = guest::call::<u32, wire::Plain, _>(method_id("test#ask"), &()).await;
             heard.borrow_mut().push(answer);
-            drop(guest::call::<u32, _>(method_id("test#ask"), &()));
+            drop(guest::call::<u32, wire::Plain, _>(
+                method_id("test#ask"),
+                &(),
+            ));
         });
         guest::Serve::Done(Outcome::returned(&()))
     }));

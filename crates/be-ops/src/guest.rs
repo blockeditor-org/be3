@@ -10,10 +10,11 @@ use std::{
     task::{Context, Poll, Wake, Waker},
 };
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::Serialize;
 
 use crate::{
     Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, encode,
+    wire::{Decode, Plain},
 };
 
 pub type LocalFuture<T> = Pin<Box<dyn Future<Output = T>>>;
@@ -476,7 +477,7 @@ pub fn export(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u3
     })
 }
 
-pub fn call<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Pending<T> {
+pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pending<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
     Pending {
@@ -487,7 +488,7 @@ pub fn call<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Pe
     }
 }
 
-pub fn stream<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Stream<T> {
+pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stream<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
     Stream {
@@ -529,22 +530,22 @@ impl Drop for Resource {
     }
 }
 
-pub struct Pending<T> {
+pub struct Pending<T, S = Plain> {
     op: OpId,
     inner: Rc<Inner>,
     finished: bool,
-    value: PhantomData<fn() -> T>,
+    value: PhantomData<fn() -> (T, S)>,
 }
 
-impl<T> Pending<T> {
+impl<T, S> Pending<T, S> {
     pub fn op(&self) -> OpId {
         self.op
     }
 }
 
-impl<T> Unpin for Pending<T> {}
+impl<T, S> Unpin for Pending<T, S> {}
 
-impl<T: DeserializeOwned> Future for Pending<T> {
+impl<T, S: Decode<T>> Future for Pending<T, S> {
     type Output = Result<T, OpError>;
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
@@ -562,7 +563,7 @@ impl<T: DeserializeOwned> Future for Pending<T> {
                 calls.remove(&self.op);
                 drop(calls);
                 self.finished = true;
-                Poll::Ready(outcome.decode())
+                Poll::Ready(outcome.decode_as::<S, T>())
             }
             None => {
                 call.waker = Some(context.waker().clone());
@@ -572,7 +573,7 @@ impl<T: DeserializeOwned> Future for Pending<T> {
     }
 }
 
-impl<T> Drop for Pending<T> {
+impl<T, S> Drop for Pending<T, S> {
     fn drop(&mut self) {
         if !self.finished {
             self.inner.forget(self.op);
@@ -580,19 +581,19 @@ impl<T> Drop for Pending<T> {
     }
 }
 
-pub struct Stream<T> {
+pub struct Stream<T, S = Plain> {
     op: OpId,
     inner: Rc<Inner>,
     finished: bool,
-    item: PhantomData<fn() -> T>,
+    item: PhantomData<fn() -> (T, S)>,
 }
 
-impl<T: DeserializeOwned> Stream<T> {
+impl<T, S: Decode<T>> Stream<T, S> {
     pub fn op(&self) -> OpId {
         self.op
     }
 
-    pub fn recv(&mut self) -> Next<'_, T> {
+    pub fn recv(&mut self) -> Next<'_, T, S> {
         Next { stream: self }
     }
 
@@ -623,7 +624,7 @@ impl<T: DeserializeOwned> Stream<T> {
                 .connection
                 .borrow_mut()
                 .credit(self.op, granted.0, granted.1);
-            return Poll::Ready(crate::decode(&item));
+            return Poll::Ready(crate::wire::decode::<S, T>(&item));
         }
         if call.outcome.is_some() {
             calls.remove(&self.op);
@@ -636,7 +637,7 @@ impl<T: DeserializeOwned> Stream<T> {
     }
 }
 
-impl<T> Drop for Stream<T> {
+impl<T, S> Drop for Stream<T, S> {
     fn drop(&mut self) {
         if !self.finished {
             self.inner.forget(self.op);
@@ -644,11 +645,11 @@ impl<T> Drop for Stream<T> {
     }
 }
 
-pub struct Next<'a, T> {
-    stream: &'a mut Stream<T>,
+pub struct Next<'a, T, S = Plain> {
+    stream: &'a mut Stream<T, S>,
 }
 
-impl<T: DeserializeOwned> Future for Next<'_, T> {
+impl<T, S: Decode<T>> Future for Next<'_, T, S> {
     type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
