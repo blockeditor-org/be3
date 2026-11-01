@@ -61,7 +61,7 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     guest.open(organization).await;
     let token = guest.token.clone();
     let Ok(Authenticated { account, .. }) = guest
-        .call(|peer| client::account::authenticate(peer, token))
+        .call(|peer| client::account::authenticate(peer, Some(token)))
         .await
     else {
         panic!("the guest could not re-authenticate");

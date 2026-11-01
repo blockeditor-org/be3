@@ -22,7 +22,7 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let mut client = harness.client().await;
 
     let resumed = client
-        .call(|peer| client::account::authenticate(peer, token.clone()))
+        .call(|peer| client::account::authenticate(peer, Some(token.clone())))
         .await;
     assert!(
         matches!(resumed, Ok(_)),

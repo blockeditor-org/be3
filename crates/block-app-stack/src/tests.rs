@@ -892,7 +892,7 @@ impl Device {
                 .expect("the other device reaches the server again");
             let token = be_client::ask(be_protocol::client::account::authenticate(
                 &connection,
-                token,
+                Some(token),
             ))
             .await
             .expect("the other device signs in again")

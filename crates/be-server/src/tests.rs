@@ -160,7 +160,7 @@ impl Harness {
         let mut client = self.client().await;
         let token = token.to_owned();
         let response = client
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
         assert!(response.is_ok(), "{response:?}");
         client.open(organization).await;
@@ -483,7 +483,7 @@ impl TestClient {
             .await
             .unwrap();
         let response = self
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
         let Ok(Authenticated { account, token, .. }) = response else {
             panic!("registration failed: {response:?}");

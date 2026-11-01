@@ -3,8 +3,7 @@ package be3:server@0.1.0;
 /// The connection itself.
 interface connection {
     /// Answers at once, so a client learns its socket is alive; the server
-    /// answers it ahead of anything else it is doing. Replaces `Ping` and
-    /// `Pong`.
+    /// answers it ahead of anything else it is doing.
     ping: async func();
 }
 
@@ -34,41 +33,31 @@ interface account {
         payload: list<u8>,
     }
 
-    /// Starts a browser sign-in. Replaces `BeginBrowserLogin` and its
-    /// `BrowserLogin` answer.
+    /// Starts a browser sign-in.
     begin-browser-login: async func() -> result<browser-login, error>;
 
     /// Waits until the browser approved the sign-in begun with `code` and
     /// `secret`, then signs this connection in. Fails at once with a wrong
     /// secret, and once the browser denied the sign-in or it expired. A client
     /// that lost its connection calls it again on the next one, which then
-    /// waits in its place. Replaces `FinishBrowserLogin` (its `Ok` for a
-    /// sign-in still waiting, and its `Authenticated`) and the pushed
-    /// `BrowserLoginFinished`.
+    /// waits in its place.
     finish-browser-login: async func(code: string, secret: string) -> result<authenticated, error>;
 
     /// Makes a profile on this device's own server and signs in to it.
-    /// Replaces `CreateLocalProfile`.
     create-local-profile: async func(display-name: string) -> result<authenticated, error>;
 
-    /// Signs this connection in with an account token. Replaces
-    /// `Authenticate`.
-    authenticate: async func(token: string) -> result<authenticated, error>;
-
-    /// Signs this connection in with the token of the websocket request's
-    /// Authorization header. Replaces `AuthenticateHeader`.
-    authenticate-header: async func() -> result<authenticated, error>;
+    /// Signs this connection in with an account token, or with none, the token
+    /// of the request's Authorization header.
+    authenticate: async func(token: option<string>) -> result<authenticated, error>;
 
     /// Ends the session the token named and signs this connection out.
-    /// Replaces `Logout`.
     logout: async func() -> result<_, error>;
 
     /// Sends a pairing message to one of the account's other connections, or
     /// to all of them with no `to`. Fails when `to` is no longer connected.
-    /// Replaces `Pair`.
     pair: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
 
     /// The pairing messages the account's other connections send this one,
-    /// for as long as it is open. Replaces the pushed `Paired`.
+    /// for as long as it is open.
     paired: func() -> stream<pairing-message>;
 }

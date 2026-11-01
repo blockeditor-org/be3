@@ -76,7 +76,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
 
     let token = guest.token.clone();
     let response = guest
-        .call(|peer| client::account::authenticate(peer, token))
+        .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     let Ok(Authenticated {
         account: guest_account,

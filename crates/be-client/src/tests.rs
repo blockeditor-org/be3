@@ -203,7 +203,7 @@ impl Harness {
             .unwrap();
         let token = crate::ask(be_protocol::client::account::authenticate(
             &connection,
-            token,
+            Some(token),
         ))
         .await
         .expect("the server signs the device in")

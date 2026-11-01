@@ -157,16 +157,8 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
     let connection = Connection::connect(&url, &be_client::Clock::real())
         .await
         .map_err(explain)?;
-    let signed_in = match settings.token.is_empty() {
-        true => be_client::ask(client::account::authenticate_header(&connection)).await,
-        false => {
-            be_client::ask(client::account::authenticate(
-                &connection,
-                settings.token.clone(),
-            ))
-            .await
-        }
-    };
+    let token = (!settings.token.is_empty()).then(|| settings.token.clone());
+    let signed_in = be_client::ask(client::account::authenticate(&connection, token)).await;
     let be_protocol::Authenticated { account, token, .. } = signed_in.map_err(|error| {
         format!(
             "the server refused account authentication: {}",

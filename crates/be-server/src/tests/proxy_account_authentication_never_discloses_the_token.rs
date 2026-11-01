@@ -17,7 +17,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
         next_binary(&mut socket).await.unwrap();
         let mut client = TestClient::over(socket);
         let response = client
-            .call(|peer| client::account::authenticate_header(peer))
+            .call(|peer| client::account::authenticate(peer, None))
             .await;
         match token {
             Some(token) if token == owner.token => {
@@ -36,7 +36,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
     let mut client = harness.client().await;
     assert!(matches!(
         client
-            .call(|peer| client::account::authenticate(peer, owner.token.clone()))
+            .call(|peer| client::account::authenticate(peer, Some(owner.token.clone())))
             .await,
         Err(_)
     ));

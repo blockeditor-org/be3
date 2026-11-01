@@ -441,49 +441,28 @@ impl Client {
             return;
         }
         let prelude = self.prelude().await;
-        if embed::account::Call::accepts(&started) {
-            let call = embed::account::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.account(call, prelude).await;
-            }
-        } else if embed::organizations::Call::accepts(&started) {
-            let call = embed::organizations::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.organizations(call, prelude).await;
-            }
-        } else if embed::members::Call::accepts(&started) {
-            let call = embed::members::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.members(call, prelude).await;
-            }
-        } else if embed::contacts::Call::accepts(&started) {
-            let call = embed::contacts::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.contacts(call, prelude).await;
-            }
-        } else if embed::objects::Call::accepts(&started) {
-            let call = embed::objects::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.objects(call, prelude).await;
-            }
-        } else if embed::blocks::Call::accepts(&started) {
-            let call = embed::blocks::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.blocks(call, prelude).await;
-            }
-        } else if embed::sessions::Call::accepts(&started) {
-            let call = embed::sessions::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.sessions(call, prelude).await;
-            }
-        } else if embed::keys::Call::accepts(&started) {
-            let call = embed::keys::Call::accept(&mut self.peer.lock(), started);
-            if let Some(call) = call {
-                self.keys(call, prelude).await;
-            }
-        } else {
-            embed::connection::Call::accept(&mut self.peer.lock(), started);
+        macro_rules! serve {
+            ($($interface:ident),*) => {$(
+                if embed::$interface::Call::accepts(&started) {
+                    let call = embed::$interface::Call::accept(&mut self.peer.lock(), started);
+                    if let Some(call) = call {
+                        self.$interface(call, prelude).await;
+                    }
+                    return;
+                }
+            )*};
         }
+        serve!(
+            account,
+            organizations,
+            members,
+            contacts,
+            objects,
+            blocks,
+            sessions,
+            keys
+        );
+        embed::connection::Call::accept(&mut self.peer.lock(), started);
     }
 
     async fn account(&mut self, call: embed::account::Call, prelude: Result<(), ServerError>) {
@@ -559,25 +538,20 @@ impl Client {
             Call::Authenticate { reply, token } => {
                 let authenticated = async {
                     prelude?;
-                    let profile = self.connection.store.resolve_token(&token).await?;
-                    self.connection.token = Some(token.clone());
-                    Ok(self.connection.authenticated(profile, token).await)
-                }
-                .await;
-                self.reply(reply, authenticated);
-            }
-            Call::AuthenticateHeader { reply } => {
-                let authenticated = async {
-                    prelude?;
-                    let token = self.connection.header_token.clone().ok_or_else(|| {
-                        ServerError::Refused(
-                            ErrorCode::NotAuthenticated,
-                            "no Bearer account token was supplied in Authorization".into(),
-                        )
-                    })?;
+                    let header = token.is_none();
+                    let token = token
+                        .or_else(|| self.connection.header_token.clone())
+                        .ok_or_else(|| {
+                            ServerError::Refused(
+                                ErrorCode::NotAuthenticated,
+                                "no Bearer account token was supplied in Authorization".into(),
+                            )
+                        })?;
                     let profile = self.connection.store.resolve_token(&token).await?;
                     let mut authenticated = self.connection.authenticated(profile, token).await;
-                    authenticated.token.clear();
+                    if header {
+                        authenticated.token.clear();
+                    }
                     Ok(authenticated)
                 }
                 .await;

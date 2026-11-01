@@ -89,7 +89,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     assert!(matches!(response, Ok(())), "{response:?}");
     let mut returning = harness.client().await;
     let response = returning
-        .call(|peer| client::account::authenticate(peer, token))
+        .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(matches!(response, Err(_)), "{response:?}");
 

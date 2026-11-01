@@ -8,7 +8,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     laptop.organization("notes").await;
     let mut phone = harness.client().await;
     let response = phone
-        .call(|peer| client::account::authenticate(peer, laptop.token.clone()))
+        .call(|peer| client::account::authenticate(peer, Some(laptop.token.clone())))
         .await;
     assert!(matches!(response, Ok(_)));
     let mut stranger = harness.member("stranger@example.com").await;
