@@ -18,7 +18,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use block_plugin_api::{AudioOutput, MediaLevel};
 
 use super::{Audio, AudioRequest, AudioState, MediaEvent};
-use block_app_base::host::WakingSender;
+use block_app_base::host::Post;
 
 const LONGEST_FRAME: usize = 16 << 20;
 
@@ -27,7 +27,7 @@ pub struct PulseAudio {
 }
 
 impl PulseAudio {
-    pub fn start(events: WakingSender<MediaEvent>) -> Self {
+    pub fn start(events: Post<MediaEvent>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(run(requested, events));
         Self { requests }
@@ -92,7 +92,7 @@ pub(super) fn level(channels: &[u32], muted: bool) -> MediaLevel {
     }
 }
 
-async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: WakingSender<MediaEvent>) {
+async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: Post<MediaEvent>) {
     let mut pending = None;
     let mut reconnect = true;
     loop {
@@ -109,7 +109,7 @@ async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: WakingSende
             },
             Err(error) => eprintln!("block-app: PulseAudio is not reachable: {error}"),
         }
-        let _ = events.send(MediaEvent::Audio(AudioState::default()));
+        events.send(MediaEvent::Audio(AudioState::default()));
         match requested.recv().await {
             Some(request) => {
                 pending = Some(request);
@@ -189,7 +189,7 @@ impl Connection {
     async fn serve(
         &mut self,
         requested: &mut UnboundedReceiver<AudioRequest>,
-        events: &WakingSender<MediaEvent>,
+        events: &Post<MediaEvent>,
         pending: Option<AudioRequest>,
     ) -> Result<(), String> {
         self.publish(events).await?;
@@ -298,7 +298,7 @@ impl Connection {
         .map_err(|error| format!("the sound was not muted: {error:?}"))
     }
 
-    async fn publish(&mut self, events: &WakingSender<MediaEvent>) -> Result<(), String> {
+    async fn publish(&mut self, events: &Post<MediaEvent>) -> Result<(), String> {
         let sinks: SinkInfoList = self
             .reply(Command::GetSinkInfoList)
             .await?
@@ -318,7 +318,7 @@ impl Connection {
                 .collect();
             level(&channels, source.muted)
         });
-        let _ = events.send(MediaEvent::Audio(AudioState {
+        events.send(MediaEvent::Audio(AudioState {
             output,
             input,
             outputs: sinks.iter().map(output_of).collect(),

@@ -331,7 +331,9 @@ impl beui::native::App for Shell {
         }
         #[cfg(target_os = "linux")]
         if self.app.login_session.is_none() && login_session::owns_a_seat(setup) {
-            self.app.login_session = Some(login_session::LoginSession::start());
+            self.app.login_session = Some(login_session::LoginSession::start(
+                desk().mailbox(BlockApp::logind_heard),
+            ));
             login_session::export_environment(Host::environment());
         }
         display::start(setup);
@@ -369,7 +371,7 @@ impl beui::native::App for Shell {
             self.app.retry_organizations();
         }
         Host::before(context, rect, &mut self.document);
-        self.app.frame(context);
+        self.app.frame();
         self.app.sync_ui_settings();
         if let Some(preferences) = self.app.preferences.take() {
             context.set_preference_layer(beui::PreferenceSource::App, preferences);
@@ -507,8 +509,7 @@ struct BlockApp {
     resumed: bool,
     warmed: bool,
     plugins_in_use: Vec<String>,
-    pending_organization_request:
-        Option<platform::RequestResult<Result<OrganizationResult, OrganizationRequestError>>>,
+    pending_organization_request: Option<host::Mailbox>,
     organization_created: u64,
     organization_error: Option<String>,
 
@@ -587,8 +588,25 @@ struct BlockApp {
 
 type Account = SavedAccount;
 
+thread_local! {
+    static DESK: host::Desk<BlockApp> = host::Desk::default();
+}
+
+fn desk() -> host::Desk<BlockApp> {
+    DESK.with(|desk| *desk)
+}
+
+fn request<T: Send + 'static>(
+    work: impl platform::Request<T>,
+    answered: impl Fn(&mut BlockApp, T) + 'static,
+) -> host::Mailbox {
+    let (mailbox, post) = desk().mailbox(answered);
+    platform::spawn_request(async move { post.send(work.await) });
+    mailbox
+}
+
 struct PendingAccountRequest {
-    receiver: platform::RequestResult<accounts::LoginEvent>,
+    _answers: host::Mailbox,
     browser: Option<accounts::BrowserLogin>,
     _cancel: tokio::sync::oneshot::Sender<()>,
     server: ServerLocation,
@@ -916,7 +934,15 @@ impl BlockApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn run_screen_lock(&mut self, context: &beui::native::Context) {
+    fn logind_heard(&mut self, event: login_session::LogindEvent) {
+        if let (Some(login_session), Some(lock)) = (&mut self.login_session, &mut self.screen_lock)
+        {
+            login_session.heard(event, lock);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_screen_lock(&mut self) {
         let Some(lock) = &mut self.screen_lock else {
             return;
         };
@@ -925,7 +951,7 @@ impl BlockApp {
             lock.lock(login_session::Trigger::Idle);
         }
         if let Some(login_session) = &mut self.login_session {
-            login_session.frame(context, lock);
+            login_session.frame(lock);
         }
         let locked = lock.locked();
         Host::set_locked(locked);
@@ -979,18 +1005,12 @@ impl BlockApp {
                 || block_app_base::watches::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
-            block_app_base::watches::publish::<block_plugin_api::MediaWatch>(
-                &block_plugin_api::MediaLevels::default(),
-            );
         }
         let Some(media) = &mut self.media else {
             return;
         };
         for request in requests {
             media.request(request);
-        }
-        if let Some(levels) = media.frame() {
-            block_app_base::watches::publish::<block_plugin_api::MediaWatch>(&levels);
         }
     }
 
@@ -1002,18 +1022,12 @@ impl BlockApp {
                 || block_app_base::watches::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
-            block_app_base::watches::publish::<block_plugin_api::WifiWatch>(
-                &block_plugin_api::WifiStatus::default(),
-            );
         }
         let Some(wifi) = &mut self.wifi else {
             return;
         };
         for request in requests {
             wifi.request(request);
-        }
-        if let Some(status) = wifi.frame() {
-            block_app_base::watches::publish::<block_plugin_api::WifiWatch>(&status);
         }
     }
 
@@ -1162,10 +1176,10 @@ impl BlockApp {
             .filter(|server| server.api_url == url)
             .map(|server| server.auth_url)
             .unwrap_or_else(|| format!("{}/auth", accounts::link_base(&url)));
-        let (sender, receiver) = host::waking_channel();
+        let (answers, post) = desk().mailbox(BlockApp::account_answered);
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
-        let _ = platform::spawn_request(async move {
-            let notify = sender.clone();
+        platform::spawn_request(async move {
+            let notify = post.clone();
             let result = if !remote {
                 accounts::create_local_profile(requested, display_name)
                     .await
@@ -1174,20 +1188,18 @@ impl BlockApp {
                 accounts::browser_login(
                     requested,
                     auth_url,
-                    move |browser| {
-                        let _ = notify.send(accounts::LoginEvent::Browser(browser));
-                    },
+                    move |browser| notify.send(accounts::LoginEvent::Browser(browser)),
                     Box::pin(async {
                         let _ = cancelled.await;
                     }),
                 )
                 .await
             };
-            let _ = sender.send(accounts::LoginEvent::Finished(result));
+            post.send(accounts::LoginEvent::Finished(result));
         });
         self.account_error = None;
         self.pending_account_request = Some(PendingAccountRequest {
-            receiver,
+            _answers: answers,
             browser: None,
             _cancel: cancel,
             server,
@@ -1196,14 +1208,7 @@ impl BlockApp {
         });
     }
 
-    fn poll_account_request(&mut self) {
-        let result = self
-            .pending_account_request
-            .as_ref()
-            .and_then(|pending| pending.receiver.try_recv().ok());
-        let Some(event) = result else {
-            return;
-        };
+    fn account_answered(&mut self, event: accounts::LoginEvent) {
         let result = match event {
             accounts::LoginEvent::Browser(browser) => {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -1274,7 +1279,7 @@ impl BlockApp {
             ServerLocation::Remote(url) => url.clone(),
         };
         let token = account.token.clone();
-        let _ = platform::spawn_request(async move {
+        platform::spawn_request(async move {
             let _ = accounts::logout(url, token).await;
         });
 
@@ -1298,7 +1303,7 @@ impl BlockApp {
         let me = self.me();
         let cache = self.workspace_cache();
         let account = self.account.id;
-        let receiver = platform::spawn_request(async move {
+        let work = async move {
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
                     message: "Unlock this account with its recovery phrase first.".to_owned(),
@@ -1369,19 +1374,18 @@ impl BlockApp {
                     Ok(OrganizationResult::Agents(Some(agents), None))
                 }
             }
-        });
+        };
         self.organization_error = None;
-        self.pending_organization_request = Some(receiver);
+        self.pending_organization_request = Some(request(work, BlockApp::organization_answered));
     }
 
-    fn poll_organization_request(&mut self) {
-        let result = self
-            .pending_organization_request
-            .as_ref()
-            .and_then(|receiver| receiver.try_recv().ok());
-        let Some(result) = result else {
+    fn organization_answered(
+        &mut self,
+        result: Result<OrganizationResult, OrganizationRequestError>,
+    ) {
+        if !self.signed_in {
             return;
-        };
+        }
         self.pending_organization_request = None;
         match result {
             Ok(OrganizationResult::Cached(organizations)) => {
@@ -1415,6 +1419,7 @@ impl BlockApp {
                             self.server_url.clone(),
                             self.account.token.clone(),
                             self.identity,
+                            Self::recovery_saved(),
                         );
                     }
                     return;
@@ -1525,7 +1530,9 @@ impl BlockApp {
                 if session.account != reauth.account.id {
                     let url = self.server_url.clone();
                     let token = session.token;
-                    let _ = platform::spawn_request(accounts::logout(url, token));
+                    platform::spawn_request(async move {
+                        let _ = accounts::logout(url, token).await;
+                    });
                     reauth.error =
                         Some("Sign in to the same account to restore this session.".into());
                     self.reauth = Some(reauth);
@@ -1659,8 +1666,25 @@ impl BlockApp {
         }
     }
 
-    fn poll_keys(&mut self) {
-        let secret = match self.keys.poll() {
+    fn recovery_saved() -> keys::Answer<()> {
+        desk().mailbox(|app: &mut BlockApp, saved| {
+            let event = app.keys.saved(saved);
+            app.key_event(event);
+        })
+    }
+
+    fn paired() -> keys::Answer<[u8; 32]> {
+        desk().mailbox(|app: &mut BlockApp, paired| {
+            let event = app.keys.paired(paired);
+            app.key_event(event);
+        })
+    }
+
+    fn key_event(&mut self, event: Option<keys::KeyEvent>) {
+        if !self.signed_in {
+            return;
+        }
+        let secret = match event {
             Some(keys::KeyEvent::RecoverySaved(secret) | keys::KeyEvent::Unlocked(secret)) => {
                 secret
             }
@@ -1713,7 +1737,6 @@ impl BlockApp {
         {
             self.begin_organization_request(OrganizationOperation::Load);
         }
-        self.poll_organization_request();
     }
 
     fn switch_account(&mut self, account: Account) {
@@ -2632,9 +2655,7 @@ impl BlockApp {
         }
     }
 
-    fn frame(&mut self, context: &beui::native::Context) {
-        #[cfg(not(target_os = "linux"))]
-        let _ = context;
+    fn frame(&mut self) {
         if self.error.is_none()
             && let Some(report) = panic_guard::take_previous()
         {
@@ -2657,7 +2678,7 @@ impl BlockApp {
         }
         self.run_display_prompt();
         #[cfg(target_os = "linux")]
-        self.run_screen_lock(context);
+        self.run_screen_lock();
     }
 
     fn run_display_prompt(&mut self) {
@@ -2726,7 +2747,7 @@ impl BlockApp {
         performance::begin_frame();
         block_app_plugin_host::poll();
         self.watch_shell();
-        self.poll_account_request();
+        desk().deliver(self);
         #[cfg(target_os = "linux")]
         self.run_notifications();
         self.warm_plugins();
@@ -2742,7 +2763,6 @@ impl BlockApp {
             let _ = self.app_state.set_last_organization(&account, None);
             self.switch_account(account);
         }
-        self.poll_keys();
         if self.organization.is_none() {
             block_app_stack::stop();
             self.load_organizations_if_needed();
@@ -2754,7 +2774,6 @@ impl BlockApp {
             if !self.organizations_loaded {
                 self.load_organizations_if_needed();
             }
-            self.poll_organization_request();
             performance::end_frame();
             return;
         }
@@ -2768,7 +2787,6 @@ impl BlockApp {
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
-        self.members.poll();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -3171,6 +3189,7 @@ impl BlockApp {
                     self.server_url.clone(),
                     self.account.token.clone(),
                     self.identity,
+                    Self::recovery_saved(),
                 );
             }
             UiCommand::UnlockWithPhrase(phrase) => {
@@ -3189,6 +3208,7 @@ impl BlockApp {
                     self.server_url.clone(),
                     self.account.token.clone(),
                     self.account.id,
+                    Self::paired(),
                 );
             }
             UiCommand::CancelPairing => self.keys.cancel_pairing(),

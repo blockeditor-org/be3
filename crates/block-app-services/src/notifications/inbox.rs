@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use block_plugin_api::{
@@ -48,13 +47,13 @@ impl Inbox {
 
     pub fn frame(
         &mut self,
-        requests: &Receiver<NotificationRequest>,
+        requests: Vec<NotificationRequest>,
         reports: Vec<NotificationReport>,
     ) -> (bool, Vec<NotificationSignal>) {
         let mut ids = self.ids.lock().unwrap_or_else(PoisonError::into_inner);
         let mut changed = false;
         let mut signals = Vec::new();
-        for request in requests.try_iter() {
+        for request in requests {
             self.next += 1;
             self.pending.push((self.next, request));
             changed = true;

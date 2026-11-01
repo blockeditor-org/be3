@@ -6,8 +6,8 @@ mod watch;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
 
+use block_app_base::host::{Desk, Mailbox, Post};
 use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction};
 use uuid::Uuid;
 
@@ -223,18 +223,30 @@ pub struct Programs {
     programs: Installed,
     offered: bool,
     files: Option<PathBuf>,
-    read: (block_app_base::host::WakingSender<Read>, Receiver<Read>),
+    desk: Desk<Programs>,
+    read: (Mailbox, Post<Read>),
+    #[cfg(target_os = "linux")]
+    touched: (Mailbox, Post<PathBuf>),
     #[cfg(target_os = "linux")]
     watch: Option<watch::Watch>,
 }
 
 impl Default for Programs {
     fn default() -> Self {
+        let desk = Desk::default();
         Self {
             programs: Installed::default(),
             offered: false,
             files: None,
-            read: block_app_base::host::waking_channel(),
+            desk,
+            read: desk.mailbox(|programs: &mut Programs, (block, read)| {
+                if let Some(files) = programs.files.clone() {
+                    programs.placed(&files, block, read);
+                    block_app_base::host::changed();
+                }
+            }),
+            #[cfg(target_os = "linux")]
+            touched: desk.mailbox(Programs::write_back_touched),
             #[cfg(target_os = "linux")]
             watch: None,
         }
@@ -278,9 +290,9 @@ impl Programs {
     }
 
     fn step_sessions(&mut self) {
-        let Some(files) = self.files.clone() else {
+        if self.files.is_none() {
             return;
-        };
+        }
         let mut changed = false;
         let wanted: Vec<Uuid> = with(|sessions| {
             sessions
@@ -294,21 +306,16 @@ impl Programs {
                 .collect()
         });
         for block in wanted {
-            let sender = self.read.0.clone();
-            block_app_stack::plain_file(block, move |read| {
-                let _ = sender.send((block, read));
-            });
+            let post = self.read.1.clone();
+            block_app_stack::plain_file(block, move |read| post.send((block, read)));
             changed = true;
         }
-        while let Ok((block, read)) = self.read.1.try_recv() {
-            changed = true;
-            self.placed(&files, block, read);
-        }
+        let desk = self.desk;
+        desk.deliver(self);
         if self.programs.scanned() {
             changed |= self.launch_placed();
         }
         changed |= self.bind_windows();
-        self.write_back_touched();
         if changed {
             block_app_base::host::changed();
         }
@@ -336,9 +343,12 @@ impl Programs {
                     block_app_stack::from_file(block, block_type, name, bytes);
                 }
                 #[cfg(target_os = "linux")]
-                self.watch
-                    .get_or_insert_with(watch::Watch::new)
-                    .add(&placed.disk.path);
+                {
+                    let touched = &self.touched.1;
+                    self.watch
+                        .get_or_insert_with(|| watch::Watch::new(touched.clone()))
+                        .add(&placed.disk.path);
+                }
                 with(|sessions| {
                     if let Some(session) = sessions.open.get_mut(&block) {
                         session.disk = Some(placed.disk);
@@ -451,33 +461,23 @@ impl Programs {
         changed
     }
 
-    fn write_back_touched(&mut self) {
-        #[cfg(target_os = "linux")]
-        {
-            let touched = self
-                .watch
-                .as_mut()
-                .map(watch::Watch::take)
-                .unwrap_or_default();
-            if touched.is_empty() {
-                return;
-            }
-            let blocks: Vec<Uuid> = with(|sessions| {
-                sessions
-                    .open
-                    .iter()
-                    .filter(|(_, session)| {
-                        session
-                            .disk
-                            .as_ref()
-                            .is_some_and(|disk| touched.contains(&disk.path))
-                    })
-                    .map(|(block, _)| *block)
-                    .collect()
-            });
-            for block in blocks {
-                self.write_back(block);
-            }
+    #[cfg(target_os = "linux")]
+    fn write_back_touched(&mut self, touched: PathBuf) {
+        let blocks: Vec<Uuid> = with(|sessions| {
+            sessions
+                .open
+                .iter()
+                .filter(|(_, session)| {
+                    session
+                        .disk
+                        .as_ref()
+                        .is_some_and(|disk| disk.path == touched)
+                })
+                .map(|(block, _)| *block)
+                .collect()
+        });
+        for block in blocks {
+            self.write_back(block);
         }
     }
 

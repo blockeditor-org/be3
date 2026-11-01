@@ -1,19 +1,15 @@
-use std::{future::Future, sync::mpsc::Receiver, thread};
+use std::{future::Future, thread};
 
-pub fn spawn_request<T>(future: impl Future<Output = T> + Send + 'static) -> Receiver<T>
-where
-    T: Send + 'static,
-{
-    let (sender, receiver) = crate::host::waking_channel();
+pub trait Request<T>: Future<Output = T> + Send + 'static {}
+
+impl<T, F: Future<Output = T> + Send + 'static> Request<T> for F {}
+
+pub fn spawn_request(request: impl Request<()>) {
     thread::Builder::new()
         .name("block-app-request".into())
-        .spawn(move || {
-            let result = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime.block_on(future),
-                Err(error) => panic!("failed to start a request runtime: {error}"),
-            };
-            let _ = sender.send(result);
+        .spawn(move || match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime.block_on(request),
+            Err(error) => panic!("failed to start a request runtime: {error}"),
         })
         .unwrap_or_else(|error| panic!("failed to start request: {error}"));
-    receiver
 }

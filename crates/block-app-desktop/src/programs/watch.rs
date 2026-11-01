@@ -1,25 +1,23 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
 
+use block_app_base::host::Post;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use uuid::Uuid;
 
 pub struct Watch {
     watcher: Option<RecommendedWatcher>,
-    touched: Receiver<PathBuf>,
     watched: HashMap<PathBuf, PathBuf>,
 }
 
 impl Watch {
-    pub fn new() -> Self {
-        let (sender, touched) = block_app_base::host::waking_channel();
+    pub fn new(touched: Post<PathBuf>) -> Self {
         let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
             if let Ok(event) = event
                 && (event.kind.is_modify() || event.kind.is_create())
             {
                 for path in event.paths {
-                    let _ = sender.send(path);
+                    touched.send(path);
                 }
             }
         });
@@ -32,7 +30,6 @@ impl Watch {
         };
         Self {
             watcher,
-            touched,
             watched: HashMap::new(),
         }
     }
@@ -70,15 +67,5 @@ impl Watch {
                 let _ = watcher.unwatch(&dir);
             }
         }
-    }
-
-    pub fn take(&mut self) -> HashSet<PathBuf> {
-        let mut touched = HashSet::new();
-        while let Ok(path) = self.touched.try_recv() {
-            if self.watched.contains_key(&path) {
-                touched.insert(path);
-            }
-        }
-        touched
     }
 }
