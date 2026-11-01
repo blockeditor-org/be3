@@ -2,17 +2,15 @@ use super::*;
 
 #[test]
 fn a_scan_that_could_not_run_lists_no_programs_and_says_why() {
-    let mut programs = Programs::default();
+    let programs = Programs::<()>::default();
     programs.scan_on(WAITING_ICON_SIZE, |_| {
         Err(std::io::Error::other("no threads left"))
     });
-    assert!(programs.receive(), "the failed scan was not announced");
     assert!(
         programs.scanned(),
         "a failed scan left the programs loading"
     );
     assert!(programs.listed().is_empty());
-    assert!(!programs.receive());
     assert!(
         block_app_base::notices::shown()
             .iter()
@@ -20,12 +18,16 @@ fn a_scan_that_could_not_run_lists_no_programs_and_says_why() {
         "the failure was not reported"
     );
 
-    let mut programs = Programs::default();
+    let programs = Programs::<()>::default();
     programs.scan_on(WAITING_ICON_SIZE, |job| {
         drop(job);
         Ok(())
     });
-    assert!(programs.receive(), "the stopped scan was not announced");
+    assert!(
+        !programs.scanned(),
+        "the stopped scan was taken in before the frame delivered it"
+    );
+    block_app_base::host::deliver();
     assert!(
         programs.scanned(),
         "a scan that stopped left the programs loading"

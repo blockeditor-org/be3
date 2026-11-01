@@ -1,4 +1,5 @@
 mod files;
+mod installed;
 #[cfg(target_os = "linux")]
 mod watch;
 
@@ -7,17 +8,18 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{
-    EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramCatalog, ProgramsWatch,
-};
+use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction};
 use uuid::Uuid;
 
-use crate::desktop_host;
+use crate::desktop_host::{DesktopHost, Host};
 
 use files::OnDisk;
+use installed::WAITING_ICON_SIZE;
+pub use installed::{Opener, ProgramSource};
+
+type Installed = installed::Programs<<Host as DesktopHost>::Source>;
 
 const PROGRAM_EDITORS: u64 = u64::from_be_bytes(*b"program\0");
-const WAITING_ICON_SIZE: u32 = 64;
 
 pub fn editor_id(program: &str) -> Uuid {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -32,7 +34,7 @@ pub fn is_program(editor: Uuid) -> bool {
     editor.as_u64_pair().0 == PROGRAM_EDITORS
 }
 
-fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
+fn descriptors(openers: &[Opener]) -> Vec<EditorDescriptor> {
     openers
         .iter()
         .map(|opener| EditorDescriptor {
@@ -43,6 +45,22 @@ fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
             extensions: opener.extensions.clone(),
         })
         .collect()
+}
+
+fn name_editors(openers: &[Opener]) {
+    with(|sessions| {
+        sessions.names = openers
+            .iter()
+            .map(|opener| {
+                (
+                    editor_id(&opener.id),
+                    (opener.id.clone(), opener.name.clone()),
+                )
+            })
+            .collect();
+    });
+    block_app_base::program_editors::set(descriptors(openers));
+    block_app_base::host::changed();
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,7 +131,7 @@ pub fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
         Some(old.and_then(|old| window_of(&old.stage)))
     });
     if let Some(window) = replaced.flatten() {
-        desktop_host::close(window);
+        Host::close(window);
     }
     if replaced.is_some() {
         block_app_base::host::changed();
@@ -176,7 +194,7 @@ pub fn close(closed: Uuid) {
         windows
     });
     for window in windows {
-        desktop_host::close(window);
+        Host::close(window);
     }
 }
 
@@ -202,9 +220,8 @@ fn window_of(stage: &Stage) -> Option<HostWindowId> {
 type Read = (Uuid, Result<be_types_host::PlainFile, String>);
 
 pub struct Programs {
-    programs: desktop_host::Programs,
+    programs: Installed,
     offered: bool,
-    listed_editors: bool,
     files: Option<PathBuf>,
     read: (block_app_base::host::WakingSender<Read>, Receiver<Read>),
     #[cfg(target_os = "linux")]
@@ -214,9 +231,8 @@ pub struct Programs {
 impl Default for Programs {
     fn default() -> Self {
         Self {
-            programs: desktop_host::Programs::default(),
+            programs: Installed::default(),
             offered: false,
-            listed_editors: false,
             files: None,
             read: block_app_base::host::waking_channel(),
             #[cfg(target_os = "linux")]
@@ -232,51 +248,31 @@ impl Programs {
     }
 
     pub fn frame(&mut self) {
+        let running = Host::running();
         for action in block_app_base::watches::take_calls(block_plugin_api::requested::program) {
             match action {
-                ProgramAction::List { icon_size } if desktop_host::running() => {
+                ProgramAction::List { icon_size } if running => {
                     self.programs
                         .scan(icon_size.clamp(1, ProgramAction::MAX_ICON_SIZE));
                 }
-                ProgramAction::List { .. } => {}
-                ProgramAction::Launch { program, launch } => {
+                ProgramAction::Launch { program, launch } if running => {
                     self.programs.launch(&program, launch);
                 }
                 ProgramAction::Run(line) => {
-                    desktop_host::launch(line);
+                    Host::launch(line);
                 }
                 ProgramAction::Exec { command, launch } => {
-                    desktop_host::exec(command, launch);
+                    Host::exec(command, launch);
                 }
+                ProgramAction::List { .. } | ProgramAction::Launch { .. } => {}
             }
         }
-        let offering = !self.offered && desktop_host::running();
-        self.offered |= offering;
-        if offering && self.files.is_some() {
-            self.programs.scan(WAITING_ICON_SIZE);
-        }
-        if self.programs.receive() || offering {
-            block_app_base::watches::publish::<ProgramsWatch>(&ProgramCatalog {
-                listed: self.programs.scanned(),
-                programs: self.programs.listed(),
-            });
-        }
-        if self.programs.scanned() && !self.listed_editors {
-            self.listed_editors = true;
-            let openers = self.programs.openers();
-            with(|sessions| {
-                sessions.names = openers
-                    .iter()
-                    .map(|opener| {
-                        (
-                            editor_id(&opener.id),
-                            (opener.id.clone(), opener.name.clone()),
-                        )
-                    })
-                    .collect();
-            });
-            block_app_base::program_editors::set(descriptors(&openers));
-            block_app_base::host::changed();
+        if running && !self.offered {
+            self.offered = true;
+            self.programs.announce();
+            if self.files.is_some() {
+                self.programs.scan(WAITING_ICON_SIZE);
+            }
         }
         self.step_sessions();
     }
@@ -398,7 +394,7 @@ impl Programs {
     }
 
     fn bind_windows(&mut self) -> bool {
-        let opening = desktop_host::opening_windows();
+        let opening = Host::opening_windows();
         let mut gone = Vec::new();
         let mut unwanted = Vec::new();
         let changed = with(|sessions| {
@@ -431,7 +427,7 @@ impl Programs {
             changed
         });
         for window in unwanted {
-            desktop_host::close(window);
+            Host::close(window);
         }
         for block in gone {
             self.write_back(block);
