@@ -117,7 +117,7 @@ impl Host {
     }
 
     fn request_frames(&mut self, asked: &[String]) {
-        let laying_out: stable_hash::HashSet<String> = self
+        let active: stable_hash::HashSet<String> = self
             .runtimes
             .iter()
             .filter(|(id, runtime)| {
@@ -126,41 +126,47 @@ impl Host {
             })
             .map(|(id, _)| id.clone())
             .collect();
-        let held: Vec<bool> = asked
-            .iter()
-            .map(|id| {
-                self.runtimes.get(id).is_some_and(|runtime| {
-                    runtime.placed_by().any(|placer| {
-                        laying_out.contains(placer) && !self.places_transitively(id, placer)
-                    })
-                })
-            })
-            .collect();
-        for (id, held) in asked.iter().zip(held) {
+        let held = self.held_behind(&active);
+        for id in asked {
+            let held = held.contains(id.as_str());
             if let Some(runtime) = self.runtimes.get_mut(id) {
                 runtime.contain(|runtime| runtime.request_frame(held));
             }
         }
     }
 
-    fn places_transitively(&self, placer: &str, placed: &str) -> bool {
-        let mut seen = stable_hash::HashSet::default();
-        let mut next = vec![placed];
-        while let Some(id) = next.pop() {
-            if !seen.insert(id) {
-                continue;
-            }
-            let Some(runtime) = self.runtimes.get(id) else {
-                continue;
-            };
-            for above in runtime.placed_by() {
-                if above == placer {
-                    return true;
-                }
-                next.push(above);
+    fn held_behind(&self, active: &stable_hash::HashSet<String>) -> stable_hash::HashSet<String> {
+        let mut edges: Vec<(EditorInstanceId, &str, &str)> = self
+            .runtimes
+            .iter()
+            .filter(|(id, _)| active.contains(*id))
+            .flat_map(|(id, runtime)| {
+                runtime
+                    .placers
+                    .iter()
+                    .filter(|(_, placer)| {
+                        placer.plugin != *id
+                            && active.contains(&placer.plugin)
+                            && self.runtimes.get(&placer.plugin).is_some_and(|runtime| {
+                                runtime.instances.mounted(placer.instance, placer.view)
+                            })
+                    })
+                    .map(move |((instance, _), placer)| {
+                        (*instance, placer.plugin.as_str(), id.as_str())
+                    })
+            })
+            .collect();
+        edges.sort();
+        edges.dedup();
+        let mut kept: Vec<(&str, &str)> = Vec::new();
+        for (_, placer, placed) in edges {
+            if !reaches(&kept, placed, placer) {
+                kept.push((placer, placed));
             }
         }
-        false
+        kept.into_iter()
+            .map(|(_, placed)| placed.to_owned())
+            .collect()
     }
 
     fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
@@ -247,7 +253,7 @@ pub(super) struct Runtime {
     steps: u64,
     relaid: bool,
     drawn: HashMap<ScreenId, (u32, u32)>,
-    placers: HashMap<(EditorInstanceId, ViewId), String>,
+    placers: HashMap<(EditorInstanceId, ViewId), Placer>,
 }
 
 enum Answer {
@@ -641,14 +647,6 @@ impl Runtime {
             && self.session.granted_surface().is_some()
             && self.pacing.asked_in != pass
             && self.pacing.due_once_seen(host::seen(), self.now(), pass)
-    }
-
-    fn placed_by(&self) -> impl Iterator<Item = &str> {
-        let own = self.id();
-        self.placers
-            .values()
-            .map(String::as_str)
-            .filter(move |placer| *placer != own)
     }
 
     fn outstanding(&self) -> bool {
@@ -2291,9 +2289,42 @@ pub fn take_changed() -> Vec<String> {
     CHANGED.with(|changed| changed.borrow_mut().drain().collect())
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ViewPlacer<'a> {
+    pub plugin: &'a str,
+    pub instance: EditorInstanceId,
+    pub view: ViewId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Placer {
+    plugin: String,
+    instance: EditorInstanceId,
+    view: ViewId,
+}
+
+fn reaches(edges: &[(&str, &str)], from: &str, to: &str) -> bool {
+    let mut seen = stable_hash::HashSet::default();
+    let mut next = vec![from];
+    while let Some(at) = next.pop() {
+        if at == to {
+            return true;
+        }
+        if seen.insert(at) {
+            next.extend(
+                edges
+                    .iter()
+                    .filter(|(placer, _)| *placer == at)
+                    .map(|(_, placed)| *placed),
+            );
+        }
+    }
+    false
+}
+
 pub struct ViewSlot<'a> {
     pub plugin: &'a PluginManifest,
-    pub placer: Option<&'a str>,
+    pub placer: Option<ViewPlacer<'a>>,
     pub block_types: &'a Arc<crate::PluginCatalog>,
     pub client_id: Uuid,
     pub role: InstanceRole,
@@ -2333,9 +2364,14 @@ pub fn mount_view(slot: ViewSlot<'_>) {
                 .instances
                 .mount(instance, view, client_id, role, block_types);
             match placer {
-                Some(placer) => runtime
-                    .placers
-                    .insert((instance, view.id), placer.to_owned()),
+                Some(placer) => runtime.placers.insert(
+                    (instance, view.id),
+                    Placer {
+                        plugin: placer.plugin.to_owned(),
+                        instance: placer.instance,
+                        view: placer.view,
+                    },
+                ),
                 None => runtime.placers.remove(&(instance, view.id)),
             };
             runtime.release_reported();

@@ -974,7 +974,13 @@ layout gives it, waits for the next frame, and the view shows the frame the
 plugin last drew, cropped, until then. So that this happens rarely, the host
 asks a plugin to draw only once whatever places it has laid out in the frame:
 the host itself, when its own layout is pending, and a placer plugin it has
-asked to draw, until that placer's commit has said where its children go.
+asked to draw, until that placer's layout commit has said where its children
+go. The placer of a view is the instance whose child placement shows it.
+Since a plugin draws all its instances at once, two plugins can place each
+other (one's editor placing the other's picker, say); among the plugins
+drawing in a frame the host then keeps the edges into the earliest opened
+instances first and drops whichever edge would close a cycle, so in a cycle
+the most recently opened child is asked without waiting for its placer.
 
 A host frame runs in rounds. The host asks every plugin it is drawing at
 once and waits on all of them together; when a commit's child placements

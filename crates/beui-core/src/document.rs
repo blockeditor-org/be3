@@ -133,6 +133,7 @@ pub struct Document {
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
+    laid_out_again: bool,
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
@@ -375,6 +376,7 @@ impl Document {
             invalidated: Vec::new(),
             interaction_done: None,
             laid_out: None,
+            laid_out_again: false,
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
@@ -1251,6 +1253,10 @@ impl Document {
 
     pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
         self.laid_out = Some(Rc::new(laid_out));
+    }
+
+    pub fn run_laid_out_again(&mut self) {
+        self.laid_out_again = true;
     }
 
     pub fn set_keyboard_host(&mut self, host: Box<dyn crate::software_keyboard::KeyboardHost>) {
@@ -2748,7 +2754,18 @@ impl Document {
         let mut watermark = self.arena.relaid_len();
         self.report_laid_out();
         self.run_laid_out();
-        while self.needs_layout() {
+        let mut reruns = 0;
+        loop {
+            if !self.needs_layout() {
+                if !std::mem::take(&mut self.laid_out_again) || reruns >= HOOK_RUNS_PER_FRAME {
+                    self.laid_out_again = false;
+                    return passes;
+                }
+                reruns += 1;
+                self.run_laid_out();
+                continue;
+            }
+            self.laid_out_again = false;
             if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
@@ -2761,7 +2778,6 @@ impl Document {
             self.report_laid_out();
             self.run_laid_out();
         }
-        passes
     }
 
     fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
@@ -2855,6 +2871,7 @@ fn failing_unsettled_layout() -> bool {
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;
+const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {
     pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {

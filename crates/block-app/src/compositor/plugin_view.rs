@@ -74,7 +74,22 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
-struct Placer(Stored<String>);
+pub(crate) struct Placer {
+    plugin: Stored<String>,
+    instance: EditorInstanceId,
+    view: ViewId,
+}
+
+#[cfg(test)]
+impl Placer {
+    pub(crate) fn new(plugin: &str, instance: EditorInstanceId, view: ViewId) -> Self {
+        Self {
+            plugin: store(plugin.to_owned()),
+            instance,
+            view,
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Enclosing(Memo<Option<NodeRef>>);
@@ -266,11 +281,22 @@ pub(crate) fn PluginView(
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
     })));
-    let placer = use_context::<Placer>().map(|Placer(placer)| placer.value().to_string());
-    provide_context(Placer(plugin_id));
+    let placer = use_context::<Placer>().map(|placer| {
+        (
+            placer.plugin.value().to_string(),
+            placer.instance,
+            placer.view,
+        )
+    });
     block_app_plugin_host::mount_view(ViewSlot {
         plugin: &editor.plugin,
-        placer: placer.as_deref(),
+        placer: placer.as_ref().map(
+            |(plugin, instance, view)| block_app_plugin_host::ViewPlacer {
+                plugin,
+                instance: *instance,
+                view: *view,
+            },
+        ),
         block_types: &editor.block_types,
         client_id: editor.client_id,
         role: editor.role,
@@ -434,6 +460,11 @@ pub(crate) fn PluginView(
             child_view,
             anchors,
             encloses,
+            placer: Placer {
+                plugin: plugin_id,
+                instance,
+                view: region.id,
+            },
         },
     );
     let (reports, tick) = super::editors::reports();
@@ -1557,6 +1588,7 @@ pub(crate) struct Joined {
     pub(crate) child_view: ChildView,
     pub(crate) anchors: Memo<Option<super::anchored::AnchorHost>>,
     pub(crate) encloses: Memo<Option<NodeRef>>,
+    pub(crate) placer: Placer,
 }
 
 impl Joined {
@@ -1585,12 +1617,14 @@ pub(crate) struct ChildNodes {
     shared: Stored<BuiltChildren>,
     mount: u64,
     child_view: ChildView,
+    placer: Placer,
 }
 
 impl ChildNodes {
     pub(crate) fn joining(shares: Option<ChildNodes>, joined: Joined) -> Self {
         let mount = joined.mount;
         let child_view = joined.child_view;
+        let placer = joined.placer;
         let shared = match shares.filter(|shares| shares.shared.is_alive()) {
             Some(shares) => {
                 let views = shares.shared.with(|held| held.views);
@@ -1608,6 +1642,7 @@ impl ChildNodes {
             shared,
             mount,
             child_view,
+            placer,
         }
     }
 
@@ -1655,7 +1690,9 @@ impl ChildNodes {
         let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));
         let child_view = self.child_view;
         let mount = self.mount;
+        let placer = self.placer;
         let build = move || {
+            provide_context(placer);
             let holder = create_signal(mount);
             let holding = create_memo(move || {
                 let mount = holder.get();

@@ -289,13 +289,11 @@ impl Shell {
             }));
         });
         document.on_laid_out(|| {
-            while block_app_plugin_host::settle() {
-                compositor::notify_after_layout();
-                if beui::native::with_document(|document| document.needs_layout()) {
-                    return;
-                }
-            }
+            let relaid = block_app_plugin_host::settle();
             compositor::notify_after_layout();
+            if relaid {
+                beui::native::with_document(beui::native::Document::run_laid_out_again);
+            }
         });
         Self {
             document,
