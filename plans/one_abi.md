@@ -274,7 +274,6 @@ same step) and each host caller gets a `Ticket`:
 - `crates/block-type-api/wit/replicas.wit` (`replicas` and its `replica` resource),
   14: `reopen`, `message`, `attach`, `detach`, `head-moved`, `lease`, `claim`,
   `start`, `blank`, `merge3`, `describe`, `to-file`, `claims`, `apply`.
-  of the `replica` methods.
 
 The list was taken from `rg ': func\('` over the `wit/` dirs, skipping the
 stream-returning ones. Recount it when the step lands. The `replica` method `detach` and `Pending::detach` share a name but not a type: one is a host-side handle's method, the other the guest's.
