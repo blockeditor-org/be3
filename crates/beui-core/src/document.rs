@@ -1593,6 +1593,12 @@ impl Document {
             }
             self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
+        if measurement.layout_passes > 0 {
+            let rects = Rc::clone(&self.rects);
+            if crate::interact::pointer::hover_moved_under(self, ctx, &rects) {
+                ctx.request_repaint();
+            }
+        }
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
