@@ -32,7 +32,7 @@ macro_rules! link_gpu {
 
 macro_rules! link_transport {
     ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
-        fn link_transport(linker: &mut Linker<State>) -> Result<(), String> {
+        pub(super) fn link_transport(linker: &mut Linker<State>) -> Result<(), String> {
             $(
                 linker
                     .func_wrap(

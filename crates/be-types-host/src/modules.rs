@@ -110,7 +110,7 @@ pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
     cache: Option<std::path::PathBuf>,
-    load: impl Fn(&block_wasm_host::PureHost) -> Result<block_wasm_host::PureGuest, String>
+    load: impl Fn(&block_wasm_host::Host) -> Result<block_wasm_host::Plugin, String>
     + Clone
     + Send
     + 'static,
@@ -122,8 +122,8 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::PureHost::new(cache.as_deref())?
-                .with_imports(block_type_api::embed::IMPORTS);
+            let host = block_wasm_host::Host::pure(cache.as_deref())?
+                .with_direct(block_type_api::embed::IMPORTS);
             let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),

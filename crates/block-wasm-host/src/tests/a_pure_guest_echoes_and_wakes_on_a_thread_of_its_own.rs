@@ -10,7 +10,7 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
     let wakes = Arc::new(AtomicUsize::new(0));
     let woken = Arc::clone(&wakes);
     let waiting = Arc::default();
-    let channel = PureHost::new(None)
+    let channel = Host::pure(None)
         .unwrap()
         .spawn(
             "echo".to_owned(),

@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn a_pure_guest_that_hangs_is_interrupted() {
-    let host = PureHost::new(None).unwrap();
+    let host = Host::pure(None).unwrap();
     let interrupter = host.interrupter();
     let mut guest = host.load_bytes(ECHO).unwrap();
     let (woke, running) = mpsc::channel();

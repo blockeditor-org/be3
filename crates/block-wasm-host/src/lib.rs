@@ -5,7 +5,6 @@ mod harness;
 mod interrupt;
 mod panic;
 mod precompile;
-mod pure;
 mod state;
 mod stderr;
 mod threads;
@@ -16,16 +15,22 @@ mod tests;
 
 use std::{
     collections::HashMap,
+    convert::Infallible,
     num::NonZeroUsize,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    time::Duration,
+    sync::{Arc, Mutex, atomic::AtomicBool},
+    time::{Duration, Instant},
+};
+
+use block_guest_host::{
+    Produced, StepTime, Wake as HostWake,
+    thread::{self, Runnable, Spawn, Threaded},
 };
 
 use block_gpu_host::Gpu;
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, MemoryType, Module, SharedMemory, Store,
-    TypedFunc,
+    StoreLimitsBuilder, TypedFunc,
 };
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
@@ -38,7 +43,6 @@ use wake::Wake;
 pub use block_gpu_host::Imports;
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
-pub use pure::{MEMORY_LIMIT, PureGuest, PureHost};
 pub use state::{Connect, State};
 pub use wasm_dylink::library_file_name;
 
@@ -54,6 +58,8 @@ const MEMORY: &str = "memory";
 
 const BACKTRACE_FRAMES: usize = 100;
 
+pub const MEMORY_LIMIT: usize = 1 << 30;
+
 type Libraries = Arc<Mutex<HashMap<String, Module>>>;
 
 #[derive(Clone)]
@@ -64,6 +70,8 @@ pub struct Host {
     imports: Imports,
     direct: Vec<(String, String)>,
     interrupt: Arc<Interrupt>,
+    flavor: Flavor,
+    memory_limit: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -71,6 +79,7 @@ enum Devices {
     Given(wgpu::Device, wgpu::Queue),
     Awaited(Connect),
     OnDemand(Connect),
+    None,
 }
 
 impl Devices {
@@ -87,6 +96,7 @@ impl Devices {
                 connect: Arc::clone(connect),
                 wakes: true,
             },
+            Self::None => Device::Unavailable("a pure guest has no gpu".to_owned()),
         }
     }
 }
@@ -97,45 +107,44 @@ impl Host {
         queue: wgpu::Queue,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, libraries) = engine(cache, Flavor::Plugin)?;
-        Ok(Self {
-            interrupt: Interrupt::new(engine.clone()),
-            engine,
-            libraries,
-            devices: Devices::Given(device, queue),
-            imports: Imports::default(),
-            direct: Vec::new(),
-        })
+        Self::with(Devices::Given(device, queue), cache, Flavor::Plugin)
     }
 
     pub fn awaiting(
         device: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, libraries) = engine(cache, Flavor::Plugin)?;
-        Ok(Self {
-            interrupt: Interrupt::new(engine.clone()),
-            engine,
-            libraries,
-            devices: Devices::Awaited(Arc::new(device)),
-            imports: Imports::default(),
-            direct: Vec::new(),
-        })
+        Self::with(Devices::Awaited(Arc::new(device)), cache, Flavor::Plugin)
     }
 
     pub fn on_demand(
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        let (engine, libraries) = engine(cache, Flavor::Plugin)?;
+        Self::with(Devices::OnDemand(Arc::new(connect)), cache, Flavor::Plugin)
+    }
+
+    pub fn pure(cache: Option<&Path>) -> Result<Self, String> {
+        Self::with(Devices::None, cache, Flavor::Pure)
+    }
+
+    fn with(devices: Devices, cache: Option<&Path>, flavor: Flavor) -> Result<Self, String> {
+        let (engine, libraries) = engine(cache, flavor)?;
         Ok(Self {
             interrupt: Interrupt::new(engine.clone()),
             engine,
             libraries,
-            devices: Devices::OnDemand(Arc::new(connect)),
+            devices,
             imports: Imports::default(),
             direct: Vec::new(),
+            flavor,
+            memory_limit: (flavor == Flavor::Pure).then_some(MEMORY_LIMIT),
         })
+    }
+
+    pub fn with_memory_limit(mut self, bytes: usize) -> Self {
+        self.memory_limit = Some(bytes);
+        self
     }
 
     pub fn with_direct(mut self, imports: &[(&str, &str)]) -> Self {
@@ -152,6 +161,30 @@ impl Host {
 
     pub fn interrupter(&self) -> Interrupter {
         Interrupter::new(&self.interrupt)
+    }
+
+    pub fn spawn(
+        self,
+        name: String,
+        load: impl FnOnce(&Host) -> Result<Plugin, String> + Send + 'static,
+        wake: HostWake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Threaded<Infallible>, String> {
+        let interrupter = self.interrupter();
+        thread::spawn(
+            Spawn {
+                name,
+                wake,
+                waiting,
+                interrupt: Box::new(move || interrupter.interrupt()),
+                contain: thread::catch,
+            },
+            move |wake| {
+                let plugin = load(&self)?;
+                plugin.on_wake(move || wake());
+                Ok(plugin)
+            },
+        )
     }
 
     pub fn load(&self, path: &Path) -> Result<Plugin, String> {
@@ -281,12 +314,22 @@ impl Plugin {
             submit_time: Duration::ZERO,
             threads: Arc::clone(&threads),
             wake: Arc::clone(&wake),
+            limits: StoreLimitsBuilder::new()
+                .memory_size(host.memory_limit.unwrap_or(usize::MAX))
+                .trap_on_grow_failure(true)
+                .build(),
         };
         let mut store = Store::new(&engine, state);
         interrupt::watch(&mut store, true);
+        if host.memory_limit.is_some() {
+            store.limiter(|state| &mut state.limits);
+        }
+        let pure = host.flavor == Flavor::Pure;
         let mut linker: Linker<State> = Linker::new(&engine);
-        p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
-            .map_err(|error| format!("wasi could not be linked: {error}"))?;
+        if !pure {
+            p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
+                .map_err(|error| format!("wasi could not be linked: {error}"))?;
+        }
         if let Some((module, name, declared)) = imported {
             let defined = match &shared {
                 Some(shared) => linker.define(&store, &module, &name, shared.clone()),
@@ -300,14 +343,18 @@ impl Plugin {
             };
             defined.map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
         }
-        gpu::link(&mut linker)?;
         panic::link(&mut linker)?;
-        threads::link(&mut linker)?;
         wake::link(&mut linker)?;
         direct::link(&mut linker, &host.direct)?;
-        linker
-            .define_unknown_imports_as_traps(program.first())
-            .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
+        if pure {
+            gpu::link_transport(&mut linker)?;
+        } else {
+            gpu::link(&mut linker)?;
+            threads::link(&mut linker)?;
+            linker
+                .define_unknown_imports_as_traps(program.first())
+                .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
+        }
         let first = linker
             .instantiate(&mut store, program.first())
             .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
@@ -486,7 +533,36 @@ impl Plugin {
     }
 }
 
-fn call_constructors<T: 'static>(instance: &Instance, store: &mut Store<T>) -> Result<(), String> {
+impl Runnable for Plugin {
+    type Presented = Infallible;
+
+    fn start(&mut self) -> Result<Produced<Infallible>, String> {
+        Plugin::start(self)?;
+        Ok(Produced::sent(self.take_outbound(), StepTime::default()))
+    }
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<Infallible>, String> {
+        self.take_wake();
+        let started = Instant::now();
+        self.deliver(frames)?;
+        Plugin::step(self)?;
+        let took = StepTime {
+            step: started.elapsed(),
+            ..StepTime::default()
+        };
+        Ok(Produced::sent(self.take_outbound(), took))
+    }
+
+    fn take_wake(&mut self) -> bool {
+        Plugin::take_wake(self)
+    }
+
+    fn stop(&mut self) {
+        Plugin::stop(self);
+    }
+}
+
+fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
     let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS) else {
         return Ok(());
     };

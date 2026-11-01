@@ -172,6 +172,7 @@ impl Host {
                 Arc::clone(&self.interrupt),
             ),
             wake: Arc::clone(&woken),
+            limits: Default::default(),
         };
         let mut store = Store::new(&self.engine, state);
         crate::interrupt::watch(&mut store, true);
