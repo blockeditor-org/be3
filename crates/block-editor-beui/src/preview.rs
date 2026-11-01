@@ -4,9 +4,6 @@ use beui::native::painting::{Content, Frame, Painting, Paints, Primitive, Triang
 use beui::{Rect, native::Drawing};
 use block_plugin_api::PreviewImage;
 
-#[cfg(target_arch = "wasm32")]
-mod gpu;
-
 pub(crate) fn picture(image: PreviewImage, rotation: f32, opacity: f32) -> Drawing {
     let paints = Rc::new(PicturePaints {
         image: image.image,
@@ -14,12 +11,16 @@ pub(crate) fn picture(image: PreviewImage, rotation: f32, opacity: f32) -> Drawi
         opacity,
     });
     #[cfg(target_arch = "wasm32")]
-    {
-        let draw: Rc<dyn beui::native::Draw> =
-            Rc::new(gpu::PictureDraw::new(image, rotation, opacity));
-        Drawing::painted(draw, paints)
+    if let Some(texture) = block_editor_plugin::preview_texture(image.image) {
+        use beui::native::texture_quad::{Quad, TextureDraw};
+        let draw: Rc<dyn beui::native::Draw> = Rc::new(TextureDraw::new(texture).with(Quad {
+            rotation,
+            opacity,
+            srgb_encoded: true,
+            ..Quad::default()
+        }));
+        return Drawing::painted(draw, paints);
     }
-    #[cfg(not(target_arch = "wasm32"))]
     Drawing::painted((), paints)
 }
 

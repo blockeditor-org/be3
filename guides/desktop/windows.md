@@ -67,7 +67,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   `show` and `hide` set `shown` in be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
-  to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
+  to every surface showing it (`beui::native::texture_quad::TextureDraw::keeping` draws it and keeps the `Frame` alive
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports
   `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
   `Lost::Closed` just ends it. A popup whose capture cannot start (Windows refuses some, such as

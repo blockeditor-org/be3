@@ -4,6 +4,8 @@ use beui_core::drawing::Drawing;
 use beui_core::geometry::Vec2;
 use beui_core::painting::Paints;
 
+pub mod texture_quad;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DrawAt {
     pub rect: [f32; 4],

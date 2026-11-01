@@ -2,8 +2,6 @@
 mod linux;
 #[cfg(target_os = "linux")]
 mod shown;
-#[cfg(any(windows, test))]
-mod texture_draw;
 #[cfg(windows)]
 mod win32;
 #[cfg(any(windows, test))]
