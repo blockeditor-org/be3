@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
+use be_client::peer::Encoded;
 use be_client::{Peer, Saved};
-use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
@@ -27,7 +27,6 @@ use text_block_types::TextContent;
 
 mod prefixes;
 
-const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -317,61 +316,43 @@ impl<S: ObjectStore> Tracker<S> {
         &self.sources
     }
 
-    async fn read_bytes(&self, block: Uuid) -> Result<(Option<CommitId>, Option<Vec<u8>>), String> {
-        let read = self
-            .peer
-            .read_contents(&[(block, self.peer.local_head(block))])
+    async fn encode(&self, content_type: Uuid, bytes: Vec<u8>) -> Result<Encoded, String> {
+        self.types()
             .await
-            .map_err(explain)?;
-        let Some((summary, bytes)) = read.into_iter().next() else {
-            return Ok((None, None));
-        };
-        if let Some(head) = summary.head {
-            self.peer.remember(block, head).map_err(explain)?;
-        }
-        Ok((summary.head, bytes))
+            .encode(content_type, bytes, self.peer.organization())
+            .await
     }
 
-    async fn publish(
+    async fn save<C: BlockContent>(&self, block: Uuid, content: &C) -> Result<(), String> {
+        self.save_bytes(block, C::CONTENT_TYPE, content.encode())
+            .await
+    }
+
+    async fn save_bytes(
         &self,
         block: Uuid,
         content_type: Uuid,
-        bytes: &[u8],
-        expected: Option<CommitId>,
-    ) -> Result<bool, String> {
-        let description = self
-            .types()
-            .await
-            .describe(content_type, bytes, self.peer.organization())
-            .await?;
+        bytes: Vec<u8>,
+    ) -> Result<(), String> {
+        let encoded = self.encode(content_type, bytes).await?;
         match self
             .peer
             .publish_encoded(
                 block,
                 content_type,
-                bytes,
-                description.references,
-                description.derived,
-                expected,
+                &encoded.bytes,
+                encoded.references,
+                encoded.derived,
+                None,
                 None,
             )
             .await
             .map_err(explain)?
         {
-            Saved::Rejected { .. } => Ok(false),
-            Saved::Published(_) | Saved::Unchanged(_) => Ok(true),
-        }
-    }
-
-    async fn save<C: BlockContent>(&self, block: Uuid, content: &C) -> Result<(), String> {
-        match self
-            .publish(block, C::CONTENT_TYPE, &content.encode(), None)
-            .await?
-        {
-            true => Ok(()),
-            false => Err(format!(
+            Saved::Rejected { .. } => Err(format!(
                 "block {block} was saved by someone else first; try again"
             )),
+            Saved::Published(_) | Saved::Unchanged(_) => Ok(()),
         }
     }
 
@@ -379,24 +360,13 @@ impl<S: ObjectStore> Tracker<S> {
         &self,
         block: Uuid,
         content_type: Uuid,
-        mut make: impl AsyncFnMut(Option<Vec<u8>>) -> Result<Option<Vec<u8>>, String>,
+        make: impl AsyncFnMut(Option<Vec<u8>>) -> Result<Option<Encoded>, String>,
     ) -> Result<Option<Vec<u8>>, String> {
-        for _ in 0..ATTEMPTS {
-            let (head, current) = self.read_bytes(block).await?;
-            let Some(changed) = make(current.clone()).await? else {
-                return Ok(current);
-            };
-            if Some(&changed) == current.as_ref() {
-                return Ok(current);
-            }
-            if self.publish(block, content_type, &changed, head).await? {
-                self.invalidate().await;
-                return Ok(Some(changed));
-            }
+        let updated = self.peer.update(block, content_type, explain, make).await?;
+        if updated.changed {
+            self.invalidate().await;
         }
-        Err(format!(
-            "block {block} kept changing while this was being saved; try again"
-        ))
+        Ok(updated.bytes)
     }
 
     pub fn peer(&self) -> &Peer<S> {
@@ -578,11 +548,12 @@ impl<S: ObjectStore> Tracker<S> {
             return Err(refused());
         }
         let mut listed = true;
+        let organization = self.peer.organization();
         self.edit(parent, content_type, async |current| {
             let changed = self
                 .types()
                 .await
-                .apply(content_type, current, CLIENT, Edit::Child(change))
+                .relist(content_type, current, CLIENT, [change], organization)
                 .await?;
             listed = changed.is_some();
             Ok(changed)
@@ -1482,7 +1453,7 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn text(&self, block: Uuid) -> Result<String, String> {
-        let (_, bytes) = self.read_bytes(block).await?;
+        let (_, bytes) = self.peer.contents(block).await.map_err(explain)?;
         self.plain_text(TextContent::CONTENT_TYPE, bytes).await
     }
 
@@ -1812,12 +1783,8 @@ impl<S: ObjectStore> Tracker<S> {
                     .await
                     .map_err(explain)?;
                 let (blank, _) = self.text_page("").await?;
-                if !self
-                    .publish(page, TextContent::CONTENT_TYPE, &blank, None)
-                    .await?
-                {
-                    return Err(format!("the page {page} was saved by someone else first"));
-                }
+                self.save_bytes(page, TextContent::CONTENT_TYPE, blank)
+                    .await?;
                 self.change::<DatabaseContent>(database, |_| {
                     Ok(vec![Database::set_page(row, Some(page))])
                 })
@@ -1890,7 +1857,7 @@ impl<S: ObjectStore> Tracker<S> {
                 for edit in &edits {
                     content.apply(edit);
                 }
-                Ok(Some(content.encode()))
+                Ok(Some(self.encode(C::CONTENT_TYPE, content.encode()).await?))
             })
             .await?;
         match changed {
@@ -1934,10 +1901,15 @@ impl<S: ObjectStore> Tracker<S> {
                     name: String::new(),
                     bytes: text.into_bytes(),
                 });
-                self.types()
+                let changed = self
+                    .types()
                     .await
                     .apply(content_type, current, CLIENT, change)
-                    .await
+                    .await?;
+                match changed {
+                    Some(changed) => Ok(Some(self.encode(content_type, changed).await?)),
+                    None => Ok(None),
+                }
             })
             .await?;
         self.plain_text(content_type, written).await

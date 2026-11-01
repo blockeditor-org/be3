@@ -12,6 +12,7 @@ use be_block::{
     be_model::{Document, Model},
     version_control::{Action, Kept, Operation, View, masked, scope_mask},
 };
+use be_client::peer::Encoded;
 use be_client::{ClientError, Peer, Saved};
 use be_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
 use be_graph::BlockParent;
@@ -1716,24 +1717,24 @@ async fn change<R: Root + Model + Default>(
     block: Uuid,
     edit: impl Fn(&mut R) -> Result<(), String>,
 ) -> Result<(), String> {
-    for _ in 0..8 {
-        let (mut content, head) = read::<R>(context.peer, block).await?;
-        edit(&mut content)?;
-        let document = Document::new(&content);
-        match context
-            .peer
-            .save(block, &document, head)
-            .await
-            .map_err(failed)?
-        {
-            Saved::Published(head) | Saved::Unchanged(head) => {
-                settle(context, block, head).await?;
-                return Ok(());
-            }
-            Saved::Rejected { .. } => {}
-        }
+    let organization = context.peer.organization();
+    let updated = context
+        .peer
+        .update(block, Document::<R>::CONTENT_TYPE, failed, async |bytes| {
+            let mut content = match bytes {
+                Some(bytes) => Document::<R>::decode(&bytes)
+                    .map_err(|error| error.to_string())?
+                    .root(),
+                None => R::default(),
+            };
+            edit(&mut content)?;
+            Ok(Some(Encoded::of(&Document::new(&content), organization)))
+        })
+        .await?;
+    match updated.head {
+        Some(head) => settle(context, block, head).await,
+        None => Ok(()),
     }
-    Err("Someone else kept changing it at the same time. Try again.".into())
 }
 
 async fn relist(
@@ -1750,52 +1751,25 @@ async fn relist(
     .ok_or("Version control can only put a block somewhere it knows.")?;
     let change = block_type_api::Change::Child(super::api_child(change));
     let ctx = (context.peer, context.shared);
-    for _ in 0..8 {
-        let head = context.peer.remote_head(parent).await.map_err(failed)?;
-        let current = match head {
-            Some(head) => {
-                let commit = context.peer.load_commit(head).await.map_err(failed)?;
-                Some(
-                    context
-                        .peer
-                        .read_manifest(&commit.manifest)
-                        .await
-                        .map_err(failed)?,
-                )
-            }
-            None => None,
-        };
-        let bytes = context
-            .replicas
-            .apply(ctx, content_type, current, 0, change.clone())
-            .await?
-            .ok_or("That place cannot hold another block.")?;
-        let description = context
-            .replicas
-            .describe(ctx, content_type, &bytes)
-            .await
-            .ok_or("Version control could not describe that place.")?;
-        match context
-            .peer
-            .publish_encoded(
-                parent,
-                content_type,
-                &bytes,
-                description.references,
-                description.derived,
-                head,
-                None,
-            )
-            .await
-            .map_err(failed)?
-        {
-            Saved::Published(head) | Saved::Unchanged(head) => {
-                return settle(context, parent, head).await;
-            }
-            Saved::Rejected { .. } => {}
-        }
+    let replicas = &mut *context.replicas;
+    let updated = context
+        .peer
+        .update(parent, content_type, failed, async |current| {
+            let bytes = replicas
+                .apply(ctx, content_type, current, 0, change.clone())
+                .await?
+                .ok_or("That place cannot hold another block.")?;
+            let description = replicas
+                .describe(ctx, content_type, &bytes)
+                .await
+                .ok_or("Version control could not describe that place.")?;
+            Ok(Some(be_types_host::encoded(bytes, description)))
+        })
+        .await?;
+    match updated.head {
+        Some(head) => settle(context, parent, head).await,
+        None => Ok(()),
     }
-    Err("Someone else kept changing it at the same time. Try again.".into())
 }
 
 async fn save_new<R: Root + Model + Default + Clone>(

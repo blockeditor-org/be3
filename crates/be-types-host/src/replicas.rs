@@ -2377,24 +2377,8 @@ async fn reset<H: Host>(
     block: Uuid,
     kind: &types::Kind,
 ) -> Result<(), ClientError> {
-    let mut expected = peer.remote_head(block).await?;
-    for _ in 0..4 {
-        match peer
-            .publish_encoded(
-                block,
-                kind.content_type,
-                &kind.blank,
-                kind.described.references.clone(),
-                kind.described.derived.clone(),
-                expected,
-                None,
-            )
-            .await?
-        {
-            Saved::Rejected { head } => expected = head,
-            _ => break,
-        }
-    }
+    let blank = crate::encoded(kind.blank.clone(), kind.described.clone());
+    peer.overwrite(block, kind.content_type, &blank).await?;
     H::reset_notice();
     Ok(())
 }

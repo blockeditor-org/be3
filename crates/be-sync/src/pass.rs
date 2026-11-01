@@ -20,7 +20,6 @@ use crate::remote::{self, Block};
 use crate::{CLIENT, ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, explain};
 
 const IN_FLIGHT: usize = 16;
-const ATTEMPTS: usize = 8;
 
 pub(crate) async fn run<S: ObjectStore>(
     peer: &Peer<S>,
@@ -1713,48 +1712,16 @@ async fn list_children<S: ObjectStore>(
     gained: &[Uuid],
     lost: &[Uuid],
 ) -> Result<(), String> {
-    for _ in 0..ATTEMPTS {
-        let (head, current) = match remote::read(peer, &[(folder, None)]).await?.pop() {
-            Some((_, head, current)) => (head, current),
-            None => (None, None),
-        };
-        let mut content = current.clone();
-        for (children, change) in [
-            (gained, ChildChange::Add as fn(Uuid) -> ChildChange),
-            (lost, ChildChange::Delete),
-        ] {
-            for child in children {
-                let edit = Edit::Child(change(*child));
-                if let Some(changed) = types
-                    .apply(block_type, content.clone(), CLIENT, edit)
-                    .await?
-                {
-                    content = Some(changed);
-                }
-            }
-        }
-        let Some(content) = content.filter(|content| Some(content) != current.as_ref()) else {
-            return Ok(());
-        };
-        let description = types
-            .describe(block_type, &content, peer.organization())
-            .await?;
-        match peer
-            .publish_encoded(
-                folder,
-                block_type,
-                &content,
-                description.references,
-                description.derived,
-                head,
-                None,
-            )
+    let changes = gained
+        .iter()
+        .map(|child| ChildChange::Add(*child))
+        .chain(lost.iter().map(|child| ChildChange::Delete(*child)));
+    let organization = peer.organization();
+    peer.update(folder, block_type, explain, async |current| {
+        types
+            .relist(block_type, current, CLIENT, changes.clone(), organization)
             .await
-            .map_err(explain)?
-        {
-            Published::Rejected { .. } => continue,
-            Published::Published(_) | Published::Unchanged(_) => return Ok(()),
-        }
-    }
-    Err("it kept changing".to_owned())
+    })
+    .await?;
+    Ok(())
 }

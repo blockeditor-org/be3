@@ -9,12 +9,13 @@ use std::{
 };
 
 use be_client::Clock;
+use be_client::peer::Encoded;
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
 use block_type_api::ops::wire::Decode;
 use block_type_api::{
-    Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
+    Change, ChildChange, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
     ops::{Connection, Incoming, Latest, OpError, OpId, Outcome, Reply, Side, Ticket},
 };
@@ -890,6 +891,38 @@ impl Modules {
             replicas::describe(connection, content_type, bytes, organization)
         })
         .await
+    }
+
+    pub async fn encode(
+        &mut self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        organization: Uuid,
+    ) -> Result<Encoded, String> {
+        let description = self.describe(content_type, &bytes, organization).await?;
+        Ok(crate::encoded(bytes, description))
+    }
+
+    pub async fn relist(
+        &mut self,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        client: ClientId,
+        changes: impl IntoIterator<Item = ChildChange>,
+        organization: Uuid,
+    ) -> Result<Option<Encoded>, String> {
+        let mut listed = None;
+        for change in changes {
+            let held = listed.clone().or_else(|| bytes.clone());
+            let change = Change::Child(change);
+            if let Some(next) = self.apply(content_type, held, client, change).await? {
+                listed = Some(next);
+            }
+        }
+        match listed {
+            Some(listed) => Ok(Some(self.encode(content_type, listed, organization).await?)),
+            None => Ok(None),
+        }
     }
 }
 

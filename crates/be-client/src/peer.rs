@@ -35,9 +35,11 @@ mod import;
 mod offline;
 mod prefixes;
 mod rotation;
+mod update;
 
 pub use import::Imported;
 pub use prefixes::Registry;
+pub use update::{Encoded, Updated};
 
 #[derive(Clone)]
 pub enum Credentials {
@@ -1040,21 +1042,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
-        if let Some(head) = self.local_head(block)
-            && !self.pending_commits(block).is_empty()
-        {
-            return Ok(Some(C::decode(&self.read_at(head).await?)?));
+        match self.contents(block).await?.1 {
+            Some(bytes) => Ok(Some(C::decode(&bytes)?)),
+            None => Ok(None),
         }
-        let read = self
-            .read_contents(&[(block, self.local_head(block))])
-            .await?;
-        let Some((summary, Some(bytes))) = read.into_iter().next() else {
-            return Ok(None);
-        };
-        if let Some(head) = summary.head {
-            self.remember(block, head)?;
-        }
-        Ok(Some(C::decode(&bytes)?))
     }
 
     pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {

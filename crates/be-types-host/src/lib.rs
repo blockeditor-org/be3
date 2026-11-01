@@ -17,6 +17,14 @@ pub use modules::{
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Replicas};
 
+pub fn encoded(bytes: Vec<u8>, description: Description) -> be_client::peer::Encoded {
+    be_client::peer::Encoded {
+        bytes,
+        references: description.references,
+        derived: description.derived,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Conflict {
     pub ours: CommitId,

@@ -2322,7 +2322,7 @@ async fn publish_bytes(
     block: Uuid,
     content_type: Uuid,
     bytes: Vec<u8>,
-    retry: bool,
+    replace: bool,
 ) -> Result<(), ClientError> {
     let Some(description) = replicas
         .describe((peer, shared), content_type, &bytes)
@@ -2330,25 +2330,22 @@ async fn publish_bytes(
     else {
         return Ok(());
     };
-    let mut expected = peer.newest_head(block).await?;
-    for _ in 0..4 {
-        match peer
-            .publish_encoded(
+    let encoded = be_types_host::encoded(bytes, description);
+    match replace {
+        true => peer
+            .overwrite(block, content_type, &encoded)
+            .await
+            .map(drop),
+        false => peer
+            .update(
                 block,
                 content_type,
-                &bytes,
-                description.references.clone(),
-                description.derived.clone(),
-                expected,
-                None,
+                |error| error,
+                async |current| Ok(current.is_none().then(|| encoded.clone())),
             )
-            .await?
-        {
-            be_client::Saved::Rejected { head } if retry => expected = head,
-            _ => return Ok(()),
-        }
+            .await
+            .map(drop),
     }
-    Ok(())
 }
 
 async fn imported(
