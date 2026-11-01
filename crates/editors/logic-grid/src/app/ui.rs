@@ -157,12 +157,12 @@ fn GridCanvas(session: Session) -> NodeId {
     let placed = placed_held.read_only();
     let view = editor.canvas();
     let world = editor.world();
-    let camera = create_memo(move || Camera::from_view(view.get(), world.get(), placed.get()));
+    let camera = create_memo(move || grid_view(view.get(), world.get(), placed.get()));
     create_effect(move || {
         let camera = camera.get();
         session.set_camera(camera);
     });
-    let grid_view = create_memo(move || Some(camera.get().view(placed.get())));
+    let shown = create_memo(move || Some(camera.get()));
     let width = create_memo(move || placed.get().width());
     let height = create_memo(move || placed.get().height());
 
@@ -172,12 +172,12 @@ fn GridCanvas(session: Session) -> NodeId {
     let graph_hover = session.graph_hover;
     let drawing = create_memo(move || {
         let camera = camera.get();
-        let size = placed.get().size();
+        let rect = placed.get();
         let pointer = pointer.get();
         let hovered = debug_hover.get();
         let graph = graph_hover.get();
         let frame =
-            session.read(|model| model.render_frame(size, camera, pointer, hovered, &graph));
+            session.read(|model| model.render_frame(rect, camera, pointer, hovered, &graph));
         Some(scene.drawing(frame))
     });
 
@@ -185,13 +185,12 @@ fn GridCanvas(session: Session) -> NodeId {
     let label_keys = create_memo(move || {
         labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
     });
-    let zoom = create_memo(move || camera.get().zoom);
+    let zoom = create_memo(move || camera.get().scale);
 
     let last = store(Cell::new(None::<[f32; 2]>));
     let at = move |press: PointerPress| {
-        camera
-            .get_untracked()
-            .screen_to_world(press.pos, placed.get_untracked())
+        let world = camera.get_untracked().to_canvas(press.pos);
+        [world.x, world.y]
     };
     let on_press = move |press: PointerPress| {
         let world = at(press);
@@ -248,7 +247,7 @@ fn GridCanvas(session: Session) -> NodeId {
                         <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <Canvas view={grid_view}>
+                        <Canvas view={shown}>
                             <ForEach keys={label_keys}>|key: LabelKey| {
                                 let label = create_memo(move || {
                                     labels.with(|labels| {
