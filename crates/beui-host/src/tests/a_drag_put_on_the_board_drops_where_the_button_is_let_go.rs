@@ -32,7 +32,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
 
     let from = harness.center(source);
     let to = harness.center(target);
-    harness.press_at(from);
+    harness.down(from, PointerButton::Primary);
     board
         .get()
         .expect("the board was made with the view")
@@ -49,7 +49,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
         "nothing drops while the button is held"
     );
 
-    harness.release_at(to);
+    harness.up(to, PointerButton::Primary);
     assert_eq!(
         dropped.get_untracked(),
         Some((7, to)),

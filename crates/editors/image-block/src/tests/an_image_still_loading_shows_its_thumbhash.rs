@@ -14,9 +14,7 @@ fn an_image_still_loading_shows_its_thumbhash() {
     let shown = loaded.rect_of("image.picture");
 
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut loading: BeuiTest<ImageApp> = BeuiTest::new(OwnedEditor::new(host, block));
+    let mut loading: BeuiTest<ImageApp> = BeuiTest::editing(block);
     let mut info = BlockInfo::new(block, ImageContent::CONTENT_TYPE, BlockParent::Root);
     info.set_thumbhash(&derived);
     loading.store().add_block(info);

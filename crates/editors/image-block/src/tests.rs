@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
+use block_editor_beui::{BlockInfo, BlockParent, EditorHost};
 use block_ui_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;
@@ -16,10 +16,7 @@ mod an_image_that_will_not_decode_says_so;
 
 fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = BeuiTest::editing(block);
     editor.hold(None, ImageFile::from_file("picture.png", data));
     editor.run();
     editor

@@ -10,8 +10,8 @@ fn a_middle_click_on_a_dock_tab_closes_it() {
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
     harness.frame(vec![Input::PointerMoved(tab)]);
-    harness.middle_button(tab, true);
-    harness.middle_button(tab, false);
+    harness.down(tab, PointerButton::Middle);
+    harness.up(tab, PointerButton::Middle);
     harness.frame(Vec::new());
 
     assert_eq!(

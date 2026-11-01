@@ -44,7 +44,7 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
     let outside = harness.center(dock_tab(harness.document(), root, "Tab 1"));
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));
 
-    harness.press_at(locked);
+    harness.down(locked, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(Vec::new());
 
@@ -60,5 +60,5 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
         shown(&harness, "dock.drop"),
         "the same tab over its own area's bar is shown where it would land"
     );
-    harness.release_at(inside);
+    harness.up(inside, PointerButton::Primary);
 }

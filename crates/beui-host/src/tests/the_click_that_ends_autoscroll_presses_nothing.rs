@@ -28,8 +28,8 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
     let origin = harness.rect(scroll).center();
 
     harness.frame(vec![Input::PointerMoved(origin)]);
-    harness.middle_button(origin, true);
-    harness.middle_button(origin, false);
+    harness.down(origin, PointerButton::Middle);
+    harness.up(origin, PointerButton::Middle);
     assert!(harness.document().pointer_grabber().is_some());
 
     harness.click(origin);

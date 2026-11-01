@@ -43,7 +43,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let outside = harness.center(dock_tab(harness.document(), root, "Tab 1"));
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));
 
-    harness.press_at(pinned);
+    harness.down(pinned, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(Vec::new());
 
@@ -59,5 +59,5 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
         shown(&harness, "dock.drop"),
         "the same tab over its own group's bar is shown where it would land"
     );
-    harness.release_at(inside);
+    harness.up(inside, PointerButton::Primary);
 }

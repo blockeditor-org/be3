@@ -41,7 +41,7 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let tab = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
 
     let edge = bounds.min + before.min.to_vec2() + vec2(before.width() / 2.0, -3.0);
-    harness.press_at(edge);
+    harness.down(edge, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(edge + vec2(-150.0, -30.0))]);
 
     let after = harness

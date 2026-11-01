@@ -35,7 +35,7 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.press_at(pos2(50.0, 50.0));
+    harness.down(pos2(50.0, 50.0), PointerButton::Primary);
     harness.frame(vec![Input::PointersCancelled]);
     heard.update(|heard| heard.clear());
     harness.frame(vec![Input::PointerMoved(pos2(250.0, 50.0))]);

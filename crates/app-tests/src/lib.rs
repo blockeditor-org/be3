@@ -8,7 +8,6 @@ use paint_snapshot::{Painting, Snapshot};
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
-const ACCEPT: &str = "./scripts/verify --plugin-tests, or ./scripts/buck test //crates/app-tests:test -- --env UPDATE_SNAPSHOTS=1";
 
 pub struct AppTest {
     app: Option<Driven>,
@@ -219,7 +218,7 @@ impl AppTest {
     pub fn snapshot(&mut self, name: &str) {
         self.record();
         let recorded = self.recorded.take().expect("a painting was just recorded");
-        paint_snapshot::assert_accepted(name, &recorded, ACCEPT);
+        paint_snapshot::assert_accepted(name, &recorded, paint_snapshot::HOW_TO_ACCEPT);
         let mut found = std::mem::take(&mut self.overflows);
         found.sort();
         found.dedup();

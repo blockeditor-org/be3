@@ -45,9 +45,7 @@ fn Window(editor: Editor) -> NodeId {
 
 #[test]
 fn a_floating_overlay_covers_only_the_children_painted_beneath_it() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<WindowApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<WindowApp>::editing(Uuid::new_v4());
     test.run();
     test.run();
 

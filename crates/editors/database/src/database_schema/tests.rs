@@ -1,4 +1,3 @@
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use database_types::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use uuid::Uuid;
@@ -13,10 +12,7 @@ mod renaming_a_field_writes_the_new_name_to_the_block;
 
 fn editor() -> BeuiTest<DatabaseSchemaApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut harness = BeuiTest::new(editor);
+    let mut harness = BeuiTest::editing(block);
     harness.hold(None, DatabaseSchemaContent::default());
     harness.run();
     harness

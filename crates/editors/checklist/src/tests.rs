@@ -1,6 +1,5 @@
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::native::Document;
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use checklist_types::{Checklist as ChecklistModel, ChecklistContent};
 use uuid::Uuid;
@@ -20,9 +19,6 @@ struct Harness {
 impl Harness {
     fn new(items: &[(&str, bool)]) -> Self {
         let block = Uuid::new_v4();
-        let host = EditorHost::default();
-        host.set_editable(true);
-        let editor = OwnedEditor::new(host, block);
         let mut content = ChecklistContent::default();
         for (text, done) in items {
             let (id, add) = ChecklistModel::add(*text);
@@ -32,7 +28,7 @@ impl Harness {
             }
         }
         let mut harness = Self {
-            editor: BeuiTest::new(editor),
+            editor: BeuiTest::editing(block),
         };
         harness
             .editor

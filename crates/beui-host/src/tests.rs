@@ -1229,22 +1229,14 @@ impl Harness {
         panic!("still animating after {LIMIT} frames");
     }
 
-    pub(crate) fn press_at(&mut self, pos: Pos2) {
-        self.down(pos, PointerButton::Primary);
-    }
-
     pub(crate) fn drag_and_rest(&mut self, from: Pos2, to: Pos2) {
-        self.press_at(from);
+        self.down(from, PointerButton::Primary);
         for step in 1..=8 {
             self.hover(from + (to - from) * (step as f32 / 8.0));
         }
         self.pause(Duration::from_millis(200));
-        self.release_at(to);
+        self.up(to, PointerButton::Primary);
         self.settle();
-    }
-
-    pub(crate) fn release_at(&mut self, pos: Pos2) {
-        self.up(pos, PointerButton::Primary);
     }
 
     pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
@@ -1282,13 +1274,6 @@ impl Harness {
         for key in held.iter().rev() {
             self.key_up(*key);
         }
-    }
-
-    pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
-        match pressed {
-            true => self.down(pos, PointerButton::Middle),
-            false => self.up(pos, PointerButton::Middle),
-        };
     }
 
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {

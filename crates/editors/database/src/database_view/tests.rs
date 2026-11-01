@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::Key;
-use block_editor_beui::{BeuiApp, Creation, EditorHost, OwnedEditor, block_ui::BlockLabel};
+use block_editor_beui::{BeuiApp, Creation, EditorHost, block_ui::BlockLabel};
 use block_editor_database::DatabaseBlockPickRequest;
 use block_ui_test::BeuiTest;
 use database_types::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};
@@ -100,10 +100,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
         .collect();
     let database = Uuid::from_u128(0xdb_1002);
     let view = Uuid::from_u128(0xdb_1003);
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), view);
-    let mut harness = BeuiTest::new(editor);
+    let mut harness = BeuiTest::editing(view);
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(
         Some(database),

@@ -52,10 +52,7 @@ mod whitespace_markers_sit_over_real_spaces;
 
 fn editor(text: &str) -> BeuiTest<TextApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = BeuiTest::editing(block);
     editor.hold(None, TextBlock::of(text));
     editor.run();
     editor

@@ -31,7 +31,7 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
     harness.frame(Vec::new());
 
     let pos = harness.center(button);
-    harness.press_at(pos);
+    harness.down(pos, PointerButton::Primary);
     let opened = harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Primary,

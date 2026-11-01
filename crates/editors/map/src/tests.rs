@@ -1,4 +1,3 @@
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::{BeuiTest, HostCall, Reply, wire};
 use map_types::MapRegion;
 use map_types::{Map, MapContent};
@@ -18,10 +17,7 @@ mod zooming_in_draws_deeper_tiles_over_the_shallower_ones;
 
 fn editor() -> BeuiTest<MapApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor).in_viewport();
+    let mut editor = BeuiTest::editing(block).in_viewport();
     editor.store().register(map_types::registrations());
     editor.hold(None, MapContent::default());
     editor.run();
