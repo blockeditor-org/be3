@@ -26,5 +26,10 @@ fn a_calendar_the_desktop_no_longer_holds_is_replaced() {
         calendar, gone,
         "a calendar that is no longer the desktop's child is not shown"
     );
-    assert_eq!(fixture.test.store().created(), vec![calendar]);
+    let created = fixture.test.store().created();
+    assert_eq!(
+        (created.len(), created.last()),
+        (3, Some(&calendar)),
+        "a schema, a database and its calendar view are created"
+    );
 }

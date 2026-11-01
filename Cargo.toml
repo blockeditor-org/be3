@@ -109,8 +109,6 @@ members = [
     "crates/editors/block-debug",
     "crates/editors/browser-tab",
     "crates/editors/browser-tab/types",
-    "crates/editors/calendar",
-    "crates/editors/calendar/types",
     "crates/editors/checklist",
     "crates/editors/checklist/types",
     "crates/editors/counter",

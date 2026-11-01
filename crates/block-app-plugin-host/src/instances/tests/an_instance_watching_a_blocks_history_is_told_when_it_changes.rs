@@ -2,7 +2,7 @@ use super::*;
 
 use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::blocks::BlockHistory;
-use calendar_types::{Calendar, CalendarContent, CalendarEvent};
+use checklist_types::{Checklist, ChecklistContent};
 
 fn histories(instances: &mut Instances, watch: OpId) -> Vec<BlockHistory> {
     next_screens(instances);
@@ -28,12 +28,10 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert_eq!(histories(&mut instances, watch), [nothing]);
     assert!(histories(&mut instances, watch).is_empty());
 
-    block_app_stack::open(block, CalendarContent::CONTENT_TYPE);
+    block_app_stack::open(block, ChecklistContent::CONTENT_TYPE);
     block_app_stack::operate(
         block,
-        CalendarContent::encode_operation(
-            &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
-        ),
+        ChecklistContent::encode_operation(&Checklist::add("Standup").1),
     );
     block_app_stack::wait_until(|shared| {
         shared

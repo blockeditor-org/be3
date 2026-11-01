@@ -1966,7 +1966,7 @@ dependencies = [
  "block-wasm-host",
  "browser-tab-types",
  "bytemuck",
- "calendar-types",
+ "checklist-types",
  "counter-types",
  "database-types",
  "image",
@@ -2027,7 +2027,6 @@ dependencies = [
  "block-type-guest",
  "block-wasm-host",
  "build-id",
- "calendar-types",
  "checklist-types",
  "counter-types",
  "fault-relay",
@@ -2535,28 +2534,6 @@ name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
-
-[[package]]
-name = "calendar"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "calendar-types",
- "uuid",
-]
-
-[[package]]
-name = "calendar-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
 
 [[package]]
 name = "calloop"
@@ -3535,7 +3512,7 @@ dependencies = [
  "block-plugin-api",
  "block-shell",
  "block-ui-test",
- "calendar-types",
+ "database-types",
  "uuid",
 ]
 
@@ -3967,7 +3944,6 @@ dependencies = [
  "block-guest-abi",
  "block-type-guest",
  "browser-tab-types",
- "calendar-types",
  "checklist-types",
  "counter-types",
  "database-types",

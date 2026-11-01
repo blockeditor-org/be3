@@ -398,7 +398,7 @@ rewinding state; a child change is an ordinary operation that
 `LiveEdit::child_operations` answers for. `Undo::step` is taken from the state before an
 operation, and `revert` and `reapply` turn a step into operations against the
 state as it is *now*, so an undo leaves alone whatever someone else changed
-since: the calendar undoes a rename without moving an event another peer
+since: a database undoes a rename without moving a row another peer
 rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
@@ -748,7 +748,7 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `undo` in `be_block_types!` and has undo from the start. Almost every content type is
 built this way: the counter, the checklist (the one first-party type already in
-its plugin's types crate, `crates/editors/checklist/types`), the calendar, the browser
+its plugin's types crate, `crates/editors/checklist/types`), the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
 compiled logic, the infinite canvas and text. Implementing the

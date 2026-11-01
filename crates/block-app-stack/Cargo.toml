@@ -44,7 +44,6 @@ wasm-bindgen-futures = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
-calendar-types = { path = "../editors/calendar/types" }
 checklist-types = { path = "../editors/checklist/types" }
 counter-types = { path = "../editors/counter/types" }
 fault-relay = { path = "../fault-relay" }

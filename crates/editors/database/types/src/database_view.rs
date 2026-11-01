@@ -27,6 +27,7 @@ pub enum DatabaseViewKind {
     Kanban,
     Scatter,
     List,
+    Calendar,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -104,6 +105,8 @@ pub struct DatabaseView {
     pub filters: List<ViewFilter>,
     pub hidden_fields: Vec<Uuid>,
     pub show_empty_groups: bool,
+    pub calendar_start: Option<Uuid>,
+    pub calendar_end: Option<Uuid>,
 }
 
 impl DatabaseView {
@@ -144,6 +147,14 @@ impl DatabaseView {
 
     pub fn set_scatter_y(field: Option<Uuid>) -> Edit {
         Self::SCATTER_Y.set(ObjectId::ROOT, &field).into()
+    }
+
+    pub fn set_calendar_start(field: Option<Uuid>) -> Edit {
+        Self::CALENDAR_START.set(ObjectId::ROOT, &field).into()
+    }
+
+    pub fn set_calendar_end(field: Option<Uuid>) -> Edit {
+        Self::CALENDAR_END.set(ObjectId::ROOT, &field).into()
     }
 
     pub fn shows(&self, row: &DatabaseRow, fields: &[DatabaseField]) -> bool {

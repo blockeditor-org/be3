@@ -1,14 +1,10 @@
-use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::datetime::Date;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
-use super::model::{
-    Shown, WEEKDAY_ABBR, civil_from_days, days_from_civil, events_on, today_days_since_epoch,
-    weekday_from_days,
-};
-use super::ui::use_form_opener;
+use super::{Event, FIRST_DAY, events_on, forward, today};
 use beui::{Direction, ItemSize};
 
 const CELL_HEIGHT: f32 = 92.0;
@@ -17,24 +13,30 @@ const MAX_VISIBLE: usize = 3;
 const WEEKS: i64 = 6;
 
 #[component]
-pub(crate) fn MonthGrid(
+pub(super) fn MonthGrid(
     anchor: Memo<i64>,
-    events: Memo<Vec<Shown>>,
+    events: Memo<Vec<Event>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<Shown>,
+    on_pick_event: Callback<usize>,
 ) -> NodeId {
     let weeks = create_memo(move || {
-        let (year, month, _) = civil_from_days(anchor.get());
-        let first = days_from_civil(year, month, 1);
-        let start = first - i64::from(weekday_from_days(first));
+        let start = Date::from_days(anchor.get())
+            .first_of_month()
+            .start_of_week(FIRST_DAY)
+            .days();
         (0..WEEKS)
             .map(|week| start + week * 7)
             .collect::<Vec<i64>>()
     });
+    let names = create_memo(|| {
+        (0..7)
+            .map(|offset| &FIRST_DAY.offset(offset).name()[..3])
+            .collect::<Vec<&'static str>>()
+    });
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
-                <ForEach keys={weekday_names()}>|name: &'static str|
+                <ForEach keys={names}>|name: &'static str|
                     <Text @sizing=ItemSize::Percent(100.0) align=TextAlign::Center>{name}</Text>
                 </ForEach>
             </List>
@@ -56,9 +58,9 @@ pub(crate) fn MonthGrid(
 fn MonthWeek(
     start: i64,
     anchor: Memo<i64>,
-    events: Memo<Vec<Shown>>,
+    events: Memo<Vec<Event>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<Shown>,
+    on_pick_event: Callback<usize>,
 ) -> NodeId {
     let days = create_memo(move || (0..7).map(|offset| start + offset).collect::<Vec<i64>>());
     view! {
@@ -81,24 +83,20 @@ fn MonthWeek(
 fn MonthCell(
     day: i64,
     anchor: Memo<i64>,
-    events: Memo<Vec<Shown>>,
+    events: Memo<Vec<Event>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<Shown>,
+    on_pick_event: Callback<usize>,
 ) -> NodeId {
-    let (_, _, day_number) = civil_from_days(day);
-    let in_month = create_memo(move || {
-        let (year, month, _) = civil_from_days(anchor.get());
-        let (day_year, day_month, _) = civil_from_days(day);
-        day_year == year && day_month == month
-    });
-    let today = day == today_days_since_epoch();
+    let date = Date::from_days(day);
+    let in_month = create_memo(move || Date::from_days(anchor.get()).same_month(date));
+    let today = day == today();
     let day_events = create_memo(move || events.with(|events| events_on(events, day)));
     let shown = create_memo(move || {
         day_events.with(|events| {
             events
                 .iter()
                 .take(MAX_VISIBLE)
-                .map(|event| event.id)
+                .map(|event| event.row)
                 .collect::<Vec<_>>()
         })
     });
@@ -118,15 +116,9 @@ fn MonthCell(
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let opened_from = use_form_opener();
-    let cell = NodeRef::new();
-    let pick = move || {
-        opened_from(cell);
-        on_pick_day.call(day);
-    };
+    let pick = move || on_pick_day.call(day);
     view! {
         <Frame
-            @node_ref={&cell}
             fill={fill}
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Sm
@@ -134,33 +126,37 @@ fn MonthCell(
         >
             <List spacing=Space::Xs2>
                 <ListRow
-                    @test_id={format!("calendar.day.{day}")}
+                    @test_id={format!("database-view.calendar.day.{day}")}
                     on_click={pick}
                     on_activate={pick}
                 >
                     <Text style=TextStyle::CAPTION color={number_color}>
-                        {day_number.to_string()}
+                        {date.day.to_string()}
                     </Text>
                 </ListRow>
-                <ForEach keys={shown}>|id: ObjectId| {
-                    let event = event_of(day_events, id);
+                <ForEach keys={shown}>|row: usize| {
                     let title = create_memo(move || {
-                        event.get().map(|event| event.value.title).unwrap_or_default()
+                        day_events.with(|events| {
+                            events
+                                .iter()
+                                .find(|event| event.row == row)
+                                .map(|event| event.title.clone())
+                                .unwrap_or_default()
+                        })
                     });
-                    let chip = NodeRef::new();
-                    let open = move || {
-                        if let Some(event) = event.get_untracked() {
-                            opened_from(chip);
-                            on_pick_event.call(event);
-                        }
-                    };
+                    let open = move || on_pick_event.call(row);
                     view! {
-                        <EventChip
-                            @node_ref={&chip}
-                            title={title}
-                            @test_id={format!("calendar.event.{id}")}
-                            on_click={open}
-                        />
+                        <Frame fill=ColorRole::Accent radius=Radius::Xs>
+                            <ListRow
+                                @test_id={format!("database-view.calendar.event.{row}")}
+                                on_click={open}
+                                on_activate={open}
+                            >
+                                <Text style=TextStyle::CAPTION color=TextColor::OnAccent>
+                                    {title}
+                                </Text>
+                            </ListRow>
+                        </Frame>
                     }
                 }</ForEach>
                 <Text style=TextStyle::CAPTION>{overflow}</Text>
@@ -168,30 +164,4 @@ fn MonthCell(
             </List>
         </Frame>
     }
-}
-
-#[component]
-fn EventChip(
-    title: Memo<String>,
-    on_click: block_editor_beui::beui::reactive::ClickCallback,
-) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Accent radius=Radius::Xs>
-            <ListRow on_click={on_click} on_activate={on_click}>
-                <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
-            </ListRow>
-        </Frame>
-    }
-}
-
-fn weekday_names() -> Memo<Vec<&'static str>> {
-    create_memo(|| WEEKDAY_ABBR.to_vec())
-}
-
-fn event_of(events: Memo<Vec<Shown>>, id: ObjectId) -> Memo<Option<Shown>> {
-    create_memo(move || events.with(|events| events.iter().find(|event| event.id == id).cloned()))
-}
-
-fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
-    move |value| callback.call(value)
 }
