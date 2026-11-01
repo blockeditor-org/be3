@@ -199,7 +199,7 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the app ran elsewhere and reports through `App::other_frames`, which in block-app is
   each plugin's steps by its id (a step takes the plugin's input, makes its edits and draws its
-  frame). A block-app frame waits at most 8 ms for its plugins, so a slower plugin step shows
+  frame). A block-app frame waits for its plugins only until its deadline, the next present less its own composite time, so a slower plugin step shows
   only on the plugin's line. It is wall time, not the app's clock, so it is for benchmarks
   (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is

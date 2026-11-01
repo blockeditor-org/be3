@@ -967,7 +967,9 @@ once and waits on all of them together; when a commit's child placements
 change another plugin's view, the host lays out again and sends that plugin
 its screens, a configure and a draw request within the same frame, and waits
 for it too. The frame stops waiting once no plugin owes it anything or its
-deadline passes. A child that answers in time is shown at its new size in the
+deadline passes: the display's next present less the time the host itself
+needs to composite and submit, so the wait never runs past what the screen
+can show in that refresh. A child that answers in time is shown at its new size in the
 frame its placer resized it in; one that does not is shown at the size it last
 drew, cropped rather than stretched, until a later frame picks it up.
 

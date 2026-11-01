@@ -4,7 +4,7 @@ use std::{
     collections::{BTreeMap, VecDeque},
     rc::Rc,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use beui::native::EmbedPlacement;
@@ -39,7 +39,10 @@ use super::{
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
-const FRAME_BUDGET: Duration = Duration::from_millis(8);
+const UNKNOWN_REFRESH: Duration = Duration::from_micros(16_667);
+const UNMEASURED_COMPOSITE: Duration = Duration::from_millis(4);
+const SUBMIT_MARGIN: Duration = Duration::from_millis(1);
+const REMEMBERED_COMPOSITES: usize = 16;
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 use block_app_base::performance::PACING;
 const REMEMBERED_PRESENTS: usize = 16;
@@ -60,6 +63,9 @@ pub fn take_steps() -> Vec<(String, beui::native::FrameTimes)> {
 struct Host {
     availability: Availability,
     deadline: Option<(u64, Deadline)>,
+    present: Option<(Instant, Duration)>,
+    settled_at: Option<Instant>,
+    composites: VecDeque<Duration>,
     waited: Duration,
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
@@ -75,6 +81,9 @@ impl Host {
         Self {
             availability: Availability::missing(),
             deadline: None,
+            present: None,
+            settled_at: None,
+            composites: VecDeque::new(),
             waited: Duration::ZERO,
             over_budget: 0,
             runtimes: HashMap::default(),
@@ -83,6 +92,28 @@ impl Host {
             shell: None,
             grabbed: false,
         }
+    }
+
+    fn frame_deadline(&self) -> Deadline {
+        if host::clock_stopped() {
+            return Deadline::after(STOPPED_CLOCK_FRAME_BUDGET);
+        }
+        let now = Instant::now();
+        let composite = self
+            .composites
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(UNMEASURED_COMPOSITE)
+            + SUBMIT_MARGIN;
+        let (mut present, interval) = self
+            .present
+            .unwrap_or((now + UNKNOWN_REFRESH, UNKNOWN_REFRESH));
+        let interval = interval.max(Duration::from_millis(1));
+        while present < now + composite {
+            present += interval;
+        }
+        Deadline::at(present - composite)
     }
 
     fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
@@ -1532,10 +1563,7 @@ pub fn settle() -> bool {
         let mut host = host.borrow_mut();
         let deadline = match host.deadline {
             Some((at, deadline)) if at == pass => deadline,
-            _ => Deadline::after(match host::clock_stopped() {
-                true => STOPPED_CLOCK_FRAME_BUDGET,
-                false => FRAME_BUDGET,
-            }),
+            _ => host.frame_deadline(),
         };
         host.deadline = Some((pass, deadline));
         let asked: Vec<String> = host
@@ -1552,8 +1580,28 @@ pub fn settle() -> bool {
         let (relaid, over) = wait_on(&mut host, &asked, deadline);
         host.waited += started.elapsed();
         host.over_budget += u64::from(over);
+        host.settled_at = Some(Instant::now());
         relaid
     })
+}
+
+pub fn begin_frame(
+    next_present: Option<Instant>,
+    refresh: Option<Duration>,
+    prepared: Option<Instant>,
+) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if let (Some(settled), Some(prepared)) = (host.settled_at.take(), prepared)
+            && prepared > settled
+        {
+            if host.composites.len() == REMEMBERED_COMPOSITES {
+                host.composites.pop_front();
+            }
+            host.composites.push_back(prepared - settled);
+        }
+        host.present = next_present.map(|at| (at, refresh.unwrap_or(UNKNOWN_REFRESH)));
+    });
 }
 
 fn wait_on(host: &mut Host, asked: &[String], deadline: Deadline) -> (bool, bool) {

@@ -576,6 +576,7 @@ impl ApplicationHandler for Runner {
             Err(error) => return self.fail(event_loop, error),
         };
         self.runner.reports().scaled(window.scale_factor() as f32);
+        report_refresh(self.runner.reports(), &*window);
         self.preferences.window_theme(window.theme());
         let proxy = self.proxy.clone();
         self.preferences.watch_desktop(move || proxy.wake_up());
@@ -662,7 +663,15 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.reports().scaled(scale_factor as f32);
+                if let Some(surface) = &self.surface {
+                    report_refresh(self.runner.reports(), &*surface.window);
+                }
                 self.request_redraw();
+            }
+            WindowEvent::Moved(_) => {
+                if let Some(surface) = &self.surface {
+                    report_refresh(self.runner.reports(), &*surface.window);
+                }
             }
             WindowEvent::Focused(focused) => {
                 if !focused {
@@ -949,4 +958,16 @@ fn lock_pointer(window: &dyn Window, locked: bool) {
         let _ = window.set_cursor_grab(CursorGrabMode::Confined);
     }
     window.set_cursor_visible(!locked);
+}
+
+fn report_refresh(reports: &beui_core::window::WindowReports, window: &dyn winit::window::Window) {
+    let refresh = window
+        .current_monitor()
+        .and_then(|monitor| monitor.current_video_mode())
+        .and_then(|mode| mode.refresh_rate_millihertz());
+    if let Some(millihertz) = refresh {
+        reports.refreshes_every(std::time::Duration::from_secs_f64(
+            1000.0 / f64::from(millihertz.get()),
+        ));
+    }
 }

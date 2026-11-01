@@ -478,6 +478,9 @@ impl Runner {
         if let Some(scale) = self.reports.take_scale() {
             self.native = scale;
         }
+        if let Some(interval) = self.reports.take_refresh() {
+            self.context.set_refresh_interval(Some(interval));
+        }
         if let Some(attached) = self.reports.take_keyboard() {
             self.platform_keyboard = Some(attached);
         }
@@ -508,6 +511,11 @@ impl Runner {
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         rendering.set_vsync(paced.is_none());
+        self.context.set_next_present(paced.or_else(|| {
+            self.context
+                .refresh_interval()
+                .map(|interval| started + interval)
+        }));
         let mut now = match paced {
             Some(at) if !self.context.clock_stopped() => {
                 let at = self.paced.map_or(at, |last| at.max(last));
@@ -689,6 +697,7 @@ impl Runner {
                 false
             }
         };
+        self.context.note_prepared(std::time::Instant::now());
         let mut frame = Frame {
             pending,
             deferred: !self.events.is_empty()

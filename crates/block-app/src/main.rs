@@ -341,6 +341,11 @@ impl beui::native::App for Shell {
 
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
+        block_app_plugin_host::begin_frame(
+            context.next_present(),
+            context.refresh_interval(),
+            context.last_prepared(),
+        );
         frame::begin(context);
         if context.hurried() {
             block_app_stack::seal_owed();

@@ -109,6 +109,7 @@ struct Reported {
     keyboard: std::cell::Cell<Option<bool>>,
     touchscreen: std::cell::Cell<Option<bool>>,
     preferences: std::cell::Cell<Option<beui_types::PreferenceLayer>>,
+    refresh: std::cell::Cell<Option<std::time::Duration>>,
 }
 
 #[derive(Clone, Default)]
@@ -125,6 +126,14 @@ impl WindowReports {
 
     pub fn scaled(&self, pixels_per_point: f32) {
         self.0.scale.set(Some(pixels_per_point));
+    }
+
+    pub fn refreshes_every(&self, interval: std::time::Duration) {
+        self.0.refresh.set(Some(interval));
+    }
+
+    pub fn take_refresh(&self) -> Option<std::time::Duration> {
+        self.0.refresh.take()
     }
 
     pub fn keyboard_attached(&self, attached: bool) {

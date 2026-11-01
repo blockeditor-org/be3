@@ -138,6 +138,9 @@ struct Inner {
     woken: Cell<bool>,
     zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
+    refresh_interval: Cell<Option<Duration>>,
+    next_present: Cell<Option<Instant>>,
+    prepared: Cell<Option<Instant>>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<(Option<WindowId>, String)>>,
     hit_query: Cell<Option<Pos2>>,
@@ -424,6 +427,9 @@ impl Context {
                 woken: Cell::new(false),
                 zones_woken_in_frame: RefCell::new(Vec::new()),
                 seen: Cell::new(true),
+                refresh_interval: Cell::new(None),
+                next_present: Cell::new(None),
+                prepared: Cell::new(None),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
@@ -513,6 +519,30 @@ impl Context {
 
     pub fn seen(&self) -> bool {
         self.inner.seen.get()
+    }
+
+    pub fn set_refresh_interval(&self, interval: Option<Duration>) {
+        self.inner.refresh_interval.set(interval);
+    }
+
+    pub fn refresh_interval(&self) -> Option<Duration> {
+        self.inner.refresh_interval.get()
+    }
+
+    pub fn set_next_present(&self, at: Option<Instant>) {
+        self.inner.next_present.set(at);
+    }
+
+    pub fn next_present(&self) -> Option<Instant> {
+        self.inner.next_present.get()
+    }
+
+    pub fn note_prepared(&self, at: Instant) {
+        self.inner.prepared.set(Some(at));
+    }
+
+    pub fn last_prepared(&self) -> Option<Instant> {
+        self.inner.prepared.get()
     }
 
     pub fn publish_actions(&self, group: ActionGroup) {
