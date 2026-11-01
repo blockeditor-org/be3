@@ -56,7 +56,7 @@ pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::Te
         surface.configure(abi::SurfaceConfiguration {
             width,
             height,
-            format: convert::texture_format(format),
+            format: convert::to_abi(format),
         })
     });
 }
@@ -85,8 +85,8 @@ fn described(texture: gpu::Texture) -> Result<wgpu::Texture, String> {
         },
         mip_level_count: info.mip_level_count,
         sample_count: info.sample_count,
-        dimension: convert::wgpu_texture_dimension(info.dimension),
-        format: convert::wgpu_texture_format(info.format),
+        dimension: wgpu::TextureDimension::from(info.dimension),
+        format: wgpu::TextureFormat::from(info.format),
         usage: wgpu::TextureUsages::from_bits_truncate(info.usage),
         view_formats: &[],
     };

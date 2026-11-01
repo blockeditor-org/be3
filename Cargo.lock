@@ -2156,6 +2156,7 @@ dependencies = [
  "be-ops",
  "be-ops-bindgen",
  "serde",
+ "wgpu",
 ]
 
 [[package]]

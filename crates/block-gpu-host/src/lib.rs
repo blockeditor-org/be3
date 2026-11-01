@@ -286,7 +286,7 @@ fn texel_copy_texture(
             y: info.origin.y,
             z: info.origin.z,
         },
-        aspect: convert::texture_aspect(info.aspect),
+        aspect: wgpu::TextureAspect::from(info.aspect),
     }
 }
 
