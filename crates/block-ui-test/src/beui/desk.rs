@@ -1,4 +1,5 @@
 use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, pos2, vec2};
+use beui_host::native::drive::gestures::Frames;
 use block_editor_beui::{BeuiApp, View, ViewId};
 use block_plugin_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewportMetrics,
@@ -590,15 +591,31 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub(super) fn desk_click(&mut self, at: Pos2, button: PointerButton, clicks: usize) {
-        for _ in 0..clicks {
-            self.desk_pointer(at, Some(true), button);
-            self.desk_pointer(at, Some(false), button);
+    pub(super) fn desk_perform(&mut self, frames: Frames) {
+        let events: Vec<Input> = frames.into_iter().flatten().collect();
+        for (index, event) in events.iter().enumerate() {
+            match *event {
+                Input::PointerMoved(at) => {
+                    let pointer = self.desk.as_ref().map(|desk| desk.pointer);
+                    let carried = match events.get(index + 1) {
+                        Some(Input::PointerMoved(next)) => *next == at,
+                        Some(Input::PointerButton { pos, pressed, .. }) => {
+                            *pos == at && (*pressed || pointer == Some(at))
+                        }
+                        _ => false,
+                    };
+                    if !carried {
+                        self.desk_move(at);
+                    }
+                }
+                Input::PointerButton {
+                    pos,
+                    button,
+                    pressed,
+                } => self.desk_pointer(pos, Some(pressed), button),
+                ref other => panic!("the desk takes only pointer input, not {other:?}"),
+            }
         }
-    }
-
-    pub(super) fn desk_button(&mut self, at: Pos2, button: PointerButton, pressed: bool) {
-        self.desk_pointer(at, Some(pressed), button);
     }
 
     pub fn desk_drag(&mut self, from: Pos2, to: Pos2, steps: usize) {

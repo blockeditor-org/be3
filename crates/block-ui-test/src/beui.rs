@@ -48,6 +48,7 @@ use uuid::Uuid;
 
 use crate::ContentStore;
 use crate::link::Sent;
+use beui_host::native::drive;
 use beui_host::native::drive::gestures::{Frames, Gestures};
 use beui_host::native::testing::{FRAME_INTERVAL, assert_fits};
 use paint_snapshot::Snapshot;
@@ -1752,8 +1753,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn back(&mut self) {
-        let frames = self.gestures.back();
-        self.perform(frames);
+        self.drive("back", &[], &[]);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -1887,14 +1887,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
-        self.steps.push(format!(
-            "drive down {} right; drive up {} right",
-            Target::point(from).word(1.0),
-            Target::point(to).word(1.0)
-        ));
-        let mut frames = self.gestures.down(from, PointerButton::Secondary);
-        frames.extend(self.gestures.up(Some(to), PointerButton::Secondary));
-        self.perform(frames);
+        self.down(from, PointerButton::Secondary);
+        self.next_frame();
+        self.up(to, PointerButton::Secondary);
     }
 
     pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
@@ -1920,6 +1915,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+        self.steps.push(format!(
+            "drive pinch {} {factor}",
+            Target::point(pos).word(1.0)
+        ));
         let anchor = Pos2::ZERO + (pos - self.rect().min);
         self.calls.push(ShellCall::ChangeView {
             instance: INSTANCE,
@@ -1936,79 +1935,35 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hover(&mut self, target: impl Into<Target>) {
-        let at = self.locate("move", &[target.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_move(at[0]);
-            return;
-        }
-        let frames = self.gestures.hover(at[0]);
-        self.perform(frames);
+        self.drive_at("move", &[target.into()], &[]);
     }
 
     pub fn click(&mut self, target: impl Into<Target>) {
-        let at = self.locate("click", &[target.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], PointerButton::Primary, 1);
-            return;
-        }
-        let frames = self.gestures.click(at[0], PointerButton::Primary, 1);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &[]);
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("click", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], button, 1);
-            return;
-        }
-        let frames = self.gestures.click(at[0], button, 1);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &[button_name(button)]);
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) {
-        let at = self.locate("click", &[target.into()], &["double".to_owned()]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], PointerButton::Primary, 2);
-            return;
-        }
-        let frames = self.gestures.click(at[0], PointerButton::Primary, 2);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &["double".to_owned()]);
     }
 
     pub fn tap(&mut self, target: impl Into<Target>) {
-        let at = self.locate("tap", &[target.into()], &[]);
-        let frames = self.gestures.tap(at[0], 1);
-        self.perform(frames);
+        self.drive_at("tap", &[target.into()], &[]);
     }
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("down", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_button(at[0], button, true);
-            return;
-        }
-        let frames = self.gestures.down(at[0], button);
-        self.perform(frames);
+        self.drive_at("down", &[target.into()], &[button_name(button)]);
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("up", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_button(at[0], button, false);
-            return;
-        }
-        let frames = self.gestures.up(Some(at[0]), button);
-        self.perform(frames);
+        self.drive_at("up", &[target.into()], &[button_name(button)]);
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
-        let at = self.locate("drag", &[from.into(), to.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_drag(at[0], at[1], 2);
-            return;
-        }
-        let frames = self.gestures.drag(at[0], at[1], 2, PointerButton::Primary);
-        self.perform(frames);
+        self.drive_at("drag", &[from.into(), to.into()], &[]);
     }
 
     pub fn drag_along(&mut self, points: &[Pos2]) {
@@ -2025,10 +1980,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
-        let rest = [by.y.to_string(), by.x.to_string()];
-        let at = self.locate("scroll", &[target.into()], &rest);
-        let frames = self.gestures.scroll(at[0], by);
-        self.perform(frames);
+        self.drive_at(
+            "scroll",
+            &[target.into()],
+            &[by.y.to_string(), by.x.to_string()],
+        );
     }
 
     pub fn fingers<T: Into<Target> + Clone>(&mut self, phase: TouchPhase, fingers: &[(u64, T)]) {
@@ -2036,43 +1992,31 @@ impl<A: BeuiApp> BeuiTest<A> {
             .iter()
             .map(|(_, target)| target.clone().into())
             .collect();
-        let named: Vec<String> = fingers
-            .iter()
-            .zip(&targets)
-            .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0)))
-            .collect();
-        let phase_name = match phase {
+        let phase = match phase {
             TouchPhase::Start => "down",
             TouchPhase::Move => "move",
             TouchPhase::End => "up",
             TouchPhase::Cancel => "cancel",
         };
-        self.steps
-            .push(format!("drive touch {phase_name} {}", named.join(" ")));
-        let at: Vec<(u64, Option<Pos2>)> = fingers
-            .iter()
-            .zip(targets)
-            .map(|((finger, _), target)| (*finger, Some(self.point(target))))
+        let words: Vec<String> = std::iter::once(phase.to_owned())
+            .chain(
+                fingers
+                    .iter()
+                    .zip(&targets)
+                    .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0))),
+            )
             .collect();
-        let frames = self
-            .gestures
-            .touch(phase, &at)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
-        self.perform(frames);
+        self.drive("touch", &words, &targets);
     }
 
     pub fn type_text(&mut self, text: &str) {
-        self.steps.push(format!("drive type {text:?}"));
-        let frames = self.gestures.type_text(text);
-        self.perform(frames);
+        self.drive("type", &[text.to_owned()], &[]);
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
         let chord = beui_core::input::typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
-        self.steps.push(format!("drive key {chord}"));
-        let frames = self.gestures.chord(key, modifiers);
-        self.perform(frames);
+            .unwrap_or_else(|| panic!("drive has no name for {modifiers:?}+{key:?}"));
+        self.drive("key", &[chord], &[]);
     }
 
     pub fn key_down(&mut self, key: Key) {
@@ -2085,34 +2029,56 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn held_key(&mut self, key: Key, pressed: bool) {
         let command = if pressed { "keydown" } else { "keyup" };
-        let name = key.name().unwrap_or_else(|| format!("{key:?}"));
-        self.steps.push(format!("drive {command} {name}"));
-        let frames = self
-            .gestures
-            .key(key, pressed)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
-        self.perform(frames);
+        let name = key
+            .name()
+            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        self.drive(command, &[name], &[]);
     }
 
     pub fn steps(&self) -> &[String] {
         &self.steps
     }
 
-    fn locate(&mut self, command: &str, targets: &[Target], rest: &[String]) -> Vec<Pos2> {
-        let mut step = format!("drive {command}");
-        for word in targets
+    fn drive_at(&mut self, command: &str, targets: &[Target], rest: &[String]) {
+        let words: Vec<String> = targets
             .iter()
             .map(|target| target.word(1.0))
             .chain(rest.iter().cloned())
-        {
-            step.push(' ');
-            step.push_str(&word);
+            .collect();
+        self.drive(command, &words, targets);
+    }
+
+    fn drive(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
+        let mut step = format!("drive {command}");
+        for word in arguments {
+            let plain = !word.is_empty()
+                && word
+                    .chars()
+                    .all(|character| character.is_ascii_graphic() && !"\"'\\".contains(character));
+            match plain {
+                true => step.push_str(&format!(" {word}")),
+                false => step.push_str(&format!(" {word:?}")),
+            }
         }
         self.steps.push(step);
-        targets
+        let points: Vec<(String, Pos2)> = targets
             .iter()
-            .map(|target| self.point(target.clone()))
-            .collect()
+            .map(|target| (target.word(1.0), self.point(target.clone())))
+            .collect();
+        let at = |word: &str| {
+            points
+                .iter()
+                .find(|(named, _)| named == word)
+                .map(|(_, at)| *at)
+                .ok_or_else(|| format!("{word} is not one of the targets"))
+        };
+        let frames = drive::plan(&mut self.gestures, command, arguments, 1.0, &at)
+            .and_then(|frames| frames.ok_or_else(|| format!("{command} gives no input")))
+            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
+        match self.desk.is_some() && matches!(command, "click" | "move" | "down" | "up" | "drag") {
+            true => self.desk_perform(frames),
+            false => self.perform(frames),
+        }
     }
 
     fn point(&mut self, target: Target) -> Pos2 {
