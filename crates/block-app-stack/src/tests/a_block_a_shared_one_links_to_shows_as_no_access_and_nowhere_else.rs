@@ -65,15 +65,23 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
         Query::Detached,
         Query::References(shared),
     ]);
-    wait_until("heard of the linked block and what links to it", |held| {
-        held.graph
-            .get(linked)
-            .is_some_and(|node| node.access == be_graph::Access::KnowExists)
-            && held
-                .graph
-                .get(shared)
-                .is_some_and(|node| node.references.contains(&linked))
-    });
+    wait_until(
+        "heard of the linked block, what links to it, and what is shared with it",
+        |held| {
+            held.graph
+                .get(linked)
+                .is_some_and(|node| node.access == be_graph::Access::KnowExists)
+                && held
+                    .graph
+                    .get(shared)
+                    .is_some_and(|node| node.references.contains(&linked))
+                && held
+                    .graph
+                    .query(Query::Shared)
+                    .iter()
+                    .any(|node| node.id == shared)
+        },
+    );
     let node = node(linked).expect("the linked block is in the mirror");
     assert_eq!(node.content_type, TextContent::CONTENT_TYPE);
     assert_eq!((node.parent, node.author, node.head), (None, None, None));
@@ -91,7 +99,6 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
         listed(Query::References(shared)),
         "it shows where it is linked"
     );
-    assert!(query(Query::Shared).iter().any(|node| node.id == shared));
 
     let info = block_editor_plugin::BlockInfo::decode(crate::plugin_graph::info_of(&node, false));
     assert!(info.no_access() && !info.locked);
