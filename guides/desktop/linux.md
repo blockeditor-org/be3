@@ -6,7 +6,7 @@ whose shell is the desktop plugin. Two ways to run it are Linux's alone:
 - `BEUI_PLATFORM=drm block-app --desktop`, a login session: runs on the displays and input
   devices themselves through `beui-platform-drm` instead of in a window, from a virtual terminal
   with no other display server on it. block-app accepts `drm` in `BEUI_PLATFORM` beside `winit`
-  (`beui_host::native::run_with_platforms`), and refuses it on other systems (`src/arguments.rs`).
+  (`RunOptions::platforms`), and refuses it on other systems (`src/arguments.rs`).
   Without `--desktop` it runs the workspace shell on the displays: the log, logind and the power
   actions, the lock screen (which the host draws over any shell, and logind needs to lock before
   sleep) and the panic path below key off running on the displays and work there too, while

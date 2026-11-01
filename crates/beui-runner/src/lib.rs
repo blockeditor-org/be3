@@ -39,6 +39,8 @@ pub struct RunOptions {
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub saved_preferences: Option<std::path::PathBuf>,
+    pub device_extensions: &'static [&'static std::ffi::CStr],
+    pub platforms: Vec<Box<dyn Platform>>,
 }
 
 impl Default for RunOptions {
@@ -48,6 +50,8 @@ impl Default for RunOptions {
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
             saved_preferences: None,
+            device_extensions: &[],
+            platforms: Vec::new(),
         }
     }
 }

@@ -11,24 +11,12 @@ use beui_runner::{Launch, Layer, Platform, RunOptions};
 
 use beui_runner::environment::{Base, Choice, Stacked};
 
-pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    run_with_device(options, OpenDevice::default(), app)
-}
-
-pub fn run_with_device(
-    options: RunOptions,
-    open_device: OpenDevice,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn Error>> {
-    run_with_platforms(options, open_device, Vec::new(), app)
-}
-
-pub fn run_with_platforms(
-    options: RunOptions,
-    mut open_device: OpenDevice,
-    mut others: Vec<Box<dyn Platform>>,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn Error>> {
+pub fn run_with(mut options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+    let mut others = std::mem::take(&mut options.platforms);
+    let mut open_device = OpenDevice {
+        extensions: options.device_extensions,
+        gpu: None,
+    };
     let mut natives = vec![NATIVE];
     natives.extend(others.iter().map(|platform| platform.name()));
     let choice = from_environment(&natives)?;

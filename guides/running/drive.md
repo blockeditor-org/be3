@@ -41,12 +41,12 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui_host::native::run`, `run_with`, `run_with_device`, `run_with_platforms`) read these
+beui's run functions (`beui_host::native::run` and `run_with`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 
 - `BEUI_PLATFORM` picks the platform: the platform's own (`winit`) by default, one of the others
-  the program hands `run_with_platforms` (block-app's `drm`), or `headless`. A
+  the program lists in `RunOptions::platforms` (block-app's `drm`), or `headless`. A
   name it does not know is an error that lists the ones it takes
   (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the app (guides/beui.md, "Layers"):

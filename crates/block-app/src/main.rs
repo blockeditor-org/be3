@@ -116,7 +116,15 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     if arguments.drm {
         app.start_screen_lock();
     }
-    let options = run_options();
+    let options = beui_host::native::RunOptions {
+        #[cfg(target_os = "linux")]
+        device_extensions: &be_dmabuf::DEVICE_EXTENSIONS,
+        #[cfg(target_os = "linux")]
+        platforms: vec![Box::new(beui_platform_drm::Drm)],
+        #[cfg(windows)]
+        device_extensions: &be_win32_capture::DEVICE_EXTENSIONS,
+        ..run_options()
+    };
     if arguments.dev_workspace {
         app.open_dev_workspace(None);
     }
@@ -124,36 +132,7 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
         app.run_as_desktop();
     }
     app.warm_plugins();
-    run_shell(options, Shell::new(app))
-}
-
-#[cfg(target_os = "linux")]
-fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
-    let open_device = beui_host::native::OpenDevice {
-        extensions: &be_dmabuf::DEVICE_EXTENSIONS,
-        gpu: None,
-    };
-    let others: Vec<Box<dyn beui_host::native::Platform>> = vec![Box::new(beui_platform_drm::Drm)];
-    beui_host::native::run_with_platforms(options, open_device, others, shell)
-}
-
-#[cfg(windows)]
-fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
-    let open_device = beui_host::native::OpenDevice {
-        extensions: &be_win32_capture::DEVICE_EXTENSIONS,
-        gpu: None,
-    };
-    beui_host::native::run_with_device(options, open_device, shell)
-}
-
-#[cfg(all(
-    not(target_os = "linux"),
-    not(windows),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-fn run_shell(options: beui_host::native::RunOptions, shell: Shell) -> Result<(), Box<dyn Error>> {
-    beui_host::native::run_with(options, shell)
+    beui_host::native::run_with(options, Shell::new(app))
 }
 
 #[cfg(target_arch = "wasm32")]

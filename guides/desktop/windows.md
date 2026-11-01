@@ -38,8 +38,8 @@ machine; Wine has no Windows.Graphics.Capture.
 - `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
   imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
-  device extensions are `DEVICE_EXTENSIONS`, which block-app's Windows `run_shell` opens wgpu
-  with). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
+  device extensions are `DEVICE_EXTENSIONS`, which block-app's `RunOptions::device_extensions`
+  names on Windows). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
   is captured only while `set_cursor(true)`.
 - `crates/be-win32-input`: `inject` puts pointer, key and text events into an entry at a point
   of its panel (`SendInput` in absolute virtual-desktop coordinates), after
