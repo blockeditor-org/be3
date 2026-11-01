@@ -426,7 +426,7 @@ impl Inspector {
             tools: panel.tools,
             synced_shown: [false; 3],
             state,
-            reader: ScreenReader::default(),
+            reader: ScreenReader::new(ctx.now()),
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,

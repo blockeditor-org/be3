@@ -429,7 +429,7 @@ impl Context {
                 kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
                 clock: Cell::new(None),
-                now: Cell::new(Instant::now()),
+                now: Cell::new(crate::timer::frame_clock()),
             }),
         }
     }
@@ -609,6 +609,7 @@ impl Context {
     pub fn set_clock(&self, now: Instant) {
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
     }
 
     pub fn advance_clock(&self, by: Duration) {
@@ -620,6 +621,7 @@ impl Context {
             + by;
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
     }
 
     pub fn frame_time(&self) -> Instant {
@@ -630,6 +632,7 @@ impl Context {
         self.inner.in_frame.set(true);
         self.inner.woken.set(false);
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
