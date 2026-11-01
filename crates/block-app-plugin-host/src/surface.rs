@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use block_plugin_api::ScreenDamage;
 
 use crate::backend::ShownFrame;
-use crate::presenter::{RegionLayout, SurfacePresenter};
+use crate::presenter::SurfacePresenter;
 
 thread_local! {
     static GPU: RefCell<Option<(wgpu::Device, wgpu::Queue)>> = const { RefCell::new(None) };
@@ -72,28 +72,25 @@ impl ShownFrame for SurfaceFrame {
     }
 }
 
+use beui::native::texture_quad::{Bound, Pipelines};
+
 struct Target {
     generation: u64,
-    bind_group: wgpu::BindGroup,
+    bound: Bound,
     size: (u32, u32),
 }
 
 pub struct Presenter {
-    pipeline: BlitPipeline,
+    pipelines: Pipelines,
     targets: HashMap<(u32, u32), [Option<Target>; 2]>,
 }
 
-pub fn presenter(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    regions: &RegionLayout,
-    format: wgpu::TextureFormat,
-) -> Result<Presenter, String> {
+pub fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter, String> {
     GPU.with(|gpu| {
         *gpu.borrow_mut() = Some((device.clone(), queue.clone()));
     });
     Ok(Presenter {
-        pipeline: BlitPipeline::new(device, regions, format),
+        pipelines: Pipelines::new(device),
         targets: HashMap::default(),
     })
 }
@@ -103,7 +100,7 @@ impl SurfacePresenter for Presenter {
 
     fn replace(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         slot: u32,
         frame: &Self::Frame,
     ) -> Result<(), String> {
@@ -122,55 +119,26 @@ impl SurfacePresenter for Presenter {
             {
                 continue;
             }
-            let view = presented
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
             let size = presented.texture.size();
             *shown = Some(Target {
                 generation: presented.generation,
-                bind_group: self.pipeline.texture_group(device, &view),
+                bound: self.pipelines.bind(&presented.texture),
                 size: (size.width, size.height),
             });
         }
         Ok(())
     }
 
-    fn prepare(
-        &mut self,
-        _queue: &wgpu::Queue,
-        _slot: u32,
-        _frame: &Self::Frame,
-    ) -> Result<(), String> {
-        Ok(())
+    fn pipelines(&self) -> &Pipelines {
+        &self.pipelines
     }
 
-    fn paint(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
-        slot: u32,
-        surface: u32,
-        regions: &wgpu::BindGroup,
-        offset: u32,
-    ) {
-        let Some(texture) = self
-            .targets
-            .get(&(slot, surface))
-            .and_then(|[shown, _]| shown.as_ref())
-            .map(|target| &target.bind_group)
-        else {
-            return;
-        };
-        pass.set_pipeline(&self.pipeline.pipeline);
-        pass.set_bind_group(0, texture, &[]);
-        pass.set_bind_group(1, regions, &[offset]);
-        pass.draw(0..6, 0..1);
+    fn texture(&self, slot: u32, surface: u32) -> Option<&Bound> {
+        self.held(slot, surface).map(|target| &target.bound)
     }
 
     fn size(&self, slot: u32, surface: u32) -> Option<(u32, u32)> {
-        self.targets
-            .get(&(slot, surface))
-            .and_then(|[shown, _]| shown.as_ref())
-            .map(|target| target.size)
+        self.held(slot, surface).map(|target| target.size)
     }
 
     fn retain(&mut self, slot: u32, surfaces: &[u32]) {
@@ -183,103 +151,10 @@ impl SurfacePresenter for Presenter {
     }
 }
 
-pub struct BlitPipeline {
-    pub(super) pipeline: wgpu::RenderPipeline,
-    pub(super) texture_layout: wgpu::BindGroupLayout,
-    pub(super) sampler: wgpu::Sampler,
-}
-
-impl BlitPipeline {
-    pub(super) fn new(
-        device: &wgpu::Device,
-        regions: &RegionLayout,
-        target_format: wgpu::TextureFormat,
-    ) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("blit.wgsl"));
-        let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("hosted plugin surface layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("hosted plugin surface pipeline layout"),
-            bind_group_layouts: &[Some(&texture_layout), Some(&regions.layout)],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("hosted plugin surface pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("blit_vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("blit_fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &[("decode_srgb", f64::from(u8::from(target_format.is_srgb())))],
-                    ..Default::default()
-                },
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        Self {
-            pipeline,
-            texture_layout,
-            sampler: device.create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("hosted plugin surface sampler"),
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            }),
-        }
-    }
-
-    pub(super) fn texture_group(
-        &self,
-        device: &wgpu::Device,
-        view: &wgpu::TextureView,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("hosted plugin surface bind group"),
-            layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        })
+impl Presenter {
+    fn held(&self, slot: u32, surface: u32) -> Option<&Target> {
+        self.targets
+            .get(&(slot, surface))
+            .and_then(|[shown, _]| shown.as_ref())
     }
 }

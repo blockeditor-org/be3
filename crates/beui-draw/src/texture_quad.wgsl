@@ -7,7 +7,7 @@ struct Placed {
     opacity: f32,
     opaque: f32,
     decode_srgb: f32,
-    padding: f32,
+    corner_radius: f32,
 };
 
 @group(0) @binding(0)
@@ -48,8 +48,19 @@ fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
     return select(high, low, gamma <= vec3<f32>(0.04045));
 }
 
+fn covered(uv: vec2<f32>) -> f32 {
+    let size = abs((placed.rect.zw - placed.rect.xy) / (placed.uv.zw - placed.uv.xy));
+    let half = size * 0.5;
+    let corner = min(placed.corner_radius, min(half.x, half.y));
+    let inside = abs(uv * size - half) - (half - vec2<f32>(corner));
+    let distance = length(max(inside, vec2<f32>(0.0))) + min(max(inside.x, inside.y), 0.0) - corner;
+    let pixel = max(fwidth(distance), 0.0001);
+    return select(1.0, clamp(0.5 - distance / pixel, 0.0, 1.0), corner > 0.0);
+}
+
 @fragment
 fn fragment(input: Output) -> @location(0) vec4<f32> {
+    let coverage = covered(input.uv);
     let at = input.position.xy;
     if any(at < placed.clip.xy) || any(at >= placed.clip.zw) {
         discard;
@@ -63,5 +74,5 @@ fn fragment(input: Output) -> @location(0) vec4<f32> {
     if placed.opaque > 0.5 {
         alpha = 1.0;
     }
-    return vec4<f32>(rgb, alpha) * placed.opacity;
+    return vec4<f32>(rgb, alpha) * placed.opacity * coverage;
 }

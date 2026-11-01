@@ -3549,11 +3549,15 @@ a viewport.
 
 To show a texture, use `beui::native::texture_quad` instead of writing a pipeline:
 `TextureDraw` is a `Draw` that fills its rect with one texture, and `Quad` sets
-the source rect, a rotation about the centre, opacity, `opaque` (alpha read as
-1) and `srgb_encoded` (sRGB values in a unorm texture, decoded when the target
+the source rect, a rotation about the centre, opacity, `corner_radius` (in
+pixels, rounding the corners of the whole texture, so a source rect that cuts
+the texture keeps its cut edges square), `opaque` (alpha read as 1) and
+`srgb_encoded` (sRGB values in a unorm texture, decoded when the target
 encodes). A host drawing several textures in one `Draw` binds them with
 `Pipelines` and prepares them with `Quads`; one painting outside a `Draw`, such
-as the DRM output, calls `Pipelines::paint`.
+as the DRM output, calls `Pipelines::paint`. `Pipelines::erasing` draws the
+same quads by clearing what they cover, which is how the browser's plugin host
+cuts the holes its plugin canvases show through.
 
 `beui::native::drawing` wraps a `Draw` in a `Drawing`, and two drawings are the same shape when they
 are the same `Rc`. That is what decides whether the frame changed, so a drawing

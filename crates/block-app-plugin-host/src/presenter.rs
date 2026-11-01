@@ -6,7 +6,11 @@ use std::{
 };
 
 use beui::native::painting::{Painting, Paints, Placement};
-use beui::{Pos2, Rect, Vec2, native::DrawAt, pos2, vec2};
+use beui::{
+    Pos2, Rect, Rotation, Vec2,
+    native::{DrawAt, texture_quad},
+    pos2, vec2,
+};
 use block_plugin_api::{ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
 use super::backend::{Availability, Frame, ShownFrame};
@@ -52,21 +56,13 @@ pub(super) trait SurfacePresenter {
         frame: &Self::Frame,
     ) -> Result<(), String>;
 
-    fn prepare(
-        &mut self,
-        queue: &wgpu::Queue,
-        slot: u32,
-        frame: &Self::Frame,
-    ) -> Result<(), String>;
+    fn pipelines(&self) -> &texture_quad::Pipelines;
 
-    fn paint(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
-        slot: u32,
-        surface: u32,
-        regions: &wgpu::BindGroup,
-        offset: u32,
-    );
+    fn texture(&self, slot: u32, surface: u32) -> Option<&texture_quad::Bound>;
+
+    fn shown(&self, quad: texture_quad::Quad) -> texture_quad::Quad {
+        quad
+    }
 
     fn size(&self, _slot: u32, _surface: u32) -> Option<(u32, u32)> {
         None
@@ -78,40 +74,11 @@ pub(super) trait SurfacePresenter {
 }
 
 const MAX_PENDING_FRAMES: usize = 8;
-pub(super) const REGION_BYTES: u64 = 64;
-
-pub(super) struct RegionLayout {
-    pub(super) layout: wgpu::BindGroupLayout,
-    stride: u32,
-}
-
-impl RegionLayout {
-    pub(super) fn new(device: &wgpu::Device) -> Self {
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("hosted plugin region layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: true,
-                    min_binding_size: wgpu::BufferSize::new(REGION_BYTES),
-                },
-                count: None,
-            }],
-        });
-        let stride = device
-            .limits()
-            .min_uniform_buffer_offset_alignment
-            .max(REGION_BYTES as u32);
-        Self { layout, stride }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Quad {
     pub rect: Rect,
-    pub corners: [Pos2; 4],
+    pub rotation: f32,
     pub opacity: f32,
     pub corner_radius: f32,
 }
@@ -120,93 +87,74 @@ impl Quad {
     pub fn upright(rect: Rect) -> Self {
         Self {
             rect,
-            corners: [
-                rect.left_top(),
-                rect.right_top(),
-                rect.right_bottom(),
-                rect.left_bottom(),
-            ],
+            rotation: 0.0,
             opacity: 1.0,
             corner_radius: 0.0,
         }
     }
 
-    pub fn crop_to(self, clip: Rect) -> Option<(Self, Rect)> {
-        let horizontal = self.corners[1] - self.corners[0];
-        let vertical = self.corners[3] - self.corners[0];
-        let determinant = horizontal.x * vertical.y - horizontal.y * vertical.x;
-        if determinant.abs() <= f32::EPSILON {
-            return None;
-        }
-        let to_uv = |point: Pos2| {
-            let delta = point - self.corners[0];
+    fn turning(&self) -> Rotation {
+        Rotation::new(self.rect.center(), self.rotation)
+    }
+
+    pub fn part(self, fraction: Rect) -> Self {
+        let at = |point: Pos2| {
             pos2(
-                (delta.x * vertical.y - delta.y * vertical.x) / determinant,
-                (horizontal.x * delta.y - horizontal.y * delta.x) / determinant,
+                self.rect.min.x + self.rect.width() * point.x,
+                self.rect.min.y + self.rect.height() * point.y,
             )
         };
-        let source = Rect::from_points(&[
-            to_uv(clip.left_top()),
-            to_uv(clip.right_top()),
-            to_uv(clip.right_bottom()),
-            to_uv(clip.left_bottom()),
-        ])
-        .intersect(Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)));
-        if source.width() <= 0.0 || source.height() <= 0.0 {
-            return None;
-        }
-        let point = |u: f32, v: f32| self.corners[0] + horizontal * u + vertical * v;
-        let corners = [
-            point(source.min.x, source.min.y),
-            point(source.max.x, source.min.y),
-            point(source.max.x, source.max.y),
-            point(source.min.x, source.max.y),
-        ];
-        Some((
-            Self {
-                rect: Rect::from_points(&corners),
-                corners,
-                opacity: self.opacity,
-                corner_radius: self.corner_radius,
-            },
-            source,
-        ))
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Region {
-    pub(super) offset: [f32; 2],
-    pub(super) scale: [f32; 2],
-    pub(super) quad: Quad,
-}
-
-impl Region {
-    pub(super) fn of(quad: Quad, source: Rect) -> Self {
+        let part = Rect::from_min_max(at(fraction.min), at(fraction.max));
         Self {
-            offset: [source.min.x, source.min.y],
-            scale: [source.width(), source.height()],
-            quad,
+            rect: part.translate(self.turning().apply(part.center()) - part.center()),
+            ..self
         }
     }
 
-    fn values(&self, at: &DrawAt) -> [f32; 16] {
-        let scale = at.pixels_per_point;
-        let screen: Vec2 = vec2(at.screen.x.max(1.0), at.screen.y.max(1.0));
-        let mut values = [0.0; 16];
-        values[..2].copy_from_slice(&self.offset);
-        values[2..4].copy_from_slice(&self.scale);
-        for (index, corner) in self.quad.corners.iter().enumerate() {
-            values[4 + index * 2] = corner.x * scale / screen.x * 2.0 - 1.0;
-            values[5 + index * 2] = 1.0 - corner.y * scale / screen.y * 2.0;
-        }
-        values[12] = self.quad.opacity.clamp(0.0, 1.0);
-        let [first, along, _, below] = self.quad.corners;
-        values[13] = (along - first).length() / self.scale[0].max(f32::EPSILON);
-        values[14] = (below - first).length() / self.scale[1].max(f32::EPSILON);
-        values[15] = self.quad.corner_radius.max(0.0);
-        values
+    pub fn corners(&self) -> [Pos2; 4] {
+        [
+            self.rect.left_top(),
+            self.rect.right_top(),
+            self.rect.right_bottom(),
+            self.rect.left_bottom(),
+        ]
+        .map(|corner| self.turning().apply(corner))
     }
+
+    pub fn bounds(&self) -> Rect {
+        self.turning().bounds(self.rect)
+    }
+
+    fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
+        let scale = at.pixels_per_point;
+        texture_quad::Quad {
+            rect: [
+                self.rect.min.x * scale,
+                self.rect.min.y * scale,
+                self.rect.max.x * scale,
+                self.rect.max.y * scale,
+            ],
+            uv: [source.min.x, source.min.y, source.max.x, source.max.y],
+            clip: at.clip,
+            rotation: self.rotation,
+            opacity: self.opacity.clamp(0.0, 1.0),
+            corner_radius: self.corner_radius.max(0.0) * scale,
+            srgb_encoded: true,
+            ..texture_quad::Quad::default()
+        }
+    }
+}
+
+pub(super) fn shown_part(rect: Rect, clip: Rect) -> Option<Rect> {
+    let shown = rect.intersect(clip);
+    let fraction = |point: Pos2| {
+        pos2(
+            (point.x - rect.min.x) / rect.width(),
+            (point.y - rect.min.y) / rect.height(),
+        )
+    };
+    (rect.is_positive() && shown.is_positive())
+        .then(|| Rect::from_min_max(fraction(shown.min), fraction(shown.max)))
 }
 
 #[derive(Default)]
@@ -305,7 +253,7 @@ impl PartialEq for Blit {
 
 impl Blit {
     pub fn rect(&self) -> Rect {
-        self.quad.rect
+        self.quad.bounds()
     }
 
     pub(super) fn shown_at(&self, painted: (u32, u32)) -> Option<(Quad, Rect)> {
@@ -374,21 +322,8 @@ pub(super) fn within_texture(quad: Quad, source: Rect) -> Option<(Quad, Rect)> {
     };
     let (right, across) = axis(source.min.x, source.max.x)?;
     let (bottom, down) = axis(source.min.y, source.max.y)?;
-    let [origin, along, _, below] = quad.corners;
-    let at = |x: f32, y: f32| origin + (along - origin) * x + (below - origin) * y;
-    let corners = [
-        at(0.0, 0.0),
-        at(across, 0.0),
-        at(across, down),
-        at(0.0, down),
-    ];
     Some((
-        Quad {
-            rect: Rect::from_points(&corners),
-            corners,
-            opacity: quad.opacity,
-            corner_radius: quad.corner_radius,
-        },
+        quad.part(Rect::from_min_max(Pos2::ZERO, pos2(across, down))),
         Rect::from_min_max(source.min, pos2(right, bottom)),
     ))
 }
@@ -428,24 +363,16 @@ pub(super) fn damaged_pieces(
         .collect()
 }
 
-struct Regions {
-    buffer: wgpu::Buffer,
-    group: wgpu::BindGroup,
-    capacity: usize,
-}
-
 pub struct PluginDrawing {
     blits: RefCell<Vec<Blit>>,
-    regions: RefCell<Option<Regions>>,
-    placed: RefCell<Vec<Option<(u32, u32)>>>,
+    quads: texture_quad::Quads,
 }
 
 impl PluginDrawing {
     pub fn new(blits: Vec<Blit>) -> Self {
         Self {
             blits: RefCell::new(blits),
-            regions: RefCell::new(None),
-            placed: RefCell::new(Vec::new()),
+            quads: texture_quad::Quads::default(),
         }
     }
 }
@@ -506,44 +433,19 @@ impl ViewDrawing {
             )),
             (requested, _) => requested,
         };
-        let center = rect.center();
-        let (sin, cos) = self.rotation.sin_cos();
-        let turn = |point: Pos2| {
-            let offset = point - center;
-            center
-                + vec2(
-                    offset.x * cos - offset.y * sin,
-                    offset.x * sin + offset.y * cos,
-                )
-        };
-        let at_fraction = |x: f32, y: f32| {
-            turn(pos2(
-                rect.min.x + rect.width() * x,
-                rect.min.y + rect.height() * y,
-            ))
+        let view = Quad {
+            rect,
+            rotation: self.rotation,
+            ..self.template.quad
         };
         self.pieces
             .borrow()
             .iter()
-            .map(|piece| {
-                let local = piece.local;
-                let corners = [
-                    at_fraction(local.min.x, local.min.y),
-                    at_fraction(local.max.x, local.min.y),
-                    at_fraction(local.max.x, local.max.y),
-                    at_fraction(local.min.x, local.max.y),
-                ];
-                Blit {
-                    quad: Quad {
-                        rect: Rect::from_points(&corners),
-                        corners,
-                        opacity: self.template.quad.opacity,
-                        corner_radius: self.template.quad.corner_radius,
-                    },
-                    source: piece.source,
-                    requested,
-                    ..self.template.clone()
-                }
+            .map(|piece| Blit {
+                quad: view.part(piece.local),
+                source: piece.source,
+                requested,
+                ..self.template.clone()
             })
             .collect()
     }
@@ -591,21 +493,16 @@ impl beui::native::Draw for AnchoredDrawing {
             .blits
             .borrow()
             .iter()
-            .map(|blit| {
-                let corners = blit.quad.corners.map(|corner| corner + offset);
-                Blit {
-                    quad: Quad {
-                        rect: blit.quad.rect.translate(offset),
-                        corners,
-                        opacity: blit.quad.opacity,
-                        corner_radius: blit.quad.corner_radius,
-                    },
-                    layer: blit.layer.map(|layer| AnchoredSource {
-                        bounds: layer.bounds.translate(offset),
-                        ..layer
-                    }),
-                    ..blit.clone()
-                }
+            .map(|blit| Blit {
+                quad: Quad {
+                    rect: blit.quad.rect.translate(offset),
+                    ..blit.quad
+                },
+                layer: blit.layer.map(|layer| AnchoredSource {
+                    bounds: layer.bounds.translate(offset),
+                    ..layer
+                }),
+                ..blit.clone()
             })
             .collect();
         #[cfg(target_arch = "wasm32")]
@@ -648,13 +545,11 @@ impl Paints for AnchoredDrawing {
             };
             primitives.extend(painting.placed(Placement {
                 source: [source.min.x, source.min.y, source.max.x, source.max.y],
-                corners: quad.corners.map(|corner| [corner.x, corner.y]),
-                clip: [
-                    quad.rect.min.x,
-                    quad.rect.min.y,
-                    quad.rect.max.x,
-                    quad.rect.max.y,
-                ],
+                corners: quad.corners().map(|corner| [corner.x, corner.y]),
+                clip: {
+                    let bounds = quad.bounds();
+                    [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]
+                },
                 corner_radius: 0.0,
             }));
             for (key, pixels) in &painting.textures {
@@ -780,13 +675,11 @@ impl Paints for ViewDrawing {
             found = true;
             primitives.extend(screen.placed(Placement {
                 source: [source.min.x, source.min.y, source.max.x, source.max.y],
-                corners: quad.corners.map(|corner| [corner.x, corner.y]),
-                clip: [
-                    quad.rect.min.x,
-                    quad.rect.min.y,
-                    quad.rect.max.x,
-                    quad.rect.max.y,
-                ],
+                corners: quad.corners().map(|corner| [corner.x, corner.y]),
+                clip: {
+                    let bounds = quad.bounds();
+                    [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]
+                },
                 corner_radius: quad.corner_radius,
             }));
             for (key, pixels) in &screen.textures {
@@ -824,47 +717,22 @@ impl beui::native::Draw for PluginDrawing {
                 }
                 return;
             };
-            let mut regions = self.regions.borrow_mut();
-            let needed = blits.len().max(1);
-            if regions
-                .as_ref()
-                .is_none_or(|regions| regions.capacity < needed)
-            {
-                let capacity = needed.next_power_of_two();
-                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("plugin surface regions"),
-                    size: u64::from(presenter.regions.stride) * capacity as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("plugin surface regions"),
-                    layout: &presenter.regions.layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &buffer,
-                            offset: 0,
-                            size: wgpu::BufferSize::new(REGION_BYTES),
-                        }),
-                    }],
-                });
-                *regions = Some(Regions {
-                    buffer,
-                    group,
-                    capacity,
-                });
-            }
-            let regions = regions.as_ref().expect("the regions were just created");
-            let mut placed = self.placed.borrow_mut();
-            placed.clear();
-            for (index, blit) in blits.iter().enumerate() {
+            let Some(platform) = &mut presenter.platform else {
+                for blit in blits.iter() {
+                    blit.shared.borrow_mut().take_frames();
+                    blit.status
+                        .set(PresenterState::Unsupported(UNSUPPORTED.to_owned()));
+                }
+                return;
+            };
+            let mut placed = Vec::new();
+            for blit in blits.iter() {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
                     let laid = |placement: &ScreenPlacement| {
                         let (quad, source) = blit.shown_at((placement.width, placement.height))?;
-                        Some((placement.surface, Region::of(quad, source)))
+                        Some((placement.surface, quad, source))
                     };
                     let region = match blit.layer {
                         Some(_) => None,
@@ -880,19 +748,16 @@ impl beui::native::Draw for PluginDrawing {
                 };
                 let mut failure = None;
                 for frame in &frames {
-                    let applied = presenter
-                        .replace(device, blit.surface, frame)
-                        .and_then(|()| presenter.prepare(queue, blit.surface, frame));
-                    if let Err(error) = applied {
+                    if let Err(error) = platform.replace(device, blit.surface, frame) {
                         failure = Some(error);
                     }
                 }
                 if !frames.is_empty() {
-                    presenter.retain(blit.surface, &surfaces);
+                    platform.retain(blit.surface, &surfaces);
                 }
                 let region =
                     match blit.layer {
-                        Some(layer) => presenter.size(blit.surface, layer.surface).and_then(
+                        Some(layer) => platform.size(blit.surface, layer.surface).and_then(
                             |(width, height)| {
                                 let (width, height) = (width as f32, height as f32);
                                 let source = Rect::from_min_max(
@@ -901,54 +766,38 @@ impl beui::native::Draw for PluginDrawing {
                                 );
                                 let (quad, source) = (width > 0.0 && height > 0.0)
                                     .then(|| within_texture(blit.quad, source))??;
-                                Some((layer.surface, Region::of(quad, source)))
+                                Some((layer.surface, quad, source))
                             },
                         ),
                         None => region,
                     };
-                match failure {
-                    Some(error) => blit.status.set(PresenterState::Failed(error)),
-                    None if presenter.platform.is_some() => {
-                        blit.status.set(PresenterState::Presenting);
-                    }
-                    None => blit
-                        .status
-                        .set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
+                blit.status.set(match failure {
+                    Some(error) => PresenterState::Failed(error),
+                    None => PresenterState::Presenting,
+                });
+                if let Some((surface, quad, source)) = region {
+                    placed.push((
+                        blit.surface,
+                        surface,
+                        platform.shown(quad.placed(source, &at)),
+                    ));
                 }
-                placed.push(region.map(|(surface, region)| {
-                    let offset = presenter.regions.stride * index as u32;
-                    queue.write_buffer(
-                        &regions.buffer,
-                        u64::from(offset),
-                        bytemuck::cast_slice(&region.values(&at)),
-                    );
-                    (offset, surface)
-                }));
             }
+            let platform = &*platform;
+            self.quads.prepare(
+                platform.pipelines(),
+                queue,
+                at.format,
+                [at.screen.x, at.screen.y],
+                placed.into_iter().filter_map(|(slot, surface, quad)| {
+                    Some((platform.texture(slot, surface)?, quad))
+                }),
+            );
         });
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
-        PRESENTER.with(|presenter| {
-            let presenter = presenter.borrow();
-            let Some(presenter) = presenter.as_ref() else {
-                return;
-            };
-            let Some(platform) = &presenter.platform else {
-                return;
-            };
-            let regions = self.regions.borrow();
-            let Some(regions) = regions.as_ref() else {
-                return;
-            };
-            let placed = self.placed.borrow();
-            let blits = self.blits.borrow();
-            for (blit, placed) in blits.iter().zip(placed.iter()) {
-                if let Some((offset, surface)) = placed {
-                    platform.paint(pass, blit.surface, *surface, &regions.group, *offset);
-                }
-            }
-        });
+        self.quads.paint(pass);
     }
 }
 
@@ -957,7 +806,6 @@ thread_local! {
 }
 
 struct Presenter {
-    regions: RegionLayout,
     platform: Option<PlatformPresenter>,
 }
 
@@ -965,12 +813,10 @@ pub(super) fn install(setup: &beui::native::Setup) -> Availability {
     let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
         return Availability(Ok(()));
     };
-    let regions = RegionLayout::new(&gpu.device);
-    let platform = build_presenter(&gpu.device, &gpu.queue, &regions, gpu.format);
+    let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
-            regions,
             platform: platform.ok(),
         });
     });
@@ -997,32 +843,6 @@ pub(super) fn release(slot: u32, status: &PresenterStatus) {
         }
     });
     status.set(PresenterState::Released);
-}
-
-impl Presenter {
-    fn replace(&mut self, device: &wgpu::Device, slot: u32, frame: &Frame) -> Result<(), String> {
-        match &mut self.platform {
-            Some(presenter) => presenter.replace(device, slot, frame),
-            None => Err(UNSUPPORTED.to_owned()),
-        }
-    }
-
-    fn prepare(&mut self, queue: &wgpu::Queue, slot: u32, frame: &Frame) -> Result<(), String> {
-        match &mut self.platform {
-            Some(presenter) => presenter.prepare(queue, slot, frame),
-            None => Err(UNSUPPORTED.to_owned()),
-        }
-    }
-
-    fn size(&self, slot: u32, surface: u32) -> Option<(u32, u32)> {
-        self.platform.as_ref()?.size(slot, surface)
-    }
-
-    fn retain(&mut self, slot: u32, surfaces: &[u32]) {
-        if let Some(presenter) = &mut self.platform {
-            presenter.retain(slot, surfaces);
-        }
-    }
 }
 
 const UNSUPPORTED: &str = "This build has no presenter for that plugin surface.";
