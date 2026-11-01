@@ -1,17 +1,15 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::{
-    Color32, FillRule, FontId, LineCap, LineJoin, Path, Pos2, Rect, Stroke, TextAlign, TextLayout,
-    Vec2, pos2, reactive::Painter,
+    CanvasView, Color32, FillRule, FontId, LineCap, LineJoin, Path, Pos2, Rect, Stroke, TextAlign,
+    TextLayout, Vec2, pos2, reactive::Painter,
 };
 use infinite_canvas_types::{CanvasPoint, CanvasStyle};
 
 use crate::freehand;
 use crate::geometry::*;
 
-use super::paint::{
-    Camera, Palette, SELECTION, arrowhead, handle, outline, resolve_color, with_opacity,
-};
+use super::paint::{Palette, SELECTION, arrowhead, handle, outline, resolve_color, with_opacity};
 use super::state::{Gesture, RemoteCursor, RemoteSelection, Tool};
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
@@ -122,7 +120,7 @@ impl Badge {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Overlay {
-    pub(crate) camera: Camera,
+    pub(crate) camera: CanvasView,
     pub(crate) palette: Palette,
     pub(crate) outlines: Vec<SelectionFrame>,
     pub(crate) frame: Option<SelectionFrame>,
@@ -177,7 +175,9 @@ impl Overlay {
 
     pub(crate) fn draw(&self, painter: &Painter) {
         for outline_frame in &self.outlines {
-            let corners = outline_frame.corners().map(|corner| self.camera.at(corner));
+            let corners = outline_frame
+                .corners()
+                .map(|corner| self.camera.to_screen(point(corner)));
             outline(painter, corners, 1.0, SELECTION);
         }
         self.draw_group(painter);
@@ -192,7 +192,7 @@ impl Overlay {
             let corners = selection
                 .frame
                 .corners()
-                .map(|corner| self.camera.at(corner));
+                .map(|corner| self.camera.to_screen(point(corner)));
             outline(painter, corners, 1.5, color);
         }
     }
@@ -201,7 +201,10 @@ impl Overlay {
         let Some(group) = self.group else {
             return;
         };
-        let rect = self.camera.rect(group).expand(GROUP_MARGIN);
+        let rect = self
+            .camera
+            .rect_to_screen(group.rect())
+            .expand(GROUP_MARGIN);
         let outline = Path::polygon([
             rect.left_top(),
             rect.right_top(),
@@ -213,7 +216,10 @@ impl Overlay {
 
     fn draw_anchors(&self, painter: &Painter) {
         for [end, anchor] in &self.anchors {
-            let (end, anchor) = (self.camera.at(*end), self.camera.at(*anchor));
+            let (end, anchor) = (
+                self.camera.to_screen(point(*end)),
+                self.camera.to_screen(point(*anchor)),
+            );
             painter.stroke_path(
                 &Path::polyline([end, anchor]),
                 &Stroke::new(1.0).dashed(DASHES, 0.0),
@@ -225,31 +231,43 @@ impl Overlay {
     }
 
     fn draw_path_grips(&self, painter: &Painter, grips: &PathGrips) {
-        let outline = Path::polyline(grips.outline.iter().map(|at| self.camera.at(*at)));
+        let outline = Path::polyline(
+            grips
+                .outline
+                .iter()
+                .map(|at| self.camera.to_screen(point(*at))),
+        );
         painter.stroke_path(&outline, &Stroke::new(1.0).join(LineJoin::Round), SELECTION);
         for middle in &grips.middles {
-            let ring = Path::ellipse(self.camera.at(*middle), Vec2::splat(HANDLE_RADIUS - 1.0));
+            let ring = Path::ellipse(
+                self.camera.to_screen(point(*middle)),
+                Vec2::splat(HANDLE_RADIUS - 1.0),
+            );
             painter.fill_path(&ring, FillRule::NonZero, self.palette.surface);
             painter.stroke_path(&ring, &Stroke::new(1.5), SELECTION);
         }
-        for point in &grips.points {
-            handle(painter, self.camera.at(*point), SELECTION);
+        for at in &grips.points {
+            handle(painter, self.camera.to_screen(point(*at)), SELECTION);
         }
     }
 
     fn draw_selection(&self, painter: &Painter, frame: SelectionFrame) {
-        let corners = frame.corners().map(|corner| self.camera.at(corner));
+        let corners = frame
+            .corners()
+            .map(|corner| self.camera.to_screen(point(corner)));
         outline(painter, corners, 1.0, SELECTION);
         if self.resize != ResizeMode::None {
             for (spot, at) in resize_handles(frame) {
                 if resize_handle_allowed(spot, self.resize) {
-                    handle(painter, self.camera.at(at), SELECTION);
+                    handle(painter, self.camera.to_screen(point(at)), SELECTION);
                 }
             }
         }
         if self.rotatable {
-            let top = self.camera.at(frame.point(CanvasPoint::new(0.0, -0.5)));
-            let grip = self.camera.at(frame.rotate_handle());
+            let top = self
+                .camera
+                .to_screen(point(frame.point(CanvasPoint::new(0.0, -0.5))));
+            let grip = self.camera.to_screen(point(frame.rotate_handle()));
             painter.line(top, grip, 1.0, SELECTION);
             handle(painter, grip, SELECTION);
         }
@@ -258,7 +276,7 @@ impl Overlay {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Live {
-    pub(crate) camera: Camera,
+    pub(crate) camera: CanvasView,
     pub(crate) palette: Palette,
     pub(crate) gesture: Option<Gesture>,
     pub(crate) cursors: Vec<RemoteCursor>,
@@ -280,7 +298,7 @@ impl Live {
                 continue;
             };
             let color = block_editor_text::presence_color(cursor.color);
-            let tip = self.camera.at(pointer);
+            let tip = self.camera.to_screen(point(pointer));
             let inward = Vec2::new(0.4, 1.0);
             let length = inward.length();
             arrowhead(
@@ -293,7 +311,7 @@ impl Live {
             );
         }
         if let Some(badge) = &self.badge {
-            let at = self.camera.at(badge.at);
+            let at = self.camera.to_screen(point(badge.at));
             if stage.contains(pos2(at.x, at.y + BADGE_BELOW)) {
                 badge.draw(painter, at, &self.palette);
             }
@@ -313,10 +331,18 @@ impl Live {
                     super::state::snapped_point(*start, *snapped),
                     super::state::snapped_point(*current, *snapped),
                 );
-                painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, self.palette.auto);
+                painter.rect_stroke(
+                    self.camera.rect_to_screen(bounds.rect()),
+                    0.0,
+                    2.0,
+                    self.palette.auto,
+                );
             }
             Some(Gesture::Erase { trail, .. }) => {
-                let points: Vec<Pos2> = trail.iter().map(|at| self.camera.at(*at)).collect();
+                let points: Vec<Pos2> = trail
+                    .iter()
+                    .map(|at| self.camera.to_screen(point(*at)))
+                    .collect();
                 if let [only] = points.as_slice() {
                     let dot = Path::ellipse(*only, Vec2::splat(ERASER_TRAIL_WIDTH / 2.0));
                     painter.fill_path(&dot, FillRule::NonZero, self.palette.muted);
@@ -359,12 +385,13 @@ impl Live {
             }) => {
                 let rect = self
                     .camera
-                    .rect(gesture_rect(*start, *current, *from_center));
+                    .rect_to_screen(gesture_rect(*start, *current, *from_center).rect());
                 painter.rect_filled(rect, 0.0, SELECT_BOX_FILL);
                 painter.rect_stroke(rect, 0.0, 1.0, SELECTION);
             }
             Some(Gesture::Lasso { points, .. }) => {
-                let lasso = Path::polygon(points.iter().map(|point| self.camera.at(*point)));
+                let lasso =
+                    Path::polygon(points.iter().map(|at| self.camera.to_screen(point(*at))));
                 painter.fill_path(&lasso, FillRule::NonZero, SELECT_BOX_FILL);
                 painter.stroke_path(
                     &lasso,
@@ -412,13 +439,16 @@ fn stroke_ink(style: &CanvasStyle, palette: &Palette) -> Color32 {
 
 fn live_stroke(
     painter: &Painter,
-    camera: Camera,
+    camera: CanvasView,
     points: &[CanvasPoint],
     pressures: &[f32],
     width: f32,
     color: Color32,
 ) {
-    let points: Vec<Pos2> = points.iter().map(|point| camera.at(*point)).collect();
+    let points: Vec<Pos2> = points
+        .iter()
+        .map(|at| camera.to_screen(point(*at)))
+        .collect();
     let outline = freehand::stroke(&points, pressures, width * camera.scale, false);
     painter.fill_path(&outline, FillRule::NonZero, color);
 }

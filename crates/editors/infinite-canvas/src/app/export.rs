@@ -20,9 +20,10 @@ use infinite_canvas_types::{
 };
 use uuid::Uuid;
 
-use crate::geometry::{TEXT_INSET, entity_bounds};
+use crate::geometry::{TEXT_INSET, entity_bounds, point};
+use block_editor_beui::beui::CanvasView;
 
-use super::paint::{Camera, EntityPaint, Palette, resolve_color, with_opacity};
+use super::paint::{EntityPaint, Palette, resolve_color, with_opacity};
 use super::sketch::{Ink, Mark, Sketch};
 use super::state::CanvasState;
 use super::text::{
@@ -390,7 +391,7 @@ pub(crate) fn png(
         if options.background {
             painter.rect_filled(whole, 0.0, scene.background);
         }
-        let camera = Camera::item(scene.area.min, 1.0);
+        let camera = CanvasView::from_corner(scene.area.min, 1.0);
         for entity in &scene.entities {
             match scene.rasters.get(&entity.id) {
                 Some(raster) => draw_raster(&painter, entity, raster, camera, scale),
@@ -416,13 +417,13 @@ fn draw_raster(
     painter: &Painter,
     entity: &CanvasEntity,
     raster: &CanvasRaster,
-    camera: Camera,
+    camera: CanvasView,
     scale: f32,
 ) {
     if entity.hidden {
         return;
     }
-    let rect = camera.rect(entity_bounds(entity));
+    let rect = camera.rect_to_screen(entity_bounds(entity).rect());
     let (width, height) = (u32::from(raster.width()), u32::from(raster.height()));
     let wanted = (scale
         * (rect.width() / width.max(1) as f32).max(rect.height() / height.max(1) as f32))
@@ -470,7 +471,7 @@ fn draw(
     painter: &Painter,
     scene: &Scene,
     entity: &CanvasEntity,
-    camera: Camera,
+    camera: CanvasView,
     images: &BTreeMap<Uuid, Image>,
 ) {
     let opacity = entity.style.opacity.clamp(0.0, 1.0);
@@ -478,17 +479,23 @@ fn draw(
         resolve_color(entity.style.stroke_color, scene.palette.auto),
         opacity,
     );
-    let turned = painter.rotated(camera.at(entity.transform.center), text_turn(entity));
+    let turned = painter.rotated(
+        camera.to_screen(point(entity.transform.center)),
+        text_turn(entity),
+    );
     if entity.shape == CanvasShape::Text {
         paint_written(&turned, entity, ink, camera);
         return;
     }
     let embed = entity.block.and_then(|block| scene.embeds.get(&block));
     if let Some(image) = entity.block.and_then(|block| images.get(&block)) {
-        let rect = camera.rect(crate::geometry::WorldRect::from_points(
-            entity_corner(entity, -0.5),
-            entity_corner(entity, 0.5),
-        ));
+        let rect = camera.rect_to_screen(
+            crate::geometry::WorldRect::from_points(
+                entity_corner(entity, -0.5),
+                entity_corner(entity, 0.5),
+            )
+            .rect(),
+        );
         painter
             .rotated(rect.center(), entity.transform.rotation)
             .image(
@@ -519,7 +526,7 @@ fn draw(
     paint_written(&turned, entity, ink, camera);
 }
 
-fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) {
+fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: CanvasView) {
     for Written {
         origin,
         layout,
@@ -553,7 +560,12 @@ struct Written {
     missing: Vec<Rect>,
 }
 
-fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) -> Vec<Written> {
+fn written(
+    painter: &Painter,
+    entity: &CanvasEntity,
+    ink: Color32,
+    camera: CanvasView,
+) -> Vec<Written> {
     if entity.text.is_empty() || !writes(entity) {
         return Vec::new();
     }
@@ -561,10 +573,13 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
     let prose = prose(text_style(entity), px);
     let region = text_region(entity);
     let inner = camera
-        .rect(crate::geometry::WorldRect::from_points(
-            CanvasPoint::new(region.min.x, region.min.y),
-            CanvasPoint::new(region.max.x, region.max.y),
-        ))
+        .rect_to_screen(
+            crate::geometry::WorldRect::from_points(
+                CanvasPoint::new(region.min.x, region.min.y),
+                CanvasPoint::new(region.max.x, region.max.y),
+            )
+            .rect(),
+        )
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
         syntax: SyntaxColors::uniform(ink.into()),
@@ -670,10 +685,10 @@ fn svg_entity(
         resolve_color(style.stroke_color, scene.palette.auto),
         opacity,
     );
-    let world = Camera::item(Pos2::ZERO, 1.0);
+    let world = CanvasView::from_corner(Pos2::ZERO, 1.0);
     let turn = turn(entity);
     if let Some(raster) = scene.rasters.get(&entity.id) {
-        let rect = world.rect(entity_bounds(entity));
+        let rect = world.rect_to_screen(entity_bounds(entity).rect());
         out.push_str(&format!(
             "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"none\" image-rendering=\"pixelated\" style=\"image-rendering:pixelated\"{} href=\"data:image/png;base64,{}\"/>\n",
             number(rect.min.x),
@@ -690,10 +705,13 @@ fn svg_entity(
         return;
     }
     if entity.shape.embeds_block() {
-        let rect = world.rect(crate::geometry::WorldRect::from_points(
-            entity_corner(entity, -0.5),
-            entity_corner(entity, 0.5),
-        ));
+        let rect = world.rect_to_screen(
+            crate::geometry::WorldRect::from_points(
+                entity_corner(entity, -0.5),
+                entity_corner(entity, 0.5),
+            )
+            .rect(),
+        );
         let place = format!(
             "x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{turn}",
             number(rect.min.x),
@@ -779,7 +797,12 @@ fn svg_written(
     ink: Color32,
     turn: &str,
 ) {
-    let lines = written(painter, entity, ink, Camera::item(Pos2::ZERO, 1.0));
+    let lines = written(
+        painter,
+        entity,
+        ink,
+        CanvasView::from_corner(Pos2::ZERO, 1.0),
+    );
     if lines.is_empty() {
         return;
     }

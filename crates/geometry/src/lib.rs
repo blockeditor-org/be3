@@ -463,6 +463,10 @@ impl CanvasView {
         Self { origin, scale }
     }
 
+    pub fn from_corner(corner: Pos2, scale: f32) -> Self {
+        Self::new(pos2(-corner.x * scale, -corner.y * scale), scale)
+    }
+
     pub fn to_screen(self, point: Pos2) -> Pos2 {
         pos2(
             self.origin.x + point.x * self.scale,
