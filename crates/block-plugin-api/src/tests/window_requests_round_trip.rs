@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn window_requests_round_trip() {
     {
-        let message = FrameCommit {
+        let message = LayoutCommit {
             windows: vec![ScreenWindow {
                 screen: ScreenId(7),
                 window: WindowRequests {

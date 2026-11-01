@@ -22,23 +22,20 @@ fn hello() -> Hello {
     }
 }
 
-fn frame(serial: u64) -> FrameCommit {
-    FrameCommit {
+fn frame(serial: u64) -> LayoutCommit {
+    LayoutCommit {
         serial,
         sizes: Vec::new(),
         reports: Vec::new(),
         windows: Vec::new(),
         children: Vec::new(),
-        repaint_after_micros: None,
-        animating: false,
-        presented: None,
         window_requests: Vec::new(),
         docks: Vec::new(),
     }
 }
 
-fn committed(children: ChildPlacements) -> FrameCommit {
-    FrameCommit {
+fn committed(children: ChildPlacements) -> LayoutCommit {
+    LayoutCommit {
         children: vec![children],
         ..frame(1)
     }

@@ -53,7 +53,7 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
                 raster_millis: 1000,
             }],
         });
-        runtime.commit(FrameCommit {
+        runtime.commit(LayoutCommit {
             serial,
             sizes: Vec::new(),
             reports: vec![block_plugin_api::FrameReport {
@@ -71,9 +71,6 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
             }],
             windows: Vec::new(),
             children: Vec::new(),
-            repaint_after_micros: None,
-            animating: false,
-            presented: None,
             window_requests: Vec::new(),
             docks: Vec::new(),
         });

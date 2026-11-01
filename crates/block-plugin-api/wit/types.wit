@@ -675,20 +675,27 @@ interface types {
         place(window-place),
     }
 
-    /// What a plugin drew: the frame the host composites, with what each
-    /// screen asks of its window and the children it placed.
-    record frame-commit {
+    /// What a frame laid out, sent before the plugin paints it: the size
+    /// each view used, what each screen asks of its window and the children
+    /// it placed, against the host state at `serial`.
+    record layout-commit {
         serial: u64,
         sizes: list<view-size>,
         reports: list<frame-report>,
         windows: list<screen-window>,
         children: list<child-placements>,
-        repaint-after-micros: option<u64>,
-        animating: bool,
-        presented: option<presented-frame>,
         window-requests: list<window-request>,
         /// What the plugin's docks say to the host, in order.
         docks: list<dock-message>,
+    }
+
+    /// What a frame painted, once it is painted: the answer to `draw`, with
+    /// the serial of the layout commit it painted.
+    record present-commit {
+        serial: u64,
+        repaint-after-micros: option<u64>,
+        animating: bool,
+        presented: option<presented-frame>,
     }
 
     record open-block {

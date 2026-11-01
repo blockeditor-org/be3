@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_dock_declaration_round_trips_and_nests() {
     let declaration = declaration();
-    let message = FrameCommit {
+    let message = LayoutCommit {
         docks: vec![DockMessage::Declare(DockDeclare {
             view: ViewRef {
                 instance: EditorInstanceId(1),
@@ -30,7 +30,7 @@ fn a_dock_declaration_round_trips_and_nests() {
     spliced
         .splice(3, ChildId(9), "nested/09", &child_declaration())
         .unwrap();
-    let foreign = FrameCommit {
+    let foreign = LayoutCommit {
         docks: vec![DockMessage::Declare(DockDeclare {
             view: ViewRef {
                 instance: EditorInstanceId(1),

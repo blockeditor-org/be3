@@ -937,14 +937,20 @@ names the last serial it had received when it laid out, so the host knows
 which of the states it sent the frame was built from. The host keeps the
 states it sent by serial and forgets each once a frame names a later one.
 
-A frame is one commit of everything a plugin laid out together: the serial,
-the size each view used, its frame report, its window requests - cursor,
-input method area, intercepted keys and the rest - and its child placements
-and occluders, along with how long it wants to wait before being drawn again
-and the surfaces it presented. Each part is present only for a screen it
-changed; one a frame leaves out still holds at the frame's serial, since a
-plugin lays out again every instance whose host state changed. A frame may
-move children without painting anything, and may paint without moving any.
+A frame is two commits with the same serial. The layout commit carries
+everything a plugin laid out together: the size each view used, its frame
+report, its window requests - cursor, input method area, intercepted keys and
+the rest - its child placements and occluders, and what its docks say. The
+plugin sends it through `laid-out` as soon as the frame is laid out, before
+it paints anything, so the host can place the children and send their
+plugins their new sizes while it paints. The present commit, the answer to
+`draw`, follows once the frame is painted, with how long the plugin wants to
+wait before being drawn again and the surfaces it presented. Every draw has
+exactly one of each, the layout commit first. Each part of the layout commit
+is present only for a screen it changed; one a frame leaves out still holds
+at the frame's serial, since a plugin lays out again every instance whose
+host state changed. A frame may move children without painting anything, and
+may paint without moving any.
 
 The host decides when a plugin draws. A plugin paints only when the host asks
 it for a frame, and never on its own: when a call changes what it shows, or

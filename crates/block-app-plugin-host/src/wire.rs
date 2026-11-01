@@ -735,14 +735,11 @@ impl Wire {
                 }
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
-                        let commit: block_plugin_api::FrameCommit = block_plugin_api::ops::decode(
-                            &bytes,
-                        )
-                        .ok_or("the plugin answered a draw with a frame that did not decode")?;
-                        commit.validate().map_err(|error| {
-                            format!("the plugin drew a frame it may not: {error}")
-                        })?;
-                        heard.push(Heard::Frame(Box::new(commit)));
+                        let commit: block_plugin_api::PresentCommit =
+                            block_plugin_api::ops::decode(&bytes).ok_or(
+                                "the plugin answered a draw with a present that did not decode",
+                            )?;
+                        heard.push(Heard::Presented(commit));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => heard.push(Heard::ShutDown),
                     (Some(_), Outcome::Err(error)) => heard.push(Heard::Unanswered(format!(
@@ -804,6 +801,13 @@ impl Wire {
             Call::Layout { reply, layout } => {
                 reply.send(connection, &());
                 heard.push(Heard::Layout(layout));
+            }
+            Call::LaidOut { reply, commit } => {
+                reply.send(connection, &());
+                commit
+                    .validate()
+                    .map_err(|error| format!("the plugin laid out a frame it may not: {error}"))?;
+                heard.push(Heard::LaidOut(Box::new(commit)));
             }
             Call::FrameNeeded { reply } => {
                 reply.send(connection, &());

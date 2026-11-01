@@ -6,9 +6,9 @@ use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
     ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
-    Failure, FrameChrome, FrameCommit, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size,
-    TimedInput, View, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
+    Failure, FrameChrome, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
+    Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
+    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -402,7 +402,7 @@ impl EditorSession {
         }
     }
 
-    pub fn commit(&mut self, commit: &mut FrameCommit) {
+    pub fn commit(&mut self, commit: &mut block_plugin_api::LayoutCommit) {
         commit.sizes.extend(self.view_sizes());
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());

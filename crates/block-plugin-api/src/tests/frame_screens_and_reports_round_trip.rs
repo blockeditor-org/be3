@@ -42,7 +42,7 @@ fn frame_screens_and_reports_round_trip() {
     });
     round_trips(&vec![request]);
 
-    let frames = FrameCommit {
+    let frames = LayoutCommit {
         reports: vec![FrameReport {
             screen: ScreenId(1),
             content: Some(Insets {
@@ -102,7 +102,7 @@ fn frame_screens_and_reports_round_trip() {
     };
     let encoded = crate::ops::encode(&frames);
     assert_eq!(
-        crate::ops::encode(&crate::ops::decode::<FrameCommit>(&encoded).unwrap()),
+        crate::ops::encode(&crate::ops::decode::<LayoutCommit>(&encoded).unwrap()),
         encoded,
         "AccessKit compares nodes by the order their properties were set in, so compare encodings"
     );

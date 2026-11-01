@@ -16,8 +16,8 @@ use block_plugin_api::embed::debug::debug::Call as DebugCall;
 use block_plugin_api::embed::{self, exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
-    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
+    HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
     OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewId, ViewportMetrics,
 };
@@ -1171,7 +1171,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
-    fn committed(&mut self, commit: FrameCommit) {
+    fn committed(&mut self, commit: LayoutCommit) {
         self.docks.extend(commit.docks);
         let view = self.view().id;
         let asked = commit.window_requests;

@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn a_frame_says_which_host_state_it_was_laid_out_against() {
-    let frame = FrameCommit {
+    let laid = frame(41);
+    round_trips(&laid);
+    let presented = PresentCommit {
+        serial: laid.serial,
         repaint_after_micros: Some(16_000),
         animating: true,
         presented: Some(PresentedFrame {
@@ -17,7 +20,6 @@ fn a_frame_says_which_host_state_it_was_laid_out_against() {
                 },
             }],
         }),
-        ..frame(41)
     };
-    round_trips(&frame);
+    round_trips(&presented);
 }

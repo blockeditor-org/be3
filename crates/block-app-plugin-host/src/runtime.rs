@@ -11,9 +11,9 @@ use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
-    FrameCommit, FrameSpec, HostPanel, HostTransform, Opening, PresentedFrame, PreviewImage,
-    ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
+    FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
+    PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
     shell_types::{Dragged, DraggedBlock},
 };
 use block_plugin_manifest::PluginManifest;
@@ -267,7 +267,8 @@ enum Answer {
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
     Withdrawn(block_plugin_api::ops::OpId),
-    Frame(FrameCommit),
+    LaidOut(LayoutCommit),
+    Presented(PresentCommit),
     Laid(Laid),
 }
 
@@ -277,7 +278,8 @@ impl From<Heard> for Answer {
             Heard::Layout(layout) => Self::Layout(layout),
             Heard::FrameNeeded => Self::FrameNeeded,
             Heard::MissingCharacters(missing) => Self::MissingCharacters(missing),
-            Heard::Frame(commit) => Self::Frame(*commit),
+            Heard::LaidOut(commit) => Self::LaidOut(*commit),
+            Heard::Presented(presented) => Self::Presented(presented),
             Heard::Hello(_) | Heard::ShutDown | Heard::Unanswered(_) => {
                 unreachable!("the session takes what it hears of its own")
             }
@@ -338,6 +340,8 @@ struct Pacing {
     requested_at: Option<Duration>,
     animated: u64,
     asked_in: u64,
+    painting: bool,
+    needed_again: bool,
 }
 
 impl Pacing {
@@ -347,6 +351,8 @@ impl Pacing {
         self.animating = false;
         self.paint_at = None;
         self.requested_at = None;
+        self.painting = false;
+        self.needed_again = false;
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
@@ -371,11 +377,16 @@ impl Pacing {
     }
 
     fn laying_out(&self, pass: u64) -> bool {
-        self.requested_at.is_some() && self.asked_in == pass
+        self.requested_at.is_some() && self.asked_in == pass && !self.painting
+    }
+
+    fn need(&mut self) {
+        self.needed = true;
+        self.needed_again |= self.requested_at.is_some();
     }
 
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
-        self.needed = false;
+        self.needed = std::mem::take(&mut self.needed_again);
         self.requested_at = None;
         self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
@@ -641,7 +652,7 @@ impl Runtime {
     }
 
     fn outstanding(&self) -> bool {
-        self.error.is_none() && !self.backend.settled()
+        self.error.is_none() && (!self.backend.settled() || self.pacing.painting)
     }
 
     fn take_relaid(&mut self) -> bool {
@@ -949,15 +960,18 @@ impl Runtime {
                 let mut held = false;
                 for heard in forwarded {
                     match heard {
-                        Heard::Frame(commit) => {
+                        Heard::LaidOut(commit) => {
                             let (now, later) = self.split(*commit);
-                            drawing.push(Answer::Frame(now));
+                            drawing.push(Answer::LaidOut(now));
                             if let Some(later) = later {
                                 held = true;
                                 self.held.push(Answer::Laid(later));
                             }
                         }
-                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
+                        heard @ (Heard::Paintings(_)
+                        | Heard::Layout(_)
+                        | Heard::FrameNeeded
+                        | Heard::Presented(_)) => {
                             drawing.push(Answer::from(heard));
                         }
                         heard => {
@@ -1041,7 +1055,7 @@ impl Runtime {
         }
     }
 
-    fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
+    fn split(&self, commit: LayoutCommit) -> (LayoutCommit, Option<Laid>) {
         let mut commit = commit;
         self.instances.translate(&mut commit, true);
         let (moving, coming) =
@@ -1082,7 +1096,8 @@ impl Runtime {
                 | Answer::Ended(_)
                 | Answer::Service(_)
                 | Answer::Withdrawn(_)
-                | Answer::Frame(_) => None,
+                | Answer::LaidOut(_)
+                | Answer::Presented(_) => None,
             })
             .flatten()
             .collect()
@@ -1126,7 +1141,7 @@ impl Runtime {
         let mut changed = false;
         let heard = answers
             .iter()
-            .any(|answer| !matches!(answer, Answer::Frame(_)));
+            .any(|answer| !matches!(answer, Answer::LaidOut(_) | Answer::Presented(_)));
         for answer in answers {
             changed |= match answer {
                 Answer::Layout(layout) => {
@@ -1134,7 +1149,7 @@ impl Runtime {
                     true
                 }
                 Answer::FrameNeeded => {
-                    self.pacing.needed = true;
+                    self.pacing.need();
                     true
                 }
                 Answer::MissingCharacters(missing) => {
@@ -1154,7 +1169,8 @@ impl Runtime {
                     self.instances.translate(&mut answered, true);
                     self.instances.answered(answered.0, answered.1)
                 }
-                Answer::Frame(commit) => {
+                Answer::Presented(presented) => self.present(presented),
+                Answer::LaidOut(commit) => {
                     let changed = self.commit(commit);
                     self.relaid |= changed;
                     changed
@@ -1209,26 +1225,15 @@ impl Runtime {
         self.backend.answer_watches(answers, accepted);
     }
 
-    fn commit(&mut self, commit: FrameCommit) -> bool {
-        let FrameCommit {
-            serial,
-            sizes,
-            reports,
-            windows,
-            children,
+    fn present(&mut self, presented: PresentCommit) -> bool {
+        let PresentCommit {
+            serial: _,
             repaint_after_micros,
             animating,
             presented,
-            window_requests,
-            docks,
-        } = commit;
-        for request in &window_requests {
-            if let WindowRequest::Open(open) = request {
-                self.instances.adopt_window(open, &self.layout);
-            }
-        }
-        super::request_windows(&self.plugin.identity.id, window_requests);
+        } = presented;
         self.pacing.animating = animating;
+        self.pacing.painting = false;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
             self.presents.report(presented);
@@ -1239,6 +1244,26 @@ impl Runtime {
             .iter()
             .map(|placement| (placement.screen, (placement.width, placement.height)))
             .collect();
+        false
+    }
+
+    fn commit(&mut self, commit: LayoutCommit) -> bool {
+        let LayoutCommit {
+            serial,
+            sizes,
+            reports,
+            windows,
+            children,
+            window_requests,
+            docks,
+        } = commit;
+        self.pacing.painting = self.pacing.requested_at.is_some();
+        for request in &window_requests {
+            if let WindowRequest::Open(open) = request {
+                self.instances.adopt_window(open, &self.layout);
+            }
+        }
+        super::request_windows(&self.plugin.identity.id, window_requests);
         self.instances.adopt_anchored(&reports, &self.layout);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);

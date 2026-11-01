@@ -132,15 +132,12 @@ fn show_docked(session: &mut EditorSession, screens: &[(View, u64)], docked: boo
 }
 
 fn dock_messages(session: &mut EditorSession) -> Vec<block_plugin_api::DockMessage> {
-    let mut commit = block_plugin_api::FrameCommit {
+    let mut commit = block_plugin_api::LayoutCommit {
         serial: 0,
         sizes: Vec::new(),
         reports: Vec::new(),
         windows: Vec::new(),
         children: Vec::new(),
-        repaint_after_micros: None,
-        animating: false,
-        presented: None,
         window_requests: Vec::new(),
         docks: Vec::new(),
     };

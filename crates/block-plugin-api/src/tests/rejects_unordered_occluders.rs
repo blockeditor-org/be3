@@ -1,6 +1,6 @@
 use super::*;
 
-fn placements(occluders: Vec<Occluder>) -> FrameCommit {
+fn placements(occluders: Vec<Occluder>) -> LayoutCommit {
     committed(ChildPlacements {
         instance: EditorInstanceId(1),
         view: ViewId::MAIN,

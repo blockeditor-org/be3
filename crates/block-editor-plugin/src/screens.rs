@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit,
-    HostTransform, HostView, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
+    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
     ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
@@ -305,16 +305,13 @@ impl Screens {
         &self.module
     }
 
-    pub(crate) fn commit(&mut self) -> FrameCommit {
-        let mut commit = FrameCommit {
+    pub(crate) fn commit(&mut self) -> LayoutCommit {
+        let mut commit = LayoutCommit {
             serial: self.serial,
             sizes: Vec::new(),
             reports: Vec::new(),
             windows: Vec::new(),
             children: Vec::new(),
-            repaint_after_micros: None,
-            animating: false,
-            presented: None,
             window_requests: Vec::new(),
             docks: Vec::new(),
         };
@@ -326,6 +323,16 @@ impl Screens {
             }
         }
         commit
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn dirty(&self) -> bool {
+        self.everything
+            || !self
+                .dirty
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .is_empty()
     }
 
     #[cfg(target_arch = "wasm32")]
