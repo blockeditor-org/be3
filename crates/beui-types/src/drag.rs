@@ -75,3 +75,17 @@ pub struct Target {
     pub over: Over,
     pub dropped: Dropped,
 }
+
+pub trait Space {
+    fn placed(&self, node: crate::node::NodeId) -> Option<(Rect, f32)>;
+    fn visible(&self, node: crate::node::NodeId) -> Option<Rect>;
+}
+
+pub type Order<'a> = &'a dyn Fn(crate::node::NodeId) -> (Vec<usize>, WindowId);
+
+pub trait Driver {
+    fn carrying(&self) -> bool;
+    fn set_outside(&self, outside: bool);
+    fn track(&self, point: DragPoint, order: Order);
+    fn release(&self, cancelled: bool, order: Order);
+}

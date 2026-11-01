@@ -661,7 +661,7 @@ beui on one core type-checks on the other; only the bodies differ. So:
 - A handle whose insides differ by core is one shared type with a private
   per-core field and its methods written once, forwarding to the core:
   `TextGeometry` (a snapshot natively, the live DOM on HTML),
-  `TextGeometrySignal`, `Painter` and its `Draw`, `Timer`, `drag::Board`,
+  `TextGeometrySignal`, `Painter` and its `Draw`, `Timer`,
   `SelectableState`. A method only one core can give is not on the type.
 - What exists on one core only lives in one of a few public modules, each
   listed with its reason in `ONE_CORE_MODULES` in
@@ -1186,7 +1186,14 @@ under the pointer. The unstyled module contains
 `Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`.
 Code outside beui uses `styled::Picture`, whose `radius` is a `Radius`, and
 reaches the ones that draw nothing of their own (`Draggable`, `DropTarget`,
-`Floating`, `PointerLock`) through `beui::styled`, which re-exports them. `TextArea` is the multiline one: it owns a
+`Floating`, `PointerLock`) through `beui::styled`, which re-exports them. `Draggable` and `DropTarget` meet on
+`unstyled::drag_board()`, one `Board` per document that also carries drags no
+`Draggable` began (a plugin's block, a dock bar lifted into a window). It finds
+targets through the two hooks in `beui_view::drag`: `space()`, where each core
+says where a node is and what of it is visible, and `drive(..)`, which hands the
+board to the native core so it follows the pointer across windows, notices it
+leave every window, and drops or cancels on the release whichever node pressed;
+the HTML core ignores `drive` and leaves the dragging to the `Draggable`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
 handle owned by the scope that made it; `with_core` and `with_core_mut` reach
 the `Core`), lays the

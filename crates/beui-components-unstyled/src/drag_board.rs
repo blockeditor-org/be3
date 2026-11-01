@@ -1,27 +1,30 @@
-pub use beui_types::drag::DragPoint;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use beui_view::drag::{DragPoint, Driver, Order, Outside, Over, Pending, Space, Target};
+use beui_view::reactive::tree_local;
+use beui_view::types::{Pos2, Rect, WindowId};
 use stable_hash::HashMap;
 
-use crate::document::Document;
-use crate::geometry::{Pos2, Rect};
-use crate::node::Rects;
-use crate::window::WindowId;
+pub fn drag_board() -> Rc<Board> {
+    tree_local(|| {
+        let board = Rc::new(Board::new(beui_view::drag::space()));
+        beui_view::drag::drive(Rc::clone(&board) as Rc<dyn Driver>);
+        board
+    })
+}
 
-pub use beui_types::drag::{Accepts, Dropped, Outside, Over, Pending, Target};
-
-pub struct Carried {
-    pub payload: Rc<dyn Any>,
-    pub over: Option<u64>,
-    pub last: Option<DragPoint>,
-    pub follow: Rc<dyn Fn(DragPoint)>,
-    pub outside: Outside,
+struct Carried {
+    payload: Rc<dyn Any>,
+    over: Option<u64>,
+    last: Option<DragPoint>,
+    follow: Rc<dyn Fn(DragPoint)>,
+    outside: Outside,
 }
 
 pub struct Board {
-    rects: Rc<Rects>,
+    space: Rc<dyn Space>,
     pressed: RefCell<Option<Pending>>,
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
@@ -32,9 +35,9 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn new(rects: Rc<Rects>) -> Self {
+    fn new(space: Rc<dyn Space>) -> Self {
         Self {
-            rects,
+            space,
             pressed: RefCell::default(),
             carried: RefCell::default(),
             targets: RefCell::default(),
@@ -46,7 +49,7 @@ impl Board {
     }
 
     fn rect_of(&self, target: &Target) -> Option<(Rect, f32)> {
-        self.rects.scaled(&target.node.try_get()?)
+        self.space.placed(target.node.try_get()?)
     }
 
     pub fn register(&self, mut target: Target) -> u64 {
@@ -116,14 +119,6 @@ impl Board {
         self.pressed.borrow_mut().take();
     }
 
-    pub fn set_outside(&self, outside: bool) {
-        self.outside.set(outside);
-    }
-
-    pub fn outside(&self) -> bool {
-        self.outside.get()
-    }
-
     fn leave(&self) {
         let previous = self
             .carried
@@ -135,23 +130,20 @@ impl Board {
         }
     }
 
-    pub fn order(&self, doc: &Document) {
+    fn order(&self, order: Order) {
         if !self.carrying() && self.pressed.borrow().is_none() {
             return;
         }
-        let painted = self
+        let (painted, windows) = self
             .targets
             .borrow()
             .iter()
-            .filter_map(|target| Some((target.id, doc.paint_order(target.node.try_get()?))))
-            .collect();
+            .filter_map(|target| {
+                let (painted, window) = order(target.node.try_get()?);
+                Some(((target.id, painted), (target.id, window)))
+            })
+            .unzip();
         *self.painted.borrow_mut() = painted;
-        let windows = self
-            .targets
-            .borrow()
-            .iter()
-            .filter_map(|target| Some((target.id, doc.window_of(target.node.try_get()?))))
-            .collect();
         *self.windows.borrow_mut() = windows;
     }
 
@@ -207,7 +199,7 @@ impl Board {
         }
     }
 
-    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over)> {
+    fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.payload.as_ref();
         let windows = self.windows.borrow();
@@ -222,7 +214,7 @@ impl Board {
                 target
                     .node
                     .try_get()
-                    .and_then(|node| self.rects.visible(&node))
+                    .and_then(|node| self.space.visible(node))
                     .is_some_and(|visible| visible.contains_half_open(pos))
             })
             .filter(|(_, target)| (target.accepts)(payload))
@@ -233,7 +225,7 @@ impl Board {
             .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))
     }
 
-    pub fn over(&self, id: u64) -> Option<Over> {
+    fn over(&self, id: u64) -> Option<Over> {
         self.targets
             .borrow()
             .iter()
@@ -249,7 +241,7 @@ impl Board {
             .and_then(|target| self.rect_of(target))
     }
 
-    pub fn move_to(&self, point: DragPoint) {
+    fn move_to(&self, point: DragPoint) {
         if !self.carrying() {
             return;
         }
@@ -308,12 +300,25 @@ impl Board {
     }
 }
 
-impl Document {
-    pub fn drag_board(&self) -> Rc<Board> {
-        Rc::clone(&self.drags)
+impl Driver for Board {
+    fn carrying(&self) -> bool {
+        Board::carrying(self)
     }
 
-    pub fn dragging(&self) -> bool {
-        self.drags.carrying()
+    fn set_outside(&self, outside: bool) {
+        self.outside.set(outside);
+    }
+
+    fn track(&self, point: DragPoint, order: Order) {
+        self.order(order);
+        Board::track(self, point);
+    }
+
+    fn release(&self, cancelled: bool, order: Order) {
+        self.order(order);
+        match cancelled {
+            true => self.end(None),
+            false => self.finish(),
+        }
     }
 }
