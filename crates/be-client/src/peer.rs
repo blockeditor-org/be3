@@ -119,6 +119,64 @@ pub enum Sealed {
     Sealed(CommitId),
 }
 
+enum Content<'a> {
+    Encoded(Uuid, &'a [u8]),
+    Written(Manifest),
+}
+
+pub struct Write<'a> {
+    content: Content<'a>,
+    references: Vec<Uuid>,
+    derived: Entries,
+    defined: Option<Entries>,
+    expected: Option<CommitId>,
+    merging: Option<(Option<CommitId>, CommitId)>,
+    bookmark: Option<String>,
+}
+
+impl<'a> Write<'a> {
+    pub fn encoded(content_type: Uuid, bytes: &'a [u8], expected: Option<CommitId>) -> Self {
+        Self::of(Content::Encoded(content_type, bytes), expected)
+    }
+
+    pub fn written(manifest: Manifest, expected: Option<CommitId>) -> Self {
+        Self::of(Content::Written(manifest), expected)
+    }
+
+    fn of(content: Content<'a>, expected: Option<CommitId>) -> Self {
+        Self {
+            content,
+            references: Vec::new(),
+            derived: Entries::default(),
+            defined: None,
+            expected,
+            merging: None,
+            bookmark: None,
+        }
+    }
+
+    pub fn described(mut self, references: Vec<Uuid>, derived: Entries) -> Self {
+        self.references = references;
+        self.derived = derived;
+        self
+    }
+
+    pub fn defined(mut self, defined: Entries) -> Self {
+        self.defined = Some(defined);
+        self
+    }
+
+    pub fn merging(mut self, base: Option<CommitId>, ours: CommitId) -> Self {
+        self.merging = Some((base, ours));
+        self
+    }
+
+    pub fn bookmark(mut self, label: &str) -> Self {
+        self.bookmark = Some(label.to_owned());
+        self
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Drained {
     Created {
@@ -738,18 +796,10 @@ impl<S: ObjectStore> Peer<S> {
             let described = self.resolve(block, current.references());
             let mut references = commit.references;
             references.retain(|reference| !described.contains(reference));
-            let saved = self
-                .publish_manifest(
-                    block,
-                    commit.manifest,
-                    references,
-                    Some(head),
-                    now_milliseconds(),
-                    false,
-                    Vec::new(),
-                    &next,
-                )
-                .await;
+            let write = Write::written(commit.manifest, Some(head))
+                .described(references, next.derived)
+                .defined(next.defined);
+            let saved = self.write(block, write).await;
             let saved = match saved {
                 Err(error)
                     if offline::unreachable(&error) && self.local_head(block) != Some(head) =>
@@ -1069,7 +1119,9 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         expected: Option<CommitId>,
     ) -> Result<Saved, ClientError> {
-        self.save_content(block, content, expected, false).await
+        let bytes = content.encode();
+        self.write(block, self.content_write(content, &bytes, expected))
+            .await
     }
 
     pub async fn bookmark<C: BlockContent>(
@@ -1079,77 +1131,77 @@ impl<S: ObjectStore> Peer<S> {
         expected: Option<CommitId>,
         label: &str,
     ) -> Result<Saved, ClientError> {
-        let _ = label;
-        self.save_content(block, content, expected, true).await
+        let bytes = content.encode();
+        let write = self.content_write(content, &bytes, expected);
+        self.write(block, write.bookmark(label)).await
     }
 
-    async fn save_content<C: BlockContent>(
+    fn content_write<'a, C: BlockContent>(
         &self,
-        block: Uuid,
         content: &C,
+        bytes: &'a [u8],
         expected: Option<CommitId>,
-        pinned: bool,
-    ) -> Result<Saved, ClientError> {
-        self.save_bytes(
-            block,
-            C::CONTENT_TYPE,
-            &content.encode(),
+    ) -> Write<'a> {
+        Write::encoded(C::CONTENT_TYPE, bytes, expected).described(
             content.references_in(self.organization()),
             derived_metadata(content),
-            expected,
-            now_milliseconds(),
-            pinned,
-            Vec::new(),
-            None,
         )
-        .await
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn publish_encoded(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        expected: Option<CommitId>,
-        merging: Option<(Option<CommitId>, CommitId)>,
-    ) -> Result<Saved, ClientError> {
-        let (parents, defined) = self.merging(expected, merging).await?;
-        self.save_bytes(
-            block,
-            content_type,
-            bytes,
-            references,
-            derived,
-            expected,
-            now_milliseconds(),
-            false,
-            parents,
-            defined,
-        )
-        .await
+    pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
+        let before = self.local_head(block);
+        let commit = match self.seal(block, write).await? {
+            Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
+            Sealed::Sealed(commit) => commit,
+        };
+        let saved = self.publish_sealed(block, commit).await?;
+        if let Saved::Rejected { .. } = saved {
+            self.withdraw(block, commit, before)?;
+        }
+        Ok(saved)
     }
 
-    pub async fn stash_encoded(
+    async fn prepare_write(
         &self,
         block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        parent: Option<CommitId>,
-    ) -> Result<CommitId, ClientError> {
-        let metadata = self.metadata_at(block, parent).await?.with_derived(derived);
-        let mut references = references;
-        references.extend(metadata.references());
-        let references = deduplicated(self.resolve(block, references));
+        write: &mut Write<'_>,
+    ) -> Result<(Manifest, Vec<CommitId>, BlockMetadata), ClientError> {
+        let manifest = match &write.content {
+            Content::Encoded(content_type, bytes) => {
+                self.write_content(block, *content_type, bytes).await?
+            }
+            Content::Written(manifest) => manifest.clone(),
+        };
+        let mut parents = Vec::new();
+        if let Some((base, ours)) = write.merging {
+            let mut sides = Vec::new();
+            for commit in [base, Some(ours), write.expected] {
+                sides.push(match commit {
+                    Some(commit) => self.metadata_of(commit).await?,
+                    None => BlockMetadata::default(),
+                });
+            }
+            write.defined = Some(BlockMetadata::merge_defined(&sides[0], &sides[2], &sides[1]).0);
+            parents.push(ours);
+        }
+        let defined = match write.defined.take() {
+            Some(defined) => defined,
+            None => self.metadata_at(block, write.expected).await?.defined,
+        };
+        let derived = std::mem::take(&mut write.derived);
+        let mut references = self.resolve(block, std::mem::take(&mut write.references));
+        let metadata = BlockMetadata { defined, derived };
+        references.extend(self.resolve(block, metadata.references()));
+        write.references = deduplicated(references);
+        Ok((manifest, parents, metadata))
+    }
+
+    pub async fn stash(&self, block: Uuid, mut write: Write<'_>) -> Result<CommitId, ClientError> {
+        let (manifest, _, metadata) = self.prepare_write(block, &mut write).await?;
         let key = self.sealing_key(block).await?;
-        let manifest = self.commits.vault().write(key, content_type, bytes)?;
         let commit = Commit::new(manifest, self.account, now_milliseconds())
-            .with_parent(parent)
-            .with_references(references)
+            .with_parent(write.expected)
+            .with_references(write.references)
             .with_metadata(metadata.encode());
         let id = self.commits.put(key, &commit)?;
         let mut objects = vec![id.hash()];
@@ -1161,198 +1213,19 @@ impl<S: ObjectStore> Peer<S> {
         Ok(id)
     }
 
-    pub async fn save_encoded(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        expected: Option<CommitId>,
-        defined: Option<Entries>,
-    ) -> Result<Saved, ClientError> {
-        self.save_bytes(
-            block,
-            content_type,
-            bytes,
-            references,
-            derived,
-            expected,
-            now_milliseconds(),
-            false,
-            Vec::new(),
-            defined,
-        )
-        .await
-    }
-
-    async fn save_bytes(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        expected: Option<CommitId>,
-        time: i64,
-        pinned: bool,
-        extra_parents: Vec<CommitId>,
-        defined: Option<Entries>,
-    ) -> Result<Saved, ClientError> {
-        let (manifest, references, metadata) = self
-            .prepare_bytes(
-                block,
-                content_type,
-                bytes,
-                references,
-                derived,
-                expected,
-                defined,
-            )
-            .await?;
-        self.publish_manifest(
-            block,
-            manifest,
+    pub async fn seal(&self, block: Uuid, mut write: Write<'_>) -> Result<Sealed, ClientError> {
+        let (manifest, extra_parents, metadata) = self.prepare_write(block, &mut write).await?;
+        let Write {
             references,
             expected,
-            time,
-            pinned,
-            extra_parents,
-            &metadata,
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn prepare_bytes(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        expected: Option<CommitId>,
-        defined: Option<Entries>,
-    ) -> Result<(Manifest, Vec<Uuid>, BlockMetadata), ClientError> {
-        let references = self.resolve(block, references);
-        let manifest = self.write_content(block, content_type, bytes).await?;
-        let defined = match defined {
-            Some(defined) => defined,
-            None => self.metadata_at(block, expected).await?.defined,
-        };
-        Ok((manifest, references, BlockMetadata { defined, derived }))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn seal_encoded(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: &[u8],
-        references: Vec<Uuid>,
-        derived: Entries,
-        expected: Option<CommitId>,
-        merging: Option<(Option<CommitId>, CommitId)>,
-    ) -> Result<Sealed, ClientError> {
-        let (parents, defined) = self.merging(expected, merging).await?;
-        let (manifest, references, metadata) = self
-            .prepare_bytes(
-                block,
-                content_type,
-                bytes,
-                references,
-                derived,
-                expected,
-                defined,
-            )
-            .await?;
-        self.seal_manifest(
-            block,
-            manifest,
-            references,
-            expected,
-            now_milliseconds(),
-            false,
-            parents,
-            &metadata,
-        )
-        .await
-    }
-
-    async fn merging(
-        &self,
-        expected: Option<CommitId>,
-        merging: Option<(Option<CommitId>, CommitId)>,
-    ) -> Result<(Vec<CommitId>, Option<Entries>), ClientError> {
-        let Some((base, ours)) = merging else {
-            return Ok((Vec::new(), None));
-        };
-        let mut sides = Vec::new();
-        for commit in [base, Some(ours), expected] {
-            sides.push(match commit {
-                Some(commit) => self.metadata_of(commit).await?,
-                None => BlockMetadata::default(),
-            });
-        }
-        let defined = BlockMetadata::merge_defined(&sides[0], &sides[2], &sides[1]).0;
-        Ok((vec![ours], Some(defined)))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn publish_manifest(
-        &self,
-        block: Uuid,
-        manifest: Manifest,
-        references: Vec<Uuid>,
-        expected: Option<CommitId>,
-        time: i64,
-        pinned: bool,
-        extra_parents: Vec<CommitId>,
-        metadata: &BlockMetadata,
-    ) -> Result<Saved, ClientError> {
-        let before = self.local_head(block);
-        let commit = match self
-            .seal_manifest(
-                block,
-                manifest,
-                references,
-                expected,
-                time,
-                pinned,
-                extra_parents,
-                metadata,
-            )
-            .await?
-        {
-            Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
-            Sealed::Sealed(commit) => commit,
-        };
-        let saved = self.publish_sealed(block, commit).await?;
-        if let Saved::Rejected { .. } = saved {
-            self.withdraw(block, commit, before)?;
-        }
-        Ok(saved)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn seal_manifest(
-        &self,
-        block: Uuid,
-        manifest: Manifest,
-        references: Vec<Uuid>,
-        expected: Option<CommitId>,
-        time: i64,
-        pinned: bool,
-        extra_parents: Vec<CommitId>,
-        metadata: &BlockMetadata,
-    ) -> Result<Sealed, ClientError> {
+            bookmark,
+            ..
+        } = write;
         let previous = match expected {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let mut references = references;
-        references.extend(self.resolve(block, metadata.references()));
-        let references = deduplicated(references);
+        let time = now_milliseconds();
         let encoded = metadata.encode();
         if extra_parents.is_empty()
             && let Some(previous) = &previous
@@ -1369,12 +1242,11 @@ impl<S: ObjectStore> Peer<S> {
             chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
         }
         parents.extend(extra_parents);
-        let kind = if parents.len() > 1 {
-            be_commit::CommitKind::Merge
-        } else if pinned {
-            be_commit::CommitKind::Bookmark(String::new())
-        } else {
-            be_commit::CommitKind::Autosave
+        let pinned = bookmark.is_some();
+        let kind = match bookmark {
+            _ if parents.len() > 1 => be_commit::CommitKind::Merge,
+            Some(label) => be_commit::CommitKind::Bookmark(label),
+            None => be_commit::CommitKind::Autosave,
         };
         let key = self.sealing_key(block).await?;
         let commit = Commit::new(manifest, self.account, time)

@@ -976,7 +976,7 @@ app deletes `plugin-cache/` whenever its build id changes; it keeps
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, constructs the `replica` with the head and calls `head-moved` for
 a later one), answers its calls with the real primitives (`read`, `publish` through
-`Peer::seal_encoded` then `publish_sealed`, `stash` through `stash_encoded`,
+`Peer::seal` then `publish_sealed`, `stash` through `Peer::stash`,
 `resume-session`, the lease, relaying sealed with the block key, `sleep-until` from
 the clock), and keeps what it reports (`report-status`, `described`, `history`,
 `conflict`) in `Shared`. Natively the module
@@ -1027,10 +1027,14 @@ cached there too (`RefsDb::set_workspaces` after each load); when the list
 request fails the app shows the cached one and loads it again once the worker
 connects or the window gains focus.
 
-Saving is two steps: `Peer::seal_manifest` writes the commit, records it in the
-outbox and moves the local head, and `publish_sealed` sends it; `publish_manifest`
-does both, and on `Rejected` drops the commit from the outbox since its caller
-retries or merges. A commit whose publish fails offline stays in the outbox, as
+Every save is a `be_client::Write` (encoded bytes or an already written
+`Manifest`, then optionally `described` references and derived metadata,
+`defined` metadata, which otherwise carries over from the expected head,
+`merging` a base and our commit, or a `bookmark` label) and two steps:
+`Peer::seal` writes the commit, records it in the outbox and moves the local head,
+and `publish_sealed` sends it; `Peer::write` does both, and on `Rejected` drops
+the commit from the outbox since its caller retries or merges. `Peer::save` and
+`Peer::bookmark` write a `BlockContent`. A commit whose publish fails offline stays in the outbox, as
 does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
 the outbox in order once attached and reports, per block, `Drained::Published`,
 `Created`, `Moved`, `Defined`, `Diverged { local, remote }` (left in the outbox for the replica host to
@@ -1887,7 +1891,7 @@ flush or a stop never waits for the join, and a join that fails for a reason
 other than the connection leaves it on that session. A block opened while down opens from its local head with
 `OFFLINE_CLIENT` owning a made-up session (`Open::made_up`, set also while
 joining); the host answers `Publish` with
-`Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
+`Peer::seal` (a local commit in the outbox) and reports it as the new
 head, `Resume` treats the local head as the remote one, and heartbeats, claims
 and relays are skipped. A publish whose connection dies after the commit was
 sealed keeps the commit the same way, and so does any `Publish` while the

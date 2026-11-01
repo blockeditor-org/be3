@@ -237,7 +237,7 @@ takes a file by name and first bytes, or with `directory` a new directory), and
 default for `none`, answered with the new bytes, or none when it does not apply),
 which is how a host that publishes commits rather than joining a session edits a
 block: be sync, and block-app's version control when it lists a checkout in its
-parent (`Replicas::apply`, then `describe` and `publish_encoded`). An unknown type
+parent (`Replicas::apply`, then `describe` and `Peer::write`). An unknown type
 is `failure.unknown-type`, content that does not decode `failure.malformed`.
 
 Each open block is a `replica` resource. Its methods `change` (`child`, `from-file`,

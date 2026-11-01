@@ -79,9 +79,9 @@ A pass:
    blob both changed keeps the disk's bytes, and the other is in the block's
    history. No merge loses either side.
 5. Lays the merged tree out on disk (names, below), applies it to the server
-   (new blocks through `Peer::import_blocks`, edits through `Peer::save_encoded`
+   (new blocks through `Peer::import_blocks`, edits through `Peer::write`
    against the head it read, renames, moves, deletes, and each directory's
-   entries through `Peer::publish_encoded`),
+   entries through `Peer::write` too),
    then to the disk (moves through `.be/tmp`, removals, writes), and saves the
    index.
 

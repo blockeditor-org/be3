@@ -7,7 +7,7 @@ use std::{
 use wasi_threads::Mutex;
 
 use be_block::BlockMetadata;
-use be_client::{ClientError, Credentials, Peer, PeerConfig};
+use be_client::{ClientError, Credentials, Peer, PeerConfig, Write};
 use be_client::{Event, ask};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
@@ -2333,14 +2333,10 @@ async fn publish_bytes(
     let mut expected = peer.newest_head(block).await?;
     for _ in 0..4 {
         match peer
-            .publish_encoded(
+            .write(
                 block,
-                content_type,
-                &bytes,
-                description.references.clone(),
-                description.derived.clone(),
-                expected,
-                None,
+                Write::encoded(content_type, &bytes, expected)
+                    .described(description.references.clone(), description.derived.clone()),
             )
             .await?
         {
