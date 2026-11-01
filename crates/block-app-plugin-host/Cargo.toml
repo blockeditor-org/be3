@@ -18,7 +18,6 @@ block-plugin-api = { path = "../block-plugin-api" }
 block-plugin-manifest = { path = "../block-plugin-manifest" }
 block-type-api = { path = "../block-type-api" }
 block-type-guest = { path = "../block-type-guest" }
-bytemuck = { version = "1.24.0", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

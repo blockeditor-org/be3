@@ -1,47 +1,43 @@
-use crate::presenter::{RegionLayout, SurfacePresenter};
+use beui::native::texture_quad::{Bound, Pipelines, Quad};
+
+use crate::presenter::SurfacePresenter;
 
 pub struct Presenter {
-    punch: wgpu::RenderPipeline,
+    pipelines: Pipelines,
+    hole: Bound,
 }
 
-pub fn presenter(
-    device: &wgpu::Device,
-    _queue: &wgpu::Queue,
-    regions: &RegionLayout,
-    format: wgpu::TextureFormat,
-) -> Result<Presenter, String> {
-    let shader = device.create_shader_module(wgpu::include_wgsl!("punch.wgsl"));
-    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("plugin canvas punch layout"),
-        bind_group_layouts: &[Some(&regions.layout)],
-        immediate_size: 0,
+pub fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter, String> {
+    let size = wgpu::Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    let hole = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("plugin canvas hole"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
     });
-    let punch = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("plugin canvas punch"),
-        layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("punch_vertex"),
-            compilation_options: Default::default(),
-            buffers: &[],
+    queue.write_texture(
+        hole.as_image_copy(),
+        &[255; 4],
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4),
+            rows_per_image: Some(1),
         },
-        primitive: Default::default(),
-        depth_stencil: None,
-        multisample: Default::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("punch_fragment"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        multiview_mask: None,
-        cache: None,
-    });
-    Ok(Presenter { punch })
+        size,
+    );
+    let pipelines = Pipelines::erasing(device);
+    Ok(Presenter {
+        hole: pipelines.bind(&hole),
+        pipelines,
+    })
 }
 
 impl SurfacePresenter for Presenter {
@@ -56,26 +52,19 @@ impl SurfacePresenter for Presenter {
         Ok(())
     }
 
-    fn prepare(
-        &mut self,
-        _queue: &wgpu::Queue,
-        _slot: u32,
-        _frame: &super::Frame,
-    ) -> Result<(), String> {
-        Ok(())
+    fn pipelines(&self) -> &Pipelines {
+        &self.pipelines
     }
 
-    fn paint(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
-        _slot: u32,
-        _surface: u32,
-        regions: &wgpu::BindGroup,
-        offset: u32,
-    ) {
-        pass.set_pipeline(&self.punch);
-        pass.set_bind_group(0, regions, &[offset]);
-        pass.draw(0..6, 0..1);
+    fn texture(&self, _slot: u32, _surface: u32) -> Option<&Bound> {
+        Some(&self.hole)
+    }
+
+    fn shown(&self, quad: Quad) -> Quad {
+        Quad {
+            opacity: 1.0,
+            ..quad
+        }
     }
 
     fn retain(&mut self, _slot: u32, _surfaces: &[u32]) {}

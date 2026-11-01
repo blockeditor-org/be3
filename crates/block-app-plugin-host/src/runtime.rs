@@ -2197,11 +2197,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         ViewId::PREVIEW => Some(UNIT),
         _ => offers
             .iter()
-            .filter_map(|offer| {
-                Quad::upright(offer.placement.rect)
-                    .crop_to(offer.placement.clip)
-                    .map(|(_, source)| source)
-            })
+            .filter_map(|offer| presenter::shown_part(offer.placement.rect, offer.placement.clip))
             .reduce(|shown, source| shown.union(source)),
     };
     let seen = |offer: &Offer| {

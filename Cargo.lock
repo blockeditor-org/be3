@@ -1976,7 +1976,6 @@ dependencies = [
  "block-type-guest",
  "block-wasm-host",
  "browser-tab-types",
- "bytemuck",
  "checklist-types",
  "counter-types",
  "database-types",

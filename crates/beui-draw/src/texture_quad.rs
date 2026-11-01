@@ -13,6 +13,7 @@ pub struct Quad {
     pub clip: [f32; 4],
     pub rotation: f32,
     pub opacity: f32,
+    pub corner_radius: f32,
     pub opaque: bool,
     pub srgb_encoded: bool,
 }
@@ -25,6 +26,7 @@ impl Default for Quad {
             clip: [f32::MIN, f32::MIN, f32::MAX, f32::MAX],
             rotation: 0.0,
             opacity: 1.0,
+            corner_radius: 0.0,
             opaque: false,
             srgb_encoded: false,
         }
@@ -83,7 +85,7 @@ impl Quad {
             self.opacity.clamp(0.0, 1.0),
             flag(self.opaque),
             flag(self.srgb_encoded && format.is_srgb()),
-            0.0,
+            self.corner_radius.max(0.0),
         ];
         values
             .iter()
@@ -103,6 +105,7 @@ pub struct Pipelines {
     layout: wgpu::PipelineLayout,
     sampler: wgpu::Sampler,
     stride: u64,
+    blend: wgpu::BlendState,
     formats: RefCell<Vec<(wgpu::TextureFormat, wgpu::RenderPipeline)>>,
 }
 
@@ -112,6 +115,25 @@ thread_local! {
 
 impl Pipelines {
     pub fn new(device: &wgpu::Device) -> Self {
+        Self::blending(device, wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING)
+    }
+
+    pub fn erasing(device: &wgpu::Device) -> Self {
+        let erase = wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::Zero,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        };
+        Self::blending(
+            device,
+            wgpu::BlendState {
+                color: erase,
+                alpha: erase,
+            },
+        )
+    }
+
+    fn blending(device: &wgpu::Device, blend: wgpu::BlendState) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("texture_quad.wgsl"));
         let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture quad"),
@@ -166,6 +188,7 @@ impl Pipelines {
                 ..Default::default()
             }),
             stride: PLACED_BYTES.div_ceil(alignment) * alignment,
+            blend,
             formats: RefCell::new(Vec::new()),
         }
     }
@@ -230,7 +253,7 @@ impl Pipelines {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        blend: Some(self.blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
