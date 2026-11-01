@@ -222,7 +222,7 @@ time, so notifications wait for the next post.
   (`finish-browser-login`), which a task answers and hands back to the
   connection's loop when it must change the connection's state (`Late`). The
   hub (`WatchHub`) sends each connection `Push`es, which it writes to the
-  matching open streams. A stream sends while its consumer has granted credit
+  matching open streams, all held in one `be_ops::Outlets` keyed by a `Route`. A stream sends while its consumer has granted credit
   and keeps up to `STREAM_BUFFER` (4096) items beyond that; a client that lets
   one fill up is disconnected, as is one whose hub queue fills. The loop takes
   no new frame while more than `OUTBOUND_FRAMES` frames wait to be written, so

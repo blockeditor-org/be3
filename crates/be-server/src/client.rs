@@ -1,9 +1,9 @@
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
+    collections::{BTreeSet, HashMap},
     sync::Arc,
 };
 
-use be_ops::{Incoming, Latest, OpError, OpId, Producer, Reply, Started, net::Peer};
+use be_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use be_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected, Contents,
     CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
@@ -11,7 +11,6 @@ use be_protocol::{
 };
 use be_session::Claim;
 use be_store::Hash;
-use serde::Serialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -38,68 +37,50 @@ fn wire(error: ServerError) -> Error {
     }
 }
 
-fn not_reading() -> ServerError {
-    ServerError::Socket("the client is not reading what it is sent".into())
-}
-
-struct Outlet<T> {
-    producer: Producer<T>,
-    behind: VecDeque<T>,
-}
-
-impl<T: Serialize> Outlet<T> {
-    fn new(producer: Producer<T>) -> Self {
-        Self {
-            producer,
-            behind: VecDeque::new(),
-        }
-    }
-
-    fn op(&self) -> OpId {
-        self.producer.op()
-    }
-
-    fn send(&mut self, connection: &mut be_ops::Connection, item: T) -> Result<(), ServerError> {
-        if self.behind.is_empty() && self.producer.send(connection, &item).is_ok() {
-            return Ok(());
-        }
-        if self.behind.len() >= STREAM_BUFFER {
-            return Err(not_reading());
-        }
-        self.behind.push_back(item);
-        Ok(())
-    }
-
-    fn flush(&mut self, connection: &mut be_ops::Connection) {
-        while let Some(item) = self.behind.front() {
-            if self.producer.send(connection, item).is_err() {
-                return;
-            }
-            self.behind.pop_front();
-        }
-    }
-
-    fn end(self, connection: &mut be_ops::Connection, error: Option<OpError>) {
-        match error {
-            Some(error) => self.producer.fail(connection, error),
-            None => self.producer.finish(connection),
-        }
-    }
-}
-
-struct Joined {
-    block: Uuid,
-    events: Option<Outlet<SessionEvent>>,
+#[derive(Clone, Copy, PartialEq)]
+enum Route {
+    Watch(Uuid),
+    Changes,
+    Paired,
+    Contacts,
+    KeyWork,
+    Events { session: OpId, block: Uuid },
 }
 
 #[derive(Default)]
 struct Streams {
-    watches: HashMap<OpId, (Uuid, Outlet<BlockEvent>)>,
-    changes: HashMap<OpId, Outlet<BlockChange>>,
-    paired: HashMap<OpId, Outlet<PairingMessage>>,
-    contacts: HashMap<OpId, Latest<()>>,
-    key_work: HashMap<OpId, Latest<()>>,
-    sessions: HashMap<OpId, Joined>,
+    outlets: Outlets<Route>,
+    sessions: HashMap<OpId, Uuid>,
+}
+
+impl Streams {
+    fn send<T: be_ops::Serialize>(
+        &mut self,
+        connection: &mut be_ops::Connection,
+        item: T,
+        to: impl FnMut(&Route) -> bool,
+    ) -> Result<(), ServerError> {
+        self.outlets
+            .send(connection, &item, to)
+            .map_err(|_| ServerError::Socket("the client is not reading what it is sent".into()))
+    }
+
+    fn open(&mut self, stream: be_ops::Producer<impl Sized>, route: Route) {
+        self.outlets
+            .insert(stream, route, Backlog::Queue(STREAM_BUFFER));
+    }
+
+    fn events(&self, session: OpId) -> Option<OpId> {
+        self.outlets.routes().find_map(|(op, route)| {
+            matches!(route, Route::Events { session: of, .. } if *of == session).then_some(op)
+        })
+    }
+
+    fn in_session(&self, block: Uuid) -> bool {
+        self.outlets
+            .routes()
+            .any(|(_, route)| matches!(route, Route::Events { block: of, .. } if *of == block))
+    }
 }
 
 pub(crate) struct Connection {
@@ -167,7 +148,9 @@ impl Client {
             match event {
                 Incoming::Started(started) => self.serve(started).await,
                 Incoming::Canceled { op } => self.canceled(op).await,
-                Incoming::Credited { op } => self.credited(op),
+                Incoming::Credited { op } => {
+                    self.streams.outlets.credited(&mut self.peer.lock(), op);
+                }
                 _ => {}
             }
         }
@@ -231,104 +214,79 @@ impl Client {
     }
 
     pub(crate) async fn push(&mut self, push: Push) -> Result<(), ServerError> {
-        let mut unwatched = Vec::new();
+        let mut unwatched = None;
         {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
+            let sessions = |block: Uuid| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
             match push {
                 Push::BlockChanged(block) => {
-                    for outlet in streams.changes.values_mut() {
-                        outlet.send(&mut lock, BlockChange::Changed(block.clone()))?;
-                    }
+                    streams.send(&mut lock, BlockChange::Changed(block), |route| {
+                        *route == Route::Changes
+                    })?;
                 }
                 Push::BlockRemoved { block, revision } => {
-                    for outlet in streams.changes.values_mut() {
-                        outlet.send(&mut lock, BlockChange::Removed { block, revision })?;
-                    }
+                    streams.send(
+                        &mut lock,
+                        BlockChange::Removed { block, revision },
+                        |route| *route == Route::Changes,
+                    )?;
                 }
                 Push::HeadChanged {
                     block,
                     head,
                     author,
                 } => {
-                    for (watched, outlet) in streams.watches.values_mut() {
-                        if *watched == block {
-                            outlet.send(&mut lock, BlockEvent::Moved { head, author })?;
-                        }
-                    }
+                    streams.send(&mut lock, BlockEvent::Moved { head, author }, |route| {
+                        *route == Route::Watch(block)
+                    })?;
                 }
                 Push::BlockDeleted { block } | Push::Unwatched { block } => {
                     let deleted = matches!(push, Push::BlockDeleted { .. });
+                    if deleted {
+                        streams.send(&mut lock, BlockEvent::Deleted, |route| {
+                            *route == Route::Watch(block)
+                        })?;
+                    }
                     let ended: Vec<OpId> = streams
-                        .watches
-                        .iter()
-                        .filter(|(_, (watched, _))| *watched == block)
-                        .map(|(op, _)| *op)
+                        .outlets
+                        .routes()
+                        .filter(|(_, route)| **route == Route::Watch(block))
+                        .map(|(op, _)| op)
                         .collect();
                     for op in ended {
-                        let Some((_, mut outlet)) = streams.watches.remove(&op) else {
-                            continue;
-                        };
-                        match deleted {
-                            true => {
-                                outlet.send(&mut lock, BlockEvent::Deleted)?;
-                                outlet.flush(&mut lock);
-                                match outlet.behind.is_empty() {
-                                    true => outlet.end(&mut lock, None),
-                                    false => outlet.end(&mut lock, Some(OpError::Canceled)),
-                                }
-                            }
-                            false => outlet.end(&mut lock, Some(OpError::Denied)),
-                        }
+                        streams
+                            .outlets
+                            .end(&mut lock, op, (!deleted).then_some(OpError::Denied));
                     }
-                    unwatched.push(block);
+                    unwatched = Some(block);
                 }
                 Push::SessionChanged { block, state } => {
-                    for joined in streams.sessions.values_mut() {
-                        if joined.block == block
-                            && let Some(events) = &mut joined.events
-                        {
-                            events.send(&mut lock, SessionEvent::Changed(state.clone()))?;
-                        }
-                    }
+                    streams.send(&mut lock, SessionEvent::Changed(state), sessions(block))?;
                 }
                 Push::Relayed {
                     block,
                     from,
                     payload,
                 } => {
-                    for joined in streams.sessions.values_mut() {
-                        if joined.block == block
-                            && let Some(events) = &mut joined.events
-                        {
-                            events.send(
-                                &mut lock,
-                                SessionEvent::Relayed {
-                                    from,
-                                    payload: payload.clone(),
-                                },
-                            )?;
-                        }
-                    }
+                    streams.send(
+                        &mut lock,
+                        SessionEvent::Relayed { from, payload },
+                        sessions(block),
+                    )?;
                 }
                 Push::Paired(message) => {
-                    for outlet in streams.paired.values_mut() {
-                        outlet.send(&mut lock, message.clone())?;
-                    }
+                    streams.send(&mut lock, message, |route| *route == Route::Paired)?;
                 }
                 Push::ContactsChanged => {
-                    for latest in streams.contacts.values_mut() {
-                        latest.send(&mut lock, ());
-                    }
+                    streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
                 }
                 Push::KeyWorkChanged => {
-                    for latest in streams.key_work.values_mut() {
-                        latest.send(&mut lock, ());
-                    }
+                    streams.send(&mut lock, (), |route| *route == Route::KeyWork)?;
                 }
             }
         }
-        for block in unwatched {
+        if let Some(block) = unwatched {
             self.connection
                 .hub
                 .unwatch(block, self.connection.client)
@@ -337,71 +295,28 @@ impl Client {
         Ok(())
     }
 
-    fn credited(&mut self, op: OpId) {
-        let mut lock = self.peer.lock();
-        let streams = &mut self.streams;
-        if let Some((_, outlet)) = streams.watches.get_mut(&op) {
-            outlet.flush(&mut lock);
-        } else if let Some(outlet) = streams.changes.get_mut(&op) {
-            outlet.flush(&mut lock);
-        } else if let Some(outlet) = streams.paired.get_mut(&op) {
-            outlet.flush(&mut lock);
-        } else if let Some(latest) = streams.contacts.get_mut(&op) {
-            latest.credited(&mut lock, op);
-        } else if let Some(latest) = streams.key_work.get_mut(&op) {
-            latest.credited(&mut lock, op);
-        } else if let Some(events) = streams
-            .sessions
-            .values_mut()
-            .filter_map(|joined| joined.events.as_mut())
-            .find(|events| events.op() == op)
-        {
-            events.flush(&mut lock);
-        }
-    }
-
     async fn canceled(&mut self, op: OpId) {
         let canceled = Some(OpError::Canceled);
         let left = {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
-            if let Some((block, outlet)) = streams.watches.remove(&op) {
-                outlet.end(&mut lock, canceled);
-                let watched = streams.watches.values().any(|(other, _)| *other == block);
-                (!watched).then_some((block, false))
-            } else if let Some(outlet) = streams.changes.remove(&op) {
-                outlet.end(&mut lock, canceled);
-                None
-            } else if let Some(outlet) = streams.paired.remove(&op) {
-                outlet.end(&mut lock, canceled);
-                None
-            } else if let Some(latest) = streams.contacts.remove(&op) {
-                latest.finish(&mut lock);
-                None
-            } else if let Some(latest) = streams.key_work.remove(&op) {
-                latest.finish(&mut lock);
-                None
-            } else if let Some(joined) = streams.sessions.remove(&op) {
-                if let Some(events) = joined.events {
-                    events.end(&mut lock, canceled);
+            if let Some(block) = streams.sessions.remove(&op) {
+                if let Some(events) = streams.events(op) {
+                    streams.outlets.end(&mut lock, events, canceled);
                 }
                 embed::sessions::Session(op).end(&mut lock);
-                let still = streams
-                    .sessions
-                    .values()
-                    .any(|other| other.block == joined.block && other.events.is_some());
-                (!still).then_some((joined.block, true))
+                (!streams.in_session(block)).then_some((block, true))
             } else {
-                if let Some(joined) = streams.sessions.values_mut().find(|joined| {
-                    joined
-                        .events
-                        .as_ref()
-                        .is_some_and(|events| events.op() == op)
-                }) && let Some(events) = joined.events.take()
-                {
-                    events.end(&mut lock, canceled);
+                match streams.outlets.end(&mut lock, op, canceled) {
+                    Some(Route::Watch(block)) => {
+                        let watched = streams
+                            .outlets
+                            .routes()
+                            .any(|(_, route)| *route == Route::Watch(block));
+                        (!watched).then_some((block, false))
+                    }
+                    _ => None,
                 }
-                None
             }
         };
         match left {
@@ -588,7 +503,7 @@ impl Client {
                 self.reply(reply, paired);
             }
             Call::Paired { stream } => {
-                self.streams.paired.insert(stream.op(), Outlet::new(stream));
+                self.streams.open(stream, Route::Paired);
             }
         }
     }
@@ -987,8 +902,8 @@ impl Client {
             }
             Call::ContactsChanged { stream } => {
                 self.streams
-                    .contacts
-                    .insert(stream.op(), Latest::new(stream));
+                    .outlets
+                    .insert(stream, Route::Contacts, Backlog::Latest);
             }
         }
     }
@@ -1260,9 +1175,7 @@ impl Client {
                 self.reply(reply, unlisted);
             }
             Call::Changes { stream } => {
-                self.streams
-                    .changes
-                    .insert(stream.op(), Outlet::new(stream));
+                self.streams.open(stream, Route::Changes);
             }
             Call::ListHistory { reply, block } => {
                 let listed = async {
@@ -1375,9 +1288,7 @@ impl Client {
                     return;
                 }
                 connection.hub.watch(block, connection.client).await;
-                self.streams
-                    .watches
-                    .insert(stream.op(), (block, Outlet::new(stream)));
+                self.streams.open(stream, Route::Watch(block));
             }
         }
     }
@@ -1386,21 +1297,11 @@ impl Client {
         use embed::sessions::Call;
         match call {
             Call::SessionNew { resource, block } => {
-                self.streams.sessions.insert(
-                    resource.op(),
-                    Joined {
-                        block,
-                        events: None,
-                    },
-                );
+                self.streams.sessions.insert(resource.op(), block);
             }
             Call::SessionJoin { this, stream } => {
-                let Some(block) = self
-                    .streams
-                    .sessions
-                    .get(&this.op())
-                    .map(|joined| joined.block)
-                else {
+                let session = this.op();
+                let Some(&block) = self.streams.sessions.get(&session) else {
                     stream.fail(&mut self.peer.lock(), OpError::Canceled);
                     return;
                 };
@@ -1414,23 +1315,28 @@ impl Client {
                     Ok::<_, ServerError>(state)
                 }
                 .await;
-                let mut outlet = Outlet::new(stream);
+                let op = stream.op();
                 let mut lock = self.peer.lock();
-                let state = match joined {
-                    Ok(state) => state,
+                let streams = &mut self.streams;
+                if let Some(before) = streams.events(session) {
+                    streams
+                        .outlets
+                        .end(&mut lock, before, Some(OpError::Canceled));
+                }
+                streams.open(stream, Route::Events { session, block });
+                let only = |route: &Route| *route == Route::Events { session, block };
+                let event = match joined {
+                    Ok(state) => SessionEvent::Joined {
+                        client: self.connection.client,
+                        state,
+                    },
                     Err(error) => {
-                        let _ = outlet.send(&mut lock, SessionEvent::Refused(wire(error)));
-                        return outlet.end(&mut lock, None);
+                        let _ = streams.send(&mut lock, SessionEvent::Refused(wire(error)), only);
+                        streams.outlets.end(&mut lock, op, None);
+                        return;
                     }
                 };
-                let joined = SessionEvent::Joined {
-                    client: self.connection.client,
-                    state,
-                };
-                let _ = outlet.send(&mut lock, joined);
-                if let Some(session) = self.streams.sessions.get_mut(&this.op()) {
-                    session.events = Some(outlet);
-                }
+                let _ = streams.send(&mut lock, event, only);
             }
             Call::SessionClaimOwnership {
                 this,
@@ -1534,8 +1440,8 @@ impl Client {
         self.streams
             .sessions
             .get(&session)
-            .filter(|joined| joined.events.is_some())
-            .map(|joined| joined.block)
+            .copied()
+            .filter(|_| self.streams.events(session).is_some())
             .ok_or_else(|| {
                 ServerError::Refused(
                     ErrorCode::PermissionDenied,
@@ -1626,8 +1532,8 @@ impl Client {
             }
             Call::KeyWorkChanged { stream } => {
                 self.streams
-                    .key_work
-                    .insert(stream.op(), Latest::new(stream));
+                    .outlets
+                    .insert(stream, Route::KeyWork, Backlog::Latest);
             }
             Call::Rotate { reply, roots, keys } => {
                 let rotated = async {

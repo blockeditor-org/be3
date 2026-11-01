@@ -14,7 +14,8 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Connection, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket, guest::Executor, wire,
+        Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Side, Ticket,
+        guest::Executor, wire,
     },
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
@@ -71,7 +72,7 @@ struct Inner {
     module: Module,
     executor: Executor,
     host: Connection,
-    clock: Option<Latest<u64>>,
+    clock: Outlets<()>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
@@ -105,7 +106,7 @@ impl Default for Inner {
             executor: module.executor(),
             module,
             host: Connection::new(Side::Host),
-            clock: None,
+            clock: Outlets::default(),
             now: 0,
             replicas: BTreeMap::new(),
             commits: BTreeMap::new(),
@@ -208,9 +209,7 @@ impl Inner {
                 }
             }
             Incoming::Credited { op } => {
-                if let Some(clock) = &mut self.clock {
-                    clock.credited(&mut self.host, op);
-                }
+                self.clock.credited(&mut self.host, op);
             }
             Incoming::Yielded { .. } => {}
         }
@@ -219,9 +218,9 @@ impl Inner {
     fn act(&mut self, block: Option<Uuid>, call: Call) {
         match call {
             Call::Clock { stream } => {
-                let mut clock = Latest::new(stream);
-                clock.send(&mut self.host, self.now);
-                self.clock = Some(clock);
+                self.clock = Outlets::default();
+                self.clock.insert(stream, (), Backlog::Latest);
+                let _ = self.clock.send(&mut self.host, &self.now, |_| true);
             }
             Call::Send {
                 to: Recipients::One(Endpoint::Editor(editor)),
@@ -636,10 +635,8 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         if now > inner.now {
             inner.now = now;
-            if let Some(mut clock) = inner.clock.take() {
-                clock.send(&mut inner.host, now);
-                inner.clock = Some(clock);
-            }
+            let inner = &mut *inner;
+            let _ = inner.clock.send(&mut inner.host, &now, |_| true);
             inner.run();
         }
     }
