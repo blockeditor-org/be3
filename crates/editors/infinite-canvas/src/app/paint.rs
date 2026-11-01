@@ -2,8 +2,8 @@ use block_editor_beui::beui::icons::Glyph;
 use std::rc::Rc;
 
 use block_editor_beui::beui::{
-    Color32, FontId, Image, LineCap, LineJoin, Pos2, Rect, Stroke, TextLayout, Vec2, pos2,
-    reactive::Painter,
+    CanvasView, Color32, FontId, Image, LineCap, LineJoin, Pos2, Rect, Stroke, TextLayout, Vec2,
+    pos2, reactive::Painter,
 };
 use infinite_canvas_types::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
@@ -17,32 +17,6 @@ use super::sketch::{Ink, Mark, Sketch};
 pub(crate) const SELECTION: Color32 = Color32::from_rgb(140, 200, 255);
 const PLACEHOLDER: Color32 = Color32::from_rgb(35, 35, 35);
 const ARROW_SPREAD: f32 = 0.45;
-
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) struct Camera {
-    pub(crate) origin: Pos2,
-    pub(crate) scale: f32,
-}
-
-impl Camera {
-    pub(crate) fn item(corner: Pos2, scale: f32) -> Self {
-        Self {
-            origin: pos2(-corner.x * scale, -corner.y * scale),
-            scale,
-        }
-    }
-
-    pub(crate) fn at(self, at: CanvasPoint) -> Pos2 {
-        pos2(
-            self.origin.x + at.x * self.scale,
-            self.origin.y + at.y * self.scale,
-        )
-    }
-
-    pub(crate) fn rect(self, bounds: WorldRect) -> Rect {
-        Rect::from_min_max(self.at(bounds.min), self.at(bounds.max))
-    }
-}
 
 pub(crate) fn with_opacity(color: Color32, opacity: f32) -> Color32 {
     let [red, green, blue, alpha] = color.to_array();
@@ -78,7 +52,7 @@ pub(crate) struct Palette {
 #[derive(Clone)]
 pub(crate) struct EntityPaint {
     pub(crate) entity: CanvasEntity,
-    pub(crate) camera: Camera,
+    pub(crate) camera: CanvasView,
     pub(crate) palette: Palette,
     pub(crate) title: String,
     pub(crate) glyph: Option<Glyph>,
@@ -136,8 +110,8 @@ impl EntityPaint {
         }
     }
 
-    fn at(&self, point: CanvasPoint) -> Pos2 {
-        self.camera.at(point)
+    fn at(&self, at: CanvasPoint) -> Pos2 {
+        self.camera.to_screen(point(at))
     }
 
     fn box_rect(&self) -> Rect {
@@ -246,9 +220,11 @@ impl EntityPaint {
         let Some(layout) = direct_editor_layout(&self.entity) else {
             return;
         };
-        let outer = self.camera.rect(entity_bounds(&self.entity));
-        let title_bar = self.camera.rect(layout.title_bar);
-        let content = self.camera.rect(layout.content);
+        let outer = self
+            .camera
+            .rect_to_screen(entity_bounds(&self.entity).rect());
+        let title_bar = self.camera.rect_to_screen(layout.title_bar.rect());
+        let content = self.camera.rect_to_screen(layout.content.rect());
         let radius = (6.0 * scale * self.camera.scale).clamp(2.0, 12.0);
         painter.rect_filled(outer, radius, with_opacity(self.palette.surface, opacity));
         painter.rect_stroke(
