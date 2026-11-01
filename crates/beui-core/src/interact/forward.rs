@@ -2,15 +2,16 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 
-use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, PointerId};
-use crate::node::{Element, NodeId, Rects};
-use crate::window::WindowId;
+use crate::node::{Element, Rects};
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Event, PointerId};
+use beui_types::{Pos2, Rect};
 
 use super::hit;
 use super::pointer::Routed;
 
-pub use beui_types::forward::{Aim, Forwarded, ForwardedInput, Over, Replay, Replayed};
+use beui_types::{Forwarded, ForwardedInput, Over};
 
 #[derive(Default)]
 pub struct Routing {

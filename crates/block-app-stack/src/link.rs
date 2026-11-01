@@ -25,7 +25,20 @@ impl Link {
     }
 }
 
-static HELD: Mutex<Vec<Held>> = Mutex::const_new(Vec::new());
+fn held() -> &'static Mutex<Vec<Held>> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static HELD: Mutex<Vec<Held>> = Mutex::const_new(Vec::new());
+        &HELD
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        thread_local! {
+            static HELD: &'static Mutex<Vec<Held>> = Box::leak(Box::new(Mutex::const_new(Vec::new())));
+        }
+        HELD.with(|held| *held)
+    }
+}
 
 pub async fn connect(server_url: &str) -> Result<Arc<Connection>, ClientError> {
     open(server_url, &Clock::real()).await
@@ -49,7 +62,7 @@ async fn open(server_url: &str, clock: &Clock) -> Result<Arc<Connection>, Client
 
 pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<Link, ClientError> {
     let socket = be_client::socket_url(server_url);
-    let mut held = HELD.lock().await;
+    let mut held = held().lock().await;
     held.retain(|held| !held.link.connection.is_closed());
     if let Some(held) = held
         .iter()
@@ -58,9 +71,12 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
         return Ok(held.link.clone());
     }
     let connection = open(server_url, clock).await?;
-    let account = be_client::ask(client::account::authenticate(&connection, token.to_owned()))
-        .await?
-        .account;
+    let account = be_client::ask(client::account::authenticate(
+        &connection,
+        Some(token.to_owned()),
+    ))
+    .await?
+    .account;
     let link = Link {
         connection,
         account,
@@ -77,7 +93,7 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
 
 pub async fn adopt(server_url: &str, token: &str, account: Uuid, connection: Arc<Connection>) {
     let socket = be_client::socket_url(server_url);
-    let mut held = HELD.lock().await;
+    let mut held = held().lock().await;
     held.retain(|held| held.socket != socket || held.token != token);
     held.push(Held {
         socket,
@@ -93,7 +109,8 @@ pub async fn adopt(server_url: &str, token: &str, account: Uuid, connection: Arc
 
 pub async fn forget(server_url: &str, token: &str) {
     let socket = be_client::socket_url(server_url);
-    HELD.lock()
+    held()
+        .lock()
         .await
         .retain(|held| held.socket != socket || held.token != token);
 }

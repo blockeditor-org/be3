@@ -169,7 +169,7 @@ thread-locals through a global the loader fills, as ELF's dynamic TLS model does
 and a plugin needing all three (`linked_plugin`) whose generics reach a thread-local in each, on
 the main thread and on a spawned one, which wakes it to send `[1]` once all of them were right.
 block-wasm-host's `the_thread_local_diamond_runs_on_every_thread` loads it through `Host` on
-wasmtime, and `//crates/tls-diamond:web-test` boots it through `plugin.js` in Chromium, where a
+wasmtime, and `//crates/tls-diamond:web-test` runs it through `guest.js` and `plugin.js` in Chromium, where a
 second worker checks that a library which no longer hashes to its name is refused.
 
 ## Loading
@@ -200,7 +200,7 @@ module later.
 
 Natively the host keeps one compiled module per library identity per engine (`Host` in
 block-wasm-host; one wasmtime engine per cache directory), so every plugin after the first only
-compiles itself. `Host::load_from` and `PureHost::load_from` take a reader that hands back each
+compiles itself. `Host::load_from` takes a reader that hands back each
 module as a `Stored`: a file (`Stored::file`), whose `.cwasm` wasmtime maps rather than copies,
 or bytes already in memory, as Android's assets are. block-app-stack's `discovery::open` is the
 app's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each plugin's worker fetches each library and compiles it with
@@ -213,7 +213,7 @@ and `fetchLibrary` compiles the bytes it hashed otherwise.
 A plugin needs no Rust and no library: a standalone plugin is one plain wasm module, with
 no `dylink.0` section and no `__be3_lib_*` export, which the host instantiates as it is, on
 wasmtime (`Program::Whole` in block-wasm-host) and in the browser (`boot` in
-`block-app/web/plugin.js`). `crates/block-wasm-host/src/tests/standalone.wat` is one, in
+`block-app/web/plugin.js`, under block-guest-host's worker runtime). `crates/block-wasm-host/src/tests/standalone.wat` is one, in
 WebAssembly text, that paints through the gpu; block-wasm-host's tests run it on wasmtime and
 `//crates/block-wasm-host:standalone-web-test` in Chromium.
 
@@ -268,10 +268,12 @@ wasi:webgpu), which be-ops-bindgen generates with `local` (guides/type_modules.m
 plugin's own thread, so they return their results, and a call made per draw takes only
 wasm values. block-gpu-guest is wgpu's custom backend over the guest bindings (a
 surface is the host's surface id; `release_surface` drops it), block-gpu-host's `Gpu`
-implements `Host` over a real wgpu device, block-wasm-host's `Guest` (`State` with a
+implements `Host` over a real wgpu device (both convert between the generated types and wgpu's
+through the `From` and `TryFrom` impls behind block-gpu-abi's `wgpu` feature; the guest panics on
+what the abi cannot carry), block-wasm-host's `Guest` (`State` with a
 view of the plugin's memory, shared or its own) is the `Caller` and links the glue, and block-gpu-shim is the `Caller` in a browser worker and exports
-each import as `module#name`, which `plugin.js` binds every import it does not answer
-itself to. A call whose arguments cannot be read is refused into the device's error,
+each import as `module#name`, which `plugin.js` binds every import the worker runtime
+(block-guest-host's `src/guest.js`) does not answer itself to. A call whose arguments cannot be read is refused into the device's error,
 which `take-error` and the step both report; natively a plugin that reaches for a gpu
 no device could be opened for stops with why. `example-gpu-calls` in block-wasm-host
 times the per-draw calls (guides/performance.md).
@@ -376,7 +378,7 @@ type module is a pure guest whose ABI grows with its WIT world (guides/type_modu
 "Operations and WIT"): its async calls are be-ops frames, and each sync func is a wasm
 import (`(has_parent: i32, parent: i64, pointer, length)`, with no result) or export
 (the same arguments, the host writing them into memory from `plugin_alloc`, returning
-the result's packed pointer and length). The host links `be3_host` and the world's imports (`PureHost::with_imports`,
+the result's packed pointer and length). The host links `be3_host` and the world's imports (`Host::with_direct`,
 `WebGuest::start`'s list) and refuses any other.
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
@@ -386,16 +388,26 @@ guest share:
   woke (`Channel::take_woken`), so an idle guest costs nothing to poll; a guest that holds
   output back for a later step wakes itself.
 - `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
-  its loader is handed the `Wake` to give the guest, which marks the guest woken before it
-  reaches the host. Dropping it interrupts the guest. Editors (`block-app-plugin-host/src/wasm.rs`) and pure guests both use it.
+  it hands the guest a `Wake` (`Runnable::on_wake`) that marks the guest woken before it
+  reaches the host. Dropping it interrupts the guest. Every wasmtime guest reaches it through
+  block-wasm-host's `Host::spawn`, which loads a `Runnable` from the host (a `Plugin` for a pure
+  guest, block-app-plugin-host's `Editor` around one for an editor) and takes how to contain a
+  panic on the thread.
 - `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
-- `web::WebGuest` runs a pure guest in a web worker of its own, with frames moved as
-  transferable buffers and nothing else in the worker: no gpu shim, no dylink, no
-  SharedArrayBuffer.
+- `web::WebGuest<P>` runs any guest in a web worker of its own: `src/guest.js`, which the crate
+  embeds and starts as a blob worker, so it needs no file served. It answers `be3_host`, the
+  direct imports and the step, report and wake messages with frames moved as transferable
+  buffers, and refuses any other import, which is all a pure guest needs. An editor's start
+  names an extension, block-app's `plugin.js`, served beside the app, which instantiates the
+  plugin with its libraries, WASI, threads and block-gpu-shim, answers the rest of its imports,
+  takes the page's canvas and picture messages (`WebGuest::post`; held until the guest is
+  running) and adds `painted`, `pictures`, `gpu` and `submit` to each report, which `P`
+  (`web::Pictures`, block-app-plugin-host's `PresentedBitmap`) reads.
 
-Natively `PureHost` in block-wasm-host loads a pure guest with an engine of its own
-configuration (threads, shared memory and relaxed SIMD off, epoch interruption on), links only
-the `be3_host` imports so a guest that imports anything else is refused, and caps its memory with
-`StoreLimits` (`MEMORY_LIMIT`, or `with_memory_limit`). `PureHost::spawn` puts it on its own
-thread. It reads a `.cwasm` beside the module as `Host` does, and `precompile` compiles either
-kind.
+Natively a pure guest is a `Plugin` of a `Host::pure` in block-wasm-host: the same loading,
+calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
+and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` and direct
+imports linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
+anything else is refused, and its memory capped with `StoreLimits` (`MEMORY_LIMIT`, or
+`with_memory_limit`).
+`precompile` compiles either kind.

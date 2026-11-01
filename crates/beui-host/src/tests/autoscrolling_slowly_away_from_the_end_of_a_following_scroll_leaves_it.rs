@@ -27,8 +27,8 @@ fn autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it() {
     let origin = harness.rect(scroll).center();
 
     harness.frame(vec![Input::PointerMoved(origin)]);
-    harness.middle_button(origin, true);
-    harness.middle_button(origin, false);
+    harness.down(origin, PointerButton::Middle);
+    harness.up(origin, PointerButton::Middle);
     harness.frame(vec![Input::PointerMoved(
         origin - Vec2::new(0.0, AUTOSCROLL_DEAD_ZONE + 2.0),
     )]);

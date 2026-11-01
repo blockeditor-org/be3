@@ -1,5 +1,5 @@
-use beui_core::geometry::{Pos2, Rect};
-use beui_core::window::{WindowId, WindowRequest};
+use beui_types::{Pos2, Rect};
+use beui_types::{WindowId, WindowRequest};
 
 use crate::reactive::ReadSignal;
 use beui_core::current::with_document;

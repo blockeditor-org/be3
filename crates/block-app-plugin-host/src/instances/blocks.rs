@@ -170,31 +170,26 @@ impl Instances {
                 block_app_stack::version(block, command);
                 true
             }
-            Call::ReplaceContent {
+            Call::WriteContent {
                 block,
                 content_type,
                 bytes,
+                replace,
             } => {
                 let block = Uuid::from_bytes(block);
                 let content_type = Uuid::from_bytes(content_type);
-                if block_app_stack::is_known(content_type) && self.editable(block) {
-                    block_app_stack::replace(block, content_type, bytes);
-                }
-                false
-            }
-            Call::SeedContent {
-                block,
-                content_type,
-                bytes,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let content_type = Uuid::from_bytes(content_type);
-                let holds = self
-                    .entries
-                    .get(&instance)
-                    .is_some_and(|entry| entry.holds(block));
-                if holds && block_app_stack::is_known(content_type) {
-                    block_app_stack::seed(block, content_type, bytes);
+                let allowed = match replace {
+                    true => self.editable(block),
+                    false => self
+                        .entries
+                        .get(&instance)
+                        .is_some_and(|entry| entry.holds(block)),
+                };
+                if allowed && block_app_stack::is_known(content_type) {
+                    match replace {
+                        true => block_app_stack::replace(block, content_type, bytes),
+                        false => block_app_stack::seed(block, content_type, bytes),
+                    }
                 }
                 false
             }

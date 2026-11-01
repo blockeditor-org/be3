@@ -1,9 +1,11 @@
 use std::{
-    cell::RefCell,
-    sync::{
-        Mutex, OnceLock, PoisonError,
-        mpsc::{self, Receiver, SendError},
-    },
+    any::Any,
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    marker::PhantomData,
+    rc::Rc,
+    sync::{Mutex, OnceLock, PoisonError},
+    thread::{self, ThreadId},
     time::{Duration, Instant},
 };
 
@@ -14,8 +16,15 @@ type Waker = Box<dyn Fn() + Send + Sync>;
 static WAKER: OnceLock<Waker> = OnceLock::new();
 static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 
+type Letter = (u64, Box<dyn Any + Send>);
+type Receive = Rc<dyn Fn(&mut dyn Any, Box<dyn Any + Send>)>;
+
+static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
+
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
+    static MAILBOXES: RefCell<HashMap<u64, (u64, Receive)>> = RefCell::new(HashMap::new());
+    static NEXT_MAILBOX: Cell<u64> = const { Cell::new(1) };
 }
 
 pub fn install_waker(waker: impl Fn() + Send + Sync + 'static) {
@@ -38,25 +47,138 @@ pub fn wake() {
     }
 }
 
-pub struct WakingSender<T>(mpsc::Sender<T>);
+pub struct Mailbox(u64);
 
-impl<T> Clone for WakingSender<T> {
+impl Drop for Mailbox {
+    fn drop(&mut self) {
+        let _ = MAILBOXES.try_with(|mailboxes| mailboxes.borrow_mut().remove(&self.0));
+    }
+}
+
+pub struct Post<T> {
+    mailbox: u64,
+    thread: ThreadId,
+    kind: PhantomData<fn(T)>,
+}
+
+impl<T> Clone for Post<T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            mailbox: self.mailbox,
+            thread: self.thread,
+            kind: PhantomData,
+        }
     }
 }
 
-impl<T> WakingSender<T> {
-    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
-        let sent = self.0.send(value);
+impl<T: Send + 'static> Post<T> {
+    pub fn send(&self, value: T) {
+        POSTED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((self.thread, (self.mailbox, Box::new(value))));
         wake();
-        sent
     }
 }
 
-pub fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
-    let (sender, receiver) = mpsc::channel();
-    (WakingSender(sender), receiver)
+fn next_mailbox() -> u64 {
+    let next = NEXT_MAILBOX.get();
+    NEXT_MAILBOX.set(next + 1);
+    next
+}
+
+pub struct Desk<C> {
+    id: u64,
+    context: PhantomData<fn(&mut C)>,
+}
+
+impl<C> Clone for Desk<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C> Copy for Desk<C> {}
+
+impl<C: 'static> Default for Desk<C> {
+    fn default() -> Self {
+        Self {
+            id: next_mailbox(),
+            context: PhantomData,
+        }
+    }
+}
+
+impl<C: 'static> Desk<C> {
+    pub fn mailbox<T: Send + 'static>(
+        self,
+        receive: impl Fn(&mut C, T) + 'static,
+    ) -> (Mailbox, Post<T>) {
+        let mailbox = next_mailbox();
+        let receive: Receive = Rc::new(move |context, letter| {
+            if let (Some(context), Ok(value)) =
+                (context.downcast_mut::<C>(), letter.downcast::<T>())
+            {
+                receive(context, *value);
+            }
+        });
+        MAILBOXES.with_borrow_mut(|mailboxes| mailboxes.insert(mailbox, (self.id, receive)));
+        let post = Post {
+            mailbox,
+            thread: thread::current().id(),
+            kind: PhantomData,
+        };
+        (Mailbox(mailbox), post)
+    }
+
+    pub fn deliver(self, context: &mut C) {
+        let here = thread::current().id();
+        let at_this_desk = |mailbox: u64| {
+            MAILBOXES
+                .with_borrow(|mailboxes| mailboxes.get(&mailbox).map(|(desk, _)| *desk == self.id))
+        };
+        let letters: Vec<Letter> = {
+            let mut posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut letters = Vec::new();
+            posted.retain_mut(|(thread, letter)| {
+                if *thread != here {
+                    return true;
+                }
+                match at_this_desk(letter.0) {
+                    Some(true) => {
+                        letters.push(std::mem::replace(letter, (0, Box::new(()))));
+                        false
+                    }
+                    Some(false) => true,
+                    None => false,
+                }
+            });
+            letters
+        };
+        for (mailbox, letter) in letters {
+            let receive = MAILBOXES.with_borrow(|mailboxes| {
+                mailboxes
+                    .get(&mailbox)
+                    .map(|(_, receive)| Rc::clone(receive))
+            });
+            if let Some(receive) = receive {
+                receive(context, letter);
+            }
+        }
+    }
+}
+
+const FRAME: Desk<()> = Desk {
+    id: 0,
+    context: PhantomData,
+};
+
+pub fn mailbox<T: Send + 'static>(receive: impl Fn(T) + 'static) -> (Mailbox, Post<T>) {
+    FRAME.mailbox(move |(), value| receive(value))
+}
+
+pub fn deliver() {
+    FRAME.deliver(&mut ());
 }
 
 #[derive(Clone, Debug)]
@@ -75,6 +197,7 @@ pub struct Output {
     pub repaint: bool,
     pub repaint_after: Option<Duration>,
     pub animating: bool,
+    pub close: bool,
 }
 
 struct Host {
@@ -161,6 +284,7 @@ pub fn start(frame: Frame) {
         host.opens_windows = frame.opens_windows;
         host.output = Output::default();
     });
+    deliver();
 }
 
 pub fn finish() -> Output {
@@ -282,6 +406,10 @@ pub fn request_repaint_after(delay: Duration) {
     });
 }
 
+pub fn close_window() {
+    with(|host| host.output.close = true);
+}
+
 pub fn note_animating() {
     with(|host| host.output.animating = true);
 }
@@ -294,3 +422,6 @@ pub fn push_command(command: HostCommand) {
 pub fn take_commands() -> Vec<HostCommand> {
     with(|host| std::mem::take(&mut host.commands))
 }
+
+#[cfg(test)]
+mod tests;

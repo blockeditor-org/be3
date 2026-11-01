@@ -9,7 +9,6 @@ mod a_commit_chain_walks_to_its_root;
 mod a_commit_is_stored_by_field_name_and_reads_past_fields_it_does_not_know;
 mod a_common_ancestor_is_found_across_a_fork;
 mod a_cut_and_paste_conflicts_instead_of_interleaving;
-mod a_keyed_map_merges_per_entry;
 mod identical_edits_on_both_sides_merge_cleanly;
 mod pruned_history_leaves_the_remaining_chain_walkable;
 mod retention_keeps_bookmarks_and_recent_states;

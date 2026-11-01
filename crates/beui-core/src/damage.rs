@@ -1,8 +1,8 @@
-pub use crate::geometry::Region;
-use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::painter::Shape;
 use crate::path::PathPaint;
-use crate::window::WindowId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Rotation, Vec2};
 
 #[derive(Clone, Default, PartialEq, Debug)]
 pub struct WindowRegions(Vec<(WindowId, Region)>);

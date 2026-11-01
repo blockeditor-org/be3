@@ -696,7 +696,7 @@ impl embed::blocks::Call {
             Call::Define {
                 value: Some(value), ..
             } => descriptor(value),
-            Call::SeedContent { bytes, .. } | Call::ReplaceContent { bytes, .. } => blob(bytes),
+            Call::WriteContent { bytes, .. } => blob(bytes),
             Call::ReplicaSend { frame, .. } => blob(frame),
             Call::Version { command, .. } => match command {
                 VersionCommand::Finish { description: value }

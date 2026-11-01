@@ -8,10 +8,10 @@ use crate::Repaint;
 use crate::Repainting;
 use crate::renderer_info;
 use crate::wgpu_color_in;
-use beui_core::color::Color32;
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
-use beui_core::geometry::{Vec2, vec2};
 use beui_runner::renderer::WindowHandle;
+use beui_types::Color32;
+use beui_types::{Vec2, vec2};
 
 pub trait OpenGpu: Send + Sync {
     fn adapter(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>>;

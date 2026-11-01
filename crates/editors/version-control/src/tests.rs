@@ -4,8 +4,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{
-    BeuiApp, ConflictSide, EditorHost, OwnedEditor, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
+    BeuiApp, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    VersionCommit, VersionOperation, VersionStatus, short_id,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -28,10 +28,7 @@ fn editor<A: BeuiApp, C: LiveEdit + block_editor_beui::be_block::Merge + Clone +
     content: C,
     status: VersionStatus,
 ) -> BeuiTest<A> {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host, Uuid::new_v4());
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = BeuiTest::editing(Uuid::new_v4());
     editor.hold(None, content);
     editor.set_version_status(status);
     editor.run();

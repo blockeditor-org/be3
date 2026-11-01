@@ -1220,10 +1220,6 @@ impl MenuListApi {
         button.get()
     }
 
-    pub fn back_button(&self) -> Option<NodeId> {
-        self.0.back.try_get()
-    }
-
     pub fn page(&self) -> Option<NodeId> {
         let state = &self.0;
         state.page.get_untracked()?;

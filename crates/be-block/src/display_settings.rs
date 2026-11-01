@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::Root;
 use crate::setting::Setting;
-use crate::settings::Layered;
+use crate::settings::{Layered, union};
 pub use ui_preferences::{CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -97,14 +97,6 @@ impl DisplaySettings {
         Self::THEME.set(ObjectId::ROOT, &theme).into()
     }
 
-    pub fn set_motion(motion: Option<Motion>) -> Edit {
-        Self::MOTION.set(ObjectId::ROOT, &motion).into()
-    }
-
-    pub fn set_canvas_touch(canvas_touch: Option<CanvasTouch>) -> Edit {
-        Self::CANVAS_TOUCH.set(ObjectId::ROOT, &canvas_touch).into()
-    }
-
     pub fn scale_percent(&self) -> u32 {
         self.scale_percent
             .filter(|percent| *percent > 0)
@@ -127,10 +119,6 @@ impl DisplaySettings {
 
     pub fn keyboard_share(&self) -> f32 {
         self.keyboard_percent() as f32 / 100.0
-    }
-
-    pub fn set_keyboard_percent(percent: Option<u32>) -> Edit {
-        Self::KEYBOARD_PERCENT.set(ObjectId::ROOT, &percent).into()
     }
 
     pub fn screen(&self, id: &str) -> ScreenSettings {
@@ -171,10 +159,6 @@ impl DisplaySettings {
 
     pub fn lock_time(&self) -> Option<Duration> {
         self.lock_after().after(self.screen_off())
-    }
-
-    pub fn set_lock_after(lock_after: Option<LockAfter>) -> Edit {
-        Self::LOCK_AFTER.set(ObjectId::ROOT, &lock_after).into()
     }
 
     pub fn set_screen_off(screen_off: Option<ScreenOff>) -> Edit {
@@ -236,94 +220,75 @@ impl DisplaySettings {
     }
 
     pub fn theme_setting() -> Setting<Self, ThemeKind> {
-        Setting::new(
-            "theme",
-            "Theme",
-            |settings: &Self| settings.theme,
-            |_, theme| Self::set_theme(theme),
-        )
-        .with_default(Some(ThemeKind::default()))
+        Setting::field("theme", "Theme", Self::THEME, |settings| settings.theme)
+            .with_default(Some(ThemeKind::default()))
     }
 
     pub fn motion_setting() -> Setting<Self, Motion> {
-        Setting::new(
-            "motion",
-            "Motion",
-            |settings: &Self| settings.motion,
-            |_, motion| Self::set_motion(motion),
-        )
-        .with_default(Some(Motion::default()))
+        Setting::field("motion", "Motion", Self::MOTION, |settings| settings.motion)
+            .with_default(Some(Motion::default()))
     }
 
     pub fn canvas_touch_setting() -> Setting<Self, CanvasTouch> {
-        Setting::new(
+        Setting::field(
             "canvas-touch",
             "Touch on canvases",
-            |settings: &Self| settings.canvas_touch,
-            |_, canvas_touch| Self::set_canvas_touch(canvas_touch),
+            Self::CANVAS_TOUCH,
+            |settings| settings.canvas_touch,
         )
         .with_default(Some(CanvasTouch::default()))
         .only_on_this_device(true)
     }
 
     pub fn scale_setting() -> Setting<Self, u32> {
-        Setting::new(
-            "scale",
-            "Scale",
-            |settings: &Self| settings.scale_percent,
-            |_, percent| Self::set_scale_percent(percent),
-        )
+        Setting::field("scale", "Scale", Self::SCALE_PERCENT, |settings| {
+            settings.scale_percent
+        })
         .with_default(Some(Self::DEFAULT_SCALE))
     }
 
     pub fn keyboard_setting() -> Setting<Self, u32> {
-        Setting::new(
+        Setting::field(
             "keyboard-height",
             "On-screen keyboard height",
-            |settings: &Self| settings.keyboard_percent,
-            |_, percent| Self::set_keyboard_percent(percent),
+            Self::KEYBOARD_PERCENT,
+            |settings| settings.keyboard_percent,
         )
         .with_default(Some(Self::DEFAULT_KEYBOARD_HEIGHT))
         .only_on_this_device(true)
     }
 
     pub fn rotate_in_bar_setting() -> Setting<Self, bool> {
-        Setting::new(
+        Setting::field(
             "rotate-in-bar",
             "The rotate button",
-            |settings: &Self| settings.rotate_in_bar,
-            |_, shown| Self::set_rotate_in_bar(shown),
+            Self::ROTATE_IN_BAR,
+            |settings| settings.rotate_in_bar,
         )
         .with_default(Some(false))
     }
 
     pub fn keyboard_in_bar_setting() -> Setting<Self, bool> {
-        Setting::new(
+        Setting::field(
             "keyboard-in-bar",
             "The keyboard button",
-            |settings: &Self| settings.keyboard_in_bar,
-            |_, shown| Self::set_keyboard_in_bar(shown),
+            Self::KEYBOARD_IN_BAR,
+            |settings| settings.keyboard_in_bar,
         )
         .with_default(Some(false))
     }
 
     pub fn screen_off_setting() -> Setting<Self, ScreenOff> {
-        Setting::new(
-            "screen-off",
-            "Screens off",
-            |settings: &Self| settings.screen_off,
-            |_, screen_off| Self::set_screen_off(screen_off),
-        )
+        Setting::field("screen-off", "Screens off", Self::SCREEN_OFF, |settings| {
+            settings.screen_off
+        })
         .with_default(Some(ScreenOff::DEFAULT))
     }
 
     pub fn lock_after_setting() -> Setting<Self, LockAfter> {
-        Setting::new(
-            "lock-after",
-            "Lock",
-            |settings: &Self| settings.lock_after,
-            |_, lock_after| Self::set_lock_after(lock_after),
-        )
+        Setting::field("lock-after", "Lock", Self::LOCK_AFTER, |settings| {
+            settings.lock_after
+        })
         .with_default(Some(LockAfter::DEFAULT))
     }
 
@@ -371,12 +336,7 @@ impl Layered for DisplaySettings {
             motion: self.motion.or(lower.motion),
             canvas_touch: self.canvas_touch.or(lower.canvas_touch),
             keyboard_percent: self.keyboard_percent.or(lower.keyboard_percent),
-            docks: lower
-                .docks
-                .iter()
-                .chain(self.docks.iter())
-                .map(|(id, layout)| (id.clone(), layout.clone()))
-                .collect(),
+            docks: union(&self.docks, &lower.docks),
             keyboard_in_bar: self.keyboard_in_bar.or(lower.keyboard_in_bar),
         }
     }

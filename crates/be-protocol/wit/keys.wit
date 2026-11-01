@@ -34,18 +34,14 @@ interface keys {
     }
 
     /// The keys of `blocks`, or every key the caller holds with none.
-    /// Replaces `GetKeys` and its `Keys` answer.
     get-keys: async func(blocks: option<list<block-id>>) -> result<key-set, error>;
 
-    /// Replaces `PutKeys`.
     put-keys: async func(keys: key-set) -> result<_, error>;
 
-    /// Replaces `GetRecoveryKey` and its `RecoveryKey` answer.
     get-recovery-key: async func() -> result<recovery-key, error>;
 
     /// Moves the account to a new recovery key, with everything sealed to
-    /// the old one sealed again and a key change for each contact. Replaces
-    /// `SetRecoveryKey`.
+    /// the old one sealed again and a key change for each contact.
     set-recovery-key: async func(
         public: public-key,
         sealed: list<sealed-key>,
@@ -53,26 +49,22 @@ interface keys {
         changes: list<key-change>,
     ) -> result<_, error>;
 
-    /// Replaces `ResealKeys`.
     reseal-keys: async func(keys: list<sealed-key>) -> result<_, error>;
 
-    /// Replaces `GetKeyWork` and its `KeyWork` answer.
     get-key-work: async func() -> result<key-work, error>;
 
     /// An item whenever the organization's key work may have changed, so the
     /// client asks `get-key-work` again; a latest-value stream, so changes the
-    /// client has not taken yet are one item. Replaces the pushed
-    /// `KeyWorkChanged`.
+    /// client has not taken yet are one item.
     key-work-changed: func() -> stream;
 
-    /// Gives every block below `roots` a new key. Replaces `Rotate`.
+    /// Gives every block below `roots` a new key.
     rotate: async func(roots: list<block-id>, keys: key-set) -> result<_, error>;
 
-    /// Adds the next epoch of the escrow chain. Replaces `CreateEscrow`.
+    /// Adds the next epoch of the escrow chain.
     create-escrow: async func(escrow: escrow-key, keys: key-set) -> result<_, error>;
 
-    /// Keeps the escrow key the caller pinned, sealed to itself. Replaces
-    /// `PinEscrow`.
+    /// Keeps the escrow key the caller pinned, sealed to itself.
     pin-escrow: async func(sealed: list<u8>) -> result<_, error>;
 }
 

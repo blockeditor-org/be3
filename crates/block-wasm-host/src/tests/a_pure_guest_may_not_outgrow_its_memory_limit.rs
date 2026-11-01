@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_pure_guest_may_not_outgrow_its_memory_limit() {
-    let host = PureHost::new(None).unwrap().with_memory_limit(64 << 20);
+    let host = Host::pure(None).unwrap().with_memory_limit(64 << 20);
     let mut guest = host.load_bytes(ECHO).unwrap();
     guest.start().unwrap();
     assert_eq!(

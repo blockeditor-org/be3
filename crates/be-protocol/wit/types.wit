@@ -13,7 +13,7 @@ interface types {
     use be3:shared/ids@0.1.0.{uuid, hash, block-id, account-id, organization-id, commit-id, content-type-id};
     use be3:shared/access@0.1.0.{access-level};
 
-    /// Why the server refused a call. Replaces `ServerMessage::Failed`.
+    /// Why the server refused a call.
     record error {
         code: error-code,
         message: string,

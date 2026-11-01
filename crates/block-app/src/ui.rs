@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::compositor::{AnchoredViews, ShellDisplay};
 use block_app_base::app_state::{SavedAccount, ServerLocation};
-use block_app_desktop::desktop_host::WindowActions;
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PluginsView, RuntimeView,
@@ -600,7 +600,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                 <onboarding::ReauthDialog view />
                 <onboarding::AddAccountDialog view />
                 <DisplayChrome view area primary=true />
-                <WindowActions />
+                <Host::WindowActions />
             </List>
         </Frame>
     }

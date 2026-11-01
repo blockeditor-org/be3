@@ -2,7 +2,7 @@ use beui_tree::reactive::Callback;
 use geometry::Vec2;
 pub use ui_types::window::{
     HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRole,
+    WindowRequests, WindowRole,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]

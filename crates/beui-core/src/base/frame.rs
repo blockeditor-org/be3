@@ -1,15 +1,17 @@
 use std::any::Any;
 
-use crate::base::list::Align;
-use crate::base::list::Direction;
-use crate::color::Color;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, NodeId, NodeOf, Outlined, Rects, SpaceId};
-use crate::painter::{Corners, Painter};
-use crate::pixel_grid::PixelGrid;
+use crate::node::{Element, NodeOf, Outlined, Rects, SpaceId};
+use crate::painter::Painter;
+use beui_types::Align;
+use beui_types::Color;
+use beui_types::Corners;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::PixelGrid;
+use beui_types::{Rect, Vec2, vec2};
 
-pub use beui_types::layout::{Align2, Extent, Outline, Sides};
+use beui_types::{Align2, Extent, Outline, Sides};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {

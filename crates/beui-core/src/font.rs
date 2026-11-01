@@ -7,11 +7,12 @@ use std::cell::OnceCell;
 use std::ops::Range;
 use std::rc::{Rc, Weak};
 
-use crate::color::Color32;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::rich::{Piece, RichLayout, RichOptions, Shaper, SpanStyle};
+use crate::rich::{RichLayout, Shaper};
+use beui_types::Color32;
+use beui_types::{Piece, RichOptions, SpanStyle};
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
-pub use beui_types::text::{FontFamily, FontId, LineBox, Overflow, TextAlign, TextLayout, WrapAt};
+use beui_types::{FontFamily, FontId, LineBox, TextAlign, TextLayout};
 
 const LINE_HEIGHT_RATIO: f32 = 1.15;
 

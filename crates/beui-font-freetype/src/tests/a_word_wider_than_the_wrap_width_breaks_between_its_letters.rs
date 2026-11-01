@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn a_word_wider_than_the_wrap_width_breaks_between_its_letters() {

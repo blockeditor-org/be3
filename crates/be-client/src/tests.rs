@@ -1,10 +1,8 @@
-use std::path::PathBuf;
-
 use be_block::{BlockContent, ContentError};
 use be_commit::{RetentionPolicy, retention::MINUTE};
 use be_graph::BlockParent;
+use be_server::Running;
 use be_store::{ChunkerConfig, MemoryStore};
-use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use super::*;
@@ -65,34 +63,17 @@ mod two_peers_of_one_account_read_each_others_blocks;
 mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
 
 struct Harness {
+    server: Running,
     url: String,
-    directory: PathBuf,
-    shutdown: Option<oneshot::Sender<()>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Harness {
     async fn start() -> Self {
         build_id::install("test");
-        let directory = std::env::temp_dir().join(format!("be-client-test-{}", Uuid::new_v4()));
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let (shutdown, receiver) = oneshot::channel();
-        let data_dir = directory.clone();
-        let handle = tokio::spawn(async move {
-            let _ = be_server::serve_with_config(
-                listener,
-                data_dir,
-                be_server::ServerConfig::OPEN,
-                receiver,
-            )
-            .await;
-        });
+        let server = Running::start(be_server::ServerConfig::OPEN).await;
         Self {
-            url: format!("ws://{address}"),
-            directory,
-            shutdown: Some(shutdown),
-            handle: Some(handle),
+            url: format!("ws://{}", server.address),
+            server,
         }
     }
 
@@ -101,14 +82,7 @@ impl Harness {
             PeerConfig::new(
                 &self.url,
                 identity(email),
-                Credentials::Token(
-                    be_server::ServerStore::open(&self.directory)
-                        .unwrap()
-                        .register(email, email, "correct horse battery")
-                        .await
-                        .unwrap()
-                        .1,
-                ),
+                Credentials::Token(self.server.register(email, email).await),
             )
             .chunker(ChunkerConfig::SMALL),
             MemoryStore::new(),
@@ -229,7 +203,7 @@ impl Harness {
             .unwrap();
         let token = crate::ask(be_protocol::client::account::authenticate(
             &connection,
-            token,
+            Some(token),
         ))
         .await
         .expect("the server signs the device in")
@@ -238,18 +212,11 @@ impl Harness {
     }
 
     fn database(&self) -> rusqlite::Connection {
-        rusqlite::Connection::open(self.directory.join("metadata.sqlite")).unwrap()
+        rusqlite::Connection::open(self.server.directory.join("metadata.sqlite")).unwrap()
     }
 
-    async fn stop(mut self) {
-        if let Some(shutdown) = self.shutdown.take() {
-            let _ = shutdown.send(());
-        }
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-        let _ = std::fs::remove_dir_all(&self.directory);
+    async fn stop(self) {
+        self.server.stop().await;
     }
 }
 

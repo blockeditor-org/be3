@@ -79,15 +79,16 @@ Display 0's bars are dock bars of the main view's dock, which holds every window
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
 display's three bars as its dock bars, on its own `DockingLayout` (`bar::display_layout`). The main
 dock's state is saved in the session's layout as ever; each further display's is saved beside it,
-under the session view's `display-bars` state, by the display's place in the list. A display that has
+under the session view's `display-bars` state as a `SavedDockLayout`, by the display's
+place in the list. A display that has
 none saved starts from display 0's placements and hidden bars. Toasts stay on display 0, in the
 corner nearest its Status bar.
 
 Each display's work area is that display less its own bars' bands: the dock's area
 (`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the plugin reports it on the view's frame report
-(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`,
-`keep_in_work_areas`, `walled`) and block-ui-test's desk keep each of the plugin's windows on a
+(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`) and block-ui-test's
+desk, through window-stack's `keep_in_work_areas` and `walled`, keep each of the plugin's windows on a
 display wholly inside that display's work area on every edge where a band insets it, as the dock's
 `reachable_origin` walls do for windows it draws itself; other edges, and so other displays, stay
 open. A window being moved or resized is let go first, and kept once released.
@@ -108,7 +109,25 @@ restarting, powering off or logging out. The clock carries the count of listed n
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
 `windows`, `programs` and `power` (`block-app-plugin-host/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
-sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
+sees as nothing offered. block-app reaches the host through
+`block_app_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
+functions (start, list and act on windows, launch) whose defaults do nothing, so a platform with
+no host (`impl DesktopHost for Host { type Source = (); }`) writes none of them. Its `Source` is
+the `ProgramSource` that lists the installed programs, their icons and openers and runs one;
+`programs/installed.rs` is the one `Programs<S>` over it that scans on a thread, holds launches
+until the list is in and publishes `ProgramsWatch`. The scan's results reach the UI thread through
+`block_app_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
+them.
+
+That mailbox is the one way any work in block-app hands a result back to the UI thread: a worker
+`Post::send`s a value, which wakes the event loop, and the handler runs on the thread that made
+the mailbox. Dropping the `Mailbox` cancels it: whatever is still on its way is dropped. A handler
+that needs `&mut` state its owner holds is made on a `host::Desk<C>`, and runs, given the
+`&mut C`, when the owner calls `desk.deliver(&mut c)`: `BlockApp`'s account, organization, key,
+member and contact requests and logind's events go through its desk at the start of its frame
+(`request(work, handler)` in main.rs spawns one), each plugin's `Instances` delivers head reads,
+audio changes and service answers on its own, and so do `Programs` and `ScreenLock`. The web and
+Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
@@ -229,7 +248,10 @@ opens from them (`windows` in the screen request, set for the shell's frame and 
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
 opens, each of the desktop plugin's dock windows, becomes a window view (`HostView::Window`) that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
-stacking order. A press on one raises it, and so does the plugin's `raise` window request,
+stacking order. The window manager itself, without signals, is the `window-stack` crate: the
+plugin's window requests in (`ask`), stacking (`raise`), moves and resizes (`move_in`, `drag`,
+`resized`), work areas and the `desktop X Y` placement; block-app wraps it in signals and
+block-ui-test's desk (`show_on_displays`) runs it directly, so the plugin tests drive the same one. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the
 program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
 and popups, along in front of it, and moving one (a drag or a `place` request) moves them with it. The dock's windows clear to transparent, so the margin their

@@ -253,19 +253,6 @@ impl TextLine {
         self.state
             .with_snapshot(|snapshot| code_block_text(&snapshot.bytes, snapshot.highlight(), start))
     }
-
-    pub fn code_corners(&self, radius: f32) -> Memo<Corners> {
-        let look = self.look;
-        create_memo(move || {
-            let look = look.get();
-            Corners::new(
-                if look.code_above { 0.0 } else { radius },
-                if look.code_above { 0.0 } else { radius },
-                if look.code_below { 0.0 } else { radius },
-                if look.code_below { 0.0 } else { radius },
-            )
-        })
-    }
 }
 
 fn code_block_text(bytes: &[u8], highlight: &SyntaxHighlight, start: usize) -> String {

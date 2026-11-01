@@ -1,17 +1,17 @@
 use super::*;
 
 use be_block::Edit;
-use calendar_types::{Calendar, CalendarContent, CalendarEvent};
+use checklist_types::{Checklist, ChecklistContent};
 
 fn titles(shared: &Shared, block: Uuid) -> Option<Vec<String>> {
     let held = shared.blocks.get(&block)?;
-    let calendar = CalendarContent::decode(held.bytes()).ok()?;
+    let checklist = ChecklistContent::decode(held.bytes()).ok()?;
     Some(
-        calendar
+        checklist
             .root()
-            .events
+            .items
             .iter()
-            .map(|event| event.title.clone())
+            .map(|item| item.text.clone())
             .collect(),
     )
 }
@@ -23,8 +23,8 @@ fn reached(block: Uuid, expected: &[&str], history: History) {
     });
 }
 
-fn calendar(block: Uuid, edit: &Edit) {
-    operate(block, CalendarContent::encode_operation(edit));
+fn checklist(block: Uuid, edit: &Edit) {
+    operate(block, ChecklistContent::encode_operation(edit));
 }
 
 #[test]
@@ -32,16 +32,11 @@ fn undo_steps_back_through_what_this_peer_did() {
     let harness = Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    open(block, CalendarContent::CONTENT_TYPE);
-    let (event, add) = Calendar::add(&CalendarEvent::new("S", 540, 555));
+    open(block, ChecklistContent::CONTENT_TYPE);
+    let (item, add) = Checklist::add("S");
 
-    calendar(block, &add);
-    calendar(
-        block,
-        &CalendarEvent::TITLE
-            .set(event, &"Standup".to_owned())
-            .into(),
-    );
+    checklist(block, &add);
+    checklist(block, &Checklist::set_text(item, "Standup"));
     let only_undo = History {
         can_undo: true,
         can_redo: false,

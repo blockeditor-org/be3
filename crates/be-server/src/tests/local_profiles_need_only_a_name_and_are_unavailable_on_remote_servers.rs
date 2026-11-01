@@ -38,7 +38,7 @@ async fn local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers()
     assert_eq!(display_name, "Ada");
     assert!(email.is_empty());
     let resumed = client
-        .call(|peer| client::account::authenticate(peer, token))
+        .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(
         matches!(resumed, Ok(Authenticated { account: id, email, .. }) if id == account && email.is_empty())

@@ -26,7 +26,7 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
     let bar = bounds.min + before.min.to_vec2() + vec2(before.width() - 80.0, 10.0);
     let past = 200.0;
     let pulled = bar - vec2(before.min.x + past, 0.0);
-    harness.press_at(bar);
+    harness.down(bar, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(pulled)]);
 
     let held = harness

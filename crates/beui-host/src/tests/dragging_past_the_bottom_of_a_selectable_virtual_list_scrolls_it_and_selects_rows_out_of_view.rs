@@ -43,12 +43,18 @@ fn dragging_past_the_bottom_of_a_selectable_virtual_list_scrolls_it_and_selects_
     let area = harness.rect(scroll.get());
     let selected = |harness: &mut Harness| selected_text(harness, region.get());
 
-    harness.press_at(pos2(area.left() + 1.0, area.top() + 8.0));
+    harness.down(
+        pos2(area.left() + 1.0, area.top() + 8.0),
+        PointerButton::Primary,
+    );
     harness.hover(pos2(area.left() + 40.0, area.bottom() + 40.0));
     for _ in 0..30 {
         harness.frame(Vec::new());
     }
-    harness.release_at(pos2(area.left() + 40.0, area.bottom() + 40.0));
+    harness.up(
+        pos2(area.left() + 40.0, area.bottom() + 40.0),
+        PointerButton::Primary,
+    );
     harness.frame(Vec::new());
 
     let offset = harness.document().scroll_offset(scroll.get());

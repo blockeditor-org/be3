@@ -1,9 +1,9 @@
 use accesskit::Role;
 
 use super::*;
-use crate::input::CursorIcon;
 use crate::reactive::*;
 use crate::styled::*;
+use beui::CursorIcon;
 
 #[test]
 fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked() {

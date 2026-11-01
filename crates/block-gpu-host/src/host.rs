@@ -99,7 +99,7 @@ impl Gpu {
                     .attributes
                     .iter()
                     .map(|attribute| wgpu::VertexAttribute {
-                        format: convert::vertex_format(attribute.format),
+                        format: wgpu::VertexFormat::from(attribute.format),
                         offset: attribute.offset,
                         shader_location: attribute.shader_location,
                     })
@@ -113,7 +113,7 @@ impl Gpu {
             .zip(&attributes)
             .map(|(buffer, attributes)| wgpu::VertexBufferLayout {
                 array_stride: buffer.array_stride,
-                step_mode: convert::step_mode(buffer.step_mode),
+                step_mode: wgpu::VertexStepMode::from(buffer.step_mode),
                 attributes,
             })
             .collect();
@@ -126,10 +126,10 @@ impl Gpu {
                     .iter()
                     .map(|target| {
                         target.map(|target| wgpu::ColorTargetState {
-                            format: convert::texture_format(target.format),
+                            format: wgpu::TextureFormat::from(target.format),
                             blend: target.blend.map(|blend| wgpu::BlendState {
-                                color: convert::blend_component(blend.color),
-                                alpha: convert::blend_component(blend.alpha),
+                                color: wgpu::BlendComponent::from(blend.color),
+                                alpha: wgpu::BlendComponent::from(blend.alpha),
                             }),
                             write_mask: wgpu::ColorWrites::from_bits_truncate(target.write_mask),
                         })
@@ -159,23 +159,23 @@ impl Gpu {
                     buffers: &buffers,
                 },
                 primitive: wgpu::PrimitiveState {
-                    topology: convert::topology(primitive.topology),
-                    strip_index_format: primitive.strip_index_format.map(convert::index_format),
-                    front_face: convert::front_face(primitive.front_face),
-                    cull_mode: primitive.cull_mode.map(convert::face),
+                    topology: wgpu::PrimitiveTopology::from(primitive.topology),
+                    strip_index_format: primitive.strip_index_format.map(wgpu::IndexFormat::from),
+                    front_face: wgpu::FrontFace::from(primitive.front_face),
+                    cull_mode: primitive.cull_mode.map(wgpu::Face::from),
                     unclipped_depth: primitive.unclipped_depth,
-                    polygon_mode: convert::polygon_mode(primitive.polygon_mode),
+                    polygon_mode: wgpu::PolygonMode::from(primitive.polygon_mode),
                     conservative: primitive.conservative,
                 },
                 depth_stencil: descriptor
                     .depth_stencil
                     .map(|state| wgpu::DepthStencilState {
-                        format: convert::texture_format(state.format),
+                        format: wgpu::TextureFormat::from(state.format),
                         depth_write_enabled: Some(state.depth_write_enabled),
-                        depth_compare: state.depth_compare.map(convert::compare_function),
+                        depth_compare: state.depth_compare.map(wgpu::CompareFunction::from),
                         stencil: wgpu::StencilState {
-                            front: convert::stencil_face(state.stencil.front),
-                            back: convert::stencil_face(state.stencil.back),
+                            front: wgpu::StencilFaceState::from(state.stencil.front),
+                            back: wgpu::StencilFaceState::from(state.stencil.back),
                             read_mask: state.stencil.read_mask,
                             write_mask: state.stencil.write_mask,
                         },
@@ -262,11 +262,11 @@ impl Gpu {
                         ops: wgpu::Operations {
                             load: match attachment.load {
                                 abi::ColorLoadOp::Clear(value) => {
-                                    wgpu::LoadOp::Clear(convert::color(value))
+                                    wgpu::LoadOp::Clear(wgpu::Color::from(value))
                                 }
                                 abi::ColorLoadOp::Load => wgpu::LoadOp::Load,
                             },
-                            store: convert::store_op(attachment.store),
+                            store: wgpu::StoreOp::from(attachment.store),
                         },
                     }
                 })
@@ -281,14 +281,14 @@ impl Gpu {
                             abi::DepthLoadOp::Clear(value) => wgpu::LoadOp::Clear(value),
                             abi::DepthLoadOp::Load => wgpu::LoadOp::Load,
                         },
-                        store: convert::store_op(attachment.depth_store),
+                        store: wgpu::StoreOp::from(attachment.depth_store),
                     }),
                     stencil_ops: attachment.stencil_load.map(|load| wgpu::Operations {
                         load: match load {
                             abi::StencilLoadOp::Clear(value) => wgpu::LoadOp::Clear(value),
                             abi::StencilLoadOp::Load => wgpu::LoadOp::Load,
                         },
-                        store: convert::store_op(attachment.stencil_store),
+                        store: wgpu::StoreOp::from(attachment.stencil_store),
                     }),
                 },
             );
@@ -378,18 +378,18 @@ impl Host for Gpu {
         let view_formats: Vec<_> = descriptor
             .view_formats
             .iter()
-            .map(|format| convert::texture_format(*format))
+            .map(|format| wgpu::TextureFormat::from(*format))
             .collect();
         self.create(
             |gpu| &mut gpu.textures,
             |gpu| {
                 Ok(gpu.device.create_texture(&wgpu::TextureDescriptor {
                     label: convert::label(&descriptor.label),
-                    size: convert::extent(descriptor.size),
+                    size: wgpu::Extent3d::from(descriptor.size),
                     mip_level_count: descriptor.mip_level_count,
                     sample_count: descriptor.sample_count,
-                    dimension: convert::texture_dimension(descriptor.dimension),
-                    format: convert::texture_format(descriptor.format),
+                    dimension: wgpu::TextureDimension::from(descriptor.dimension),
+                    format: wgpu::TextureFormat::from(descriptor.format),
                     usage: wgpu::TextureUsages::from_bits_truncate(descriptor.usage),
                     view_formats: &view_formats,
                 }))
@@ -407,17 +407,17 @@ impl Host for Gpu {
             |gpu| {
                 Ok(gpu.device.create_sampler(&wgpu::SamplerDescriptor {
                     label: convert::label(&descriptor.label),
-                    address_mode_u: convert::address_mode(descriptor.address_mode_u),
-                    address_mode_v: convert::address_mode(descriptor.address_mode_v),
-                    address_mode_w: convert::address_mode(descriptor.address_mode_w),
-                    mag_filter: convert::filter_mode(descriptor.mag_filter),
-                    min_filter: convert::filter_mode(descriptor.min_filter),
-                    mipmap_filter: convert::mipmap_filter_mode(descriptor.mipmap_filter),
+                    address_mode_u: wgpu::AddressMode::from(descriptor.address_mode_u),
+                    address_mode_v: wgpu::AddressMode::from(descriptor.address_mode_v),
+                    address_mode_w: wgpu::AddressMode::from(descriptor.address_mode_w),
+                    mag_filter: wgpu::FilterMode::from(descriptor.mag_filter),
+                    min_filter: wgpu::FilterMode::from(descriptor.min_filter),
+                    mipmap_filter: wgpu::MipmapFilterMode::from(descriptor.mipmap_filter),
                     lod_min_clamp: descriptor.lod_min_clamp,
                     lod_max_clamp: descriptor.lod_max_clamp,
-                    compare: descriptor.compare.map(convert::compare_function),
+                    compare: descriptor.compare.map(wgpu::CompareFunction::from),
                     anisotropy_clamp: descriptor.anisotropy_clamp,
-                    border_color: descriptor.border_color.map(convert::border_color),
+                    border_color: descriptor.border_color.map(wgpu::SamplerBorderColor::from),
                 }))
             },
         )
@@ -434,7 +434,7 @@ impl Host for Gpu {
             .map(|entry| wgpu::BindGroupLayoutEntry {
                 binding: entry.binding,
                 visibility: wgpu::ShaderStages::from_bits_truncate(entry.visibility),
-                ty: convert::binding_type(entry.r#type),
+                ty: wgpu::BindingType::from(entry.r#type),
                 count: entry.count.and_then(std::num::NonZeroU32::new),
             })
             .collect();
@@ -586,7 +586,7 @@ impl Host for Gpu {
                     bytes_per_row: layout.bytes_per_row,
                     rows_per_image: layout.rows_per_image,
                 },
-                convert::extent(size),
+                wgpu::Extent3d::from(size),
             );
             Ok(())
         });
@@ -709,12 +709,12 @@ impl Host for Gpu {
                 let texture = gpu.textures.get(this.0, "texture")?;
                 Ok(texture.create_view(&wgpu::TextureViewDescriptor {
                     label: convert::label(&descriptor.label),
-                    format: descriptor.format.map(convert::texture_format),
-                    dimension: descriptor.dimension.map(convert::texture_view_dimension),
+                    format: descriptor.format.map(wgpu::TextureFormat::from),
+                    dimension: descriptor.dimension.map(wgpu::TextureViewDimension::from),
                     usage: descriptor
                         .usage
                         .map(wgpu::TextureUsages::from_bits_truncate),
-                    aspect: convert::texture_aspect(descriptor.aspect),
+                    aspect: wgpu::TextureAspect::from(descriptor.aspect),
                     base_mip_level: descriptor.base_mip_level,
                     mip_level_count: descriptor.mip_level_count,
                     base_array_layer: descriptor.base_array_layer,
@@ -729,16 +729,13 @@ impl Host for Gpu {
         let described = self.textures.get(this.0, "texture").and_then(|texture| {
             let unsupported = || format!("texture {} has a format plugins cannot use", this.0);
             Ok(abi::TextureInfo {
-                size: abi::Extent3d {
-                    width: texture.width(),
-                    height: texture.height(),
-                    depth_or_array_layers: texture.depth_or_array_layers(),
-                },
+                size: texture.size().into(),
                 mip_level_count: texture.mip_level_count(),
                 sample_count: texture.sample_count(),
-                dimension: convert::abi_texture_dimension(texture.dimension())
-                    .ok_or_else(unsupported)?,
-                format: convert::abi_texture_format(texture.format()).ok_or_else(unsupported)?,
+                dimension: abi::TextureDimension::try_from(texture.dimension())
+                    .map_err(|_| unsupported())?,
+                format: abi::TextureFormat::try_from(texture.format())
+                    .map_err(|_| unsupported())?,
                 usage: texture.usage().bits(),
             })
         });
@@ -806,7 +803,7 @@ impl Host for Gpu {
             Poll::Ready(info) => Some(
                 info.messages
                     .iter()
-                    .map(convert::compilation_message)
+                    .map(abi::CompilationMessage::from)
                     .collect(),
             ),
             Poll::Pending => {
@@ -977,7 +974,7 @@ impl Host for Gpu {
                 encoder.copy_buffer_to_texture(
                     texel_copy_buffer(&from, source.layout),
                     texel_copy_texture(&to, destination),
-                    convert::extent(size),
+                    wgpu::Extent3d::from(size),
                 )
             }))
         });
@@ -997,7 +994,7 @@ impl Host for Gpu {
                 encoder.copy_texture_to_buffer(
                     texel_copy_texture(&from, source),
                     texel_copy_buffer(&to, destination.layout),
-                    convert::extent(size),
+                    wgpu::Extent3d::from(size),
                 )
             }))
         });
@@ -1017,7 +1014,7 @@ impl Host for Gpu {
                 encoder.copy_texture_to_texture(
                     texel_copy_texture(&from, source),
                     texel_copy_texture(&to, destination),
-                    convert::extent(size),
+                    wgpu::Extent3d::from(size),
                 )
             }))
         });
@@ -1105,7 +1102,7 @@ impl Host for Gpu {
                 let slice = slice(&buffer, offset, size)?;
                 self.passes
                     .get_mut(this.0, "render pass")
-                    .map(|pass| pass.set_index_buffer(slice, convert::index_format(format)))
+                    .map(|pass| pass.set_index_buffer(slice, wgpu::IndexFormat::from(format)))
             });
         self.fail(result, ());
     }
@@ -1158,7 +1155,9 @@ impl Host for Gpu {
     }
 
     fn render_pass_set_blend_constant(&mut self, this: abi::RenderPass, color: abi::Color) {
-        self.pass(this, |pass| pass.set_blend_constant(convert::color(color)));
+        self.pass(this, |pass| {
+            pass.set_blend_constant(wgpu::Color::from(color))
+        });
     }
 
     fn render_pass_set_stencil_reference(&mut self, this: abi::RenderPass, reference: u32) {
@@ -1308,7 +1307,7 @@ impl Host for Gpu {
             ));
             return;
         }
-        let format = convert::texture_format(format);
+        let format = wgpu::TextureFormat::from(format);
         let matches = self.surfaces.get(&surface).is_some_and(|existing| {
             let (texture, _) = existing.shown();
             existing.textures.len() == 2
@@ -1521,7 +1520,7 @@ impl Host for Gpu {
     ) {
         self.bundle(this, |gpu| {
             let buffer = gpu.buffers.get(buffer.0, "buffer")?.clone();
-            let format = convert::index_format(format);
+            let format = wgpu::IndexFormat::from(format);
             Ok(Command::IndexBuffer(buffer, format, offset, size))
         });
     }

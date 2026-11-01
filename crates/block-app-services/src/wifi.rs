@@ -4,9 +4,10 @@ mod network_manager;
 mod tests;
 
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{WifiRequest, WifiStatus};
+use block_app_base::host::{self, Mailbox};
+
+use block_plugin_api::{WifiRequest, WifiStatus, WifiWatch};
 
 const PASSPHRASE_BYTES: std::ops::RangeInclusive<usize> = 8..=63;
 const HEX_KEY_LENGTH: usize = 64;
@@ -17,22 +18,23 @@ pub trait Backend {
 
 pub struct Wifi {
     backend: Rc<dyn Backend>,
-    reports: Receiver<WifiStatus>,
-    status: WifiStatus,
+    _reports: Mailbox,
 }
 
 impl Wifi {
     pub fn start() -> Self {
-        let (sender, reports) = block_app_base::host::waking_channel();
-        let backend = network_manager::NetworkManager::start(sender);
+        block_app_base::watches::publish::<WifiWatch>(&WifiStatus::default());
+        let (reports, post) = host::mailbox(|status: WifiStatus| {
+            block_app_base::watches::publish::<WifiWatch>(&status)
+        });
+        let backend = network_manager::NetworkManager::start(post);
         Self::with(Rc::new(backend), reports)
     }
 
-    pub fn with(backend: Rc<dyn Backend>, reports: Receiver<WifiStatus>) -> Self {
+    pub fn with(backend: Rc<dyn Backend>, reports: Mailbox) -> Self {
         Self {
             backend,
-            reports,
-            status: WifiStatus::default(),
+            _reports: reports,
         }
     }
 
@@ -40,14 +42,6 @@ impl Wifi {
         if let Some(request) = checked(request) {
             self.backend.request(request);
         }
-    }
-
-    pub fn frame(&mut self) -> Option<WifiStatus> {
-        let latest = self.reports.try_iter().last()?;
-        (latest != self.status).then(|| {
-            self.status = latest.clone();
-            latest
-        })
     }
 }
 

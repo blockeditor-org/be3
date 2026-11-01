@@ -45,9 +45,7 @@ impl BeuiApp for LiftedApp {
 
 #[test]
 fn a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<LiftedApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<LiftedApp>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

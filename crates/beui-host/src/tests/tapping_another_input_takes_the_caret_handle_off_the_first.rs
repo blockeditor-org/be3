@@ -34,7 +34,7 @@ fn tapping_another_input_takes_the_caret_handle_off_the_first() {
             .iter()
             .filter_map(|shape| match shape {
                 crate::native::Shape::Rect { rect, .. }
-                    if rect.size() == Vec2::splat(beui_core::rich::HANDLE_RADIUS * 2.0) =>
+                    if rect.size() == Vec2::splat(beui::HANDLE_RADIUS * 2.0) =>
                 {
                     [first, second].into_iter().find(|input| {
                         let field = harness.rect(*input);

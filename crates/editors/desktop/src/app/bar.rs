@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::datetime::{HourCycle, Time};
+use block_editor_beui::beui::datetime::{HourCycle, SECONDS_PER_DAY, Time};
 use block_editor_beui::beui::dock::styled::{
     DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
     DockingSnapshot, TabId, use_dock_bar,
@@ -15,7 +15,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{ItemSize, NodeId, Rect};
 use block_editor_beui::{
-    DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, utc_offset,
+    DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, SavedDockLayout, WifiWatch,
+    utc_offset,
 };
 use block_shell::{SHELL_BARS, Workspace};
 
@@ -39,7 +40,6 @@ const DISPLAY_BARS: &str = "display-bars";
 
 const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
-const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
 pub(crate) fn local_minutes(unix: Duration) -> u32 {
     let seconds = i64::try_from(unix.as_secs()).unwrap_or(0) + i64::from(utc_offset());
@@ -94,12 +94,12 @@ pub(crate) fn display_layout(
     let saved = untrack(|| saved_bars(editor))
         .into_iter()
         .find(|(held, _)| *held == display)
-        .map(|(_, snapshot)| snapshot);
+        .map(|(_, saved)| saved.snapshot());
     let snapshot = saved.unwrap_or_else(|| untrack(|| like_the_first(first, display)));
     layout.restore(snapshot);
     create_effect(move || {
-        let snapshot = layout.snapshot();
-        untrack(|| save_bars(editor, display, snapshot));
+        let saved = SavedDockLayout::of(&layout.snapshot());
+        untrack(|| save_bars(editor, display, saved));
     });
     layout
 }
@@ -114,19 +114,19 @@ fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<
     DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
 }
 
-fn saved_bars(editor: Editor) -> Vec<(u32, DockingSnapshot<TabId>)> {
+fn saved_bars(editor: Editor) -> Vec<(u32, SavedDockLayout)> {
     editor
         .view_state(DISPLAY_BARS)
-        .and_then(|state| state.value::<Vec<(u32, DockingSnapshot<TabId>)>>())
+        .and_then(|state| state.value::<Vec<(u32, SavedDockLayout)>>())
         .unwrap_or_default()
 }
 
-fn save_bars(editor: Editor, display: u32, snapshot: DockingSnapshot<TabId>) {
+fn save_bars(editor: Editor, display: u32, layout: SavedDockLayout) {
     let mut saved = saved_bars(editor);
     match saved.iter_mut().find(|(held, _)| *held == display) {
-        Some((_, held)) if *held == snapshot => return,
-        Some((_, held)) => *held = snapshot,
-        None => saved.push((display, snapshot)),
+        Some((_, held)) if *held == layout => return,
+        Some((_, held)) => *held = layout,
+        None => saved.push((display, layout)),
     }
     saved.sort_by_key(|(held, _)| *held);
     editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));

@@ -11,13 +11,14 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
-use beui_core::window::{
-    HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
-    WindowRequest, WindowRequests, WindowState,
-};
+use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
+use beui_types::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests,
+};
+use beui_types::{Pos2, Rect, Vec2, vec2};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::driver::Damage;
@@ -603,7 +604,7 @@ impl ModuleRunner {
                 .scrims
                 .into_iter()
                 .map(|shown| {
-                    escaped::scrim(beui_core::layer::Scrim {
+                    escaped::scrim(beui_types::layer::Scrim {
                         rect: to_region(shown.rect),
                         radius: shown.radius / ratio,
                         ..shown
@@ -891,7 +892,7 @@ impl Regions for ModuleRunner {
                 output,
                 output.size,
                 output.pixels_per_point,
-                beui_core::color::Color32::TRANSPARENT,
+                beui_types::Color32::TRANSPARENT,
                 beui_core::painting::Punches::Erase,
             )
             .ok();

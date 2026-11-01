@@ -4,13 +4,13 @@ use super::*;
 async fn revoking_an_http_session_removes_its_access() {
     let harness = Harness::start().await;
     let owner = harness.member("http-revoke@example.com").await;
-    let mut stream = tokio::net::TcpStream::connect(harness.url.trim_start_matches("ws://"))
+    let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
     let (_, session, _) = post(&mut stream, None, &[&hello(BUILD)]).await;
     let session = session.unwrap();
     let mut posted = Posted::new();
-    let _authenticating = client::account::authenticate(&posted.peer, owner.token.clone());
+    let _authenticating = client::account::authenticate(&posted.peer, Some(owner.token.clone()));
     let sent = posted.frames();
     let (status, _, frames) = post(&mut stream, Some(&session), &[&sent[0]]).await;
     assert_eq!(status, 200);

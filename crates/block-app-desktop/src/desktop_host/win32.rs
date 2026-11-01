@@ -2,7 +2,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError};
 
 use be_win32::{EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher};
 use be_win32_capture::{Capture, Device, Lost, Target};
@@ -15,7 +14,9 @@ use beui::{
 };
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
-use super::texture_draw::TextureDraw;
+use crate::programs::ProgramSource;
+
+use super::DesktopHost;
 use super::win32_map::{
     self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
 };
@@ -24,8 +25,6 @@ use super::win32_shape::Shaping;
 
 const HOST_FOREGROUND_REFUSED: &str =
     "Windows did not let Block come back to the front. Click Block's window to use it again.";
-const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
-const WAITING_ICON_SIZE: u32 = 64;
 
 struct Gpu {
     device: wgpu::Device,
@@ -110,25 +109,456 @@ fn snapshot() -> Arc<Snapshot> {
     signals().map_or_else(Default::default, |signals| signals.snapshot.get_untracked())
 }
 
-pub fn create() {
-    SIGNALS.set(Some(Signals {
-        snapshot: create_signal(Arc::new(Snapshot::default())),
-    }));
-}
+pub struct Win32;
 
-pub fn start(setup: &Setup) {
-    if let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() {
-        GPU.set(Some(Gpu {
-            device: gpu.device.clone(),
-            queue: gpu.queue.clone(),
-            srgb: gpu.format.is_srgb(),
+#[component]
+impl DesktopHost for Win32 {
+    type Source = WindowsPrograms;
+
+    fn create() {
+        SIGNALS.set(Some(Signals {
+            snapshot: create_signal(Arc::new(Snapshot::default())),
         }));
     }
-    if let Some(hwnd) = setup
-        .get::<beui::native::NativeWindow>()
-        .and_then(beui::native::NativeWindow::win32)
-    {
-        HOST_WINDOW.set(Some(Handle(hwnd as u64)));
+
+    fn start(setup: &Setup) {
+        if let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() {
+            GPU.set(Some(Gpu {
+                device: gpu.device.clone(),
+                queue: gpu.queue.clone(),
+                srgb: gpu.format.is_srgb(),
+            }));
+        }
+        if let Some(hwnd) = setup
+            .get::<beui::native::NativeWindow>()
+            .and_then(beui::native::NativeWindow::win32)
+        {
+            HOST_WINDOW.set(Some(Handle(hwnd as u64)));
+        }
+    }
+
+    fn environment() -> Vec<(String, String)> {
+        Vec::new()
+    }
+
+    fn running() -> bool {
+        HOST.with_borrow(Option::is_some)
+    }
+
+    fn before(_context: &Context, rect: Rect, document: &mut Document) {
+        let Some(watcher) = watcher() else {
+            return;
+        };
+        if SHAPING.with_borrow_mut(|shaping| shaping.set_area(rect)) {
+            changed();
+        }
+        let Some(signals) = signals() else {
+            return;
+        };
+        let snapshot = watcher.snapshot();
+        let events = watcher.take_focus_events();
+        let focused = watcher.focused().map(|focused| focused.entry);
+        let secure = snapshot.secure_desktop();
+        let newly_secure = HOST.with_borrow_mut(|host| {
+            let host = host.as_mut()?;
+            let newly = secure && !host.secure;
+            host.secure = secure;
+            if !host.listed && snapshot.revision > 0 {
+                host.listed = true;
+                let displays = snapshot
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.kind == EntryKind::Display)
+                    .count();
+                eprintln!(
+                    "block-app: Windows has {displays} displays and {} windows",
+                    snapshot.entries.len() - displays
+                );
+            }
+            Some(newly)
+        });
+        if newly_secure == Some(true) {
+            eprintln!("block-app: Windows switched to the secure desktop");
+            block_app_base::notices::report(win32_map::SECURE_DESKTOP.to_owned());
+        }
+        for event in &events {
+            log_event(&snapshot, event);
+            if *event == FocusEvent::HostForegroundRefused {
+                block_app_base::notices::report(HOST_FOREGROUND_REFUSED.to_owned());
+            }
+        }
+        let frames = CAPTURES.with_borrow_mut(|captures| {
+            let mut frames = Vec::new();
+            captures.retain(|source, captured| {
+                if let Some(lost) = captured.capture.lost() {
+                    eprintln!(
+                        "block-app: the capture of {} ended: {lost:?}",
+                        describe(captured.target, &captured.title)
+                    );
+                    let failed = match &lost {
+                        Lost::Closed => None,
+                        Lost::Failed(error) => Some(error.as_str()),
+                    };
+                    let notice =
+                        match win32_map::recovery(failed, captured.restarted, &captured.title) {
+                            Recovery::Stop => None,
+                            Recovery::Notice(notice) => Some(notice),
+                            Recovery::Restart => match start_capture(captured.target) {
+                                Ok(capture) => {
+                                    eprintln!(
+                                        "block-app: the capture of {} started again",
+                                        describe(captured.target, &captured.title)
+                                    );
+                                    captured.capture = capture;
+                                    captured.restarted = true;
+                                    captured.drawn = 0;
+                                    captured.cursor = false;
+                                    return true;
+                                }
+                                Err(error) => {
+                                    eprintln!(
+                                        "block-app: the capture of {} did not start again: {error}",
+                                        describe(captured.target, &captured.title)
+                                    );
+                                    win32_map::recovery(Some(&error), true, &captured.title)
+                                        .notice()
+                                }
+                            },
+                        };
+                    if let Some(notice) = notice {
+                        block_app_base::notices::report(notice);
+                    }
+                    frames.extend(captured.users.iter().map(|(_, drawing)| (*drawing, None)));
+                    return false;
+                }
+                let cursor = focused == Some(source.entry());
+                if cursor != captured.cursor {
+                    captured.cursor = cursor;
+                    captured.capture.set_cursor(cursor);
+                }
+                if captured.capture.version() != captured.drawn
+                    && let Some(frame) = captured.capture.latest()
+                {
+                    captured.drawn = frame.version();
+                    let texture = frame.texture().clone();
+                    let drawing = beui::native::drawing(
+                        beui::native::texture_quad::TextureDraw::keeping(texture, frame),
+                    );
+                    frames.extend(
+                        captured
+                            .users
+                            .iter()
+                            .map(|(_, signal)| (*signal, Some(drawing.clone()))),
+                    );
+                }
+                true
+            });
+            frames
+        });
+        let started: Vec<EntryId> = events
+            .iter()
+            .filter_map(|event| match *event {
+                FocusEvent::Started(id) | FocusEvent::Followed { to: id, .. } => Some(id),
+                _ => None,
+            })
+            .collect();
+        edit_notes(|notes| {
+            notes.focused = focused;
+            for id in started {
+                notes.refused.remove(&id);
+            }
+            for event in &events {
+                match event {
+                    FocusEvent::HotkeySet(Some(hotkey)) => {
+                        notes.hotkey = HotkeyState::Registered(*hotkey);
+                    }
+                    FocusEvent::HotkeySet(None) => notes.hotkey = HotkeyState::Waiting,
+                    FocusEvent::HotkeyRefused(error) => {
+                        notes.hotkey = HotkeyState::Refused(error.clone());
+                    }
+                    FocusEvent::Refused { entry, error } => {
+                        if let Some(refusal) = win32_map::focus_refusal(error) {
+                            notes.refused.insert(*entry, refusal);
+                        }
+                    }
+                    FocusEvent::Ended { entry, reason } => {
+                        if let Some(refusal) = win32_map::ended_refusal(*reason) {
+                            notes.refused.insert(*entry, refusal);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let live = |id: &EntryId| snapshot.entry(*id).is_some();
+            notes.refused.retain(|id, _| live(id));
+            notes.hovered = notes.hovered.filter(live);
+        });
+        beui::native::enter(document, || {
+            if signals.snapshot.get_untracked().revision != snapshot.revision {
+                signals.snapshot.set(snapshot);
+            }
+            for (signal, drawing) in frames {
+                signal.set(drawing);
+            }
+        });
+    }
+
+    fn after(_context: &Context, _document: &mut Document) {}
+
+    fn replace_gpu(setup: &Setup) {
+        CAPTURES.with_borrow_mut(HashMap::clear);
+        DEVICE.set(None);
+        Self::start(setup);
+    }
+
+    fn exiting() {
+        CAPTURES.with_borrow_mut(HashMap::clear);
+        DEVICE.set(None);
+        let host = HOST.with_borrow_mut(Option::take);
+        if let Some(host) = &host {
+            host.watcher.release();
+        }
+        drop(host);
+    }
+
+    fn set_owned(owned: bool) {
+        if owned {
+            spawn();
+        }
+    }
+
+    fn revision() -> u64 {
+        watcher().map_or(0, |watcher| watcher.snapshot().revision) + CHANGES.get()
+    }
+
+    fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
+        watcher().map_or_else(Vec::new, |watcher| {
+            let snapshot = watcher.snapshot();
+            SHAPING.with_borrow_mut(|shaping| {
+                shaping.observe(&snapshot);
+                NOTES.with_borrow(|notes| {
+                    NAMES.with_borrow(|names| {
+                        win32_map::listed(&snapshot, hidden, shaping, notes, names)
+                    })
+                })
+            })
+        })
+    }
+
+    fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
+        Vec::new()
+    }
+
+    fn close(window: HostWindowId) {
+        let snapshot = snapshot();
+        let Some(entry) = snapshot.entry(entry_id(window)) else {
+            return;
+        };
+        if entry.kind == EntryKind::Window
+            && let Err(error) = be_win32::close_window(entry.handle)
+        {
+            eprintln!("block-app: {} did not close: {error}", entry.title);
+        }
+    }
+
+    fn fullscreen(window: HostWindowId, fullscreen: bool) {
+        let Some(watcher) = watcher() else {
+            return;
+        };
+        let snapshot = watcher.snapshot();
+        let id = entry_id(window);
+        let handle = SHAPING.with_borrow_mut(|shaping| match fullscreen {
+            true => shaping.enter_fullscreen(&snapshot, id),
+            false => shaping.leave_fullscreen(&snapshot, id),
+        });
+        if let Some(handle) = handle {
+            be_win32::set_maximized(handle, fullscreen);
+        }
+        changed();
+    }
+
+    fn show(window: HostWindowId) {
+        if let Some(watcher) = watcher() {
+            watcher.show(entry_id(window));
+        }
+    }
+
+    fn hide(window: HostWindowId) {
+        if let Some(watcher) = watcher() {
+            watcher.hide(entry_id(window));
+        }
+    }
+
+    fn focus(window: HostWindowId) {
+        if let Some(id) = win32_map::shell_focus(window) {
+            focus_entry(id, None);
+        }
+    }
+
+    fn launch(command: String) -> bool {
+        Self::exec(be_win32::command_line::split_arguments(&command), None)
+    }
+
+    fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
+        if !Win32::running() || arguments.is_empty() {
+            return false;
+        }
+        spawn_launch(move || be_win32::exec(&arguments, launch));
+        true
+    }
+
+    #[component]
+    fn WindowSurface(window: HostWindowId) -> NodeId {
+        let id = entry_id(window);
+        let Some(signals) = signals() else {
+            return view! {
+                <Frame />
+            };
+        };
+        let drawing = create_signal(None);
+        if let Some(user) = acquire(Source::Entry(id), drawing) {
+            on_cleanup(move || release(Source::Entry(id), user));
+        }
+        let snapshot = signals.snapshot;
+        let secure = create_memo(move || {
+            snapshot.with(|snapshot| {
+                snapshot
+                    .entry(id)
+                    .is_some_and(|entry| win32_map::secure_notice(snapshot, entry))
+            })
+        });
+        let hovered = create_signal(false);
+        create_effect(move || {
+            let over = hovered.get();
+            untrack(|| {
+                edit_notes(|notes| match over {
+                    true => notes.hovered = Some(id),
+                    false => notes.hovered = notes.hovered.filter(|held| *held != id),
+                });
+            });
+        });
+        on_cleanup(move || {
+            edit_notes(|notes| notes.hovered = notes.hovered.filter(|held| *held != id))
+        });
+        let off_screen = create_memo(move || {
+            snapshot.with(|snapshot| {
+                snapshot
+                    .entry(id)
+                    .map(|entry| win32_map::off_screen_parts(snapshot, entry))
+                    .unwrap_or_default()
+            })
+        });
+        let pressed = Rc::new(Cell::new(false));
+        let press = Rc::new(RefCell::new(ContentPress::default()));
+        let rect_held = create_signal(Rect::ZERO);
+        let rect = rect_held.read_only();
+        create_effect(move || resize(id, rect.get().size()));
+        let popups = create_memo(move || {
+            let panel = rect.get();
+            snapshot.with(|snapshot| {
+                snapshot
+                    .entry(id)
+                    .map(|entry| {
+                        entry
+                            .popups
+                            .iter()
+                            .map(|popup| {
+                                let at =
+                                    win32_map::popup_rect(entry.frame, popup.frame, panel.size());
+                                (popup.handle, at.translate(panel.min.to_vec2()))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            })
+        });
+        let hosted = opens_windows();
+        let keys = create_memo(move || {
+            let hosted = hosted.get();
+            popups.with(|popups| {
+                popups
+                    .iter()
+                    .map(|(handle, at)| {
+                        (
+                            handle.0,
+                            hosted.then(|| (at.min.x.to_bits(), at.min.y.to_bits())),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+        });
+        let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
+        let built = view! {
+            <Layers>
+                <Interactive
+                    focusable=true
+                    @test_id={format!("win32.window.{}", id.0)}
+                    on_hover_change={hovered}
+                    on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
+                >
+                    <Layers>
+                        <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                        <EntryOverlay secure off_screen />
+                    </Layers>
+                </Interactive>
+                <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
+                    let handle = Handle(key.0);
+                    let placed = create_memo(move || {
+                        popups.with(|popups| {
+                            popups
+                                .iter()
+                                .find(|(popup, _)| *popup == handle)
+                                .map(|(_, at)| *at)
+                        })
+                    });
+                    let at = create_memo(move || placed.get().map_or(Pos2::ZERO, |at| at.min));
+                    let size = create_memo(move || placed.get().map_or(Vec2::ZERO, |at| at.size()));
+                    let open = create_memo(move || placed.get().is_some());
+                    let placement = WindowPlacement::Over {
+                        window: parent,
+                        at: at.get_untracked(),
+                    };
+                    view! {
+                        <Window
+                            id={None}
+                            size
+                            placement
+                            at
+                            open
+                            role={WindowRole::Popup}
+                            on_report={|_: WindowReport| {}}
+                        >|_: WindowHandle|
+                            <PopupSurface entry={id} handle />
+                        </Window>
+                    }
+                }</ForEach>
+            </Layers>
+        };
+        let rect_measured = measure(built);
+        create_effect(move || {
+            if let Some(measured) = rect_measured.get() {
+                rect_held.set(measured.rect);
+            }
+        });
+        built
+    }
+
+    fn frame() {
+        if !Win32::running() {
+            return;
+        }
+        let available = POWER.get().unwrap_or_else(|| {
+            let available = win32_map::power_availability(be_win32::power_availability());
+            POWER.set(Some(available));
+            block_app_base::watches::publish::<block_plugin_api::PowerWatch>(&available);
+            available
+        });
+        if let Some(action) =
+            block_app_base::watches::take_calls(block_plugin_api::requested::power).pop()
+            && available.allows(action)
+        {
+            request_power(action);
+        }
     }
 }
 
@@ -159,14 +589,6 @@ fn spawn() {
         secure: false,
         listed: false,
     }));
-}
-
-pub fn environment() -> Vec<(String, String)> {
-    Vec::new()
-}
-
-pub fn running() -> bool {
-    HOST.with_borrow(Option::is_some)
 }
 
 fn hotkey_refused(error: &be_win32::HotkeyError) {
@@ -262,235 +684,6 @@ fn start_capture(target: Target) -> Result<Capture, String> {
     Capture::start(&device, target, |_| block_app_base::host::wake())
 }
 
-pub fn before(_context: &Context, rect: Rect, document: &mut Document) {
-    let Some(watcher) = watcher() else {
-        return;
-    };
-    if SHAPING.with_borrow_mut(|shaping| shaping.set_area(rect)) {
-        changed();
-    }
-    let Some(signals) = signals() else {
-        return;
-    };
-    let snapshot = watcher.snapshot();
-    let events = watcher.take_focus_events();
-    let focused = watcher.focused().map(|focused| focused.entry);
-    let secure = snapshot.secure_desktop();
-    let newly_secure = HOST.with_borrow_mut(|host| {
-        let host = host.as_mut()?;
-        let newly = secure && !host.secure;
-        host.secure = secure;
-        if !host.listed && snapshot.revision > 0 {
-            host.listed = true;
-            let displays = snapshot
-                .entries
-                .iter()
-                .filter(|entry| entry.kind == EntryKind::Display)
-                .count();
-            eprintln!(
-                "block-app: Windows has {displays} displays and {} windows",
-                snapshot.entries.len() - displays
-            );
-        }
-        Some(newly)
-    });
-    if newly_secure == Some(true) {
-        eprintln!("block-app: Windows switched to the secure desktop");
-        block_app_base::notices::report(win32_map::SECURE_DESKTOP.to_owned());
-    }
-    for event in &events {
-        log_event(&snapshot, event);
-        if *event == FocusEvent::HostForegroundRefused {
-            block_app_base::notices::report(HOST_FOREGROUND_REFUSED.to_owned());
-        }
-    }
-    let frames = CAPTURES.with_borrow_mut(|captures| {
-        let mut frames = Vec::new();
-        captures.retain(|source, captured| {
-            if let Some(lost) = captured.capture.lost() {
-                eprintln!(
-                    "block-app: the capture of {} ended: {lost:?}",
-                    describe(captured.target, &captured.title)
-                );
-                let failed = match &lost {
-                    Lost::Closed => None,
-                    Lost::Failed(error) => Some(error.as_str()),
-                };
-                let notice = match win32_map::recovery(failed, captured.restarted, &captured.title)
-                {
-                    Recovery::Stop => None,
-                    Recovery::Notice(notice) => Some(notice),
-                    Recovery::Restart => match start_capture(captured.target) {
-                        Ok(capture) => {
-                            eprintln!(
-                                "block-app: the capture of {} started again",
-                                describe(captured.target, &captured.title)
-                            );
-                            captured.capture = capture;
-                            captured.restarted = true;
-                            captured.drawn = 0;
-                            captured.cursor = false;
-                            return true;
-                        }
-                        Err(error) => {
-                            eprintln!(
-                                "block-app: the capture of {} did not start again: {error}",
-                                describe(captured.target, &captured.title)
-                            );
-                            win32_map::recovery(Some(&error), true, &captured.title).notice()
-                        }
-                    },
-                };
-                if let Some(notice) = notice {
-                    block_app_base::notices::report(notice);
-                }
-                frames.extend(captured.users.iter().map(|(_, drawing)| (*drawing, None)));
-                return false;
-            }
-            let cursor = focused == Some(source.entry());
-            if cursor != captured.cursor {
-                captured.cursor = cursor;
-                captured.capture.set_cursor(cursor);
-            }
-            if captured.capture.version() != captured.drawn
-                && let Some(frame) = captured.capture.latest()
-            {
-                captured.drawn = frame.version();
-                let texture = frame.texture().clone();
-                let drawing = beui::native::drawing(TextureDraw::new(texture, frame));
-                frames.extend(
-                    captured
-                        .users
-                        .iter()
-                        .map(|(_, signal)| (*signal, Some(drawing.clone()))),
-                );
-            }
-            true
-        });
-        frames
-    });
-    let started: Vec<EntryId> = events
-        .iter()
-        .filter_map(|event| match *event {
-            FocusEvent::Started(id) | FocusEvent::Followed { to: id, .. } => Some(id),
-            _ => None,
-        })
-        .collect();
-    edit_notes(|notes| {
-        notes.focused = focused;
-        for id in started {
-            notes.refused.remove(&id);
-        }
-        for event in &events {
-            match event {
-                FocusEvent::HotkeySet(Some(hotkey)) => {
-                    notes.hotkey = HotkeyState::Registered(*hotkey);
-                }
-                FocusEvent::HotkeySet(None) => notes.hotkey = HotkeyState::Waiting,
-                FocusEvent::HotkeyRefused(error) => {
-                    notes.hotkey = HotkeyState::Refused(error.clone());
-                }
-                FocusEvent::Refused { entry, error } => {
-                    if let Some(refusal) = win32_map::focus_refusal(error) {
-                        notes.refused.insert(*entry, refusal);
-                    }
-                }
-                FocusEvent::Ended { entry, reason } => {
-                    if let Some(refusal) = win32_map::ended_refusal(*reason) {
-                        notes.refused.insert(*entry, refusal);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let live = |id: &EntryId| snapshot.entry(*id).is_some();
-        notes.refused.retain(|id, _| live(id));
-        notes.hovered = notes.hovered.filter(live);
-    });
-    beui::native::enter(document, || {
-        if signals.snapshot.get_untracked().revision != snapshot.revision {
-            signals.snapshot.set(snapshot);
-        }
-        for (signal, drawing) in frames {
-            signal.set(drawing);
-        }
-    });
-}
-
-pub fn after(_context: &Context, _document: &mut Document) {}
-
-pub fn replace_gpu(setup: &Setup) {
-    CAPTURES.with_borrow_mut(HashMap::clear);
-    DEVICE.set(None);
-    start(setup);
-}
-
-pub fn exiting() {
-    CAPTURES.with_borrow_mut(HashMap::clear);
-    DEVICE.set(None);
-    let host = HOST.with_borrow_mut(Option::take);
-    if let Some(host) = &host {
-        host.watcher.release();
-    }
-    drop(host);
-}
-
-pub fn set_owned(owned: bool) {
-    if owned {
-        spawn();
-    }
-}
-
-pub fn revision() -> u64 {
-    watcher().map_or(0, |watcher| watcher.snapshot().revision) + CHANGES.get()
-}
-
-pub fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
-    watcher().map_or_else(Vec::new, |watcher| {
-        let snapshot = watcher.snapshot();
-        SHAPING.with_borrow_mut(|shaping| {
-            shaping.observe(&snapshot);
-            NOTES.with_borrow(|notes| {
-                NAMES.with_borrow(|names| {
-                    win32_map::listed(&snapshot, hidden, shaping, notes, names)
-                })
-            })
-        })
-    })
-}
-
-pub fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
-    Vec::new()
-}
-
-pub fn close(window: HostWindowId) {
-    let snapshot = snapshot();
-    let Some(entry) = snapshot.entry(entry_id(window)) else {
-        return;
-    };
-    if entry.kind == EntryKind::Window
-        && let Err(error) = be_win32::close_window(entry.handle)
-    {
-        eprintln!("block-app: {} did not close: {error}", entry.title);
-    }
-}
-
-pub fn fullscreen(window: HostWindowId, fullscreen: bool) {
-    let Some(watcher) = watcher() else {
-        return;
-    };
-    let snapshot = watcher.snapshot();
-    let id = entry_id(window);
-    let handle = SHAPING.with_borrow_mut(|shaping| match fullscreen {
-        true => shaping.enter_fullscreen(&snapshot, id),
-        false => shaping.leave_fullscreen(&snapshot, id),
-    });
-    if let Some(handle) = handle {
-        be_win32::set_maximized(handle, fullscreen);
-    }
-    changed();
-}
-
 fn resize(id: EntryId, size: Vec2) {
     let snapshot = snapshot();
     let asked = SHAPING.with_borrow_mut(|shaping| shaping.placed(&snapshot, id, size));
@@ -499,18 +692,6 @@ fn resize(id: EntryId, size: Vec2) {
     };
     if let Err(error) = be_win32::resize_window(entry.handle, width, height) {
         eprintln!("block-app: {} was not resized: {error}", entry.title);
-    }
-}
-
-pub fn show(window: HostWindowId) {
-    if let Some(watcher) = watcher() {
-        watcher.show(entry_id(window));
-    }
-}
-
-pub fn hide(window: HostWindowId) {
-    if let Some(watcher) = watcher() {
-        watcher.hide(entry_id(window));
     }
 }
 
@@ -538,12 +719,6 @@ fn focus_entry(id: EntryId, at: Option<be_win32::Point>) {
     }
 }
 
-pub fn focus(window: HostWindowId) {
-    if let Some(id) = win32_map::shell_focus(window) {
-        focus_entry(id, None);
-    }
-}
-
 fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_win32::Launch> + Send + 'static) {
     let Some(watcher) = watcher() else {
         return;
@@ -559,25 +734,6 @@ fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_win32::Launch> + Send 
         });
     if let Err(error) = spawned {
         eprintln!("block-app: the program was not started: {error}");
-    }
-}
-
-pub fn launch(command: String) -> bool {
-    exec(be_win32::command_line::split_arguments(&command), None)
-}
-
-pub fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
-    if !running() || arguments.is_empty() {
-        return false;
-    }
-    spawn_launch(move || be_win32::exec(&arguments, launch));
-    true
-}
-
-#[component]
-pub fn WindowActions() -> NodeId {
-    view! {
-        <Frame />
     }
 }
 
@@ -786,329 +942,59 @@ fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
     }
 }
 
-#[component]
-pub fn WindowSurface(window: HostWindowId) -> NodeId {
-    let id = entry_id(window);
-    let Some(signals) = signals() else {
-        return view! {
-            <Frame />
-        };
-    };
-    let drawing = create_signal(None);
-    if let Some(user) = acquire(Source::Entry(id), drawing) {
-        on_cleanup(move || release(Source::Entry(id), user));
-    }
-    let snapshot = signals.snapshot;
-    let secure = create_memo(move || {
-        snapshot.with(|snapshot| {
-            snapshot
-                .entry(id)
-                .is_some_and(|entry| win32_map::secure_notice(snapshot, entry))
-        })
-    });
-    let hovered = create_signal(false);
-    create_effect(move || {
-        let over = hovered.get();
-        untrack(|| {
-            edit_notes(|notes| match over {
-                true => notes.hovered = Some(id),
-                false => notes.hovered = notes.hovered.filter(|held| *held != id),
-            });
-        });
-    });
-    on_cleanup(move || {
-        edit_notes(|notes| notes.hovered = notes.hovered.filter(|held| *held != id))
-    });
-    let off_screen = create_memo(move || {
-        snapshot.with(|snapshot| {
-            snapshot
-                .entry(id)
-                .map(|entry| win32_map::off_screen_parts(snapshot, entry))
-                .unwrap_or_default()
-        })
-    });
-    let pressed = Rc::new(Cell::new(false));
-    let press = Rc::new(RefCell::new(ContentPress::default()));
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
-    create_effect(move || resize(id, rect.get().size()));
-    let popups = create_memo(move || {
-        let panel = rect.get();
-        snapshot.with(|snapshot| {
-            snapshot
-                .entry(id)
-                .map(|entry| {
-                    entry
-                        .popups
-                        .iter()
-                        .map(|popup| {
-                            let at = win32_map::popup_rect(entry.frame, popup.frame, panel.size());
-                            (popup.handle, at.translate(panel.min.to_vec2()))
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default()
-        })
-    });
-    let hosted = opens_windows();
-    let keys = create_memo(move || {
-        let hosted = hosted.get();
-        popups.with(|popups| {
-            popups
-                .iter()
-                .map(|(handle, at)| {
-                    (
-                        handle.0,
-                        hosted.then(|| (at.min.x.to_bits(), at.min.y.to_bits())),
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-    });
-    let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
-    let built = view! {
-        <Layers>
-            <Interactive
-                focusable=true
-                @test_id={format!("win32.window.{}", id.0)}
-                on_hover_change={hovered}
-                on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
-            >
-                <Layers>
-                    <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                    <EntryOverlay secure off_screen />
-                </Layers>
-            </Interactive>
-            <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
-                let handle = Handle(key.0);
-                let placed = create_memo(move || {
-                    popups.with(|popups| {
-                        popups
-                            .iter()
-                            .find(|(popup, _)| *popup == handle)
-                            .map(|(_, at)| *at)
-                    })
-                });
-                let at = create_memo(move || placed.get().map_or(Pos2::ZERO, |at| at.min));
-                let size = create_memo(move || placed.get().map_or(Vec2::ZERO, |at| at.size()));
-                let open = create_memo(move || placed.get().is_some());
-                let placement = WindowPlacement::Over {
-                    window: parent,
-                    at: at.get_untracked(),
-                };
-                view! {
-                    <Window
-                        id={None}
-                        size
-                        placement
-                        at
-                        open
-                        role={WindowRole::Popup}
-                        on_report={|_: WindowReport| {}}
-                    >|_: WindowHandle|
-                        <PopupSurface entry={id} handle />
-                    </Window>
-                }
-            }</ForEach>
-        </Layers>
-    };
-    let rect_measured = measure(built);
-    create_effect(move || {
-        if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
-        }
-    });
-    built
-}
+pub struct WindowsPrograms(Vec<Program>);
 
-enum Scanned {
-    Programs(Vec<Program>),
-    Icons(Vec<(String, HostImage)>),
-}
-
-pub struct Opener {
-    pub id: String,
-    pub name: String,
-    pub extensions: Vec<String>,
-}
-
-#[derive(Default)]
-pub struct Programs {
-    programs: Vec<Program>,
-    icons: HashMap<String, HostImage>,
-    scanning: Option<Receiver<Scanned>>,
-    rescan: Option<u32>,
-    waiting: Vec<(String, Option<u64>)>,
-    scanned: bool,
-    unannounced: bool,
-}
-
-impl Programs {
-    pub fn scanned(&self) -> bool {
-        self.scanned
+impl ProgramSource for WindowsPrograms {
+    fn list() -> Self {
+        Self(be_win32::start_menu_programs())
     }
 
-    pub fn openers(&self) -> Vec<Opener> {
-        Vec::new()
-    }
-
-    pub fn open_file(
-        &mut self,
-        _key: &str,
-        _file: &std::path::Path,
-        _block: uuid::Uuid,
-    ) -> Result<(), String> {
-        Err("Files cannot be opened in Windows programs yet.".to_owned())
-    }
-
-    pub fn scan(&mut self, pixels: u32) {
-        if self.scanning.is_some() {
-            self.rescan = Some(pixels);
-            return;
-        }
-        let (sender, receiver) = block_app_base::host::waking_channel();
-        self.scanning = Some(receiver);
-        let spawned = std::thread::Builder::new()
-            .name("programs".to_owned())
-            .spawn(move || {
-                let programs = be_win32::start_menu_programs();
-                if sender.send(Scanned::Programs(programs.clone())).is_err() {
-                    return;
-                }
-                let icons = programs
-                    .iter()
-                    .filter_map(|program| {
-                        let icon = be_win32::program_icon(program, pixels)?;
-                        Some((
-                            program.id.clone(),
-                            HostImage {
-                                width: icon.width,
-                                height: icon.height,
-                                rgba: icon.rgba,
-                            },
-                        ))
-                    })
-                    .collect();
-                let _ = sender.send(Scanned::Icons(icons));
-            });
-        if let Err(error) = spawned {
-            self.scanning = None;
-            self.not_listed(error.to_string());
-        }
-    }
-
-    fn not_listed(&mut self, problem: String) {
-        eprintln!("block-app: the programs were not listed: {problem}");
-        block_app_base::notices::report(format!("Programs could not be listed: {problem}"));
-        self.scanned = true;
-        self.unannounced = true;
-    }
-
-    pub fn receive(&mut self) -> bool {
-        let mut changed = false;
-        while let Some(receiver) = &self.scanning {
-            match receiver.try_recv() {
-                Ok(Scanned::Programs(programs)) => {
-                    let names = ProgramNames::new(&programs);
-                    if NAMES.replace(names.clone()) != names {
-                        self::changed();
-                    }
-                    self.programs = programs;
-                    self.scanned = true;
-                    changed = true;
-                }
-                Ok(Scanned::Icons(icons)) => {
-                    self.icons = icons.into_iter().collect();
-                    changed = true;
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    self.scanning = None;
-                    if !self.scanned {
-                        self.not_listed("the scan stopped".to_owned());
-                    }
-                    if let Some(pixels) = self.rescan.take() {
-                        self.scan(pixels);
-                    }
-                    break;
-                }
-            }
-        }
-        if self.scanned {
-            for (key, launch) in std::mem::take(&mut self.waiting) {
-                self.launch(&key, launch);
-            }
-        }
-        changed | std::mem::take(&mut self.unannounced)
-    }
-
-    pub fn listed(&self) -> Vec<HostProgram> {
-        let mut room = ICON_BUDGET;
-        self.programs
+    fn programs(&self) -> Vec<HostProgram> {
+        self.0
             .iter()
-            .map(|program| {
-                let icon = self
-                    .icons
-                    .get(&program.id)
-                    .filter(|icon| {
-                        let fits = icon.rgba.len() <= room;
-                        if fits {
-                            room -= icon.rgba.len();
-                        }
-                        fits
-                    })
-                    .cloned();
-                win32_map::host_program(program, icon)
-            })
+            .map(|program| win32_map::host_program(program, None))
             .collect()
     }
 
-    pub fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
-        if !self.scanned {
-            self.waiting.push((key.to_owned(), launch));
-            self.scan(WAITING_ICON_SIZE);
-            return false;
-        }
-        let Some(program) = self
-            .programs
-            .iter()
-            .find(|program| program.id == key)
-            .cloned()
-        else {
-            eprintln!("block-app: no program {key} is installed");
-            block_app_base::notices::report(format!(
-                "{key} could not be opened: it is not installed"
+    fn icon(&self, id: &str, pixels: u32) -> Option<HostImage> {
+        let program = self.0.iter().find(|program| program.id == id)?;
+        let icon = be_win32::program_icon(program, pixels)?;
+        Some(HostImage {
+            width: icon.width,
+            height: icon.height,
+            rgba: icon.rgba,
+        })
+    }
+
+    fn run(
+        &self,
+        id: &str,
+        launch: Option<u64>,
+        file: Option<(&std::path::Path, uuid::Uuid)>,
+    ) -> Option<Result<(), String>> {
+        let program = self.0.iter().find(|program| program.id == id)?.clone();
+        if file.is_some() {
+            return Some(Err(
+                "Files cannot be opened in Windows programs yet.".to_owned()
             ));
-            return false;
-        };
-        if !running() {
-            return false;
+        }
+        if !Win32::running() {
+            return Some(Err("Programs cannot run here.".to_owned()));
         }
         spawn_launch(move || be_win32::launch(&program, launch));
-        true
+        Some(Ok(()))
+    }
+
+    fn adopted(&self) {
+        let names = ProgramNames::new(&self.0);
+        if NAMES.replace(names.clone()) != names {
+            changed();
+        }
     }
 }
 
 thread_local! {
     static POWER: Cell<Option<block_plugin_api::PowerAvailability>> = const { Cell::new(None) };
-}
-
-pub fn frame() {
-    if !running() {
-        return;
-    }
-    let available = POWER.get().unwrap_or_else(|| {
-        let available = win32_map::power_availability(be_win32::power_availability());
-        POWER.set(Some(available));
-        block_app_base::watches::publish::<block_plugin_api::PowerWatch>(&available);
-        available
-    });
-    if let Some(action) =
-        block_app_base::watches::take_calls(block_plugin_api::requested::power).pop()
-        && available.allows(action)
-    {
-        request_power(action);
-    }
 }
 
 fn request_power(action: block_plugin_api::PowerAction) {

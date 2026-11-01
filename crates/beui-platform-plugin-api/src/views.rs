@@ -2,8 +2,8 @@ use stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::window::{HostPlacement, WindowPlacement};
+use beui::window::{HostPlacement, WindowPlacement};
+use beui::{Rect, Vec2};
 use block_editor_plugin::{Claim, FrameSpec, ViewId, ViewPlacement, ViewRef};
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub struct Report {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub floating_painted: Vec<Rect>,
-    pub scrims: Vec<beui_core::layer::Scrim>,
+    pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,
     pub work_area: Option<Rect>,
@@ -49,7 +49,7 @@ struct Shared {
     views: RefCell<Vec<View>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
     reports: RefCell<HashMap<ViewRef, Report>>,
-    floated: RefCell<Vec<(ViewRef, beui_core::window::WindowId)>>,
+    floated: RefCell<Vec<(ViewRef, beui::WindowId)>>,
 }
 
 #[derive(Clone, Default)]
@@ -77,11 +77,11 @@ impl Views {
         WindowPlacement::Host(placement_of(id))
     }
 
-    pub fn floated(&self) -> Vec<(ViewRef, beui_core::window::WindowId)> {
+    pub fn floated(&self) -> Vec<(ViewRef, beui::WindowId)> {
         self.0.floated.borrow().clone()
     }
 
-    pub fn set_floated(&self, floated: Vec<(ViewRef, beui_core::window::WindowId)>) {
+    pub fn set_floated(&self, floated: Vec<(ViewRef, beui::WindowId)>) {
         *self.0.floated.borrow_mut() = floated;
     }
 
@@ -121,7 +121,7 @@ fn placement_of(id: ViewRef) -> HostPlacement {
 const WINDOW_VIEWS: u64 = 1 << 61;
 const ANCHORED_VIEWS: u64 = 1 << 60;
 
-pub fn window_view(window: beui_core::window::WindowId) -> ViewId {
+pub fn window_view(window: beui::WindowId) -> ViewId {
     ViewId(WINDOW_VIEWS | window.raw())
 }
 

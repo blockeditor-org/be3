@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
+use be_server::Running;
 use be_store::MemoryStore;
 use database_types::database::{Database, DatabaseContent};
 use database_types::database_schema::{
     DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use crate::blocks::Entry;
@@ -74,37 +75,21 @@ fn sources() -> crate::tracker::Sources {
     Box::new(first_party_types::sources)
 }
 
-struct Harness {
-    url: String,
-    directory: PathBuf,
-    shutdown: Option<oneshot::Sender<()>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
+struct Harness(Running);
+
+impl std::ops::Deref for Harness {
+    type Target = Running;
+
+    fn deref(&self) -> &Running {
+        &self.0
+    }
 }
 
 impl Harness {
     async fn start() -> Self {
         build_id::install("test");
         manifests();
-        let directory = std::env::temp_dir().join(format!("be-cli-test-{}", Uuid::new_v4()));
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let (shutdown, receiver) = oneshot::channel();
-        let data_dir = directory.clone();
-        let handle = tokio::spawn(async move {
-            let _ = be_server::serve_with_config(
-                listener,
-                data_dir,
-                be_server::ServerConfig::OPEN,
-                receiver,
-            )
-            .await;
-        });
-        Self {
-            url: format!("http://{address}"),
-            directory,
-            shutdown: Some(shutdown),
-            handle: Some(handle),
-        }
+        Self(Running::start(be_server::ServerConfig::OPEN).await)
     }
 
     async fn owner(&self) -> Peer<MemoryStore> {
@@ -112,14 +97,7 @@ impl Harness {
             PeerConfig::new(
                 be_client::socket_url(&self.url),
                 be_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Token(
-                    be_server::ServerStore::open(&self.directory)
-                        .unwrap()
-                        .register("owner@example.com", "Owner", "correct horse battery")
-                        .await
-                        .unwrap()
-                        .1,
-                ),
+                Credentials::Token(self.register("owner@example.com", "Owner").await),
             ),
             MemoryStore::new(),
         )
@@ -129,15 +107,8 @@ impl Harness {
         owner
     }
 
-    async fn stop(mut self) {
-        if let Some(shutdown) = self.shutdown.take() {
-            let _ = shutdown.send(());
-        }
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-        let _ = std::fs::remove_dir_all(&self.directory);
+    async fn stop(self) {
+        self.0.stop().await;
     }
 }
 

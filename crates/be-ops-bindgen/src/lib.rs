@@ -302,6 +302,7 @@ impl Generator {
         let mut local_guest = TokenStream::new();
         let mut local_embed = TokenStream::new();
         let mut local_entries = Vec::new();
+        let mut served = Vec::new();
         for interface in imports.iter().filter(callable) {
             let module = generator.module_name(*interface);
             if generator.is_local(*interface) {
@@ -339,9 +340,11 @@ impl Generator {
                 }
             }
             let nest = generator.nest(*interface);
+            served.push(*interface);
             guest_imports.push(nest.clone(), &module, guest);
             embed_imports.push(nest, &module, embed);
         }
+        let world_call = generator.world_call(&served);
         let (guest_imports, embed_imports) = (guest_imports.finish(), embed_imports.finish());
         let mut guest_exports = Modules::default();
         let mut embed_exports = Modules::default();
@@ -488,6 +491,8 @@ impl Generator {
 
                 #embed_imports
 
+                #world_call
+
                 pub mod exports {
                     #embed_exports
                 }
@@ -514,10 +519,12 @@ impl Generator {
         let mut args = TokenStream::new();
         let mut embed = Modules::default();
         let mut client = Modules::default();
+        let mut served = Vec::new();
         for interface in imports {
             if self.resolve.interfaces[*interface].functions.is_empty() {
                 continue;
             }
+            served.push(*interface);
             let module = self.module_name(*interface);
             let methods = self.methods(*interface)?;
             if let Some(direct) = methods
@@ -535,6 +542,7 @@ impl Generator {
             embed.push(nest.clone(), &module, self.embed_import(&module, &methods));
             client.push(nest, &module, self.client(&methods)?);
         }
+        let world_call = self.world_call(&served);
         let (embed, client) = (embed.finish(), client.finish());
         Ok(quote! {
             #types
@@ -546,6 +554,8 @@ impl Generator {
 
             pub mod embed {
                 #embed
+
+                #world_call
             }
 
             pub mod client {
@@ -652,6 +662,56 @@ impl Generator {
             });
         }
         Ok(out)
+    }
+
+    fn world_call(&self, interfaces: &[InterfaceId]) -> TokenStream {
+        let modules: Vec<Ident> = interfaces.iter().map(|id| self.module_name(*id)).collect();
+        let variants = interfaces.iter().zip(&modules).map(|(interface, module)| {
+            let shared = modules.iter().filter(|other| *other == module).count() > 1;
+            match (shared, self.nest(*interface)) {
+                (true, Some(nest)) => {
+                    format_ident!("{}{}", camel(&nest.to_string()), camel(&module.to_string()))
+                }
+                _ => camel(&module.to_string()),
+            }
+        });
+        let (variants, paths): (Vec<Ident>, Vec<TokenStream>) = variants
+            .zip(interfaces.iter().map(|id| self.module_path(*id)))
+            .unzip();
+        quote! {
+            #[derive(Debug)]
+            pub enum Call {
+                #(#variants(#paths::Call),)*
+            }
+
+            impl Call {
+                pub fn accept(
+                    connection: &mut ::be_ops::Connection,
+                    started: ::be_ops::Started,
+                ) -> ::core::option::Option<Self> {
+                    #(
+                        if #paths::Call::accepts(&started) {
+                            return #paths::Call::accept(connection, started).map(Self::#variants);
+                        }
+                    )*
+                    connection.complete(
+                        started.op,
+                        ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                    );
+                    ::core::option::Option::None
+                }
+
+                pub fn accept_direct(called: &::be_ops::Called) -> ::core::option::Option<Self> {
+                    let _ = called;
+                    #(
+                        if let ::core::option::Option::Some(call) = #paths::Call::accept_direct(called) {
+                            return ::core::option::Option::Some(Self::#variants(call));
+                        }
+                    )*
+                    ::core::option::Option::None
+                }
+            }
+        }
     }
 
     fn module_name(&self, interface: InterfaceId) -> Ident {

@@ -4,7 +4,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use zbus::Proxy;
 
 use super::{Backlight, MediaEvent};
-use block_app_base::host::WakingSender;
+use block_app_base::host::Post;
 
 const DEVICES: &str = "/sys/class/backlight";
 const DESTINATION: &str = "org.freedesktop.login1";
@@ -16,7 +16,7 @@ pub struct LogindBacklight {
 }
 
 impl LogindBacklight {
-    pub fn start(events: WakingSender<MediaEvent>) -> Self {
+    pub fn start(events: Post<MediaEvent>) -> Self {
         let (steps, stepped) = unbounded_channel();
         crate::dbus::spawn(run(stepped, events));
         Self { steps }
@@ -75,10 +75,10 @@ pub(super) fn stepped(brightness: u32, max: u32, by: f32) -> u32 {
     }
 }
 
-async fn run(mut steps: UnboundedReceiver<f32>, events: WakingSender<MediaEvent>) {
+async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
     let mut session = None;
     if let Some(device) = find(Path::new(DEVICES)) {
-        let _ = events.send(MediaEvent::Brightness(
+        events.send(MediaEvent::Brightness(
             device.brightness as f32 / device.max as f32,
         ));
     }
@@ -106,7 +106,7 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: WakingSender<MediaEvent>
                 continue;
             }
         }
-        let _ = events.send(MediaEvent::Brightness(target as f32 / device.max as f32));
+        events.send(MediaEvent::Brightness(target as f32 / device.max as f32));
     }
 }
 

@@ -202,8 +202,8 @@ impl LogicGridEditor {
 
     pub(super) fn render_frame(
         &self,
-        size: Vec2,
-        camera: Camera,
+        placed: Rect,
+        camera: CanvasView,
         pointer_world: Option<[f32; 2]>,
         hovered_entity: Option<DebugEntity>,
         graph_hover: &GraphHover,
@@ -558,7 +558,7 @@ impl LogicGridEditor {
                     let rect = WorldRect::from_points(*start, pointer);
                     wire_triangles.extend(DrawTriangle::selection_box(
                         rect.bounds(),
-                        1.0 / camera.zoom,
+                        1.0 / camera.scale,
                     ));
                 }
                 None => {
@@ -579,13 +579,16 @@ impl LogicGridEditor {
         }
         wire_triangles.extend(component_triangles);
         if let Some(bounds) = self.grid.bounds() {
-            wire_triangles.extend(DrawTriangle::bounds(bounds, 2.0 / camera.zoom));
+            wire_triangles.extend(DrawTriangle::bounds(bounds, 2.0 / camera.scale));
         }
 
         RenderFrame {
-            viewport_size: [size.x, size.y],
-            camera_center: camera.center,
-            zoom: camera.zoom,
+            viewport_size: [placed.width(), placed.height()],
+            camera_center: {
+                let center = camera.to_canvas(placed.center());
+                [center.x, center.y]
+            },
+            zoom: camera.scale,
             grid_scale: self.tool.snap().get() as f32,
             wires: draw_wires,
             wire_values,

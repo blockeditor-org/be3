@@ -8,10 +8,11 @@ fn seed(instances: &mut Instances, block: Uuid) {
     seeded.apply(&Counter::add(5));
     call(
         instances,
-        Call::SeedContent {
+        Call::WriteContent {
             block: block.into_bytes(),
             content_type: CounterContent::CONTENT_TYPE.into_bytes(),
             bytes: seeded.encode(),
+            replace: false,
         },
     );
 }

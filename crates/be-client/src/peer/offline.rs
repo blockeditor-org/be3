@@ -17,16 +17,6 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.counts()
     }
 
-    pub fn pending_blocks(&self) -> Vec<Uuid> {
-        let mut seen = HashSet::new();
-        self.refs
-            .outbox()
-            .into_iter()
-            .map(|(_, op)| op.block())
-            .filter(|block| seen.insert(*block))
-            .collect()
-    }
-
     pub fn has_pending(&self, block: Uuid) -> bool {
         self.refs.has_pending(block)
     }
@@ -389,10 +379,6 @@ impl<S: ObjectStore> Peer<S> {
             self.refs.set_head(block, head)?;
         }
         Ok(())
-    }
-
-    pub async fn drain_block(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
-        self.drain(|other| other != block).await
     }
 
     async fn send_creation(

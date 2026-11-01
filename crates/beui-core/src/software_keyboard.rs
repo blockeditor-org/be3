@@ -2,9 +2,11 @@ use std::any::Any;
 
 use crate::context::Context;
 use crate::document::{Document, trim_bottom};
-use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{Event, ImeArea, InputState, Keyboard, PointerId, PointerPhase};
-use crate::window::{WindowId, WindowRequest};
+use crate::input::InputState;
+use beui_types::{Event, PointerId, PointerPhase};
+use beui_types::{ImeArea, Keyboard};
+use beui_types::{Pos2, Rect, pos2};
+use beui_types::{WindowId, WindowRequest};
 
 pub const MAX_SHARE: f32 = 0.5;
 pub const DEFAULT_SHARE: f32 = 0.35;
@@ -37,7 +39,7 @@ pub(crate) struct KeyboardState {
     pressed: Vec<PointerId>,
     elsewhere: Vec<PointerId>,
     owns: bool,
-    typed: Vec<crate::input::Input>,
+    typed: Vec<beui_types::Input>,
     own: Option<WindowId>,
     shown_in: Option<WindowId>,
 }
@@ -113,10 +115,6 @@ impl KeyboardState {
         std::mem::replace(&mut self.share, share) != share
     }
 
-    pub(crate) fn opened(&self) -> Opened {
-        self.opened
-    }
-
     pub(crate) fn toggle(&mut self) {
         self.toggles = self.toggles.wrapping_add(1);
     }
@@ -143,11 +141,11 @@ impl KeyboardState {
         }
     }
 
-    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = crate::input::Input>) {
+    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = beui_types::Input>) {
         self.typed.extend(events);
     }
 
-    pub(crate) fn take_typed(&mut self) -> Vec<crate::input::Input> {
+    pub(crate) fn take_typed(&mut self) -> Vec<beui_types::Input> {
         std::mem::take(&mut self.typed)
     }
 

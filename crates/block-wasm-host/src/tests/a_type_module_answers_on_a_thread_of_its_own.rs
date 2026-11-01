@@ -10,14 +10,15 @@ const COUNTER_TYPES: &[u8] = include_bytes!(env!("COUNTER_TYPES_WASM"));
 #[test]
 fn a_type_module_answers_on_a_thread_of_its_own() {
     let waiting = std::sync::Arc::default();
-    let channel = PureHost::new(None)
+    let channel = Host::pure(None)
         .unwrap()
-        .with_imports(block_type_api::embed::IMPORTS)
+        .with_direct(block_type_api::embed::IMPORTS)
         .spawn(
             "be3.counter".to_owned(),
             |host| host.load_bytes(COUNTER_TYPES),
             std::sync::Arc::new(|| {}),
             std::sync::Arc::clone(&waiting),
+            block_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);

@@ -11,7 +11,7 @@ use block_plugin_api::{WifiLink, WifiRequest, WifiStatus};
 
 use super::Backend;
 use super::model::{self, AccessPoint, Attempts, Outcome, Plan};
-use block_app_base::host::WakingSender;
+use block_app_base::host::Post;
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 pub const PATH: &str = "/org/freedesktop/NetworkManager";
@@ -35,16 +35,13 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
-    pub fn start(reports: WakingSender<WifiStatus>) -> Self {
+    pub fn start(reports: Post<WifiStatus>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(async move {
             let Some(connection) = crate::dbus::system().await else {
                 return;
             };
-            run_on(connection, requested, move |status| {
-                let _ = reports.send(status);
-            })
-            .await;
+            run_on(connection, requested, move |status| reports.send(status)).await;
         });
         Self { requests }
     }

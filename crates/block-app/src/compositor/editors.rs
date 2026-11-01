@@ -16,7 +16,7 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use block_app_desktop::desktop_host::WindowSurface;
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 
 use super::plugin_view::{ChildView, PluginView, ViewEditor};
 use crate::editors::plugin::{InstanceSource, PluginPicker};
@@ -1129,7 +1129,7 @@ fn ProgramSurface(block: Uuid) -> NodeId {
             <Dynamic value={shown}>|shown: Option<block_app_desktop::programs::Shown>| {
                 match shown {
                     Some(block_app_desktop::programs::Shown::Window(window)) => view! {
-                        <WindowSurface window={window} />
+                        <Host::WindowSurface window={window} />
                     },
                     Some(block_app_desktop::programs::Shown::Closed(name)) => view! {
                         <ProgramClosed name block />
@@ -1718,7 +1718,7 @@ fn HostedChild(
                                 <HostPanelSurface panel={panel} />
                             },
                             Kind::Window(window) => view! {
-                                <WindowSurface window={window} />
+                                <Host::WindowSurface window={window} />
                             },
                             Kind::Program(block) => view! {
                                 <ProgramSurface block />

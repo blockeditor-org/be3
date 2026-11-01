@@ -228,8 +228,7 @@ impl crate::embed::blocks::Call {
                 parent.visit_block_ids(visit);
             }
             Self::Define { block, .. }
-            | Self::SeedContent { block, .. }
-            | Self::ReplaceContent { block, .. }
+            | Self::WriteContent { block, .. }
             | Self::ReplicaNew { block, .. }
             | Self::HistoryWatchNew { block, .. }
             | Self::HeadWatchNew { block, .. }
@@ -263,8 +262,7 @@ impl crate::embed::blocks::Call {
             Self::CreateBlock { .. }
                 | Self::SetParent { .. }
                 | Self::Define { .. }
-                | Self::SeedContent { .. }
-                | Self::ReplaceContent { .. }
+                | Self::WriteContent { .. }
                 | Self::Act { .. }
                 | Self::Version { .. }
                 | Self::OpenBlock { .. }

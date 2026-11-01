@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::{native::Draw, native::DrawAt, native::Drawing};
+use beui::native::{
+    Draw, DrawAt, Drawing,
+    texture_quad::{Bound, Pipelines, Quad, Quads},
+};
 use bytemuck::{Pod, Zeroable};
 
 use crate::camera::Camera;
@@ -40,15 +43,6 @@ struct SceneUniform {
     view_projection: [[f32; 4]; 4],
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct BlitUniform {
-    rect: [f32; 4],
-    clip: [f32; 4],
-    screen: [f32; 2],
-    padding: [f32; 2],
-}
-
 #[derive(Clone, Default)]
 pub(crate) struct Scene(Rc<RefCell<Option<SceneRenderer>>>);
 
@@ -75,13 +69,13 @@ impl Draw for SceneDraw {
         at: DrawAt,
     ) {
         let mut held = self.scene.0.borrow_mut();
-        let renderer = held.get_or_insert_with(|| SceneRenderer::new(device, queue, at.format));
+        let renderer = held.get_or_insert_with(|| SceneRenderer::new(device, queue, &at));
         renderer.prepare(device, queue, encoder, self.camera, at);
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
         if let Some(renderer) = self.scene.0.borrow().as_ref() {
-            renderer.blit(pass);
+            renderer.quads.paint(pass);
         }
     }
 }
@@ -90,15 +84,13 @@ struct SceneTarget {
     size: [u32; 2],
     color_view: wgpu::TextureView,
     depth_view: wgpu::TextureView,
-    blit_bind_group: wgpu::BindGroup,
+    bound: Bound,
 }
 
 struct SceneRenderer {
     scene_pipeline: wgpu::RenderPipeline,
-    blit_pipeline: wgpu::RenderPipeline,
-    blit_bind_group_layout: wgpu::BindGroupLayout,
-    blit_uniform_buffer: wgpu::Buffer,
-    sampler: wgpu::Sampler,
+    pipelines: Rc<Pipelines>,
+    quads: Quads,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,
@@ -107,9 +99,8 @@ struct SceneRenderer {
 }
 
 impl SceneRenderer {
-    fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, at: &DrawAt) -> Self {
         let scene_shader = device.create_shader_module(wgpu::include_wgsl!("renderer.wgsl"));
-        let blit_shader = device.create_shader_module(wgpu::include_wgsl!("blit.wgsl"));
 
         let uniform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -163,76 +154,6 @@ impl SceneRenderer {
             cache: None,
         });
 
-        let blit_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("scene 3d blit bind group layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
-        let blit_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("scene 3d blit pipeline layout"),
-            bind_group_layouts: &[Some(&blit_bind_group_layout)],
-            immediate_size: 0,
-        });
-        let blit_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("scene 3d blit pipeline"),
-            layout: Some(&blit_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &blit_shader,
-                entry_point: Some("blit_vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &blit_shader,
-                entry_point: Some("blit_fragment"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("scene 3d blit sampler"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene 3d uniform buffer"),
             size: std::mem::size_of::<SceneUniform>() as u64,
@@ -247,13 +168,6 @@ impl SceneRenderer {
                 resource: uniform_buffer.as_entire_binding(),
             }],
         });
-        let blit_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("scene 3d blit uniform buffer"),
-            size: std::mem::size_of::<BlitUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let vertices = scene_geometry();
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene 3d vertex buffer"),
@@ -265,10 +179,8 @@ impl SceneRenderer {
 
         Self {
             scene_pipeline,
-            blit_pipeline,
-            blit_bind_group_layout,
-            blit_uniform_buffer,
-            sampler,
+            pipelines: Pipelines::of(device, at),
+            quads: Quads::default(),
             uniform_buffer,
             uniform_bind_group,
             vertex_buffer,
@@ -312,29 +224,11 @@ impl SceneRenderer {
             view_formats: &[],
         });
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let blit_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("scene 3d blit bind group"),
-            layout: &self.blit_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.blit_uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&color_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        });
         self.target = Some(SceneTarget {
             size,
             color_view,
             depth_view,
-            blit_bind_group,
+            bound: self.pipelines.bind(&color_texture),
         });
     }
 
@@ -352,15 +246,20 @@ impl SceneRenderer {
             return;
         };
 
-        queue.write_buffer(
-            &self.blit_uniform_buffer,
-            0,
-            bytemuck::bytes_of(&BlitUniform {
-                rect: at.rect,
-                clip: at.clip,
-                screen: [at.screen.x, at.screen.y],
-                padding: [0.0, 0.0],
-            }),
+        self.quads.prepare(
+            &self.pipelines,
+            queue,
+            at.format,
+            [at.screen.x, at.screen.y],
+            [(
+                &target.bound,
+                Quad {
+                    rect: at.rect,
+                    clip: at.clip,
+                    opaque: true,
+                    ..Quad::default()
+                },
+            )],
         );
         queue.write_buffer(
             &self.uniform_buffer,
@@ -397,15 +296,6 @@ impl SceneRenderer {
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..self.vertex_count, 0..1);
-    }
-
-    fn blit(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        let Some(target) = &self.target else {
-            return;
-        };
-        render_pass.set_pipeline(&self.blit_pipeline);
-        render_pass.set_bind_group(0, &target.blit_bind_group, &[]);
-        render_pass.draw(0..6, 0..1);
     }
 }
 

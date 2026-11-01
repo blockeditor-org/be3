@@ -1,7 +1,6 @@
 use stable_hash::{HashMap, HashSet};
 
 use beui_view::types::Rect;
-use serde::{Deserialize, Serialize};
 
 use super::{
     Bar, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
@@ -22,22 +21,16 @@ pub fn joined_prefix(host: TabId) -> String {
     format!("{}/", joined_key(host))
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DockOutside {
     pub tab: TabId,
     pub place: DockOutsidePlace,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DockOutsidePlace {
-    Pane {
-        key: String,
-        index: usize,
-    },
-    Window {
-        #[serde(with = "rect")]
-        rect: Rect,
-    },
+    Pane { key: String, index: usize },
+    Window { rect: Rect },
 }
 
 pub struct DockMapping<'a> {
@@ -601,24 +594,5 @@ impl DockState {
                 self.pinned_group_of(leaf)
             }
         }
-    }
-}
-
-mod rect {
-    use beui_view::types::{Pos2, Rect};
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(rect: &Rect, serializer: S) -> Result<S::Ok, S::Error> {
-        [rect.min.x, rect.min.y, rect.max.x, rect.max.y].serialize(serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Rect, D::Error> {
-        let [left, top, right, bottom] = <[f32; 4]>::deserialize(deserializer)?;
-        Ok(Rect::from_min_max(
-            Pos2::new(left, top),
-            Pos2::new(right, bottom),
-        ))
     }
 }

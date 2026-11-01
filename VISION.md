@@ -240,8 +240,9 @@ a view over blocks with a date and the map one over blocks with a place.
 
 ### Calendar
 
-If BE3 is your computer, it needs a calendar. Possibly a view over dated
-blocks, as above.
+If BE3 is your computer, it needs a calendar. It is a database view that lays
+out rows by a date field, by month, week or day; the desktop's clock opens one.
+Later, a view over dated blocks, as above.
 
 ### Map
 
@@ -335,8 +336,8 @@ planned.
 
 ### Debug and example editors
 
-The counter, triangle, pan-and-zoom, beui gallery, block-debug, checklist and
-pixel ray tracer editors are examples, tests and experiments, not apps.
+The counter, triangle, pan-and-zoom, beui gallery, block-debug and checklist
+editors are examples, tests and experiments, not apps.
 
 ## Open questions
 

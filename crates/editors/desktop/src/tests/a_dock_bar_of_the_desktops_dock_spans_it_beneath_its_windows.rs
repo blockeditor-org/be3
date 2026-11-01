@@ -70,10 +70,7 @@ impl BeuiApp for BandedApp {
 
 #[test]
 fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test =
-        BeuiTest::<BandedApp>::new(OwnedEditor::new(host, Uuid::new_v4())).with_size(SIZE);
+    let mut test = BeuiTest::<BandedApp>::editing(Uuid::new_v4()).with_size(SIZE);
     test.run();
     test.run();
 

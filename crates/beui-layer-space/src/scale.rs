@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use beui_core::geometry::{Pos2, Vec2, pos2};
+use beui_types::{Pos2, Vec2, pos2};
 use glam::Vec4;
 
 use crate::head::View;

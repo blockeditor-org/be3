@@ -8,6 +8,11 @@ license.workspace = true
 be-ops = { path = "../be-ops" }
 be-ops-bindgen = { path = "../be-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
+wgpu = { version = "29", default-features = false, optional = true }
+
+[features]
+# Conversions to and from the wgpu types, which the host and the guest share.
+wgpu = ["dep:wgpu"]
 
 [lints]
 workspace = true

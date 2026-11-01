@@ -82,17 +82,8 @@ fn painting_of_sized(
         }
     }
     stepped.advance(Duration::from_secs(1));
-    let output = stepped.frame(Vec::new());
-    let painted = beui::native::painting::painting(
-        output.main(),
-        size,
-        1.0,
-        output.main().window.appearance.clear_color,
-        beui::native::painting::Punches::Shown,
-    )
-    .unwrap();
-    let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-    paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+    stepped.frame(Vec::new());
+    stepped.snapshot(name);
 }
 
 mod a_deployed_default_server_asks_for_its_gateway_token;

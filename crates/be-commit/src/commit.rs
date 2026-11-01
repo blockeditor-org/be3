@@ -149,9 +149,3 @@ impl Commit {
         self
     }
 }
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct ReferenceDelta {
-    pub added: usize,
-    pub removed: usize,
-}

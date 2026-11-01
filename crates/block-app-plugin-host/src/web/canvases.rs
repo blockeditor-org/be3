@@ -30,7 +30,7 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         return None;
     }
     let [first, second, _, fourth] = quad
-        .corners
+        .corners()
         .map(|corner| pos2(corner.x * scale, corner.y * scale));
     let across = (second - first) / source.width();
     let down = (fourth - first) / source.height();

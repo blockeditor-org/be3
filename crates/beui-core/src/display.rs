@@ -4,9 +4,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::context::scale_shape;
 use crate::fade::Fade;
 use crate::filter::Filter;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{NodeId, SpaceId};
+use crate::node::SpaceId;
 use crate::painter::{Shape, placed_shape};
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Group {

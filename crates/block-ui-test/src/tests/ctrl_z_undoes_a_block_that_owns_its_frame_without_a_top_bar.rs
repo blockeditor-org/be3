@@ -6,9 +6,7 @@ use block_editor_beui::BlockCommand;
 #[test]
 fn ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar() {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::<ChildApp>::new(OwnedEditor::new(host, block)).without_top_bar();
+    let mut test = BeuiTest::<ChildApp>::editing(block).without_top_bar();
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {

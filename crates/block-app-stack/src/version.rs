@@ -12,7 +12,7 @@ use be_block::{
     be_model::{Document, Model},
     version_control::{Action, Kept, Operation, View, masked, scope_mask},
 };
-use be_client::{ClientError, Peer, Saved};
+use be_client::{ClientError, Peer, Saved, Write};
 use be_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
 use be_graph::BlockParent;
 use be_protocol::ErrorCode;
@@ -1777,14 +1777,10 @@ async fn relist(
             .ok_or("Version control could not describe that place.")?;
         match context
             .peer
-            .publish_encoded(
+            .write(
                 parent,
-                content_type,
-                &bytes,
-                description.references,
-                description.derived,
-                head,
-                None,
+                Write::encoded(content_type, &bytes, head)
+                    .described(description.references, description.derived),
             )
             .await
             .map_err(failed)?
@@ -1909,15 +1905,11 @@ async fn publish(
     for _ in 0..4 {
         match context
             .peer
-            .publish_manifest(
+            .write(
                 block,
-                manifest.clone(),
-                references.clone(),
-                expected,
-                now_milliseconds(),
-                false,
-                Vec::new(),
-                metadata,
+                Write::written(manifest.clone(), expected)
+                    .described(references.clone(), metadata.derived.clone())
+                    .defined(metadata.defined.clone()),
             )
             .await
             .map_err(failed)?

@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::input::ScrollDelta;
+use beui::ScrollDelta;
 use beui_runner::Incoming;
 
 #[test]

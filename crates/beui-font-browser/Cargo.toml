@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 stable-hash = { path = "../stable-hash" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

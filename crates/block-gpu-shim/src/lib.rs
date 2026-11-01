@@ -23,7 +23,6 @@ struct Shim {
     returned: Vec<u8>,
     gpu_time: f64,
     submit_time: f64,
-    woken: bool,
     failure: Option<String>,
 }
 
@@ -59,7 +58,6 @@ pub async fn start() -> Result<(), JsValue> {
         returned: Vec::new(),
         gpu_time: 0.0,
         submit_time: 0.0,
-        woken: false,
         failure: None,
     };
     SHIM.with(|current| *current.borrow_mut() = Some(shim));
@@ -195,11 +193,6 @@ pub fn took() -> Vec<f64> {
         },
         vec![0.0, 0.0],
     )
-}
-
-#[wasm_bindgen]
-pub fn woken() -> bool {
-    with(|shim| std::mem::take(&mut shim.woken), false)
 }
 
 #[wasm_bindgen]

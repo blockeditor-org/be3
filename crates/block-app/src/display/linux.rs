@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use beui_platform_drm::{Display, DisplayConfig, DisplayControl, Displays, Epaper, Monitor};
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 use block_plugin_api::HostDisplay;
 
 use super::Screen;
@@ -83,8 +84,8 @@ pub(crate) fn apply(settings: &DisplaySettings) {
             control.set(config(settings));
         }
     });
-    block_app_desktop::desktop_host::set_blank_after(settings.screen_off().after());
-    block_app_desktop::desktop_host::set_lock_after(settings.lock_time());
+    Host::set_blank_after(settings.screen_off().after());
+    Host::set_lock_after(settings.lock_time());
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

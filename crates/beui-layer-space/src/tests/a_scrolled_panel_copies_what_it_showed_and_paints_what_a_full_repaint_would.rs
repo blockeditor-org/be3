@@ -1,8 +1,8 @@
 use super::*;
 use crate::render::Compositor;
-use beui_core::color::Color32;
 use beui_core::context::{Moved, WindowOutput};
-use beui_core::damage::Region;
+use beui_types::Color32;
+use beui_types::geometry::Region;
 
 const SIZE: Vec2 = vec2(64.0, 80.0);
 

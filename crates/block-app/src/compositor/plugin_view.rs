@@ -1347,11 +1347,10 @@ fn edge_of(edge: block_plugin_api::WindowEdge) -> beui::WindowEdge {
 }
 
 fn carry(drag: BlockDrag) {
-    let Some((board, pointer)) =
-        try_with_document(|document| (document.drag_board(), document.last_pointer))
-    else {
+    let Some(pointer) = try_with_document(|document| document.last_pointer) else {
         return;
     };
+    let board = beui::unstyled::drag_board();
     let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
         return;
     };

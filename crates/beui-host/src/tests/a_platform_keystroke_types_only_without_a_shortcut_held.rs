@@ -1,6 +1,6 @@
 use super::*;
-use beui_core::input::KeyPress;
-use beui_core::input::Keystroke;
+use beui::KeyPress;
+use beui::Keystroke;
 
 #[test]
 fn a_platform_keystroke_types_only_without_a_shortcut_held() {

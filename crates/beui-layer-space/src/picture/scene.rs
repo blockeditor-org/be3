@@ -1,6 +1,6 @@
-use beui_core::geometry::Rect;
 use beui_core::painting::{Content, Fade, Painting, Placement, Primitive, Triangle, Vertex};
-use beui_core::window::WindowId;
+use beui_types::Rect;
+use beui_types::WindowId;
 use glam::{Mat4, Vec3};
 
 use super::{Out, WHITE, faded, overlaps};

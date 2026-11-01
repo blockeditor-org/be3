@@ -246,11 +246,10 @@ interface blocks {
     /// Sets or, with no value, clears one metadata entry the block defines.
     define: func(block: block-id, key: uuid, value: option<list<u8>>);
 
-    /// Gives a block the editor holds content, unless it already has some.
-    seed-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>);
-
-    /// Replaces the content of a block the editor may edit.
-    replace-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>);
+    /// Gives a block content. With `replace`, replaces the content of a block
+    /// the editor may edit; without, seeds a block the editor holds, unless it
+    /// already has content.
+    write-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>, replace: bool);
 
     /// The editor's link to the replica of a block's content: its own block's,
     /// or one it watches. Opening it holds the block; dropping it lets go.

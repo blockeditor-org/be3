@@ -33,7 +33,6 @@ pub enum HotkeyError {
     Taken(Hotkey),
     NoModifier,
     NoKey,
-    UnknownKey(String),
     Failed(String),
 }
 
@@ -46,7 +45,6 @@ impl fmt::Display for HotkeyError {
                 "a hotkey needs Ctrl, Alt, Shift or Win, or it takes the key from every program"
             ),
             Self::NoKey => write!(f, "a hotkey needs a key besides its modifiers"),
-            Self::UnknownKey(name) => write!(f, "no key is called {name:?}"),
             Self::Failed(message) => write!(f, "Windows refused the hotkey: {message}"),
         }
     }
@@ -90,32 +88,6 @@ impl Hotkey {
         key: 0x20,
     };
 
-    pub fn parse(text: &str) -> Result<Self, HotkeyError> {
-        let mut modifiers = Modifiers::default();
-        let mut key = None;
-        for part in text.split('+').map(str::trim) {
-            match part.to_ascii_lowercase().as_str() {
-                "ctrl" | "control" => modifiers.control = true,
-                "alt" => modifiers.alt = true,
-                "shift" => modifiers.shift = true,
-                "win" | "windows" | "super" => modifiers.win = true,
-                "" => return Err(HotkeyError::NoKey),
-                _ if key.is_some() => return Err(HotkeyError::UnknownKey(part.to_owned())),
-                _ => {
-                    key = Some(
-                        key_code(part).ok_or_else(|| HotkeyError::UnknownKey(part.to_owned()))?,
-                    )
-                }
-            }
-        }
-        let hotkey = Self {
-            modifiers,
-            key: key.ok_or(HotkeyError::NoKey)?,
-        };
-        hotkey.check()?;
-        Ok(hotkey)
-    }
-
     pub fn check(&self) -> Result<(), HotkeyError> {
         if self.modifiers.is_empty() {
             return Err(HotkeyError::NoModifier);
@@ -157,33 +129,6 @@ impl Default for Hotkey {
     fn default() -> Self {
         Self::DEFAULT
     }
-}
-
-fn key_code(name: &str) -> Option<u32> {
-    if let Some((_, code)) = NAMED
-        .iter()
-        .find(|(named, _)| named.eq_ignore_ascii_case(name))
-    {
-        return Some(*code);
-    }
-    if let Some(hex) = name.strip_prefix("0x").or_else(|| name.strip_prefix("0X")) {
-        return u32::from_str_radix(hex, 16)
-            .ok()
-            .filter(|code| (1..=0xFE).contains(code));
-    }
-    let mut chars = name.chars();
-    if let (Some(char), None) = (chars.next(), chars.clone().next()) {
-        let char = char.to_ascii_uppercase();
-        if char.is_ascii_uppercase() || char.is_ascii_digit() {
-            return Some(u32::from(char));
-        }
-    }
-    let number: u32 = name
-        .strip_prefix(['F', 'f'])?
-        .parse()
-        .ok()
-        .filter(|number| (1..=24).contains(number))?;
-    Some(0x70 + number - 1)
 }
 
 fn key_name(code: u32) -> String {

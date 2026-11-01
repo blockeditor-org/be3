@@ -38,8 +38,8 @@ machine; Wine has no Windows.Graphics.Capture.
 - `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
   imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
-  device extensions are `DEVICE_EXTENSIONS`, which block-app's Windows `run_shell` opens wgpu
-  with). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
+  device extensions are `DEVICE_EXTENSIONS`, which block-app's `RunOptions::device_extensions`
+  names on Windows). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
   is captured only while `set_cursor(true)`.
 - `crates/be-win32-input`: `inject` puts pointer, key and text events into an entry at a point
   of its panel (`SendInput` in absolute virtual-desktop coordinates), after
@@ -48,7 +48,7 @@ machine; Wine has no Windows.Graphics.Capture.
 
 ## In block-app
 
-`crates/block-app-desktop/src/desktop_host.rs` is the host facade; on Windows it is `desktop_host/win32.rs`, with
+`crates/block-app-desktop/src/desktop_host.rs` is the host facade (the `DesktopHost` trait); on Windows it is `Win32` in `desktop_host/win32.rs`, whose `WindowsPrograms` lists the Start menu, with
 the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on Linux).
 `block-app-plugin-host/src/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
 `displays` among them (it describes the displays the shell is drawn on, and on Windows that is
@@ -67,7 +67,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   `show` and `hide` set `shown` in be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
-  to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
+  to every surface showing it (`beui::native::texture_quad::TextureDraw::keeping` draws it and keeps the `Frame` alive
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports
   `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
   `Lost::Closed` just ends it. A popup whose capture cannot start (Windows refuses some, such as

@@ -45,7 +45,7 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     );
 
     heard.update(|heard| heard.clear());
-    harness.press_at(inside);
+    harness.down(inside, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
     assert_eq!(
         lefts(heard.read_only()),

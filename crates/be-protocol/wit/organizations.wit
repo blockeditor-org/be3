@@ -44,22 +44,18 @@ interface organizations {
         server: server-account,
     }
 
-    /// Replaces `ListOrganizations` and its `Organizations` answer.
     list-organizations: async func() -> result<list<organization>, error>;
 
     /// Makes a company organization with the caller as its administrator.
-    /// Replaces `CreateOrganization`, which answered `Organizations` with the
-    /// one it made.
     create-organization: async func(name: string) -> result<organization, error>;
 
     /// Makes `organization` the one every later block, key and member call
     /// of this connection works in, and starts over what the connection
-    /// listed. Replaces `OpenOrganization` and its `OrganizationOpened`.
+    /// listed.
     open-organization: async func(organization: organization-id) -> result<organization-opened, error>;
 
     /// Invites `email` into `organization` with `role`; `sealed` and
     /// `escrow` are sealed with the invite code, which `code` names.
-    /// Replaces `Invite`.
     invite: async func(
         invitation: invitation-id,
         organization: organization-id,
@@ -70,12 +66,10 @@ interface organizations {
         escrow: list<u8>,
     ) -> result<_, error>;
 
-    /// Replaces `GetInvitation` and its `Invitation` answer.
     get-invitation: async func(invitation: invitation-id) -> result<organization-invitation, error>;
 
     /// Joins the organization an invitation is for, leaving the caller's
     /// card, its contact card for the inviter, and the escrow key it pins.
-    /// Replaces `AcceptInvitation`.
     accept-invitation: async func(
         invitation: invitation-id,
         card: list<u8>,
@@ -110,18 +104,15 @@ interface members {
         token: string,
     }
 
-    /// Replaces `ListMembers` and its `Members` answer.
     list-members: async func() -> result<list<member>, error>;
 
-    /// Replaces `SetRole`.
     set-role: async func(account: account-id, role: organization-role) -> result<_, error>;
 
-    /// Replaces `RemoveMember`.
     remove-member: async func(account: account-id) -> result<_, error>;
 
     /// Makes an agent account in `organization` with the recovery key
     /// `recovery`, a contact card for the caller, and its escrow key sealed
-    /// for it. Replaces `CreateAgent` and its `AgentCreated` answer.
+    /// for it.
     create-agent: async func(
         organization: organization-id,
         name: string,
@@ -130,9 +121,7 @@ interface members {
         escrow: list<u8>,
     ) -> result<created-agent, error>;
 
-    /// Replaces `ListAgents` and its `Agents` answer.
     list-agents: async func(organization: organization-id) -> result<list<agent>, error>;
 
-    /// Replaces `RemoveAgent`.
     remove-agent: async func(organization: organization-id, account: account-id) -> result<_, error>;
 }

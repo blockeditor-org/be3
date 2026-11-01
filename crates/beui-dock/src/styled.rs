@@ -30,12 +30,11 @@ use beui_components_styled::tooltip::Tooltip;
 use beui_components_styled::{Length, List, Scroll, Separator};
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
-use beui_view::primitives::{Drawing, Interactive};
+use beui_view::primitives::Interactive;
 use beui_view::types::Align2;
 use beui_view::types::PointerPress;
 use beui_view::types::{Align, Direction, ItemSize, Justify};
-use beui_view::types::{Color, Corners, Rect, Vec2, pos2};
-use std::rc::Rc;
+use beui_view::types::{Rect, Vec2};
 
 use beui_components_styled::menu_button::MenuButton;
 use beui_components_unstyled::menu::MenuNodes;
@@ -44,7 +43,6 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::Modifiers;
-use beui_view::types::Sides;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_APP_WINDOW, ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE,
@@ -83,10 +81,6 @@ const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
-const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
-pub const CARD_MARGIN: u16 =
-    (beui_components_styled::dialog::MARGIN.px() - CARD_POINTER_ROOM.top) as u16;
-pub const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -504,116 +498,6 @@ fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Bor
         };
         Some(Border::new(color).width(CHROME_STROKE))
     })
-}
-
-pub const CARD_INSET: f32 = POINTER_REACH + CHROME_PADDING.px();
-pub const CARD_POINTER: f32 = POINTER_REACH;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PointerSide {
-    Top,
-    Bottom,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Pointing {
-    pub side: PointerSide,
-    pub at: f32,
-}
-
-#[component]
-pub fn DockCard(
-    #[prop(default = true)] focused: Prop<bool>,
-    #[prop(default = false)] attention: Prop<bool>,
-    #[prop(default = None)] pointing: Prop<Option<Pointing>>,
-    pointer: NodeRef,
-    children: Option<Child>,
-) -> NodeId {
-    let focused = create_memo(move || focused.get());
-    let attention = create_memo(move || attention.get());
-    let border = dialog_outline(focused, attention);
-    let body = children.unwrap_or_else(|| {
-        view! {
-            <Frame />
-        }
-    });
-    let card = view! {
-        <Frame padding={Padding::custom(CARD_POINTER_ROOM)}>
-            <Frame
-                @node_ref=&pointer
-                fill=ColorRole::SurfaceRaised
-                border
-                radius=CARD_RADIUS
-                padding=CHROME_PADDING
-            >
-                {body}
-            </Frame>
-        </Frame>
-    };
-    if matches!(pointing, Prop::Static(None)) {
-        return card;
-    }
-    let theme = use_theme();
-    let draw = Prop::dynamic(move || {
-        let pointing = pointing.get();
-        let fill = ColorRole::SurfaceRaised.resolve(&theme);
-        let outline = border.get().map(|border| border.color.resolve(&theme));
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            if let Some(pointing) = pointing {
-                draw_card_pointer(painter, rect.shrink(POINTER_REACH), pointing, fill, outline);
-            }
-        }) as Draw
-    });
-    view! {
-        <Layers>
-            {card}
-            <Drawing draw />
-        </Layers>
-    }
-}
-
-fn draw_card_pointer(
-    painter: &Painter,
-    rect: Rect,
-    pointing: Pointing,
-    fill: Color,
-    outline: Option<Color>,
-) {
-    const TIP_RADIUS: f32 = 2.0;
-    let reach = CARD_POINTER;
-    let width = CHROME_BORDER;
-    let radius = CARD_RADIUS.px();
-    let (lowest, highest) = (
-        rect.left() + radius + reach + width,
-        rect.right() - radius - reach - width,
-    );
-    if lowest > highest {
-        return;
-    }
-    let x = (rect.left() + pointing.at).clamp(lowest, highest);
-    let half = (reach + width) / std::f32::consts::SQRT_2;
-    let around = rect.expand(reach + 1.0);
-    let (y, clip, tip) = match pointing.side {
-        PointerSide::Top => (
-            rect.top() + width,
-            Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
-            Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
-        ),
-        PointerSide::Bottom => (
-            rect.bottom() - width,
-            Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
-            Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
-        ),
-    };
-    let centre = pos2(x, y);
-    let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
-    let turned = painter
-        .with_clip_rect(clip)
-        .rotated(centre, std::f32::consts::FRAC_PI_4);
-    turned.rect_filled(square, tip, fill);
-    if let Some(outline) = outline {
-        turned.rect_stroke(square, tip, width, outline);
-    }
 }
 
 #[component]

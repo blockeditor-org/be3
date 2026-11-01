@@ -1,7 +1,8 @@
 use super::*;
 use beui_core::font::{
-    FontBackend, FontFamily, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster, Shaping,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster, Shaping,
 };
+use beui_types::FontFamily;
 
 const SIDE: u32 = 16;
 

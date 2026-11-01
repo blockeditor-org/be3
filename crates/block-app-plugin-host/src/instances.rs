@@ -22,8 +22,8 @@ use super::{
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
-    heads::{HeadReads, Heads},
-    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputForwarder, viewport_metrics},
+    heads::{HeadRead, Heads},
+    input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
     sent::Sent,
@@ -64,8 +64,8 @@ pub(super) struct Instances {
     services: services::Services,
     epoch: u64,
     graph_seen: Option<u64>,
-    audio_changes: AudioChanges,
-    head_reads: HeadReads,
+    mail: Mail,
+    mailed: Vec<Outbound>,
     published: Published,
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
@@ -77,15 +77,22 @@ pub(super) struct Instances {
     relaying: HashSet<EditorInstanceId>,
 }
 
-struct AudioChanges {
-    sender: host::WakingSender<EditorInstanceId>,
-    receiver: std::sync::mpsc::Receiver<EditorInstanceId>,
+struct Mail {
+    desk: host::Desk<Instances>,
+    head_reads: (host::Mailbox, host::Post<HeadRead>),
+    audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
+    answers: (host::Mailbox, host::Post<services::Delivered>),
 }
 
-impl Default for AudioChanges {
+impl Default for Mail {
     fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
+        let desk = host::Desk::default();
+        Self {
+            desk,
+            head_reads: desk.mailbox(Instances::head_read),
+            audio_changes: desk.mailbox(Instances::audio_changed),
+            answers: desk.mailbox(Instances::service_answered),
+        }
     }
 }
 
@@ -552,8 +559,7 @@ struct Screen {
     report: Option<FrameReport>,
     accessibility: Embedded,
     focus_requested: bool,
-    dragging: bool,
-    file_dropping: bool,
+    dragging: Option<DragKind>,
     window: WindowRequests,
     stopped: Option<Stopped>,
     children: ChildTable,
@@ -565,6 +571,12 @@ struct Screen {
     fresh_space: Option<AnchorSpace>,
     serial: u64,
     kept: Option<ViewportMetrics>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum DragKind {
+    Block,
+    Files,
 }
 
 impl Screen {
@@ -581,8 +593,7 @@ impl Screen {
             report: None,
             accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
             focus_requested: false,
-            dragging: false,
-            file_dropping: false,
+            dragging: None,
             window: WindowRequests::default(),
             stopped: None,
             children: ChildTable::default(),
@@ -1338,8 +1349,8 @@ impl Instances {
             .into_iter()
             .map(Outbound::from)
             .collect();
-        let files = super::input::file_drop(input, screen.file_dropping);
-        messages.extend(self.file_drop(instance, region, files));
+        let files = super::input::file_drop(input, screen.dragging == Some(DragKind::Files));
+        messages.extend(self.drag(instance, region, DragKind::Files, files));
         let revoked =
             (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
         (messages, revoked)
@@ -2044,11 +2055,14 @@ impl Instances {
             if stale || graph_moved {
                 entry.offer_histories();
                 let mut heads = Vec::new();
-                entry
-                    .heads
-                    .request(instance, self.epoch, &self.head_reads, |block, head| {
+                entry.heads.request(
+                    instance,
+                    self.epoch,
+                    &self.mail.head_reads.1,
+                    |block, head| {
                         heads.push((block, head));
-                    });
+                    },
+                );
                 for (block, head) in heads {
                     entry.offer(Subject::Head(block), &head);
                 }
@@ -2225,7 +2239,8 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         region: ViewId,
-        event: Option<BlockDragEvent>,
+        kind: DragKind,
+        event: Option<DragEvent>,
     ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
@@ -2235,7 +2250,7 @@ impl Instances {
         };
         match event {
             Some(event) => {
-                screen.dragging = !event.dropped;
+                screen.dragging = (!event.dropped).then_some(kind);
                 if event.dropped {
                     entry.drag_accepted = false;
                 }
@@ -2244,49 +2259,15 @@ impl Instances {
                     EditorCall::DragOver(block_plugin_api::shell_types::DragOver {
                         view: region,
                         pos: event.position,
-                        block_id: event.drag.block_id.into_bytes(),
-                        block_type: event.drag.block_type.into_bytes(),
+                        dragged: event.dragged,
                         dropped: event.dropped,
                     }),
                 )]
             }
-            None if screen.dragging => {
-                screen.dragging = false;
+            None if screen.dragging == Some(kind) => {
+                screen.dragging = None;
                 entry.drag_accepted = false;
                 vec![Outbound::Editor(instance, EditorCall::DragLeft)]
-            }
-            None => Vec::new(),
-        }
-    }
-
-    pub(super) fn file_drop(
-        &mut self,
-        instance: EditorInstanceId,
-        region: ViewId,
-        event: Option<FileDropEvent>,
-    ) -> Vec<Outbound> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return Vec::new();
-        };
-        let Some(screen) = entry.screens.get_mut(&region) else {
-            return Vec::new();
-        };
-        match event {
-            Some(event) => {
-                screen.file_dropping = !event.dropped;
-                vec![Outbound::Editor(
-                    instance,
-                    EditorCall::FileDrop(block_plugin_api::shell_types::FileDrop {
-                        view: region,
-                        pos: event.position,
-                        files: event.files,
-                        dropped: event.dropped,
-                    }),
-                )]
-            }
-            None if screen.file_dropping => {
-                screen.file_dropping = false;
-                vec![Outbound::Editor(instance, EditorCall::FileDropLeft)]
             }
             None => Vec::new(),
         }
@@ -2296,7 +2277,7 @@ impl Instances {
         self.entries
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
-            .is_some_and(|screen| screen.dragging)
+            .is_some_and(|screen| screen.dragging.is_some())
     }
 
     pub(super) fn drag_accepted(&self, instance: EditorInstanceId) -> bool {
@@ -3203,32 +3184,34 @@ impl Instances {
     }
 
     pub(super) fn pending(&mut self) -> Vec<Outbound> {
-        let entries = &mut self.entries;
-        self.head_reads
-            .arrived(self.epoch, |instance, block, commit, head| {
-                if let Some(entry) = entries.get_mut(&instance)
-                    && entry.heads.wants(block, commit)
-                {
-                    entry.offer(Subject::Head(block), &head);
-                }
-            });
-        let mut messages: Vec<Outbound> = Vec::new();
-        let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
-        played.sort_by_key(|instance| instance.0);
-        played.dedup();
-        for instance in played {
-            if let Some(player) = self
-                .entries
-                .get(&instance)
-                .and_then(|entry| entry.audio.as_ref())
-            {
-                messages.push(Outbound::Editor(
-                    instance,
-                    EditorCall::AudioStatus(player.status()),
-                ));
-            }
+        let desk = self.mail.desk;
+        desk.deliver(self);
+        std::mem::take(&mut self.mailed)
+    }
+
+    fn head_read(&mut self, read: HeadRead) {
+        if let Some((instance, block, commit, head)) = read.opened(self.epoch)
+            && let Some(entry) = self.entries.get_mut(&instance)
+            && entry.heads.wants(block, commit)
+        {
+            entry.offer(Subject::Head(block), &head);
         }
-        messages
+    }
+
+    fn audio_changed(&mut self, instance: EditorInstanceId) {
+        if let Some(player) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.audio.as_ref())
+        {
+            self.mailed.retain(|mailed| {
+                !matches!(mailed, Outbound::Editor(to, EditorCall::AudioStatus(_)) if *to == instance)
+            });
+            self.mailed.push(Outbound::Editor(
+                instance,
+                EditorCall::AudioStatus(player.status()),
+            ));
+        }
     }
 
     pub(super) fn watch_published(
@@ -3405,12 +3388,10 @@ impl Instances {
                 return changed;
             }
             ShellCall::PlayAudio { command, .. } => {
-                let changes = self.audio_changes.sender.clone();
-                let player = entry.audio.get_or_insert_with(|| {
-                    AudioPlayer::new(move || {
-                        let _ = changes.send(instance);
-                    })
-                });
+                let changes = self.mail.audio_changes.1.clone();
+                let player = entry
+                    .audio
+                    .get_or_insert_with(|| AudioPlayer::new(move || changes.send(instance)));
                 match command {
                     AudioCommand::Load(source) => player.load(source),
                     AudioCommand::Toggle => player.toggle(),

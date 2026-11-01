@@ -6,7 +6,7 @@ whose shell is the desktop plugin. Two ways to run it are Linux's alone:
 - `BEUI_PLATFORM=drm block-app --desktop`, a login session: runs on the displays and input
   devices themselves through `beui-platform-drm` instead of in a window, from a virtual terminal
   with no other display server on it. block-app accepts `drm` in `BEUI_PLATFORM` beside `winit`
-  (`beui_host::native::run_with_platforms`), and refuses it on other systems (`src/arguments.rs`).
+  (`RunOptions::platforms`), and refuses it on other systems (`src/arguments.rs`).
   Without `--desktop` it runs the workspace shell on the displays: the log, logind and the power
   actions, the lock screen (which the host draws over any shell, and logind needs to lock before
   sleep) and the panic path below key off running on the displays and work there too, while
@@ -147,8 +147,8 @@ signal. Logging out closes the app the way closing its window does; `beui-platfo
 `Session::end` then drops the app, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
-learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus. `dbus::session()` is the shared session bus connection.
+learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
+nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
 
 
 ## Notifications
@@ -606,9 +606,9 @@ child view asks for a block in a listed program (`programs::opens`), `HostedChil
   KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
   `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
   ours. `.written` beside the file records the size and time it was left at.
-- **Launch.** `desktop_host::Programs::open_file` runs the entry with the path in place of its first
+- **Launch.** `Programs::open_file` (the Linux `ProgramSource`, `LinuxPrograms`) runs the entry with the path in place of its first
   `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
-  first top-level window is bound to the session (`desktop_host::opening_windows`) and drawn in the
+  first top-level window is bound to the session (`DesktopHost::opening_windows`) and drawn in the
   view by `WindowSurface`. Until then the view says it is opening; once the program exits
   it says so with Open again (`program.reopen`).
 - **Hidden from the shell.** A bound window is left out of `WindowsWatch`

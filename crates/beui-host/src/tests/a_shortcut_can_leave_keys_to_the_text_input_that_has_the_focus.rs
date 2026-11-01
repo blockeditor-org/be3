@@ -1,7 +1,7 @@
 use super::*;
-use crate::input::KeyPress;
 use crate::reactive::*;
 use crate::styled::*;
+use beui::KeyPress;
 
 #[component]
 fn LetterShortcut(taken: Signal<u32>) -> NodeId {

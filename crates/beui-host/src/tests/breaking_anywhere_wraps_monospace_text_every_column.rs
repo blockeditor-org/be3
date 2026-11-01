@@ -1,6 +1,7 @@
 use super::*;
-use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::{Piece, RichOptions};
+use beui::text::{FontId, TextLayout};
+use beui::text::{Piece, RichOptions};
+use beui_core::font::Galley;
 
 const COLUMNS: usize = 12;
 

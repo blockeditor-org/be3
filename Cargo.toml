@@ -109,8 +109,6 @@ members = [
     "crates/editors/block-debug",
     "crates/editors/browser-tab",
     "crates/editors/browser-tab/types",
-    "crates/editors/calendar",
-    "crates/editors/calendar/types",
     "crates/editors/checklist",
     "crates/editors/checklist/types",
     "crates/editors/counter",
@@ -133,8 +131,6 @@ members = [
     "crates/editors/pan-zoom/types",
     "crates/editors/pdf",
     "crates/editors/pdf/types",
-    "crates/editors/pixel-ray-tracer",
-    "crates/editors/pixel-ray-tracer/types",
     "crates/editors/presentation",
     "crates/editors/presentation/types",
     "crates/editors/scene-3d",
@@ -203,6 +199,7 @@ members = [
     "crates/wasi-threads",
     "crates/wasm-dylink",
     "crates/wasm-link",
+    "crates/window-stack",
 ]
 resolver = "3"
 

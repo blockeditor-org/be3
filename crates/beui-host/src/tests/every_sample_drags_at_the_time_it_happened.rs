@@ -1,7 +1,8 @@
 use super::*;
-use crate::input::{Pen, PenPhase, PointerPress};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::PointerPress;
+use beui::input::{Pen, PenPhase};
 use std::time::{Duration, Instant};
 
 #[test]

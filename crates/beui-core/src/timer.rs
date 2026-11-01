@@ -72,8 +72,24 @@ impl Timer {
     }
 }
 
+thread_local! {
+    static FRAME_CLOCK: Cell<Option<Instant>> = const { Cell::new(None) };
+}
+
+pub(crate) fn set_frame_clock(now: Instant) {
+    FRAME_CLOCK.with(|clock| clock.set(Some(now)));
+}
+
+pub(crate) fn frame_clock() -> Instant {
+    FRAME_CLOCK.with(|clock| {
+        let now = clock.get().unwrap_or_else(Instant::now);
+        clock.set(Some(now));
+        now
+    })
+}
+
 pub fn now() -> Instant {
-    try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
+    try_with_document(|document| document.now()).unwrap_or_else(frame_clock)
 }
 
 pub const TEST_WALL_CLOCK: Duration = Duration::from_secs(1_772_444_460);

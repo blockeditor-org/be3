@@ -5,27 +5,30 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::color::Color;
-use crate::font::{FontFamily, FontId, Galley, TextLayout};
-use crate::font::{Overflow, TextAlign, WrapAt};
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::font::Galley;
 use crate::painter::Painter;
+use beui_types::Color;
+use beui_types::{FontFamily, FontId, TextLayout};
+use beui_types::{Overflow, TextAlign, WrapAt};
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::base::list::Direction;
-use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
-use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
-    TextCaret, TextGlyph, TextMark, handle_shape,
+use crate::node::{Element, NodeOf, Rects, SpaceTransform};
+use crate::rich::{OBJECT, RichLayout, Shaper};
+use beui_tree::child_list::ChildList;
+use beui_types::Direction;
+use beui_types::LineBox;
+use beui_types::NodeId;
+use beui_types::{
+    CaretHandle, Piece, RichOptions, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
+    text::handle_shape,
 };
-pub use beui_types::text::LineBox;
 
-pub use beui_types::text::DEFAULT_FONT_SIZE;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
-pub use beui_types::text::{FontPatch, IconSpan};
+use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct SpanContent {
@@ -1251,10 +1254,6 @@ impl Document {
         }
     }
 
-    pub fn text_glyphs(&self, text: NodeOf<TextNode>) -> &[TextGlyph] {
-        &self.arena.get_as::<TextNode>(text).glyphs
-    }
-
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
         &self.arena.get_as::<TextNode>(text).marks
     }
@@ -1432,7 +1431,7 @@ pub(crate) fn handle_under(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2)
             if !shown || pos.y < caret.max.y {
                 continue;
             }
-            let center = crate::rich::handle_center(caret, handle, scale);
+            let center = beui_types::handle_center(caret, handle, scale);
             if (pos.to_vec2() - center).length() <= HANDLE_HIT_RADIUS {
                 return true;
             }

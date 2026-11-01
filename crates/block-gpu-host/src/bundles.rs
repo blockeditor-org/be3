@@ -45,12 +45,12 @@ impl BundleEncoder {
             color_formats: descriptor
                 .color_formats
                 .iter()
-                .map(|format| format.map(convert::texture_format))
+                .map(|format| format.map(wgpu::TextureFormat::from))
                 .collect(),
             depth_stencil: descriptor
                 .depth_stencil
                 .map(|state| wgpu::RenderBundleDepthStencil {
-                    format: convert::texture_format(state.format),
+                    format: wgpu::TextureFormat::from(state.format),
                     depth_read_only: state.depth_read_only,
                     stencil_read_only: state.stencil_read_only,
                 }),

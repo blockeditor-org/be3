@@ -118,7 +118,7 @@ Content-addressed, encrypted object storage.
   someone left alone for an hour outranks the keystroke bursts around it.
 - `merge` is diff3. `merge_slices` walks the base indices that both sides left
   equal; the regions between those anchors take whichever side changed, or
-  conflict when both did. `merge_lines`, `merge_map` and `render_conflicts` are
+  conflict when both did. `merge_lines` and `render_conflicts` are
   built on it.
 
 ### be-session
@@ -222,7 +222,7 @@ time, so notifications wait for the next post.
   (`finish-browser-login`), which a task answers and hands back to the
   connection's loop when it must change the connection's state (`Late`). The
   hub (`WatchHub`) sends each connection `Push`es, which it writes to the
-  matching open streams. A stream sends while its consumer has granted credit
+  matching open streams, all held in one `be_ops::Outlets` keyed by a `Route`. A stream sends while its consumer has granted credit
   and keeps up to `STREAM_BUFFER` (4096) items beyond that; a client that lets
   one fill up is disconnected, as is one whose hub queue fills. The loop takes
   no new frame while more than `OUTBOUND_FRAMES` frames wait to be written, so
@@ -398,7 +398,7 @@ rewinding state; a child change is an ordinary operation that
 `LiveEdit::child_operations` answers for. `Undo::step` is taken from the state before an
 operation, and `revert` and `reapply` turn a step into operations against the
 state as it is *now*, so an undo leaves alone whatever someone else changed
-since: the calendar undoes a rename without moving an event another peer
+since: a database undoes a rename without moving a row another peer
 rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
@@ -748,7 +748,7 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `undo` in `be_block_types!` and has undo from the start. Almost every content type is
 built this way: the counter, the checklist (the one first-party type already in
-its plugin's types crate, `crates/editors/checklist/types`), the calendar, the browser
+its plugin's types crate, `crates/editors/checklist/types`), the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
 compiled logic, the infinite canvas and text. Implementing the
@@ -789,8 +789,9 @@ type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
 in frames of at most 8 MB. It arrives as a commit instead, which be-store has
-already cut into chunks: a new block's first content comes from `seed-content`,
-and a new file for an existing block from `replace-content` (below).
+already cut into chunks: a new block's first content comes from `write-content`
+seeding it, and a new file for an existing block from `write-content` with
+`replace` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -907,7 +908,10 @@ instead, and the web build always does (`./scripts/buck run
 //crates/block-app:web` starts be-server beside it, closed to new
 accounts).
 
-Tests start their own server on an ephemeral port; see `Harness` in
+Tests and examples start their own server on an ephemeral port with
+`be_server::Running`, which serves a fresh temporary directory (or one it is
+given) on a task of the current runtime, registers accounts, and stops and
+removes the directory when dropped; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
 own tests do the same through the embedded server, register an account and
 create an organization, and then start the app's peer against it the way the app
@@ -973,11 +977,11 @@ app deletes `plugin-cache/` whenever its build id changes; it keeps
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, constructs the `replica` with the head and calls `head-moved` for
 a later one), answers its calls with the real primitives (`read`, `publish` through
-`Peer::seal_encoded` then `publish_sealed`, `stash` through `stash_encoded`,
+`Peer::seal` then `publish_sealed`, `stash` through `Peer::stash`,
 `resume-session`, the lease, relaying sealed with the block key, `sleep-until` from
 the clock), and keeps what it reports (`report-status`, `described`, `history`,
 `conflict`) in `Shared`. Natively the module
-runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
+runs on a thread of its own (`Host::spawn` of a `Host::pure`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
 waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
@@ -1024,10 +1028,14 @@ cached there too (`RefsDb::set_workspaces` after each load); when the list
 request fails the app shows the cached one and loads it again once the worker
 connects or the window gains focus.
 
-Saving is two steps: `Peer::seal_manifest` writes the commit, records it in the
-outbox and moves the local head, and `publish_sealed` sends it; `publish_manifest`
-does both, and on `Rejected` drops the commit from the outbox since its caller
-retries or merges. A commit whose publish fails offline stays in the outbox, as
+Every save is a `be_client::Write` (encoded bytes or an already written
+`Manifest`, then optionally `described` references and derived metadata,
+`defined` metadata, which otherwise carries over from the expected head,
+`merging` a base and our commit, or a `bookmark` label) and two steps:
+`Peer::seal` writes the commit, records it in the outbox and moves the local head,
+and `publish_sealed` sends it; `Peer::write` does both, and on `Rejected` drops
+the commit from the outbox since its caller retries or merges. `Peer::save` and
+`Peer::bookmark` write a `BlockContent`. A commit whose publish fails offline stays in the outbox, as
 does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
 the outbox in order once attached and reports, per block, `Drained::Published`,
 `Created`, `Moved`, `Defined`, `Diverged { local, remote }` (left in the outbox for the replica host to
@@ -1210,9 +1218,8 @@ instance and the block's replica.
   it lets go, and the host detaches the instance from that block, and from every
   block when the editor closes. The editor session keeps one per block in
   `editor.watched_content()` (`block-editor-plugin/src/link.rs`).
-- `seed-content` and `replace-content` write a block's content outright, since they
-  may name a block nothing follows; `replace-content` becomes the replica's
-  `Change::Replace`.
+- `write-content` writes a block's content outright, since it may name a block
+  nothing follows; with `replace` it becomes the replica's `Change::Replace`.
 
 `editor.content_of::<C>(block)` is how an editor reads and edits another block:
 it watches the block (a `replica` for it) and hands back the same
@@ -1415,13 +1422,13 @@ id. Creating a database makes two blocks this way:
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
-`editor.seed_content(block, &content)` calls `seed-content` for a
+`editor.seed_content(block, &content)` calls `write-content` without `replace` for a
 block that already exists; the peer writes it as the block's first commit, and
 ignores it for a block that already has content or is open, so it cannot
 overwrite anything.
 
 Replacing a block's whole content is `editor.replace_content(block, &content)`,
-which calls `replace-content`; the host takes it only for a block
+which calls `write-content` with `replace`; the host takes it only for a block
 the account may edit. The worker hands it to the open replica as
 `Change::Replace`, or publishes it straight to the server when nothing has the
 block open. The replica publishes the new content as a commit based on the head it
@@ -1850,7 +1857,7 @@ and waits, `stop()` does the same and then joins the worker, and the close
 handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
 (`status().unsaved` is what says whether anything would be lost). The host
-refuses an `Operate`, a `replace-content` and a graph command for a block the
+refuses an `Operate`, a replacing `write-content` and a graph command for a block the
 account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
@@ -1884,7 +1891,7 @@ flush or a stop never waits for the join, and a join that fails for a reason
 other than the connection leaves it on that session. A block opened while down opens from its local head with
 `OFFLINE_CLIENT` owning a made-up session (`Open::made_up`, set also while
 joining); the host answers `Publish` with
-`Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
+`Peer::seal` (a local commit in the outbox) and reports it as the new
 head, `Resume` treats the local head as the remote one, and heartbeats, claims
 and relays are skipped. A publish whose connection dies after the commit was
 sealed keeps the commit the same way, and so does any `Publish` while the

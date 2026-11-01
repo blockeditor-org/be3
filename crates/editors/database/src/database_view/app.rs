@@ -7,6 +7,7 @@ use block_editor_database::create_database;
 use database_types::database_view::{self, DatabaseViewContent};
 use uuid::Uuid;
 
+pub(crate) mod calendar;
 pub(crate) mod controls;
 pub(crate) mod data;
 pub(crate) mod display;

@@ -11,7 +11,7 @@ use be_protocol::{
 use be_session::{Resume, resume, takeover_needs_merge};
 use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::sync::oneshot;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as WsMessage,
 };
@@ -101,57 +101,53 @@ const BUILD: &str = "a test build";
 
 struct Harness {
     mail: Arc<CapturedMail>,
-    url: String,
-    directory: PathBuf,
-    shutdown: Option<oneshot::Sender<()>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
+    server: Running,
+}
+
+impl std::ops::Deref for Harness {
+    type Target = Running;
+
+    fn deref(&self) -> &Running {
+        &self.server
+    }
 }
 
 impl Harness {
     async fn start() -> Self {
-        Self::at(std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()))).await
+        Self::configured(ServerConfig::OPEN).await
     }
 
     async fn at(directory: PathBuf) -> Self {
-        Self::at_with_config(directory, ServerConfig::OPEN).await
+        Self::serve(directory, ServerConfig::OPEN).await
     }
 
     async fn configured(config: ServerConfig) -> Self {
-        Self::at_with_config(
+        Self::serve(
             std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4())),
             config,
         )
         .await
     }
 
-    async fn at_with_config(directory: PathBuf, config: ServerConfig) -> Self {
+    async fn serve(directory: PathBuf, config: ServerConfig) -> Self {
         build_id::install(BUILD);
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let (shutdown, receiver) = oneshot::channel();
-        let data_dir = directory.clone();
         let mail = Arc::new(CapturedMail::default());
-        let delivery = mail.clone();
-        let handle = tokio::spawn(async move {
-            let _ = serve_with_mail(listener, data_dir, config, delivery, receiver).await;
-        });
-        Self {
-            mail,
-            url: format!("ws://{address}"),
-            directory,
-            shutdown: Some(shutdown),
-            handle: Some(handle),
-        }
+        let server = Running::with_mail(directory, config, mail.clone()).await;
+        Self { mail, server }
+    }
+
+    fn socket(&self) -> String {
+        format!("ws://{}", self.server.address)
     }
 
     async fn client(&self) -> TestClient {
-        let mut client = TestClient::connect(&self.url).await;
+        let mut client = TestClient::connect(&self.socket()).await;
         client.directory = Some(self.directory.clone());
         client
     }
 
     async fn greeted(&self, build: &str) -> Socket {
-        greeted(&self.url, build).await
+        greeted(&self.socket(), build).await
     }
 
     async fn member(&self, email: &str) -> TestClient {
@@ -164,7 +160,7 @@ impl Harness {
         let mut client = self.client().await;
         let token = token.to_owned();
         let response = client
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
         assert!(response.is_ok(), "{response:?}");
         client.open(organization).await;
@@ -172,23 +168,12 @@ impl Harness {
     }
 
     async fn restart(mut self) -> Self {
-        self.halt().await;
-        Self::at(self.directory.clone()).await
+        self.server.restart().await;
+        self
     }
 
-    async fn halt(&mut self) {
-        if let Some(shutdown) = self.shutdown.take() {
-            let _ = shutdown.send(());
-        }
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-    }
-
-    async fn stop(mut self) {
-        self.halt().await;
-        let _ = std::fs::remove_dir_all(&self.directory);
+    async fn stop(self) {
+        self.server.stop().await;
     }
 }
 
@@ -498,7 +483,7 @@ impl TestClient {
             .await
             .unwrap();
         let response = self
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
         let Ok(Authenticated { account, token, .. }) = response else {
             panic!("registration failed: {response:?}");
@@ -891,7 +876,7 @@ async fn http(
     body: &str,
     origin: Option<&str>,
 ) -> (u16, String) {
-    let address = harness.url.trim_start_matches("ws://");
+    let address = harness.address;
     let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
     let origin = origin
         .map(|origin| format!("Origin: {origin}\r\n"))
@@ -963,7 +948,7 @@ impl Browser {
         path: &str,
         body: &str,
     ) -> (u16, String) {
-        let address = harness.url.trim_start_matches("ws://");
+        let address = harness.address;
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
         stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, body.len()).as_bytes()).await.unwrap();
         let mut bytes = Vec::new();

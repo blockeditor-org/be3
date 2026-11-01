@@ -1,29 +1,18 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use crate::geometry::{Pos2, Vec2};
+use beui_types::{Pos2, Vec2};
 
-pub use beui_types::input::typing;
-
-pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
-    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
-};
-pub use ui_types::window::ImeArea;
+use beui_types::{Modifiers, Pen, PenPhase, PointerButton, TouchId, TouchPhase};
 
 pub const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 const SYNTHESIZED_SLOP: f32 = 2.0;
 
-pub use beui_types::input::{
-    AutoscrollGesture, ClickCounter, DragGesture, MAX_TOUCH_VELOCITY, PointerId, PointerInput,
-    PointerPress, PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard,
-    TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput,
-    ZoomGesture,
-};
+use beui_types::{PointerId, input::ClickCounter};
 
-pub use beui_types::input::{DroppedFile, Event, FileDrag, PointerEvent, PointerPhase};
+use beui_types::{Event, PointerEvent, PointerPhase};
 
 #[derive(Clone, Debug)]
 pub struct InputState {
@@ -32,7 +21,7 @@ pub struct InputState {
     pub pointer: Pointer,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
-    pub window: crate::window::WindowId,
+    pub window: beui_types::WindowId,
     touches: Vec<(TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
@@ -51,7 +40,7 @@ impl Default for InputState {
             pointer: Pointer::default(),
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
-            window: crate::window::WindowId::MAIN,
+            window: beui_types::WindowId::MAIN,
             touches: Vec::new(),
             touched: Vec::new(),
             source: 0,
@@ -131,23 +120,23 @@ impl InputState {
         input
     }
 
-    pub fn seen_from(&self, window: crate::window::WindowId) -> Self {
+    pub fn seen_from(&self, window: beui_types::WindowId) -> Self {
         if window.is_main() {
             return self.clone();
         }
         let mut input = self.only(|event| !matches!(event, Event::PointerWindow(_)));
         input.pointer_events.retain(|event| event.window == window);
         for event in &mut input.pointer_events {
-            event.window = crate::window::WindowId::MAIN;
+            event.window = beui_types::WindowId::MAIN;
         }
         match input.pointer.window == window {
-            true => input.pointer.window = crate::window::WindowId::MAIN,
+            true => input.pointer.window = beui_types::WindowId::MAIN,
             false => {
                 input.pointer.pos = None;
                 input.pointer.motion = Vec2::ZERO;
             }
         }
-        input.window = crate::window::WindowId::MAIN;
+        input.window = beui_types::WindowId::MAIN;
         input
     }
 
@@ -432,7 +421,7 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
-    pub window: crate::window::WindowId,
+    pub window: beui_types::WindowId,
     pub outside: bool,
     pub motion: Vec2,
     clicks: ClickCounter,
@@ -460,7 +449,7 @@ impl Pointer {
         self.pos.filter(|_| !self.from_touch)
     }
 
-    fn place_mouse(&mut self, pos: Pos2, window: crate::window::WindowId) {
+    fn place_mouse(&mut self, pos: Pos2, window: beui_types::WindowId) {
         self.pos = Some(pos);
         self.window = window;
         self.from_touch = false;

@@ -212,10 +212,8 @@ fn editor() -> Fixture {
 
 fn editor_sized(size: Option<Vec2>) -> Fixture {
     let tree = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), tree);
-    let test = BeuiTest::new(editor);
+    let test = BeuiTest::editing(tree);
+    let host = test.host().clone();
     let test = match size {
         Some(size) => test.with_size(size),
         None => test,
@@ -255,12 +253,10 @@ fn viewed_in(
 
 fn phone() -> Fixture {
     let tree = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), tree);
-    let test = BeuiTest::new(editor)
+    let test = BeuiTest::editing(tree)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
+    let host = test.host().clone();
     let mut fixture = Fixture { test, host };
     fixture.settle();
     fixture

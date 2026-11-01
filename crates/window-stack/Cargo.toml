@@ -1,0 +1,13 @@
+[package]
+name = "window-stack"
+description = "The desktop's window manager, without signals: windows over displays, stacked, moved and resized by gestures and the plugin's window requests"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+block-plugin-api = { path = "../block-plugin-api" }
+geometry = { path = "../geometry" }
+
+[lints]
+workspace = true

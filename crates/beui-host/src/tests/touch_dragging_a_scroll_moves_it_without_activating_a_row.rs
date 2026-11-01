@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::TOUCH_DRAG_THRESHOLD;
 
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {

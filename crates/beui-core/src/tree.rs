@@ -11,7 +11,6 @@ use beui_tree::reactive::{
 };
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
 
-use crate::base::Sizing;
 use crate::base::canvas::CanvasNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
@@ -20,9 +19,9 @@ use crate::base::text::{TextNode, TextPart};
 use crate::child_list::ChildHost;
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{NodeId, NodeOf};
-
-pub use beui_types::node::BuildsNode;
+use crate::node::NodeOf;
+use beui_types::NodeId;
+use beui_types::Sizing;
 
 #[derive(Default)]
 struct NodeBindings {
@@ -31,19 +30,19 @@ struct NodeBindings {
     accessibility: RefCell<Option<accesskit::Node>>,
     rank: Cell<u64>,
     placed: RefCell<Option<Signal<bool>>>,
-    node: RefCell<Option<crate::callback::NodeRef>>,
+    node: RefCell<Option<beui_types::NodeRef>>,
 }
 
 fn bindings() -> Rc<NodeBindings> {
     current_component().extension::<NodeBindings>()
 }
 
-pub fn component_node() -> crate::callback::NodeRef {
+pub fn component_node() -> beui_types::NodeRef {
     let bindings = bindings();
     if let Some(node) = bindings.node.borrow().as_ref() {
         return *node;
     }
-    let node = crate::callback::NodeRef::new();
+    let node = beui_types::node::NodeRef::new();
     if let Some(target) = bindings.target.get() {
         node.fill(target);
     }
@@ -285,7 +284,4 @@ impl beui_types::tree::ParentKind for TextKind {
     type Data = bool;
 }
 
-pub use beui_types::tree::{
-    BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
-    WithSizing, with_sizing,
-};
+use beui_types::tree::{CanvasKind, GridKind, LayersKind, ListKind, Placed, PlacedItem};

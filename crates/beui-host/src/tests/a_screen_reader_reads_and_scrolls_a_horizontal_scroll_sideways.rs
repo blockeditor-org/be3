@@ -1,10 +1,10 @@
 use accesskit::{Action, ActionData, ActionRequest, Point, Role, TreeId};
 
 use super::*;
-use crate::base::Direction;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Direction;
 
 #[test]
 fn a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways() {

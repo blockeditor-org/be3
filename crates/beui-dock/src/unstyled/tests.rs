@@ -12,7 +12,7 @@ mod a_group_left_with_one_tab_becomes_that_tab_again;
 mod a_groups_subtree_grafted_back_keeps_its_panes_and_their_keys;
 mod a_hidden_bar_is_not_shown_is_kept_with_the_layout_and_shared_by_its_key;
 mod a_kept_pane_added_in_the_code_splits_off_its_sibling;
-mod a_layout_with_bars_reads_back_from_the_bytes_it_is_saved_as;
+mod a_layout_with_bars_reads_back_from_its_spec;
 mod a_locked_area_inside_a_pinned_group_keeps_the_groups_other_tabs_out;
 mod a_locked_area_refuses_a_tab_that_lives_nowhere;
 mod a_locked_groups_tabs_stay_in_it_until_it_is_unlocked;
@@ -28,8 +28,8 @@ mod a_pinned_group_holding_a_locked_pane_pops_out_with_it;
 mod a_pinned_group_in_the_code_keeps_its_tabs_home;
 mod a_pinned_group_keeps_its_last_tab_and_survives_being_emptied;
 mod a_pinned_group_only_takes_the_tabs_that_live_in_it;
-mod a_plain_layout_read_from_a_state_rebuilds_the_same_state;
 mod a_see_through_tab_stays_on_the_main_surface;
+mod a_spec_read_from_a_state_rebuilds_the_same_state;
 mod a_spec_seeds_the_layout_it_describes;
 mod a_split_divides_its_area_between_the_panes_and_the_handle;
 mod a_split_follows_the_code_until_the_user_moves_it;
@@ -68,12 +68,12 @@ fn pane_spec(key: &str) -> DockSpecPane {
     DockSpecPane {
         key: key.to_owned(),
         entries: Vec::new(),
-        active: None,
+        active: 0,
         vertical: false,
         icons_only: false,
         sidebar: SIDEBAR_WIDTH,
         keep: false,
-        locked: false,
+        area: None,
         bare: false,
     }
 }
@@ -122,7 +122,7 @@ fn spec(main: DockSpecNode) -> DockSpec {
 fn locked(key: &str, tabs: &[u64]) -> DockSpecNode {
     let mut node = pane(key, tabs);
     if let DockSpecNode::Pane(pane) = &mut node {
-        pane.locked = true;
+        pane.area = Some(pane.key.clone());
     }
     node
 }

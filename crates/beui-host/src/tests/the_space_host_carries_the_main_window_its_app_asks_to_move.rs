@@ -1,6 +1,6 @@
 use super::*;
+use beui::window::{WindowId, WindowRequest};
 use beui_core::app::SafeArea;
-use beui_core::window::{WindowId, WindowRequest};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Launch, RunOptions, Runner};
 use std::cell::Cell;

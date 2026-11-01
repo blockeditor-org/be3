@@ -7,13 +7,13 @@ use crate::reactive::create_effect;
 use crate::reactive::create_memo;
 use crate::reactive::create_timer;
 use crate::types::tree::CanvasItem;
-use beui_core::base::canvas::{CanvasArrangement, CanvasView};
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::geometry::Rect;
-use beui_core::geometry::Vec2;
-use beui_core::geometry::pos2;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
+use beui_types::Rect;
+use beui_types::Vec2;
+use beui_types::pos2;
+use beui_types::{CanvasArrangement, CanvasView};
 use std::time::Duration;
 
 const RASTER_SETTLE: Duration = Duration::from_millis(150);

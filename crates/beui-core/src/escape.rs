@@ -3,20 +3,21 @@ use std::rc::Rc;
 use stable_hash::HashMap;
 
 use crate::base::overlay::OverlayNode;
-use crate::color::Color32;
 use crate::context::{Context, EscapedOutput, WindowOutput};
-use crate::damage::Region;
 use crate::display::{Display, Group, Layer as Shown};
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Rotation, Vec2};
-use crate::layer::{Dismiss, LayerPolicy, Scrim};
-use crate::node::{NodeId, NodeOf};
-use crate::painter::{Corners, Shape};
-use crate::window::{WindowId, WindowState};
+use crate::node::NodeOf;
+use crate::painter::Shape;
+use crate::window::WindowState;
+use beui_types::Color32;
+use beui_types::Corners;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Dismiss, LayerPolicy, layer::Scrim};
+use beui_types::{Pos2, Rect, Rotation, Vec2};
 
-pub use beui_types::layer::{
-    EscapedLayer, HostTransform, LayerEdge, LayerPlacement, LayerSpace, Placement,
-};
+use beui_types::{EscapedLayer, HostTransform, LayerPlacement, LayerSpace, Placement};
 
 pub(crate) type Painting = Vec<(Rc<Display>, Vec2)>;
 
@@ -98,7 +99,7 @@ impl Document {
                 let trigger = held
                     .trigger
                     .as_ref()
-                    .and_then(crate::callback::NodeRef::try_get);
+                    .and_then(beui_types::node::NodeRef::try_get);
                 let menu = held.policy() == LayerPolicy::BlocksAll && trigger.is_some();
                 let from = trigger.or_else(|| held.anchor_node());
                 match (menu || !held.is_open(), from) {

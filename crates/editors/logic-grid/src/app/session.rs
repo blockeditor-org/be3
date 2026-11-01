@@ -46,7 +46,7 @@ impl Session {
         self.editor.editable().get_untracked()
     }
 
-    pub(super) fn set_camera(&self, camera: Camera) {
+    pub(super) fn set_camera(&self, camera: CanvasView) {
         self.model.with(|model| model.borrow_mut().camera = camera);
     }
 

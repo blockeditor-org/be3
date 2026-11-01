@@ -24,9 +24,10 @@ cargo_example("gpu-calls")
 cargo_example("instantiate")
 
 # The standalone guest (src/tests/standalone.wat, which the tests above run on
-# wasmtime) in Chromium: assembled into a module, and booted by block-app's
-# plugin.js against block-gpu-shim, which wasm-bindgen prepares as the web
-# bundle does, in a page that checks what it painted (web/standalone.js).
+# wasmtime) in Chromium: assembled into a module, and run by block-guest-host's
+# guest.js with block-app's plugin.js against block-gpu-shim, which
+# wasm-bindgen prepares as the web bundle does, in a page that checks what it
+# painted (web/standalone.js).
 genrule(
     name = "standalone.wasm",
     cmd = "$(exe //buck/tools:wasm-as) --enable-bulk-memory $SRCS -o $OUT",
@@ -39,6 +40,7 @@ app(
     bindgen = ["//crates/block-gpu-shim:module"],
     files = [
         "//crates/block-app:dylink.js",
+        "//crates/block-guest-host:guest.js",
         "//crates/block-app:env.js",
         "//crates/block-app:plugin.js",
         "//crates/block-app:thread.js",

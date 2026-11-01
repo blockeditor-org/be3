@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::unstyled::DockApi;
-use crate::input::CursorIcon;
+use beui::CursorIcon;
 
 #[test]
 fn a_floating_windows_grips_lie_outside_it() {

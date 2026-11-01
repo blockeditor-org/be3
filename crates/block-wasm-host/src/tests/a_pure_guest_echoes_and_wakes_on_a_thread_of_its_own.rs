@@ -10,7 +10,7 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
     let wakes = Arc::new(AtomicUsize::new(0));
     let woken = Arc::clone(&wakes);
     let waiting = Arc::default();
-    let channel = PureHost::new(None)
+    let channel = Host::pure(None)
         .unwrap()
         .spawn(
             "echo".to_owned(),
@@ -19,6 +19,7 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
                 woken.fetch_add(1, Ordering::SeqCst);
             }),
             Arc::clone(&waiting),
+            block_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);

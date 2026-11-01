@@ -1,8 +1,8 @@
 use super::*;
-use crate::base::list::Align;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
+use beui::Align;
 
 const LENGTH: Size = Size::Sm;
 

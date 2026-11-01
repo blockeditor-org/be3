@@ -1,8 +1,8 @@
 use super::*;
-use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::TOUCH_DRAG_THRESHOLD;
 
 #[test]
 fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {

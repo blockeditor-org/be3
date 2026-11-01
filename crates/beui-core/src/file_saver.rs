@@ -1,4 +1,4 @@
-pub use ui_types::files::{FileSave, SavedFile};
+use beui_types::{FileSave, SavedFile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FileSaveId(pub u64);

@@ -50,7 +50,7 @@ async fn members_manage_only_the_agents_they_created() {
         assert!(matches!(removed, Ok(())), "{removed:?}");
         let mut bot = harness.client().await;
         let refused = bot
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
         assert!(matches!(refused, Err(_)));
     }

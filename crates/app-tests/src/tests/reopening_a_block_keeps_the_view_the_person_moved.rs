@@ -1,16 +1,16 @@
 use super::*;
 
-const ARTWORK: &str = "#pixel_ray_tracer.artwork";
+const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn reopening_a_block_keeps_the_view_the_person_moved() {
     let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Pixel Ray Tracer");
+    add_to_my_files(&mut app, "Pan and Zoom");
     app.wait(ARTWORK);
     app.gone("#editor.loading");
     app.run(&["settle"]);
     let fitted = app.place(ARTWORK);
-    let stage = app.place("#pixel_ray_tracer.canvas");
+    let stage = app.place("#pan_zoom.stage");
     let middle = format!(
         "{:.0},{:.0}",
         stage.0 + stage.2 * 0.5,
@@ -29,7 +29,7 @@ fn reopening_a_block_keeps_the_view_the_person_moved() {
 
     app.click("Button \"Close tab\"");
     app.gone(ARTWORK);
-    app.click("TreeItem \"Pixel Ray Tracer\"");
+    app.click("TreeItem \"Pan and Zoom\"");
     app.wait(ARTWORK);
     app.gone("#editor.loading");
     app.run(&["settle"]);

@@ -1,8 +1,12 @@
 use std::rc::Rc;
 
 use beui_core::current::with_document;
-pub(crate) use beui_core::drag_board::Board;
+use beui_types::drag::{Driver, Space};
 
-pub(crate) fn drag_board() -> Rc<Board> {
-    with_document(|document| document.drag_board())
+pub(crate) fn space() -> Rc<dyn Space> {
+    with_document(|document| Rc::clone(&document.rects) as Rc<dyn Space>)
+}
+
+pub(crate) fn drive(driver: Rc<dyn Driver>) {
+    with_document(|document| document.drags = Some(driver));
 }

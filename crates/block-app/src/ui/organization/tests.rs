@@ -61,17 +61,8 @@ impl Shown {
     }
 
     fn painted(&mut self, name: &str) {
-        let output = self.stepped.frame(Vec::new());
-        let painted = beui::native::painting::painting(
-            output.main(),
-            SIZE,
-            1.0,
-            output.main().window.appearance.clear_color,
-            beui::native::painting::Punches::Shown,
-        )
-        .unwrap();
-        let snapshot = paint_snapshot::Snapshot::of_painting(painted).unwrap();
-        paint_snapshot::assert_accepted(name, &snapshot, "./scripts/verify");
+        self.stepped.frame(Vec::new());
+        self.stepped.snapshot(name);
     }
 }
 

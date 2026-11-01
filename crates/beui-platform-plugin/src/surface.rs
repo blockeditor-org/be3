@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
 use beui_core::app::Setup;
-use beui_core::color::Color32;
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::Layer;
-use beui_core::geometry::{Vec2, vec2};
 use beui_runner::renderer::Renderer;
+use beui_types::Color32;
+use beui_types::geometry::Region;
+use beui_types::{Vec2, vec2};
 use block_editor_plugin::driver::{Damage, Surface};
 
 #[cfg(target_arch = "wasm32")]
-use beui_core::geometry::{Pos2, Rect};
-#[cfg(target_arch = "wasm32")]
 use beui_renderer_wgpu::Repaint;
+#[cfg(target_arch = "wasm32")]
+use beui_types::{Pos2, Rect};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceGpu, SurfaceRect};
 

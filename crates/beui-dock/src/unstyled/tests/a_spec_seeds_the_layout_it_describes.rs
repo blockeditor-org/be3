@@ -5,7 +5,7 @@ fn a_spec_seeds_the_layout_it_describes() {
     let mut state = DockState::default();
     let mut editors = pane("editors", &[2, 3]);
     if let DockSpecNode::Pane(editors) = &mut editors {
-        editors.active = Some(TabId::new(3));
+        editors.active = 1;
     }
     let mut spec = spec(split(
         "root",

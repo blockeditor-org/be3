@@ -1,23 +1,25 @@
 mod files;
+mod installed;
 #[cfg(target_os = "linux")]
 mod watch;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{
-    EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramCatalog, ProgramsWatch,
-};
+use block_app_base::host::{Desk, Mailbox, Post};
+use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction};
 use uuid::Uuid;
 
-use crate::desktop_host;
+use crate::desktop_host::{DesktopHost, Host};
 
 use files::OnDisk;
+use installed::WAITING_ICON_SIZE;
+pub use installed::{Opener, ProgramSource};
+
+type Installed = installed::Programs<<Host as DesktopHost>::Source>;
 
 const PROGRAM_EDITORS: u64 = u64::from_be_bytes(*b"program\0");
-const WAITING_ICON_SIZE: u32 = 64;
 
 pub fn editor_id(program: &str) -> Uuid {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -32,7 +34,7 @@ pub fn is_program(editor: Uuid) -> bool {
     editor.as_u64_pair().0 == PROGRAM_EDITORS
 }
 
-fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
+fn descriptors(openers: &[Opener]) -> Vec<EditorDescriptor> {
     openers
         .iter()
         .map(|opener| EditorDescriptor {
@@ -43,6 +45,22 @@ fn descriptors(openers: &[desktop_host::Opener]) -> Vec<EditorDescriptor> {
             extensions: opener.extensions.clone(),
         })
         .collect()
+}
+
+fn name_editors(openers: &[Opener]) {
+    with(|sessions| {
+        sessions.names = openers
+            .iter()
+            .map(|opener| {
+                (
+                    editor_id(&opener.id),
+                    (opener.id.clone(), opener.name.clone()),
+                )
+            })
+            .collect();
+    });
+    block_app_base::program_editors::set(descriptors(openers));
+    block_app_base::host::changed();
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,7 +131,7 @@ pub fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
         Some(old.and_then(|old| window_of(&old.stage)))
     });
     if let Some(window) = replaced.flatten() {
-        desktop_host::close(window);
+        Host::close(window);
     }
     if replaced.is_some() {
         block_app_base::host::changed();
@@ -176,7 +194,7 @@ pub fn close(closed: Uuid) {
         windows
     });
     for window in windows {
-        desktop_host::close(window);
+        Host::close(window);
     }
 }
 
@@ -202,23 +220,33 @@ fn window_of(stage: &Stage) -> Option<HostWindowId> {
 type Read = (Uuid, Result<be_types_host::PlainFile, String>);
 
 pub struct Programs {
-    programs: desktop_host::Programs,
+    programs: Installed,
     offered: bool,
-    listed_editors: bool,
     files: Option<PathBuf>,
-    read: (block_app_base::host::WakingSender<Read>, Receiver<Read>),
+    desk: Desk<Programs>,
+    read: (Mailbox, Post<Read>),
+    #[cfg(target_os = "linux")]
+    touched: (Mailbox, Post<PathBuf>),
     #[cfg(target_os = "linux")]
     watch: Option<watch::Watch>,
 }
 
 impl Default for Programs {
     fn default() -> Self {
+        let desk = Desk::default();
         Self {
-            programs: desktop_host::Programs::default(),
+            programs: Installed::default(),
             offered: false,
-            listed_editors: false,
             files: None,
-            read: block_app_base::host::waking_channel(),
+            desk,
+            read: desk.mailbox(|programs: &mut Programs, (block, read)| {
+                if let Some(files) = programs.files.clone() {
+                    programs.placed(&files, block, read);
+                    block_app_base::host::changed();
+                }
+            }),
+            #[cfg(target_os = "linux")]
+            touched: desk.mailbox(Programs::write_back_touched),
             #[cfg(target_os = "linux")]
             watch: None,
         }
@@ -232,59 +260,39 @@ impl Programs {
     }
 
     pub fn frame(&mut self) {
+        let running = Host::running();
         for action in block_app_base::watches::take_calls(block_plugin_api::requested::program) {
             match action {
-                ProgramAction::List { icon_size } if desktop_host::running() => {
+                ProgramAction::List { icon_size } if running => {
                     self.programs
                         .scan(icon_size.clamp(1, ProgramAction::MAX_ICON_SIZE));
                 }
-                ProgramAction::List { .. } => {}
-                ProgramAction::Launch { program, launch } => {
+                ProgramAction::Launch { program, launch } if running => {
                     self.programs.launch(&program, launch);
                 }
                 ProgramAction::Run(line) => {
-                    desktop_host::launch(line);
+                    Host::launch(line);
                 }
                 ProgramAction::Exec { command, launch } => {
-                    desktop_host::exec(command, launch);
+                    Host::exec(command, launch);
                 }
+                ProgramAction::List { .. } | ProgramAction::Launch { .. } => {}
             }
         }
-        let offering = !self.offered && desktop_host::running();
-        self.offered |= offering;
-        if offering && self.files.is_some() {
-            self.programs.scan(WAITING_ICON_SIZE);
-        }
-        if self.programs.receive() || offering {
-            block_app_base::watches::publish::<ProgramsWatch>(&ProgramCatalog {
-                listed: self.programs.scanned(),
-                programs: self.programs.listed(),
-            });
-        }
-        if self.programs.scanned() && !self.listed_editors {
-            self.listed_editors = true;
-            let openers = self.programs.openers();
-            with(|sessions| {
-                sessions.names = openers
-                    .iter()
-                    .map(|opener| {
-                        (
-                            editor_id(&opener.id),
-                            (opener.id.clone(), opener.name.clone()),
-                        )
-                    })
-                    .collect();
-            });
-            block_app_base::program_editors::set(descriptors(&openers));
-            block_app_base::host::changed();
+        if running && !self.offered {
+            self.offered = true;
+            self.programs.announce();
+            if self.files.is_some() {
+                self.programs.scan(WAITING_ICON_SIZE);
+            }
         }
         self.step_sessions();
     }
 
     fn step_sessions(&mut self) {
-        let Some(files) = self.files.clone() else {
+        if self.files.is_none() {
             return;
-        };
+        }
         let mut changed = false;
         let wanted: Vec<Uuid> = with(|sessions| {
             sessions
@@ -298,21 +306,16 @@ impl Programs {
                 .collect()
         });
         for block in wanted {
-            let sender = self.read.0.clone();
-            block_app_stack::plain_file(block, move |read| {
-                let _ = sender.send((block, read));
-            });
+            let post = self.read.1.clone();
+            block_app_stack::plain_file(block, move |read| post.send((block, read)));
             changed = true;
         }
-        while let Ok((block, read)) = self.read.1.try_recv() {
-            changed = true;
-            self.placed(&files, block, read);
-        }
+        let desk = self.desk;
+        desk.deliver(self);
         if self.programs.scanned() {
             changed |= self.launch_placed();
         }
         changed |= self.bind_windows();
-        self.write_back_touched();
         if changed {
             block_app_base::host::changed();
         }
@@ -340,9 +343,12 @@ impl Programs {
                     block_app_stack::from_file(block, block_type, name, bytes);
                 }
                 #[cfg(target_os = "linux")]
-                self.watch
-                    .get_or_insert_with(watch::Watch::new)
-                    .add(&placed.disk.path);
+                {
+                    let touched = &self.touched.1;
+                    self.watch
+                        .get_or_insert_with(|| watch::Watch::new(touched.clone()))
+                        .add(&placed.disk.path);
+                }
                 with(|sessions| {
                     if let Some(session) = sessions.open.get_mut(&block) {
                         session.disk = Some(placed.disk);
@@ -398,7 +404,7 @@ impl Programs {
     }
 
     fn bind_windows(&mut self) -> bool {
-        let opening = desktop_host::opening_windows();
+        let opening = Host::opening_windows();
         let mut gone = Vec::new();
         let mut unwanted = Vec::new();
         let changed = with(|sessions| {
@@ -431,7 +437,7 @@ impl Programs {
             changed
         });
         for window in unwanted {
-            desktop_host::close(window);
+            Host::close(window);
         }
         for block in gone {
             self.write_back(block);
@@ -455,33 +461,23 @@ impl Programs {
         changed
     }
 
-    fn write_back_touched(&mut self) {
-        #[cfg(target_os = "linux")]
-        {
-            let touched = self
-                .watch
-                .as_mut()
-                .map(watch::Watch::take)
-                .unwrap_or_default();
-            if touched.is_empty() {
-                return;
-            }
-            let blocks: Vec<Uuid> = with(|sessions| {
-                sessions
-                    .open
-                    .iter()
-                    .filter(|(_, session)| {
-                        session
-                            .disk
-                            .as_ref()
-                            .is_some_and(|disk| touched.contains(&disk.path))
-                    })
-                    .map(|(block, _)| *block)
-                    .collect()
-            });
-            for block in blocks {
-                self.write_back(block);
-            }
+    #[cfg(target_os = "linux")]
+    fn write_back_touched(&mut self, touched: PathBuf) {
+        let blocks: Vec<Uuid> = with(|sessions| {
+            sessions
+                .open
+                .iter()
+                .filter(|(_, session)| {
+                    session
+                        .disk
+                        .as_ref()
+                        .is_some_and(|disk| disk.path == touched)
+                })
+                .map(|(block, _)| *block)
+                .collect()
+        });
+        for block in blocks {
+            self.write_back(block);
         }
     }
 

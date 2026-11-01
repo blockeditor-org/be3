@@ -1,9 +1,9 @@
 use super::*;
-use crate::base::frame::Sides;
 use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use beui::Sides;
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {

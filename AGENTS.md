@@ -19,7 +19,7 @@ Guides:
 - guides/desktop/linux.md: the Linux host: be-wayland, the login session on the displays under DRM (`BEUI_PLATFORM=drm`), installing it, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
 - guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
-- guides/parallel_agents.md: coordinating subagents in worktrees on one cloud VM: landing, memory and disk limits, build server outages
+- guides/parallel_agents.md: coordinating subagents, each in its own cloud session: starting them, landing their branches, verify and build server outages
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_libraries.md: the libraries plugins are linked against, how they are linked and loaded, and the raw plugin interface
 - guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it

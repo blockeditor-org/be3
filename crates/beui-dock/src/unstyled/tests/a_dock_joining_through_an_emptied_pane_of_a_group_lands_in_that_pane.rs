@@ -1,30 +1,11 @@
 use super::*;
-use crate::unstyled::state::{
-    DockPlain, DockPlainEntry, DockPlainHome, DockPlainNode, DockPlainPlace,
-};
-
-fn plain_pane(key: &str, area: bool, tabs: &[u64]) -> DockPlainNode {
-    DockPlainNode::Pane {
-        key: key.to_owned(),
-        active: 0,
-        vertical: false,
-        icons_only: false,
-        sidebar: SIDEBAR_WIDTH,
-        keep: false,
-        area: area.then(|| key.to_owned()),
-        bare: false,
-        entries: tabs
-            .iter()
-            .map(|tab| DockPlainEntry::Tab(TabId::new(*tab)))
-            .collect(),
-    }
-}
+use crate::unstyled::state::{DockSpecHome, DockSpecPlace};
 
 fn deck(stage: Vec<DockSpecEntry>) -> DockSpec {
     let mut pane = pane_spec("joined:2/stage");
     pane.entries = stage;
     let mut editors = pane_spec("editors");
-    editors.locked = true;
+    editors.area = Some("editors".to_owned());
     editors.keep = true;
     editors.entries = vec![DockSpecEntry::Group {
         key: "joined:2".to_owned(),
@@ -48,67 +29,32 @@ fn deck(stage: Vec<DockSpecEntry>) -> DockSpec {
 
 #[test]
 fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
-    let editors = DockPlainNode::Pane {
-        key: "editors".to_owned(),
-        active: 0,
-        vertical: false,
-        icons_only: false,
-        sidebar: SIDEBAR_WIDTH,
-        keep: true,
-        area: Some("editors".to_owned()),
-        bare: false,
-        entries: vec![DockPlainEntry::Group {
-            key: "joined:2".to_owned(),
-            pinned: true,
-            root: Box::new(DockPlainNode::Split {
-                key: "joined:2/deck".to_owned(),
-                direction: Direction::Horizontal,
-                fraction: 0.2,
-                first: Box::new(plain_pane("joined:2/filmstrip", true, &[10])),
-                second: Box::new(plain_pane("joined:2/stage", false, &[11])),
-            }),
-        }],
-    };
-    let mut state = DockState::from_plain(&DockPlain {
-        main: Some(DockPlainNode::Split {
-            key: "workspace".to_owned(),
-            direction: Direction::Horizontal,
-            fraction: 0.25,
-            first: Box::new(plain_pane("files", true, &[1])),
-            second: Box::new(editors),
-        }),
-        windows: Vec::new(),
-        focus: Some(TabId::new(11)),
-        homes: vec![
-            DockPlainHome {
-                tab: TabId::new(1),
-                place: DockPlainPlace::Area("files".to_owned()),
-            },
-            DockPlainHome {
-                tab: TabId::new(11),
-                place: DockPlainPlace::Group("joined:2".to_owned()),
-            },
-            DockPlainHome {
-                tab: TabId::new(10),
-                place: DockPlainPlace::Area("joined:2/filmstrip".to_owned()),
-            },
-        ],
-        bars: vec![crate::unstyled::state::DockPlainBar {
-            bar: TabId::new(20),
-            owner: Some(TabId::new(11)),
-            placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
-            hidden: false,
-        }],
-        outside: Vec::new(),
-        unlocked: Vec::new(),
-    });
-    state.mark_seeded();
     let mut first = deck(vec![DockSpecEntry::Tab(TabId::new(11))]);
     first.bars = vec![DockSpecBar {
         bar: TabId::new(20),
         owner: Some(TabId::new(11)),
         placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
+        hidden: false,
     }];
+    let mut state = DockState::from_spec(&DockSpec {
+        focus: Some(TabId::new(11)),
+        homes: vec![
+            DockSpecHome {
+                tab: TabId::new(1),
+                place: DockSpecPlace::Area("files".to_owned()),
+            },
+            DockSpecHome {
+                tab: TabId::new(11),
+                place: DockSpecPlace::Group("joined:2".to_owned()),
+            },
+            DockSpecHome {
+                tab: TabId::new(10),
+                place: DockSpecPlace::Area("joined:2/filmstrip".to_owned()),
+            },
+        ],
+        ..first.clone()
+    });
+    state.mark_seeded();
     state.reconcile(&first);
 
     let mut inner = pane_spec("joined:2/stage/slide/canvas");
@@ -124,11 +70,13 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
             bar: TabId::new(20),
             owner: Some(TabId::new(12)),
             placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
+            hidden: false,
         },
         DockSpecBar {
             bar: TabId::new(21),
             owner: Some(TabId::new(12)),
             placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
+            hidden: false,
         },
     ];
     state.reconcile(&joining);

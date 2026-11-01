@@ -14,7 +14,7 @@ use block_editor_beui::{
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::embed::debug::debug::Call as DebugCall;
-use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
+use block_plugin_api::embed::{self, exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
@@ -46,12 +46,13 @@ pub type HostCall = Call;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
-use crate::document::FRAME_INTERVAL;
+use crate::ContentStore;
 use crate::link::Sent;
-use crate::{ContentStore, overflow, snapshot};
+use beui_host::native::drive;
 use beui_host::native::drive::gestures::{Frames, Gestures};
+use beui_host::native::testing::{FRAME_INTERVAL, assert_fits};
+use paint_snapshot::Snapshot;
 
-pub(crate) mod capture;
 mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -118,7 +119,7 @@ pub struct BeuiTest<A: BeuiApp> {
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
-    recording: Option<snapshot::Snapshot>,
+    recording: Option<Snapshot>,
     overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
@@ -181,6 +182,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             Adopted::Editor(editor, None),
             Vec::new(),
         )
+    }
+
+    pub fn editing(block: Uuid) -> Self {
+        let host = EditorHost::default();
+        host.set_editable(true);
+        Self::new(OwnedEditor::new(host, block))
     }
 
     pub fn with_view(
@@ -672,8 +679,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         let drag = block_plugin_api::shell_types::DragOver {
             view: self.view().id,
             pos: position,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
+            dragged: block_plugin_api::shell_types::Dragged::Block(
+                block_plugin_api::shell_types::DraggedBlock {
+                    block_id: block_id.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                },
+            ),
             dropped,
         };
         self.call(|editor, connection| editor.drag_over(connection, drag));
@@ -1190,54 +1201,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         while let Some(event) = self.connection.next_event() {
             let called = match event {
-                Incoming::Started(started) if ShellCall::accepts(&started) => {
-                    let connection = &mut self.connection;
-                    match ShellCall::accept(connection, started) {
-                        Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
-                            self.child_statuses.opened(resource.op())
-                        }
-                        Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
-                            self.child_statuses.next(connection, reply)
-                        }
-                        Some(ShellCall::BlockTypesWatchNew { resource }) => {
-                            self.block_types.opened(resource.op())
-                        }
-                        Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
-                            self.block_types.next(connection, reply)
-                        }
-                        Some(ShellCall::WebViewNew {
-                            resource, id, url, ..
-                        }) => {
-                            let mut watch = block_plugin_api::Watch::default();
-                            watch.opened(resource.op());
-                            self.web_views.insert(resource.op(), (id, watch));
-                            self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                        }
-                        Some(ShellCall::WebViewNextEvents { this, reply }) => {
-                            match self.web_views.get_mut(&this.op()) {
-                                Some((_, watch)) => watch.next(connection, reply),
-                                None => {
-                                    reply.fail(connection, block_plugin_api::ops::OpError::Canceled)
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    continue;
-                }
-                Incoming::Started(started) if DebugCall::accepts(&started) => {
-                    let connection = &mut self.connection;
-                    match DebugCall::accept(connection, started) {
-                        Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
-                            self.debug_templates.opened(resource.op())
-                        }
-                        Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
-                            self.debug_templates.next(connection, reply)
-                        }
-                        _ => {}
-                    }
-                    continue;
-                }
                 Incoming::Started(started) if published(started.method).is_some() => {
                     let connection = &mut self.connection;
                     let watching = published(started.method).unwrap_or_else(|| unreachable!());
@@ -1260,12 +1223,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     continue;
                 }
-                Incoming::Started(started) if BlocksCall::accepts(&started) => {
-                    if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
-                        self.link.call(call, &self.store, &mut self.connection);
-                    }
-                    continue;
-                }
                 Incoming::Canceled { op } if self.link.holds(op) => {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
@@ -1277,10 +1234,53 @@ impl<A: BeuiApp> BeuiTest<A> {
                 }
                 Incoming::Started(started) => {
                     let op = started.op;
-                    if Call::accepts(&started)
-                        && let Some(call) = Call::accept(&mut self.connection, started)
-                    {
-                        self.requests.push((Some(op), call));
+                    let connection = &mut self.connection;
+                    match embed::Call::accept(connection, started) {
+                        Some(embed::Call::Shell(call)) => match call {
+                            ShellCall::ChildStatusesWatchNew { resource, .. } => {
+                                self.child_statuses.opened(resource.op())
+                            }
+                            ShellCall::ChildStatusesWatchNext { reply, .. } => {
+                                self.child_statuses.next(connection, reply)
+                            }
+                            ShellCall::BlockTypesWatchNew { resource } => {
+                                self.block_types.opened(resource.op())
+                            }
+                            ShellCall::BlockTypesWatchNext { reply, .. } => {
+                                self.block_types.next(connection, reply)
+                            }
+                            ShellCall::WebViewNew {
+                                resource, id, url, ..
+                            } => {
+                                let mut watch = block_plugin_api::Watch::default();
+                                watch.opened(resource.op());
+                                self.web_views.insert(resource.op(), (id, watch));
+                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                            }
+                            ShellCall::WebViewNextEvents { this, reply } => {
+                                match self.web_views.get_mut(&this.op()) {
+                                    Some((_, watch)) => watch.next(connection, reply),
+                                    None => reply.fail(connection, OpError::Canceled),
+                                }
+                            }
+                            _ => {}
+                        },
+                        Some(embed::Call::Debug(call)) => match call {
+                            DebugCall::DebugTemplatesWatchNew { resource } => {
+                                self.debug_templates.opened(resource.op())
+                            }
+                            DebugCall::DebugTemplatesWatchNext { reply, .. } => {
+                                self.debug_templates.next(connection, reply)
+                            }
+                            _ => {}
+                        },
+                        Some(embed::Call::Blocks(call)) => {
+                            self.link.call(call, &self.store, connection)
+                        }
+                        Some(embed::Call::HostServices(call)) => {
+                            self.requests.push((Some(op), call))
+                        }
+                        Some(_) | None => {}
                     }
                     continue;
                 }
@@ -1746,8 +1746,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn back(&mut self) {
-        let frames = self.gestures.back();
-        self.perform(frames);
+        self.drive("back", &[], &[]);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -1881,14 +1880,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
-        self.steps.push(format!(
-            "drive down {} right; drive up {} right",
-            Target::point(from).word(1.0),
-            Target::point(to).word(1.0)
-        ));
-        let mut frames = self.gestures.down(from, PointerButton::Secondary);
-        frames.extend(self.gestures.up(Some(to), PointerButton::Secondary));
-        self.perform(frames);
+        self.down(from, PointerButton::Secondary);
+        self.next_frame();
+        self.up(to, PointerButton::Secondary);
     }
 
     pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
@@ -1914,6 +1908,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+        self.steps.push(format!(
+            "drive pinch {} {factor}",
+            Target::point(pos).word(1.0)
+        ));
         let anchor = Pos2::ZERO + (pos - self.rect().min);
         self.calls.push(ShellCall::ChangeView {
             instance: INSTANCE,
@@ -1930,79 +1928,35 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hover(&mut self, target: impl Into<Target>) {
-        let at = self.locate("move", &[target.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_move(at[0]);
-            return;
-        }
-        let frames = self.gestures.hover(at[0]);
-        self.perform(frames);
+        self.drive_at("move", &[target.into()], &[]);
     }
 
     pub fn click(&mut self, target: impl Into<Target>) {
-        let at = self.locate("click", &[target.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], PointerButton::Primary, 1);
-            return;
-        }
-        let frames = self.gestures.click(at[0], PointerButton::Primary, 1);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &[]);
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("click", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], button, 1);
-            return;
-        }
-        let frames = self.gestures.click(at[0], button, 1);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &[button_name(button)]);
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) {
-        let at = self.locate("click", &[target.into()], &["double".to_owned()]);
-        if self.desk.is_some() {
-            self.desk_click(at[0], PointerButton::Primary, 2);
-            return;
-        }
-        let frames = self.gestures.click(at[0], PointerButton::Primary, 2);
-        self.perform(frames);
+        self.drive_at("click", &[target.into()], &["double".to_owned()]);
     }
 
     pub fn tap(&mut self, target: impl Into<Target>) {
-        let at = self.locate("tap", &[target.into()], &[]);
-        let frames = self.gestures.tap(at[0], 1);
-        self.perform(frames);
+        self.drive_at("tap", &[target.into()], &[]);
     }
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("down", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_button(at[0], button, true);
-            return;
-        }
-        let frames = self.gestures.down(at[0], button);
-        self.perform(frames);
+        self.drive_at("down", &[target.into()], &[button_name(button)]);
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
-        let at = self.locate("up", &[target.into()], &[button_name(button)]);
-        if self.desk.is_some() {
-            self.desk_button(at[0], button, false);
-            return;
-        }
-        let frames = self.gestures.up(Some(at[0]), button);
-        self.perform(frames);
+        self.drive_at("up", &[target.into()], &[button_name(button)]);
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
-        let at = self.locate("drag", &[from.into(), to.into()], &[]);
-        if self.desk.is_some() {
-            self.desk_drag(at[0], at[1], 2);
-            return;
-        }
-        let frames = self.gestures.drag(at[0], at[1], 2, PointerButton::Primary);
-        self.perform(frames);
+        self.drive_at("drag", &[from.into(), to.into()], &[]);
     }
 
     pub fn drag_along(&mut self, points: &[Pos2]) {
@@ -2019,10 +1973,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
-        let rest = [by.y.to_string(), by.x.to_string()];
-        let at = self.locate("scroll", &[target.into()], &rest);
-        let frames = self.gestures.scroll(at[0], by);
-        self.perform(frames);
+        self.drive_at(
+            "scroll",
+            &[target.into()],
+            &[by.y.to_string(), by.x.to_string()],
+        );
     }
 
     pub fn fingers<T: Into<Target> + Clone>(&mut self, phase: TouchPhase, fingers: &[(u64, T)]) {
@@ -2030,43 +1985,31 @@ impl<A: BeuiApp> BeuiTest<A> {
             .iter()
             .map(|(_, target)| target.clone().into())
             .collect();
-        let named: Vec<String> = fingers
-            .iter()
-            .zip(&targets)
-            .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0)))
-            .collect();
-        let phase_name = match phase {
+        let phase = match phase {
             TouchPhase::Start => "down",
             TouchPhase::Move => "move",
             TouchPhase::End => "up",
             TouchPhase::Cancel => "cancel",
         };
-        self.steps
-            .push(format!("drive touch {phase_name} {}", named.join(" ")));
-        let at: Vec<(u64, Option<Pos2>)> = fingers
-            .iter()
-            .zip(targets)
-            .map(|((finger, _), target)| (*finger, Some(self.point(target))))
+        let words: Vec<String> = std::iter::once(phase.to_owned())
+            .chain(
+                fingers
+                    .iter()
+                    .zip(&targets)
+                    .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0))),
+            )
             .collect();
-        let frames = self
-            .gestures
-            .touch(phase, &at)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
-        self.perform(frames);
+        self.drive("touch", &words, &targets);
     }
 
     pub fn type_text(&mut self, text: &str) {
-        self.steps.push(format!("drive type {text:?}"));
-        let frames = self.gestures.type_text(text);
-        self.perform(frames);
+        self.drive("type", &[text.to_owned()], &[]);
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui_core::input::typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
-        self.steps.push(format!("drive key {chord}"));
-        let frames = self.gestures.chord(key, modifiers);
-        self.perform(frames);
+        let chord = beui::input::typing::chord_name(key, modifiers)
+            .unwrap_or_else(|| panic!("drive has no name for {modifiers:?}+{key:?}"));
+        self.drive("key", &[chord], &[]);
     }
 
     pub fn key_down(&mut self, key: Key) {
@@ -2079,34 +2022,56 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn held_key(&mut self, key: Key, pressed: bool) {
         let command = if pressed { "keydown" } else { "keyup" };
-        let name = key.name().unwrap_or_else(|| format!("{key:?}"));
-        self.steps.push(format!("drive {command} {name}"));
-        let frames = self
-            .gestures
-            .key(key, pressed)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
-        self.perform(frames);
+        let name = key
+            .name()
+            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
+        self.drive(command, &[name], &[]);
     }
 
     pub fn steps(&self) -> &[String] {
         &self.steps
     }
 
-    fn locate(&mut self, command: &str, targets: &[Target], rest: &[String]) -> Vec<Pos2> {
-        let mut step = format!("drive {command}");
-        for word in targets
+    fn drive_at(&mut self, command: &str, targets: &[Target], rest: &[String]) {
+        let words: Vec<String> = targets
             .iter()
             .map(|target| target.word(1.0))
             .chain(rest.iter().cloned())
-        {
-            step.push(' ');
-            step.push_str(&word);
+            .collect();
+        self.drive(command, &words, targets);
+    }
+
+    fn drive(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
+        let mut step = format!("drive {command}");
+        for word in arguments {
+            let plain = !word.is_empty()
+                && word
+                    .chars()
+                    .all(|character| character.is_ascii_graphic() && !"\"'\\".contains(character));
+            match plain {
+                true => step.push_str(&format!(" {word}")),
+                false => step.push_str(&format!(" {word:?}")),
+            }
         }
         self.steps.push(step);
-        targets
+        let points: Vec<(String, Pos2)> = targets
             .iter()
-            .map(|target| self.point(target.clone()))
-            .collect()
+            .map(|target| (target.word(1.0), self.point(target.clone())))
+            .collect();
+        let at = |word: &str| {
+            points
+                .iter()
+                .find(|(named, _)| named == word)
+                .map(|(_, at)| *at)
+                .ok_or_else(|| format!("{word} is not one of the targets"))
+        };
+        let frames = drive::plan(&mut self.gestures, command, arguments, 1.0, &at)
+            .and_then(|frames| frames.ok_or_else(|| format!("{command} gives no input")))
+            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
+        match self.desk.is_some() && matches!(command, "click" | "move" | "down" | "up" | "drag") {
+            true => self.desk_perform(frames),
+            false => self.perform(frames),
+        }
     }
 
     fn point(&mut self, target: Target) -> Pos2 {
@@ -2147,8 +2112,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
-        let found = overflow::overflows(&self.document());
-        self.overflows.extend(found);
+        self.note_overflows();
         match &mut self.recording {
             Some(recording) => recording.append(frame),
             None => self.recording = Some(frame),
@@ -2159,22 +2123,38 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = match self.recording.take() {
             Some(recording) => recording,
             None => {
-                let found = overflow::overflows(&self.document());
-                self.overflows.extend(found);
+                self.note_overflows();
                 self.painted()
             }
         };
-        snapshot::assert_snapshot(name, &painting);
-        overflow::assert_fits(name, std::mem::take(&mut self.overflows));
+        paint_snapshot::assert_accepted(name, &painting, paint_snapshot::HOW_TO_ACCEPT);
+        assert_fits(name, std::mem::take(&mut self.overflows));
     }
 
-    fn painted(&mut self) -> snapshot::Snapshot {
+    fn note_overflows(&mut self) {
+        let found: Vec<String> = self
+            .document()
+            .overflows()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        self.overflows.extend(found);
+    }
+
+    fn painted(&mut self) -> Snapshot {
         let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
         let shown = self
             .shown_output()
             .expect("the editor has not drawn its window yet");
-        capture::capture(shown, self.size, shown.pixels_per_point, behind)
-            .expect("the painting could not be rendered")
+        let painting = beui::native::painting::painting(
+            shown,
+            self.size,
+            shown.pixels_per_point,
+            behind,
+            beui::native::painting::Punches::Shown,
+        )
+        .and_then(Snapshot::of_painting);
+        painting.expect("the painting could not be rendered")
     }
 }
 

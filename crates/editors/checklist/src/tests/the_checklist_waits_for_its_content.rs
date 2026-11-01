@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn the_checklist_waits_for_its_content() {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut editor = BeuiTest::<ChecklistApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut editor = BeuiTest::<ChecklistApp>::editing(Uuid::new_v4());
     editor.run();
 
     assert!(editor.shown("editor.loading"));

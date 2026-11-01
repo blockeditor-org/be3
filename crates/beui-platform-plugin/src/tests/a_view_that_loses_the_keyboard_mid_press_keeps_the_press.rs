@@ -1,6 +1,5 @@
-use beui_core::input::{
-    Pen, PenPhase, PointerButton, PointerId, PointerPhase, TouchId, TouchPhase,
-};
+use beui::input::{Pen, PenPhase, PointerButton, TouchId, TouchPhase};
+use beui::input::{PointerId, PointerPhase};
 use block_editor_plugin::TimedInput;
 
 use super::*;

@@ -96,4 +96,7 @@ pub(crate) fn end(context: &beui::native::Context) {
     if output.animating {
         context.note_animating();
     }
+    if output.close {
+        context.close_window();
+    }
 }

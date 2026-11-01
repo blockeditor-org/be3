@@ -1,6 +1,5 @@
-use std::sync::mpsc::{Receiver, Sender, channel};
-
 use be_protocol::{Member, OrganizationRole};
+use block_app_base::host::{Mailbox, Post};
 use uuid::Uuid;
 
 use crate::ui::{MemberRow, MembersView};
@@ -13,7 +12,7 @@ pub(crate) struct Members {
     removing: Option<Uuid>,
     busy: bool,
     error: Option<String>,
-    replies: (Sender<Reply>, Receiver<Reply>),
+    replies: (Mailbox, Post<Reply>),
 }
 
 impl Default for Members {
@@ -24,18 +23,17 @@ impl Default for Members {
             removing: None,
             busy: false,
             error: None,
-            replies: channel(),
+            replies: crate::desk().mailbox(|app: &mut crate::BlockApp, reply| {
+                app.members.replied(reply);
+            }),
         }
     }
 }
 
 impl Members {
     fn answer(&self) -> Box<dyn FnOnce(Reply) + Send> {
-        let sender = self.replies.0.clone();
-        Box::new(move |reply| {
-            let _ = sender.send(reply);
-            block_app_base::host::wake();
-        })
+        let post = self.replies.1.clone();
+        Box::new(move |reply| post.send(reply))
     }
 
     pub(crate) fn show(&mut self) {
@@ -71,13 +69,11 @@ impl Members {
         }
     }
 
-    pub(crate) fn poll(&mut self) {
-        while let Ok(reply) = self.replies.1.try_recv() {
-            self.busy = false;
-            match reply {
-                Ok(members) => self.members = members,
-                Err(error) => self.error = Some(error),
-            }
+    fn replied(&mut self, reply: Reply) {
+        self.busy = false;
+        match reply {
+            Ok(members) => self.members = members,
+            Err(error) => self.error = Some(error),
         }
     }
 

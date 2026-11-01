@@ -25,7 +25,7 @@ fn with_motion_reduced_a_dragged_dock_bar_moves_and_docks_at_once() {
     let grip = harness.center(harness.find("dock.bar.9.grip"));
     let grab = grip - bar.min;
 
-    harness.press_at(grip);
+    harness.down(grip, PointerButton::Primary);
     let held = pos2(body.center().x - 80.0, body.center().y + 40.0);
     harness.hover(grip + vec2(0.0, 20.0));
     harness.hover(held);
@@ -47,7 +47,7 @@ fn with_motion_reduced_a_dragged_dock_bar_moves_and_docks_at_once() {
         "the band is open in full at once: {docked:?} in {band:?}"
     );
 
-    harness.release_at(near);
+    harness.up(near, PointerButton::Primary);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

@@ -28,7 +28,6 @@ interface contacts {
         changes: list<list<u8>>,
     }
 
-    /// Replaces `CreateContactLink`.
     create-contact-link: async func(
         link: link-id,
         card: list<u8>,
@@ -36,10 +35,8 @@ interface contacts {
         grant: option<pending-grant>,
     ) -> result<_, error>;
 
-    /// Replaces `GetContactLink` and its `ContactLink` answer.
     get-contact-link: async func(link: link-id) -> result<contact-link, error>;
 
-    /// Replaces `AcceptContactLink`.
     accept-contact-link: async func(
         link: link-id,
         card: list<u8>,
@@ -47,24 +44,19 @@ interface contacts {
         key: list<u8>,
     ) -> result<_, error>;
 
-    /// Replaces `ListContactLinks` and its `ContactLinks` answer.
     list-contact-links: async func() -> result<list<own-contact-link>, error>;
 
-    /// Replaces `DeleteContactLink`.
     delete-contact-link: async func(link: link-id) -> result<_, error>;
 
-    /// Replaces `PutContact`.
     put-contact: async func(contact: account-id, sealed: list<u8>) -> result<_, error>;
 
-    /// Replaces `ListContacts` and its `Contacts` answer.
     list-contacts: async func() -> result<list<contact-row>, error>;
 
-    /// Replaces `RemoveContact`.
     remove-contact: async func(account: account-id) -> result<_, error>;
 
     /// An item whenever the account's contacts, links or key changes
     /// changed through another connection, so the client reads them again; a
     /// latest-value stream, so changes the client has not taken yet are one
-    /// item. Replaces the pushed `ContactsChanged`.
+    /// item.
     contacts-changed: func() -> stream;
 }

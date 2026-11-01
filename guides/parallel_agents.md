@@ -1,48 +1,41 @@
 # Running parallel subagents
 
-How a coordinating agent splits a large task across subagents on one Claude Code cloud VM, and what goes wrong there. Learned from the canvas PR (plans/canvas.md steps 1-4), which ran up to seven agents at once, and the HTML core PR (plans/html_core.md).
+How a coordinating agent splits a large task across subagents, and what goes wrong. Run each subagent as its own cloud session: each has its own VM, so they don't compete for memory, disk, the buck2 daemon or the headless app, and they cost no more than subagents on one VM. Learned from the canvas PR (plans/canvas.md steps 1-4) and the HTML core PR (plans/html_core.md), which ran agents in worktrees on one VM, and the code-removal PR, which ran over thirty tasks as cloud sessions, up to fifteen at once.
 
-## Shape of the work
-
-- Keep the PR's branch checked out in `/home/user/be3` and never edit or build there. It is the integration branch: subagents land on it, the coordinator pushes it.
-- Each subagent makes its own worktree from the integration branch's current tip, `git -C /home/user/be3 worktree add /home/user/wt/<task> -b canvas/<task> <integration-branch>`, and checks its base before starting. Don't use the Agent tool's `isolation: "worktree"`: it has produced worktrees on stale bases.
-- A subagent lands by rebasing onto the integration branch and running `git -C /home/user/be3 merge --ff-only canvas/<task>`, retrying the rebase if someone landed first. Then it removes its worktree and branch. The coordinator pushes after each landing.
-- Put the rules every subagent follows in one protocol file in the scratchpad and point each prompt at it, so a rule changed mid-run reaches every later agent. Keep a second notes file of the APIs each landed agent reports, for the agents that build on them.
-- Run `./scripts/verify` again after any rebase onto a branch that moved. Paintings conflict only once work is combined.
-- Give each agent its own log directory in the scratchpad (`<scratchpad>/<task>/`) and forbid shared names like `check.log`: agents writing the same file read each other's output as their own.
-- Ask for the final report in the reply text. The handback tool sometimes refuses it, and the agent then ends with no report.
-- Tell agents working near each other who they are, and send the remaining ones a short message when a neighbour lands something they must build on or rebase over.
-
-## Limits of the VM
-
-- Memory is the tightest limit. The VM has 15G and each worktree runs its own buck2 daemon of about 1.5G, and verify runs got OOM-killed with six worktrees building at once. Five concurrent agents is about the most that fits, and each must run `./scripts/buck kill` in its worktree when it finishes. The coordinator should kill its own idle daemon too.
-- Disk is a fixed allowance of about 39G. A worktree's `buck-out` can reach 11G after verify. Delete `buck-out` when space runs low: everything is cached on the build server. `target/apps` holds each app `buck2 run` or `:dev` unpacked (crates/app-archive), one per target and platform, replaced when it is rebuilt. Run `./scripts/buck kill` first, or buck2 reports a stale working directory. An agent that rebuilds and reruns the app in a loop (a `:dev` restarted after each change, or an app test run many times to chase a flake) fills it fastest: kill and delete it between rebuilds.
-- Never run `pkill -x buck2` or any other command that kills processes by name across the machine: it kills every agent's build. `pkill -x block-app` likewise kills every agent's app.
-- Every worktree's `:dev` uses the same `~/.cache/be3/dev` (data, drive socket, `env` file) unless `BE_DRIVE_DIR` says otherwise, so by default one headless app runs on the VM for all agents: starting `:dev` from one worktree restarts the app another agent is driving, and `--fresh` or `--stop` deletes or stops it. Give each agent that drives the app its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`) in its prompt, and have it source that directory's `env`.
-- When the account's usage limit is reached, or the container restarts, every agent stops at once. Resume each one by messaging it (after the limit resets); its worktree and transcript survive. A restart kills background builds and buck2 daemons, so tell resumed agents to rerun theirs, and check each worktree's state (`git status`, `git log`) before trusting what its agent last reported.
-
-## The build server
-
-When one test target fails for reasons of the build server alone (a known relay error on one test run, say), name it in the protocol with the narrow check that replaces it: if it is verify's only failure and that target passes when run on its own with `./scripts/test`, the agent lands and says so in its report. Otherwise every agent stalls on the same flake.
-
-`./scripts/test` caches results: a test that ran on the same tree and the same inputs is not run again, and its earlier result is printed. Rerunning one to see whether it is flaky proves nothing until something it depends on changes; loop it inside one run instead (a loop in the test, or the binary run directly), and say in a report how a flake was counted.
-
-It has intermittent outages: "service is currently unavailable", connection resets, broken pipes, keep-alive timeouts, jobs queued for over ten minutes, and dropped bootstrap downloads. Each agent reruns a failing command once. If it fails the same way again, the agent commits its work as `wip:`, keeps its worktree and stops with a report. The coordinator then runs `./scripts/verify` itself: if that builds, it resumes the agent; only if it fails the same way too does it pause everything and ask the user. Run it in the background, since a cold run can take longer than ten minutes.
-
-## Permissions
-
-In auto mode the permission classifier has refused a subagent's `merge --ff-only` and the coordinator's force-push as unreviewed or destructive, inconsistently. If it blocks landing, ask the user how to proceed rather than working around it.
-
-## History
-
-- Move commits only with rebase. Agents have twice squashed with `git reset --soft` onto the integration branch after it moved, which committed their old tree over it and silently reverted other agents' work. Squash only after rebasing, onto a fresh branch from the current tip (`git merge --squash`), and check that `git diff <tip before> HEAD` touches only the agent's own files before landing.
-- When the user reverses a decision that already landed, have the agent `git revert` the commits separately, so the coordinator can drop the change and its revert together when it tidies history before the PR.
-
-## Separate cloud sessions
-
-A coordinator can instead run each agent as its own cloud session, with its own VM (15G of memory, 4 cores, about 30G of disk), which avoids the memory and disk limits above. Tested on this repository:
+## Starting a session
 
 - `create_session` with `source_url` (the repository) and `source_revision` (the integration branch) starts a session checked out on that branch, in the same environment, with the given prompt. It runs commands without anyone approving them.
-- `send_message` delivers a further message to it. The child can answer with its own `send_message` to `@parent`, which arrives in the coordinator as a notification. `list_events` reads its transcript; filter with `kinds: ["assistant", "result"]`.
-- `get_session` shows whether it is working or idle, and `archive_session` releases its VM when it is done.
-- Work moves only through git: each child pushes its own branch, and the coordinator fetches it and fast-forwards the integration branch, or has the child rebase and push again. Give each child a distinct branch name, and tell it not to open a pull request.
+- A child cannot read the coordinator's scratchpad, so put the whole protocol in each prompt: its branch, what to check, how to finish and what to report. Keep the shared part word for word the same in every prompt, and put the task after it.
+- Name the coordinator's session id in the prompt (`get_session` with no id gives it) so the child can report with `send_message`. Reports arrive in the coordinator as notifications; ask for the report in the child's reply text too.
+- Give each task one session and one distinct branch (`<prefix>/<task>`). Tell the child it may push only that branch, never the integration branch, and never open a pull request.
+- Send a running child a short `send_message` when something lands that it builds on or must rebase over, naming the commit and the new API.
+- `list_events` reads a child's transcript; filter with `kinds: ["assistant", "result"]`, since a transcript is long. `get_session` shows whether it is working or idle.
+
+## Landing
+
+- Keep the integration branch checked out in the coordinator's repository. Only the coordinator moves it and pushes it.
+- A child finishes by rebasing onto the integration branch, running `./scripts/verify`, pushing its branch and reporting. A child whose verdict is to leave its work out pushes its branch too, so the user can review it remotely.
+- The coordinator fetches the branch and fast-forwards the integration branch when it can. When the integration branch moved after the child's base, compare the files the child changed with the files landed since its base (`git merge-base`, then `git diff --name-only` both ways). If they share none, or only a guide or a generated file such as `buck/cargo/crates.bzl` and `Cargo.lock`, and the rebase is clean, the coordinator rebases the child's commits itself and lands them. Otherwise it asks the child to rebase, rerun verify and push again.
+- Because of that, run `./scripts/verify` on the integration branch yourself after every few landings, in a worktree of its own, in the background. Check `git status` there afterwards: verify accepts changed paintings and regenerates files, so a passing run that left changes is not clean.
+- The permission classifier has sometimes refused a child's force push to its own branch after a rebase. Have the child report its local commit instead; if the commit applies cleanly, cherry-pick it.
+- Move commits only with rebase or cherry-pick. Agents have squashed with `git reset --soft` onto an integration branch that had moved, which committed their old tree over it and silently reverted other agents' work. Check that `git diff <tip before> HEAD` touches only the agent's own files before landing.
+- When the user reverses a decision that already landed, `git revert` its commits separately, so the coordinator can drop the change and its revert together when it tidies history before the PR.
+
+## Verify and the build server
+
+- A full `./scripts/verify` can take longer than ten minutes on a cold session and prints nothing until it ends. Tell children to run it in the background with a long timeout (45 minutes); several gave up on an empty log at ten or fifteen.
+- After a `Cargo.toml` dependency changes, the first verify regenerates `crates.bzl` and `Cargo.lock` and fails; rerun it.
+- `./scripts/test` caches results: a test that ran on the same tree and inputs is not run again. Rerunning one to see whether it is flaky proves nothing; loop it inside one run instead (a loop in the test, or the binary run directly), and say in a report how a flake was counted.
+- When one test is a known flake, name it in every prompt with the rule that replaces it: if it is verify's only failure and the change doesn't touch its crate, the child pushes and says so. Otherwise every child stalls on the same flake. Give the flake to one agent to fix at its source.
+- The build server has intermittent outages: "service is currently unavailable", connection resets, broken pipes, jobs queued for a long time, dropped bootstrap downloads. A child reruns a failing command once; if it fails the same way again, it commits its work as `wip:`, pushes and reports. The coordinator then runs verify itself before deciding whether to pause everything and ask the user.
+- When the account's usage limit is reached every session stops at once. Resume each by messaging it after the limit resets; its checkout and transcript survive.
+
+## Subagents on one VM
+
+Agents in worktrees on one VM work too, but share its limits. Each makes its own worktree from the integration branch's tip (`git -C /home/user/be3 worktree add /home/user/wt/<task> -b <prefix>/<task> <integration-branch>`); don't use the Agent tool's `isolation: "worktree"`, which has produced worktrees on stale bases.
+
+- Memory: the VM has 15G and each worktree's buck2 daemon takes about 1.5G; verify runs got OOM-killed with six worktrees building at once, so five is about the most. Each agent runs `./scripts/buck kill` in its worktree when it finishes.
+- Disk: a worktree's `buck-out` can reach 11G after verify. Delete it when space runs low, after `./scripts/buck kill`; everything is cached on the build server.
+- Never run `pkill -x buck2`, `pkill -x block-app` or anything that kills processes by name: it kills every agent's build or app.
+- Every worktree's `:dev` uses the same `~/.cache/be3/dev` unless `BE_DRIVE_DIR` says otherwise. Give each agent that drives the app its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`).
+- Give each agent its own log directory in the scratchpad and forbid shared names like `check.log`.

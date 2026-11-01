@@ -1,3 +1,4 @@
+pub use crate::geometry::Region;
 pub use beui_core::accessibility;
 pub use beui_core::app::accessibility_dump;
 pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
@@ -9,7 +10,6 @@ pub use beui_core::context::{
 pub use beui_core::current::{
     enter, last_pointer, try_with_document, with_document, with_reactive_scope,
 };
-pub use beui_core::damage::Region;
 pub use beui_core::document::Document;
 pub use beui_core::document::{
     OverRepaint, Tools, detect_over_repaint, fail_unsettled_layout, take_over_repaints,
@@ -38,7 +38,7 @@ pub use beui_core::performance::{
 pub use beui_core::rich;
 pub use beui_core::touch_cursor;
 pub use beui_core::window::{Resize, WindowHosting, WindowSize};
-pub use beui_draw::{Draw, DrawAt, drawing, painted_drawing};
+pub use beui_draw::{Draw, DrawAt, drawing, painted_drawing, texture_quad};
 pub use beui_view::native_api::{core_painter, draw_gpu, wrap_painter};
 pub use embed::Embed;
 

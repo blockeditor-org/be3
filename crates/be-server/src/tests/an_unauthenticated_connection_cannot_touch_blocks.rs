@@ -17,7 +17,7 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
     );
 
     let response = stranger
-        .call(|peer| client::account::authenticate(peer, "not a token".into()))
+        .call(|peer| client::account::authenticate(peer, Some("not a token".into())))
         .await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidCredentials),

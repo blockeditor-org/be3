@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use block_editor_beui::SavedDockLayout;
 use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ pub(crate) const TITLES: &str = "titles";
 
 #[derive(Deserialize, Serialize)]
 struct SavedLayout {
-    dock: DockingSnapshot<TabId>,
+    dock: SavedDockLayout,
     next_tab: u64,
     files: usize,
     tabs: Vec<SavedTab>,
@@ -62,7 +63,7 @@ pub(crate) fn save(
         })
         .collect();
     let saved = SavedLayout {
-        dock: dock.clone(),
+        dock: SavedDockLayout::of(dock),
         next_tab,
         files: 0,
         tabs,
@@ -90,7 +91,7 @@ pub(crate) fn restore(state: &ViewState) -> Result<Restored, String> {
         })
         .collect();
     Ok(Restored {
-        dock: saved.dock,
+        dock: saved.dock.snapshot(),
         next_tab: saved.next_tab,
         files: referenced(saved.files),
         tabs,

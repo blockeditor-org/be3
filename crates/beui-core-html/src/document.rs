@@ -303,6 +303,7 @@ pub fn remove_test_id(node: NodeId, id: &str) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn outermost(keep: impl Fn(&Entry) -> bool) -> Vec<(NodeId, Node)> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
@@ -334,13 +335,6 @@ fn outermost(keep: impl Fn(&Entry) -> bool) -> Vec<(NodeId, Node)> {
             .map(|(node, element, _, _)| (node, element))
             .collect()
     })
-}
-
-pub fn nodes_with_test_id(id: &str) -> Vec<NodeId> {
-    outermost(|entry| entry.shared.borrow().test_ids.iter().any(|held| held == id))
-        .into_iter()
-        .map(|(node, _)| node)
-        .collect()
 }
 
 pub fn set_state(node: NodeId, state: Box<dyn Any>) {

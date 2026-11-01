@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use crate::input::Key;
-use crate::node::NodeId;
-use crate::window::WindowId;
+use beui_types::Key;
+use beui_types::NodeId;
+use beui_types::WindowId;
 
-pub use beui_types::input::KeyPhase;
-pub use beui_types::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyTarget};
+use beui_types::KeyPhase;
+use beui_types::{KeyAt, KeyEvent, keys::KeyHandler};
 
 struct Listener {
     at: KeyAt,

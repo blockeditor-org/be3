@@ -1,8 +1,8 @@
 use super::*;
 use crate::LayerPolicy;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {

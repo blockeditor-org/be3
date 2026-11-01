@@ -4,11 +4,10 @@ use beui::native::{Context, WindowSize, enter};
 use beui::{PointerButton, PointerEvent, PointerId};
 use beui_host::native::testing::{Showing, Stepped};
 use beui_host::native::{FreetypeFonts, build};
-use block_plugin_api::{Size, ViewRef, WindowOpen, WindowOver};
+use block_plugin_api::{Size, WindowOver, WindowRequest};
 
 use super::*;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
-mod a_desktop_window_is_kept_off_the_bands_of_its_display_and_free_across_others;
 mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
 mod a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go;

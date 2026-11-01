@@ -1,4 +1,6 @@
-// Instantiating a plugin in the browser.
+// Instantiating a plugin in the browser: the extension block-guest-host's
+// worker (src/guest.js) loads for a plugin, which answers the imports that
+// worker does not.
 //
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
 // platform: its only imports are be3_host, its world's and the be3 gpu abi,
@@ -18,11 +20,8 @@
 // paints leaves the worker as a bitmap of each surface the page exports, and a
 // bitmap another worker painted arrives as a texture the plugin imports.
 //
-// The frames between the host and the plugin are answered here rather than by
-// the shim, since they share one ordered stream with the plugin's direct calls
-// (guides/type_modules.md): a sync import of the plugin's world is a call item
-// the host reads among its frames, and a call item from the host runs the
-// export it names once the frames before it were stepped through.
+// The worker answers be3_host's frames, wake and panic and the plugin's direct
+// calls itself, as it does for a type module, and hands the rest to `answer`.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
@@ -32,121 +31,6 @@ function stub(module, name) {
     return () => {
         throw new Error(`a plugin called ${module}.${name}, which its host does not answer`);
     };
-}
-
-function forward(shim, module, name, exported) {
-    const call = shim[exported];
-    return typeof call === "function" ? call : stub(module, name);
-}
-
-const MARK = [0xff, 0xff, 0xff, 0xff];
-const CALL = 1;
-const RETURNED = 2;
-
-function marked(item) {
-    return item.length >= 5 && MARK.every((byte, index) => item[index] === byte);
-}
-
-function callItem(name, hasParent, parent, args) {
-    const encoded = new TextEncoder().encode(name);
-    const item = new Uint8Array(16 + encoded.length + args.length);
-    const view = new DataView(item.buffer);
-    item.set(MARK, 0);
-    item[4] = CALL;
-    item[5] = hasParent ? 1 : 0;
-    view.setBigUint64(6, BigInt.asUintN(64, BigInt(parent)));
-    view.setUint16(14, encoded.length);
-    item.set(encoded, 16);
-    item.set(args, 16 + encoded.length);
-    return item;
-}
-
-function transport(memory, direct) {
-    const inbox = [];
-    let outbox = [];
-    const bytes = () => new Uint8Array(memory().buffer);
-    return {
-        inbox,
-        direct,
-        post: (item) => outbox.push(item),
-        collect() {
-            const frames = outbox;
-            outbox = [];
-            return frames;
-        },
-        host_send(pointer, length) {
-            outbox.push(bytes().slice(pointer, pointer + length));
-        },
-        host_receive(pointer, capacity) {
-            if (inbox.length === 0) return -1n;
-            const frame = inbox[0];
-            if (frame.length > capacity) return BigInt(frame.length);
-            bytes().set(frame, pointer);
-            inbox.shift();
-            return BigInt(frame.length);
-        },
-        forward(name) {
-            return (hasParent, parent, pointer, length) => {
-                const args = bytes().slice(pointer, pointer + length);
-                outbox.push(callItem(name, hasParent !== 0, parent, args));
-            };
-        },
-    };
-}
-
-function callExport(exports, memory, item) {
-    const view = new DataView(item.buffer, item.byteOffset, item.byteLength);
-    const hasParent = item[5] & 1;
-    const answered = (item[5] & 2) !== 0;
-    const parent = BigInt.asIntN(64, view.getBigUint64(6));
-    const length = view.getUint16(14);
-    const name = new TextDecoder().decode(item.subarray(16, 16 + length));
-    const args = item.subarray(16 + length);
-    const exported = exports[name];
-    if (typeof exported !== "function") throw new Error(`the plugin does not export ${name}`);
-    const pointer = exports.plugin_alloc(args.length);
-    new Uint8Array(memory.buffer).set(args, pointer);
-    const packed = BigInt.asUintN(64, exported(hasParent, parent, pointer, args.length));
-    if (!answered) return null;
-    const at = Number(packed >> 32n);
-    const size = Number(packed & 0xffffffffn);
-    const answer = new Uint8Array(5 + size);
-    answer.set(MARK, 0);
-    answer[4] = RETURNED;
-    answer.set(new Uint8Array(memory.buffer).subarray(at, at + size), 5);
-    return answer;
-}
-
-function resolve(module, memory, shim, frames) {
-    const resolved = { __proto__: null };
-    for (const wanted of WebAssembly.Module.imports(module)) {
-        const group = (resolved[wanted.module] ??= { __proto__: null });
-        if (wanted.kind === "memory") {
-            group[wanted.name] = memory();
-        } else if (wanted.module === "wasi_snapshot_preview1") {
-            group[wanted.name] = wasi[wanted.name] ?? stub(wanted.module, wanted.name);
-        } else if (wanted.module === "wasi") {
-            group[wanted.name] = threads[wanted.name];
-        } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
-            group[wanted.name] = (pointer, length) => {
-                const bytes = new Uint8Array(memory().buffer).slice(pointer, pointer + length);
-                throw new Error(new TextDecoder().decode(bytes));
-            };
-        } else if (
-            wanted.module === "be3_host" &&
-            (wanted.name === "host_send" || wanted.name === "host_receive")
-        ) {
-            group[wanted.name] = frames[wanted.name];
-        } else if (frames.direct.some(([module, name]) => module === wanted.module && name === wanted.name)) {
-            group[wanted.name] = frames.forward(`${wanted.module}#${wanted.name}`);
-        } else if (wanted.module === "be3_host") {
-            group[wanted.name] = forward(shim, wanted.module, wanted.name, wanted.name);
-        } else {
-            const exported = `${wanted.module}#${wanted.name}`;
-            group[wanted.name] = forward(shim, wanted.module, wanted.name, exported);
-        }
-    }
-    return resolved;
 }
 
 // WebAssembly.Module.imports does not report a memory's limits, and a memory
@@ -215,34 +99,22 @@ function importedMemory(bytes) {
     return null;
 }
 
-// What a standalone plugin, or the root library under a linked one, runs
-// before anything else: the WASI reactor's _initialize when it has one, else
-// the constructors LLVM collected.
-function initialize(exports) {
-    if (typeof exports._initialize === "function") {
-        exports._initialize();
-    } else {
-        exports.__wasm_call_ctors?.();
-    }
+function answer(wanted, memory, shim) {
+    if (wanted.kind === "memory") return memory();
+    if (wanted.module === "wasi_snapshot_preview1") return wasi[wanted.name] ?? stub(wanted.module, wanted.name);
+    if (wanted.module === "wasi") return threads[wanted.name];
+    const exported = wanted.module === "be3_host" ? wanted.name : `${wanted.module}#${wanted.name}`;
+    const call = shim[exported];
+    return typeof call === "function" ? call : stub(wanted.module, wanted.name);
 }
 
-async function fetched(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`${url} could not be fetched: ${response.status}`);
-    }
-    return response.arrayBuffer();
-}
-
-export async function boot(shimUrl, moduleUrl, wake, direct) {
-    const shimModule = await import(shimUrl);
+export async function boot({ url, bytes, module: plugin, guest, imports, initialize, wake }) {
+    const shimModule = await import(new URL("./block_gpu_shim.js", import.meta.url).href);
     const shim = await shimModule.default();
     await shimModule.start();
-    const bytes = await fetched(moduleUrl);
-    const plugin = await WebAssembly.compile(bytes);
     const identities = dylink.libraries(shimModule, plugin);
     const libraries = await Promise.all(
-        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, moduleUrl)),
+        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, url)),
     );
     const modules = [...libraries.map(({ module }) => module), plugin];
     const first = modules[0];
@@ -253,6 +125,7 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
     let memory = imported === null ? null : new WebAssembly.Memory(imported);
     const current = () => memory;
     const bindMemory = () => {
+        guest.memory = memory;
         wasi.bindMemory(memory);
         shimModule.bind(memory);
         threads.bindThreads(first, memory);
@@ -260,8 +133,8 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
     if (memory !== null) bindMemory();
     threads.bindWake(wake);
     shimModule.bind_wake(wake);
-    const frames = transport(current, direct);
-    const runtime = new WebAssembly.Instance(first, resolve(first, current, shim, frames));
+    const resolve = (module) => imports(module, (wanted) => answer(wanted, current, shim));
+    const runtime = new WebAssembly.Instance(first, resolve(first));
     let exports = runtime.exports;
     if (first !== plugin) {
         initialize(runtime.exports);
@@ -272,9 +145,7 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
             rootBlock: runtime.exports.__tls_base.value >>> 0,
             main: true,
         };
-        exports = dylink.link(modules, plan, runtime, thread, (module) =>
-            resolve(module, current, shim, frames),
-        ).exports;
+        exports = dylink.link(modules, plan, runtime, thread, resolve).exports;
     } else {
         if (memory === null && exports.memory instanceof WebAssembly.Memory) {
             memory = exports.memory;
@@ -282,31 +153,34 @@ export async function boot(shimUrl, moduleUrl, wake, direct) {
         }
         initialize(exports);
     }
-    exports.plugin_start();
+    guest.exports = exports;
     return {
-        deliver(frame) {
-            const item = new Uint8Array(frame);
-            if (!(marked(item) && item[4] === CALL)) {
-                frames.inbox.push(item);
-                return;
+        receive(data) {
+            if (data.kind === "show") {
+                shimModule.show(data.id, data.canvas, data.surface);
+                shimModule.paint();
+            } else if (data.kind === "layers") {
+                shimModule.layers(data.canvas ?? null, data.width, data.height, data.pieces);
+                shimModule.paint();
+            } else if (data.kind === "forget") {
+                shimModule.forget(data.id);
+            } else if (data.kind === "export") {
+                shimModule.export_surfaces(Uint32Array.from(data.surfaces));
+            } else if (data.kind === "import") {
+                shimModule.import_image(BigInt(data.image), data.bitmap);
+            } else if (data.kind === "unimport") {
+                shimModule.forget_image(BigInt(data.image));
             }
-            if (frames.inbox.length > 0) exports.plugin_step();
-            const answer = callExport(exports, memory, item);
-            if (answer !== null) frames.post(answer);
         },
-        collect: () => frames.collect(),
-        show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
-        forget: (id) => shimModule.forget(id),
-        layers: (canvas, width, height, pieces) => shimModule.layers(canvas, width, height, pieces),
-        paint: () => shimModule.paint(),
-        exportSurfaces: (surfaces) => shimModule.export_surfaces(Uint32Array.from(surfaces)),
-        exported: () => shimModule.exported(),
-        importImage: (image, bitmap) => shimModule.import_image(BigInt(image), bitmap),
-        forgetImage: (image) => shimModule.forget_image(BigInt(image)),
-        took: () => shimModule.took(),
-        failure: () => shimModule.failure(),
-        woken: () => shimModule.woken(),
-        step: () => exports.plugin_step(),
-        shutdown: () => exports.plugin_shutdown(),
+        report() {
+            const painted = shimModule.paint();
+            const [gpu, submit] = shimModule.took();
+            const pictures = shimModule.exported();
+            return {
+                fields: { painted, pictures, gpu, submit },
+                transfer: pictures.map((picture) => picture.bitmap),
+                failure: shimModule.failure(),
+            };
+        },
     };
 }

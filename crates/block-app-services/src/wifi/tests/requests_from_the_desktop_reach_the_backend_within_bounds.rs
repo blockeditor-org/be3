@@ -10,8 +10,8 @@ fn connect(ssid: &str, password: Option<&str>) -> WifiRequest {
 #[test]
 fn requests_from_the_desktop_reach_the_backend_within_bounds() {
     let recorder = Recorder::default();
-    let (reports, reported) = std::sync::mpsc::channel();
-    let mut wifi = Wifi::with(Rc::new(recorder.clone()), reported);
+    let (reports, _) = block_app_base::host::mailbox(|_: WifiStatus| {});
+    let wifi = Wifi::with(Rc::new(recorder.clone()), reports);
     let hex = "0123456789abcdef".repeat(4);
     let fine = [
         WifiRequest::SetEnabled(false),
@@ -39,29 +39,5 @@ fn requests_from_the_desktop_reach_the_backend_within_bounds() {
         recorder.sent(),
         Vec::new(),
         "names and passwords no network could have are dropped"
-    );
-
-    assert_eq!(
-        wifi.frame(),
-        None,
-        "nothing is reported before the backend speaks"
-    );
-    let status = WifiStatus {
-        available: true,
-        enabled: true,
-        ..WifiStatus::default()
-    };
-    reports.send(WifiStatus::default()).unwrap();
-    reports.send(status.clone()).unwrap();
-    assert_eq!(
-        wifi.frame(),
-        Some(status.clone()),
-        "the latest report is the one sent"
-    );
-    reports.send(status).unwrap();
-    assert_eq!(
-        wifi.frame(),
-        None,
-        "a report that changed nothing is not sent again"
     );
 }

@@ -1,10 +1,10 @@
-use beui_core::geometry::{Pos2, Vec2, vec2};
-use beui_core::input::typing as keys;
-use beui_core::input::{
+use beui_runner::SCROLL_LINE as WHEEL_LINE;
+use beui_types::input::typing as keys;
+use beui_types::{
     BackEdge, BackGesture, ImeEvent, Input, Key, Modifiers, Pen, PenPhase, PointerButton,
     ScrollDelta, TouchId, TouchPhase,
 };
-use beui_runner::SCROLL_LINE as WHEEL_LINE;
+use beui_types::{Pos2, Vec2, vec2};
 
 pub type Frames = Vec<Vec<Input>>;
 

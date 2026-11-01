@@ -6,7 +6,7 @@ use text_block_types::{TextBlock, TextContent};
 async fn a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay() {
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
-    let path = harness.directory.join("device").join("refs.sqlite3");
+    let path = harness.server.directory.join("device").join("refs.sqlite3");
     let store = MemoryStore::new();
     let (kept, dropped, note, other, waiting) = {
         let refs = refs::RefsDb::open(&path).unwrap();

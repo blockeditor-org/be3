@@ -4,9 +4,9 @@ use std::rc::Rc;
 use kurbo::Shape as _;
 use stable_hash::HashMap;
 
-pub use beui_types::path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
+use beui_types::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
 
-use crate::geometry::{Pos2, Rect, pos2};
+use beui_types::{Pos2, Rect, pos2};
 
 const TOLERANCE: f32 = 0.05;
 const DOT: f64 = 0.001;

@@ -1,6 +1,5 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::native::Document;
-use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use counter_types::{Counter, CounterContent};
 use uuid::Uuid;
@@ -11,9 +10,7 @@ mod an_edit_to_the_block_shows_in_its_debug_view;
 mod the_debug_view_shows_what_the_block_holds;
 
 fn editor() -> BeuiTest<BlockDebugApp> {
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let mut test = BeuiTest::new(OwnedEditor::new(host, Uuid::from_u128(1)));
+    let mut test = BeuiTest::editing(Uuid::from_u128(1));
     test.hold(None, CounterContent::default());
     test.edit::<CounterContent>(None, &Counter::add(3));
     test.run();

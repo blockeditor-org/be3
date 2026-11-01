@@ -16,7 +16,7 @@ use block_type_api::ops::wire::Decode;
 use block_type_api::{
     Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
-    ops::{Connection, Incoming, Latest, OpError, OpId, Outcome, Reply, Side, Ticket},
+    ops::{Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Reply, Side, Ticket},
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -110,7 +110,7 @@ pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
     cache: Option<std::path::PathBuf>,
-    load: impl Fn(&block_wasm_host::PureHost) -> Result<block_wasm_host::PureGuest, String>
+    load: impl Fn(&block_wasm_host::Host) -> Result<block_wasm_host::Plugin, String>
     + Clone
     + Send
     + 'static,
@@ -122,9 +122,15 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::PureHost::new(cache.as_deref())?
-                .with_imports(block_type_api::embed::IMPORTS);
-            let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
+            let host = block_wasm_host::Host::pure(cache.as_deref())?
+                .with_direct(block_type_api::embed::IMPORTS);
+            let channel = host.spawn(
+                name.clone(),
+                move |host| load(host),
+                wake,
+                waiting,
+                block_guest_host::thread::catch,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -137,9 +143,10 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel = block_guest_host::web::WebGuest::start(
+            let channel = block_guest_host::web::WebGuest::<Infallible>::start(
                 &url,
                 block_type_api::embed::IMPORTS,
+                None,
                 wake,
                 waiting,
             )?;
@@ -153,7 +160,7 @@ struct Module {
     worker: Option<Worker<Boxed>>,
     connection: Connection,
     tag: SessionTag,
-    clock: Option<Latest<u64>>,
+    clock: Outlets<()>,
     ticked: Option<u64>,
     sleeping: Option<(u64, Reply<()>)>,
     started: Option<Ticket<Vec<TypeInfo>>>,
@@ -236,7 +243,7 @@ impl Modules {
                     worker: None,
                     connection: Connection::new(Side::Host),
                     tag: SessionTag::default(),
-                    clock: None,
+                    clock: Outlets::default(),
                     ticked: None,
                     sleeping: None,
                     started: None,
@@ -302,7 +309,7 @@ impl Modules {
         held.generation += 1;
         held.hello = false;
         held.ticked = None;
-        held.clock = None;
+        held.clock = Outlets::default();
         held.sleeping = None;
         held.connection = Connection::new(Side::Host);
         match (held.source.start)(wake, Arc::clone(&waiting)) {
@@ -490,9 +497,7 @@ impl Modules {
             return;
         }
         held.ticked = Some(now);
-        if let Some(clock) = &mut held.clock {
-            clock.send(&mut held.connection, now);
-        }
+        let _ = held.clock.send(&mut held.connection, &now, |_| true);
         if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
             && let Some((_, reply)) = held.sleeping.take()
         {
@@ -624,9 +629,9 @@ impl Modules {
                             Some(Call::Clock { stream }) => {
                                 let now = clock_now;
                                 held.ticked = Some(now);
-                                let mut clock = Latest::new(stream);
-                                clock.send(&mut held.connection, now);
-                                held.clock = Some(clock);
+                                held.clock = Outlets::default();
+                                held.clock.insert(stream, (), Backlog::Latest);
+                                let _ = held.clock.send(&mut held.connection, &now, |_| true);
                             }
                             Some(Call::SleepUntil { reply, at }) => {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
@@ -662,11 +667,11 @@ impl Modules {
                             && let Some((_, reply)) = held.sleeping.take()
                         {
                             reply.fail(&mut held.connection, OpError::Canceled);
-                        } else if held.clock.as_ref().is_some_and(|clock| clock.op() == op)
-                            && let Some(clock) = held.clock.take()
+                        } else if held
+                            .clock
+                            .end(&mut held.connection, op, Some(OpError::Canceled))
+                            .is_none()
                         {
-                            clock.finish(&mut held.connection);
-                        } else {
                             heard.push((module, Heard::Canceled { op }));
                         }
                     }
@@ -683,9 +688,7 @@ impl Modules {
                         }
                     }
                     Incoming::Credited { op } => {
-                        if let Some(clock) = &mut held.clock {
-                            clock.credited(&mut held.connection, op);
-                        }
+                        held.clock.credited(&mut held.connection, op);
                     }
                     Incoming::Yielded { .. } => {}
                 }

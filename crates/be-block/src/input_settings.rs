@@ -77,10 +77,6 @@ impl InputSettings {
         self.middle_click_paste.unwrap_or(false)
     }
 
-    pub fn set_middle_click_paste(on: Option<bool>) -> Edit {
-        Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
-    }
-
     pub fn set_remapper(choice: Option<RemapperChoice>) -> Edit {
         Self::REMAPPER.set(ObjectId::ROOT, &choice).into()
     }
@@ -250,22 +246,19 @@ impl InputSettings {
     }
 
     pub fn middle_click_paste_setting() -> Setting<Self, bool> {
-        Setting::new(
+        Setting::field(
             "middle-click-paste",
             "Middle-click paste",
-            |settings: &Self| settings.middle_click_paste,
-            |_, on| Self::set_middle_click_paste(on),
+            Self::MIDDLE_CLICK_PASTE,
+            |settings| settings.middle_click_paste,
         )
         .with_default(Some(false))
     }
 
     pub fn remapper_setting() -> Setting<Self, RemapperChoice> {
-        Setting::new(
-            "remapper",
-            "Remaps",
-            |settings: &Self| settings.remapper,
-            |_, choice| Self::set_remapper(choice),
-        )
+        Setting::field("remapper", "Remaps", Self::REMAPPER, |settings| {
+            settings.remapper
+        })
     }
 
     pub fn pointer_setting(

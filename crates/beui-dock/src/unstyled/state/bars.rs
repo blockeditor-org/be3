@@ -1,12 +1,11 @@
 use beui_view::types::{Direction, Pos2};
-use serde::{Deserialize, Serialize};
 
 use super::joined::joined_host;
 
 const MAX_HOSTING_DEPTH: usize = 16;
 use super::{DockState, Entry, GroupId, TabId, Tree};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DockEdge {
     Top,
     Bottom,
@@ -39,7 +38,7 @@ impl DockEdge {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum DockAlign {
     Start,
     #[default]
@@ -61,15 +60,11 @@ impl DockAlign {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DockBarPlacement {
     Over(DockEdge, DockAlign),
     Beside(DockEdge, DockAlign),
-    Window {
-        edge: DockEdge,
-        #[serde(with = "pos")]
-        origin: Pos2,
-    },
+    Window { edge: DockEdge, origin: Pos2 },
 }
 
 impl DockBarPlacement {
@@ -120,12 +115,11 @@ impl DockBarPlacement {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct Bar {
     pub(super) bar: TabId,
     pub(super) owner: Option<TabId>,
     pub(super) placement: DockBarPlacement,
-    #[serde(default)]
     pub(super) hidden: bool,
 }
 
@@ -388,21 +382,5 @@ impl DockState {
 
     fn bar(&self, bar: TabId) -> Option<&Bar> {
         self.bars.iter().find(|held| held.bar == bar)
-    }
-}
-
-mod pos {
-    use beui_view::types::Pos2;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(pos: &Pos2, serializer: S) -> Result<S::Ok, S::Error> {
-        [pos.x, pos.y].serialize(serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Pos2, D::Error> {
-        let [x, y] = <[f32; 2]>::deserialize(deserializer)?;
-        Ok(Pos2::new(x, y))
     }
 }

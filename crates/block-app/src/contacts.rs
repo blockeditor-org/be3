@@ -1,9 +1,8 @@
-use std::sync::mpsc::{Receiver, Sender, channel};
-
 use be_keys::{ContactCard, InviteCode};
 use uuid::Uuid;
 
 use crate::ui::{ContactRow, ContactsView};
+use block_app_base::host::{Mailbox, Post};
 use block_app_stack::invite_link::InviteLink;
 
 enum Reply {
@@ -26,7 +25,7 @@ pub(crate) struct Contacts {
     busy: bool,
     error: Option<String>,
     connected: Option<String>,
-    replies: (Sender<Reply>, Receiver<Reply>),
+    replies: (Mailbox, Post<Reply>),
     published: Option<(Option<(Uuid, Uuid)>, u64)>,
 }
 
@@ -41,7 +40,9 @@ impl Default for Contacts {
             busy: false,
             error: None,
             connected: None,
-            replies: channel(),
+            replies: crate::desk().mailbox(|app: &mut crate::BlockApp, reply| {
+                app.contacts.replied(reply);
+            }),
             published: None,
         }
     }
@@ -63,13 +64,12 @@ impl Contacts {
     }
 
     pub(crate) fn new_link(&mut self) {
-        let sender = self.replies.0.clone();
+        let post = self.replies.1.clone();
         self.busy = true;
         self.error = None;
         self.link = None;
         block_app_stack::make_contact_link(None, move |made| {
-            let _ = sender.send(Reply::Link(made));
-            block_app_base::host::wake();
+            post.send(Reply::Link(made));
         });
     }
 
@@ -95,13 +95,12 @@ impl Contacts {
             ));
             return;
         }
-        let sender = self.replies.0.clone();
+        let post = self.replies.1.clone();
         let code = link.code.clone();
         self.busy = true;
         self.error = None;
         block_app_stack::open_contact_link(link.code, move |opened| {
-            let _ = sender.send(Reply::Opened(code, opened));
-            block_app_base::host::wake();
+            post.send(Reply::Opened(code, opened));
         });
     }
 
@@ -109,11 +108,10 @@ impl Contacts {
         let Some(offered) = self.offered.take() else {
             return;
         };
-        let sender = self.replies.0.clone();
+        let post = self.replies.1.clone();
         self.busy = true;
         block_app_stack::accept_contact_link(offered.code, move |accepted| {
-            let _ = sender.send(Reply::Accepted(accepted));
-            block_app_base::host::wake();
+            post.send(Reply::Accepted(accepted));
         });
     }
 
@@ -160,16 +158,17 @@ impl Contacts {
         if ready && let Some(text) = self.waiting.take() {
             self.paste(&text, base);
         }
-        while let Ok(reply) = self.replies.1.try_recv() {
-            self.busy = false;
-            match reply {
-                Reply::Link(Ok(link)) => self.link = Some(link),
-                Reply::Opened(code, Ok(card)) => self.offered = Some(Offered { code, card }),
-                Reply::Accepted(Ok(card)) => self.connected = Some(described(&card)),
-                Reply::Link(Err(error))
-                | Reply::Opened(_, Err(error))
-                | Reply::Accepted(Err(error)) => self.error = Some(error),
-            }
+    }
+
+    fn replied(&mut self, reply: Reply) {
+        self.busy = false;
+        match reply {
+            Reply::Link(Ok(link)) => self.link = Some(link),
+            Reply::Opened(code, Ok(card)) => self.offered = Some(Offered { code, card }),
+            Reply::Accepted(Ok(card)) => self.connected = Some(described(&card)),
+            Reply::Link(Err(error))
+            | Reply::Opened(_, Err(error))
+            | Reply::Accepted(Err(error)) => self.error = Some(error),
         }
     }
 

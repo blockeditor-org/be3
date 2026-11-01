@@ -1,5 +1,5 @@
-use crate::color::Color32;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use beui_types::Color32;
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 pub const MARGIN: f32 = 20.0;
 pub const MINIMUM_SIZE: f32 = 100.0;

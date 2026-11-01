@@ -6,8 +6,10 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 beui-layer-drive = { path = "../beui-layer-drive" }
+paint-snapshot = { path = "../paint-snapshot" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }

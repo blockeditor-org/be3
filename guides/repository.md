@@ -28,7 +28,7 @@ that build on it. VISION.md says why each part exists.
   be-launcher's build output), and the beui view that draws lines (the terminal
   editor and be-launcher).
 - The editors under `crates/editors`, except the debug and example ones below.
-- The desktop: the desktop editor, `be-wayland` and `beui-platform-drm`; on Windows, `be-win32` and `be-win32-capture`.
+- The desktop: the desktop editor, `window-stack` (the window manager block-app and the plugin tests share), `be-wayland` and `beui-platform-drm`; on Windows, `be-win32` and `be-win32-capture`.
 
 ## Tooling
 
@@ -51,8 +51,7 @@ that build on it. VISION.md says why each part exists.
 
 ## Debug and example editors
 
-counter, triangle, pan-zoom, beui-gallery, block-debug, checklist and
-pixel-ray-tracer. They exercise the platform; they are not apps.
+counter, triangle, pan-zoom, beui-gallery, block-debug and checklist. They exercise the platform; they are not apps.
 
 ## Separate projects
 

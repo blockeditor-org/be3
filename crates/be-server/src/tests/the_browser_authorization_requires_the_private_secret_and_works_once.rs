@@ -77,7 +77,7 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
     ));
     assert!(matches!(
         other
-            .call(|peer| client::account::authenticate(peer, token))
+            .call(|peer| client::account::authenticate(peer, Some(token)))
             .await,
         Ok(_)
     ));

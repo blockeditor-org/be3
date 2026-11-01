@@ -1,10 +1,10 @@
 use super::*;
 use crate::base::drawing::DrawingNode;
-use crate::damage::Region;
 use crate::drawing::Drawing;
 use crate::native::{Draw, DrawAt};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::geometry::Region;
 
 struct Blank;
 

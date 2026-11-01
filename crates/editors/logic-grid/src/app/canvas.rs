@@ -388,9 +388,11 @@ impl LogicGridEditor {
         if self.tool.kind != ToolKind::Wire {
             return;
         }
-        if let Some(wire) =
-            deletion_wire(self.grid.wires(), world, WIRE_HIT_RADIUS / self.camera.zoom)
-        {
+        if let Some(wire) = deletion_wire(
+            self.grid.wires(),
+            world,
+            WIRE_HIT_RADIUS / self.camera.scale,
+        ) {
             self.edit(LogicGridOperation::RemoveWireSegment { wire });
         }
     }
@@ -636,8 +638,12 @@ impl LogicGridEditor {
                 DebugEntity::Wire(_) | DebugEntity::WireEndpoint(_) => unreachable!(),
             })
             .or_else(|| {
-                nearest_wire_endpoint(self.grid.wires(), point, WIRE_HIT_RADIUS / self.camera.zoom)
-                    .map(DebugEntity::WireEndpoint)
+                nearest_wire_endpoint(
+                    self.grid.wires(),
+                    point,
+                    WIRE_HIT_RADIUS / self.camera.scale,
+                )
+                .map(DebugEntity::WireEndpoint)
             })
     }
 

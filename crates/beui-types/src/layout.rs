@@ -1,3 +1,4 @@
+use beui_tree::reactive::into_prop_via;
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
 use geometry::{Rect, Vec2, vec2};
 
@@ -508,40 +509,6 @@ impl From<f32> for Corners {
     fn from(radius: f32) -> Self {
         Self::all(radius)
     }
-}
-
-macro_rules! into_prop_via {
-    ($target:ty, $value:ty, $convert:expr) => {
-        impl IntoProp<$target> for $value {
-            fn into_prop(self) -> Prop<$target> {
-                Prop::Static(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Prop<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                self.map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Memo<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for ReadSignal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Signal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-    };
 }
 
 into_prop_via!(Extent, f32, Extent::px);

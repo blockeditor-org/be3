@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use be_block::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_client::transfer::Saved;
-use be_client::{Peer, Saved as Published};
+use be_client::{Peer, Saved as Published, Write};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_store::{ChunkRef, Hash, Manifest, ObjectStore};
@@ -1668,14 +1668,11 @@ impl Change {
         let mut head = self.head;
         if let Some(file) = &self.file {
             match peer
-                .save_encoded(
+                .write(
                     self.id,
-                    file.block_type,
-                    &file.content,
-                    file.references.clone(),
-                    file.derived.clone(),
-                    self.head,
-                    Some(self.defined.clone()),
+                    Write::encoded(file.block_type, &file.content, self.head)
+                        .described(file.references.clone(), file.derived.clone())
+                        .defined(self.defined.clone()),
                 )
                 .await
             {
@@ -1740,14 +1737,10 @@ async fn list_children<S: ObjectStore>(
             .describe(block_type, &content, peer.organization())
             .await?;
         match peer
-            .publish_encoded(
+            .write(
                 folder,
-                block_type,
-                &content,
-                description.references,
-                description.derived,
-                head,
-                None,
+                Write::encoded(block_type, &content, head)
+                    .described(description.references, description.derived),
             )
             .await
             .map_err(explain)?

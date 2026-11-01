@@ -9,8 +9,8 @@ be-dmabuf = { path = "../be-dmabuf" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
-bytemuck = { version = "1", features = ["derive"] }
 rustix = { version = "1", features = ["event"] }
 smithay = { version = "0.7", default-features = false, features = ["backend_drm", "backend_gbm", "backend_libinput", "backend_session_libseat", "backend_udev"] }
 stable-hash = { path = "../stable-hash" }

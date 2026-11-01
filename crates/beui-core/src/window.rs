@@ -1,12 +1,9 @@
 pub(crate) mod hosted;
 
-use crate::color::Color32;
-use crate::geometry::Vec2;
+use beui_types::Color32;
+use beui_types::Vec2;
 
-pub use ui_types::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests, WindowRole,
-};
+use beui_types::window::WindowRequests;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum WindowHosting {
@@ -62,7 +59,7 @@ pub struct WindowState {
     pub appearance: Appearance,
 }
 
-pub use beui_types::window::SystemBars;
+use beui_types::SystemBars;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Appearance {
@@ -111,7 +108,7 @@ struct Reported {
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
     touchscreen: std::cell::Cell<Option<bool>>,
-    preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
+    preferences: std::cell::Cell<Option<beui_types::PreferenceLayer>>,
 }
 
 #[derive(Clone, Default)]
@@ -138,11 +135,11 @@ impl WindowReports {
         self.0.touchscreen.set(Some(attached));
     }
 
-    pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
+    pub fn system_preferences(&self, preferences: beui_types::PreferenceLayer) {
         self.0.preferences.set(Some(preferences));
     }
 
-    pub fn take_system_preferences(&self) -> Option<crate::preferences::PreferenceLayer> {
+    pub fn take_system_preferences(&self) -> Option<beui_types::PreferenceLayer> {
         self.0.preferences.take()
     }
 

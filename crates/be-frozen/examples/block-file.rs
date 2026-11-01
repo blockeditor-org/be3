@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, time::Duration};
+use std::{fmt::Display, path::PathBuf};
 use workspace_ui_types::FolderContent;
 
 use be_block::{BlockContent, BlockMetadata};
@@ -8,7 +8,6 @@ use be_frozen::scene;
 use be_graph::BlockParent;
 use be_store::MemoryStore;
 use text_block_types::{TextBlock, TextContent};
-use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 fn main() -> Result<(), String> {
@@ -26,45 +25,21 @@ fn main() -> Result<(), String> {
         ));
     }
     build_id::install("block-file");
-    let data = std::env::temp_dir().join(format!("be-block-file-{}", Uuid::new_v4()));
     let bytes = tokio::runtime::Runtime::new()
         .map_err(text)?
-        .block_on(serve(&data));
-    let _ = std::fs::remove_dir_all(&data);
+        .block_on(write());
     std::fs::write(&file, bytes?).map_err(text)?;
     println!("wrote {}", file.display());
     Ok(())
 }
 
-async fn serve(data: &std::path::Path) -> Result<Vec<u8>, String> {
-    let listener = TcpListener::bind("127.0.0.1:0").await.map_err(text)?;
-    let url = format!("http://{}", listener.local_addr().map_err(text)?);
-    let (stop, stopped) = oneshot::channel::<()>();
-    let server = tokio::spawn(be_server::serve_with_config(
-        listener,
-        data.to_path_buf(),
-        be_server::ServerConfig::OPEN,
-        stopped,
-    ));
-    let written = write(&url, data).await;
-    let _ = stop.send(());
-    let _ = tokio::time::timeout(Duration::from_secs(10), server).await;
-    written
-}
-
-async fn write(url: &str, data: &std::path::Path) -> Result<Vec<u8>, String> {
+async fn write() -> Result<Vec<u8>, String> {
+    let server = be_server::Running::start(be_server::ServerConfig::OPEN).await;
     let owner = Peer::connect(
         PeerConfig::new(
-            be_client::socket_url(url),
+            be_client::socket_url(&server.url),
             be_keys::RecoveryPhrase::generate().secret(),
-            Credentials::Token(
-                be_server::ServerStore::open(data)
-                    .map_err(text)?
-                    .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
-                    .await
-                    .map_err(text)?
-                    .1,
-            ),
+            Credentials::Token(server.register(scene::OWNER_EMAIL, scene::OWNER_NAME).await),
         ),
         MemoryStore::new(),
     )

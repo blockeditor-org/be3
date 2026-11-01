@@ -14,7 +14,7 @@ fn a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles() {
     let body = harness.rect(harness.find("content.1"));
     let grip = harness.center(harness.find("dock.bar.9.grip"));
 
-    harness.press_at(grip);
+    harness.down(grip, PointerButton::Primary);
     let start = pos2(body.center().x - 120.0, body.center().y);
     harness.hover(grip + vec2(0.0, 20.0));
     harness.hover(start);
@@ -24,7 +24,7 @@ fn a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles() {
         at += vec2(40.0, 0.0);
         harness.hover(at);
     }
-    harness.release_at(at);
+    harness.up(at, PointerButton::Primary);
     assert_eq!(
         dock.layout.bar_placement(&9),
         Some(DockBarPlacement::Over(DockEdge::Right, DockAlign::Center)),

@@ -5,13 +5,14 @@ use super::*;
 #[test]
 fn a_pure_guest_that_panics_reports_its_panic_message() {
     let waiting = Arc::default();
-    let channel = PureHost::new(None)
+    let channel = Host::pure(None)
         .unwrap()
         .spawn(
             "echo".to_owned(),
             |host| host.load_bytes(ECHO),
             Arc::new(|| {}),
             Arc::clone(&waiting),
+            block_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = block_guest_host::Worker::new(channel, waiting);

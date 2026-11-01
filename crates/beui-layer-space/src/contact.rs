@@ -1,4 +1,4 @@
-use beui_core::geometry::{Pos2, Rect, pos2};
+use beui_types::{Pos2, Rect, pos2};
 use glam::Vec3;
 
 use crate::chrome;

@@ -2,8 +2,8 @@ use std::{fs, io::Read, path::PathBuf};
 
 use be_cli::tracker::Tracker;
 use be_client::{Credentials, Peer, PeerConfig};
+use be_server::Running;
 use be_store::MemoryStore;
-use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use uuid::Uuid;
 
 use crate::scene;
@@ -18,68 +18,28 @@ pub(crate) fn sources() -> be_cli::tracker::Sources {
     Box::new(first_party_types::sources)
 }
 
-struct Server {
-    url: String,
-    data: PathBuf,
-    stop: Option<oneshot::Sender<()>>,
-    handle: JoinHandle<()>,
+async fn start(data: Option<PathBuf>) -> Running {
+    build_id::install("frozen");
+    match data {
+        Some(data) => Running::at(data, be_server::ServerConfig::OPEN).await,
+        None => Running::start(be_server::ServerConfig::OPEN).await,
+    }
 }
 
-impl Server {
-    async fn start() -> Self {
-        Self::serve(std::env::temp_dir().join(format!("be-frozen-{}", Uuid::new_v4()))).await
-    }
-
-    async fn serve(data: PathBuf) -> Self {
-        build_id::install("frozen");
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        let (stop, stopped) = oneshot::channel::<()>();
-        let served = data.clone();
-        let handle = tokio::spawn(async move {
-            be_server::serve_with_config(listener, served, be_server::ServerConfig::OPEN, stopped)
-                .await
-                .expect("the server starts");
-        });
-        Self {
-            url,
-            data,
-            stop: Some(stop),
-            handle,
-        }
-    }
-
-    async fn owner(&self) -> Tracker<MemoryStore> {
-        Tracker::new(
-            Peer::connect(
-                PeerConfig::new(
-                    be_client::socket_url(&self.url),
-                    be_keys::RecoveryPhrase::generate().secret(),
-                    Credentials::Token(
-                        be_server::ServerStore::open(&self.data)
-                            .unwrap()
-                            .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
-                            .await
-                            .unwrap()
-                            .1,
-                    ),
-                ),
-                MemoryStore::new(),
-            )
-            .await
-            .unwrap(),
-            sources(),
+async fn owner(server: &Running) -> Tracker<MemoryStore> {
+    Tracker::new(
+        Peer::connect(
+            PeerConfig::new(
+                be_client::socket_url(&server.url),
+                be_keys::RecoveryPhrase::generate().secret(),
+                Credentials::Token(server.register(scene::OWNER_EMAIL, scene::OWNER_NAME).await),
+            ),
+            MemoryStore::new(),
         )
-    }
-
-    async fn stop(mut self) {
-        if let Some(stop) = self.stop.take() {
-            let _ = stop.send(());
-        }
-        self.handle.abort();
-        let _ = self.handle.await;
-        let _ = std::fs::remove_dir_all(&self.data);
-    }
+        .await
+        .unwrap(),
+        sources(),
+    )
 }
 
 struct Unpacked {

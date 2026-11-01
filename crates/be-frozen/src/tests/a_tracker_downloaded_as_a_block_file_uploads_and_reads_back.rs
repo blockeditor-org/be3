@@ -7,8 +7,8 @@ use text_block_types::TextContent;
 
 #[tokio::test]
 async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {
-    let server = Server::start().await;
-    let tracker = server.owner().await;
+    let server = start(None).await;
+    let tracker = owner(&server).await;
     let blocks = be_client::transfer::decode(TRACKER).unwrap();
     let uploaded = tracker.upload(blocks, BlockParent::Root).await.unwrap();
     assert_eq!(uploaded.blocks, 6);

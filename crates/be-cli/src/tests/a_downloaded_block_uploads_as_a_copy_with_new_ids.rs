@@ -74,14 +74,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
             PeerConfig::new(
                 be_client::socket_url(&harness.url),
                 be_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Token(
-                    be_server::ServerStore::open(&harness.directory)
-                        .unwrap()
-                        .register("other@example.com", "Other", "correct horse battery")
-                        .await
-                        .unwrap()
-                        .1,
-                ),
+                Credentials::Token(harness.register("other@example.com", "Other").await),
             ),
             MemoryStore::new(),
         )

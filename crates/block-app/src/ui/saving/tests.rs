@@ -8,6 +8,7 @@ use beui_host::native::testing::{Showing, Stepped};
 use super::*;
 use crate::ui::{AppView, Root as AppRoot, StatusView, SyncState};
 use beui_host::native::build;
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 
 fn saving(saved: bool, saves: u64) -> AppView {
     AppView {
@@ -33,7 +34,7 @@ impl Saving {
         let mut view = None;
         let document = build(|| {
             crate::compositor::install();
-            block_app_desktop::desktop_host::create();
+            Host::create();
             crate::surfaces::create_handles();
             let store = AppViewStore::new(saving(false, 0));
             view = Some(store);

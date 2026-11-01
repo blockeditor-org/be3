@@ -1,15 +1,15 @@
 use std::time::{Duration, Instant};
 
 use beui_core::context::{Context, FrameOutput};
-use beui_core::geometry::Rect;
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{
+use beui_runner::{Controller, Hand, HandPose, Incoming, LayerView, Units};
+use beui_types::Rect;
+use beui_types::{
     CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchPhase,
 };
-use beui_core::window::{
+use beui_types::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
 };
-use beui_runner::{Controller, Hand, HandPose, Incoming, LayerView, Units};
+use beui_types::{Pos2, Vec2, pos2, vec2};
 use glam::Vec3;
 
 use crate::chrome::{self, Corner, Part};
@@ -489,6 +489,5 @@ fn assert_scene(
     let frame = space.scene(windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(name, &snapshot, &format!("./scripts/test {name} --update"));
+    paint_snapshot::assert_painting(name, painting);
 }

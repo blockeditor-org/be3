@@ -1,7 +1,7 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn dismissing_an_escaped_layer_asks_it_to_close_as_a_press_outside_does() {

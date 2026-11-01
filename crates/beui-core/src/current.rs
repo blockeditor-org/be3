@@ -138,13 +138,13 @@ pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
 
 pub fn layout_text(
     text: &str,
-    font: crate::font::FontId,
-    layout: crate::font::TextLayout,
+    font: beui_types::FontId,
+    layout: beui_types::TextLayout,
 ) -> Option<crate::font::Galley> {
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
-pub fn type_events(events: Vec<crate::input::Input>) {
+pub fn type_events(events: Vec<beui_types::Input>) {
     with_document(|document| {
         if let Some(context) = document.context() {
             context.type_events(events);
@@ -176,6 +176,6 @@ pub fn close_keyboard() {
     });
 }
 
-pub fn last_pointer() -> Option<crate::input::PointerSample> {
+pub fn last_pointer() -> Option<beui_types::PointerSample> {
     try_with_document(|document| document.last_pointer).flatten()
 }

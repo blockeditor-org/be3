@@ -243,3 +243,38 @@ impl<V, R> IntoFunc<V, R> for Func<V, R> {
         self
     }
 }
+
+#[macro_export]
+macro_rules! into_prop_via {
+    ($target:ty, $value:ty, $convert:expr) => {
+        impl $crate::reactive::IntoProp<$target> for $value {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::Prop::Static(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Prop<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                self.map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Memo<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::ReadSignal<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Signal<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+    };
+}

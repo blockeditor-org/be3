@@ -1,14 +1,14 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use beui::Event;
+use beui::NodeId;
 use beui::native::with_reactive_scope;
 use beui::reactive::*;
 use beui::styled;
 use beui::styled::{Window, WindowHandle};
+use beui::{Pos2, pos2};
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, pos2};
-use beui_core::input::Event;
-use beui_core::node::NodeId;
 use block_editor_plugin::{EditorInstanceId, FrameSpec, Input, Module};
 
 use std::any::Any;

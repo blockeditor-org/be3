@@ -1,13 +1,15 @@
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
-use crate::clipboard::{PasteKind, Pasted};
-use crate::geometry::{Rect, Vec2};
-use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard, SoftKeyboard};
+use beui_types::SoftKeyboard;
+use beui_types::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Rect, Vec2};
 
-use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
+use crate::node::{Element, FocusChild, NodeOf, Rects};
+use beui_tree::callback::{Callback, ClickCallback};
+use beui_types::NodeId;
 use std::ops::Range;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
@@ -20,7 +22,7 @@ enum TabStop {
     Unbuilt(NodeId, Range<usize>),
 }
 
-pub use beui_types::node::ImeCursor;
+use beui_types::ImeCursor;
 
 pub struct Focus {
     pub tab_stop: bool,

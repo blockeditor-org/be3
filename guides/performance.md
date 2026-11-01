@@ -53,21 +53,22 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
 - The open bench builds a new document for each open, so the per-node tables a document
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
-- `//crates/beui-demo:example-space-resize-bench` runs the demo in the VR simulator
-  (`beui_layer_space::Space` as the runner's host) on an offscreen GPU, floats the
-  Docking tab into a window of its own, and drags a corner of the main panel and of that
-  window for 60 frames each, through the platform pixels a mouse sends. It prints each
-  resize's median and slowest frame (`Runner::frame`, which runs the compositor's
-  drawing, and `present`), beui's layout and paint, and how many windows' outputs changed
-  (`VERBOSE=1` prints every frame). `NO_GPU=1` leaves out the GPU and so measures the
-  app's own work. On lavapipe `present` is mostly the software rasterizer; judge
-  `frame`. In October 2026 a resize step's `frame` was 7 to 9 ms, after 90 to 100 ms
-  while each window built a new `Renderer` (pipelines, glyph atlases) for every new size.
-- `//crates/beui-demo:example-space-cursor-bench` runs the demo in the VR simulator the
-  same way, finds two points of the main panel whose cursor icons differ, and moves the
-  pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
-  over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
-  after 32 ms while the cursor sprite built a new `Renderer` for every icon.
+- `//crates/beui-demo:example-space-bench -- [cursor|resize]` (the suite's `space`) runs the
+  demo in the VR simulator (`beui_layer_space::Space` as the runner's host) on an offscreen
+  GPU, through the platform pixels a mouse sends, in each mode (both by default) on a runner
+  of its own. For each scene it prints the median and slowest frame (`Runner::frame`, which
+  runs the compositor's drawing, and `present`), beui's layout and paint, and how many
+  windows' outputs changed (`VERBOSE=1` prints every frame). `NO_GPU=1` leaves out the GPU
+  and so measures the app's own work. On lavapipe `present` is mostly the software
+  rasterizer; judge `frame`.
+  - `resize` floats the Docking tab into a window of its own, and drags a corner of the
+    main panel and of that window for 60 frames each. In October 2026 a resize step's
+    `frame` was 7 to 9 ms, after 90 to 100 ms while each window built a new `Renderer`
+    (pipelines, glyph atlases) for every new size.
+  - `cursor` finds two points of the main panel whose cursor icons differ, and moves the
+    pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
+    over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
+    after 32 ms while the cursor sprite built a new `Renderer` for every icon.
 - `//crates/beui-host:example-text-bench -- [NAME]` times resizing and editing text.
 - Both beui benches run their frames through the real `Runner`, with no drive layer (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A

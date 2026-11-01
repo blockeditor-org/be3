@@ -9,30 +9,35 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::child_list::{ChildHost, NodeChildren};
 use crate::context::{Context, Moved};
-use crate::damage::{Damage, Region};
-use crate::file_picker::{FileFilter, FilePick, FilePickId};
-use crate::file_saver::{FileSave, FileSaveId, SavedFile};
+use crate::damage::Damage;
+use crate::file_picker::FilePickId;
+use crate::file_saver::FileSaveId;
 use crate::flash::FlashLog;
-use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::input::{Key, KeyChord, Modifiers};
+use crate::font::Galley;
+use crate::window::Appearance;
 use crate::window::hosted::Painting;
-use crate::window::{Appearance, WindowId};
+use beui_tree::child_list::SlotId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{FileFilter, FilePick};
+use beui_types::{FileSave, SavedFile};
+use beui_types::{FontId, TextLayout};
+use beui_types::{Key, KeyChord, Modifiers};
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::display::Display;
 use crate::interact;
 use crate::layout;
-use crate::node::{
-    ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
-};
+use crate::node::{ANCESTOR_LIMIT, Arena, Element, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache, verify};
 use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
-use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 use crate::sight::Sight;
+use beui_types::NodeId;
+use beui_types::PixelGrid;
 use beui_types::layout::Direction;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
@@ -75,7 +80,7 @@ pub struct Document {
     keyboard_host: Option<Box<dyn crate::software_keyboard::KeyboardHost>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
-    pub last_pointer: Option<crate::input::PointerSample>,
+    pub last_pointer: Option<beui_types::PointerSample>,
     work_areas: HashMap<WindowId, Rect>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
@@ -110,10 +115,10 @@ pub struct Document {
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub(crate) clear_of: HashMap<NodeId, Vec<Rect>>,
-    pub(crate) above_embeds: HashMap<NodeId, crate::layer::AboveEmbeds>,
+    pub(crate) above_embeds: HashMap<NodeId, beui_types::AboveEmbeds>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
-    pub drags: Rc<crate::drag_board::Board>,
+    pub drags: Option<Rc<dyn beui_types::drag::Driver>>,
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
@@ -144,7 +149,7 @@ pub struct Document {
     layout_frame: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
-    pinned_to_end: Option<crate::base::list::Direction>,
+    pinned_to_end: Option<beui_types::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
@@ -177,11 +182,11 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
-    motion: ::reactive::OwnedSignal<crate::animation::Motion>,
-    theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
-    colors: std::rc::Rc<crate::color::ColorDefinitions>,
-    canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
-    preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
+    motion: ::reactive::OwnedSignal<beui_types::Motion>,
+    theme: ::reactive::OwnedSignal<beui_types::ThemeKind>,
+    colors: std::rc::Rc<beui_types::ColorDefinitions>,
+    canvas_touch: ::reactive::OwnedSignal<beui_types::CanvasTouch>,
+    preference_layers: ::reactive::OwnedSignal<beui_types::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
     pub(crate) windows: crate::window::hosted::Windows,
@@ -312,7 +317,7 @@ impl Document {
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
-            drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
+            drags: None,
             rects,
             tools: None,
             keyboard_host: None,
@@ -399,7 +404,7 @@ impl Document {
             copied_text: None,
             copied_image: None,
             next_paint: None,
-            now: Instant::now(),
+            now: crate::timer::frame_clock(),
             reactive_scope: ::reactive::Scope::new(),
             zone,
             extensions: HashMap::default(),
@@ -419,8 +424,8 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
-            motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
-            theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            motion: ::reactive::OwnedSignal::new(beui_types::Motion::default()),
+            theme: ::reactive::OwnedSignal::new(beui_types::ThemeKind::default()),
             colors: std::rc::Rc::default(),
             canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
@@ -485,6 +490,10 @@ impl Document {
         let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
         crate::current::with_reactive_scope(self, || scope.dispose());
         ::reactive::forget_zone(self.zone);
+    }
+
+    pub fn dragging(&self) -> bool {
+        self.drags.as_ref().is_some_and(|drags| drags.carrying())
     }
 
     pub fn extension<T: Clone + 'static>(&self) -> Option<T> {
@@ -629,10 +638,10 @@ impl Document {
 
     pub fn listen_keys(
         &self,
-        at: crate::keys::KeyAt,
-        phase: crate::keys::KeyPhase,
+        at: beui_types::KeyAt,
+        phase: beui_types::KeyPhase,
         reveal: bool,
-        handler: Weak<crate::keys::KeyHandler>,
+        handler: Weak<beui_types::keys::KeyHandler>,
         window: Option<WindowId>,
     ) {
         self.keys.listen(at, phase, reveal, handler, window);
@@ -866,7 +875,7 @@ impl Document {
         self.changes.set_enabled(enabled);
     }
 
-    pub fn motion(&self) -> crate::animation::Motion {
+    pub fn motion(&self) -> beui_types::Motion {
         self.motion.get_untracked()
     }
 
@@ -874,35 +883,35 @@ impl Document {
         Rc::clone(&self.animations)
     }
 
-    pub fn watch_motion(&self) -> ::reactive::ReadSignal<crate::animation::Motion> {
+    pub fn watch_motion(&self) -> ::reactive::ReadSignal<beui_types::Motion> {
         self.motion.read_only()
     }
 
-    pub fn preferences(&self) -> crate::preferences::Preferences {
-        crate::preferences::Preferences {
+    pub fn preferences(&self) -> beui_types::Preferences {
+        beui_types::Preferences {
             theme: self.theme.get_untracked(),
             motion: self.motion.get_untracked(),
             canvas_touch: self.canvas_touch.get_untracked(),
         }
     }
 
-    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
+    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<beui_types::CanvasTouch> {
         self.canvas_touch.read_only()
     }
 
-    pub fn color_scheme(&self) -> crate::color::ColorScheme {
+    pub fn color_scheme(&self) -> beui_types::ColorScheme {
         self.theme.get_untracked().into()
     }
 
-    pub fn resolve_color(&self, color: crate::color::Color) -> crate::color::Color32 {
+    pub fn resolve_color(&self, color: beui_types::Color) -> beui_types::Color32 {
         color.resolve_in(&self.colors, self.color_scheme())
     }
 
-    pub fn color_definitions(&self) -> std::rc::Rc<crate::color::ColorDefinitions> {
+    pub fn color_definitions(&self) -> std::rc::Rc<beui_types::ColorDefinitions> {
         self.colors.clone()
     }
 
-    pub fn set_color_definitions(&mut self, colors: crate::color::ColorDefinitions) {
+    pub fn set_color_definitions(&mut self, colors: beui_types::ColorDefinitions) {
         if *self.colors == colors {
             return;
         }
@@ -916,17 +925,15 @@ impl Document {
         }
     }
 
-    pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
+    pub fn watch_theme(&self) -> ::reactive::ReadSignal<beui_types::ThemeKind> {
         self.theme.read_only()
     }
 
-    pub fn watch_preference_layers(
-        &self,
-    ) -> ::reactive::ReadSignal<crate::preferences::PreferenceLayers> {
+    pub fn watch_preference_layers(&self) -> ::reactive::ReadSignal<beui_types::PreferenceLayers> {
         self.preference_layers.read_only()
     }
 
-    fn follow_preferences(&mut self, layers: crate::preferences::PreferenceLayers) {
+    fn follow_preferences(&mut self, layers: beui_types::PreferenceLayers) {
         if self.preference_layers.get_untracked() == layers {
             return;
         }
@@ -938,8 +945,8 @@ impl Document {
                 document.motion.set(preferences.motion);
             }
             if document.theme.get_untracked() != preferences.theme {
-                if crate::color::ColorScheme::from(document.theme.get_untracked())
-                    != crate::color::ColorScheme::from(preferences.theme)
+                if beui_types::color::ColorScheme::from(document.theme.get_untracked())
+                    != beui_types::color::ColorScheme::from(preferences.theme)
                 {
                     document.arena.invalidate();
                 }
@@ -1426,7 +1433,7 @@ impl Document {
             .focused
             .and_then(|focused| self.layer_of(&layers, focused))
             .is_some_and(|layer| {
-                layer > 0 && layers[layer].policy != crate::layer::LayerPolicy::Pass
+                layer > 0 && layers[layer].policy != beui_types::layer::LayerPolicy::Pass
             });
         if layers.takes_keyboard() || focused_modal {
             ctx.want_keyboard();
@@ -2264,12 +2271,12 @@ impl Document {
 
     pub(crate) fn replace_pinned_to_end(
         &mut self,
-        pinned: Option<crate::base::list::Direction>,
-    ) -> Option<crate::base::list::Direction> {
+        pinned: Option<beui_types::Direction>,
+    ) -> Option<beui_types::Direction> {
         std::mem::replace(&mut self.pinned_to_end, pinned)
     }
 
-    pub fn pinned_to_end(&self) -> Option<crate::base::list::Direction> {
+    pub fn pinned_to_end(&self) -> Option<beui_types::Direction> {
         self.pinned_to_end
     }
 
@@ -2681,8 +2688,8 @@ impl Document {
 
     pub fn rich_layout(
         &self,
-        pieces: &[crate::rich::Piece],
-        options: crate::rich::RichOptions,
+        pieces: &[beui_types::Piece],
+        options: beui_types::RichOptions,
     ) -> Option<crate::rich::RichLayout> {
         let (ctx, _, _) = self.viewport.as_ref()?;
         Some(ctx.painter().rich_layout(pieces, options))

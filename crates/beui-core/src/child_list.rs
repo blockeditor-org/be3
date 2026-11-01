@@ -1,6 +1,6 @@
-pub use beui_tree::child_list::{ChildList, SlotId};
+use beui_tree::child_list::{ChildList, SlotId};
 
-use crate::node::NodeId;
+use beui_types::NodeId;
 
 pub trait ChildItem {
     fn node(&self) -> Option<NodeId>;

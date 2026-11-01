@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
-use grapheme_segmentation::is_grapheme_boundary;
+use grapheme_segmentation::{WordClass, is_grapheme_boundary, word_around, word_classes};
 use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
 
@@ -424,13 +424,6 @@ impl Core {
         Some(anchor.min(focus)..anchor.max(focus))
     }
 
-    pub fn find_matches(&self, query: &str, case_sensitive: bool) -> Vec<Range<usize>> {
-        self.document
-            .read()
-            .map(|read| scan_matches(DocumentView::new(&*read).bytes(), query, case_sensitive))
-            .unwrap_or_default()
-    }
-
     pub fn find_status(&self, query: &str, case_sensitive: bool) -> FindStatus {
         let Some(read) = self.document.read() else {
             return FindStatus::default();
@@ -660,42 +653,6 @@ impl Core {
         Position::at(
             &document,
             line_start(document.bytes(), position.resolve(&document)),
-        )
-    }
-
-    pub fn get_prev_line_start(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        let current = line_start(document.bytes(), position.resolve(&document));
-        let previous = if current == 0 {
-            0
-        } else {
-            line_start(document.bytes(), current - 1)
-        };
-        Position::at(&document, previous)
-    }
-
-    pub fn get_next_line_start(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        Position::at(
-            &document,
-            next_line_start(document.bytes(), position.resolve(&document)),
-        )
-    }
-
-    pub fn get_this_line_end(&self, position: Position) -> Position {
-        let Some(read) = self.document.read() else {
-            return position;
-        };
-        let document = DocumentView::new(&*read);
-        Position::at(
-            &document,
-            line_end(document.bytes(), position.resolve(&document)),
         )
     }
 
@@ -1862,8 +1819,10 @@ impl Core {
         }
         if drag.selection_mode == DragSelectionMode::select(CursorLeftRightStop::Word) {
             let stops = self.cursor_stops();
-            let (anchor_start, anchor_end) = word_around(document.bytes(), anchor, stops);
-            let (focus_start, focus_end) = word_around(document.bytes(), focus, stops);
+            let bytes = document.bytes();
+            let joined = |index| (stops.inside_atomic_unit)(bytes, index);
+            let (anchor_start, anchor_end) = word_around(bytes, anchor, joined);
+            let (focus_start, focus_end) = word_around(bytes, focus, joined);
             let minimum = anchor_start.min(focus_start);
             let maximum = anchor_end.max(focus_end);
             let (from, to) = if focus < anchor {
@@ -2593,13 +2552,12 @@ fn has_stop(
             is_grapheme_boundary(bytes, index).then_some(BetweenCharsStop::Both)
         }
         CursorLeftRightStop::Word => {
-            let left = ascii_classification(left);
-            let right = ascii_classification(right);
+            let (left, right) = word_classes(bytes, index)?;
             if left == right {
                 None
-            } else if left == AsciiClassification::Whitespace {
+            } else if left == WordClass::Space {
                 Some(BetweenCharsStop::LeftOrSelect)
-            } else if right == AsciiClassification::Whitespace {
+            } else if right == WordClass::Space {
                 Some(BetweenCharsStop::RightOrSelect)
             } else {
                 Some(BetweenCharsStop::Both)
@@ -2649,56 +2607,6 @@ pub(crate) fn render_stops(
         }
     }
     result
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum AsciiClassification {
-    Whitespace,
-    Symbols,
-    Text,
-    Unicode,
-}
-
-fn word_around(bytes: &[u8], index: usize, stops: CursorStops) -> (usize, usize) {
-    let index = index.min(bytes.len());
-    let in_line = |byte: &u8| !matches!(byte, b'\n' | b'\r');
-    let word = |byte: &u8| in_line(byte) && !byte.is_ascii_whitespace();
-    let right = bytes.get(index);
-    let left = index.checked_sub(1).and_then(|left| bytes.get(left));
-    let seed = if right.is_some_and(word) {
-        index
-    } else if left.is_some_and(word) {
-        index - 1
-    } else if right.is_some_and(in_line) {
-        index
-    } else if left.is_some_and(in_line) {
-        index - 1
-    } else {
-        return (index, index);
-    };
-    let class = ascii_classification(bytes[seed]);
-    let same = |byte: u8| in_line(&byte) && ascii_classification(byte) == class;
-    let mut start = seed;
-    while start > 0 && (same(bytes[start - 1]) || (stops.inside_atomic_unit)(bytes, start)) {
-        start -= 1;
-    }
-    let mut end = seed + 1;
-    while end < bytes.len() && (same(bytes[end]) || (stops.inside_atomic_unit)(bytes, end)) {
-        end += 1;
-    }
-    (start, end)
-}
-
-fn ascii_classification(byte: u8) -> AsciiClassification {
-    if byte.is_ascii_alphanumeric() || byte == b'_' {
-        AsciiClassification::Text
-    } else if byte.is_ascii_whitespace() {
-        AsciiClassification::Whitespace
-    } else if byte >= 0x80 {
-        AsciiClassification::Unicode
-    } else {
-        AsciiClassification::Symbols
-    }
 }
 
 fn is_utf8_leading_byte(byte: u8) -> bool {

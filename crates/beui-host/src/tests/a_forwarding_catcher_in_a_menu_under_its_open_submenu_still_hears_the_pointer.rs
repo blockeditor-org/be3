@@ -1,8 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer() {

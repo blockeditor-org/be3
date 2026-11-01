@@ -25,6 +25,7 @@ mod a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size
 mod a_new_folder_opens_its_editor;
 mod a_new_image_asks_for_its_file_in_the_image_editors_own_dialog;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
+mod a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
 mod a_pen_draws_a_line_on_a_canvas_with_the_pen_tool;
 mod a_personal_organization_can_create_an_agent;
 mod a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab;
@@ -33,7 +34,6 @@ mod a_presentation_menu_offers_new_slides_first;
 mod a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck;
 mod a_press_on_the_files_add_button_closes_a_canvas_menu_and_opens_theirs;
 mod a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on;
-mod a_ray_tracer_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
 mod a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu;
 mod a_second_finger_turns_a_pen_stroke_into_a_pinch;
 mod a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions;
@@ -171,3 +171,10 @@ fn open_add_to_my_files(app: &mut AppTest) {
 
 const NEW: &str = "#file-tree.new";
 const NEW_IN_MY_FILES: &str = "MenuItem \"New in My files…\"";
+
+fn pan_zoom_world(app: &mut AppTest) -> (f32, f32, f32, f32) {
+    let origin = app.place("#pan_zoom.card.0");
+    let right = app.place("#pan_zoom.card.5");
+    let scale = (right.0 + right.2 - origin.0) / 820.0;
+    (origin.0, origin.1, 880.0 * scale, 580.0 * scale)
+}

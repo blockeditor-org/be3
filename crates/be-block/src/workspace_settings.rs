@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::metadata::MetaKey;
-use crate::settings::{Follows, KindVisibility, Layered};
+use crate::settings::{Follows, KindVisibility, Layered, union};
 use crate::{ChildChange, Root};
 
 pub use be_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
@@ -83,12 +83,7 @@ impl Layered for PrefixRegistry {
 
     fn over(&self, lower: &Self) -> Self {
         Self {
-            databases: lower
-                .databases
-                .iter()
-                .chain(self.databases.iter())
-                .map(|(database, prefix)| (*database, prefix.clone()))
-                .collect(),
+            databases: union(&self.databases, &lower.databases),
         }
     }
 }
@@ -218,12 +213,7 @@ impl Layered for Tags {
 
     fn over(&self, lower: &Self) -> Self {
         Self {
-            tags: lower
-                .tags
-                .iter()
-                .chain(self.tags.iter())
-                .map(|(tag, ())| (*tag, ()))
-                .collect(),
+            tags: union(&self.tags, &lower.tags),
         }
     }
 }
@@ -311,12 +301,7 @@ impl Layered for Home {
                 true => lower.pinned.clone(),
                 false => self.pinned.clone(),
             },
-            templates: lower
-                .templates
-                .iter()
-                .chain(self.templates.iter())
-                .map(|(template, ())| (*template, ()))
-                .collect(),
+            templates: union(&self.templates, &lower.templates),
         }
     }
 }

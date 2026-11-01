@@ -17,7 +17,7 @@ use crate::geometry::*;
 use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
-use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
+use super::paint::{EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::raster::{RasterGuideDrawing, raster_image, rastering};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
@@ -267,7 +267,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
         let scale = scale.get();
         let selected_path = state.selected_path();
         let mut overlay = Overlay {
-            camera: Camera::item(Pos2::ZERO, scale),
+            camera: CanvasView::from_corner(Pos2::ZERO, scale),
             palette: palette(&theme),
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
@@ -294,7 +294,8 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
         if bounds.get_untracked() != reach {
             bounds.set(reach);
         }
-        overlay.camera = Camera::item(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
+        overlay.camera =
+            CanvasView::from_corner(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
         if shown.borrow().as_ref() == Some(&overlay) {
             return;
         }
@@ -334,7 +335,10 @@ fn LiveOverlay(
         let presence = state.presence.get();
         let tool = state.tool.get();
         let live = Live {
-            camera: Camera::item(visible.get().min, camera.get().scale.max(f32::EPSILON)),
+            camera: CanvasView::from_corner(
+                visible.get().min,
+                camera.get().scale.max(f32::EPSILON),
+            ),
             palette: palette(&theme),
             gesture: state.gesture.get(),
             cursors: presence.cursors,
@@ -519,7 +523,7 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         let paint = EntityPaint {
             sketch,
             covered: state.child_state(entity.id).available,
-            camera: Camera::item(corner, 1.0),
+            camera: CanvasView::from_corner(corner, 1.0),
             palette: palette(&theme),
             title: label
                 .as_ref()

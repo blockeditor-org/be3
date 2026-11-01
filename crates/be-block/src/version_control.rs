@@ -134,13 +134,6 @@ impl Repository {
         }
     }
 
-    pub fn with_branches(&self, branches: BTreeMap<String, CommitId>) -> Self {
-        Self {
-            branches: branches.into_iter().collect(),
-            ..self.clone()
-        }
-    }
-
     pub fn view(&self, checkout: Option<&Checkout>) -> View {
         View {
             branches: (*self.branches).clone(),

@@ -7,16 +7,23 @@ use std::time::{Duration, Instant};
 
 use beui_core::app::FrameTimes;
 use beui_core::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::context::{ActionGroup, Context, FrameOutput, WindowOutput};
-use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::Keyboard;
-use beui_core::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
-use beui_core::window::{Resize, WindowId, WindowSize, WindowState};
+use beui_core::clipboard::PasteAnswer;
+use beui_core::context::{Context, FrameOutput, WindowOutput};
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_core::window::{Resize, WindowSize, WindowState};
 use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
+use beui_types::ActionGroup;
+use beui_types::FileSave;
+use beui_types::Keyboard;
+use beui_types::PickedFile;
+use beui_types::WindowId;
+use beui_types::drive;
+use beui_types::{DroppedFile, FileDrag};
+use beui_types::{Input, PointerButton};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::gestures::{Frames, Gestures};
 use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
@@ -917,7 +924,9 @@ impl Session {
                     text,
                     present,
                     over,
-                } if shown(view, text, *over) == *present => Some(Reply::Text(String::new())),
+                } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
+                    Some(Reply::Text(String::new()))
+                }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 Phase::Components => output
                     .comps
@@ -1082,11 +1091,14 @@ impl Session {
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
         let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        if kind(command) == Some(Kind::Session) {
-            return self.session(command, arguments, view, frame);
-        }
         let reveal = Cell::new(None);
-        let started = self.command(tap, command, arguments, view, frame, revealed, &reveal);
+        let started = match drive::parse(command, arguments) {
+            Some(parsed) => self.shared(parsed?, view, frame, revealed, &reveal),
+            None if kind(command) == Some(Kind::Session) => {
+                return self.session(command, arguments, view, frame);
+            }
+            None => self.command(tap, command, arguments, view, frame, revealed, &reveal),
+        };
         let Some(id) = reveal.get() else {
             return started;
         };
@@ -1104,6 +1116,60 @@ impl Session {
         }))
     }
 
+    fn shared(
+        &mut self,
+        command: drive::Command,
+        view: &View<'_>,
+        frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
+    ) -> Result<Started, String> {
+        let rendered = view.rendered();
+        let lines = rendered.lines();
+        let text = |text: String| Ok(Started::Done(Reply::Text(text)));
+        let shown = |target: &str| {
+            let scrolled = if revealed.is_empty() { "" } else { " revealed" };
+            text(format!("{}{scrolled}\n", place(shown_part(target, lines)?)))
+        };
+        match command {
+            drive::Command::Help => text(format!("{USAGE}\n")),
+            drive::Command::Settle => Ok(Started::Phase(Phase::Settling { before: None })),
+            drive::Command::Clock(running) => {
+                match running {
+                    true => frame.context.run_clock(),
+                    false => frame.context.stop_clock(),
+                }
+                self.clock_stopped = !running;
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            drive::Command::Pause(by) => Ok(Started::Phase(Phase::Pausing {
+                until: view.now + by,
+            })),
+            drive::Command::Tree => text(rendered.text().to_owned()),
+            drive::Command::Ids => text(drive::ids(lines)),
+            drive::Command::Find(target) => text(format!("{}\n", place(locate(&target, lines)?))),
+            drive::Command::Reveal(target) => match hidden(&target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => shown(&target),
+            },
+            drive::Command::Shown(target) => shown(&target),
+            drive::Command::Wait {
+                text,
+                over,
+                present,
+            } => Ok(Started::Phase(Phase::Waiting {
+                text,
+                present,
+                over: over
+                    .map(|at| locate(&at, lines).map(|rect| rect.center()))
+                    .transpose()?,
+            })),
+        }
+    }
+
     fn session(
         &mut self,
         command: &str,
@@ -1118,9 +1184,7 @@ impl Session {
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
         match command {
-            "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
-            "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "close" => match frame.app.close_requested() {
                 true => {
                     frame.close();
@@ -1132,15 +1196,6 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
-            "clock" => {
-                match argument(0)? {
-                    "stop" => frame.context.stop_clock(),
-                    "run" => frame.context.run_clock(),
-                    other => return Err(format!("clock takes stop or run, not {other}")),
-                }
-                self.clock_stopped = argument(0)? == "stop";
-                Ok(Started::Phase(Phase::Settling { before: None }))
-            }
             "hurry" => {
                 self.unhurried = match argument(0)? {
                     "on" => false,
@@ -1149,14 +1204,6 @@ impl Session {
                 };
                 frame.context.set_hurried(!self.unhurried);
                 Ok(Started::Phase(Phase::Settling { before: None }))
-            }
-            "pause" => {
-                let milliseconds: u64 = argument(0)?
-                    .parse()
-                    .map_err(|_| "pause takes milliseconds".to_owned())?;
-                Ok(Started::Phase(Phase::Pausing {
-                    until: view.now + Duration::from_millis(milliseconds),
-                }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
@@ -1287,44 +1334,12 @@ impl Session {
             }))
         };
         let input = |frames: Frames| incoming(points(frames));
+        if let Some(frames) =
+            crate::plan::plan(&mut self.gestures[gesture], command, arguments, scale, &at)?
+        {
+            return input(frames);
+        }
         match command.as_str() {
-            "tree" => Ok(Started::Done(Reply::Text(
-                view.rendered().text().to_owned(),
-            ))),
-            "ids" => {
-                let rendered = view.rendered();
-                let mut ids: Vec<(&str, &Line)> = rendered
-                    .lines()
-                    .iter()
-                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), &**line)))
-                    .collect();
-                ids.sort_by(|a, b| a.0.cmp(b.0));
-                let text = ids
-                    .into_iter()
-                    .map(|(id, line)| {
-                        let place = line.bounds.map(place).unwrap_or_default();
-                        let hidden = if line.visible { "" } else { " offscreen" };
-                        format!("#{id} {place}{hidden}\n")
-                    })
-                    .collect();
-                Ok(Started::Done(Reply::Text(text)))
-            }
-            "find" => {
-                let rect = locate(argument(0)?, rendered.lines())?;
-                Ok(Started::Done(Reply::Text(format!("{}\n", place(rect)))))
-            }
-            "reveal" | "shown" => {
-                let target = argument(0)?;
-                if command == "reveal" {
-                    at(target)?;
-                }
-                let rect = shown_part(target, lines)?;
-                let scrolled = if revealed.is_empty() { "" } else { " revealed" };
-                Ok(Started::Done(Reply::Text(format!(
-                    "{}{scrolled}\n",
-                    place(rect)
-                ))))
-            }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
                 {
@@ -1361,229 +1376,6 @@ impl Session {
                     before: view.rendered(),
                 }))
             }
-            "click" => {
-                let at = at(argument(0)?)?;
-                let (button, count) = match arguments.get(1).map(String::as_str) {
-                    None => (PointerButton::Primary, 1),
-                    Some("right") => (PointerButton::Secondary, 1),
-                    Some("middle") => (PointerButton::Middle, 1),
-                    Some("double") => (PointerButton::Primary, 2),
-                    Some(other) => {
-                        return Err(format!("click takes right, middle or double, not {other}"));
-                    }
-                };
-                input(self.gestures[gesture].click(at, button, count))
-            }
-            "move" => input(self.gestures[gesture].hover(at(argument(0)?)?)),
-            "down" | "up" => {
-                let pressed = command == "down";
-                let (target, button) = match (arguments.first(), arguments.get(1)) {
-                    (Some(first), _) if button_named(first).is_some() => {
-                        (None, button_named(first))
-                    }
-                    (target, button) => (target, button.and_then(|name| button_named(name))),
-                };
-                let button = button.unwrap_or(PointerButton::Primary);
-                let target = target.map(|target| at(target)).transpose()?;
-                match (pressed, target) {
-                    (true, Some(at)) => input(self.gestures[gesture].down(at, button)),
-                    (true, None) => Err("down needs a TARGET".to_owned()),
-                    (false, at) => input(self.gestures[gesture].up(at, button)),
-                }
-            }
-            "drag" => {
-                let from = at(argument(0)?)?;
-                let to = at(argument(1)?)?;
-                let (mut steps, mut button) = (2, PointerButton::Primary);
-                for extra in arguments.iter().skip(2) {
-                    match (button_named(extra), extra.parse::<usize>()) {
-                        (Some(named), _) => button = named,
-                        (None, Ok(count)) => steps = count,
-                        (None, Err(_)) => {
-                            return Err(format!(
-                                "drag takes a number of steps and a button, not {extra}"
-                            ));
-                        }
-                    }
-                }
-                input(self.gestures[gesture].drag(from, to, steps, button))
-            }
-            "wheel" => {
-                let at = at(argument(0)?)?;
-                let ticks = |index: usize| -> Result<i32, String> {
-                    arguments.get(index).map_or(Ok(0), |ticks| {
-                        ticks
-                            .parse()
-                            .map_err(|_| format!("{ticks} is not a number of ticks"))
-                    })
-                };
-                input(self.gestures[gesture].wheel(at, ticks(1)?, ticks(2)?))
-            }
-            "zoom" => {
-                let at = at(argument(0)?)?;
-                input(self.gestures[gesture].zoom(at, factor(argument(1)?)?))
-            }
-            "pinch" => {
-                let center = at(argument(0)?)?;
-                input(self.gestures[gesture].pinch(center, factor(argument(1)?)?))
-            }
-            "scroll" => {
-                let at = at(argument(0)?)?;
-                let number = |index: usize| -> Result<f32, String> {
-                    match arguments.get(index) {
-                        None => Ok(0.0),
-                        Some(text) => text
-                            .parse::<f32>()
-                            .map(|value| value / view.pixels_per_point)
-                            .map_err(|_| format!("{text} is not a number")),
-                    }
-                };
-                input(self.gestures[gesture].scroll(at, vec2(number(2)?, number(1)?)))
-            }
-            "leave" => input(self.gestures[gesture].leave()),
-            "motion" => {
-                let pixels = |index: usize| -> Result<f32, String> {
-                    let text = argument(index)?;
-                    text.parse::<f32>()
-                        .map(|value| value / view.pixels_per_point)
-                        .map_err(|_| format!("{text} is not a number of pixels"))
-                };
-                input(self.gestures[gesture].motion(vec2(pixels(0)?, pixels(1)?)))
-            }
-            "tap" => {
-                let at = at(argument(0)?)?;
-                input(self.gestures[gesture].tap(at, finger(arguments.get(1))?))
-            }
-            "swipe" => {
-                let from = at(argument(0)?)?;
-                let to = at(argument(1)?)?;
-                input(self.gestures[gesture].swipe(from, to, finger(arguments.get(2))?))
-            }
-            "pen" => {
-                let pressure = |index: usize| {
-                    arguments
-                        .get(index)
-                        .map(|text| {
-                            text.parse::<f32>()
-                                .ok()
-                                .filter(|pressure| (0.0..=1.0).contains(pressure))
-                                .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
-                        })
-                        .transpose()
-                };
-                let count = |index: usize, default: usize, what: &str| match arguments.get(index) {
-                    Some(text) => text
-                        .parse::<usize>()
-                        .ok()
-                        .filter(|count| *count > 0)
-                        .ok_or_else(|| format!("{text} is not a number of {what} above 0")),
-                    None => Ok(default),
-                };
-                let frames = match argument(0)? {
-                    "move" => self.gestures[gesture].pen_move(
-                        at(argument(1)?)?,
-                        pressure(2)?,
-                        count(3, 1, "steps")?,
-                        count(4, 1, "samples a frame")?,
-                    ),
-                    "down" => self.gestures[gesture].pen_down(at(argument(1)?)?, pressure(2)?)?,
-                    "up" => {
-                        let to = arguments.get(1).map(|target| at(target)).transpose()?;
-                        self.gestures[gesture].pen_up(to)?
-                    }
-                    "draw" => {
-                        let from = at(argument(1)?)?;
-                        let to = at(argument(2)?)?;
-                        let steps = count(3, 8, "steps")?;
-                        let per_frame = count(4, 1, "samples a frame")?;
-                        self.gestures[gesture].pen_draw(from, to, steps, per_frame)?
-                    }
-                    "leave" => self.gestures[gesture].pen_leave()?,
-                    other => {
-                        return Err(format!(
-                            "pen takes move, down, up, draw or leave, not {other}"
-                        ));
-                    }
-                };
-                input(frames)
-            }
-            "touch" => {
-                let phase = match argument(0)? {
-                    "down" => TouchPhase::Start,
-                    "move" => TouchPhase::Move,
-                    "up" => TouchPhase::End,
-                    "cancel" => TouchPhase::Cancel,
-                    other => {
-                        return Err(format!("touch takes down, move, up or cancel, not {other}"));
-                    }
-                };
-                let fingers = arguments[1..]
-                    .iter()
-                    .map(|spec| {
-                        let (finger, target) = finger_target(spec);
-                        Ok((finger, target.map(&at).transpose()?))
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-                input(self.gestures[gesture].touch(phase, &fingers)?)
-            }
-            "back" => {
-                let frames = match arguments.first().map(String::as_str) {
-                    None => self.gestures[gesture].back(),
-                    Some("left") => self.gestures[gesture].back_from(BackEdge::Left)?,
-                    Some("right") => self.gestures[gesture].back_from(BackEdge::Right)?,
-                    Some("commit") => self.gestures[gesture].back_end(true)?,
-                    Some("cancel") => self.gestures[gesture].back_end(false)?,
-                    Some(progress) => {
-                        let progress: f32 = progress
-                            .parse()
-                            .ok()
-                            .filter(|progress: &f32| (0.0..=1.0).contains(progress))
-                            .ok_or(
-                                "back takes left, right, a progress from 0 to 1, commit or cancel",
-                            )?;
-                        self.gestures[gesture].back_to(progress)
-                    }
-                };
-                input(frames)
-            }
-            "type" => input(self.gestures[gesture].type_text(&arguments.join(" "))),
-            "key" => {
-                if arguments.is_empty() {
-                    return Err(format!("key needs a chord, such as ctrl+z\n{USAGE}"));
-                }
-                input(self.gestures[gesture].chords(arguments)?)
-            }
-            "keydown" | "keyup" => {
-                let pressed = command == "keydown";
-                if arguments.is_empty() {
-                    return Err(format!("{command} needs a KEY"));
-                }
-                let mut events = Vec::new();
-                for name in arguments {
-                    let key = Key::from_name(name)
-                        .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
-                    events.extend(
-                        self.gestures[gesture]
-                            .key(key, pressed)?
-                            .into_iter()
-                            .flatten(),
-                    );
-                }
-                input(vec![events])
-            }
-            "ime" => {
-                let frames = match argument(0)? {
-                    "compose" => self.gestures[gesture].compose(arguments[1..].join(" ")),
-                    "commit" => self.gestures[gesture]
-                        .commit((arguments.len() > 1).then(|| arguments[1..].join(" "))),
-                    "cancel" => self.gestures[gesture].cancel_composing(),
-                    other => {
-                        return Err(format!("ime takes compose, commit or cancel, not {other}"));
-                    }
-                };
-                input(frames)
-            }
-            "focus" | "blur" => input(self.gestures[gesture].focus(command == "focus")),
             "xr" => incoming(controller(arguments, app_point)?),
             "resize" => {
                 let resize = match argument(0)? {
@@ -1775,20 +1567,6 @@ impl Session {
                         data,
                     });
                 input(vec![Vec::new()])
-            }
-            "wait" | "gone" => {
-                let (text, over) = match arguments {
-                    [text @ .., over, at] if !text.is_empty() && over == "over" => {
-                        let at = locate(at, rendered.lines())?;
-                        (text, Some(at.center()))
-                    }
-                    text => (text, None),
-                };
-                Ok(Started::Phase(Phase::Waiting {
-                    text: text.join(" "),
-                    present: command == "wait",
-                    over,
-                }))
             }
             "shot" => {
                 let target = arguments.first().cloned();
@@ -1986,24 +1764,6 @@ impl Session {
     }
 }
 
-fn button_named(name: &str) -> Option<PointerButton> {
-    match name {
-        "left" => Some(PointerButton::Primary),
-        "right" => Some(PointerButton::Secondary),
-        "middle" => Some(PointerButton::Middle),
-        "back" => Some(PointerButton::Back),
-        "forward" => Some(PointerButton::Forward),
-        _ => {
-            let code = name.strip_prefix("button:")?;
-            let code = match code.strip_prefix("0x") {
-                Some(hex) => u16::from_str_radix(hex, 16).ok()?,
-                None => code.parse().ok()?,
-            };
-            Some(PointerButton::Other(code))
-        }
-    }
-}
-
 fn action_name(action: accesskit::Action) -> &'static str {
     match action {
         accesskit::Action::Click => "click",
@@ -2052,39 +1812,6 @@ fn capped(changes: String, limit: Option<usize>) -> String {
         total - limit
     ));
     text
-}
-
-fn factor(text: &str) -> Result<f32, String> {
-    text.parse::<f32>()
-        .ok()
-        .filter(|factor| *factor > 0.0)
-        .ok_or_else(|| format!("{text} is not a factor above 0"))
-}
-
-fn finger_target(spec: &str) -> (u64, Option<&str>) {
-    if let Some((finger, target)) = spec.split_once('=')
-        && let Ok(finger) = finger.parse()
-    {
-        return (finger, Some(target));
-    }
-    match spec.parse() {
-        Ok(finger) => (finger, None),
-        Err(_) => (0, Some(spec)),
-    }
-}
-
-fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
-    let matches = |line: &Line| match text.strip_prefix('#') {
-        Some(id) => line.test_ids.iter().any(|named| named == id),
-        None => line.text.contains(text),
-    };
-    let reaches = |line: &Line| {
-        over.is_none_or(|over| line.bounds.is_some_and(|bounds| bounds.contains(over)))
-    };
-    view.rendered()
-        .lines()
-        .iter()
-        .any(|line| matches(line) && reaches(line))
 }
 
 fn controller(
@@ -2166,14 +1893,6 @@ fn controller(
         }
         "lost" => once(Controller::Lost { hand }),
         _ => return Err(usage.to_owned()),
-    })
-}
-
-fn finger(argument: Option<&String>) -> Result<u64, String> {
-    argument.map_or(Ok(0), |finger| {
-        finger
-            .parse()
-            .map_err(|_| format!("{finger} is not a finger number"))
     })
 }
 

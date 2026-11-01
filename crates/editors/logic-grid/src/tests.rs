@@ -2,7 +2,7 @@ use block_editor_beui::be_block::BlockContent;
 use logic_grid_types::CompiledLogicContent;
 
 use block_editor_beui::beui::{Key, Pos2, Vec2};
-use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
+use block_editor_beui::{Artifact, Artifacts, EditorHost};
 use block_ui_test::BeuiTest;
 use logic_grid_types::LogicGridContent;
 use logicgame::grid::LogicGrid as Grid;
@@ -22,10 +22,7 @@ mod the_rename_setting_writes_the_artifact_draft;
 
 fn editor() -> BeuiTest<LogicGridApp> {
     let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = BeuiTest::editing(block);
     editor.store().register(logic_grid_types::registrations());
     editor.hold(None, LogicGridContent::default());
     editor.run();

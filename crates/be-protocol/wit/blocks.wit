@@ -5,19 +5,16 @@ interface objects {
     use types.{block-id, error, hash};
 
     /// Stores objects, each named by its SHA-256; answers their hashes in
-    /// order. Replaces `PutObjects` and its `Stored` answer.
+    /// order.
     put-objects: async func(objects: list<list<u8>>) -> result<list<hash>, error>;
 
-    /// An object the caller may read, or none. Replaces `GetObject` and its
-    /// `Object` answer.
+    /// An object the caller may read, or none.
     get-object: async func(hash: hash) -> result<option<list<u8>>, error>;
 
-    /// Which of `hashes` the server lacks. Replaces `MissingObjects` and its
-    /// `Missing` answer.
+    /// Which of `hashes` the server lacks.
     missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;
 
     /// Keeps stored objects alive for `block` until a commit takes them.
-    /// Replaces `HoldObjects`.
     hold-objects: async func(block: block-id, objects: list<hash>) -> result<_, error>;
 }
 
@@ -101,7 +98,6 @@ interface blocks {
         deleted,
     }
 
-    /// Replaces `CreateBlock` and its `Block` answer.
     create-block: async func(
         block: block-id,
         content-type: content-type-id,
@@ -112,11 +108,9 @@ interface blocks {
         keys: key-set,
     ) -> result<block-summary, error>;
 
-    /// Replaces `SetMetadata` and its `Block` answer.
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
 
     /// Stores `objects` and moves the head to `commit` if it is `expected`.
-    /// Replaces `Publish` and its `Published` and `Rejected` answers.
     publish: async func(
         block: block-id,
         commit: commit-id,
@@ -131,57 +125,45 @@ interface blocks {
     ) -> result<publish-outcome, error>;
 
     /// One block's summary, which lists it as `listing.block` would.
-    /// Replaces `ReadBlock` and its `Block` answer.
     read-block: async func(block: block-id) -> result<block-summary, error>;
 
     /// Summaries of `blocks` and the objects of their heads the caller does
-    /// not hold, those of the commits in `held` left out. Replaces
-    /// `ReadContents` and its `Contents` answer.
+    /// not hold, those of the commits in `held` left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
-    /// Moves a block, with the keys it needs under its new parent. Replaces
-    /// `SetParent`.
+    /// Moves a block, with the keys it needs under its new parent.
     set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
 
     /// The blocks of a listing, which the connection's `changes` stream then
-    /// follows until `unlist`. Replaces `ListShared`, `ListChildren`,
-    /// `ListDeleted`, `ListBackrefs`, `ListReferences`, `ListOpenSettings`
-    /// and their `Blocks` answers.
+    /// follows until `unlist`.
     list-blocks: async func(listing: listing) -> result<list<block-summary>, error>;
 
-    /// Stops following a listing. Replaces `Unlist`.
+    /// Stops following a listing.
     unlist: async func(listing: listing) -> result<_, error>;
 
     /// Changes to the blocks of everything this connection listed, each
     /// block told once however many listings hold it, from the next listing
-    /// on; `open-organization` starts the listings over. Replaces the pushed
-    /// `BlockChanged` and `BlockRemoved`.
+    /// on; `open-organization` starts the listings over.
     changes: func() -> stream<block-change>;
 
-    /// Replaces `ListHistory` and its `History` answer.
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
     /// Drops commits from a block's history; answers how many objects that
-    /// freed. Replaces `PruneHistory` and its `Collected` answer.
+    /// freed.
     prune-history: async func(block: block-id, drop: list<commit-id>) -> result<u64, error>;
 
-    /// Replaces `DeleteBlock`.
     delete-block: async func(block: block-id) -> result<_, error>;
 
-    /// Deletes the detached blocks nothing reaches any more. Replaces
-    /// `CollectDetached` and its `Collected` answer.
+    /// Deletes the detached blocks nothing reaches any more.
     collect-detached: async func() -> result<collected, error>;
 
-    /// Replaces `SetAccess`.
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
 
-    /// Replaces `ListAccess` and its `AccessList` answer.
     list-access: async func(block: block-id) -> result<access-list, error>;
 
     /// Head moves of a block made by other connections, until it is deleted
     /// or the stream dropped. Each stream is its own: two on one block both
-    /// hear, and dropping one leaves the other. Replaces `Watch`, `Unwatch`
-    /// and the pushed `HeadChanged` and `BlockDeleted`.
+    /// hear, and dropping one leaves the other.
     watch: func(block: block-id) -> stream<block-event>;
 }
 
@@ -219,22 +201,18 @@ interface sessions {
         constructor(block: block-id);
 
         /// Joins the session and tells what happens in it, starting with
-        /// `joined` or `refused`. Replaces `JoinSession` and its `Session`
-        /// answer, the pushed `SessionChanged` and `Relayed`, and, by
-        /// dropping the session, `LeaveSession`.
+        /// `joined` or `refused`.
         join: func() -> stream<session-event>;
 
-        /// Claims the lease of `generation` once its owner left. Replaces
-        /// `ClaimOwnership` and its `Session` answer.
+        /// Claims the lease of `generation` once its owner left.
         claim-ownership: async func(generation: u64) -> result<session-state, error>;
 
         /// The owner's heartbeat, with the head it holds clean; answers the
-        /// session's state either way. Replaces `Heartbeat` and its `Session`
-        /// answer.
+        /// session's state either way.
         heartbeat: async func(generation: u64, clean-at: option<commit-id>) -> result<session-state, error>;
 
         /// Relays a sealed message to one participant, or to every other one
-        /// with no `to`. Replaces `Relay`.
+        /// with no `to`.
         relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
     }
 }

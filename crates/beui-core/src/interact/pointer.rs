@@ -1,21 +1,24 @@
 use std::time::{Duration, Instant};
 
 use crate::base::interactive::{InteractiveNode, local_in, press_at};
-use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
 use crate::document::{Acted, Document};
-use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{
-    FINGER_TAP_TIME, Modifiers, Pen, PointerButton, PointerEvent, PointerId, PointerInput,
-    PointerPhase, PointerPress, PointerSample, PointerStage, ScrollGesture, TOUCH_DRAG_THRESHOLD,
-    TouchId, WheelInput, ZoomGesture,
+use crate::input::FINGER_TAP_TIME;
+use crate::node::{NodeOf, Rects};
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Modifiers, Pen, PointerButton, TouchId};
+use beui_types::{
+    PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
+    ScrollGesture, TOUCH_DRAG_THRESHOLD, WheelInput, ZoomGesture,
 };
-use crate::node::{NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use beui_types::{Pos2, Rect, Vec2, vec2};
 
 use super::hit::{self, Hit, interactive};
-use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, grab};
+use super::{WHEEL_LATCH_SLOP, grab};
+use beui_types::WHEEL_LATCH_TIMEOUT;
 
 #[derive(Default)]
 pub struct Pointers {
@@ -346,7 +349,9 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
             .is_some_and(|size| Rect::from_min_size(Pos2::ZERO, size).contains(pos))
     };
     let outside = left && frame.ctx.opens_windows() && !pos.is_some_and(within);
-    doc.drag_board().set_outside(outside);
+    if let Some(drags) = &doc.drags {
+        drags.set_outside(outside);
+    }
     grab::frame(doc, frame.ctx);
     long_presses(doc, frame)
 }
@@ -1079,12 +1084,10 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                     true,
                 );
             }
-            if doc.dragging() {
-                doc.drag_board().order(doc);
-                match cancelled {
-                    true => doc.drag_board().end(None),
-                    false => doc.drag_board().finish(),
-                }
+            if doc.dragging()
+                && let Some(drags) = doc.drags.clone()
+            {
+                drags.release(cancelled, &|node| drag_order(doc, node));
             }
         }
         Role::Secondary => {}
@@ -1620,7 +1623,12 @@ fn track(doc: &mut Document, frame: &Frame) {
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, window, touch });
-    let board = doc.drag_board();
-    board.order(doc);
-    board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));
+    if let Some(drags) = doc.drags.clone() {
+        let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(window);
+        drags.track(point, &|node| drag_order(doc, node));
+    }
+}
+
+fn drag_order(doc: &Document, node: NodeId) -> (Vec<usize>, WindowId) {
+    (doc.paint_order(node), doc.window_of(node))
 }

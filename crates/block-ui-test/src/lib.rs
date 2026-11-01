@@ -3,9 +3,6 @@ extern crate beui_platform_plugin as _;
 mod beui;
 mod document;
 mod link;
-mod overflow;
-
-mod snapshot;
 mod store;
 #[cfg(test)]
 mod tests;

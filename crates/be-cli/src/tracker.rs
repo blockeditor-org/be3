@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
-use be_client::{Peer, Saved};
+use be_client::{Peer, Saved, Write};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::BlockSummary;
@@ -346,14 +346,10 @@ impl<S: ObjectStore> Tracker<S> {
             .await?;
         match self
             .peer
-            .publish_encoded(
+            .write(
                 block,
-                content_type,
-                bytes,
-                description.references,
-                description.derived,
-                expected,
-                None,
+                Write::encoded(content_type, bytes, expected)
+                    .described(description.references, description.derived),
             )
             .await
             .map_err(explain)?

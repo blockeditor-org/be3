@@ -1,6 +1,5 @@
 use block_plugin_manifest::{ChildOperations, Edits, Press};
 use lucide::Glyph;
-pub mod datetime;
 #[cfg(test)]
 mod tests;
 

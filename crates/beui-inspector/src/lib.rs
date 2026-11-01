@@ -15,22 +15,23 @@ use beui_core::base::embed::EmbedSlot;
 use beui_core::context::Context;
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::{
-    BackGesture, CursorIcon, Event, InputState, Key as InputKey, PointerButton, PointerPhase,
-};
+use beui_core::input::InputState;
 use beui_core::painter::Painter;
+use beui_types::{BackGesture, CursorIcon, Key as InputKey, PointerButton};
+use beui_types::{Event, PointerPhase};
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::screen_reader::{Command, ScreenReader};
 use beui_components_styled::Theme;
 use beui_core::current::{with_document, with_reactive_scope};
 use beui_core::document::{Document, Tools, trim_bottom};
-use beui_core::layer::LayerPolicy;
-use beui_core::node::NodeId;
-use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 use beui_core::screen_simulation::ScreenSimulation;
-use beui_core::window::WindowId;
 use beui_dock::unstyled::{DockMode, DockingLayout};
+use beui_types::LayerPolicy;
+use beui_types::NodeId;
+use beui_types::PreferenceLayer;
+use beui_types::PreferenceSource;
+use beui_types::WindowId;
 use beui_view::reactive::*;
 
 use panel::Summary;
@@ -426,7 +427,7 @@ impl Inspector {
             tools: panel.tools,
             synced_shown: [false; 3],
             state,
-            reader: ScreenReader::default(),
+            reader: ScreenReader::new(ctx.now()),
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,

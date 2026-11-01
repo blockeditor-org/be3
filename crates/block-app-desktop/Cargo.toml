@@ -12,7 +12,6 @@ beui-host = { path = "../beui-host", default-features = false }
 block-app-base = { path = "../block-app-base" }
 block-app-stack = { path = "../block-app-stack" }
 block-plugin-api = { path = "../block-plugin-api" }
-bytemuck = { version = "1.24.0", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wgpu = { version = "29", default-features = false }
@@ -36,7 +35,6 @@ be-win32-input = { path = "../be-win32-input" }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The Windows host's mapping to the desktop's types, tested everywhere.
 be-win32 = { path = "../be-win32" }
-paint-snapshot = { path = "../paint-snapshot" }
 pollster = "0.4"
 
 [lints]

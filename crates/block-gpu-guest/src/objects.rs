@@ -278,7 +278,10 @@ impl Future for Compiling {
         let module = ManuallyDrop::new(gpu::ShaderModule::from_handle(self.module));
         match module.get_compilation_info() {
             Some(messages) => Poll::Ready(wgpu::CompilationInfo {
-                messages: messages.iter().map(convert::compilation_message).collect(),
+                messages: messages
+                    .iter()
+                    .map(wgpu::CompilationMessage::from)
+                    .collect(),
             }),
             None => {
                 COMPILING.with(|compiling| compiling.borrow_mut().push(context.waker().clone()));
@@ -430,7 +433,7 @@ impl DeviceInterface for Device {
                 .map(|entry| abi::BindGroupLayoutEntry {
                     binding: entry.binding,
                     visibility: entry.visibility.bits(),
-                    r#type: convert::binding_type(entry.ty),
+                    r#type: convert::to_abi(entry.ty),
                     count: entry.count.map(|count| count.get()),
                 })
                 .collect(),
@@ -493,12 +496,12 @@ impl DeviceInterface for Device {
                     .iter()
                     .map(|buffer| abi::VertexBufferLayout {
                         array_stride: buffer.array_stride,
-                        step_mode: convert::step_mode(buffer.step_mode),
+                        step_mode: convert::to_abi(buffer.step_mode),
                         attributes: buffer
                             .attributes
                             .iter()
                             .map(|attribute| abi::VertexAttribute {
-                                format: convert::vertex_format(attribute.format),
+                                format: convert::to_abi(attribute.format),
                                 offset: attribute.offset,
                                 shader_location: attribute.shader_location,
                             })
@@ -507,24 +510,24 @@ impl DeviceInterface for Device {
                     .collect(),
             },
             primitive: abi::PrimitiveState {
-                topology: convert::topology(desc.primitive.topology),
-                strip_index_format: desc.primitive.strip_index_format.map(convert::index_format),
-                front_face: convert::front_face(desc.primitive.front_face),
-                cull_mode: desc.primitive.cull_mode.map(convert::face),
+                topology: convert::to_abi(desc.primitive.topology),
+                strip_index_format: desc.primitive.strip_index_format.map(convert::to_abi),
+                front_face: convert::to_abi(desc.primitive.front_face),
+                cull_mode: desc.primitive.cull_mode.map(convert::to_abi),
                 unclipped_depth: desc.primitive.unclipped_depth,
-                polygon_mode: convert::polygon_mode(desc.primitive.polygon_mode),
+                polygon_mode: convert::to_abi(desc.primitive.polygon_mode),
                 conservative: desc.primitive.conservative,
             },
             depth_stencil: desc
                 .depth_stencil
                 .as_ref()
                 .map(|state| abi::DepthStencilState {
-                    format: convert::texture_format(state.format),
+                    format: convert::to_abi(state.format),
                     depth_write_enabled: state.depth_write_enabled.unwrap_or(false),
-                    depth_compare: state.depth_compare.map(convert::compare_function),
+                    depth_compare: state.depth_compare.map(convert::to_abi),
                     stencil: abi::StencilState {
-                        front: convert::stencil_face(state.stencil.front),
-                        back: convert::stencil_face(state.stencil.back),
+                        front: convert::to_abi(state.stencil.front),
+                        back: convert::to_abi(state.stencil.back),
                         read_mask: state.stencil.read_mask,
                         write_mask: state.stencil.write_mask,
                     },
@@ -548,10 +551,10 @@ impl DeviceInterface for Device {
                     .iter()
                     .map(|target| {
                         target.as_ref().map(|target| abi::ColorTargetState {
-                            format: convert::texture_format(target.format),
+                            format: convert::to_abi(target.format),
                             blend: target.blend.map(|blend| abi::BlendState {
-                                color: convert::blend_component(blend.color),
-                                alpha: convert::blend_component(blend.alpha),
+                                color: convert::to_abi(blend.color),
+                                alpha: convert::to_abi(blend.alpha),
                             }),
                             write_mask: target.write_mask.bits(),
                         })
@@ -607,16 +610,16 @@ impl DeviceInterface for Device {
         }
         let descriptor = abi::TextureDescriptor {
             label: convert::label(desc.label),
-            size: convert::extent(desc.size),
+            size: convert::to_abi(desc.size),
             mip_level_count: desc.mip_level_count,
             sample_count: desc.sample_count,
-            dimension: convert::texture_dimension(desc.dimension),
-            format: convert::texture_format(desc.format),
+            dimension: convert::to_abi(desc.dimension),
+            format: convert::to_abi(desc.format),
             usage: desc.usage.bits(),
             view_formats: desc
                 .view_formats
                 .iter()
-                .map(|format| convert::texture_format(*format))
+                .map(|format| convert::to_abi(*format))
                 .collect(),
         };
         DispatchTexture::custom(Texture::created(gpu::create_texture(&descriptor)))
@@ -645,17 +648,17 @@ impl DeviceInterface for Device {
     fn create_sampler(&self, desc: &wgpu::SamplerDescriptor<'_>) -> DispatchSampler {
         let descriptor = abi::SamplerDescriptor {
             label: convert::label(desc.label),
-            address_mode_u: convert::address_mode(desc.address_mode_u),
-            address_mode_v: convert::address_mode(desc.address_mode_v),
-            address_mode_w: convert::address_mode(desc.address_mode_w),
-            mag_filter: convert::filter_mode(desc.mag_filter),
-            min_filter: convert::filter_mode(desc.min_filter),
-            mipmap_filter: convert::mipmap_filter_mode(desc.mipmap_filter),
+            address_mode_u: convert::to_abi(desc.address_mode_u),
+            address_mode_v: convert::to_abi(desc.address_mode_v),
+            address_mode_w: convert::to_abi(desc.address_mode_w),
+            mag_filter: convert::to_abi(desc.mag_filter),
+            min_filter: convert::to_abi(desc.min_filter),
+            mipmap_filter: convert::to_abi(desc.mipmap_filter),
             lod_min_clamp: desc.lod_min_clamp,
             lod_max_clamp: desc.lod_max_clamp,
-            compare: desc.compare.map(convert::compare_function),
+            compare: desc.compare.map(convert::to_abi),
             anisotropy_clamp: desc.anisotropy_clamp,
-            border_color: desc.border_color.map(convert::border_color),
+            border_color: desc.border_color.map(convert::to_abi),
         };
         DispatchSampler::custom(Sampler::created(gpu::create_sampler(&descriptor)))
     }
@@ -703,12 +706,12 @@ impl DeviceInterface for Device {
             color_formats: desc
                 .color_formats
                 .iter()
-                .map(|format| format.map(convert::texture_format))
+                .map(|format| format.map(convert::to_abi))
                 .collect(),
             depth_stencil: desc
                 .depth_stencil
                 .map(|state| abi::RenderBundleDepthStencil {
-                    format: convert::texture_format(state.format),
+                    format: convert::to_abi(state.format),
                     depth_read_only: state.depth_read_only,
                     stencil_read_only: state.stencil_read_only,
                 }),
@@ -820,7 +823,7 @@ impl QueueInterface for Queue {
             convert::texel_copy_texture(texture),
             data,
             convert::texel_copy_buffer_layout(data_layout),
-            convert::extent(size),
+            convert::to_abi(size),
         );
         checked();
     }
@@ -945,10 +948,10 @@ impl TextureInterface for Texture {
     fn create_view(&self, desc: &wgpu::TextureViewDescriptor<'_>) -> DispatchTextureView {
         let descriptor = abi::TextureViewDescriptor {
             label: convert::label(desc.label),
-            format: desc.format.map(convert::texture_format),
-            dimension: desc.dimension.map(convert::texture_view_dimension),
+            format: desc.format.map(convert::to_abi),
+            dimension: desc.dimension.map(convert::to_abi),
             usage: desc.usage.map(|usage| usage.bits()),
-            aspect: convert::texture_aspect(desc.aspect),
+            aspect: convert::to_abi(desc.aspect),
             base_mip_level: desc.base_mip_level,
             mip_level_count: desc.mip_level_count,
             base_array_layer: desc.base_array_layer,
@@ -1018,7 +1021,7 @@ impl CommandEncoderInterface for CommandEncoder {
         self.0.copy_buffer_to_texture(
             convert::texel_copy_buffer(source),
             convert::texel_copy_texture(destination),
-            convert::extent(copy_size),
+            convert::to_abi(copy_size),
         );
         checked();
     }
@@ -1032,7 +1035,7 @@ impl CommandEncoderInterface for CommandEncoder {
         self.0.copy_texture_to_buffer(
             convert::texel_copy_texture(source),
             convert::texel_copy_buffer(destination),
-            convert::extent(copy_size),
+            convert::to_abi(copy_size),
         );
         checked();
     }
@@ -1046,7 +1049,7 @@ impl CommandEncoderInterface for CommandEncoder {
         self.0.copy_texture_to_texture(
             convert::texel_copy_texture(source),
             convert::texel_copy_texture(destination),
-            convert::extent(copy_size),
+            convert::to_abi(copy_size),
         );
         checked();
     }
@@ -1067,13 +1070,13 @@ impl CommandEncoderInterface for CommandEncoder {
                         resolve_target: attachment.resolve_target.map(convert::view_handle),
                         load: match attachment.ops.load {
                             wgpu::LoadOp::Clear(value) => {
-                                abi::ColorLoadOp::Clear(convert::color(value))
+                                abi::ColorLoadOp::Clear(convert::to_abi(value))
                             }
                             wgpu::LoadOp::Load | wgpu::LoadOp::DontCare(_) => {
                                 abi::ColorLoadOp::Load
                             }
                         },
-                        store: convert::store_op(attachment.ops.store),
+                        store: convert::to_abi(attachment.ops.store),
                         depth_slice: attachment.depth_slice,
                     })
                 })
@@ -1087,7 +1090,7 @@ impl CommandEncoderInterface for CommandEncoder {
                     }),
                     depth_store: attachment
                         .depth_ops
-                        .map_or(abi::StoreOp::Store, |ops| convert::store_op(ops.store)),
+                        .map_or(abi::StoreOp::Store, |ops| convert::to_abi(ops.store)),
                     depth_read_only: attachment.depth_ops.is_none(),
                     stencil_load: attachment.stencil_ops.map(|ops| match ops.load {
                         wgpu::LoadOp::Clear(value) => abi::StencilLoadOp::Clear(value),
@@ -1095,7 +1098,7 @@ impl CommandEncoderInterface for CommandEncoder {
                     }),
                     stencil_store: attachment
                         .stencil_ops
-                        .map_or(abi::StoreOp::Store, |ops| convert::store_op(ops.store)),
+                        .map_or(abi::StoreOp::Store, |ops| convert::to_abi(ops.store)),
                     stencil_read_only: attachment.stencil_ops.is_none(),
                 }
             }),
@@ -1222,7 +1225,7 @@ impl RenderPassInterface for RenderPass {
     ) {
         self.0.set_index_buffer(
             &custom::<Buffer>(buffer.as_custom()).0,
-            convert::index_format(index_format),
+            convert::to_abi(index_format),
             offset,
             convert::size(size),
         );
@@ -1248,7 +1251,7 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn set_blend_constant(&mut self, color: wgpu::Color) {
-        self.0.set_blend_constant(convert::color(color));
+        self.0.set_blend_constant(convert::to_abi(color));
     }
 
     fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
@@ -1440,7 +1443,7 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
     ) {
         self.0.set_index_buffer(
             &custom::<Buffer>(buffer.as_custom()).0,
-            convert::index_format(index_format),
+            convert::to_abi(index_format),
             offset,
             convert::size(size),
         );

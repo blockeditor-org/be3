@@ -16,29 +16,9 @@ pub(super) struct HeadRead {
     head: Result<StoredHead, String>,
 }
 
-pub(super) struct HeadReads {
-    sender: host::WakingSender<HeadRead>,
-    receiver: std::sync::mpsc::Receiver<HeadRead>,
-}
-
-impl Default for HeadReads {
-    fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
-    }
-}
-
-impl HeadReads {
-    pub(super) fn arrived(
-        &self,
-        epoch: u64,
-        mut arrived: impl FnMut(EditorInstanceId, Uuid, CommitId, Head),
-    ) {
-        while let Ok(read) = self.receiver.try_recv() {
-            if read.epoch == epoch {
-                arrived(read.instance, read.block, read.commit, read.head.map(Some));
-            }
-        }
+impl HeadRead {
+    pub(super) fn opened(self, epoch: u64) -> Option<(EditorInstanceId, Uuid, CommitId, Head)> {
+        (self.epoch == epoch).then(|| (self.instance, self.block, self.commit, self.head.map(Some)))
     }
 }
 
@@ -68,7 +48,7 @@ impl Heads {
         &mut self,
         instance: EditorInstanceId,
         epoch: u64,
-        reads: &HeadReads,
+        reads: &host::Post<HeadRead>,
         mut now: impl FnMut(Uuid, Head),
     ) {
         for (block, requested) in &mut self.requested {
@@ -84,10 +64,10 @@ impl Heads {
                 now(block, Ok(None));
                 continue;
             };
-            let sender = reads.sender.clone();
+            let post = reads.clone();
             let content_type = node.content_type.into_bytes();
             block_app_stack::read_head(block, commit, move |read| {
-                let _ = sender.send(HeadRead {
+                post.send(HeadRead {
                     epoch,
                     instance,
                     block,

@@ -9,7 +9,6 @@ pub(crate) trait Turn {
     fn direction_to_picture(self, direction: Vec2) -> Vec2;
     fn panel_size(self, picture: Vec2) -> Vec2;
     fn rect_to_panel(self, picture: Vec2, rect: [f32; 4]) -> [f32; 4];
-    fn corners(self) -> [[f32; 2]; 4];
 }
 
 impl Turn for Rotation {
@@ -61,13 +60,6 @@ impl Turn for Rotation {
         let a = self.to_panel(picture, pos2(left, top));
         let b = self.to_panel(picture, pos2(right, bottom));
         [a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y)]
-    }
-
-    fn corners(self) -> [[f32; 2]; 4] {
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)].map(|(x, y)| {
-            let uv = self.to_picture(vec2(1.0, 1.0), pos2(x, y));
-            [uv.x, uv.y]
-        })
     }
 }
 

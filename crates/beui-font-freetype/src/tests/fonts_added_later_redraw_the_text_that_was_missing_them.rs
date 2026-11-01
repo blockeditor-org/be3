@@ -1,6 +1,7 @@
 use super::*;
 
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn fonts_added_later_redraw_the_text_that_was_missing_them() {

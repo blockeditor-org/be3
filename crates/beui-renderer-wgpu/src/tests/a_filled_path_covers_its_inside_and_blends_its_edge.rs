@@ -1,6 +1,6 @@
 use super::*;
 
-use beui_core::path::{FillRule, Path};
+use beui_types::{FillRule, Path};
 
 #[test]
 fn a_filled_path_covers_its_inside_and_blends_its_edge() {

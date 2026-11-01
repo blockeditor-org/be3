@@ -6,19 +6,16 @@ use beui::reactive::*;
 use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, WindowEdge,
-    WindowPlacement, WindowRequest,
+    EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, ViewRef, WindowEdge,
+    WindowOpen, WindowPlacement,
 };
 
 use block_app_plugin_host::HostChildStatus;
+use window_stack::{Gesture as Kind, Host, Stacked};
 
-const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
-const SMALLEST: Vec2 = vec2(96.0, 64.0);
-const PLACEMENT: &str = "desktop";
 const SHRINK_TO: f32 = 160.0;
 const GRAB_MARGIN: f32 = 24.0;
 const KEEP_VISIBLE: f32 = 96.0;
-const WALL: f32 = 0.5;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DesktopPlace {
@@ -79,18 +76,31 @@ impl Floated {
     pub(crate) fn placement(&self) -> Option<String> {
         match &self.panel {
             Some(panel) => panel.placed.clone(),
-            None => Some(format!(
-                "{PLACEMENT} {} {}",
-                self.rect.min.x, self.rect.min.y
-            )),
+            None => Some(window_stack::placement(self.rect.min)),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Kind {
-    Move,
-    Resize(WindowEdge),
+impl Stacked for Floated {
+    fn view(&self) -> ViewId {
+        self.key.window
+    }
+
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
+    fn opened_over(&self, other: &Self) -> bool {
+        self.key.plugin == other.key.plugin && self.parent == Some(other.key.window)
+    }
+
+    fn pinned(&self) -> bool {
+        self.panel.is_some()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -167,29 +177,6 @@ pub(crate) fn note_work_area(view: StatusKey, area: Option<Rect>) {
     });
 }
 
-pub(crate) fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {
-    let mut min = rect.min;
-    if work.max.x < display.max.x - WALL {
-        min.x = min
-            .x
-            .min(work.max.x - rect.width())
-            .max(work.min.x.min(rect.min.x));
-    }
-    if work.max.y < display.max.y - WALL {
-        min.y = min
-            .y
-            .min(work.max.y - rect.height())
-            .max(work.min.y.min(rect.min.y));
-    }
-    if work.min.x > display.min.x + WALL {
-        min.x = min.x.max(work.min.x);
-    }
-    if work.min.y > display.min.y + WALL {
-        min.y = min.y.max(work.min.y);
-    }
-    min
-}
-
 fn work_area_on(plugin: &str, instance: EditorInstanceId, display: Rect) -> Option<Rect> {
     work_areas_signal().with_untracked(|areas| {
         areas
@@ -209,28 +196,12 @@ fn keep_in_work_areas(
     displays: &[Rect],
     moving: Option<&FloatedKey>,
 ) -> bool {
-    let mut moved = false;
-    for index in 0..windows.len() {
-        let window = &windows[index];
-        if window.panel.is_some() || Some(&window.key) == moving {
-            continue;
-        }
-        let Some(display) =
-            crate::display::owner(displays, window.rect).map(|owner| displays[owner])
-        else {
-            continue;
-        };
-        let Some(work) = work_area_on(&window.key.plugin, window.key.instance, display) else {
-            continue;
-        };
-        let rect = window.rect;
-        let to = walled(rect, display, work);
-        if to != rect.min {
-            windows[index].rect = Rect::from_min_size(to, rect.size());
-            moved = true;
-        }
-    }
-    moved
+    let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
+    window_stack::keep_in_work_areas(windows, moving, |window| {
+        let display = displays[crate::display::owner(displays, window.rect)?];
+        let work = work_area_on(&window.key.plugin, window.key.instance, display)?;
+        Some((display, work))
+    })
 }
 
 fn floated_signal() -> Signal<Vec<Floated>> {
@@ -377,114 +348,21 @@ pub(crate) fn apply() {
     windows.retain(|window| !forgotten.contains(&window.key.plugin));
     let mut gesture = None;
     for (plugin, request) in pending {
-        let key = |window: ViewId, instance: EditorInstanceId| FloatedKey {
-            plugin: plugin.clone(),
-            instance,
-            window,
+        let Some((index, kind)) = window_stack::ask(&mut windows, &mut Opener(&plugin), request)
+        else {
+            continue;
         };
-        let find = |windows: &[Floated], window: ViewId| {
-            windows
-                .iter()
-                .position(|held| held.key.plugin == plugin && held.key.window == window)
-        };
-        match request {
-            WindowRequest::Open(open) => {
-                let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
-                let held = find(&windows, open.view);
-                let panel = block_app_base::host::opens_windows().then(|| Panel {
-                    opened: open.placement.clone(),
-                    placed: None,
-                    moves: 0,
-                    resizes: (0, WindowEdge::BottomRight),
+        let window = &mut windows[index];
+        match (&mut window.panel, kind) {
+            (Some(panel), Kind::Move) => panel.moves += 1,
+            (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
+            (None, kind) => {
+                gesture = Some(Gesture {
+                    key: window.key.clone(),
+                    kind,
+                    began_on: None,
+                    start: pressed_on(&window.key),
                 });
-                let panel = match (panel, held.and_then(|index| windows[index].panel.as_ref())) {
-                    (Some(panel), Some(was)) => Some(Panel {
-                        placed: was.placed.clone(),
-                        moves: was.moves,
-                        resizes: was.resizes,
-                        ..panel
-                    }),
-                    (panel, _) => panel,
-                };
-                let origin = origin_of(&plugin, open.placement, &windows);
-                let opener = windows
-                    .iter()
-                    .find(|held| held.key.plugin == plugin && held.key.window == open.opener.view);
-                let opened_from = shown_view(&plugin, open.opener.instance, open.opener.view);
-                let anchor = match (opener, opened_from.is_window()) {
-                    (Some(opener), _) => opener.anchor,
-                    (None, true) => View::MAIN,
-                    (None, false) => opened_from,
-                };
-                let window = Floated {
-                    key: key(open.view, open.opener.instance),
-                    rect: Rect::from_min_size(origin, size),
-                    panel,
-                    anchor,
-                    parent: opener.map(|opener| opener.key.window),
-                    grab: None,
-                };
-                match held {
-                    Some(index) => windows[index] = window,
-                    None => windows.push(window),
-                }
-            }
-            WindowRequest::BeginMove(window) => {
-                if let Some(panel) =
-                    find(&windows, window).and_then(|index| windows[index].panel.as_mut())
-                {
-                    panel.moves += 1;
-                } else if let Some(index) = find(&windows, window) {
-                    gesture = Some(Gesture {
-                        key: windows[index].key.clone(),
-                        kind: Kind::Move,
-                        began_on: None,
-                        start: pressed_on(&windows[index].key),
-                    });
-                }
-            }
-            WindowRequest::Raise(window) => {
-                if let Some(index) = find(&windows, window) {
-                    let key = windows[index].key.clone();
-                    raise_in(&mut windows, &key);
-                }
-            }
-            WindowRequest::BeginResize(resize) => {
-                if let Some(panel) =
-                    find(&windows, resize.view).and_then(|index| windows[index].panel.as_mut())
-                {
-                    panel.resizes = (panel.resizes.0 + 1, resize.edge);
-                } else if let Some(index) = find(&windows, resize.view) {
-                    gesture = Some(Gesture {
-                        key: windows[index].key.clone(),
-                        kind: Kind::Resize(resize.edge),
-                        began_on: None,
-                        start: pressed_on(&windows[index].key),
-                    });
-                }
-            }
-            WindowRequest::Resize(resize) => {
-                if let Some(index) = find(&windows, resize.view) {
-                    let held = &mut windows[index];
-                    held.rect = Rect::from_min_size(
-                        held.rect.min,
-                        vec2(resize.size.width.max(1.0), resize.size.height.max(1.0)),
-                    );
-                }
-            }
-            WindowRequest::Close(window) => {
-                if let Some(index) = find(&windows, window) {
-                    windows.remove(index);
-                }
-            }
-            WindowRequest::Place(place) => {
-                let origin = origin_of(&plugin, place.placement, &windows);
-                if let Some(index) = find(&windows, place.view)
-                    && windows[index].panel.is_none()
-                {
-                    let key = windows[index].key.clone();
-                    move_in(&mut windows, &key, origin);
-                }
             }
         }
     }
@@ -507,15 +385,78 @@ pub(crate) fn apply() {
     }
 }
 
-fn origin_of(plugin: &str, placement: WindowPlacement, windows: &[Floated]) -> Pos2 {
-    match placement {
-        WindowPlacement::Over(over) => {
-            point_in(plugin, over.view.instance, over.view.view, over.at, windows)
+struct Opener<'a>(&'a str);
+
+impl Host<Floated> for Opener<'_> {
+    fn mine(&self, window: &Floated) -> bool {
+        window.key.plugin == self.0
+    }
+
+    fn pointer(&self) -> Pos2 {
+        POINTER.get()
+    }
+
+    fn over(&self, view: ViewRef, at: Pos2) -> Pos2 {
+        let (plugin, instance, region) = (self.0, view.instance, view.view);
+        let desktop = ORIGINS.with(|origins| {
+            origins
+                .borrow()
+                .get(&(plugin.to_owned(), instance, region))
+                .copied()
+        });
+        if let Some(origin) = desktop {
+            return origin + at.to_vec2();
         }
-        WindowPlacement::Host(placement) => {
-            read_placement(&placement).unwrap_or_else(|| POINTER.get() - OPEN_GRAB)
+        match block_app_plugin_host::view_placement_of(plugin, instance, region) {
+            Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
+                placed.rect.min + at.to_vec2() * placed.zoom
+            }
+            Some(placed) => placed.rect.min + at.to_vec2(),
+            None => at,
         }
-        WindowPlacement::AtPointer => POINTER.get() - OPEN_GRAB,
+    }
+
+    fn open(
+        &mut self,
+        open: &WindowOpen,
+        rect: Rect,
+        held: Option<&Floated>,
+        opener: Option<&Floated>,
+    ) -> Floated {
+        let plugin = self.0;
+        let panel = block_app_base::host::opens_windows().then(|| Panel {
+            opened: open.placement.clone(),
+            placed: None,
+            moves: 0,
+            resizes: (0, WindowEdge::BottomRight),
+        });
+        let panel = match (panel, held.and_then(|held| held.panel.as_ref())) {
+            (Some(panel), Some(was)) => Some(Panel {
+                placed: was.placed.clone(),
+                moves: was.moves,
+                resizes: was.resizes,
+                ..panel
+            }),
+            (panel, _) => panel,
+        };
+        let opened_from = shown_view(plugin, open.opener.instance, open.opener.view);
+        let anchor = match (opener, opened_from.is_window()) {
+            (Some(opener), _) => opener.anchor,
+            (None, true) => View::MAIN,
+            (None, false) => opened_from,
+        };
+        Floated {
+            key: FloatedKey {
+                plugin: plugin.to_owned(),
+                instance: open.opener.instance,
+                window: open.view,
+            },
+            rect,
+            panel,
+            anchor,
+            parent: opener.map(|opener| opener.key.window),
+            grab: None,
+        }
     }
 }
 
@@ -544,37 +485,6 @@ fn desktop_displays() -> Vec<Rect> {
         .with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
 }
 
-fn point_in(
-    plugin: &str,
-    instance: EditorInstanceId,
-    region: ViewId,
-    at: Pos2,
-    windows: &[Floated],
-) -> Pos2 {
-    if let Some(held) = windows
-        .iter()
-        .find(|held| held.key.plugin == plugin && held.key.window == region)
-    {
-        return held.rect.min + at.to_vec2();
-    }
-    let desktop = ORIGINS.with(|origins| {
-        origins
-            .borrow()
-            .get(&(plugin.to_owned(), instance, region))
-            .copied()
-    });
-    if let Some(origin) = desktop {
-        return origin + at.to_vec2();
-    }
-    match block_app_plugin_host::view_placement_of(plugin, instance, region) {
-        Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
-            placed.rect.min + at.to_vec2() * placed.zoom
-        }
-        Some(placed) => placed.rect.min + at.to_vec2(),
-        None => at,
-    }
-}
-
 pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
     let size = rect.size().min(viewport).max(Vec2::ZERO);
     let x = rect.min.x.min(viewport.x - size.x).max(0.0);
@@ -587,9 +497,10 @@ pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
 }
 
 pub(crate) fn reachable(rect: Rect, grab: Vec2, viewport: Vec2) -> Pos2 {
-    let keep = vec2(KEEP_VISIBLE, grab.y + GRAB_MARGIN).min(rect.size());
-    let room = (viewport - keep).max(Vec2::ZERO);
-    pos2(rect.min.x.clamp(0.0, room.x), rect.min.y.clamp(0.0, room.y))
+    rect.kept_in(
+        vec2(KEEP_VISIBLE, grab.y + GRAB_MARGIN).min(rect.size()),
+        viewport,
+    )
 }
 
 pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
@@ -752,16 +663,6 @@ pub(crate) fn overlaid(
     })
 }
 
-fn read_placement(placement: &str) -> Option<Pos2> {
-    let mut words = placement.split_whitespace();
-    if words.next()? != PLACEMENT {
-        return None;
-    }
-    let x = words.next()?.parse::<f32>().ok()?;
-    let y = words.next()?.parse::<f32>().ok()?;
-    (x.is_finite() && y.is_finite()).then(|| pos2(x, y))
-}
-
 pub(crate) fn placement_of(key: &FloatedKey) -> Option<String> {
     floated_signal().with_untracked(|held| {
         held.iter()
@@ -835,15 +736,15 @@ pub(crate) fn panel_placed(key: &FloatedKey, placement: String) {
 
 pub(crate) fn dismiss(key: &FloatedKey) {
     floated_signal().update(|held| {
-        let mut gone = vec![key.window];
-        while let Some(window) = held.iter().find(|held| {
-            held.key.plugin == key.plugin
-                && !gone.contains(&held.key.window)
-                && held.parent.is_some_and(|parent| gone.contains(&parent))
-        }) {
-            gone.push(window.key.window);
-        }
-        held.retain(|window| window.key.plugin != key.plugin || !gone.contains(&window.key.window));
+        let Some(index) = held.iter().position(|window| window.key == *key) else {
+            return;
+        };
+        let gone = window_stack::family(held, index);
+        let mut index = 0;
+        held.retain(|_| {
+            index += 1;
+            !gone.contains(&(index - 1))
+        });
     });
 }
 
@@ -947,19 +848,11 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
             continue;
         };
         let (start, start_rect) = *held.start.get_or_insert((at, rect));
-        let moved = at - start;
-        let rect = match held.kind {
-            Kind::Move => start_rect.translate(moved),
-            Kind::Resize(edge) => resized(start_rect, edge, moved),
-        };
         floated.update(|windows| {
-            if held.kind == Kind::Move {
-                move_in(windows, key, rect.min);
-            }
-            if let Some(window) = windows.iter_mut().find(|window| window.key == *key) {
-                window.rect = rect;
+            if let Some(index) = windows.iter().position(|window| window.key == *key) {
+                window_stack::drag(windows, index, held.kind, start_rect, at - start);
                 if held.kind == Kind::Move {
-                    window.grab = Some(start - start_rect.min);
+                    windows[index].grab = Some(start - start_rect.min);
                 }
             }
         });
@@ -974,89 +867,15 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
     ForwardedInput { events, ..input }
 }
 
-fn resized(rect: Rect, edge: WindowEdge, moved: Vec2) -> Rect {
-    let (mut min, mut max) = (rect.min, rect.max);
-    let (left, right, top, bottom) = match edge {
-        WindowEdge::Top => (false, false, true, false),
-        WindowEdge::Bottom => (false, false, false, true),
-        WindowEdge::Left => (true, false, false, false),
-        WindowEdge::Right => (false, true, false, false),
-        WindowEdge::TopLeft => (true, false, true, false),
-        WindowEdge::TopRight => (false, true, true, false),
-        WindowEdge::BottomLeft => (true, false, false, true),
-        WindowEdge::BottomRight => (false, true, false, true),
-    };
-    if left {
-        min.x = (min.x + moved.x).min(max.x - SMALLEST.x);
-    }
-    if right {
-        max.x = (max.x + moved.x).max(min.x + SMALLEST.x);
-    }
-    if top {
-        min.y = (min.y + moved.y).min(max.y - SMALLEST.y);
-    }
-    if bottom {
-        max.y = (max.y + moved.y).max(min.y + SMALLEST.y);
-    }
-    Rect::from_min_max(min, max)
-}
-
 fn raise(key: &FloatedKey) {
     let floated = floated_signal();
     let mut windows = floated.get_untracked();
-    raise_in(&mut windows, key);
+    if let Some(index) = windows.iter().position(|window| window.key == *key) {
+        window_stack::raise(&mut windows, index);
+    }
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
     }
-}
-
-fn with_children(windows: &[Floated], key: &FloatedKey) -> Vec<ViewId> {
-    let mut family = vec![key.window];
-    let mut index = 0;
-    while index < family.len() {
-        let parent = family[index];
-        let children: Vec<ViewId> = windows
-            .iter()
-            .filter(|window| {
-                window.key.plugin == key.plugin
-                    && window.parent == Some(parent)
-                    && !family.contains(&window.key.window)
-            })
-            .map(|window| window.key.window)
-            .collect();
-        family.extend(children);
-        index += 1;
-    }
-    family
-}
-
-fn move_in(windows: &mut [Floated], key: &FloatedKey, to: Pos2) {
-    let Some(from) = windows
-        .iter()
-        .find(|window| window.key == *key)
-        .map(|window| window.rect.min)
-    else {
-        return;
-    };
-    let moved = to - from;
-    let family = with_children(windows, key);
-    for window in windows.iter_mut() {
-        if window.key.plugin == key.plugin
-            && window.panel.is_none()
-            && family.contains(&window.key.window)
-        {
-            window.rect = window.rect.translate(moved);
-        }
-    }
-}
-
-fn raise_in(windows: &mut Vec<Floated>, key: &FloatedKey) {
-    let raised = with_children(windows, key);
-    let (on_top, mut below): (Vec<Floated>, Vec<Floated>) = std::mem::take(windows)
-        .into_iter()
-        .partition(|window| window.key.plugin == key.plugin && raised.contains(&window.key.window));
-    below.extend(on_top);
-    *windows = below;
 }
 
 pub(crate) fn merged_statuses(

@@ -7,7 +7,7 @@ mod brightness_steps_stop_at_the_ends_of_the_backlight;
 mod media_keys_go_to_the_player_that_played_last;
 mod requests_from_the_desktop_reach_their_backends_within_bounds;
 mod the_backlight_is_the_firmware_device_when_there_are_several;
-mod the_levels_are_reported_once_they_change;
+mod the_levels_follow_what_the_backends_report;
 mod volume_steps_stop_at_full_and_at_silence;
 
 const VOLUME_STEP: f32 = 0.05;
@@ -41,15 +41,15 @@ impl Players for Recorder {
     }
 }
 
-fn recorded() -> (Media, Recorder, std::sync::mpsc::Sender<MediaEvent>) {
+fn recorded() -> (Media, Recorder) {
     let recorder = Recorder::default();
     let backends = Backends {
         audio: Rc::new(recorder.clone()),
         backlight: Rc::new(recorder.clone()),
         players: Rc::new(recorder.clone()),
     };
-    let (sender, events) = std::sync::mpsc::channel();
-    (Media::with(backends, events), recorder, sender)
+    let (events, _) = host::mailbox(|_: MediaEvent| {});
+    (Media::with(backends, events), recorder)
 }
 
 impl Recorder {

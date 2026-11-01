@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     fmt,
     marker::PhantomData,
 };
@@ -663,50 +663,101 @@ impl<T, S: wire::Encode<T>> Producer<T, S> {
     }
 }
 
-pub struct Latest<T, S = wire::Plain> {
-    producer: Producer<T, S>,
-    behind: Option<T>,
+#[derive(Clone, Copy, Debug)]
+pub enum Backlog {
+    Latest,
+    Queue(usize),
 }
 
-impl<T, S> fmt::Debug for Latest<T, S> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Latest({})", self.producer.op)
-    }
+struct Outlet<K> {
+    route: K,
+    backlog: Backlog,
+    behind: VecDeque<Vec<u8>>,
 }
 
-impl<T, S> Latest<T, S> {
-    pub fn new(producer: Producer<T, S>) -> Self {
+pub struct Outlets<K> {
+    outlets: HashMap<OpId, Outlet<K>>,
+}
+
+impl<K> Default for Outlets<K> {
+    fn default() -> Self {
         Self {
-            producer,
-            behind: None,
+            outlets: HashMap::new(),
         }
     }
-
-    pub fn op(&self) -> OpId {
-        self.producer.op
-    }
-
-    pub fn finish(self, connection: &mut Connection) {
-        self.producer.finish(connection);
-    }
 }
 
-impl<T, S: wire::Encode<T>> Latest<T, S> {
-    pub fn send(&mut self, connection: &mut Connection, value: T) {
-        self.behind = match self.producer.send(connection, &value) {
-            Ok(()) => None,
-            Err(WouldBlock) => Some(value),
+impl<K> Outlets<K> {
+    pub fn insert<T>(&mut self, producer: Producer<T>, route: K, backlog: Backlog) {
+        let outlet = Outlet {
+            route,
+            backlog,
+            behind: VecDeque::new(),
         };
+        self.outlets.insert(producer.op, outlet);
+    }
+
+    pub fn routes(&self) -> impl Iterator<Item = (OpId, &K)> {
+        self.outlets.iter().map(|(op, outlet)| (*op, &outlet.route))
+    }
+
+    pub fn send<T: Serialize>(
+        &mut self,
+        connection: &mut Connection,
+        item: &T,
+        mut to: impl FnMut(&K) -> bool,
+    ) -> Result<(), WouldBlock> {
+        let item = wire::encode::<wire::Plain, T>(item);
+        for (op, outlet) in &mut self.outlets {
+            if !to(&outlet.route) {
+                continue;
+            }
+            if let Backlog::Latest = outlet.backlog {
+                outlet.behind.clear();
+            }
+            if outlet.behind.is_empty() && connection.yield_item(*op, &item).is_ok() {
+                continue;
+            }
+            if let Backlog::Queue(limit) = outlet.backlog
+                && outlet.behind.len() >= limit
+            {
+                return Err(WouldBlock);
+            }
+            outlet.behind.push_back(item.clone());
+        }
+        Ok(())
     }
 
     pub fn credited(&mut self, connection: &mut Connection, op: OpId) -> bool {
-        if op != self.op() {
+        let Some(outlet) = self.outlets.get_mut(&op) else {
             return false;
-        }
-        if let Some(value) = self.behind.take() {
-            self.send(connection, value);
+        };
+        while let Some(item) = outlet.behind.front() {
+            if connection.yield_item(op, item).is_err() {
+                break;
+            }
+            outlet.behind.pop_front();
         }
         true
+    }
+
+    pub fn end(
+        &mut self,
+        connection: &mut Connection,
+        op: OpId,
+        error: Option<OpError>,
+    ) -> Option<K> {
+        if error.is_none() {
+            self.credited(connection, op);
+        }
+        let outlet = self.outlets.remove(&op)?;
+        let outcome = match (error, outlet.behind.is_empty()) {
+            (Some(error), _) => Outcome::Err(error),
+            (None, false) => Outcome::Err(OpError::Canceled),
+            (None, true) => Outcome::returned(&()),
+        };
+        connection.complete(op, outcome);
+        Some(outlet.route)
     }
 }
 

@@ -4,8 +4,10 @@ use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
-use calendar_types::{Calendar, CalendarContent};
+use block_editor_beui::{BlockParent, BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
+use database_types::database::{Database, DatabaseContent};
+use database_types::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use uuid::Uuid;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
@@ -22,7 +24,7 @@ pub(crate) fn DesktopCalendar(
     let target = create_memo(move || {
         block
             .get()
-            .map(|id| ChildTarget::new(id, Calendar::CONTENT_TYPE))
+            .map(|id| ChildTarget::new(id, DatabaseView::CONTENT_TYPE))
     });
     let screen = container_size();
     let height = create_memo(move || {
@@ -72,10 +74,38 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
             return;
         }
         untrack(|| {
-            let calendar = editor.create_child(&CalendarContent::default());
+            let calendar = create_calendar(editor);
             created.set(Some(calendar));
             editor.set_view_state(CALENDAR_STATE, Some(&ViewState::new(&(), vec![calendar])));
         });
     });
     held
+}
+
+fn create_calendar(editor: Editor) -> Uuid {
+    let blocks = editor.blocks();
+    let mut schema = DatabaseSchemaContent::default();
+    let mut add = |name: &str, field_type: DatabaseFieldType| {
+        let (id, edit) = DatabaseSchema::add_field(name, field_type);
+        schema.apply(&edit);
+        id
+    };
+    add("Name", DatabaseFieldType::String);
+    let start = add("Starts", DatabaseFieldType::Datetime);
+    let end = add("Ends", DatabaseFieldType::Datetime);
+    let schema = blocks.create(&schema, BlockParent::Detached);
+    let database = blocks.create_named(
+        &DatabaseContent::new(&Database::with_schema(schema)),
+        BlockParent::Detached,
+        "Calendar",
+    );
+    blocks.set_parent(schema, BlockParent::Block(database));
+    let view = editor.create_child(&DatabaseViewContent::new(&DatabaseView {
+        kind: DatabaseViewKind::Calendar,
+        calendar_start: Some(start),
+        calendar_end: Some(end),
+        ..DatabaseView::of(database)
+    }));
+    blocks.set_parent(database, BlockParent::Block(view));
+    view
 }

@@ -124,16 +124,12 @@ impl Link {
                 store.define(block(id), block(key), value.clone());
                 self.sent.push(Sent::Define(block(id), block(key), value));
             }
-            Call::SeedContent {
+            Call::WriteContent {
                 block: id,
                 content_type,
                 bytes,
-            } => store.seed_content(block(id), block(content_type), bytes, false),
-            Call::ReplaceContent {
-                block: id,
-                content_type,
-                bytes,
-            } => store.seed_content(block(id), block(content_type), bytes, true),
+                replace,
+            } => store.seed_content(block(id), block(content_type), bytes, replace),
             Call::ReplicaNew {
                 resource,
                 block: id,

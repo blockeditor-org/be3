@@ -1,9 +1,9 @@
 use super::*;
 use crate::Dismiss;
-use crate::base::overlay::{OverlayAnchor, Placement};
-use crate::input::BackGesture;
 use crate::primitives::*;
 use crate::reactive::*;
+use beui::BackGesture;
+use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
 fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {

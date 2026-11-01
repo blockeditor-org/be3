@@ -2,14 +2,16 @@ use stable_hash::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::damage::{Region, WindowRegions};
+use crate::damage::WindowRegions;
 use crate::display::{Display, Group, Part};
 use crate::document::Document;
 use crate::fade::Fade;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects, SpaceId};
+use crate::node::{ANCESTOR_LIMIT, Arena, NodeMap, Rects, SpaceId};
 use crate::painter::{Painter, PainterState, Scope, Shape, placed_shape};
-use crate::window::WindowId;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Vec2};
 
 pub mod verify;
 

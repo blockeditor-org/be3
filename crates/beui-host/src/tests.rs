@@ -1017,11 +1017,12 @@ use std::rc::Rc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, Input, Key, Modifiers, PointerButton, ScrollDelta};
-use crate::input::{TouchId, TouchPhase};
+use beui::Event;
+use beui::input::{Input, Key, Modifiers, PointerButton, ScrollDelta};
+use beui::input::{TouchId, TouchPhase};
 
 use crate::base::frame::FrameNode;
-use crate::base::list::{Direction, ItemSize, ListNode};
+use crate::base::list::ListNode;
 use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
@@ -1030,12 +1031,13 @@ use crate::reactive::*;
 use crate::styled;
 use crate::styled::*;
 use crate::unstyled;
+use beui::layout::{Direction, ItemSize};
 use beui_macros::{component, view};
 
 #[component]
 fn BackTo(
     #[prop(default = true)] enabled: Prop<bool>,
-    on_gesture: Callback<crate::input::BackGesture>,
+    on_gesture: Callback<beui::BackGesture>,
     children: Child,
 ) -> NodeId {
     on_back(enabled, move |gesture| on_gesture.call(gesture));
@@ -1049,7 +1051,7 @@ const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
 
 fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
-    use crate::input::{PointerId, PointerPhase};
+    use beui::input::{PointerId, PointerPhase};
     input
         .events
         .into_iter()
@@ -1174,35 +1176,26 @@ impl Harness {
         Self::sized(document, VIEWPORT)
     }
 
-    pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
-        crate::native::verify_paint(true);
-        crate::inspector::install(&mut document);
-        let window = beui_core::window::WindowSize {
-            size: viewport,
-            scale: 1.0,
-        };
-        let mut stepped = crate::native::testing::Stepped::new(
-            context(),
-            crate::native::testing::Showing(document),
-            window,
-            None,
-        );
-        stepped.settle_after_gestures(false);
-        Self(stepped)
+    pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
+        Self::start(document, viewport, false)
     }
 
-    pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
+    pub(crate) fn hosting_windows(document: Document, viewport: Vec2) -> Self {
+        Self::start(document, viewport, true)
+    }
+
+    fn start(mut document: Document, viewport: Vec2, hosting: bool) -> Self {
+        use crate::native::testing::{Showing, Stepped};
         crate::native::verify_paint(true);
         crate::inspector::install(&mut document);
         let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
-        let mut stepped = crate::native::testing::Stepped::hosting_windows(
-            context(),
-            crate::native::testing::Showing(document),
-            window,
-        );
+        let mut stepped = match hosting {
+            true => Stepped::hosting_windows(context(), Showing(document), window),
+            false => Stepped::new(context(), Showing(document), window, None),
+        };
         stepped.settle_after_gestures(false);
         Self(stepped)
     }
@@ -1238,22 +1231,14 @@ impl Harness {
         panic!("still animating after {LIMIT} frames");
     }
 
-    pub(crate) fn press_at(&mut self, pos: Pos2) {
-        self.down(pos, PointerButton::Primary);
-    }
-
     pub(crate) fn drag_and_rest(&mut self, from: Pos2, to: Pos2) {
-        self.press_at(from);
+        self.down(from, PointerButton::Primary);
         for step in 1..=8 {
             self.hover(from + (to - from) * (step as f32 / 8.0));
         }
         self.pause(Duration::from_millis(200));
-        self.release_at(to);
+        self.up(to, PointerButton::Primary);
         self.settle();
-    }
-
-    pub(crate) fn release_at(&mut self, pos: Pos2) {
-        self.up(pos, PointerButton::Primary);
     }
 
     pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
@@ -1291,13 +1276,6 @@ impl Harness {
         for key in held.iter().rev() {
             self.key_up(*key);
         }
-    }
-
-    pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
-        match pressed {
-            true => self.down(pos, PointerButton::Middle),
-            false => self.up(pos, PointerButton::Middle),
-        };
     }
 
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
@@ -1736,7 +1714,7 @@ fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {
 }
 
 fn key_event(key: Key, pressed: bool) -> Input {
-    Input::Key(beui_core::input::Keystroke {
+    Input::Key(beui::Keystroke {
         key: Some(key),
         pressed,
         ..Default::default()
@@ -2265,8 +2243,8 @@ fn CountingTab(id: u64, presses: Signal<u32>) -> dock::unstyled::DockEntry<u64> 
 fn CountingPanel(id: u64, presses: Signal<u32>) -> NodeId {
     view! {
         <Interactive
-            on_press={move |_: crate::input::PointerPress| presses.update(|presses| *presses += 1)}
-            on_secondary_press={move |_: crate::input::PointerPress| {
+            on_press={move |_: beui::PointerPress| presses.update(|presses| *presses += 1)}
+            on_secondary_press={move |_: beui::PointerPress| {
                 presses.update(|presses| *presses += 1)
             }}
         >
@@ -2526,9 +2504,9 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
     }
 }
 
-use crate::interact::WHEEL_LATCH_TIMEOUT;
 use crate::native::Document;
 use crate::unstyled::Scroll;
+use beui::WHEEL_LATCH_TIMEOUT;
 
 fn nested() -> Document {
     build_node(move || {
@@ -2748,8 +2726,8 @@ fn FocusPanel(
         <Interactive
             focusable=true
             @test_id={name}
-            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
-            on_key={move |press: crate::input::KeyPress| {
+            on_press={move |_: beui::PointerPress| pressed.update(|pressed| pressed.push(owner))}
+            on_key={move |press: beui::KeyPress| {
                 if press.pressed {
                     keyed.update(|keyed| keyed.push(owner));
                 }

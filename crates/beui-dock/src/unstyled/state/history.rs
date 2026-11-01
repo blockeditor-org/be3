@@ -1,10 +1,8 @@
-use serde::{Deserialize, Serialize};
-
 use super::{DockState, TabId};
 
 const HISTORY_LENGTH: usize = 64;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DockVisit {
     pub from: TabId,
     pub to: TabId,
@@ -14,6 +12,17 @@ pub struct DockVisit {
 impl DockState {
     pub fn history(&self) -> &[DockVisit] {
         &self.history
+    }
+
+    pub fn keep_visits(&mut self, recent: Vec<TabId>, history: Vec<DockVisit>) {
+        self.recent = recent
+            .into_iter()
+            .filter(|tab| self.contains(*tab))
+            .collect();
+        self.history = history
+            .into_iter()
+            .filter(|visit| self.contains(visit.from) && self.contains(visit.to))
+            .collect();
     }
 
     pub fn back(&self) -> Option<DockVisit> {

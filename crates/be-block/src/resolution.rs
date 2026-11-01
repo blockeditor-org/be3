@@ -12,10 +12,6 @@ pub enum SettingsSource {
 }
 
 impl SettingsSource {
-    pub fn is_organization(self) -> bool {
-        matches!(self, Self::OrganizationPolicy | Self::OrganizationDefault)
-    }
-
     pub fn is_own(self) -> bool {
         matches!(self, Self::EveryDevice | Self::ThisDevice)
     }

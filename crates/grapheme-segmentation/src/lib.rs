@@ -2,6 +2,8 @@
 Extended grapheme clusters (UAX #29, https://www.unicode.org/reports/tr29/) at
 the Unicode version of icu_properties. This is the only grapheme segmenter:
 text-editor-core's cursor stops and beui-core's galley cursors both use it.
+It also holds the one word rule: text-editor-core's word stops and double
+click, and beui-view's selectable text, all use word_classes and word_around.
 
 A query is one byte offset, inside a scalar or not, and malformed UTF-8 is one
 U+FFFD per byte, as text-editor-core edits raw bytes. It reads only as far back
@@ -152,3 +154,83 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WordClass {
+    Space,
+    Word,
+    Symbol,
+}
+
+fn word_class(c: char) -> WordClass {
+    if c.is_whitespace() {
+        WordClass::Space
+    } else if c.is_alphanumeric() || c == '_' {
+        WordClass::Word
+    } else {
+        WordClass::Symbol
+    }
+}
+
+fn cluster_before(bytes: &[u8], index: usize) -> Option<(char, usize)> {
+    let mut start = index;
+    previous(bytes, &mut start)?;
+    while !is_grapheme_boundary(bytes, start) {
+        previous(bytes, &mut start);
+    }
+    Some((decode(bytes, start).0, start))
+}
+
+fn cluster_after(bytes: &[u8], index: usize) -> Option<(char, usize)> {
+    if index >= bytes.len() {
+        return None;
+    }
+    let (c, width) = decode(bytes, index);
+    let mut end = index + width;
+    while !is_grapheme_boundary(bytes, end) {
+        end += decode(bytes, end).1;
+    }
+    Some((c, end))
+}
+
+pub fn word_classes(bytes: &[u8], index: usize) -> Option<(WordClass, WordClass)> {
+    if !is_grapheme_boundary(bytes, index) {
+        return None;
+    }
+    let (before, _) = cluster_before(bytes, index)?;
+    let (after, _) = cluster_after(bytes, index)?;
+    Some((word_class(before), word_class(after)))
+}
+
+pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -> (usize, usize) {
+    let mut index = index.min(bytes.len());
+    while !is_grapheme_boundary(bytes, index) {
+        index -= 1;
+    }
+    let in_line = |c: char| !matches!(c, '\n' | '\r');
+    let after = cluster_after(bytes, index)
+        .map(|(c, _)| c)
+        .filter(|c| in_line(*c));
+    let before = cluster_before(bytes, index)
+        .map(|(c, _)| c)
+        .filter(|c| in_line(*c));
+    let class = match (after.map(word_class), before.map(word_class)) {
+        (Some(class), _) | (_, Some(class)) if class != WordClass::Space => class,
+        (None, None) => return (index, index),
+        _ => WordClass::Space,
+    };
+    let same = |c: char| in_line(c) && word_class(c) == class;
+    let mut start = index;
+    while let Some((c, previous)) = cluster_before(bytes, start)
+        && (same(c) || joined(start))
+    {
+        start = previous;
+    }
+    let mut end = index;
+    while let Some((c, next)) = cluster_after(bytes, end)
+        && (same(c) || joined(end))
+    {
+        end = next;
+    }
+    (start, end)
+}

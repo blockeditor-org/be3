@@ -1,8 +1,8 @@
 use super::*;
 use stable_hash::HashSet;
 
+use beui::NodeId;
 use beui_core::display::{Display, Layer, Part};
-use beui_core::node::NodeId;
 
 #[test]
 fn the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart() {

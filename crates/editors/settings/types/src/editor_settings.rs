@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use be_block::Root;
 use be_block::setting::Setting;
-use be_block::settings::Layered;
+use be_block::settings::{Layered, union};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct EditorSettings {
@@ -41,12 +41,7 @@ impl Layered for EditorSettings {
 
     fn over(&self, lower: &Self) -> Self {
         Self {
-            defaults: lower
-                .defaults
-                .iter()
-                .chain(self.defaults.iter())
-                .map(|(block_type, editor)| (*block_type, *editor))
-                .collect(),
+            defaults: union(&self.defaults, &lower.defaults),
         }
     }
 }

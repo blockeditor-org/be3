@@ -40,7 +40,8 @@ places (a toolbar and a dock, say) gives each copy its own id.
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
 test in the repository. block-ui-test's BeuiTest is built from an OwnedEditor, which owns the
 state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
-keeps a handle after the BeuiTest takes the owner), and runs it headless through the plugin's own session (block_editor_plugin::headless):
+keeps a handle after the BeuiTest takes the owner; `BeuiTest::editing(block)` makes both, with a default
+EditorHost that may edit, and `test.host()` reaches the host), and runs it headless through the plugin's own session (block_editor_plugin::headless):
 the Screens and EditorSession the shipped plugin runs, fed the calls the app's host would
 make: the world's exports and the answers to the plugin's imports over a be-ops connection, as
 on the wire, and what the host pushes (acceptance, preferences, input, the draw) encoded and
@@ -48,11 +49,7 @@ decoded as the wire would. Gestures are turned into the protocol's input events 
 block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
 editor here either, and a call the plugin refuses fails the test.
 
-    let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host, block);
-    let mut test = BeuiTest::<ChecklistApp>::new(editor);
+    let mut test = BeuiTest::<ChecklistApp>::editing(Uuid::new_v4());
     test.hold(None, ChecklistContent::default());
     test.run();
 
@@ -248,18 +245,18 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
-  a crate's snapshots/ that differs from HEAD, which frame changed and what moved in it. With
-  -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
-  and a changes image for every frame that differs, where magenta marks every pixel that
-  differs - and prints which is which. --base compares against another revision, and
-  --images takes a folder to write to in place of target/changed-paintings.
+  ./scripts/buck run //crates/local-tools:bin -- changed says, for every native painting in a
+  crate's snapshots/ that differs from HEAD (untracked ones too), what moved and which frames
+  changed, and writes those frames into target/changed-paintings as the pull request's
+  painting comment does: a before, an after and a changes PNG for each, where magenta marks
+  every pixel that differs, named by hash and listed beside the frame. --base compares
+  against another revision, and --images writes to another folder.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
 are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
-verify changes) with snapshots added: the document runs through the real `Runner`, frame(inputs)
+verify changes), which takes the snapshots: the document runs through the real `Runner`, frame(inputs)
 pushes raw `Input`s in points through the runner's intake as a platform would, and its
 gestures are drive's - `click`, `drag`, `scroll`, `key`, `type_text`, `fingers` - each
 answering after the frame that took it. `click` and `scroll` reveal a test id that is out of
@@ -338,9 +335,12 @@ which reads the accepted paintings as its inputs and outputs the ones that chang
 ./scripts/verify then copies those into the crate's snapshots/, so a failure's output is in the
 build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
 copies what it accepts into the crate's snapshots/.
-Do not build or test an editor package for the host by itself:
-its tests only mean anything as the wasm guest it ships as, and a native run refuses to
-compare a painting rather than making one nothing would agree with.
+A painting is compared wherever its test runs, and each crate's BUCK runs its tests in exactly
+one place: plugin_tests as wasm for an editor, beui-demo and the other crates that paint as
+plugins do, and `cargo_test(paints = True)` natively for the app's own crates (block-app, its
+desktop and accounts crates, beui-layer-space), whose paintings are what the host draws. An
+editor's tests only mean anything as the wasm guest it ships as, so do not build or test an
+editor package for the host by itself.
 
 While working on one editor, run its tests alone:
 

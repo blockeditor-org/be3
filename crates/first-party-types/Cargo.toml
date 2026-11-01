@@ -12,7 +12,6 @@ uuid = "1"
 audio-block-types = { path = "../editors/audio-block/types" }
 beui-gallery-types = { path = "../editors/beui-gallery/types" }
 browser-tab-types = { path = "../editors/browser-tab/types" }
-calendar-types = { path = "../editors/calendar/types" }
 checklist-types = { path = "../editors/checklist/types" }
 counter-types = { path = "../editors/counter/types" }
 database-types = { path = "../editors/database/types" }
@@ -23,7 +22,6 @@ logic-grid-types = { path = "../editors/logic-grid/types" }
 map-types = { path = "../editors/map/types" }
 pan-zoom-types = { path = "../editors/pan-zoom/types" }
 pdf-types = { path = "../editors/pdf/types" }
-pixel-ray-tracer-types = { path = "../editors/pixel-ray-tracer/types" }
 presentation-types = { path = "../editors/presentation/types" }
 scene-3d-types = { path = "../editors/scene-3d/types" }
 settings-types = { path = "../editors/settings/types" }

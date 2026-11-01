@@ -9,7 +9,7 @@ fn a_pure_guest_is_loaded_from_its_precompiled_module() {
     precompile(std::slice::from_ref(&wasm), None).unwrap();
     let compiled = std::fs::read(directory.join("echo.cwasm")).unwrap();
     std::fs::remove_dir_all(&directory).unwrap();
-    let mut guest = PureHost::new(None)
+    let mut guest = Host::pure(None)
         .unwrap()
         .load_from("echo.wasm", |name| match name {
             "echo.cwasm" => Ok(Stored::Bytes(compiled.clone())),

@@ -59,6 +59,7 @@ mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
 mod closing_a_block_while_the_server_is_silent_holds_up_no_edit;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
+mod news_of_an_older_head_after_a_flush_keeps_the_head_the_replica_reported;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
@@ -892,7 +893,7 @@ impl Device {
                 .expect("the other device reaches the server again");
             let token = be_client::ask(be_protocol::client::account::authenticate(
                 &connection,
-                token,
+                Some(token),
             ))
             .await
             .expect("the other device signs in again")

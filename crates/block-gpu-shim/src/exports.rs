@@ -75,12 +75,6 @@ macro_rules! exported_gpu {
 
 block_gpu_host::block_gpu_abi::gpu_local_imports!(exported_gpu);
 
-// unsafe(ffi)
-#[unsafe(no_mangle)]
-pub extern "C" fn host_wake() {
-    with(|shim| shim.woken = true, ())
-}
-
 pub(crate) fn memory(memory: wasm_bindgen::JsValue) -> Option<js_sys::WebAssembly::Memory> {
     memory.dyn_into().ok()
 }

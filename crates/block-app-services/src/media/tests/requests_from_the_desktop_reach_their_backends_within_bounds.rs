@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn requests_from_the_desktop_reach_their_backends_within_bounds() {
-    let (media, recorder, _events) = recorded();
+    let (media, recorder) = recorded();
     let requests = [
         MediaRequest::StepVolume(VOLUME_STEP),
         MediaRequest::StepVolume(-VOLUME_STEP),
