@@ -30,7 +30,7 @@ pub fn difference(before: &Snapshot, after: &Snapshot) -> Option<Difference> {
             frame: None,
         });
     };
-    let description = within(&before.frames[index], &after.frames[index]);
+    let description = frame_difference(&before.frames[index], &after.frames[index]);
     Some(Difference {
         description: match after.frames.len() {
             1 => description,
@@ -47,7 +47,7 @@ fn frames(count: usize) -> String {
     }
 }
 
-fn within(before: &Frame, after: &Frame) -> String {
+pub fn frame_difference(before: &Frame, after: &Frame) -> String {
     if before.size != after.size {
         return format!(
             "the painting is {}x{}, it used to be {}x{}",

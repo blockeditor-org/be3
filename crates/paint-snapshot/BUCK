@@ -6,5 +6,4 @@ cargo_test()
 
 # The examples: `./scripts/buck run //crates/paint-snapshot:example-<example>`.
 
-cargo_example("changed")
 cargo_example("dump")

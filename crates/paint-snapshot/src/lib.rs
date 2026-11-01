@@ -8,7 +8,7 @@ mod highlight;
 mod raster;
 
 pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting};
-pub use compare::{Difference, difference};
+pub use compare::{Difference, difference, frame_difference};
 pub use fingerprint::fingerprint;
 pub use format::{Snapshot, Texture};
 pub use highlight::{Highlight, highlight};

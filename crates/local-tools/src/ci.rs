@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::ExitCode;
+
+use crate::git;
+use crate::previews::{PAINTINGS, stage};
 
 const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT]";
 
@@ -88,12 +91,6 @@ impl Run {
     fn previews(&self, base: &str, out: &Path) -> Result<(), String> {
         let from = git(&["merge-base", base, "HEAD"]).ok_or("no merge base")?;
         let from = from.trim();
-        let previews = Path::new("target/previews");
-        let (before, after) = (previews.join("before"), previews.join("after"));
-        for directory in [&before, &after] {
-            let _ = fs::remove_dir_all(directory);
-            fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-        }
         let changed = git(&[
             "diff",
             "--name-only",
@@ -101,18 +98,10 @@ impl Run {
             from,
             "HEAD",
             "--",
-            ":(glob)crates/**/snapshots/*.paint",
+            PAINTINGS,
         ])
         .ok_or("could not list the paintings that changed")?;
-        for path in changed.lines().filter(|line| !line.is_empty()) {
-            let name = flat_name(path).ok_or("a painting with no name")?;
-            for (commit, directory) in [(from, &before), ("HEAD", &after)] {
-                if let Some(contents) = git_bytes(&["show", &format!("{commit}:{path}")]) {
-                    fs::write(directory.join(&name), contents)
-                        .map_err(|error| error.to_string())?;
-                }
-            }
-        }
+        let (before, after) = stage(changed.lines(), from, Some("HEAD"))?;
         let numstat = git(&["diff", "--numstat", "--no-renames", from, "HEAD"])
             .ok_or("could not count the lines that changed")?;
         let added = git(&[
@@ -166,28 +155,8 @@ fn unsafe_at(commit: &str) -> Result<unsafe_counts::Counts, String> {
     Ok(unsafe_counts::count(sources.iter().map(String::as_str)))
 }
 
-fn git(arguments: &[&str]) -> Option<String> {
-    git_bytes(arguments).and_then(|bytes| String::from_utf8(bytes).ok())
-}
-
-fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
-    let output = Command::new("git")
-        .args(arguments)
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
-    output.status.success().then_some(output.stdout)
-}
-
 mod lines;
 mod unsafe_counts;
 
 #[cfg(test)]
 mod tests;
-
-fn flat_name(path: &str) -> Option<String> {
-    let mut parts = path.rsplit('/');
-    let name = parts.next()?;
-    let krate = parts.nth(1)?;
-    Some(format!("{krate}.{name}"))
-}

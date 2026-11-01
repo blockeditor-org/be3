@@ -8,10 +8,47 @@ use paint_review_manifest::{Frame, Manifest, Painting, Status};
 use paint_snapshot::{BrowserSnapshot, Snapshot};
 use sha2::{Digest as _, Sha256};
 
+use crate::{git_bytes, hex};
+
+pub const PAINTINGS: &str = ":(glob)crates/**/snapshots/*.paint";
 const ROOT: &str = "PREVIEW_ROOT";
 const MAX_FRAMES: usize = 500;
 const MAX_LISTED: usize = 100;
 const MAX_INLINE_FRAMES: usize = 30;
+
+pub fn stage<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    base: &str,
+    head: Option<&str>,
+) -> Result<(PathBuf, PathBuf), String> {
+    let previews = Path::new("target/previews");
+    let (before, after) = (previews.join("before"), previews.join("after"));
+    for directory in [&before, &after] {
+        let _ = fs::remove_dir_all(directory);
+        fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    }
+    for path in paths.into_iter().filter(|line| !line.is_empty()) {
+        let name = flat_name(path).ok_or("a painting with no name")?;
+        let show = |commit: &str| git_bytes(&["show", &format!("{commit}:{path}")]);
+        let new = match head {
+            Some(head) => show(head),
+            None => fs::read(path).ok(),
+        };
+        for (contents, directory) in [(show(base), &before), (new, &after)] {
+            if let Some(contents) = contents {
+                fs::write(directory.join(&name), contents).map_err(|error| error.to_string())?;
+            }
+        }
+    }
+    Ok((before, after))
+}
+
+fn flat_name(path: &str) -> Option<String> {
+    let mut parts = path.rsplit('/');
+    let name = parts.next()?;
+    let krate = parts.nth(1)?;
+    Some(format!("{krate}.{name}"))
+}
 
 pub fn generate(
     before: &Path,
@@ -42,6 +79,11 @@ pub fn generate(
                 Some(difference) => (Status::Changed, difference),
             },
         };
+        let shown = match detail.as_str() {
+            "" => String::new(),
+            detail => format!(": {}", detail.replace('\n', " ")),
+        };
+        println!("{name} {}{shown}", described(status));
         let old = old.and_then(Result::ok);
         let new = new.and_then(Result::ok);
         let rendered = differing_frames(
@@ -114,12 +156,7 @@ pub fn generate(
             Some(page) => format!("[`{0}`]({page}&painting={0})", painting.name),
             None => format!("`{}`", painting.name),
         };
-        let status = match painting.status {
-            Status::Changed => "changed",
-            Status::Added => "was added",
-            Status::Removed => "was removed",
-            Status::Unreadable => "is unreadable",
-        };
+        let status = described(painting.status);
         let detail = match painting.detail.as_str() {
             "" => String::new(),
             detail => format!(": {}", escaped(&detail.replace('\n', " "))),
@@ -175,6 +212,15 @@ pub fn generate(
     Ok(comment)
 }
 
+fn described(status: Status) -> &'static str {
+    match status {
+        Status::Changed => "changed",
+        Status::Added => "was added",
+        Status::Removed => "was removed",
+        Status::Unreadable => "is unreadable",
+    }
+}
+
 fn differing_frames(
     old: Option<&ReviewSnapshot>,
     new: Option<&ReviewSnapshot>,
@@ -214,7 +260,7 @@ fn differing_frames(
             }
             _ => (None, None),
         };
-        listed.push(Frame {
+        let frame = Frame {
             number: index + 1,
             before: old_image
                 .as_ref()
@@ -226,7 +272,29 @@ fn differing_frames(
                 .transpose()?,
             changes,
             changed_pixels,
-        });
+        };
+        let mut line = format!("  frame {}:", frame.number);
+        if let (Some(ReviewSnapshot::Native(old)), Some(ReviewSnapshot::Native(new))) =
+            (old_frame, new_frame)
+            && old.frames.len() > 1
+        {
+            let what = paint_snapshot::frame_difference(&old.frames[index], &new.frames[index]);
+            let _ = write!(line, " {what};");
+        }
+        for (label, hash) in [
+            ("before", &frame.before),
+            ("after", &frame.after),
+            ("changes", &frame.changes),
+        ] {
+            if let Some(hash) = hash {
+                let _ = write!(line, " {label} {hash}.png");
+            }
+        }
+        if let Some(pixels) = frame.changed_pixels {
+            let _ = write!(line, " ({pixels} pixels differ)");
+        }
+        println!("{line}");
+        listed.push(frame);
     }
     Ok(listed)
 }
@@ -343,10 +411,6 @@ fn write_hashed(output: &Path, extension: &str, bytes: &[u8]) -> Result<String, 
     fs::write(&path, bytes)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
     Ok(hash)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
