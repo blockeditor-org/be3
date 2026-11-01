@@ -141,8 +141,12 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   the world's sync imports as `(module, name)`, which a runtime links and nothing else;
   `embed::<import>::Call`, one case per import, accepted from an op
   (`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it) or a sync call
-  (`Call::accept_direct`); `accept` answers a method it does not know `Unsupported`, so a host
-  with several imported interfaces asks `Call::accepts(&started)` of each first; and `embed::exports::<export>`
+  (`Call::accept_direct`); `accept` answers a method it does not know `Unsupported`.
+  `embed::Call` is the world's: one case per imported interface (named after it, or after
+  its package and it where two share a name) holding that interface's `Call`, with the
+  same `accept` and `accept_direct`, so a host that serves every import matches once
+  (be-server's `serve`, block-app-plugin-host's `heard`); `Call::accepts(&started)` asks
+  one interface alone; and `embed::exports::<export>`
   functions and resource handles that return `Ticket<T>`s to decode the completion
   with. A resource's constructor is a long-lived op whose id is the handle; its async
   methods are ops with it as parent, its sync ones direct calls naming it, and
@@ -187,7 +191,7 @@ socket instead of a guest and its host: `crates/be-protocol`'s network protocol.
 a world only imports, has no local interfaces and no sync funcs (the generator refuses
 them, since a direct call runs on a wasm guest's thread): only `async func`s,
 `stream<T>`-returning funcs and resources (a constructor, async methods and streams).
-It generates the types, `embed::<import>::Call` for the server as above, and
+It generates the types, `embed::<import>::Call` and `embed::Call` for the server as above, and
 `client::<import>` for the client instead of `guest` and the exports: a function per
 func that takes `caller: &(impl be_ops::net::Caller + Clone)` and returns a
 `be_ops::net::Pending<T>` (an `async func`; a `Send` future of `Result<T, OpError>`)
@@ -204,7 +208,7 @@ rest of the events (`Started`, and `Canceled`/`Credited` of what this side serve
 and `close`d when the socket goes, which ends every call `Canceled`. The client is
 `Side::Guest` and the server `Side::Host`. The server answers from any thread or task
 through `peer.lock()`, a guard that derefs to the `Connection` and sends what it queued
-when dropped: `Call::accept(&mut peer.lock(), started)`, then in a spawned task
+when dropped: `embed::Call::accept(&mut peer.lock(), started)`, then in a spawned task
 `reply.send(&mut peer.lock(), &value)`, `stream.send(...)` after
 `peer.writable(stream.op()).await?` (which waits for credit and fails once the op is
 canceled), and `peer.canceled(op).await` to stop work, or end a resource, that the
@@ -212,6 +216,18 @@ client dropped. Never hold the guard across an await. A `Canceled` event may nam
 already answered (a parent's end cancels its children when the server completes it,
 and the event comes out of the next `receive`), so a server ignores one it does not
 know. crates/be-ops's `network` tests run both halves over an in-memory pipe.
+
+So one generator, one set of types and one op protocol, with three ways a call travels,
+chosen by who answers it and where. An `async func` or stream is an op: postcard
+arguments in a frame, answered later by whoever holds the other `Connection` (a host
+through the guest's frames, or a server through a socket, which is all `network` changes:
+the transport, and a `Send` client in place of the guest's executor). A sync func is a
+direct call: postcard in a `block_guest_abi::direct` item, ordered with the frames, so it
+cannot return to an import, only to an export the host awaits. A `local` func is the one
+sync call that returns into the guest, which only a host on the guest's own thread can
+answer; it is a path of its own rather than a faster encoding of a direct call, since a
+direct import cannot return at all, and its flattened wasm arguments keep a per-draw call
+to a few wasm values with no encoding or copy.
 
 ## The protocol
 

@@ -8,7 +8,7 @@ use block_plugin_api::{
     AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
-        blocks,
+        self, blocks,
         debug::debug::Call as DebugCall,
         dock::Call as DockCall,
         exports::{
@@ -328,20 +328,23 @@ impl Wire {
             .map(|(instance, _)| *instance)
     }
 
-    fn serve(&mut self, started: Started, heard: &mut Vec<Heard>) {
-        let op = started.op;
-        let Some(instance) = self.editor_of(started.parent) else {
+    fn serve(
+        &mut self,
+        op: OpId,
+        parent: Option<OpId>,
+        call: host_services::Call,
+        heard: &mut Vec<Heard>,
+    ) {
+        let Some(instance) = self.editor_of(parent) else {
             self.connection.complete(op, Outcome::Err(OpError::Denied));
             return;
         };
-        if let Some(call) = host_services::Call::accept(&mut self.connection, started) {
-            self.serving.insert(op, instance);
-            heard.push(Heard::Service(Service {
-                instance,
-                op: Some(op),
-                call,
-            }));
-        }
+        self.serving.insert(op, instance);
+        heard.push(Heard::Service(Service {
+            instance,
+            op: Some(op),
+            call,
+        }));
     }
 
     fn published_watch(&mut self, started: Started, heard: &mut Vec<Heard>) {
@@ -628,65 +631,64 @@ impl Wire {
 
     fn heard(&mut self, event: Incoming, heard: &mut Vec<Heard>) -> Result<(), String> {
         let call = match event {
-            Incoming::Started(started) if blocks::Call::accepts(&started) => {
-                let (op, parent) = (started.op, started.parent);
-                return match blocks::Call::accept(&mut self.connection, started) {
-                    Some(call) => self.blocks(Some(op), parent, call, heard),
-                    None => Ok(()),
-                };
-            }
-            Incoming::Started(started) if host_services::Call::accepts(&started) => {
-                self.serve(started, heard);
-                return Ok(());
-            }
             Incoming::Started(started) if super::published::watching(started.method).is_some() => {
                 self.published_watch(started, heard);
                 return Ok(());
             }
-            Incoming::Started(started) if DebugCall::accepts(&started) => {
+            Incoming::Started(started) => {
+                let (op, parent) = (started.op, started.parent);
                 let connection = &mut self.connection;
-                match DebugCall::accept(connection, started) {
-                    Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
-                        self.debug_templates.opened(resource.op())
+                match embed::Call::accept(connection, started) {
+                    None => return Ok(()),
+                    Some(embed::Call::Host(call)) => call,
+                    Some(embed::Call::Blocks(call)) => {
+                        return self.blocks(Some(op), parent, call, heard);
                     }
-                    Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
-                        self.debug_templates.next(connection, reply)
+                    Some(embed::Call::HostServices(call)) => {
+                        self.serve(op, parent, call, heard);
+                        return Ok(());
                     }
-                    Some(_) | None => {}
-                }
-                return Ok(());
-            }
-            Incoming::Started(started) if DockCall::accepts(&started) => {
-                let connection = &mut self.connection;
-                match DockCall::accept(connection, started) {
-                    Some(DockCall::DockWatchNew { resource, instance }) => {
-                        if self.editors.contains_key(&instance) {
-                            self.docks
-                                .entry(instance)
-                                .or_default()
-                                .opened(resource.op());
+                    Some(embed::Call::Debug(call)) => {
+                        match call {
+                            DebugCall::DebugTemplatesWatchNew { resource } => {
+                                self.debug_templates.opened(resource.op())
+                            }
+                            DebugCall::DebugTemplatesWatchNext { reply, .. } => {
+                                self.debug_templates.next(connection, reply)
+                            }
+                            _ => {}
                         }
+                        return Ok(());
                     }
-                    Some(DockCall::DockWatchNext { this, reply }) => {
-                        match self.docks.values_mut().find(|watch| watch.is(this.op())) {
-                            Some(watch) => watch.next(connection, reply),
-                            None => reply.fail(connection, OpError::Canceled),
+                    Some(embed::Call::Dock(call)) => {
+                        match call {
+                            DockCall::DockWatchNew { resource, instance } => {
+                                if self.editors.contains_key(&instance) {
+                                    self.docks
+                                        .entry(instance)
+                                        .or_default()
+                                        .opened(resource.op());
+                                }
+                            }
+                            DockCall::DockWatchNext { this, reply } => {
+                                match self.docks.values_mut().find(|watch| watch.is(this.op())) {
+                                    Some(watch) => watch.next(connection, reply),
+                                    None => reply.fail(connection, OpError::Canceled),
+                                }
+                            }
                         }
+                        return Ok(());
                     }
-                    None => {}
+                    Some(embed::Call::Shell(call)) => {
+                        self.watch_call(call, heard);
+                        return Ok(());
+                    }
+                    Some(_) => {
+                        connection.complete(op, Outcome::Err(OpError::Unsupported));
+                        return Ok(());
+                    }
                 }
-                return Ok(());
             }
-            Incoming::Started(started) if ShellCall::accepts(&started) => {
-                if let Some(call) = ShellCall::accept(&mut self.connection, started) {
-                    self.watch_call(call, heard);
-                }
-                return Ok(());
-            }
-            Incoming::Started(started) => match Call::accept(&mut self.connection, started) {
-                Some(call) => call,
-                None => return Ok(()),
-            },
             Incoming::Called(called) => {
                 if let Some(call) = host_services::Call::accept_direct(&called) {
                     if let Some(instance) = self.editor_of(called.parent) {

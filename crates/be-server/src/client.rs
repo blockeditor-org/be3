@@ -433,36 +433,27 @@ impl Client {
     }
 
     async fn serve(&mut self, started: Started) {
-        if embed::connection::Call::accepts(&started) {
-            let call = embed::connection::Call::accept(&mut self.peer.lock(), started);
-            if let Some(embed::connection::Call::Ping { reply }) = call {
-                reply.send(&mut self.peer.lock(), &());
-            }
+        let Some(call) = embed::Call::accept(&mut self.peer.lock(), started) else {
             return;
-        }
+        };
+        let call = match call {
+            embed::Call::Connection(embed::connection::Call::Ping { reply }) => {
+                return reply.send(&mut self.peer.lock(), &());
+            }
+            call => call,
+        };
         let prelude = self.prelude().await;
-        macro_rules! serve {
-            ($($interface:ident),*) => {$(
-                if embed::$interface::Call::accepts(&started) {
-                    let call = embed::$interface::Call::accept(&mut self.peer.lock(), started);
-                    if let Some(call) = call {
-                        self.$interface(call, prelude).await;
-                    }
-                    return;
-                }
-            )*};
+        match call {
+            embed::Call::Connection(_) => {}
+            embed::Call::Account(call) => self.account(call, prelude).await,
+            embed::Call::Organizations(call) => self.organizations(call, prelude).await,
+            embed::Call::Members(call) => self.members(call, prelude).await,
+            embed::Call::Contacts(call) => self.contacts(call, prelude).await,
+            embed::Call::Objects(call) => self.objects(call, prelude).await,
+            embed::Call::Blocks(call) => self.blocks(call, prelude).await,
+            embed::Call::Sessions(call) => self.sessions(call, prelude).await,
+            embed::Call::Keys(call) => self.keys(call, prelude).await,
         }
-        serve!(
-            account,
-            organizations,
-            members,
-            contacts,
-            objects,
-            blocks,
-            sessions,
-            keys
-        );
-        embed::connection::Call::accept(&mut self.peer.lock(), started);
     }
 
     async fn account(&mut self, call: embed::account::Call, prelude: Result<(), ServerError>) {
