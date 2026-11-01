@@ -7,7 +7,7 @@ use std::{
 use std::sync::PoisonError;
 use wasi_threads::Mutex;
 
-use be_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed};
+use be_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed, Write};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, SessionState};
@@ -1302,14 +1302,11 @@ impl<H: Host> Replicas<H> {
                 .await
                 .unwrap_or_default();
             let saved = peer
-                .publish_encoded(
+                .write(
                     block,
-                    content_type,
-                    &bytes,
-                    description.references,
-                    description.derived,
-                    Some(theirs),
-                    Some((base, ours)),
+                    Write::encoded(content_type, &bytes, Some(theirs))
+                        .described(description.references, description.derived)
+                        .merging(base, ours),
                 )
                 .await?;
             match saved {
@@ -2068,19 +2065,14 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 H::spawn(async move {
                     let sealed = io.clone();
-                    let saved = commit::<H>(
-                        &peer,
-                        block,
-                        content_type,
-                        content,
-                        expected,
-                        merging.map(|merging| (merging.base, merging.ours)),
-                        local,
-                        &publishing,
-                        move || {
-                            let _ = sealed.send(Io::Sealed);
-                        },
-                    )
+                    let mut write = Write::encoded(content_type, &content.bytes, expected)
+                        .described(content.references, content.derived);
+                    if let Some(merging) = merging {
+                        write = write.merging(merging.base, merging.ours);
+                    }
+                    let saved = commit::<H>(&peer, block, write, local, &publishing, move || {
+                        let _ = sealed.send(Io::Sealed);
+                    })
                     .await;
                     let kept = publishing
                         .kept()
@@ -2113,15 +2105,10 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
+                    let write = Write::encoded(content_type, &content.bytes, parent)
+                        .described(content.references, content.derived);
                     let stashed = peer
-                        .stash_encoded(
-                            block,
-                            content_type,
-                            &content.bytes,
-                            content.references,
-                            content.derived,
-                            parent,
-                        )
+                        .stash(block, write)
                         .await
                         .map_err(|error| error.to_string());
                     (Answered::Stash(reply, stashed), None)
@@ -2309,31 +2296,16 @@ fn known_head_of<S: be_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Optio
         .or_else(|| peer.known_summary(block).and_then(|summary| summary.head))
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn commit<H: Host>(
     peer: &Peer<H::Store>,
     block: Uuid,
-    content_type: Uuid,
-    content: block_type_api::Written,
-    expected: Option<CommitId>,
-    merging: Option<(Option<CommitId>, CommitId)>,
+    write: Write<'_>,
     local: bool,
     publishing: &Publishing,
     sealed: impl FnOnce(),
 ) -> Result<Saved, ClientError> {
     let before = peer.local_head(block);
-    let commit = match peer
-        .seal_encoded(
-            block,
-            content_type,
-            &content.bytes,
-            content.references,
-            content.derived,
-            expected,
-            merging,
-        )
-        .await?
-    {
+    let commit = match peer.seal(block, write).await? {
         Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
         Sealed::Sealed(commit) => commit,
     };
@@ -2380,14 +2352,12 @@ async fn reset<H: Host>(
     let mut expected = peer.remote_head(block).await?;
     for _ in 0..4 {
         match peer
-            .publish_encoded(
+            .write(
                 block,
-                kind.content_type,
-                &kind.blank,
-                kind.described.references.clone(),
-                kind.described.derived.clone(),
-                expected,
-                None,
+                Write::encoded(kind.content_type, &kind.blank, expected).described(
+                    kind.described.references.clone(),
+                    kind.described.derived.clone(),
+                ),
             )
             .await?
         {

@@ -41,14 +41,14 @@ async fn a_merge_left_waiting_is_sent_once_the_device_reconnects() {
     harness.reconnect(&offline, owner.token()).await;
     offline.fetch_history(theirs).await.unwrap();
     let merged = offline
-        .seal_encoded(
+        .seal(
             note,
-            TextContent::CONTENT_TYPE,
-            &TextBlock::of("two, merged").encode(),
-            Vec::new(),
-            Default::default(),
-            Some(theirs),
-            Some((Some(base), ours)),
+            Write::encoded(
+                TextContent::CONTENT_TYPE,
+                &TextBlock::of("two, merged").encode(),
+                Some(theirs),
+            )
+            .merging(Some(base), ours),
         )
         .await
         .unwrap();

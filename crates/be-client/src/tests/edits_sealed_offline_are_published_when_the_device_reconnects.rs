@@ -116,14 +116,14 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     assert_eq!(lagging.pending().commits, 1, "a diverged edit was dropped");
     assert_eq!(lagging.known_remote_head(note), Some(theirs));
     let merged = lagging
-        .publish_encoded(
+        .write(
             note,
-            TextContent::CONTENT_TYPE,
-            &TextBlock::of("four, merged").encode(),
-            Vec::new(),
-            Default::default(),
-            Some(theirs),
-            Some((Some(three), ours)),
+            Write::encoded(
+                TextContent::CONTENT_TYPE,
+                &TextBlock::of("four, merged").encode(),
+                Some(theirs),
+            )
+            .merging(Some(three), ours),
         )
         .await
         .unwrap();
