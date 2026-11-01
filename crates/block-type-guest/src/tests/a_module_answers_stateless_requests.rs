@@ -38,30 +38,33 @@ fn a_module_answers_stateless_requests() {
 
     let module = block_types();
     assert_eq!(
-        module.blank(ChecklistContent::CONTENT_TYPE),
+        pollster::block_on(module.blank(ChecklistContent::CONTENT_TYPE)),
         Ok(ChecklistContent::default().encode())
     );
     let mut ours = ChecklistContent::default();
     ours.apply(&add("ours"));
     let mut theirs = ChecklistContent::default();
     theirs.apply(&add("theirs"));
-    let Ok(Merged { bytes, conflicts }) = module.merge3(
+    let Ok(Merged { bytes, conflicts }) = pollster::block_on(module.merge3(
         ChecklistContent::CONTENT_TYPE,
         None,
         Some(ours.encode()),
         Some(theirs.encode()),
-    ) else {
+    )) else {
         panic!("a merge");
     };
     assert_eq!(conflicts, 0);
     assert_eq!(texts(&ChecklistContent::decode(&bytes).unwrap()).len(), 2);
-    let description = module
-        .describe(ChecklistContent::CONTENT_TYPE, ours.encode(), ORGANIZATION)
-        .expect("a description");
+    let description = pollster::block_on(module.describe(
+        ChecklistContent::CONTENT_TYPE,
+        ours.encode(),
+        ORGANIZATION,
+    ))
+    .expect("a description");
     assert_eq!(description.derived, be_block::derived_metadata(&ours));
     let text = FileContent::new("notes.txt".into(), b"hello".to_vec());
     assert_eq!(
-        module.to_file(FileContent::CONTENT_TYPE, text.encode()),
+        pollster::block_on(module.to_file(FileContent::CONTENT_TYPE, text.encode())),
         Ok(Some(PlainFile {
             bytes: b"hello".to_vec(),
             name: Some("notes.txt".to_owned()),
@@ -70,18 +73,21 @@ fn a_module_answers_stateless_requests() {
         }))
     );
     assert_eq!(
-        module.to_file(ChecklistContent::CONTENT_TYPE, ours.encode()),
+        pollster::block_on(module.to_file(ChecklistContent::CONTENT_TYPE, ours.encode())),
         Ok(None)
     );
     assert_eq!(
-        module.claims("notes.txt".into(), b"hello".to_vec(), false, true),
+        pollster::block_on(module.claims("notes.txt".into(), b"hello".to_vec(), false, true)),
         Some(FileContent::CONTENT_TYPE)
     );
     assert_eq!(
-        module.claims("photos".into(), Vec::new(), true, false),
+        pollster::block_on(module.claims("photos".into(), Vec::new(), true, false)),
         None
     );
-    assert_eq!(module.blank(Uuid::nil()), Err(Failure::UnknownType));
+    assert_eq!(
+        pollster::block_on(module.blank(Uuid::nil())),
+        Err(Failure::UnknownType)
+    );
 
     let content = replicas::Replica::from_op(9).content(&mut host);
     crate::abi::Guest::step(&mut guest, host.take_outbound(), false, &mut outbound).unwrap();

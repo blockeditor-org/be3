@@ -35,7 +35,7 @@ impl Programs {
         }
         let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
         self.editor
-            .act(move || desktop::programs::request(ProgramAction::List { icon_size }));
+            .act(move || desktop::programs::request(ProgramAction::List { icon_size }).detach());
     }
 
     fn choose(&self, key: String) {
@@ -47,7 +47,8 @@ impl Programs {
                 launch: None,
             },
         };
-        self.editor.act(move || desktop::programs::request(action));
+        self.editor
+            .act(move || desktop::programs::request(action).detach());
     }
 }
 

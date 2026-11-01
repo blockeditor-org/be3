@@ -227,10 +227,6 @@ Every guest, an editor plugin or a module with no GPU, speaks the same small ABI
 - `_initialize`, the WASI reactor's: called once after instantiation, before anything else.
   Without it the host calls `__wasm_call_ctors` if it is exported, which is what LLVM's
   constructors are run by. Optional.
-- Its world's sync exports, each `(has_parent: i32, parent: i64, pointer, length) -> i64` (the
-  result's pointer and length packed), with `plugin_alloc(length) -> pointer` for the host to
-  write the arguments into (guides/type_modules.md, "Operations and WIT"). Only those its world
-  has.
 - `wasi_thread_start(thread, argument)`, if it imports `wasi.thread-spawn`.
 
 What it may import, each only if it uses it (anything else is answered by a function that
@@ -239,8 +235,6 @@ fails when called):
   which carry the frames of its world (postcard, as in guides/type_modules.md; `NO_MESSAGE`
   when nothing waits, and the length needed when the buffer is too small), `host_wake()`, which
   asks to be stepped again, and `host_panic(pointer, length)`, which stops it with that message.
-- Its world's sync imports, `(has_parent: i32, parent: i64, pointer, length)` with no result,
-  under the interface's name (an editor's, `crates/block-plugin-api/wit`).
 - The `be3:gpu/device@0.1.0` imports (below): one per func, resources as `i32` handles that start
   at 1 for each kind, a record of plain values flattened into parameters, and anything else as
   the pointer and length of its postcard encoding; `gpu_local_imports!` in block-gpu-abi lists
@@ -374,12 +368,9 @@ drop it when wgpu is upgraded. On WebGL, indirect draws are refused (wgpu's
 A *pure guest* has only those imports: no gpu, no library, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
 own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A
-type module is a pure guest whose ABI grows with its WIT world (guides/type_modules.md,
-"Operations and WIT"): its async calls are be-ops frames, and each sync func is a wasm
-import (`(has_parent: i32, parent: i64, pointer, length)`, with no result) or export
-(the same arguments, the host writing them into memory from `plugin_alloc`, returning
-the result's packed pointer and length). The host links `be3_host` and the world's imports (`Host::with_direct`,
-`WebGuest::start`'s list) and refuses any other.
+type module is a pure guest whose every call is a be-ops frame through `be3_host`
+(guides/type_modules.md, "Operations and WIT"), so its ABI is the same as every other
+pure guest's, and the host refuses any import but `be3_host`'s.
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
 guest share:
@@ -395,8 +386,8 @@ guest share:
   panic on the thread.
 - `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
 - `web::WebGuest<P>` runs any guest in a web worker of its own: `src/guest.js`, which the crate
-  embeds and starts as a blob worker, so it needs no file served. It answers `be3_host`, the
-  direct imports and the step, report and wake messages with frames moved as transferable
+  embeds and starts as a blob worker, so it needs no file served. It answers `be3_host` and
+  the step, report and wake messages with frames moved as transferable
   buffers, and refuses any other import, which is all a pure guest needs. An editor's start
   names an extension, block-app's `plugin.js`, served beside the app, which instantiates the
   plugin with its libraries, WASI, threads and block-gpu-shim, answers the rest of its imports,
@@ -406,8 +397,8 @@ guest share:
 
 Natively a pure guest is a `Plugin` of a `Host::pure` in block-wasm-host: the same loading,
 calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
-and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` and direct
-imports linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
+and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` imports
+linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
 anything else is refused, and its memory capped with `StoreLimits` (`MEMORY_LIMIT`, or
 `with_memory_limit`).
 `precompile` compiles either kind.

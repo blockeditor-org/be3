@@ -23,10 +23,11 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
 
 WIT is the schema, but there is no component model underneath: everything rides the
 pure-guest ABI (guides/plugin_libraries.md, "The raw plugin interface"). The WIT decides how
-each function travels. A plain `func` is a direct call: a wasm import (guest to host)
-or export (host to guest) of its own, run to completion on the guest's thread before
-the caller goes on. An `async func`, a `stream<T>` and a resource's lifetime are
-operations ("ops") of the be-ops kernel, which can be awaited and canceled.
+each function travels. A plain `func` is answered synchronously, on the caller's
+thread, which only a `local` interface (below) can do, so the generator refuses one in
+any other interface, import or export. Everything else is an `async func`, a
+`stream<T>` or a resource's lifetime: an operation ("op") of the be-ops kernel, which can
+be awaited and canceled.
 
 - `crates/be-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
   `Side::Guest`) has five frames: `Start { op, parent, method, args }`,
@@ -37,17 +38,11 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   (the callee sees `Incoming::Canceled`) when the parent ends, and one started under a
   parent that already ended is answered `Canceled` by the kernel. Besides a method's own
   errors there are `OpError::Canceled`, `Unsupported` (an unknown method or arguments
-  that do not decode) and `Denied`. A method's id is the FNV-1a hash of its name,
+  that do not decode), `Denied` and `Unanswered` (the host dropped the call's `Reply`
+  without answering it). A method's id is the FNV-1a hash of its name,
   `<package>/<interface>@<version>#<function>`; frames, args and results are postcard,
   each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`),
   stable only within one source tree.
-  Direct calls cross the host's link to the guest's thread in the same ordered stream
-  as frames, as `block_guest_abi::direct` items (`call`: a name, the parent and the
-  args; `returned`: a result), which no frame can be mistaken for: the host's
-  `Connection::call_direct` sends one and turns the guest's answer, matched in order,
-  into the same `Incoming::Completed` an op ends with, and a sync import the guest made
-  arrives as `Incoming::Called`. An empty result is `()`, and a sync func with no
-  result is sent with `notify_direct`, which asks for no answer back.
   A stream is back-pressured by a `Window` of items and bytes: the side serving it
   may send while `STREAM_WINDOW` items and `STREAM_WINDOW_BYTES` bytes are not used
   up (an item larger than what is left still goes while any is left), and
@@ -69,8 +64,15 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `be_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
   host's items, runs every task they wake until none is ready, and returns the items
   to send, so a step is deterministic and handles one item completely before the next.
-  A guest calls an import inside `guest::with_parent(op, ...)` to make the call (op or
-  direct) about `op`; dropping a pending call or stream cancels it.
+  A guest calls an import inside `guest::with_parent(op, ...)` to make the call about
+  `op`. A call has happened once the generated function returns: it queued the `Start`.
+  Dropping the call's `Pending` afterwards (or a `Stream`) only asks the callee to
+  cancel, with a `Cancel` behind the `Start`; the callee answers the real result if the
+  call already took effect, and the guest ignores whichever answer comes. `Pending` is
+  `#[must_use]`, and `.detach()` is how a guest says nobody waits for the answer: it
+  forgets the call without a `Cancel` (`net::Pending::detach` does the same through
+  `Caller::forget`). An export whose future is ready when first polled answers in the
+  step that read its `Start`, before the next item, as if it were a plain call.
 - `crates/be-ops-bindgen`: the generator, a proc macro over `wit-parser`
   (`generate!({ path, world, ... })`, expanded at the crate root). Its
   `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
@@ -116,7 +118,7 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
   with bytes in its result names the encoding the generated function returns, and a
   helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,
-  `wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::outcome` encodes an
+  `wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::answer` encodes an
   answer to send later. With postcard a byte sequence and bytes encode alike, so this
   changes no byte on the wire. A watched value is a record or variant, never bytes
   directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
@@ -136,26 +138,29 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
   an id is always a named alias, and a number one side hands out is an alias of an
   unsigned integer named `<thing>-id` in the package that hands it out. For the guest:
-  `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
-  on wasm32-unknown-unknown and through the executor in process; an `async func` returns
-  `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`
-  trait, a `Guest<Resource>` trait per resource and `dispatch`;
-  `guest::executor(guest)` serves them, and `export_<world>!()` makes the wasm exports
-  of every sync export (one per function, named like its method, plus
-  `plugin_alloc`), which a module's `:wasm` build calls once. For the host: `IMPORTS`,
-  the world's sync imports as `(module, name)`, which a runtime links and nothing else;
-  `embed::<import>::Call`, one case per import, accepted from an op
-  (`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it) or a sync call
-  (`Call::accept_direct`); `accept` answers a method it does not know `Unsupported`.
-  `embed::Call` is the world's: one case per imported interface (named after it, or after
-  its package and it where two share a name) holding that interface's `Call`, with the
-  same `accept` and `accept_direct`, so a host that serves every import matches once
-  (be-server's `serve`, block-app-plugin-host's `heard`); `Call::accepts(&started)` asks
-  one interface alone; and `embed::exports::<export>`
+  `guest::<import>` functions (an `async func` returns `Pending<T>`; a `stream<T>`
+  returns `Stream<T>`), and for each export a `Guest` trait, a `Guest<Resource>` trait
+  per resource and `dispatch`, whose methods return `impl Future<Output = T>`
+  (`std::future::ready(value)` for one the guest finishes at once);
+  `guest::executor(guest)` serves them. For the host: `embed::<import>::Call`, one case
+  per import, accepted from an op (`Call::accept`, with a `Reply<T>` or `Producer<T>` to
+  answer it); `accept` answers a method it does not know `Unsupported`, and
+  `Call::refuse(error)` turns a call the host will not serve into its op and the error
+  outcome to send. `embed::Call` is the world's: one case per imported interface (named
+  after it, or after its package and it where two share a name) holding that
+  interface's `Call`, with the same `accept` and `refuse`, so a host that serves every
+  import matches once (be-server's `serve`, block-app-plugin-host's `heard`);
+  `Call::accepts(&started)` asks one interface alone, and `embed::method_name(method)`
+  names a method from the world's `embed::METHODS`. A `Reply` must be answered:
+  `send` or `fail` on the connection, or `answer` for its op and outcome, which a host
+  without the connection at hand queues to send later. One dropped unanswered answers
+  `Err(Unanswered)` the next time its connection's outbound is taken, so a forgotten
+  answer is an error the guest sees rather than an op left open; `into_op` is for a host
+  that keeps only the op id and answers it with `Connection::complete` itself (a watch's
+  `next`, parked until its value changes). And `embed::exports::<export>`
   functions and resource handles that return `Ticket<T>`s to decode the completion
   with. A resource's constructor is a long-lived op whose id is the handle; its async
-  methods are ops with it as parent, its sync ones direct calls naming it, and
-  `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
+  methods are ops with it as parent, and `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
   `constructor()` and `next: async func() -> T` is a latest-value watch: the guest's
   handle implements `be_ops::Watched` (its `Value`, its interface, the two method ids,
   `open()` and `next()`), and `embed::WATCHES` lists every watch the world imports as a
@@ -165,13 +170,13 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   statics, since tests run many modules on one thread, and the constructor lives on
   `Guest` as `new_<resource>`, handed its op id.
 
-The rule, so that native, the web and in process behave the same: a sync import
-carries no result. The guest's thread answers it `()` at once and forwards it to the
-host in order with the frames, since the host's state is not reachable from the
-guest's worker on the web; an import that needs an answer is an `async func`, and
-the generator refuses a sync import with a result. A sync export is a call the host
-always awaits: every runtime runs it on the guest's thread and sends its result back
-after the frames it made.
+The rule, so that native, the web and in process behave the same: only a host on the
+caller's own thread can answer synchronously, and the host's state is not reachable
+from the guest's worker on the web, so every call but a `local` one is an `async func`.
+An import that only tells the host something returns nothing: the guest makes it and
+calls `.detach()`, and the host answers `()` in the arm that applies it, or once it took
+effect for a guest that awaits it. The guest's whole wasm interface is then
+block-guest-abi's (`be3_host` and the `plugin_*` exports) plus its local imports.
 
 The one exception is an interface whose host runs inside the guest's own worker or
 thread on every platform, as the GPU device does (block-gpu-shim on the web, wasmtime
@@ -193,8 +198,7 @@ world with other imports of its own takes a local interface from its crate with
 
 `network: true` generates a world for a client and a server that talk over a
 socket instead of a guest and its host: `crates/be-protocol`'s network protocol. Such
-a world only imports, has no local interfaces and no sync funcs (the generator refuses
-them, since a direct call runs on a wasm guest's thread): only `async func`s,
+a world only imports and has no local interfaces, so it has no sync funcs: only `async func`s,
 `stream<T>`-returning funcs and resources (a constructor, async methods and streams).
 It generates the types, `embed::<import>::Call` and `embed::Call` for the server as above, and
 `client::<import>` for the client instead of `guest` and the exports: a function per
@@ -203,7 +207,7 @@ func that takes `caller: &(impl be_ops::net::Caller + Clone)` and returns a
 or a `be_ops::net::Stream<T>` (`recv()`, and `futures_core::Stream`; it grants credit
 as it is read like the guest's), and a struct per resource whose `new(caller, ...)`
 opens it, whose methods start ops under it, whose `closed()` awaits its end and whose
-drop cancels it. Dropping a `Pending` or `Stream` cancels it too, so nothing in user
+drop cancels it. Dropping a `Pending` or `Stream` asks to cancel it too, so nothing in user
 code names an op. `Caller` is the stubs' seam (start an op, poll what arrives for it,
 grant credit, cancel), and `be_ops::net::Peer` implements it: one side's `Connection`
 behind a mutex, made with a sink it hands each outbound frame to (under its lock, so
@@ -222,17 +226,14 @@ already answered (a parent's end cancels its children when the server completes 
 and the event comes out of the next `receive`), so a server ignores one it does not
 know. crates/be-ops's `network` tests run both halves over an in-memory pipe.
 
-So one generator, one set of types and one op protocol, with three ways a call travels,
-chosen by who answers it and where. An `async func` or stream is an op: postcard
-arguments in a frame, answered later by whoever holds the other `Connection` (a host
-through the guest's frames, or a server through a socket, which is all `network` changes:
-the transport, and a `Send` client in place of the guest's executor). A sync func is a
-direct call: postcard in a `block_guest_abi::direct` item, ordered with the frames, so it
-cannot return to an import, only to an export the host awaits. A `local` func is the one
-sync call that returns into the guest, which only a host on the guest's own thread can
-answer; it is a path of its own rather than a faster encoding of a direct call, since a
-direct import cannot return at all, and its flattened wasm arguments keep a per-draw call
-to a few wasm values with no encoding or copy.
+So one generator, one set of types and one op protocol, with two ways a call travels,
+chosen by who answers it. An `async func` or stream is an op: postcard arguments in a
+frame, answered later by whoever holds the other `Connection` (a host through the guest's
+frames, or a server through a socket, which is all `network` changes: the transport, and
+a `Send` client in place of the guest's executor). A `local` func is the one call that
+returns into the guest, which only a host on the guest's own thread can answer; its
+flattened wasm arguments keep a per-draw call to a few wasm values with no encoding or
+copy.
 
 ## The protocol
 
@@ -246,9 +247,9 @@ form), and on wasm32-unknown-unknown the library is getrandom's custom backend, 
 generator seeded from it (`entropy.rs`; buck sets the `getrandom_backend` cfg for
 that plan). be-store's sealing (`vault`), be-commit's `CommitStore` and be-session's
 `resume` are default features a guest's dependencies leave off, so a module imports
-only `be3_host`'s functions and the world's sync imports.
+only `be3_host`'s functions.
 
-Stateless requests are sync funcs of `replicas`, direct calls: `blank`, `merge3`
+Stateless requests are funcs of `replicas` the module answers in the step that asks: `blank`, `merge3`
 (a `none` side is the type's default; `conflicts: 0` is clean), `describe` (name,
 derived metadata, references in an organization), `to-file` (a `plain-file`: the
 bytes, the extension and media type the type gives them, and the name of the file
@@ -264,7 +265,7 @@ is `failure.unknown-type`, content that does not decode `failure.malformed`.
 Each open block is a `replica` resource. Its methods `change` (`child`, `from-file`,
 `replace`, `undo`, `redo`; false when it did not apply), `content` (the visible
 bytes, for export and duplication; none while unreadable) and `seal` (`force` is a
-rekey: publish even when clean) are async; the rest are direct calls. A call on a
+rekey: publish even when clean) wait on the replica; the rest are answered at once. A call on a
 replica that has ended is `Canceled`. Every call the module makes for a replica has
 that replica as its parent, which is how the host knows the block.
 
@@ -445,8 +446,8 @@ machine itself never sees the protocol. `register` adds or replaces a type and
 `Serving` holds both, for a guest. The macro also defines `BlockTypes`, a
 `block_guest_abi::Guest` over a `Serving` (`step` steps the executor). It does not export it: a types crate is a plain library
 that editors, tests and other crates depend on, and only its `:wasm` build, with
-the crate's `module` feature, calls `type_module!` (`block_guest_abi::guest!` and the
-world's `export_type_module!`), since a second set of guest exports in one wasm (an
+the crate's `module` feature, calls `type_module!` (`block_guest_abi::guest!`), since a
+second set of guest exports in one wasm (an
 editor's own, or another types crate's) would clash. So a type module crate is
 that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
 (`crates/editors/checklist/types`).

@@ -185,7 +185,7 @@ pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
     for (key, media_key) in BINDINGS {
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
-            editor.act(move || desktop::media::request(request));
+            editor.act(move || desktop::media::request(request).detach());
             if let Some(showing) = showing {
                 osd.show(showing);
             }

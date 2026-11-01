@@ -89,7 +89,7 @@ interface windows {
         next: async func() -> list<host-window>;
     }
 
-    request: func(action: window-action);
+    request: async func(action: window-action);
 }
 
 /// The pointing devices and the input remaps of the session.
@@ -169,7 +169,7 @@ interface power {
         next: async func() -> power-availability;
     }
 
-    request: func(action: power-action);
+    request: async func(action: power-action);
 }
 
 /// Sound levels and outputs, the brightness and the media players.
@@ -216,7 +216,7 @@ interface media {
         next: async func() -> media-levels;
     }
 
-    request: func(request: media-request);
+    request: async func(request: media-request);
 }
 
 /// Wi-Fi networks and the connection to one.
@@ -266,7 +266,7 @@ interface wifi {
         next: async func() -> wifi-status;
     }
 
-    request: func(request: wifi-request);
+    request: async func(request: wifi-request);
 }
 
 /// An e-paper display.
@@ -278,7 +278,7 @@ interface epaper {
     }
 
     /// Redraws the whole panel, clearing what earlier frames left on it.
-    refresh: func();
+    refresh: async func();
 }
 
 /// Notifications programs send, which the desktop shows and answers.
@@ -356,7 +356,7 @@ interface notifications {
         next: async func() -> notification-inbox;
     }
 
-    report: func(report: notification-report);
+    report: async func(report: notification-report);
 }
 
 /// Whether the screen is locked.
@@ -417,7 +417,7 @@ interface programs {
         next: async func() -> program-catalog;
     }
 
-    request: func(action: program-action);
+    request: async func(action: program-action);
 }
 
 /// The status notifier items programs show, and their menus.
@@ -482,5 +482,5 @@ interface tray {
         next: async func() -> list<host-tray-item>;
     }
 
-    request: func(request: tray-request);
+    request: async func(request: tray-request);
 }

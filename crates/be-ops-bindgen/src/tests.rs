@@ -1,6 +1,6 @@
 use super::*;
 
-mod a_network_world_refuses_a_sync_func;
+mod a_sync_func_outside_a_local_interface_is_refused;
 mod bytes_are_encoded_whole_in_every_position;
 
 fn generated(wit: &str, network: bool) -> Result<String, String> {

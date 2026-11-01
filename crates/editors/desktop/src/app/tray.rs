@@ -100,7 +100,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         let (editor, id) = (editor, id.clone());
         move |request: fn(String) -> TrayRequest| {
             let request = request(id.clone());
-            editor.act(move || desktop::tray::request(request))
+            editor.act(move || desktop::tray::request(request).detach())
         }
     };
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
@@ -110,7 +110,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             item: chosen_id.clone(),
             entry,
         };
-        editor.act(move || desktop::tray::request(request));
+        editor.act(move || desktop::tray::request(request).detach());
     });
     let prefix = format!("desktop.tray.{id}");
     let open = create_signal(false);
@@ -124,7 +124,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                     true => TrayRequest::MenuOpened(opened_id.clone()),
                     false => TrayRequest::MenuClosed(opened_id.clone()),
                 };
-                editor.act(move || desktop::tray::request(request))
+                editor.act(move || desktop::tray::request(request).detach())
             });
         }
     });
@@ -156,7 +156,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                         delta,
                         horizontal,
                     };
-                    editor.act(move || desktop::tray::request(request));
+                    editor.act(move || desktop::tray::request(request).detach());
                 }
             }}
             open

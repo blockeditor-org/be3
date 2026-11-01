@@ -199,30 +199,35 @@ impl Guest for Exports {
         }
     }
 
-    fn screens(&self, screens: Vec<ScreenRequest>) {
+    fn screens(&self, screens: Vec<ScreenRequest>) -> impl Future<Output = ()> + 'static {
         self.0.push(Delivery::Screens(screens));
+        std::future::ready(())
     }
 
-    fn describe(&self, on: bool) {
+    fn describe(&self, on: bool) -> impl Future<Output = ()> + 'static {
         self.0.screens(move |screens| screens.describe(on));
+        std::future::ready(())
     }
 
-    fn run_action(&self, screen: ScreenId, id: String) {
+    fn run_action(&self, screen: ScreenId, id: String) -> impl Future<Output = ()> + 'static {
         self.0
             .screens(move |screens| screens.run_action(screen, &id));
+        std::future::ready(())
     }
 
     fn node_action(
         &self,
         screen: ScreenId,
         request: block_plugin_api::accessibility::ActionRequest,
-    ) {
+    ) -> impl Future<Output = ()> + 'static {
         self.0
             .screens(move |screens| screens.node_action(screen, request.into()));
+        std::future::ready(())
     }
 
-    fn configure(&self, serial: u64) {
+    fn configure(&self, serial: u64) -> impl Future<Output = ()> + 'static {
         self.0.push(Delivery::Configure(serial));
+        std::future::ready(())
     }
 
     fn draw(
@@ -262,50 +267,63 @@ impl GuestEditor for OpenEditor {
         view: block_plugin_api::ViewId,
         id: String,
         anchor: Option<block_plugin_api::Rect>,
-    ) {
+    ) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.pick_menu(view, id, anchor)
         });
+        std::future::ready(())
     }
 
-    fn dismiss(&self) {
+    fn dismiss(&self) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, |session| session.dismiss());
+        std::future::ready(())
     }
 
-    fn child_bar(&self, _view: ViewId, child: ChildId, action: BarAction) {
+    fn child_bar(
+        &self,
+        _view: ViewId,
+        child: ChildId,
+        action: BarAction,
+    ) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.child_bar_action(child, action)
         });
+        std::future::ready(())
     }
 
-    fn child_focused(&self, _view: ViewId, child: ChildId) {
+    fn child_focused(&self, _view: ViewId, child: ChildId) -> impl Future<Output = ()> + 'static {
         self.wire
             .call(self.instance, move |session| session.child_focused(child));
+        std::future::ready(())
     }
 
-    fn set_editable(&self, editable: bool) {
+    fn set_editable(&self, editable: bool) -> impl Future<Output = ()> + 'static {
         self.wire
             .call(self.instance, move |session| session.set_editable(editable));
+        std::future::ready(())
     }
 
-    fn view_changed(&self, view: Rect, scale: f32) {
+    fn view_changed(&self, view: Rect, scale: f32) -> impl Future<Output = ()> + 'static {
         self.wire
             .call(self.instance, move |session| session.set_view(view, scale));
+        std::future::ready(())
     }
 
-    fn presenting_changed(&self, presenting: bool) {
+    fn presenting_changed(&self, presenting: bool) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.set_presenting(presenting)
         });
+        std::future::ready(())
     }
 
-    fn presence(&self, visible: bool) {
+    fn presence(&self, visible: bool) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.presence_visible(visible)
         });
+        std::future::ready(())
     }
 
-    fn focus_changed(&self, focus: Focus) {
+    fn focus_changed(&self, focus: Focus) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.set_focused_block(crate::host::FocusedBlock {
                 block_id: focus.block_id.map(uuid::Uuid::from_bytes),
@@ -313,15 +331,17 @@ impl GuestEditor for OpenEditor {
                 via: focus.via.into_iter().map(uuid::Uuid::from_bytes).collect(),
             })
         });
+        std::future::ready(())
     }
 
-    fn resized(&self, size: Size) {
+    fn resized(&self, size: Size) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.resized(geometry::vec2(size.width, size.height))
         });
+        std::future::ready(())
     }
 
-    fn drag_over(&self, drag: DragOver) {
+    fn drag_over(&self, drag: DragOver) -> impl Future<Output = ()> + 'static {
         let dragged = match drag.dragged {
             Dragged::Block(block) => crate::host::Dragged::Block(crate::host::BlockDrag {
                 position: drag.pos,
@@ -344,17 +364,20 @@ impl GuestEditor for OpenEditor {
         self.wire.call(self.instance, move |session| {
             session.set_drag(Some((drag.view, dragged)))
         });
+        std::future::ready(())
     }
 
-    fn drag_left(&self) {
+    fn drag_left(&self) -> impl Future<Output = ()> + 'static {
         self.wire
             .call(self.instance, move |session| session.set_drag(None));
+        std::future::ready(())
     }
 
-    fn artifact_settings(&self, data: Vec<u8>) {
+    fn artifact_settings(&self, data: Vec<u8>) -> impl Future<Output = ()> + 'static {
         self.wire.call(self.instance, move |session| {
             session.artifact_settings(data)
         });
+        std::future::ready(())
     }
 
     fn commit_creation(
@@ -396,11 +419,16 @@ impl GuestEditor for OpenEditor {
         async move { replaced.await.unwrap_or(false) }
     }
 
-    fn show_dialog(&self, block: [u8; 16], dialog: ShellDialog) {
+    fn show_dialog(
+        &self,
+        block: [u8; 16],
+        dialog: ShellDialog,
+    ) -> impl Future<Output = ()> + 'static {
         let block = uuid::Uuid::from_bytes(block);
         self.wire.call(self.instance, move |session| {
             session.show_dialog(block, dialog)
         });
+        std::future::ready(())
     }
 
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {

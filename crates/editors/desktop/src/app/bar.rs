@@ -263,7 +263,7 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
     let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
     let powered = editor.offered::<PowerWatch>();
     let epaper = editor.watch::<EpaperWatch>();
-    let refresh = move || editor.act(desktop::epaper::refresh);
+    let refresh = move || editor.act(|| desktop::epaper::refresh().detach());
     let displays = editor.watch::<DisplaysWatch>();
     let screen =
         create_memo(move || displays.with(|displays| displays.get(display as usize).cloned()));

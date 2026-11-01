@@ -100,36 +100,66 @@ impl Link {
     pub(crate) fn call(&mut self, call: Call, store: &ContentStore, connection: &mut Connection) {
         let block = Uuid::from_bytes;
         match call {
-            Call::OpenBlock { request } => self.sent.push(Sent::Open(request)),
-            Call::Act { block: id, command } => {
+            Call::OpenBlock { reply, request } => {
+                reply.send(connection, &());
+                self.sent.push(Sent::Open(request));
+            }
+            Call::Act {
+                reply,
+                block: id,
+                command,
+            } => {
+                reply.send(connection, &());
                 store.command(block(id), command);
                 self.sent.push(Sent::Command(block(id), command));
             }
-            Call::Version { block: id, command } => {
+            Call::Version {
+                reply,
+                block: id,
+                command,
+            } => {
+                reply.send(connection, &());
                 self.sent.push(Sent::Version(block(id), command));
             }
             Call::CreateBlock {
+                reply,
                 block,
                 block_type,
                 parent,
                 defined,
                 content,
-            } => store.create_block(block, block_type, parent, defined, content),
-            Call::SetParent { block: id, parent } => store.set_parent(block(id), parent),
+            } => {
+                reply.send(connection, &());
+                store.create_block(block, block_type, parent, defined, content);
+            }
+            Call::SetParent {
+                reply,
+                block: id,
+                parent,
+            } => {
+                reply.send(connection, &());
+                store.set_parent(block(id), parent);
+            }
             Call::Define {
+                reply,
                 block: id,
                 key,
                 value,
             } => {
+                reply.send(connection, &());
                 store.define(block(id), block(key), value.clone());
                 self.sent.push(Sent::Define(block(id), block(key), value));
             }
             Call::WriteContent {
+                reply,
                 block: id,
                 content_type,
                 bytes,
                 replace,
-            } => store.seed_content(block(id), block(content_type), bytes, replace),
+            } => {
+                reply.send(connection, &());
+                store.seed_content(block(id), block(content_type), bytes, replace);
+            }
             Call::ReplicaNew {
                 resource,
                 block: id,
@@ -175,12 +205,12 @@ impl Link {
             }
             Call::VersionWatchNew { resource } => self.watch(resource.op(), Subject::Version),
             Call::ShowRequestsNew { resource } => self.watch(resource.op(), Subject::Shows),
-            Call::BlocksWatchNext { this, reply } => self.wait(this.op(), reply.op()),
-            Call::HistoryWatchNext { this, reply } => self.wait(this.op(), reply.op()),
-            Call::HeadWatchNext { this, reply } => self.wait(this.op(), reply.op()),
-            Call::ArtifactWatchNext { this, reply } => self.wait(this.op(), reply.op()),
-            Call::VersionWatchNext { this, reply } => self.wait(this.op(), reply.op()),
-            Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.op()),
+            Call::BlocksWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::HistoryWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::HeadWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::ArtifactWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::VersionWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.into_op()),
         }
     }
 

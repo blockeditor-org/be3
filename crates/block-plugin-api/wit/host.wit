@@ -9,13 +9,13 @@ interface host {
     connect: async func(hello: hello) -> hello-accepted;
 
     /// Where each screen the host asked for is drawn, after the screens changed.
-    layout: func(layout: screen-layout);
+    layout: async func(layout: screen-layout);
 
     /// Something changed that the next frame shows; the host answers with `draw`.
-    frame-needed: func();
+    frame-needed: async func();
 
     /// Characters no face the plugin has can draw; the host answers with fonts.
-    missing-characters: func(characters: list<char>);
+    missing-characters: async func(characters: list<char>);
 
     /// The user's preferences. `next` answers with the latest once they differ
     /// from what it last answered, so the first answer is the current value.

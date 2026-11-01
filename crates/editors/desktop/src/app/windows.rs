@@ -239,9 +239,9 @@ impl DeskWindows {
         match chip {
             ChipKey::Window(id) => self.workspace.editor().act(move || {
                 if hidden {
-                    desktop::windows::request(WindowAction::Show(id));
+                    desktop::windows::request(WindowAction::Show(id)).detach();
                 }
-                desktop::windows::request(WindowAction::Focus(id));
+                desktop::windows::request(WindowAction::Focus(id)).detach();
             }),
             ChipKey::Block(tab) if hidden => {
                 self.hidden
@@ -259,7 +259,7 @@ impl DeskWindows {
             ChipKey::Window(id) => {
                 self.workspace
                     .editor()
-                    .act(move || desktop::windows::request(WindowAction::Hide(id)));
+                    .act(move || desktop::windows::request(WindowAction::Hide(id)).detach());
                 if let Some(next) = next {
                     layout.show(&next);
                 }
@@ -298,7 +298,7 @@ impl DeskWindows {
             ChipKey::Window(id) => self
                 .workspace
                 .editor()
-                .act(move || desktop::windows::request(WindowAction::Close(id))),
+                .act(move || desktop::windows::request(WindowAction::Close(id)).detach()),
             ChipKey::Block(tab) => self.workspace.close(tab),
         }
     }

@@ -11,6 +11,7 @@ use block_plugin_api::{
 use block_plugin_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
+    ops::{OpError, Outcome, Reply},
 };
 use block_type_guest::editor::{FromEditor, Gesture};
 use stable_hash::{HashMap, HashSet};
@@ -3229,20 +3230,29 @@ impl Instances {
     pub(super) fn published_call(
         &mut self,
         instance: EditorInstanceId,
-        called: block_plugin_api::ops::Called,
+        started: block_plugin_api::ops::Started,
     ) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
+        let op = started.op;
+        let queued = self.entries.get_mut(&instance).is_some_and(|entry| {
+            let preview = entry
+                .role
+                .block()
+                .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
+            !preview && entry.published.call(started)
+        });
+        let outcome = match queued {
+            true => Outcome::returned(&()),
+            false => Outcome::Err(OpError::Denied),
         };
-        let preview = entry
-            .role
-            .block()
-            .is_some_and(|block| block_app_stack::revisions::source(block.id).is_some());
-        !preview && entry.published.call(called)
+        self.services.answers.push((op, outcome));
+        queued
     }
 
     pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
         let Some(instance) = calls::instance_of(&call) else {
+            self.services
+                .answers
+                .push(call.refuse(OpError::Unsupported));
             return false;
         };
         let preview = self
@@ -3262,132 +3272,204 @@ impl Instances {
                     | ShellCall::CopyImage { .. }
             )
         {
+            self.services.answers.push(call.refuse(OpError::Denied));
             return false;
         }
-        if let ShellCall::Present { presenting, .. } = call {
+        if let ShellCall::Present {
+            reply, presenting, ..
+        } = call
+        {
+            self.services.answers.push(reply.answer(&()));
             return self.set_presenting(instance, presenting);
         }
         let Some(entry) = self.entries.get_mut(&instance) else {
+            self.services.answers.push(call.refuse(OpError::Canceled));
             return false;
         };
+        let answers = &mut self.services.answers;
+        let mut ack = |reply: Reply<()>| answers.push(reply.answer(&()));
         match call {
-            ShellCall::RunBarAction { action, .. } => {
+            ShellCall::RunBarAction { reply, action, .. } => {
+                ack(reply);
                 if !super::docks::bar(instance, action) {
                     entry.bar_actions.push(action);
                 }
             }
-            ShellCall::Menu { view, items, .. } => match MenuEntry::nest(items.clone()) {
-                Ok(menu) => {
-                    match menu.is_empty() {
-                        true => entry.menus.remove(&view),
-                        false => entry.menus.insert(view, menu),
-                    };
-                    super::docks::set_menu(instance, view, items);
+            ShellCall::Menu {
+                reply, view, items, ..
+            } => {
+                ack(reply);
+                match MenuEntry::nest(items.clone()) {
+                    Ok(menu) => {
+                        match menu.is_empty() {
+                            true => entry.menus.remove(&view),
+                            false => entry.menus.insert(view, menu),
+                        };
+                        super::docks::set_menu(instance, view, items);
+                    }
+                    Err(_) => return false,
                 }
-                Err(_) => return false,
-            },
+            }
             ShellCall::ChildMenuPick {
-                child, id, anchor, ..
-            } => entry.child_menu_picks.push((child, id, anchor)),
-            ShellCall::CopyText { text, .. } => {
+                reply,
+                child,
+                id,
+                anchor,
+                ..
+            } => {
+                ack(reply);
+                entry.child_menu_picks.push((child, id, anchor));
+            }
+            ShellCall::CopyText { reply, text, .. } => {
+                ack(reply);
                 host::copy_text(text);
                 return false;
             }
-            ShellCall::CopyImage { png, .. } => {
+            ShellCall::CopyImage { reply, png, .. } => {
+                ack(reply);
                 host::copy_image(png);
                 return false;
             }
-            ShellCall::Paste { .. } => {
+            ShellCall::Paste { reply, .. } => {
+                ack(reply);
                 host::request_paste();
                 return false;
             }
             ShellCall::DragBlock {
+                reply,
                 block_id,
                 block_type,
                 ..
-            } => entry.block_drags.push(BlockDrag {
-                block_id: Uuid::from_bytes(block_id),
-                block_type: Uuid::from_bytes(block_type),
-            }),
-            ShellCall::DragAccepted { accepted, .. } => {
+            } => {
+                ack(reply);
+                entry.block_drags.push(BlockDrag {
+                    block_id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                });
+            }
+            ShellCall::DragAccepted {
+                reply, accepted, ..
+            } => {
+                ack(reply);
                 let changed = entry.drag_accepted != accepted;
                 entry.drag_accepted = accepted;
                 return changed;
             }
-            ShellCall::AspectRatio { ratio, .. } => {
+            ShellCall::AspectRatio { reply, ratio, .. } => {
+                ack(reply);
                 let changed = entry.aspect_ratio != ratio;
                 entry.aspect_ratio = ratio;
                 return changed;
             }
-            ShellCall::IntrinsicSize { size, .. } => {
+            ShellCall::IntrinsicSize { reply, size, .. } => {
+                ack(reply);
                 let intrinsic = size.map(|size| vec2(size.width, size.height));
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;
                 return changed;
             }
-            ShellCall::Act { block, command, .. } => entry
-                .shell_commands
-                .push((Uuid::from_bytes(block), command)),
-            ShellCall::LeaveFrame { .. } => entry.leaving = true,
-            ShellCall::ViewStopped { view, stopped, .. } => {
+            ShellCall::Act {
+                reply,
+                block,
+                command,
+                ..
+            } => {
+                ack(reply);
+                entry
+                    .shell_commands
+                    .push((Uuid::from_bytes(block), command));
+            }
+            ShellCall::LeaveFrame { reply, .. } => {
+                ack(reply);
+                entry.leaving = true;
+            }
+            ShellCall::ViewStopped {
+                reply,
+                view,
+                stopped,
+                ..
+            } => {
+                ack(reply);
                 let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
                 };
                 screen.stopped = Some(stopped);
             }
-            ShellCall::ChangeView { change, .. } => entry.view_changes.push(change),
-            ShellCall::Focused { focus, .. } => entry.focus_reports.push(Focus {
-                block: focus.block_id.map(|block_id| {
-                    (
-                        Uuid::from_bytes(block_id),
-                        Uuid::from_bytes(focus.block_type),
-                    )
-                }),
-                via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
-            }),
-            ShellCall::HandlesDismiss { handles, .. } => {
+            ShellCall::ChangeView { reply, change, .. } => {
+                ack(reply);
+                entry.view_changes.push(change);
+            }
+            ShellCall::Focused { reply, focus, .. } => {
+                ack(reply);
+                entry.focus_reports.push(Focus {
+                    block: focus.block_id.map(|block_id| {
+                        (
+                            Uuid::from_bytes(block_id),
+                            Uuid::from_bytes(focus.block_type),
+                        )
+                    }),
+                    via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
+                });
+            }
+            ShellCall::HandlesDismiss { reply, handles, .. } => {
+                ack(reply);
                 let changed = entry.dialog.handles_dismiss != handles;
                 entry.dialog.handles_dismiss = handles;
                 return changed;
             }
-            ShellCall::CloseDialog { answer, .. } => {
+            ShellCall::CloseDialog { reply, answer, .. } => {
+                ack(reply);
                 if entry.dialog.answer.is_some() {
                     return false;
                 }
                 entry.dialog.answer = Some(answer);
             }
-            ShellCall::DismissChild { child, .. } => entry.child_dismissals.push(child),
-            ShellCall::ShowCard { card, .. } => {
+            ShellCall::DismissChild { reply, child, .. } => {
+                ack(reply);
+                entry.child_dismissals.push(child);
+            }
+            ShellCall::ShowCard { reply, card, .. } => {
+                ack(reply);
                 if entry.card == card {
                     return false;
                 }
                 entry.card = card;
             }
-            ShellCall::Picked { pick, .. } => {
+            ShellCall::Picked { reply, pick, .. } => {
+                ack(reply);
                 if entry.picked.is_some() {
                     return false;
                 }
                 entry.picked = Some(pick);
             }
             ShellCall::CommitChild {
+                reply,
                 child,
                 parent,
                 name,
                 ..
-            } => entry.child_commits.push(ChildCommit {
-                child,
-                parent: block_app_stack::plugin_graph::parent_of(parent),
-                name,
-            }),
-            ShellCall::ArtifactDescribed { description, .. } => {
+            } => {
+                ack(reply);
+                entry.child_commits.push(ChildCommit {
+                    child,
+                    parent: block_app_stack::plugin_graph::parent_of(parent),
+                    name,
+                });
+            }
+            ShellCall::ArtifactDescribed {
+                reply, description, ..
+            } => {
+                ack(reply);
                 entry.artifact.description = Some(description);
             }
-            ShellCall::ArtifactEdited { data, .. } => {
+            ShellCall::ArtifactEdited { reply, data, .. } => {
+                ack(reply);
                 let changed = entry.artifact.draft.as_ref() != Some(&data);
                 entry.artifact.draft = Some(data);
                 return changed;
             }
-            ShellCall::PlayAudio { command, .. } => {
+            ShellCall::PlayAudio { reply, command, .. } => {
+                ack(reply);
                 let changes = self.mail.audio_changes.1.clone();
                 let player = entry
                     .audio
@@ -3399,17 +3481,23 @@ impl Instances {
                 }
             }
             ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
-            ShellCall::Present { .. }
+            ShellCall::WebViewLoad { reply, .. }
+            | ShellCall::WebViewReload { reply, .. }
+            | ShellCall::WebViewFocusApp { reply, .. } => {
+                ack(reply);
+                return false;
+            }
+            call @ (ShellCall::Present { .. }
             | ShellCall::AudioStatusWatchNew { .. }
             | ShellCall::AudioStatusWatchNext { .. }
-            | ShellCall::WebViewLoad { .. }
-            | ShellCall::WebViewReload { .. }
-            | ShellCall::WebViewFocusApp { .. }
             | ShellCall::WebViewNextEvents { .. }
             | ShellCall::ChildStatusesWatchNew { .. }
             | ShellCall::ChildStatusesWatchNext { .. }
             | ShellCall::BlockTypesWatchNew { .. }
-            | ShellCall::BlockTypesWatchNext { .. } => return false,
+            | ShellCall::BlockTypesWatchNext { .. }) => {
+                answers.push(call.refuse(OpError::Unsupported));
+                return false;
+            }
         }
         true
     }
@@ -3470,9 +3558,11 @@ impl Instances {
     pub(super) fn debug_call(&mut self, instance: EditorInstanceId, call: DebugCall) -> bool {
         match call {
             DebugCall::Performance {
+                reply,
                 group,
                 measurements,
             } => {
+                self.services.answers.push(reply.answer(&()));
                 for measurement in measurements {
                     match measurement {
                         PerformanceMeasurement::Duration { name, nanoseconds } => {
@@ -3489,15 +3579,28 @@ impl Instances {
                 }
                 false
             }
-            DebugCall::SimulateAccess { block, access } => {
+            DebugCall::SimulateAccess {
+                reply,
+                block,
+                access,
+            } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
+                    self.services
+                        .answers
+                        .push((reply.into_op(), Outcome::Err(OpError::Canceled)));
                     return false;
                 };
+                self.services.answers.push(reply.answer(&()));
                 entry.simulated.push((Uuid::from_bytes(block), access));
                 true
             }
-            DebugCall::DebugTemplatesWatchNew { .. }
-            | DebugCall::DebugTemplatesWatchNext { .. } => false,
+            call @ (DebugCall::DebugTemplatesWatchNew { .. }
+            | DebugCall::DebugTemplatesWatchNext { .. }) => {
+                self.services
+                    .answers
+                    .push(call.refuse(OpError::Unsupported));
+                false
+            }
         }
     }
 
@@ -3579,7 +3682,7 @@ impl Instances {
 
     pub(super) fn take_calls(
         &mut self,
-        accept: &mut dyn FnMut(&block_plugin_api::ops::Called) -> bool,
+        accept: &mut dyn FnMut(&block_plugin_api::ops::Started) -> bool,
     ) {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);

@@ -100,8 +100,6 @@ pub use wgpu;
 pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub use block_guest_abi::{Flow, Guest, Waker, guest};
-    #[cfg(target_arch = "wasm32")]
-    pub use block_plugin_api::export_editor_plugin;
 
     #[cfg(target_arch = "wasm32")]
     pub use crate::wasm::Editor;
@@ -192,8 +190,7 @@ macro_rules! platform_entry {
             }
         }
 
-        $crate::__private::export_editor_plugin!();
-        $crate::__private::guest!(PluginGuest, __register_editor_plugin);
+        $crate::__private::guest!(PluginGuest);
     };
 }
 

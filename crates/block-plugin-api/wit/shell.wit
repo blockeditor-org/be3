@@ -228,9 +228,9 @@ interface shell {
     /// A web view the editor shows at a child it places; dropping it closes it.
     resource web-view {
         constructor(instance: editor-instance-id, id: web-view-id, url: string);
-        load: func(url: string);
-        reload: func();
-        focus-app: func();
+        load: async func(url: string);
+        reload: async func();
+        focus-app: async func();
         /// The events since the last answer, in order. A title, address or
         /// failure right after one of its own kind replaces it, and at most
         /// 256 events wait: past that the oldest goes.
@@ -257,72 +257,72 @@ interface shell {
     /// a dock view's is its tab's, which the host gives the root as that
     /// tab's `dock-tab.menu`. A pick from any of them arrives as the
     /// editor's `menu-pick` of that view.
-    menu: func(instance: editor-instance-id, view: view-id, items: list<menu-item>);
+    menu: async func(instance: editor-instance-id, view: view-id, items: list<menu-item>);
 
     /// The editor asks the host to run an action of its bar.
-    run-bar-action: func(instance: editor-instance-id, action: bar-action);
+    run-bar-action: async func(instance: editor-instance-id, action: bar-action);
 
     /// The editor picked a command of a child's menu. `anchor`, in host
     /// coordinates, is what the menu belongs to (the child's tab, or the
     /// child), which the host passes on as the child's `menu-pick` anchor.
-    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
+    child-menu-pick: async func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
 
-    copy-text: func(instance: editor-instance-id, text: string);
+    copy-text: async func(instance: editor-instance-id, text: string);
 
     /// A PNG for the clipboard.
-    copy-image: func(instance: editor-instance-id, png: list<u8>);
+    copy-image: async func(instance: editor-instance-id, png: list<u8>);
 
     /// The editor asks for the clipboard; it arrives as input.
-    paste: func(instance: editor-instance-id);
+    paste: async func(instance: editor-instance-id);
 
     /// The editor starts dragging a block out of itself.
-    drag-block: func(instance: editor-instance-id, block-id: block-id, block-type: block-type-id);
+    drag-block: async func(instance: editor-instance-id, block-id: block-id, block-type: block-type-id);
 
     /// Whether the editor takes the block dragged over it.
-    drag-accepted: func(instance: editor-instance-id, accepted: bool);
+    drag-accepted: async func(instance: editor-instance-id, accepted: bool);
 
     /// The width over height the editor keeps, when it keeps one.
-    aspect-ratio: func(instance: editor-instance-id, ratio: option<f32>);
+    aspect-ratio: async func(instance: editor-instance-id, ratio: option<f32>);
 
     /// The size the editor's content wants, when it has one.
-    intrinsic-size: func(instance: editor-instance-id, size: option<size>);
+    intrinsic-size: async func(instance: editor-instance-id, size: option<size>);
 
     /// Asks the app around the editor to act for a block the editor draws.
-    act: func(instance: editor-instance-id, block: block-id, command: shell-command);
+    act: async func(instance: editor-instance-id, block: block-id, command: shell-command);
 
     /// The editor asks to leave the frame it is shown in.
-    leave-frame: func(instance: editor-instance-id);
+    leave-frame: async func(instance: editor-instance-id);
 
     /// The editor stopped drawing a view, closed or failed.
-    view-stopped: func(instance: editor-instance-id, view: view-id, stopped: stopped);
+    view-stopped: async func(instance: editor-instance-id, view: view-id, stopped: stopped);
 
     /// The editor asks to be presented full screen, or no longer.
-    present: func(instance: editor-instance-id, presenting: bool);
+    present: async func(instance: editor-instance-id, presenting: bool);
 
     /// The editor asks the host to move its view.
-    change-view: func(instance: editor-instance-id, change: view-change);
+    change-view: async func(instance: editor-instance-id, change: view-change);
 
     /// Loads, plays or pauses, or stops the editor's audio.
-    play-audio: func(instance: editor-instance-id, command: audio-command);
+    play-audio: async func(instance: editor-instance-id, command: audio-command);
 
     /// Where the editor's focus is now.
-    focused: func(instance: editor-instance-id, focus: focus);
+    focused: async func(instance: editor-instance-id, focus: focus);
 
     /// Whether the editor, shown as a dialog, answers a dismissal itself
     /// (the plugin's `dismiss`) by asking to close with `close-dialog`.
-    handles-dismiss: func(instance: editor-instance-id, handles: bool);
+    handles-dismiss: async func(instance: editor-instance-id, handles: bool);
 
     /// The editor, shown as a dialog, asks to be closed.
-    close-dialog: func(instance: editor-instance-id, answer: dialog-answer);
+    close-dialog: async func(instance: editor-instance-id, answer: dialog-answer);
 
     /// The user asked to dismiss a child the editor shows as a dialog: pressed
     /// Escape or back, or outside it. The host passes it to the child, whose
     /// answer arrives as its `dialog-status`, and answers at once for a child
     /// that does not handle dismissal.
-    dismiss-child: func(instance: editor-instance-id, child: child-id);
+    dismiss-child: async func(instance: editor-instance-id, child: child-id);
 
     /// The user created the block of a creation dialog the editor placed as a child.
-    commit-child: func(
+    commit-child: async func(
         instance: editor-instance-id,
         child: child-id,
         parent: block-location,
@@ -331,16 +331,16 @@ interface shell {
 
     /// The editor, opened as a picker, answers its pick: the block chosen, or
     /// none when the user cancelled.
-    picked: func(instance: editor-instance-id, pick: block-pick);
+    picked: async func(instance: editor-instance-id, pick: block-pick);
 
     /// The editor, opened as a picker, says whether it shows a card, which the
     /// editor that placed it frames, rather than a menu that draws its own
     /// surface. It arrives as the child's `child-status.card`.
-    show-card: func(instance: editor-instance-id, card: bool);
+    show-card: async func(instance: editor-instance-id, card: bool);
 
     /// What the artifact settings the editor was opened on say.
-    artifact-described: func(instance: editor-instance-id, description: artifact-description);
+    artifact-described: async func(instance: editor-instance-id, description: artifact-description);
 
     /// The user changed the artifact settings the editor shows.
-    artifact-edited: func(instance: editor-instance-id, data: list<u8>);
+    artifact-edited: async func(instance: editor-instance-id, data: list<u8>);
 }

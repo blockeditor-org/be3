@@ -136,7 +136,7 @@ pub(super) enum Heard {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     Watch(EditorInstanceId, block_plugin_api::ops::MethodId),
-    Called(EditorInstanceId, block_plugin_api::ops::Called),
+    Published(EditorInstanceId, block_plugin_api::ops::Started),
     Debug(EditorInstanceId, DebugCall),
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
@@ -150,13 +150,13 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::ChildMenuPick { instance, .. }
         | ShellCall::CopyText { instance, .. }
         | ShellCall::CopyImage { instance, .. }
-        | ShellCall::Paste { instance }
+        | ShellCall::Paste { instance, .. }
         | ShellCall::DragBlock { instance, .. }
         | ShellCall::DragAccepted { instance, .. }
         | ShellCall::AspectRatio { instance, .. }
         | ShellCall::IntrinsicSize { instance, .. }
         | ShellCall::Act { instance, .. }
-        | ShellCall::LeaveFrame { instance }
+        | ShellCall::LeaveFrame { instance, .. }
         | ShellCall::ViewStopped { instance, .. }
         | ShellCall::Present { instance, .. }
         | ShellCall::ChangeView { instance, .. }

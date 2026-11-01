@@ -32,7 +32,7 @@ fn sent(executor: &Executor, host: &mut Connection) -> Vec<(OpId, u8)> {
             let Some(FromEditor::Operate(operation)) = FromEditor::from_frame(&frame) else {
                 panic!("the editor sent something other than its operation");
             };
-            sent.push((reply.op(), operation[0]));
+            sent.push((reply.into_op(), operation[0]));
         }
     }
     sent

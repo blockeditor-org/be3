@@ -133,7 +133,7 @@ impl From<be_ops::OpError> for ClientError {
     fn from(error: be_ops::OpError) -> Self {
         match error {
             be_ops::OpError::Canceled => Self::Disconnected("the connection closed".into()),
-            be_ops::OpError::Unsupported => Self::Unexpected,
+            be_ops::OpError::Unsupported | be_ops::OpError::Unanswered => Self::Unexpected,
             be_ops::OpError::Denied => {
                 Self::Refused(ErrorCode::PermissionDenied, error.to_string())
             }

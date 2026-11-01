@@ -122,8 +122,7 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::Host::pure(cache.as_deref())?
-                .with_direct(block_type_api::embed::IMPORTS);
+            let host = block_wasm_host::Host::pure(cache.as_deref())?;
             let channel = host.spawn(
                 name.clone(),
                 move |host| load(host),
@@ -143,13 +142,8 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel = block_guest_host::web::WebGuest::<Infallible>::start(
-                &url,
-                block_type_api::embed::IMPORTS,
-                None,
-                wake,
-                waiting,
-            )?;
+            let channel =
+                block_guest_host::web::WebGuest::<Infallible>::start(&url, None, wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -175,7 +169,7 @@ struct Module {
 pub enum Heard {
     Hello(Vec<TypeInfo>),
     Call {
-        op: Option<OpId>,
+        op: OpId,
         parent: Option<OpId>,
         call: Call,
     },
@@ -638,14 +632,7 @@ impl Modules {
                                     before.fail(&mut held.connection, OpError::Canceled);
                                 }
                             }
-                            Some(call) => heard.push((
-                                module,
-                                Heard::Call {
-                                    op: Some(op),
-                                    parent,
-                                    call,
-                                },
-                            )),
+                            Some(call) => heard.push((module, Heard::Call { op, parent, call })),
                             None => {}
                         }
                     }
@@ -673,18 +660,6 @@ impl Modules {
                             .is_none()
                         {
                             heard.push((module, Heard::Canceled { op }));
-                        }
-                    }
-                    Incoming::Called(called) => {
-                        if let Some(call) = Call::accept_direct(&called) {
-                            heard.push((
-                                module,
-                                Heard::Call {
-                                    op: None,
-                                    parent: called.parent,
-                                    call,
-                                },
-                            ));
                         }
                     }
                     Incoming::Credited { op } => {

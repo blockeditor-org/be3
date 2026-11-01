@@ -192,7 +192,9 @@ impl From<ops::OpError> for Failure {
     fn from(error: ops::OpError) -> Self {
         match error {
             ops::OpError::Denied => Self::Denied,
-            ops::OpError::Unsupported | ops::OpError::Canceled => Self::Unavailable,
+            ops::OpError::Unsupported | ops::OpError::Canceled | ops::OpError::Unanswered => {
+                Self::Unavailable
+            }
         }
     }
 }

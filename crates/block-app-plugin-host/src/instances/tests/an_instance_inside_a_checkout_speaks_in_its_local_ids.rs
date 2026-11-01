@@ -67,6 +67,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
 
     let fresh = Uuid::new_v4();
     let create = |parent: Uuid| Call::CreateBlock {
+        reply: reply(0),
         block: fresh.into_bytes(),
         block_type: TextContent::CONTENT_TYPE.into_bytes(),
         parent: BlockLocation::Block(parent.into_bytes()),
@@ -79,6 +80,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
 
     let outside = placed_on(elsewhere, TextContent::CONTENT_TYPE);
     let set_parent = || Call::SetParent {
+        reply: reply(0),
         block: copy.into_bytes(),
         parent: BlockLocation::Block(checkout.into_bytes()),
     };

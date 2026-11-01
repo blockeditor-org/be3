@@ -79,9 +79,9 @@ impl PowerChoice {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => {
-                self.editor.act(move || desktop::power::request(action))
-            }
+            PowerAction::Lock | PowerAction::Suspend => self
+                .editor
+                .act(move || desktop::power::request(action).detach()),
             _ => {
                 self.confirming.set(action);
                 self.asking.set(true);
@@ -142,7 +142,7 @@ pub(crate) fn PowerDialog(choice: PowerChoice) -> NodeId {
     let dismiss = move || asking.set(false);
     let confirm = move || {
         asking.set(false);
-        editor.act(move || desktop::power::request(confirming.get_untracked()));
+        editor.act(move || desktop::power::request(confirming.get_untracked()).detach());
     };
     view! {
         <Dialog

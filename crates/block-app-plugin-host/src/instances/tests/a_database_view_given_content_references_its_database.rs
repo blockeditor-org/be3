@@ -8,6 +8,7 @@ fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
     call(
         instances,
         Call::WriteContent {
+            reply: reply(next_op()),
             block: block.into_bytes(),
             content_type: DatabaseViewContent::CONTENT_TYPE.into_bytes(),
             bytes: DatabaseViewContent::new(&DatabaseView::of(database)).encode(),

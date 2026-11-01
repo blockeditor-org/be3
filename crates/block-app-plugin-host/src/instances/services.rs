@@ -1,5 +1,4 @@
 use stable_hash::HashMap;
-use std::marker::PhantomData;
 
 use block_plugin_api::{
     AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, SavedFile,
@@ -40,16 +39,15 @@ struct Work {
 #[derive(Default)]
 pub(super) struct Services {
     serving: HashMap<OpId, Work>,
-    answers: Vec<(OpId, Outcome)>,
+    pub(super) answers: Vec<(OpId, Outcome)>,
 }
 
 struct Answering<T, E = wire::Plain> {
     sender: host::Post<Delivered>,
     epoch: u64,
     instance: EditorInstanceId,
-    op: OpId,
+    reply: Reply<T, E>,
     aborted: AbortFlag,
-    answer: PhantomData<fn(T, E)>,
 }
 
 impl<T, E> Answering<T, E> {
@@ -61,7 +59,7 @@ impl<T, E> Answering<T, E> {
         self.sender.send(Delivered {
             epoch: self.epoch,
             instance: self.instance,
-            op: self.op,
+            op: self.reply.into_op(),
             answer,
         });
     }
@@ -125,22 +123,17 @@ impl Instances {
             sender: self.mail.answers.1.clone(),
             epoch: self.epoch,
             instance,
-            op: reply.op(),
+            reply,
             aborted,
-            answer: PhantomData,
         }
     }
 
     fn answer_now<T, E: wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
-        self.services
-            .answers
-            .push((reply.op(), reply.outcome(&answer)));
+        self.services.answers.push(reply.answer(&answer));
     }
 
-    fn refuse(&mut self, op: Option<OpId>, error: OpError) {
-        if let Some(op) = op {
-            self.services.answers.push((op, Outcome::Err(error)));
-        }
+    fn refuse(&mut self, call: Call, error: OpError) {
+        self.services.answers.push(call.refuse(error));
     }
 
     fn scoped(
@@ -175,11 +168,7 @@ impl Instances {
     }
 
     pub fn serve(&mut self, service: Service) {
-        let Service {
-            instance,
-            op,
-            mut call,
-        } = service;
+        let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
@@ -194,10 +183,10 @@ impl Instances {
                 Call::Fetch { .. } | Call::ReadData { .. } | Call::ListData { .. }
             )
         {
-            return self.refuse(op, OpError::Denied);
+            return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {
-            return self.refuse(op, OpError::Canceled);
+            return self.refuse(call, OpError::Canceled);
         }
         match call {
             Call::ListRevisions { reply, block } => {
@@ -238,7 +227,8 @@ impl Instances {
                     }
                 });
             }
-            Call::ReleaseRevision { preview } => {
+            Call::ReleaseRevision { reply, preview } => {
+                self.services.answers.push(reply.answer(&()));
                 let preview = Uuid::from_bytes(preview);
                 if let Some(entry) = self.entries.get_mut(&instance)
                     && entry.revision_previews.remove(&preview)
@@ -365,14 +355,18 @@ impl Instances {
                 });
             }
             Call::SetAccess {
+                reply,
                 block,
                 account,
                 access,
-            } => block_app_stack::set_access(
-                Uuid::from_bytes(block),
-                Uuid::from_bytes(account),
-                block_app_stack::plugin_graph::access_of(access),
-            ),
+            } => {
+                self.services.answers.push(reply.answer(&()));
+                block_app_stack::set_access(
+                    Uuid::from_bytes(block),
+                    Uuid::from_bytes(account),
+                    block_app_stack::plugin_graph::access_of(access),
+                );
+            }
             Call::MakeContactLink {
                 reply,
                 block,

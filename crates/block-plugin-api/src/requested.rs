@@ -1,62 +1,51 @@
-use crate::embed::desktop::{epaper, media, notifications, power, programs, tray, wifi, windows};
-use crate::ops::Called;
+use crate::__args::{
+    DESKTOP_EPAPER_REFRESH, DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT,
+    DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
+    DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs, DesktopMediaRequestArgs,
+    DesktopNotificationsReportArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
+    DesktopTrayRequestArgs, DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
+};
+use crate::ops::{MethodId, Started, decode};
 use crate::{
     MediaRequest, NotificationReport, PowerAction, ProgramAction, TrayRequest, WifiRequest,
     WindowAction,
 };
 
-pub fn window(called: &Called) -> Option<WindowAction> {
-    match windows::Call::accept_direct(called)? {
-        windows::Call::Request { action } => Some(action),
-        _ => None,
-    }
+fn args<A: serde::de::DeserializeOwned>(started: &Started, method: MethodId) -> Option<A> {
+    (started.method == method)
+        .then(|| decode(&started.args))
+        .flatten()
 }
 
-pub fn power(called: &Called) -> Option<PowerAction> {
-    match power::Call::accept_direct(called)? {
-        power::Call::Request { action } => Some(action),
-        _ => None,
-    }
+pub fn window(started: &Started) -> Option<WindowAction> {
+    args::<DesktopWindowsRequestArgs>(started, DESKTOP_WINDOWS_REQUEST).map(|args| args.action)
 }
 
-pub fn media(called: &Called) -> Option<MediaRequest> {
-    match media::Call::accept_direct(called)? {
-        media::Call::Request { request } => Some(request),
-        _ => None,
-    }
+pub fn power(started: &Started) -> Option<PowerAction> {
+    args::<DesktopPowerRequestArgs>(started, DESKTOP_POWER_REQUEST).map(|args| args.action)
 }
 
-pub fn wifi(called: &Called) -> Option<WifiRequest> {
-    match wifi::Call::accept_direct(called)? {
-        wifi::Call::Request { request } => Some(request),
-        _ => None,
-    }
+pub fn media(started: &Started) -> Option<MediaRequest> {
+    args::<DesktopMediaRequestArgs>(started, DESKTOP_MEDIA_REQUEST).map(|args| args.request)
 }
 
-pub fn epaper_refresh(called: &Called) -> Option<()> {
-    match epaper::Call::accept_direct(called)? {
-        epaper::Call::Refresh {} => Some(()),
-        _ => None,
-    }
+pub fn wifi(started: &Started) -> Option<WifiRequest> {
+    args::<DesktopWifiRequestArgs>(started, DESKTOP_WIFI_REQUEST).map(|args| args.request)
 }
 
-pub fn notification_report(called: &Called) -> Option<NotificationReport> {
-    match notifications::Call::accept_direct(called)? {
-        notifications::Call::Report { report } => Some(report),
-        _ => None,
-    }
+pub fn epaper_refresh(started: &Started) -> Option<()> {
+    args::<DesktopEpaperRefreshArgs>(started, DESKTOP_EPAPER_REFRESH).map(|_| ())
 }
 
-pub fn program(called: &Called) -> Option<ProgramAction> {
-    match programs::Call::accept_direct(called)? {
-        programs::Call::Request { action } => Some(action),
-        _ => None,
-    }
+pub fn notification_report(started: &Started) -> Option<NotificationReport> {
+    args::<DesktopNotificationsReportArgs>(started, DESKTOP_NOTIFICATIONS_REPORT)
+        .map(|args| args.report)
 }
 
-pub fn tray(called: &Called) -> Option<TrayRequest> {
-    match tray::Call::accept_direct(called)? {
-        tray::Call::Request { request } => Some(request),
-        _ => None,
-    }
+pub fn program(started: &Started) -> Option<ProgramAction> {
+    args::<DesktopProgramsRequestArgs>(started, DESKTOP_PROGRAMS_REQUEST).map(|args| args.action)
+}
+
+pub fn tray(started: &Started) -> Option<TrayRequest> {
+    args::<DesktopTrayRequestArgs>(started, DESKTOP_TRAY_REQUEST).map(|args| args.request)
 }

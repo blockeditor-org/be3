@@ -5,6 +5,7 @@ fn a_restarted_plugin_no_longer_shows_its_views_stopped() {
     let mut instances = placed();
     instances.next_screens(PASS);
     assert!(instances.shell_call(ShellCall::ViewStopped {
+        reply: reply(next_op()),
         instance: INSTANCE,
         view: REGION,
         stopped: block_plugin_api::Stopped::Closed,

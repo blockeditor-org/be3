@@ -80,7 +80,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     let (guest, editor, mut heard) = opened(&mut wire);
     let power = watched::<PowerWatch>(&guest, editor);
     let administrator = watched::<AdministratorWatch>(&guest, editor);
-    guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)));
+    guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)).detach());
     exchange(&mut wire, &guest, &mut heard);
     assert!(
         matches!(*power.borrow(), Some(Err(_))),
@@ -95,14 +95,14 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     let mut wire = Wire::granting(vec!["be3:desktop".to_owned()]);
     let (guest, editor, mut heard) = opened(&mut wire);
     let power = watched::<PowerWatch>(&guest, editor);
-    guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)));
+    guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)).detach());
     exchange(&mut wire, &guest, &mut heard);
     match cfg!(target_os = "linux") {
         true => {
             assert_eq!(*power.borrow(), None, "a granted watch waits for the value");
             assert!(matches!(
                 heard.as_slice(),
-                [Heard::Watch(INSTANCE, open), Heard::Called(INSTANCE, _)]
+                [Heard::Watch(INSTANCE, open), Heard::Published(INSTANCE, _)]
                     if *open == PowerWatch::OPEN
             ));
         }

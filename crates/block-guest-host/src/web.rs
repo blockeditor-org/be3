@@ -46,7 +46,6 @@ pub struct WebGuest<P> {
 impl<P: Pictures> WebGuest<P> {
     pub fn start(
         url: &str,
-        imports: &[(&str, &str)],
         extension: Option<&str>,
         wake: Wake,
         waiting: Arc<AtomicBool>,
@@ -59,11 +58,6 @@ impl<P: Pictures> WebGuest<P> {
         if let Some(extension) = extension {
             set(&message, "extension", &extension.into());
         }
-        let direct = js_sys::Array::new();
-        for (module, name) in imports {
-            direct.push(&js_sys::Array::of2(&(*module).into(), &(*name).into()));
-        }
-        set(&message, "imports", &direct);
         worker
             .post_message(&message)
             .map_err(|_| "the guest's worker could not be started".to_owned())?;

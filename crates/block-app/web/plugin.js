@@ -20,8 +20,8 @@
 // paints leaves the worker as a bitmap of each surface the page exports, and a
 // bitmap another worker painted arrives as a texture the plugin imports.
 //
-// The worker answers be3_host's frames, wake and panic and the plugin's direct
-// calls itself, as it does for a type module, and hands the rest to `answer`.
+// The worker answers be3_host's frames, wake and panic itself, as it does for a
+// type module, and hands the rest to `answer`.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";

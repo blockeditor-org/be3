@@ -50,7 +50,7 @@ crate::be_block_types![
 ];
 
 fn claimed_as(module: &Module, name: &str, first: &[u8], fallback: bool) -> Option<Uuid> {
-    module.claims(name.into(), first.to_vec(), false, fallback)
+    pollster::block_on(module.claims(name.into(), first.to_vec(), false, fallback))
 }
 
 fn claimed(module: &Module, name: &str, first: &[u8]) -> Option<Uuid> {
@@ -64,23 +64,21 @@ fn from_file(
     name: &str,
     bytes: &[u8],
 ) -> Vec<u8> {
-    module
-        .apply(
-            content_type,
-            current,
-            3,
-            Change::FromFile(FileChange {
-                name: name.into(),
-                bytes: bytes.to_vec(),
-            }),
-        )
-        .expect("the file applies")
-        .expect("the file changes the content")
+    pollster::block_on(module.apply(
+        content_type,
+        current,
+        3,
+        Change::FromFile(FileChange {
+            name: name.into(),
+            bytes: bytes.to_vec(),
+        }),
+    ))
+    .expect("the file applies")
+    .expect("the file changes the content")
 }
 
 fn to_file(module: &Module, content_type: Uuid, bytes: Vec<u8>) -> Option<Vec<u8>> {
-    module
-        .to_file(content_type, bytes)
+    pollster::block_on(module.to_file(content_type, bytes))
         .expect("a file or none")
         .map(|file| file.bytes)
 }
@@ -127,16 +125,16 @@ fn a_file_maps_to_a_block_and_back() {
     assert_eq!(to_file(&module, binary, content).unwrap(), [0, 159, 255]);
 
     assert_eq!(
-        module.claims("src".into(), Vec::new(), true, false),
+        pollster::block_on(module.claims("src".into(), Vec::new(), true, false)),
         Some(FolderContent::CONTENT_TYPE)
     );
     let child = Uuid::from_u128(0xc41d);
-    let Ok(Some(folder)) = module.apply(
+    let Ok(Some(folder)) = pollster::block_on(module.apply(
         FolderContent::CONTENT_TYPE,
         None,
         3,
         Change::Child(ChildChange::Add(child)),
-    ) else {
+    )) else {
         panic!("a folder takes a child");
     };
     assert_eq!(

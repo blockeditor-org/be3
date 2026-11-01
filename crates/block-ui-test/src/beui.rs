@@ -12,7 +12,6 @@ use block_editor_beui::{
     WebViewId,
 };
 use block_plugin_api::Opening;
-use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::embed::debug::debug::Call as DebugCall;
 use block_plugin_api::embed::{self, exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
@@ -86,11 +85,13 @@ pub struct BeuiTest<A: BeuiApp> {
     steps: Vec<String>,
     frames: Vec<Vec<Input>>,
     inbox: Vec<Inbound>,
+    answered: Vec<Vec<u8>>,
+    acknowledged: std::collections::HashSet<OpId>,
     connection: Connection,
     link: crate::link::Link,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
-    extension_calls: Vec<block_plugin_api::ops::Called>,
+    extension_calls: Vec<block_plugin_api::ops::Started>,
     web_views: std::collections::HashMap<
         block_plugin_api::ops::OpId,
         (
@@ -381,6 +382,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             gestures: Gestures::default(),
             frames: Vec::new(),
             inbox: Vec::new(),
+            answered: Vec::new(),
+            acknowledged: std::collections::HashSet::new(),
             connection: Connection::new(Side::Host),
             link: crate::link::Link::new(INSTANCE),
             editor: None,
@@ -534,7 +537,9 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
-        self.call(|editor, connection| editor.artifact_settings(connection, data));
+        self.call(|editor, connection| {
+            editor.artifact_settings(connection, data);
+        });
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
@@ -603,7 +608,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| editor.menu_pick(connection, ViewId::MAIN, id, anchor));
+        self.call(|editor, connection| {
+            editor.menu_pick(connection, ViewId::MAIN, id, anchor);
+        });
         self.run();
     }
 
@@ -621,7 +628,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn dismiss(&mut self) {
-        self.call(|editor, connection| editor.dismiss(connection));
+        self.call(|editor, connection| {
+            editor.dismiss(connection);
+        });
         self.run();
     }
 
@@ -655,7 +664,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
-        self.call(|editor, connection| editor.child_bar(connection, ViewId::MAIN, child, action));
+        self.call(|editor, connection| {
+            editor.child_bar(connection, ViewId::MAIN, child, action);
+        });
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -664,7 +675,9 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.show(view, scale, band, rect.min);
         }
-        self.call(|editor, connection| editor.view_changed(connection, view, scale));
+        self.call(|editor, connection| {
+            editor.view_changed(connection, view, scale);
+        });
     }
 
     pub fn move_view(&mut self, change: ViewChange) {
@@ -687,7 +700,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             ),
             dropped,
         };
-        self.call(|editor, connection| editor.drag_over(connection, drag));
+        self.call(|editor, connection| {
+            editor.drag_over(connection, drag);
+        });
     }
 
     pub fn docked(mut self) -> Self {
@@ -834,7 +849,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
-        self.call(|editor, connection| editor.presence(connection, visible));
+        self.call(|editor, connection| {
+            editor.presence(connection, visible);
+        });
         self.run();
     }
 
@@ -843,7 +860,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             width: size.x,
             height: size.y,
         };
-        self.call(|editor, connection| editor.resized(connection, size));
+        self.call(|editor, connection| {
+            editor.resized(connection, size);
+        });
         self.run();
     }
 
@@ -1051,8 +1070,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
         self.link.answer(&self.store, &mut self.connection);
-        if self.connection.has_outbound() {
-            inbox.push(Inbound::Frames(self.connection.take_outbound()));
+        let mut frames = std::mem::take(&mut self.answered);
+        frames.extend(self.connection.take_outbound());
+        if !frames.is_empty() {
+            inbox.push(Inbound::Frames(frames));
         }
         let rect = self.rect();
         let band = self.band(rect);
@@ -1062,9 +1083,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             .as_mut()
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
-            inbox.push(
-                self.framed(|editor, connection| editor.view_changed(connection, view, scale)),
-            );
+            inbox.push(self.framed(|editor, connection| {
+                editor.view_changed(connection, view, scale);
+            }));
         }
         self.clock += FRAME_INTERVAL;
         if !events.is_empty() {
@@ -1143,8 +1164,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             viewport.place(band, rect.min, intrinsic)
         });
         if let Some((view, scale)) = placed {
-            let framed =
-                self.framed(|editor, connection| editor.view_changed(connection, view, scale));
+            let framed = self.framed(|editor, connection| {
+                editor.view_changed(connection, view, scale);
+            });
             self.inbox.push(framed);
         }
     }
@@ -1200,7 +1222,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             });
         }
         while let Some(event) = self.connection.next_event() {
-            let called = match event {
+            let call = match event {
                 Incoming::Started(started) if published(started.method).is_some() => {
                     let connection = &mut self.connection;
                     let watching = published(started.method).unwrap_or_else(|| unreachable!());
@@ -1227,7 +1249,12 @@ impl<A: BeuiApp> BeuiTest<A> {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
                 }
-                Incoming::Called(called) => called,
+                Incoming::Started(started) if extension_call(started.method) => {
+                    self.connection.complete(started.op, Outcome::returned(&()));
+                    self.acknowledged.insert(started.op);
+                    self.extension_calls.push(started);
+                    continue;
+                }
                 Incoming::Completed { op, outcome } => {
                     self.completed.insert(op, outcome);
                     continue;
@@ -1238,16 +1265,20 @@ impl<A: BeuiApp> BeuiTest<A> {
                     match embed::Call::accept(connection, started) {
                         Some(embed::Call::Shell(call)) => match call {
                             ShellCall::ChildStatusesWatchNew { resource, .. } => {
-                                self.child_statuses.opened(resource.op())
+                                self.child_statuses.opened(resource.op());
+                                continue;
                             }
                             ShellCall::ChildStatusesWatchNext { reply, .. } => {
-                                self.child_statuses.next(connection, reply)
+                                self.child_statuses.next(connection, reply);
+                                continue;
                             }
                             ShellCall::BlockTypesWatchNew { resource } => {
-                                self.block_types.opened(resource.op())
+                                self.block_types.opened(resource.op());
+                                continue;
                             }
                             ShellCall::BlockTypesWatchNext { reply, .. } => {
-                                self.block_types.next(connection, reply)
+                                self.block_types.next(connection, reply);
+                                continue;
                             }
                             ShellCall::WebViewNew {
                                 resource, id, url, ..
@@ -1256,33 +1287,55 @@ impl<A: BeuiApp> BeuiTest<A> {
                                 watch.opened(resource.op());
                                 self.web_views.insert(resource.op(), (id, watch));
                                 self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                                continue;
                             }
                             ShellCall::WebViewNextEvents { this, reply } => {
                                 match self.web_views.get_mut(&this.op()) {
                                     Some((_, watch)) => watch.next(connection, reply),
                                     None => reply.fail(connection, OpError::Canceled),
                                 }
+                                continue;
                             }
-                            _ => {}
+                            call => {
+                                connection.complete(op, Outcome::returned(&()));
+                                self.acknowledged.insert(op);
+                                call
+                            }
                         },
-                        Some(embed::Call::Debug(call)) => match call {
-                            DebugCall::DebugTemplatesWatchNew { resource } => {
-                                self.debug_templates.opened(resource.op())
+                        Some(embed::Call::Debug(call)) => {
+                            match call {
+                                DebugCall::DebugTemplatesWatchNew { resource } => {
+                                    self.debug_templates.opened(resource.op())
+                                }
+                                DebugCall::DebugTemplatesWatchNext { reply, .. } => {
+                                    self.debug_templates.next(connection, reply)
+                                }
+                                DebugCall::Performance { reply, .. }
+                                | DebugCall::SimulateAccess { reply, .. } => {
+                                    reply.send(connection, &());
+                                    self.acknowledged.insert(op);
+                                }
                             }
-                            DebugCall::DebugTemplatesWatchNext { reply, .. } => {
-                                self.debug_templates.next(connection, reply)
-                            }
-                            _ => {}
-                        },
+                            continue;
+                        }
                         Some(embed::Call::Blocks(call)) => {
-                            self.link.call(call, &self.store, connection)
+                            if call.changes() {
+                                self.acknowledged.insert(op);
+                            }
+                            self.link.call(call, &self.store, connection);
+                            continue;
                         }
                         Some(embed::Call::HostServices(call)) => {
-                            self.requests.push((Some(op), call))
+                            self.requests.push((Some(op), call));
+                            continue;
                         }
-                        Some(_) | None => {}
+                        Some(call) => {
+                            let (op, outcome) = call.refuse(OpError::Unsupported);
+                            connection.complete(op, outcome);
+                            continue;
+                        }
+                        None => continue,
                     }
-                    continue;
                 }
                 Incoming::Canceled { op } => {
                     let connection = &mut self.connection;
@@ -1304,42 +1357,17 @@ impl<A: BeuiApp> BeuiTest<A> {
                 }
                 Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
             };
-            if let Some(call) = Call::accept_direct(&called) {
-                self.requests.push((None, call));
-                continue;
-            }
-            if let Some(call) = BlocksCall::accept_direct(&called) {
-                self.link.call(call, &self.store, &mut self.connection);
-                continue;
-            }
-            if DebugCall::accept_direct(&called).is_some() {
-                continue;
-            }
-            if called
-                .name
-                .split_once('#')
-                .is_some_and(|(interface, _)| block_plugin_api::is_published(interface))
-            {
-                self.extension_calls.push(called);
-                continue;
-            }
-            let Some(call) = ShellCall::accept_direct(&called) else {
-                panic!(
-                    "the plugin called {}, which the test does not answer",
-                    called.name
-                );
-            };
             let shown = |this: &block_plugin_api::embed::shell::WebView| {
                 self.web_views.get(&this.op()).map(|(id, _)| *id)
             };
             let commanded = match &call {
-                ShellCall::WebViewLoad { this, url } => {
+                ShellCall::WebViewLoad { this, url, .. } => {
                     shown(this).map(|id| (id, WebViewCommand::Load(url.clone())))
                 }
-                ShellCall::WebViewReload { this } => {
+                ShellCall::WebViewReload { this, .. } => {
                     shown(this).map(|id| (id, WebViewCommand::Reload))
                 }
-                ShellCall::WebViewFocusApp { this } => {
+                ShellCall::WebViewFocusApp { this, .. } => {
                     shown(this).map(|id| (id, WebViewCommand::FocusApp))
                 }
                 _ => None,
@@ -1364,9 +1392,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.calls.push(call);
         }
         self.link.answer(&self.store, &mut self.connection);
-        if self.connection.has_outbound() {
-            let frames = self.connection.take_outbound();
-            self.inbox.push(Inbound::Frames(frames));
+        let frames = self.connection.take_outbound();
+        let acknowledged = &mut self.acknowledged;
+        match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
+            true => self.answered.extend(frames),
+            false => {
+                let mut answered = std::mem::take(&mut self.answered);
+                answered.extend(frames);
+                self.inbox.push(Inbound::Frames(answered));
+            }
         }
     }
 
@@ -1499,7 +1533,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
-        self.call(|editor, connection| editor.show_dialog(connection, block.into_bytes(), dialog));
+        self.call(|editor, connection| {
+            editor.show_dialog(connection, block.into_bytes(), dialog);
+        });
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
@@ -1541,6 +1577,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 block,
                 account,
                 access,
+                ..
             } => Ok((Uuid::from_bytes(block), Uuid::from_bytes(account), access)),
             call => Err(call),
         })
@@ -1631,14 +1668,14 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn host_calls<C>(
         &self,
-        accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+        accept: impl Fn(&block_plugin_api::ops::Started) -> Option<C>,
     ) -> Vec<C> {
         self.extension_calls.iter().filter_map(accept).collect()
     }
 
     pub fn take_host_calls<C>(
         &mut self,
-        accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+        accept: impl Fn(&block_plugin_api::ops::Started) -> Option<C>,
     ) -> Vec<C> {
         let mut taken = Vec::new();
         self.extension_calls.retain(|called| match accept(called) {
@@ -1914,6 +1951,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         ));
         let anchor = Pos2::ZERO + (pos - self.rect().min);
         self.calls.push(ShellCall::ChangeView {
+            reply: block_plugin_api::ops::Reply::new(&self.connection, 0),
             instance: INSTANCE,
             change: ViewChange::Zoom {
                 factor,
@@ -2294,6 +2332,21 @@ impl Viewport {
         self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
         self.zoom = zoom;
     }
+}
+
+fn acknowledges(frame: &[u8], acknowledged: &mut std::collections::HashSet<OpId>) -> bool {
+    match block_plugin_api::ops::decode_frame(frame) {
+        Ok(block_plugin_api::ops::Frame::Complete { op, outcome }) => {
+            acknowledged.remove(&op) || outcome == Outcome::Err(OpError::Unanswered)
+        }
+        _ => false,
+    }
+}
+
+fn extension_call(method: block_plugin_api::ops::MethodId) -> bool {
+    block_plugin_api::embed::method_name(method)
+        .and_then(|name| name.split_once('#'))
+        .is_some_and(|(interface, _)| block_plugin_api::is_published(interface))
 }
 
 fn published(method: block_plugin_api::ops::MethodId) -> Option<block_plugin_api::ops::Watching> {

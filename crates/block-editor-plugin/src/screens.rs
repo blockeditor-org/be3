@@ -621,7 +621,7 @@ impl Screens {
     pub(crate) fn outbound(&mut self) {
         let missing = crate::fonts::take_missing();
         if !missing.is_empty() {
-            block_plugin_api::guest::host::missing_characters(missing);
+            block_plugin_api::guest::host::missing_characters(missing).detach();
         }
         let woken = self
             .dirty

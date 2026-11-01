@@ -22,15 +22,17 @@ fn asked(plugin: &mut HeadlessPlugin) -> Vec<Vec<char>> {
     for frame in plugin.take_frames() {
         host.receive(&frame).unwrap();
     }
-    std::iter::from_fn(|| host.next_event())
-        .filter_map(|event| match event {
-            Incoming::Called(called) => match Call::accept_direct(&called) {
-                Some(Call::MissingCharacters { characters }) => Some(characters),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect()
+    let mut asked = Vec::new();
+    while let Some(event) = host.next_event() {
+        if let Incoming::Started(started) = event
+            && let Some(Call::MissingCharacters { reply, characters }) =
+                Call::accept(&mut host, started)
+        {
+            reply.send(&mut host, &());
+            asked.push(characters);
+        }
+    }
+    asked
 }
 
 mod a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive;

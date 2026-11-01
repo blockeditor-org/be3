@@ -70,7 +70,7 @@ interface host-services {
     restore-revision: async func(block: block-id, commit: commit-id) -> result<_, failure>;
 
     /// Closes a preview `preview-revision` opened.
-    release-revision: func(preview: block-id);
+    release-revision: async func(preview: block-id);
 
     /// Asks the user for a file to open.
     pick-file: async func(filter: file-filter) -> file-pick;
@@ -95,7 +95,7 @@ interface host-services {
     list-access: async func(block: block-id) -> result<access-listing, failure>;
 
     /// Grants `account` `access` to the block.
-    set-access: func(block: block-id, account: account-id, access: access-level);
+    set-access: async func(block: block-id, account: account-id, access: access-level);
 
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;

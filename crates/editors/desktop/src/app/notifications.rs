@@ -219,6 +219,7 @@ impl Shared {
                     signals,
                     kept,
                 })
+                .detach()
             });
         }
         if self.shown.replace(revision) != revision {

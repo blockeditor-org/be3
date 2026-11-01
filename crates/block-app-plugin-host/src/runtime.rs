@@ -178,7 +178,7 @@ enum Answer {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     Watch(EditorInstanceId, block_plugin_api::ops::MethodId),
-    Called(EditorInstanceId, block_plugin_api::ops::Called),
+    Published(EditorInstanceId, block_plugin_api::ops::Started),
     Debug(
         EditorInstanceId,
         block_plugin_api::embed::debug::debug::Call,
@@ -205,7 +205,7 @@ impl From<Heard> for Answer {
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
             Heard::Watch(instance, open) => Self::Watch(instance, open),
-            Heard::Called(instance, called) => Self::Called(instance, called),
+            Heard::Published(instance, started) => Self::Published(instance, started),
             Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
             Heard::Service(service) => Self::Service(service),
@@ -936,7 +936,7 @@ impl Runtime {
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
                 | Answer::Watch(..)
-                | Answer::Called(..)
+                | Answer::Published(..)
                 | Answer::Debug(..)
                 | Answer::Ended(_)
                 | Answer::Service(_)
@@ -1017,7 +1017,9 @@ impl Runtime {
                 Answer::Laid(laid) => self.lay(laid),
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
-                Answer::Called(instance, called) => self.instances.published_call(instance, called),
+                Answer::Published(instance, started) => {
+                    self.instances.published_call(instance, started)
+                }
                 Answer::Debug(instance, call) => {
                     let mut asked = (instance, call);
                     self.instances.translate(&mut asked, true);
@@ -1615,7 +1617,7 @@ impl block_app_base::watches::WatchHost for Watches {
         })
     }
 
-    fn take_calls(&self, accept: &mut dyn FnMut(&block_plugin_api::ops::Called) -> bool) {
+    fn take_calls(&self, accept: &mut dyn FnMut(&block_plugin_api::ops::Started) -> bool) {
         HOST.with(|host| {
             let mut host = host.borrow_mut();
             let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();

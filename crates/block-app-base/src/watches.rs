@@ -6,13 +6,13 @@ use std::{
 
 use block_plugin_api::{
     Watched,
-    ops::{Called, MethodId},
+    ops::{MethodId, Started},
 };
 
 pub trait WatchHost {
     fn published(&self, open: MethodId, value: Arc<Vec<u8>>);
     fn watched(&self, open: MethodId) -> bool;
-    fn take_calls(&self, accept: &mut dyn FnMut(&Called) -> bool);
+    fn take_calls(&self, accept: &mut dyn FnMut(&Started) -> bool);
 }
 
 thread_local! {
@@ -60,7 +60,7 @@ pub fn watched<W: Watched>() -> bool {
         .is_some_and(|host| host.watched(W::OPEN))
 }
 
-pub fn take_calls<C>(accept: impl Fn(&Called) -> Option<C>) -> Vec<C> {
+pub fn take_calls<C>(accept: impl Fn(&Started) -> Option<C>) -> Vec<C> {
     let mut taken = Vec::new();
     if let Some(host) = HOST.with(Cell::get) {
         host.take_calls(&mut |called| match accept(called) {

@@ -3572,7 +3572,6 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3588,7 +3587,6 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3604,7 +3602,6 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3620,7 +3617,6 @@ crates = {
             "linux-x86_64-html": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3634,7 +3630,6 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3650,7 +3645,6 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3666,7 +3660,6 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3680,7 +3673,6 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3694,7 +3686,6 @@ crates = {
             "wasi-html": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3708,7 +3699,6 @@ crates = {
             "wasm32": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3722,7 +3712,6 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -3738,7 +3727,6 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/block-guest-abi:block-guest-abi",
                     "//third-party/rust:futures-core-0.3.32",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -16180,14 +16168,6 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "linux-x86_64-html": {
-                "binaries": {},
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [],
@@ -16213,14 +16193,6 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
-                "binaries": {},
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasi-html": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},
@@ -17140,6 +17112,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17163,6 +17136,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17186,6 +17160,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17209,6 +17184,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17232,6 +17208,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17317,6 +17294,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -17340,6 +17318,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20607,6 +20586,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20622,6 +20602,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20637,6 +20618,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20652,6 +20634,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20667,6 +20650,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20708,6 +20692,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -20723,6 +20708,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22788,6 +22774,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22804,6 +22791,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22820,6 +22808,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22836,6 +22825,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22852,6 +22842,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22896,6 +22887,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -22912,6 +22904,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },

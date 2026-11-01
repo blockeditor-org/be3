@@ -13,7 +13,7 @@ use std::{
 use serde::Serialize;
 
 use crate::{
-    Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, encode,
+    Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, encode,
     wire::{Decode, Plain},
 };
 
@@ -85,7 +85,6 @@ struct Inner {
     next_task: Cell<u64>,
     ready: Arc<ReadyQueue>,
     parent: Cell<Option<OpId>>,
-    returning: RefCell<Vec<Outcome>>,
     dispatch: RefCell<Option<Dispatch>>,
 }
 
@@ -124,7 +123,7 @@ pub struct Executor {
 
 impl Executor {
     pub fn new(dispatch: Dispatch) -> Self {
-        let executor = Self {
+        Self {
             inner: Rc::new(Inner {
                 connection: RefCell::new(Connection::new(Side::Guest)),
                 calls: RefCell::new(BTreeMap::new()),
@@ -134,12 +133,9 @@ impl Executor {
                 next_task: Cell::new(0),
                 ready: Arc::new(ReadyQueue(Mutex::new(VecDeque::new()))),
                 parent: Cell::new(None),
-                returning: RefCell::new(Vec::new()),
                 dispatch: RefCell::new(Some(dispatch)),
             }),
-        };
-        SERVED.with(|served| *served.borrow_mut() = Rc::downgrade(&executor.inner));
-        executor
+        }
     }
 
     pub fn step(&self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
@@ -151,9 +147,6 @@ impl Executor {
                 continue;
             }
             self.inner.settle();
-            for outcome in std::mem::take(&mut *self.inner.returning.borrow_mut()) {
-                self.inner.connection.borrow_mut().return_direct(&outcome);
-            }
         }
         self.inner.settle();
         outbound.extend(self.inner.connection.borrow_mut().take_outbound());
@@ -202,32 +195,8 @@ impl Inner {
         }
     }
 
-    fn call_direct(self: &Rc<Self>, called: Called) -> Outcome {
-        let started = Started {
-            op: 0,
-            parent: called.parent,
-            method: called.method(),
-            args: called.args,
-        };
-        let served = match self.dispatch.borrow().as_ref() {
-            Some(dispatch) => dispatch(&Resources(&self.resources), started),
-            None => Serve::Done(Outcome::Err(OpError::Canceled)),
-        };
-        match served {
-            Serve::Done(outcome) => outcome,
-            Serve::Later(_) | Serve::Resource { .. } => Outcome::Err(OpError::Unsupported),
-        }
-    }
-
     fn handle(self: &Rc<Self>, event: Incoming) {
         match event {
-            Incoming::Called(called) => {
-                let answered = called.answered;
-                let outcome = self.call_direct(called);
-                if answered {
-                    self.returning.borrow_mut().push(outcome);
-                }
-            }
             Incoming::Started(started) => {
                 let op = started.op;
                 let served = match self.dispatch.borrow().as_ref() {
@@ -236,7 +205,12 @@ impl Inner {
                 };
                 match served {
                     Serve::Done(outcome) => self.connection.borrow_mut().complete(op, outcome),
-                    Serve::Later(future) => {
+                    Serve::Later(mut future) => {
+                        let task = self.next_task.get() + 1;
+                        if let Poll::Ready(outcome) = self.poll_now(task, &mut future) {
+                            self.connection.borrow_mut().complete(op, outcome);
+                            return;
+                        }
                         let inner = Rc::downgrade(self);
                         let task = self.spawn(Box::pin(async move {
                             let outcome = future.await;
@@ -330,6 +304,17 @@ impl Inner {
         task
     }
 
+    fn poll_now<T>(&self, task: u64, future: &mut LocalFuture<T>) -> Poll<T> {
+        let waker = Waker::from(Arc::new(TaskWaker {
+            task,
+            ready: Arc::clone(&self.ready),
+        }));
+        let parent = self.parent.replace(None);
+        let polled = future.as_mut().poll(&mut Context::from_waker(&waker));
+        self.parent.set(parent);
+        polled
+    }
+
     fn poll(&self, task: u64) {
         let Some(mut future) = self
             .tasks
@@ -399,84 +384,6 @@ pub fn end(resource: OpId) {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Imports {
-    pub call: fn(&str, i32, i64, u32, u32),
-    pub send: fn(&[u8]),
-}
-
-thread_local! {
-    static IMPORTS: Cell<Option<Imports>> = const { Cell::new(None) };
-    static SERVED: RefCell<std::rc::Weak<Inner>> = const { RefCell::new(std::rc::Weak::new()) };
-    static RESULT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-}
-
-pub fn register_imports(imports: Imports) {
-    IMPORTS.with(|held| held.set(Some(imports)));
-}
-
-fn flush(inner: &Inner) {
-    if let Some(imports) = IMPORTS.with(Cell::get) {
-        for frame in inner.connection.borrow_mut().take_outbound() {
-            (imports.send)(&frame);
-        }
-    }
-}
-
-pub fn direct(name: &str, args: &[u8]) {
-    let inner = current();
-    let parent = inner.parent.get();
-    match IMPORTS.with(Cell::get) {
-        Some(imports) => {
-            flush(&inner);
-            (imports.call)(
-                name,
-                parent.is_some() as i32,
-                parent.unwrap_or_default() as i64,
-                args.as_ptr() as u32,
-                args.len() as u32,
-            );
-        }
-        None => inner
-            .connection
-            .borrow_mut()
-            .notify_direct(parent, name, args),
-    }
-}
-
-pub fn alloc(length: u32) -> u32 {
-    let buffer = vec![0u8; length as usize].into_boxed_slice();
-    Box::into_raw(buffer) as *mut u8 as usize as u32
-}
-
-// unsafe(ffi)
-pub fn export(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u32) -> i64 {
-    let args = unsafe {
-        Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-            pointer as usize as *mut u8,
-            length as usize,
-        ))
-    };
-    let Some(inner) = SERVED.with(|served| served.borrow().upgrade()) else {
-        return block_guest_abi::direct::pack(0, 0);
-    };
-    let _entered = Entered::enter(&inner);
-    let called = Called {
-        name: name.to_owned(),
-        parent: (has_parent != 0).then_some(parent as u64),
-        answered: true,
-        args: args.into_vec(),
-    };
-    let outcome = inner.call_direct(called);
-    inner.settle();
-    flush(&inner);
-    RESULT.with(|result| {
-        let mut result = result.borrow_mut();
-        *result = encode(&outcome);
-        block_guest_abi::direct::pack(result.as_ptr() as usize as u32, result.len() as u32)
-    })
-}
-
 pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pending<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
@@ -530,6 +437,7 @@ impl Drop for Resource {
     }
 }
 
+#[must_use = "dropping a call asks the other side to cancel it; `.detach()` says nobody waits for its answer"]
 pub struct Pending<T, S = Plain> {
     op: OpId,
     inner: Rc<Inner>,
@@ -540,6 +448,11 @@ pub struct Pending<T, S = Plain> {
 impl<T, S> Pending<T, S> {
     pub fn op(&self) -> OpId {
         self.op
+    }
+
+    pub fn detach(mut self) {
+        self.finished = true;
+        self.inner.calls.borrow_mut().remove(&self.op);
     }
 }
 

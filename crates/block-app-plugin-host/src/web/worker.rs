@@ -46,7 +46,6 @@ impl WorkerChannel {
     pub(super) fn start(url: &str, waiting: Arc<AtomicBool>) -> Result<Self, String> {
         let guest = WebGuest::start(
             url,
-            block_plugin_api::embed::IMPORTS,
             Some("./plugin.js"),
             Arc::new(block_app_base::host::wake),
             waiting,

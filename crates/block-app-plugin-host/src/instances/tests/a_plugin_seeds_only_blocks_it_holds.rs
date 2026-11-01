@@ -9,6 +9,7 @@ fn seed(instances: &mut Instances, block: Uuid) {
     call(
         instances,
         Call::WriteContent {
+            reply: reply(next_op()),
             block: block.into_bytes(),
             content_type: CounterContent::CONTENT_TYPE.into_bytes(),
             bytes: seeded.encode(),

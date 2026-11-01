@@ -1,7 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
-    future::Future,
+    future::{Future, ready},
     rc::Rc,
 };
 
@@ -427,7 +427,7 @@ impl Module {
     fn effect(&self, effect: Effect) {
         match effect {
             Effect::Send { replica, to, bytes } => {
-                ops::with_parent(replica, || host::send(to, bytes));
+                ops::with_parent(replica, || host::send(to, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -485,12 +485,12 @@ impl Module {
             Effect::ClaimLease {
                 replica,
                 generation,
-            } => ops::with_parent(replica, || host::claim_lease(generation)),
+            } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
             Effect::ReportClean {
                 replica,
                 generation,
                 clean_at,
-            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)),
+            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -499,27 +499,28 @@ impl Module {
                 }
             }
             Effect::Status { replica, status } => {
-                ops::with_parent(replica, || host::report_status(status));
+                ops::with_parent(replica, || host::report_status(status)).detach();
             }
             Effect::Described {
                 replica,
                 description,
-            } => ops::with_parent(replica, || host::described(description)),
+            } => ops::with_parent(replica, || host::described(description)).detach(),
             Effect::History {
                 replica,
                 can_undo,
                 can_redo,
-            } => ops::with_parent(replica, || host::history(can_undo, can_redo)),
+            } => ops::with_parent(replica, || host::history(can_undo, can_redo)).detach(),
             Effect::Conflict {
                 replica,
                 ours,
                 theirs,
                 count,
             } => ops::with_parent(replica, || {
-                host::conflict(ours, theirs, count.try_into().unwrap_or(u32::MAX));
-            }),
+                host::conflict(ours, theirs, count.try_into().unwrap_or(u32::MAX))
+            })
+            .detach(),
             Effect::Error { replica, message } => {
-                ops::with_parent(replica, || host::error(message));
+                ops::with_parent(replica, || host::error(message)).detach();
             }
             Effect::Answer { id, answer } => {
                 let waiting = self.shared.state.borrow_mut().waiting.remove(&id);
@@ -546,7 +547,7 @@ impl replicas::Guest for Module {
         }
     }
 
-    fn start(&self, entropy: Vec<u8>) -> Vec<TypeInfo> {
+    fn start(&self, entropy: Vec<u8>) -> impl Future<Output = Vec<TypeInfo>> + 'static {
         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
         {
             let mut seed = [0u8; 32];
@@ -566,12 +567,17 @@ impl replicas::Guest for Module {
                 }
             });
         }
-        self.types()
+        ready(self.types())
     }
 
-    fn blank(&self, content_type: Uuid) -> Result<Vec<u8>, Failure> {
-        self.with_kind(content_type, |kind| (kind.blank)())
-            .ok_or(Failure::UnknownType)
+    fn blank(
+        &self,
+        content_type: Uuid,
+    ) -> impl Future<Output = Result<Vec<u8>, Failure>> + 'static {
+        ready(
+            self.with_kind(content_type, |kind| (kind.blank)())
+                .ok_or(Failure::UnknownType),
+        )
     }
 
     fn merge3(
@@ -580,16 +586,21 @@ impl replicas::Guest for Module {
         base: Option<Vec<u8>>,
         ours: Option<Vec<u8>>,
         theirs: Option<Vec<u8>>,
-    ) -> Result<Merged, Failure> {
-        self.with_kind(content_type, |kind| {
-            (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref())
-        })
-        .ok_or(Failure::UnknownType)?
-        .map(|(bytes, conflicts)| Merged {
-            bytes,
-            conflicts: conflicts.try_into().unwrap_or(u32::MAX),
-        })
-        .map_err(Failure::Malformed)
+    ) -> impl Future<Output = Result<Merged, Failure>> + 'static {
+        ready(
+            self.with_kind(content_type, |kind| {
+                (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref())
+            })
+            .ok_or(Failure::UnknownType)
+            .and_then(|merged| {
+                merged
+                    .map(|(bytes, conflicts)| Merged {
+                        bytes,
+                        conflicts: conflicts.try_into().unwrap_or(u32::MAX),
+                    })
+                    .map_err(Failure::Malformed)
+            }),
+        )
     }
 
     fn describe(
@@ -597,20 +608,28 @@ impl replicas::Guest for Module {
         content_type: Uuid,
         bytes: Vec<u8>,
         organization: Uuid,
-    ) -> Result<Description, Failure> {
-        self.with_kind(content_type, |kind| (kind.describe)(&bytes, organization))
-            .ok_or(Failure::UnknownType)?
-            .map_err(Failure::Malformed)
+    ) -> impl Future<Output = Result<Description, Failure>> + 'static {
+        ready(
+            self.with_kind(content_type, |kind| (kind.describe)(&bytes, organization))
+                .ok_or(Failure::UnknownType)
+                .and_then(|described| described.map_err(Failure::Malformed)),
+        )
     }
 
-    fn to_file(&self, content_type: Uuid, bytes: Vec<u8>) -> Result<Option<PlainFile>, Failure> {
-        match self.with_kind(content_type, |kind| {
-            kind.to_file.map(|to_file| to_file(&bytes))
-        }) {
-            None => Err(Failure::UnknownType),
-            Some(None) => Ok(None),
-            Some(Some(file)) => file.map_err(Failure::Malformed),
-        }
+    fn to_file(
+        &self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+    ) -> impl Future<Output = Result<Option<PlainFile>, Failure>> + 'static {
+        ready(
+            match self.with_kind(content_type, |kind| {
+                kind.to_file.map(|to_file| to_file(&bytes))
+            }) {
+                None => Err(Failure::UnknownType),
+                Some(None) => Ok(None),
+                Some(Some(file)) => file.map_err(Failure::Malformed),
+            },
+        )
     }
 
     fn claims(
@@ -619,8 +638,9 @@ impl replicas::Guest for Module {
         first: Vec<u8>,
         directory: bool,
         fallback: bool,
-    ) -> Option<Uuid> {
-        self.shared
+    ) -> impl Future<Output = Option<Uuid>> + 'static {
+        let claimed = self
+            .shared
             .types
             .borrow()
             .iter()
@@ -631,7 +651,8 @@ impl replicas::Guest for Module {
                         && kind.claims.is_some_and(|claims| claims(&name, &first))
                 }
             })
-            .map(|kind| kind.info.content_type)
+            .map(|kind| kind.info.content_type);
+        ready(claimed)
     }
 
     fn apply(
@@ -640,34 +661,50 @@ impl replicas::Guest for Module {
         bytes: Option<Vec<u8>>,
         client: ClientId,
         change: Change,
-    ) -> Result<Option<Vec<u8>>, Failure> {
-        self.with_kind(content_type, |kind| {
-            apply(kind, bytes.as_deref(), client, change)
-        })
-        .ok_or(Failure::UnknownType)?
+    ) -> impl Future<Output = Result<Option<Vec<u8>>, Failure>> + 'static {
+        ready(
+            self.with_kind(content_type, |kind| {
+                apply(kind, bytes.as_deref(), client, change)
+            })
+            .ok_or(Failure::UnknownType)
+            .and_then(|applied| applied),
+        )
     }
 }
 
 impl replicas::GuestReplica for OpenReplica {
-    fn reopen(&self, opening: Opening) {
+    fn reopen(&self, opening: Opening) -> impl Future<Output = ()> + 'static {
         self.module.open(self.id, opening);
+        ready(())
     }
 
-    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) {
+    fn message(
+        &self,
+        from: Endpoint,
+        bytes: Vec<u8>,
+        at: u64,
+    ) -> impl Future<Output = ()> + 'static {
         self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
+        ready(())
     }
 
-    fn attach(&self, editor: EditorId, editable: bool) {
+    fn attach(&self, editor: EditorId, editable: bool) -> impl Future<Output = ()> + 'static {
         self.module
             .input(self.id, Input::Attach { editor, editable });
+        ready(())
     }
 
-    fn detach(&self, editor: EditorId) {
+    fn detach(&self, editor: EditorId) -> impl Future<Output = ()> + 'static {
         self.module.input(self.id, Input::Detach { editor });
+        ready(())
     }
 
-    fn head_moved(&self, head: CommitId, from_this_device: bool) {
+    fn head_moved(
+        &self,
+        head: CommitId,
+        from_this_device: bool,
+    ) -> impl Future<Output = ()> + 'static {
         self.module.input(
             self.id,
             Input::Head(HeadEvent::Moved {
@@ -675,9 +712,14 @@ impl replicas::GuestReplica for OpenReplica {
                 from_this_device,
             }),
         );
+        ready(())
     }
 
-    fn lease(&self, session: SessionState, resynchronize: bool) {
+    fn lease(
+        &self,
+        session: SessionState,
+        resynchronize: bool,
+    ) -> impl Future<Output = ()> + 'static {
         self.module.input(
             self.id,
             Input::Lease {
@@ -685,10 +727,12 @@ impl replicas::GuestReplica for OpenReplica {
                 resynchronize,
             },
         );
+        ready(())
     }
 
-    fn claim(&self) {
+    fn claim(&self) -> impl Future<Output = ()> + 'static {
         self.module.input(self.id, Input::Claim);
+        ready(())
     }
 
     fn change(&self, change: Change) -> impl Future<Output = bool> + 'static {
@@ -769,7 +813,7 @@ impl Serving {
     pub fn step(&self, inbound: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {
         if let Err(error) = self.executor.step(inbound, outbound) {
             self.executor
-                .enter(|| host::error(format!("a frame did not decode: {error}")));
+                .enter(|| host::error(format!("a frame did not decode: {error}")).detach());
             let _ = self.executor.step(Vec::new(), outbound);
         }
     }
@@ -778,8 +822,7 @@ impl Serving {
 #[macro_export]
 macro_rules! type_module {
     ($guest:ty) => {
-        $crate::api::export_type_module!();
-        $crate::abi::guest!($guest, __register_type_module);
+        $crate::abi::guest!($guest);
     };
 }
 

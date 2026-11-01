@@ -44,10 +44,11 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();
     assert!(!fixture.shown().contains(&preview));
-    assert!(fixture.test.take_requests().iter().any(|call| matches!(
-        call,
-        HostCall::ReleaseRevision { preview: released } if *released == preview.into_bytes()
-    )));
+    let released = fixture.test.take_requests_where(|call| match call {
+        HostCall::ReleaseRevision { preview, .. } => Ok(preview),
+        call => Err(call),
+    });
+    assert_eq!(released, vec![preview.into_bytes()]);
     fixture.test.set_size(Vec2::new(390.0, 720.0));
     fixture.settle();
     fixture.test.click("dock.switch");
