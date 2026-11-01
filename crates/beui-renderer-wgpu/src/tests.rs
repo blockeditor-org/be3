@@ -28,10 +28,13 @@ mod a_replaced_drawing_is_released_once_it_is_repainted;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod a_stroked_path_joins_caps_and_dashes_its_line;
+mod a_texture_drawing_fills_its_rect_and_nothing_else;
+mod a_turned_texture_quad_stops_at_its_clip;
 mod a_window_blends_a_thin_rounded_outline_as_dark_as_its_straight_edges;
 mod an_even_odd_path_leaves_a_hole_inside_its_inner_ring;
 mod an_icon_glyph_paints_over_the_background;
 mod an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at;
+mod an_srgb_encoded_texture_keeps_its_colour_on_an_srgb_target;
 mod copying_a_faded_scroll_paints_what_a_full_repaint_would;
 mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
@@ -435,4 +438,50 @@ impl Patch {
             placement,
         }
     }
+}
+
+pub fn texture_of(target: &Target, width: u32, texels: &[[u8; 4]]) -> wgpu::Texture {
+    let size = wgpu::Extent3d {
+        width,
+        height: texels.len() as u32 / width,
+        depth_or_array_layers: 1,
+    };
+    let texture = target.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("beui test picture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    target.queue.write_texture(
+        texture.as_image_copy(),
+        texels.as_flattened(),
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(size.height),
+        },
+        size,
+    );
+    texture
+}
+
+pub fn paint_quad(target: &Target, texture: &wgpu::Texture, quad: beui_draw::texture_quad::Quad) {
+    let pipelines = beui_draw::texture_quad::Pipelines::new(&target.device);
+    let mut encoder = target
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    pipelines.paint(
+        &target.queue,
+        &mut encoder,
+        &target.view,
+        target.format,
+        (SIZE, SIZE),
+        &pipelines.bind(texture),
+        quad,
+    );
+    target.queue.submit([encoder.finish()]);
 }

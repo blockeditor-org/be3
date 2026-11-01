@@ -3,7 +3,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 cargo_library()
 
 # The tests link system libraries the worker's image does not have, so they
-# load them from the sysroot they were linked against. The texture tests draw
+# load them from the sysroot they were linked against. The GPU tests draw
 # through lavapipe, as the renderer's do, and the Wayland compositor's build a
 # keyboard from the test runtime's keymaps, as be-wayland's do.
 test_environment = {

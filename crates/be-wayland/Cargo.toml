@@ -8,7 +8,6 @@ license.workspace = true
 be-dmabuf = { path = "../be-dmabuf" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
-bytemuck = { version = "1", features = ["derive"] }
 gvdb = "0.10"
 image = { version = "0.25", default-features = false, features = ["png"] }
 resvg = { version = "0.48", default-features = false }

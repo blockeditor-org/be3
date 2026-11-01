@@ -17,7 +17,6 @@ use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 use crate::programs::ProgramSource;
 
 use super::DesktopHost;
-use super::texture_draw::TextureDraw;
 use super::win32_map::{
     self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
 };
@@ -242,7 +241,9 @@ impl DesktopHost for Win32 {
                 {
                     captured.drawn = frame.version();
                     let texture = frame.texture().clone();
-                    let drawing = beui::native::drawing(TextureDraw::new(texture, frame));
+                    let drawing = beui::native::drawing(
+                        beui::native::texture_quad::TextureDraw::keeping(texture, frame),
+                    );
                     frames.extend(
                         captured
                             .users

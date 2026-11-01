@@ -332,7 +332,7 @@ one direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
 | `beui-keyboard` | `beui::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; beui-host's `build` installs it on every document |
-| `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing}`: the interface a gpu drawing implements, which the renderer runs (see [Draw with the gpu](#draw-with-the-gpu)) |
+| `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing, texture_quad}`: the interface a gpu drawing implements, which the renderer runs, and the one pipeline that draws a texture into a rect (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input (the web's through `beui-web-input`), IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers offer it with `beui_host::native::run_with_platforms`, and `BEUI_PLATFORM=drm` picks it |
@@ -3542,6 +3542,14 @@ devices of two instances can compare equal. The color wheel
 viewport and scissor as it found them: position what it draws from the
 rectangle it was given, the way beui's own shader does, rather than by setting
 a viewport.
+
+To show a texture, use `beui::native::texture_quad` instead of writing a pipeline:
+`TextureDraw` is a `Draw` that fills its rect with one texture, and `Quad` sets
+the source rect, a rotation about the centre, opacity, `opaque` (alpha read as
+1) and `srgb_encoded` (sRGB values in a unorm texture, decoded when the target
+encodes). A host drawing several textures in one `Draw` binds them with
+`Pipelines` and prepares them with `Quads`; one painting outside a `Draw`, such
+as the DRM output, calls `Pipelines::paint`.
 
 `beui::native::drawing` wraps a `Draw` in a `Drawing`, and two drawings are the same shape when they
 are the same `Rc`. That is what decides whether the frame changed, so a drawing

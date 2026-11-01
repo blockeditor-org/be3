@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use be_dmabuf::{SyncFiles, Vulkan};
 use beui::Vec2;
-use bytemuck::{Pod, Zeroable};
+use beui::native::texture_quad::{Bound, Pipelines, Quad};
 
-use crate::rotation::{Rotation, Turn};
+use crate::rotation::Rotation;
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -34,7 +34,7 @@ impl SoftwareCursor {
 }
 
 pub struct Sprite {
-    group: wgpu::BindGroup,
+    bound: Bound,
     opaque: bool,
 }
 
@@ -48,85 +48,12 @@ pub struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     vulkan: Option<Vulkan>,
-    pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Vertex {
-    position: [f32; 2],
-    uv: [f32; 2],
-    opaque: f32,
+    quads: Pipelines,
+    format: wgpu::TextureFormat,
 }
 
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("sprite.wgsl"));
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("sprite"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("sprite"),
-            bind_group_layouts: &[Some(&layout)],
-            immediate_size: 0,
-        });
-        const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32];
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("sprite"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("surface_vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &ATTRIBUTES,
-                }],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("surface_fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("sprite"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
         let vulkan = Vulkan::of(&device);
         let sync = vulkan.as_ref().and_then(Vulkan::sync_files);
         if sync.is_none() {
@@ -134,12 +61,11 @@ impl Gpu {
         }
         Self {
             sync: RefCell::new(sync),
+            quads: Pipelines::new(&device),
             device,
             queue,
             vulkan,
-            pipeline,
-            layout,
-            sampler,
+            format,
         }
     }
 
@@ -200,22 +126,10 @@ impl Gpu {
     }
 
     pub fn sprite(&self, texture: &wgpu::Texture, opaque: bool) -> Sprite {
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("sprite"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        });
-        Sprite { group, opaque }
+        Sprite {
+            bound: self.quads.bind(texture),
+            opaque,
+        }
     }
 
     pub fn paint_sprite(
@@ -227,48 +141,31 @@ impl Gpu {
         sprite: &Sprite,
         rotation: Rotation,
     ) {
-        let (width, height) = (target_size.0 as f32, target_size.1 as f32);
-        let corner = |x: f32, y: f32, uv: [f32; 2]| Vertex {
-            position: [x / width * 2.0 - 1.0, 1.0 - y / height * 2.0],
-            uv,
-            opaque: f32::from(u8::from(sprite.opaque)),
-        };
         let [left, top, right, bottom] = rect;
-        let [top_left, top_right, bottom_right, bottom_left] = rotation.corners();
-        let (a, b, c, d) = (
-            corner(left, top, top_left),
-            corner(right, top, top_right),
-            corner(right, bottom, bottom_right),
-            corner(left, bottom, bottom_left),
+        let (center_x, center_y) = ((left + right) * 0.5, (top + bottom) * 0.5);
+        let (half_x, half_y) = match rotation.sideways() {
+            true => ((bottom - top) * 0.5, (right - left) * 0.5),
+            false => ((right - left) * 0.5, (bottom - top) * 0.5),
+        };
+        let quad = Quad {
+            rect: [
+                center_x - half_x,
+                center_y - half_y,
+                center_x + half_x,
+                center_y + half_y,
+            ],
+            rotation: (rotation.degrees() as f32).to_radians(),
+            opaque: sprite.opaque,
+            ..Quad::default()
+        };
+        self.quads.paint(
+            &self.queue,
+            encoder,
+            target,
+            self.format,
+            target_size,
+            &sprite.bound,
+            quad,
         );
-        let vertices = [a, b, c, a, c, d];
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("sprite vertices"),
-            size: std::mem::size_of_val(&vertices) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        self.queue
-            .write_buffer(&buffer, 0, bytemuck::cast_slice(&vertices));
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("sprite"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &sprite.group, &[]);
-        pass.set_vertex_buffer(0, buffer.slice(..));
-        pass.draw(0..6, 0..1);
     }
 }

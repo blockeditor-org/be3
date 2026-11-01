@@ -34,23 +34,14 @@ fn drawn(
     buffer: (f64, f64),
     at: &DrawAt,
 ) -> Drawn {
-    let corners = place(rect, source, buffer.into(), at).expect("the surface is drawn");
-    let (first, last) = (corners[0], corners[2]);
-    let x = |ndc: f32| ((ndc + 1.0) / 2.0 * at.screen.x).round();
-    let y = |ndc: f32| ((1.0 - ndc) / 2.0 * at.screen.y).round();
-    let uv = |value: f32| (value * 1000.0).round() / 1000.0;
+    let quad = place(rect, source, buffer.into(), at);
+    let shown = quad.visible().expect("the surface is drawn");
+    let [left, top, right, bottom] = quad.rect;
+    let u = |x: f32| quad.uv[0] + (x - left) / (right - left) * (quad.uv[2] - quad.uv[0]);
+    let v = |y: f32| quad.uv[1] + (y - top) / (bottom - top) * (quad.uv[3] - quad.uv[1]);
+    let round = |value: f32| (value * 1000.0).round() / 1000.0;
     Drawn {
-        pixels: [
-            x(first.position[0]),
-            y(first.position[1]),
-            x(last.position[0]),
-            y(last.position[1]),
-        ],
-        uv: [
-            uv(first.uv[0]),
-            uv(first.uv[1]),
-            uv(last.uv[0]),
-            uv(last.uv[1]),
-        ],
+        pixels: shown.map(f32::round),
+        uv: [u(shown[0]), v(shown[1]), u(shown[2]), v(shown[3])].map(round),
     }
 }
