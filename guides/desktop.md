@@ -108,7 +108,15 @@ restarting, powering off or logging out. The clock carries the count of listed n
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
 `windows`, `programs` and `power` (`block-app-plugin-host/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
-sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
+sees as nothing offered. block-app reaches the host through
+`block_app_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
+functions (start, list and act on windows, launch) whose defaults do nothing, so a platform with
+no host (`impl DesktopHost for Host { type Source = (); }`) writes none of them. Its `Source` is
+the `ProgramSource` that lists the installed programs, their icons and openers and runs one;
+`programs/installed.rs` is the one `Programs<S>` over it that scans on a thread, holds launches
+until the list is in and publishes `ProgramsWatch`. The scan's results reach the UI thread through
+`block_app_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
+them. The web and Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to

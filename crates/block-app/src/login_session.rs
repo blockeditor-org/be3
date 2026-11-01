@@ -14,6 +14,7 @@ use block_plugin_api::{PowerAction, PowerAvailability};
 
 use block_app_base::host::{WakingSender, waking_channel};
 use block_app_base::password::Password;
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
@@ -59,7 +60,7 @@ impl ScreenLock {
 
     pub(crate) fn lock(&mut self, trigger: Trigger) {
         if self.lock.lock(trigger) {
-            block_app_desktop::desktop_host::set_locked(true);
+            Host::set_locked(true);
             block_app_base::host::request_repaint();
         }
     }
@@ -261,12 +262,12 @@ impl SessionControl for Live<'_> {
     }
 
     fn windows(&self) -> usize {
-        block_app_desktop::desktop_host::listed(&[]).len()
+        Host::listed(&[]).len()
     }
 
     fn close_windows(&mut self) {
-        for window in block_app_desktop::desktop_host::listed(&[]) {
-            block_app_desktop::desktop_host::close(window.id);
+        for window in Host::listed(&[]) {
+            Host::close(window.id);
         }
         block_app_base::host::wake();
     }

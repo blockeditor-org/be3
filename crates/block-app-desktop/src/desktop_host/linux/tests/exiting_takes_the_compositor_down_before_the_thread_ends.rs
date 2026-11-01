@@ -16,7 +16,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
     }))
     .expect("the adapter did not provide a device");
     let document = beui_host::native::build(|| {
-        create();
+        Linux::create();
         view! {
             <beui::styled::Root>
                 <Frame />
@@ -29,13 +29,16 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,
     });
-    start(&setup);
-    assert!(running(), "the compositor starts on the GPU it is given");
+    Linux::start(&setup);
+    assert!(
+        Linux::running(),
+        "the compositor starts on the GPU it is given"
+    );
     assert!(windows().is_some());
 
-    exiting();
+    Linux::exiting();
     assert!(
-        !running(),
+        !Linux::running(),
         "the compositor, with the GPU textures and Wayland clients it holds, is gone once the app \
          has exited, rather than left for the thread's destructors at process exit"
     );

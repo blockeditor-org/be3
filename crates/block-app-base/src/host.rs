@@ -1,9 +1,14 @@
 use std::{
-    cell::RefCell,
+    any::Any,
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    marker::PhantomData,
+    rc::Rc,
     sync::{
         Mutex, OnceLock, PoisonError,
         mpsc::{self, Receiver, SendError},
     },
+    thread::{self, ThreadId},
     time::{Duration, Instant},
 };
 
@@ -14,8 +19,15 @@ type Waker = Box<dyn Fn() + Send + Sync>;
 static WAKER: OnceLock<Waker> = OnceLock::new();
 static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 
+type Letter = (u64, Box<dyn Any + Send>);
+type Receive = Rc<dyn Fn(Box<dyn Any + Send>)>;
+
+static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
+
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
+    static MAILBOXES: RefCell<HashMap<u64, Receive>> = RefCell::new(HashMap::new());
+    static NEXT_MAILBOX: Cell<u64> = const { Cell::new(0) };
 }
 
 pub fn install_waker(waker: impl Fn() + Send + Sync + 'static) {
@@ -57,6 +69,75 @@ impl<T> WakingSender<T> {
 pub fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
     (WakingSender(sender), receiver)
+}
+
+pub struct Mailbox(u64);
+
+impl Drop for Mailbox {
+    fn drop(&mut self) {
+        MAILBOXES.with_borrow_mut(|mailboxes| mailboxes.remove(&self.0));
+    }
+}
+
+pub struct Post<T> {
+    mailbox: u64,
+    thread: ThreadId,
+    kind: PhantomData<fn(T)>,
+}
+
+impl<T> Clone for Post<T> {
+    fn clone(&self) -> Self {
+        Self {
+            mailbox: self.mailbox,
+            thread: self.thread,
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<T: Send + 'static> Post<T> {
+    pub fn send(&self, value: T) {
+        POSTED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((self.thread, (self.mailbox, Box::new(value))));
+        wake();
+    }
+}
+
+pub fn mailbox<T: Send + 'static>(receive: impl Fn(T) + 'static) -> (Mailbox, Post<T>) {
+    let mailbox = NEXT_MAILBOX.get();
+    NEXT_MAILBOX.set(mailbox + 1);
+    let receive: Receive = Rc::new(move |letter: Box<dyn Any + Send>| {
+        if let Ok(value) = letter.downcast::<T>() {
+            receive(*value);
+        }
+    });
+    MAILBOXES.with_borrow_mut(|mailboxes| mailboxes.insert(mailbox, receive));
+    let post = Post {
+        mailbox,
+        thread: thread::current().id(),
+        kind: PhantomData,
+    };
+    (Mailbox(mailbox), post)
+}
+
+pub fn deliver() {
+    let here = thread::current().id();
+    let letters: Vec<Letter> = {
+        let mut posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
+        let (letters, others) = std::mem::take(&mut *posted)
+            .into_iter()
+            .partition(|(thread, _)| *thread == here);
+        *posted = others;
+        letters.into_iter().map(|(_, letter)| letter).collect()
+    };
+    for (mailbox, letter) in letters {
+        let receive = MAILBOXES.with_borrow(|mailboxes| mailboxes.get(&mailbox).cloned());
+        if let Some(receive) = receive {
+            receive(letter);
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -161,6 +242,7 @@ pub fn start(frame: Frame) {
         host.opens_windows = frame.opens_windows;
         host.output = Output::default();
     });
+    deliver();
 }
 
 pub fn finish() -> Output {

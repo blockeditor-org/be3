@@ -4,6 +4,7 @@ use std::time::Duration;
 use be_block::InputSettings;
 use be_wayland::KeyboardConfig;
 use beui_platform_drm::{InputConfig, InputControl, PointerDevice};
+use block_app_desktop::desktop_host::{DesktopHost, Host};
 use block_plugin_api::HostInputDevice;
 
 thread_local! {
@@ -29,7 +30,7 @@ pub(crate) fn apply(settings: &InputSettings) {
             control.set(seat(settings));
         }
     });
-    block_app_desktop::desktop_host::set_primary_selection(settings.middle_click_paste());
+    Host::set_primary_selection(settings.middle_click_paste());
     block_app_desktop::remap::configure(settings);
     if !block_app_desktop::desktop_host::set_keyboard(&keyboard(settings)) {
         eprintln!(
