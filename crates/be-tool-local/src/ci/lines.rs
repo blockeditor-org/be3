@@ -28,11 +28,10 @@ const TOOLING: [&str; 4] = [
 
 const BUILD_DIRECTORIES: [&str; 4] = ["scripts", "buck", ".github/workflows", ".github/actions"];
 
-const BUILD_FILES: [&str; 9] = [
+const BUILD_FILES: [&str; 8] = [
     "BUCK.v2",
     ".github/zizmor.yml",
     ".cargo/config.toml",
-    ".config/nextest.toml",
     "Cargo.lock",
     "rust-toolchain.toml",
     "rustfmt.toml",

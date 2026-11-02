@@ -87,16 +87,3 @@ on its session menu. The first time be-host signs in on the PineNote it finds th
 the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
 the Status bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 
-`devices/pinenote/vulkan-panfrost-26.3` is an optional PKGBUILD that builds panvk alone from
-Mesa 26.3 and replaces the `vulkan-panfrost` package. It exposes Vulkan 1.3 on the G52;
-Mesa 26.2 exposes Vulkan 1.0. Build it on the PineNote with `makepkg -si`. The build overrides
-arch-meson's forced automatic features so unrelated graphics frontends stay optional.
-panvk refuses the G52 (Bifrost, v7) unless
-`PAN_I_WANT_A_BROKEN_VULKAN_DRIVER` is set, so the package also installs
-`/etc/profile.d/panvk.sh`, which greetd reads before it starts a session. Mesa 26.3.0-rc1 still
-reports conformance 0.0.0.0 for the G52, so also set
-`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching be-host; every renderer, the
-session's included, reads wgpu's instance environment settings. Allowing the adapter does not
-guarantee correct rendering with either Mesa version. Move `_tag` to the
-release once Mesa 26.3.0 is out, and drop the package once Arch's `vulkan-panfrost` is 26.3 or
-newer.
