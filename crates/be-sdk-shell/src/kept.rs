@@ -90,8 +90,9 @@ pub(crate) fn sort_out(kept: &Kept, windows: &[HostWindow]) -> Desk {
             .iter()
             .position(|record| Some(record.key.0) == window.origin.launch);
         let same_program = || {
-            free.iter()
-                .position(|record| !record.program_id.is_empty() && record.program_id == window.program_id)
+            free.iter().position(|record| {
+                !record.program_id.is_empty() && record.program_id == window.program_id
+            })
         };
         if let Some(index) = launched.or_else(same_program) {
             let record = free.remove(index);

@@ -13,9 +13,9 @@ use be_type_database::database_schema::{
 use beui::Overflow;
 use uuid::Uuid;
 
+use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::root::data::Data;
 use crate::database_view::root::row::RowPanel;
-use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
 use beui::{Align, Direction, ItemSize};
 

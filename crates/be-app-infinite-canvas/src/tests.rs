@@ -17,9 +17,9 @@ use be_type_infinite_canvas::{
 use be_type_infinite_canvas::{CanvasPixel, CanvasPixelUpdate, CanvasRaster};
 use uuid::Uuid;
 
+use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use crate::root::CanvasRoot;
 use crate::root::state::{attach_component, remove_component, set_component_value};
-use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use be_sdk_beui::beui::{PenPhase, PointerButton};
 use be_type_infinite_canvas::CanvasContent;
 

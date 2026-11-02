@@ -1,6 +1,6 @@
-pub mod root;
 mod pane;
 mod render;
+pub mod root;
 
 #[cfg(test)]
 mod tests;

@@ -1,5 +1,5 @@
 use super::{
-    BeuiTest, EditorHost, Key, ORGANIZATION_ID, OwnedEditor, TextRoot, TextBlock, Uuid, block_url,
+    BeuiTest, EditorHost, Key, ORGANIZATION_ID, OwnedEditor, TextBlock, TextRoot, Uuid, block_url,
 };
 use be_sdk_beui::beui::Modifiers;
 

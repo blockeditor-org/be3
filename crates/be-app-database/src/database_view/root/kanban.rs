@@ -8,10 +8,10 @@ use be_type_database::database::{DatabaseValue, short_id};
 use be_type_database::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
+use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::root::controls::MARK;
 use crate::database_view::root::data::Data;
 use crate::database_view::root::list::{Parts, group_test_key, row_parts, row_title};
-use crate::database_view::groups::{Group, GroupKey};
 use beui::{Align, Direction, ItemSize};
 
 const COLUMN_WIDTH: f32 = 272.0;

@@ -1,6 +1,6 @@
-pub mod root;
 pub mod picker;
 pub mod rename;
+pub mod root;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
     workspace => root::WorkspaceUiRoot,

@@ -1,10 +1,10 @@
-pub mod root;
 pub mod default_editors;
 pub mod display;
 pub mod home;
 pub mod input;
 pub mod input_remaps;
 pub mod prefixes;
+pub mod root;
 pub mod tags;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {

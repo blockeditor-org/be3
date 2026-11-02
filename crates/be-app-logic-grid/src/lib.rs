@@ -1,9 +1,9 @@
-pub mod root;
 pub mod compiled_logic;
 mod frame;
 pub mod hotbar;
 pub mod logic_game;
 mod renderer;
+pub mod root;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
     grid => root::LogicGridRoot,

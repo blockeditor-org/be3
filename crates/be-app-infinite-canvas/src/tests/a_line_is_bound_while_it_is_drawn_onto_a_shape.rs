@@ -2,8 +2,8 @@ use super::*;
 use be_sdk_beui::beui::{Input, Pos2};
 use be_type_infinite_canvas::BINDING_GAP;
 
-use crate::root::canvas::item_bounds;
 use crate::geometry::path_ends;
+use crate::root::canvas::item_bounds;
 
 fn line_of(editor: &BeuiTest<CanvasRoot>) -> CanvasEntity {
     entities(editor)

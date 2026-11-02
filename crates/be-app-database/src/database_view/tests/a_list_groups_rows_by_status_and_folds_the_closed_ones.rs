@@ -1,6 +1,6 @@
 use super::*;
-use crate::database_view::root::list::group_test_key;
 use crate::database_view::groups::GroupKey;
+use crate::database_view::root::list::group_test_key;
 
 #[test]
 fn a_list_groups_rows_by_status_and_folds_the_closed_ones() {

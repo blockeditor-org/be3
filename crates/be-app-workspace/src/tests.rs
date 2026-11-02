@@ -8,9 +8,9 @@ use be_sdk_beui::{BlockParent, ChildContent, EditorHost, OwnedEditor, WindowActi
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::root::WorkspaceUiRoot;
 use crate::picker::PickerRoot;
 use crate::rename::RenameRoot;
+use crate::root::WorkspaceUiRoot;
 
 mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;

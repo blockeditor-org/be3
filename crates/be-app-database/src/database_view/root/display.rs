@@ -13,8 +13,8 @@ use be_type_database::database_view::{
 };
 use uuid::Uuid;
 
-use crate::database_view::root::data::Data;
 use crate::database_view::groups::groupable;
+use crate::database_view::root::data::Data;
 use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;

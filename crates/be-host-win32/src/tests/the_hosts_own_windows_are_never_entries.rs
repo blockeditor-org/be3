@@ -18,7 +18,8 @@ fn the_hosts_own_windows_are_never_entries() {
     let reads = desktop.reads.borrow();
     assert!(
         reads.iter().all(|read| match *read {
-            Read::Title(handle) | Read::Icon(handle) | Read::ProgramId(handle) => handle != Handle(1),
+            Read::Title(handle) | Read::Icon(handle) | Read::ProgramId(handle) =>
+                handle != Handle(1),
         }),
         "the host's own window was read: {reads:?}"
     );

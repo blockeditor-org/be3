@@ -7,9 +7,9 @@ use be_sdk_test::BeuiTest;
 use beui::Key;
 use uuid::Uuid;
 
+use crate::presence::TextCursor;
 use crate::root::TextRoot;
 use crate::root::embeds::{image_embed_directive, parse_embeds};
-use crate::presence::TextCursor;
 use be_type_text::{TextBlock, TextContent};
 
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;

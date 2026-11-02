@@ -121,7 +121,8 @@ fn without_name<'a>(title: &'a str, name: &str) -> &'a str {
 
 fn label(name: &str, title: &str, program_id: &str) -> String {
     let title = without_name(title.trim(), name);
-    let titled = !title.is_empty() && !title.eq_ignore_ascii_case(name) && title != program_id.trim();
+    let titled =
+        !title.is_empty() && !title.eq_ignore_ascii_case(name) && title != program_id.trim();
     match (name.is_empty(), titled) {
         (true, false) => "Window".to_owned(),
         (true, true) => title.to_owned(),
@@ -143,7 +144,11 @@ pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String 
 }
 
 pub fn window_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
-    label(&program_name(window, parent), &window.title, &window.program_id)
+    label(
+        &program_name(window, parent),
+        &window.title,
+        &window.program_id,
+    )
 }
 
 impl KeptWindow {

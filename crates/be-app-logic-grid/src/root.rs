@@ -1,4 +1,3 @@
-mod root_impl;
 mod canvas;
 mod challenge;
 mod dynamic_artifact;
@@ -8,6 +7,7 @@ mod hotbar;
 mod hotbar_ui;
 mod panels;
 mod render;
+mod root_impl;
 mod session;
 mod simulation;
 mod ui;
