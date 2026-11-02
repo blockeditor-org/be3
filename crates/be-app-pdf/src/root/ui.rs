@@ -4,15 +4,24 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
-use be_sdk_beui::{Editor, FileChooser, Sidebar, Toolbar};
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::{Editor, FileChooser, Sidebar, narrow_chrome};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
 use be_type_pdf::PdfContent;
 use beui::unstyled::gestures;
-use beui::{Direction, ItemSize};
+use beui::ItemSize;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
+const STAGE: &str = "stage";
+const SIDEBAR: &str = "sidebar";
+const TOOLBAR: &str = "toolbar";
+const SIDEBAR_SHARE: f32 = 0.32;
+const PANEL_PADDING: Space = Space::Lg;
 
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
@@ -84,69 +93,198 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let name = create_memo(move || source.get());
 
     let chrome = editor.chrome_shown();
+    let narrow = narrow_chrome();
     let content = NodeRef::new();
     editor.content(&content);
-    let pan = gestures::pan_zoom(move |delta: Vec2| editor.pan(delta), Callback::empty());
+    let controls = Controls {
+        page_label,
+        first,
+        last,
+        back: Callback::new(move |()| back()),
+        forward: Callback::new(move |()| forward()),
+        fit: Callback::new(move |()| fit()),
+    };
+    let details = Details {
+        name,
+        blocked,
+        refused,
+        refusal,
+        choose: Callback::new(move |()| choose()),
+    };
     view! {
         <List spacing=Space::None>
-            <Toolbar shown={chrome}>
-                <Text>"PDF"</Text>
-                <Button
-                    icon_only=true
-                    glyph=ICON_ARROW_LEFT
-                    label="Previous page"
-                    disabled={first}
-                    @test_id={"pdf.previous"}
-                    on_click={back}
-                />
-                <Text style=TextStyle::CAPTION>{page_label}</Text>
-                <Button
-                    icon_only=true
-                    glyph=ICON_ARROW_RIGHT
-                    label="Next page"
-                    disabled={last}
-                    @test_id={"pdf.next"}
-                    on_click={forward}
-                />
-                <Button
-                    label="Fit view"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"pdf.fit"}
-                    on_click={fit}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </Toolbar>
-            <List
-                @sizing=ItemSize::Percent(100.0)
-                direction=Direction::Horizontal
-                spacing=Space::None
-            >
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Interactive
-                        on_press={move |_: PointerPress| editor.pan_drag()}
-                        on_pointer={pan.pointer}
-                        on_wheel={pan.wheel}
-                    >
-                        <PageCanvas shown={shown} view={editor.canvas()} />
-                    </Interactive>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <Text style=TextStyle::HEADING>"PDF"</Text>
-                    <Text style=TextStyle::CAPTION>{name}</Text>
-                    <Button
-                        label="Replace PDF…"
-                        variant=ButtonVariant::Secondary
-                        disabled={blocked}
-                        @test_id={"pdf.replace"}
-                        on_click={choose}
-                    />
-                    <Show condition={refused}>
-                        <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </Sidebar>
-            </List>
+            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
+                match chrome.get_untracked() {
+                    true => view! {
+                        <PdfDock
+                            @sizing=ItemSize::Percent(100.0)
+                            editor
+                            content
+                            shown
+                            narrow
+                            controls
+                            details
+                        />
+                    },
+                    false => view! {
+                        <Viewer @sizing=ItemSize::Percent(100.0) editor content shown />
+                    },
+                }
+            }</Keyed>
         </List>
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Controls {
+    page_label: Memo<String>,
+    first: Memo<bool>,
+    last: Memo<bool>,
+    back: Callback<()>,
+    forward: Callback<()>,
+    fit: Callback<()>,
+}
+
+#[derive(Clone, Copy)]
+struct Details {
+    name: Memo<String>,
+    blocked: Memo<bool>,
+    refused: Memo<bool>,
+    refusal: Memo<String>,
+    choose: Callback<()>,
+}
+
+#[component]
+fn PdfDock(
+    editor: Editor,
+    content: NodeRef,
+    shown: Memo<Shown>,
+    narrow: Memo<bool>,
+    controls: Controls,
+    details: Details,
+) -> NodeId {
+    let wide = create_memo(move || !narrow.get());
+    let layout = DockingLayout::<&'static str>::new();
+    view! {
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="pdf" fraction={1.0 - SIDEBAR_SHARE}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Page">
+                        <List spacing=Space::None>
+                            <Viewer @sizing=ItemSize::Percent(100.0) editor content shown />
+                            <Sidebar shown={narrow}>
+                                <DetailsPanel details />
+                            </Sidebar>
+                        </List>
+                    </DockTab>
+                </DockPane>
+                <Show condition={wide}>
+                    <DockPane id="sidebar" locked=true>
+                        <DockTab id=SIDEBAR title="PDF">
+                            <Frame fill=ColorRole::Surface>
+                                <Scroll @test_id={"pdf.sidebar"}>
+                                    <Frame padding=PANEL_PADDING>
+                                        <DetailsPanel details />
+                                    </Frame>
+                                </Scroll>
+                            </Frame>
+                        </DockTab>
+                    </DockPane>
+                </Show>
+            </DockSplit>
+            <DockBar
+                id=TOOLBAR
+                parent=STAGE
+                placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+            >
+                <PdfToolbar controls />
+            </DockBar>
+        </Docking>
+    }
+}
+
+#[component]
+fn PdfToolbar(controls: Controls) -> NodeId {
+    let Controls {
+
+        page_label,
+        first,
+        last,
+        back,
+        forward,
+        fit,
+    } = controls;
+    view! {
+        <DockBarSurface spacing=Space::Md @test_id={"pdf.toolbar"}>
+            <Frame @test_id={"pdf.toolbar.grip"}>
+                <DockBarGrip />
+            </Frame>
+            <Button
+                icon_only=true
+                glyph=ICON_ARROW_LEFT
+                label="Previous page"
+                disabled={first}
+                @test_id={"pdf.previous"}
+                on_click={move || back.call(())}
+            />
+            <Text style=TextStyle::CAPTION @test_id={"pdf.position"}>{page_label}</Text>
+            <Button
+                icon_only=true
+                glyph=ICON_ARROW_RIGHT
+                label="Next page"
+                disabled={last}
+                @test_id={"pdf.next"}
+                on_click={move || forward.call(())}
+            />
+            <Button
+                label="Fit view"
+                variant=ButtonVariant::Secondary
+                @test_id={"pdf.fit"}
+                on_click={move || fit.call(())}
+            />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+fn DetailsPanel(details: Details) -> NodeId {
+    let Details {
+        name,
+        blocked,
+        refused,
+        refusal,
+        choose,
+    } = details;
+    view! {
+        <List spacing=Space::Md>
+            <Text style=TextStyle::CAPTION @test_id={"pdf.name"}>{name}</Text>
+            <Button
+                label="Replace PDF…"
+                variant=ButtonVariant::Secondary
+                disabled={blocked}
+                @test_id={"pdf.replace"}
+                on_click={move || choose.call(())}
+            />
+            <Show condition={refused}>
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn Viewer(editor: Editor, content: NodeRef, shown: Memo<Shown>) -> NodeId {
+    let pan = gestures::pan_zoom(move |delta: Vec2| editor.pan(delta), Callback::empty());
+    view! {
+        <Frame @node_ref={&content}>
+            <Interactive
+                on_press={move |_: PointerPress| editor.pan_drag()}
+                on_pointer={pan.pointer}
+                on_wheel={pan.wheel}
+            >
+                <PageCanvas shown={shown} view={editor.canvas()} />
+            </Interactive>
+        </Frame>
     }
 }
 
