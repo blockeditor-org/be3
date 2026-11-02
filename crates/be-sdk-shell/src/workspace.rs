@@ -97,6 +97,8 @@ pub struct Workspace {
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
+    hidden: Signal<Vec<TabId>>,
+    showing: Signal<Option<TabId>>,
 }
 
 impl Workspace {
@@ -160,7 +162,12 @@ impl Workspace {
             unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
+            hidden: create_signal(Vec::new()),
+            showing: create_signal(None),
         };
+        create_effect(move || {
+            workspace.show_when_laid_out();
+        });
         create_effect(move || {
             workspace.open_landing();
         });
@@ -395,9 +402,65 @@ impl Workspace {
         })
     }
 
-    pub fn shows(&self, id: Uuid) -> bool {
+    pub fn holds(&self, id: Uuid) -> bool {
         self.tabs
             .with(|tabs| tabs.values().any(|item| item.id == id))
+    }
+
+    pub fn shows(&self, id: Uuid) -> bool {
+        self.tabs.with(|tabs| {
+            tabs.iter()
+                .any(|(tab, item)| item.id == id && !self.is_hidden(*tab))
+        })
+    }
+
+    pub fn is_hidden(&self, tab: TabId) -> bool {
+        self.hidden.with(|hidden| hidden.contains(&tab))
+    }
+
+    pub fn shown_block_tabs(&self) -> Memo<Vec<TabId>> {
+        let tabs = self.block_tabs();
+        let hidden = self.hidden;
+        create_memo(move || {
+            let mut shown = tabs.get();
+            hidden.with(|hidden| shown.retain(|tab| !hidden.contains(tab)));
+            shown
+        })
+    }
+
+    pub fn hide(&self, tab: TabId) {
+        if self.tabs.with_untracked(|tabs| !tabs.contains_key(&tab)) {
+            return;
+        }
+        self.hidden.update(|hidden| {
+            if !hidden.contains(&tab) {
+                hidden.push(tab);
+            }
+        });
+    }
+
+    pub fn show(&self, tab: TabId) {
+        let layout = self.layout();
+        match untrack(|| self.is_hidden(tab)) {
+            true => {
+                self.hidden.update(|hidden| hidden.retain(|held| *held != tab));
+                self.showing.set(Some(tab));
+            }
+            false => layout.show(&tab),
+        }
+    }
+
+    fn show_when_laid_out(&self) {
+        let Some(tab) = self.showing.get() else {
+            return;
+        };
+        let layout = self.layout();
+        if layout.contains(&tab) {
+            untrack(|| {
+                self.showing.set(None);
+                layout.show(&tab);
+            });
+        }
     }
 
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
@@ -930,7 +993,7 @@ impl Workspace {
             if item.editor.is_some() {
                 self.switch_editor(tab, item);
             }
-            inner.layout.show(&tab);
+            self.show(tab);
             inner.active.set(Some(item.id));
             return;
         }
@@ -1058,6 +1121,7 @@ impl Workspace {
             }
         }
         self.tabs.set(tabs);
+        self.hidden.update(|hidden| hidden.retain(|held| *held != tab));
         if !still_open {
             self.forget(closed.id);
         }

@@ -201,9 +201,9 @@ bar is hidden, it is centred over the windows' area instead (`ProgramsPanelOverl
   the programs once, so the panel says "Loading programs…" until then and "No programs found." only
   when the host found none;
 - the sessions (`root/sessions.rs`): every be-host session the account's settings list, other
-  than desktop sessions, each a row (`desktop.apps.sessions.UUID`, "Open" under one already in a
-  window) that opens it in a floating window, or brings its window to the front if it is already
-  open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
+  than desktop sessions, each a row (`desktop.apps.sessions.UUID`, "Open" under one shown in a
+  window, "Hidden" under one whose window is hidden) that opens it in a floating window, or shows
+  its window and brings it to the front with the focus if it is already open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
   (disabled, saying why, while the workspace has no settings block);
 - while one of the display's bars is hidden, "Show this display's bars" (`desktop.apps.bars`);
 - Menu (`desktop.apps.menu`), which closes the panel and opens be-host's menu at the Apps button.
@@ -238,8 +238,9 @@ chip count or the icon-only switch changes. The row measures the room it was giv
 (`measure` on the chip list), never its own content, so switching to icons does not shrink the
 room it asks for. Down a side the chips are icons already, and they scroll inside the row the same way, the grip staying at the top. The focused chip (the dock's
 focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
-focuses it (`focus`); a click on the focused chip hides it (`hide`, or for a block window the shell
-stops declaring it) and the next shown window in the dock's focus order takes the focus. Each chip
+focuses it (`focus`); a click on the focused chip hides it (`hide`; a block window's tab goes into the
+`Workspace`'s hidden set, `Workspace::hide`, and the shell stops declaring it, and
+`Workspace::show` or opening its block again, from the Apps panel or a show request, shows it) and the next shown window in the dock's focus order takes the focus. Each chip
 has a context menu (secondary click, long press or Shift+F10): Hide or Show, and Close for a
 window (`close`). While placeholders from last time wait, a Restore chip
 (`desktop.windows.restore`) leads the row and launches them all. `WindowChips` takes a `display`
