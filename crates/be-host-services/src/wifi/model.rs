@@ -100,7 +100,9 @@ pub fn passphrase(password: &str) -> bool {
 
 pub fn wep_key(key: &str) -> bool {
     let text = WEP_TEXT_LENGTHS.contains(&key.len())
-        && key.chars().all(|letter| letter.is_ascii() && !letter.is_control());
+        && key
+            .chars()
+            .all(|letter| letter.is_ascii() && !letter.is_control());
     let hex = WEP_HEX_LENGTHS.contains(&key.len())
         && key.chars().all(|letter| letter.is_ascii_hexdigit());
     text || hex

@@ -42,12 +42,18 @@ fn the_wifi_tile_lists_the_networks_the_host_reports() {
     assert!(fixture.says("Needs a work or school sign-in this desktop cannot set up"));
     assert!(fixture.says("Uses WEP, an old and easily broken security"));
     assert_eq!(
-        fixture.test.accessible_label("desktop.wifi.network.Home").as_deref(),
+        fixture
+            .test
+            .accessible_label("desktop.wifi.network.Home")
+            .as_deref(),
         Some("Home, signal 82%, secured, Connected"),
         "a network's row is named for what it shows"
     );
     assert_eq!(
-        fixture.test.accessible_label("desktop.wifi.network.Cafe").as_deref(),
+        fixture
+            .test
+            .accessible_label("desktop.wifi.network.Cafe")
+            .as_deref(),
         Some("Cafe, signal 48%, open")
     );
     assert!(
