@@ -34,9 +34,9 @@ use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
+use smithay::delegate_fractional_scale;
 use smithay::delegate_output;
 use smithay::delegate_shm;
-use smithay::delegate_fractional_scale;
 use smithay::delegate_viewporter;
 use smithay::delegate_xdg_shell;
 use smithay::desktop::{
@@ -62,6 +62,7 @@ use smithay::wayland::compositor::{
     with_states, with_surface_tree_upward,
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
+use smithay::wayland::fractional_scale::{FractionalScaleHandler, FractionalScaleManagerState};
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
 use smithay::wayland::seat::WaylandFocus;
 use smithay::wayland::shell::PingError;
@@ -71,7 +72,6 @@ use smithay::wayland::shell::xdg::{
     XdgShellState, XdgToplevelSurfaceData,
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
-use smithay::wayland::fractional_scale::{FractionalScaleHandler, FractionalScaleManagerState};
 use smithay::wayland::viewporter::ViewporterState;
 use smithay::wayland::xdg_foreign::XdgForeignState;
 use smithay::xwayland::XWaylandClientData;
@@ -1596,7 +1596,9 @@ impl FractionalScaleHandler for State {
             Some(id) => self.scale_of(id),
             None => self.heads.first().map_or(1.0, |head| head.monitor.scale),
         };
-        with_states(&surface, |data| crate::heads::tell_scale(&surface, data, scale));
+        with_states(&surface, |data| {
+            crate::heads::tell_scale(&surface, data, scale)
+        });
     }
 }
 

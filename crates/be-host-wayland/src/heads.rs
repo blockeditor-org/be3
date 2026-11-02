@@ -1,8 +1,8 @@
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
 use smithay::reexports::wayland_server::backend::GlobalId;
 use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
-use smithay::utils::{Logical, Rectangle, Transform};
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
+use smithay::utils::{Logical, Rectangle, Transform};
 use smithay::wayland::compositor::{SurfaceData, send_surface_state};
 use smithay::wayland::fractional_scale::with_fractional_scale;
 
@@ -176,7 +176,8 @@ impl State {
     }
 
     pub(crate) fn scale_of(&self, id: WindowId) -> f64 {
-        self.head_of_window(id).map_or(1.0, |head| head.monitor.scale)
+        self.head_of_window(id)
+            .map_or(1.0, |head| head.monitor.scale)
     }
 
     pub(crate) fn head_named(&self, output: &WlOutput) -> Option<Rectangle<i32, Logical>> {
