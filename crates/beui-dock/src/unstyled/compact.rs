@@ -303,7 +303,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         active: active.read_only(),
         focused: focused.read_only(),
         dragged: create_memo(|| false),
-        closable: create_memo(|| false),
+        closable: create_memo(move || dock.closable.call(tab)),
         waiting: create_memo(move || dock.waiting(&[tab])),
         host: None,
         test_key: Some(dock.test_key(tab)),
