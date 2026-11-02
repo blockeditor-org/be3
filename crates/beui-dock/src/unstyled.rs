@@ -190,7 +190,7 @@ pub struct DockStackHandle {
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
-    pub closable_tabs: Memo<usize>,
+    pub open_tabs: Memo<usize>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -2241,11 +2241,8 @@ fn stack_handle(
     let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
-    let closable = dock.closable;
-    let closable_tabs = create_memo(move || {
-        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
-    });
-    let switch_label = create_memo(move || match closable_tabs.get() {
+    let open_tabs = create_memo(move || tabs.with(Vec::len));
+    let switch_label = create_memo(move || match open_tabs.get() {
         1 => "1 open tab".to_owned(),
         count => format!("{count} open tabs"),
     });
@@ -2256,7 +2253,7 @@ fn stack_handle(
         backward,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
-        closable_tabs,
+        open_tabs,
         switch_label,
         open_switcher: ClickCallback::new(move || switching.set(true)),
     }

@@ -51,7 +51,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         backward,
         menu,
         back,
-        closable_tabs,
+        open_tabs,
         switch_label,
         open_switcher,
     } = handle;
@@ -89,7 +89,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </List>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
                     <DockTabCount
-                        count={closable_tabs}
+                        count={open_tabs}
                         label={switch_label}
                         on_click={open_switcher}
                     />
