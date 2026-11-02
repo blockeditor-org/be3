@@ -7,7 +7,6 @@ use be_sdk_beui::beui::styled::*;
 use super::{Event, FIRST_DAY, events_on, forward, today};
 use beui::{Direction, ItemSize};
 
-const CELL_HEIGHT: f32 = 92.0;
 const CELL_SPACING: Space = Space::Xs2;
 const MAX_VISIBLE: usize = 3;
 const WEEKS: i64 = 6;
@@ -42,7 +41,7 @@ pub(super) fn MonthGrid(
             </List>
             <ForEach keys={weeks}>|start: i64|
                 <MonthWeek
-                    @sizing=ItemSize::Fixed(CELL_HEIGHT)
+                    @sizing=ItemSize::Percent(100.0)
                     start={start}
                     anchor={anchor}
                     events={events}

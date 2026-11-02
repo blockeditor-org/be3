@@ -5,7 +5,11 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
-use be_sdk_beui::{Editor, Toolbar};
+use be_sdk_beui::Editor;
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
 use beui::{Align, Direction, ItemSize, Justify};
@@ -20,6 +24,8 @@ const LARGE_ICON: TextSize = TextSize::Xl4;
 const SMALL_ICON: TextSize = TextSize::Xl;
 const ROW_ICON: TextSize = TextSize::Sm;
 const DROP_OUTLINE: Stroke = Stroke::Focus;
+const STAGE: &str = "stage";
+const TOOLBAR: &str = "toolbar";
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum FolderView {
@@ -135,90 +141,108 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         Some(true) => ColorRole::Accent,
         _ => ColorRole::Danger,
     });
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List spacing=Space::None>
-            <Toolbar shown={chrome}>
-                <Select
-                    options={view! {
-                        <ChoiceOption label={FolderView::LargeGrid.label()} />
-                        <ChoiceOption label={FolderView::SmallGrid.label()} />
-                        <ChoiceOption label={FolderView::List.label()} />
-                    }}
-                    selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                        if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                        {
-                            mode.set(*shown);
-                        }
-                    })}
-                    label="Layout"
-                    @test_id={"folder.view"}
-                />
-                <Select
-                    options={view! {
-                        <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                        <ChoiceOption label={FolderSort::Name.label()} />
-                        <ChoiceOption label={FolderSort::Type.label()} />
-                    }}
-                    selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                        if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                        {
-                            sort.set(*order);
-                        }
-                    })}
-                    label="Sort"
-                    @test_id={"folder.sort"}
-                />
-                <Button
-                    icon_only=true
-                    glyph={direction_glyph}
-                    label={direction_label}
-                    disabled={unordered}
-                    @test_id={"folder.direction"}
-                    on_click={flip}
-                />
-            </Toolbar>
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                @node_ref={&content}
-                border={create_memo(move || hovering.get().then(|| Border::new(outline.get()).width(DROP_OUTLINE)))}
-                padding=PADDING
-            >
-                <List spacing=Space::None>
-                    <Show condition={empty}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            align=TextAlign::Center
-                            @test_id={"folder.empty"}
-                        >
-                            "This folder is empty."
-                        </Text>
-                    </Show>
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <Dynamic value={mode}>|shown: FolderView| {
-                            match shown {
-                                FolderView::List => view! {
-                                    <EntryRows cells={cells} />
-                                },
-                                FolderView::LargeGrid => view! {
-                                    <EntryTiles
-                                        cells={cells}
-                                        tile=LARGE_TILE
-                                        icon_size=LARGE_ICON
-                                    />
-                                },
-                                FolderView::SmallGrid => view! {
-                                    <EntryTiles
-                                        cells={cells}
-                                        tile=SMALL_TILE
-                                        icon_size=SMALL_ICON
-                                    />
-                                },
-                            }
-                        }</Dynamic>
-                    </Scroll>
-                </List>
-            </Frame>
-        </List>
+        <Docking layout focus={Some(STAGE)}>
+            <DockPane id="stage" locked=true bare=true>
+                <DockTab id=STAGE title="Folder">
+                    <Frame
+                        @node_ref={&content}
+                        border={create_memo(move || hovering.get().then(|| Border::new(outline.get()).width(DROP_OUTLINE)))}
+                    >
+                        <List spacing=Space::None>
+                            <Show condition={empty}>
+                                <Frame padding=PADDING>
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        align=TextAlign::Center
+                                        @test_id={"folder.empty"}
+                                    >
+                                        "This folder is empty."
+                                    </Text>
+                                </Frame>
+                            </Show>
+                            <Scroll @sizing=ItemSize::Percent(100.0)>
+                                <Frame padding=PADDING>
+                                <List spacing=Space::None>
+                                <Dynamic value={mode}>|shown: FolderView| {
+                                    match shown {
+                                        FolderView::List => view! {
+                                            <EntryRows cells={cells} />
+                                        },
+                                        FolderView::LargeGrid => view! {
+                                            <EntryTiles
+                                                cells={cells}
+                                                tile=LARGE_TILE
+                                                icon_size=LARGE_ICON
+                                            />
+                                        },
+                                        FolderView::SmallGrid => view! {
+                                            <EntryTiles
+                                                cells={cells}
+                                                tile=SMALL_TILE
+                                                icon_size=SMALL_ICON
+                                            />
+                                        },
+                                    }
+                                }</Dynamic>
+                                </List>
+                                </Frame>
+                            </Scroll>
+                        </List>
+                    </Frame>
+                </DockTab>
+            </DockPane>
+            <Show condition={chrome}>
+                <DockBar
+                    id=TOOLBAR
+                    parent=STAGE
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                >
+                    <DockBarSurface spacing=Space::Md @test_id={"folder.toolbar"}>
+                        <DockBarGrip />
+                        <Select
+                            options={view! {
+                                <ChoiceOption label={FolderView::LargeGrid.label()} />
+                                <ChoiceOption label={FolderView::SmallGrid.label()} />
+                                <ChoiceOption label={FolderView::List.label()} />
+                            }}
+                            selected={Binding::new(mode_index, move |chosen: Option<usize>| {
+                                if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
+                                {
+                                    mode.set(*shown);
+                                }
+                            })}
+                            label="Layout"
+                            @test_id={"folder.view"}
+                        />
+                        <Select
+                            options={view! {
+                                <ChoiceOption label={FolderSort::Intrinsic.label()} />
+                                <ChoiceOption label={FolderSort::Name.label()} />
+                                <ChoiceOption label={FolderSort::Type.label()} />
+                            }}
+                            selected={Binding::new(sort_index, move |chosen: Option<usize>| {
+                                if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
+                                {
+                                    sort.set(*order);
+                                }
+                            })}
+                            label="Sort"
+                            @test_id={"folder.sort"}
+                        />
+                        <Button
+                            icon_only=true
+                            glyph={direction_glyph}
+                            label={direction_label}
+                            disabled={unordered}
+                            @test_id={"folder.direction"}
+                            on_click={flip}
+                        />
+                    </DockBarSurface>
+                </DockBar>
+            </Show>
+        </Docking>
     }
 }
 
