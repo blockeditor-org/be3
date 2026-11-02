@@ -77,7 +77,18 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.focused(), Some(first));
 
-    tap(&mut fixture, "dock.switch");
+    let switch = {
+        let document = fixture.test.document();
+        let node = document
+            .find_test_id("dock.switch")
+            .expect("the dock bar has its switch");
+        document
+            .node_rect(node)
+            .expect("the switch is laid out beneath the switcher")
+            .center()
+    };
+    fixture.test.click(switch);
+    fixture.settle();
     tap(&mut fixture, "dock.switcher.close.2");
     assert_eq!(
         fixture.shown(),
