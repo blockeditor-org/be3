@@ -13,8 +13,9 @@ use beui::{Align, Direction, ItemSize};
 pub(crate) const LIST_HEIGHT: f32 = 420.0;
 const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
+const PICTURE_SIZE: Size = Size::Lg;
 
-fn received_at(received: u64) -> String {
+pub(super) fn received_at(received: u64) -> String {
     let minutes = local_minutes(Duration::from_secs(received));
     Time::from_minutes(minutes).format(HourCycle::H24)
 }
@@ -95,13 +96,13 @@ fn NotificationRow(
         }
         false => notifications.dismiss(&[id]),
     };
-    let source = match shown.app_name.is_empty() {
-        true => received_at(shown.received),
-        false => format!("{}  {}", shown.app_name, received_at(shown.received)),
-    };
+    let source = shown.source.clone();
     let said = !shown.body.is_empty();
+    let titled = !shown.heading.is_empty();
+    let pictured = shown.image.is_some();
+    let image = shown.image.clone();
     let body = shown.body.clone();
-    let summary = shown.summary.clone();
+    let heading = shown.heading.clone();
     let body_color = TextColor::Muted;
     let summary_color = match shown.critical {
         true => TextColor::Danger,
@@ -114,14 +115,27 @@ fn NotificationRow(
                 @test_id={format!("desktop.notifications.{id}")}
                 on_click={activate}
             >
-                <List spacing=ROW_SPACING>
-                    <Text style=TextStyle::CAPTION>{source}</Text>
-                    <Text color={summary_color} weight=Weight::Bold>{summary}</Text>
-                    <Show condition={said}>|| {
-                        let body = body.clone(); view! {
-                            <Text size=TextSize::Sm color={body_color}>{body}</Text>
+                <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                    <Show condition={pictured}>|| {
+                        let image = image.clone(); view! {
+                            <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
+                                <Picture image />
+                            </Frame>
                         }
                     }</Show>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
+                        <Text style=TextStyle::CAPTION>{source}</Text>
+                        <Show condition={titled}>|| {
+                            let heading = heading.clone(); view! {
+                                <Text color={summary_color} weight=Weight::Bold>{heading}</Text>
+                            }
+                        }</Show>
+                        <Show condition={said}>|| {
+                            let body = body.clone(); view! {
+                                <Text size=TextSize::Sm color={body_color}>{body}</Text>
+                            }
+                        }</Show>
+                    </List>
                 </List>
             </ListRow>
             <Button

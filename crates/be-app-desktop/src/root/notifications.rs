@@ -5,8 +5,10 @@ mod toasts;
 
 use be_sdk_beui::desktop;
 use std::cell::{Cell, RefCell};
+use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
 
+use be_sdk_beui::beui::Image;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
@@ -21,28 +23,48 @@ pub(crate) use toasts::DesktopToasts;
 
 pub(crate) const TOAST_IDS: u64 = 1 << 32;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Listed {
     pub(crate) id: u32,
-    pub(crate) app_name: String,
-    pub(crate) summary: String,
+    pub(crate) source: String,
+    pub(crate) heading: String,
     pub(crate) body: String,
-    pub(crate) received: u64,
+    pub(crate) image: Option<Image>,
     pub(crate) critical: bool,
     pub(crate) activates: bool,
+}
+
+impl Hash for Listed {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.source.hash(state);
+        self.heading.hash(state);
+        self.body.hash(state);
+        self.image.as_ref().map(Image::id).hash(state);
+        self.critical.hash(state);
+        self.activates.hash(state);
+    }
 }
 
 impl Listed {
     fn of(kept: &Notification) -> Self {
         Self {
             id: kept.id,
-            app_name: kept.incoming.app_name.clone(),
-            summary: kept.incoming.summary.clone(),
+            source: source(kept),
+            heading: kept.heading().to_owned(),
             body: kept.incoming.body.clone(),
-            received: kept.received,
+            image: kept.incoming.image.clone(),
             critical: kept.critical(),
             activates: kept.has_default_action(),
         }
+    }
+}
+
+fn source(kept: &Notification) -> String {
+    let at = history::received_at(kept.received);
+    match kept.names_app() {
+        true => format!("{} · {at}", kept.incoming.app_name),
+        false => at,
     }
 }
 
@@ -63,6 +85,7 @@ struct Shared {
     arrived: RefCell<NotificationInbox>,
     reported: RefCell<Vec<u32>>,
     revision: Signal<u64>,
+    browsing: Signal<bool>,
     shown: Cell<u64>,
     expiry: RefCell<Option<Timer>>,
 }
@@ -70,6 +93,7 @@ struct Shared {
 impl DesktopNotifications {
     pub(crate) fn new(editor: Editor) -> Self {
         let revision = create_signal(0_u64);
+        let browsing = create_signal(false);
         let shared = store(Shared {
             editor,
             center: RefCell::new(Center::default()),
@@ -78,6 +102,7 @@ impl DesktopNotifications {
             arrived: RefCell::new(NotificationInbox::default()),
             reported: RefCell::new(Vec::new()),
             revision,
+            browsing,
             shown: Cell::new(0),
             expiry: RefCell::new(None),
         });
@@ -90,7 +115,13 @@ impl DesktopNotifications {
                 untrack(|| shared.arrive(inbox));
             }
         });
-        let browsing = create_signal(false);
+        create_effect(move || {
+            if browsing.get()
+                && let Some(shared) = shared.try_value()
+            {
+                untrack(|| shared.settle());
+            }
+        });
         Self {
             shared,
             revision: revision.read_only(),
@@ -106,6 +137,15 @@ impl DesktopNotifications {
         create_memo(move || {
             revision.get();
             shared.with(|shared| shared.center.borrow().listed().map(Listed::of).collect())
+        })
+    }
+
+    pub(crate) fn unread(&self) -> Memo<usize> {
+        let revision = self.revision;
+        let shared = self.shared;
+        create_memo(move || {
+            revision.get();
+            shared.with(|shared| shared.center.borrow().unread())
         })
     }
 
@@ -203,6 +243,9 @@ impl Shared {
         let (wait, signals, kept, revision) = {
             let mut center = self.center.borrow_mut();
             let wait = center.frame(elapsed);
+            if self.browsing.get_untracked() {
+                center.see();
+            }
             (
                 wait,
                 center.take_signals(),
@@ -232,7 +275,8 @@ impl Shared {
 fn toast(kept: &Notification) -> Toast {
     Toast {
         id: TOAST_IDS + u64::from(kept.id),
-        title: kept.incoming.summary.clone(),
+        source: source(kept),
+        title: kept.heading().to_owned(),
         message: kept.incoming.body.clone(),
         danger: kept.critical() && kept.incoming.image.is_none(),
         image: kept.incoming.image.clone(),

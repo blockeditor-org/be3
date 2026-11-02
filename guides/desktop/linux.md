@@ -211,10 +211,16 @@ five seconds, 0 and critical urgency never), actions, `resident` and `transient`
 100 kept, and the reason every close carries; `markup.rs` turns the body into plain text. A
 toast whose time is up only hides: the notification stays until it is dismissed, an action
 is taken or its program closes it, which is the `persistence` capability, except a transient
-one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
-action buttons; clicking the body is the `default` action) in the corner of the first display's
-windows' area nearest its Status bar (guides/desktop.md, The bars), with ids from `TOAST_IDS` up so other toasts can share the stack.
-They make way while the clock's panel, with the list of notifications, is open.
+one, which closes as expired. The toasts are a `beui::styled::Toasts` (a muted line with
+the app's name and the time, the title, picture and action buttons; clicking the body is the
+`default` action) in the corner of the first display's windows' area nearest its Status bar
+(guides/desktop.md, The bars), with ids from `TOAST_IDS` up so other toasts can share the stack.
+A notification with neither summary nor body is titled with its app's name; one with nothing at
+all to show (no app name, summary, body or picture) is kept for its program but neither toasted
+nor listed. They make way while the clock's panel, with the list of notifications, is open, and
+the stack's "N more" card opens that panel. The clock's badge counts the listed notifications
+not yet seen: opening the list sees them all, as it does any that arrive while it is open, and
+one replaced in place is new again.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
 prints its address; `notify-send` is in the `libnotify-bin` package), and run `:dev` and

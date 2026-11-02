@@ -15,6 +15,7 @@ fn the_clock_lists_the_notifications_that_arrived_and_answers_them() {
     assert!(fixture.says("Nothing new."), "the list starts empty");
 
     let message = IncomingNotification {
+        image: Some(picture()),
         actions: vec![HostNotificationAction {
             key: DEFAULT_ACTION.to_owned(),
             label: "Open".to_owned(),
@@ -41,10 +42,9 @@ fn the_clock_lists_the_notifications_that_arrived_and_answers_them() {
         Some((Some(2), vec![1, 2])),
         "the desktop tells the host what it took and what it holds: {reports:?}"
     );
-    assert_eq!(
-        fixture.test.label("desktop.clock.unread"),
-        "2",
-        "the clock counts what is listed"
+    assert!(
+        !fixture.test.shown("desktop.clock.unread"),
+        "what arrives while the list is open is seen at once"
     );
     fixture.test.snapshot("the_notification_history");
 

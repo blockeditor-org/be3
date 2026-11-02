@@ -33,18 +33,18 @@ pub(crate) fn ClockButton(
     let down = create_memo(move || direction.get() == Direction::Vertical);
     let hours = create_memo(move || clock.with(|shown| hour_and_minute(shown).0.to_owned()));
     let minutes = create_memo(move || clock.with(|shown| hour_and_minute(shown).1.to_owned()));
-    let listed = notifications.listed();
+    let unread = notifications.unread();
     let offered = notifications.offered;
     let count = create_memo(move || match offered.get() {
-        true => listed.with(Vec::len),
+        true => unread.get(),
         false => 0,
     });
     let unread = create_memo(move || count.get() > 0);
     let counted = create_memo(move || count.get().to_string());
     let label = create_memo(move || match count.get() {
         0 => clock.get(),
-        1 => format!("{}, 1 notification", clock.get()),
-        count => format!("{}, {count} notifications", clock.get()),
+        1 => format!("{}, 1 new notification", clock.get()),
+        count => format!("{}, {count} new notifications", clock.get()),
     });
     let screen = container_size();
     let room = create_memo(move || screen.as_ref().map(|screen| screen.get()));

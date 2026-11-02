@@ -28,6 +28,7 @@ pub struct ToastAction {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Toast {
     pub id: u64,
+    pub source: String,
     pub title: String,
     pub message: String,
     pub danger: bool,
@@ -46,6 +47,7 @@ impl Toast {
 impl Hash for Toast {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
+        self.source.hash(state);
         self.title.hash(state);
         self.message.hash(state);
         self.danger.hash(state);

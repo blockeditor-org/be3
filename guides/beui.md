@@ -2250,6 +2250,10 @@ own with `Document::push_focus_scope(holder)` and pops it with
 `pop_focus_scope(holder)`, which refocuses what had the focus only if the focus
 is still inside `holder`; be-host's region does that when an app asks for
 the keyboard.
+A layer that does not trap the focus (the toasts) gives it back the same way
+when the focused part of it is removed while the layer stays open: answering
+one toast from the keyboard returns the focus to where it was before Tab took
+it into the stack.
 
 Focus asked for beneath the topmost layer that traps it never lands there, so
 nothing beneath hears it gained the focus. It is remembered until the next
