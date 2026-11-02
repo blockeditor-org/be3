@@ -1241,6 +1241,7 @@ impl Instances {
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
             .filter(|screen| announced.contains(&screen.request.screen))
+            .filter(|screen| press.is_none() || !screen.input.focused())
         else {
             return Vec::new();
         };
@@ -1268,6 +1269,7 @@ impl Instances {
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
             .filter(|screen| announced.contains(&screen.request.screen))
+            .filter(|screen| !screen.input.focused())
         else {
             return Vec::new();
         };

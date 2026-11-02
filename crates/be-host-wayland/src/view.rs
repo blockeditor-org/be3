@@ -39,12 +39,11 @@ pub fn WindowView(
     let shown_in = use_window().map(WindowHandle::real);
     windows.mounted(id);
     let scope = owner_scope();
-    let on_focus_change = move |focused: bool| match focused
-        || scope.as_ref().is_some_and(ScopeContext::is_alive)
-    {
-        true => windows.focus(id, focused),
-        false => windows.unmounted_focused(id),
-    };
+    let on_focus_change =
+        move |focused: bool| match focused || scope.as_ref().is_some_and(ScopeContext::is_alive) {
+            true => windows.focus(id, focused),
+            false => windows.unmounted_focused(id),
+        };
     create_effect(move || {
         let origin = shown_in
             .and_then(|real| real.get())

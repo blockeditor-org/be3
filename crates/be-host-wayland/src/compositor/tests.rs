@@ -16,6 +16,7 @@ mod a_file_dropped_from_outside_reaches_the_window_under_the_pointer;
 mod a_file_taken_back_outside_leaves_the_window_without_a_drop;
 mod a_finger_held_on_one_window_stays_on_it_while_it_moves_over_another;
 mod a_finger_on_a_window_that_takes_no_touch_moves_and_presses_its_pointer;
+mod a_focused_window_whose_view_moves_keeps_the_keyboard;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
@@ -75,7 +76,6 @@ mod pressing_a_windows_bar_gives_it_the_keyboard;
 mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod text_a_program_copies_is_offered_to_x11_programs;
-mod a_focused_window_whose_view_moves_keeps_the_keyboard;
 mod text_a_program_copies_reaches_the_host;
 mod text_an_x11_program_copies_reaches_the_host_and_programs;
 mod text_copied_outside_replaces_a_programs_selection_once_the_host_is_focused;
@@ -170,7 +170,10 @@ fn Shown(windows: Windows) -> NodeId {
         let listed = clone_list(&windows);
         let ids = create_memo(move || {
             let moved = moves.get();
-            listed().into_iter().map(|id| (id, moved)).collect::<Vec<_>>()
+            listed()
+                .into_iter()
+                .map(|id| (id, moved))
+                .collect::<Vec<_>>()
         });
         view! {
             <Interactive

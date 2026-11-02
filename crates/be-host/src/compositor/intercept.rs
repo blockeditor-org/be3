@@ -12,9 +12,8 @@ pub(super) fn intercept_keys(
     allowed: impl Fn() -> bool + 'static,
 ) {
     let held = store(Cell::new(Modifiers::NONE));
-    let allowed = move || {
-        allowed() && !be_host_runtime::view_has_keyboard(&app_id.value(), instance, region)
-    };
+    let allowed =
+        move || allowed() && !be_host_runtime::view_has_keyboard(&app_id.value(), instance, region);
     on_global_key(move |event: KeyEvent| {
         let press = match event.input {
             KeyInput::Tap(key) => {
