@@ -1,11 +1,11 @@
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
-use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Editor, Subregion, SubregionContent};
 
 use super::session::{PAGE, Session};
@@ -69,7 +69,15 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
-                        <TabDock @sizing=ItemSize::Percent(100.0) editor content page failed reason bar />
+                        <TabDock
+                            @sizing=ItemSize::Percent(100.0)
+                            editor
+                            content
+                            page
+                            failed
+                            reason
+                            bar
+                        />
                     },
                     false => view! {
                         <Page @sizing=ItemSize::Percent(100.0) editor content page failed reason />
