@@ -263,6 +263,10 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
+    pub fn start_xwayland(&mut self) {
+        self.server.start_xwayland();
+    }
+
     pub fn x11_display(&self) -> Option<String> {
         self.server
             .x11_display()
@@ -292,6 +296,7 @@ impl Compositor {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
         };
+        self.server.start_xwayland();
         let token = self.server.state.activation.launch_token(now);
         let mut process = Process::new(program);
         if let Some(dir) = &launch.working_dir {

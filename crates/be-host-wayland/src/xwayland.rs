@@ -1,5 +1,9 @@
+use std::ffi::OsStr;
+use std::fmt;
 use std::os::fd::OwnedFd;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -19,6 +23,90 @@ use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler};
 use crate::state::{ClientWindow, Grab, Layer, ServerEvent, State, WindowId, collect_layers};
 
 const MAX_RESTARTS: u32 = 3;
+const PROGRAM: &str = "Xwayland";
+const SOCKET_DIR: &str = "/tmp/.X11-unix";
+
+#[derive(Debug)]
+pub(crate) enum StartError {
+    NotInstalled,
+    SocketDirNotADirectory(PathBuf),
+    SocketDirUnmade(PathBuf, std::io::Error),
+    SocketDirUnwritable(PathBuf, std::io::Error),
+    NoFreeDisplay(Option<u32>),
+    Other(std::io::Error),
+}
+
+impl fmt::Display for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotInstalled => write!(
+                f,
+                "{PROGRAM} is not installed (it is in the xwayland package), or is not on PATH"
+            ),
+            Self::SocketDirNotADirectory(dir) => write!(
+                f,
+                "{}, where X servers put their sockets, is not a directory",
+                dir.display()
+            ),
+            Self::SocketDirUnmade(dir, error) => write!(
+                f,
+                "{}, where X servers put their sockets, is missing and could not be made: {error}",
+                dir.display()
+            ),
+            Self::SocketDirUnwritable(dir, error) => write!(
+                f,
+                "{}, where X servers put their sockets, cannot be written to: {error}",
+                dir.display()
+            ),
+            Self::NoFreeDisplay(Some(display)) => write!(
+                f,
+                "display :{display} is taken (its lock file /tmp/.X{display}-lock is another X server's, or its socket could not be made)"
+            ),
+            Self::NoFreeDisplay(None) => write!(
+                f,
+                "no display from :0 to :32 is free (each has another X server's lock file in /tmp, or its socket could not be made)"
+            ),
+            Self::Other(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+pub(crate) fn find_program(name: &str, path: &OsStr) -> Option<PathBuf> {
+    std::env::split_paths(path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| {
+            candidate
+                .metadata()
+                .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+        })
+}
+
+pub(crate) fn prepare_socket_dir(dir: &Path) -> Result<(), StartError> {
+    match std::fs::symlink_metadata(dir) {
+        Ok(meta) if !meta.is_dir() => {
+            return Err(StartError::SocketDirNotADirectory(dir.to_owned()));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match std::fs::create_dir(dir) {
+                Ok(()) => std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o1777))
+                    .map_err(|error| StartError::SocketDirUnmade(dir.to_owned(), error))?,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(StartError::SocketDirUnmade(dir.to_owned(), error)),
+            }
+        }
+        Err(error) => return Err(StartError::SocketDirUnwritable(dir.to_owned(), error)),
+    }
+    rustix::fs::access(dir, rustix::fs::Access::WRITE_OK | rustix::fs::Access::EXEC_OK)
+        .map_err(|error| StartError::SocketDirUnwritable(dir.to_owned(), error.into()))
+}
+
+fn preflight(path: Option<&OsStr>, socket_dir: &Path) -> Result<(), StartError> {
+    if find_program(PROGRAM, path.unwrap_or_default()).is_none() {
+        return Err(StartError::NotInstalled);
+    }
+    prepare_socket_dir(socket_dir)
+}
 const MAX_TRANSIENTS: usize = 32;
 
 pub(crate) struct Overlay {
@@ -34,6 +122,8 @@ pub(crate) struct XWaylandState {
     display: Option<u32>,
     stopped: bool,
     restarts: u32,
+    gave_up: bool,
+    failure: Option<String>,
     overlays: Vec<Overlay>,
     clipboard: Option<Vec<String>>,
     primary: Option<Vec<String>>,
@@ -51,6 +141,8 @@ impl XWaylandState {
             display: None,
             stopped: false,
             restarts: 0,
+            gave_up: false,
+            failure: None,
             overlays: Vec::new(),
             clipboard: None,
             primary: None,
@@ -85,7 +177,37 @@ impl XWaylandState {
 }
 
 impl State {
-    pub(crate) fn start_xwayland(&mut self) -> std::io::Result<u32> {
+    pub(crate) fn start_xwayland(&mut self) -> Option<u32> {
+        if let Some(display) = self.xwayland.display {
+            return Some(display);
+        }
+        if self.xwayland.gave_up {
+            return None;
+        }
+        match self.spawn_xwayland() {
+            Ok(display) => {
+                eprintln!("be-wayland: X11 programs run on Xwayland at :{display}");
+                self.xwayland.failure = None;
+                Some(display)
+            }
+            Err(error) => {
+                let message = error.to_string();
+                if self.xwayland.failure.as_ref() != Some(&message) {
+                    eprintln!(
+                        "be-wayland: Xwayland did not start, so X11 programs cannot run until it does: {message}"
+                    );
+                    self.xwayland.failure = Some(message);
+                }
+                None
+            }
+        }
+    }
+
+    fn spawn_xwayland(&mut self) -> Result<u32, StartError> {
+        preflight(
+            std::env::var_os("PATH").as_deref(),
+            Path::new(SOCKET_DIR),
+        )?;
         let wanted = self.xwayland.display;
         let (xwayland, client) = XWayland::spawn(
             &self.handle,
@@ -95,7 +217,12 @@ impl State {
             Stdio::null(),
             Stdio::null(),
             |_| (),
-        )?;
+        )
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::AddrInUse => StartError::NoFreeDisplay(wanted),
+            std::io::ErrorKind::NotFound => StartError::NotInstalled,
+            _ => StartError::Other(error),
+        })?;
         let display = xwayland.display_number();
         let source = self
             .xwayland
@@ -109,7 +236,7 @@ impl State {
                     state.xwayland.stopped = true;
                 }
             })
-            .map_err(|error| std::io::Error::other(error.error))?;
+            .map_err(|error| StartError::Other(std::io::Error::other(error.error)))?;
         self.xwayland.source = Some(source);
         self.xwayland.display = Some(display);
         Ok(display)
@@ -154,12 +281,14 @@ impl State {
         if self.xwayland.restarts >= MAX_RESTARTS {
             eprintln!("be-wayland: Xwayland stopped too often, so X11 programs cannot run");
             self.xwayland.display = None;
+            self.xwayland.gave_up = true;
             return;
         }
         self.xwayland.restarts += 1;
-        if let Err(error) = self.start_xwayland() {
+        if let Err(error) = self.spawn_xwayland() {
             eprintln!("be-wayland: Xwayland did not start again: {error}");
             self.xwayland.display = None;
+            self.xwayland.failure = Some(error.to_string());
         }
     }
 
@@ -663,3 +792,6 @@ fn x11_edge(edge: ResizeEdge) -> beui::WindowEdge {
 }
 
 delegate_xwayland_shell!(State);
+
+#[cfg(test)]
+mod tests;

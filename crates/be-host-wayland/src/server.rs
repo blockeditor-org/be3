@@ -67,7 +67,7 @@ impl Server {
         self.runtime.as_ref().map(RuntimeDir::path)
     }
 
-    pub fn start_xwayland(&mut self) -> std::io::Result<u32> {
+    pub fn start_xwayland(&mut self) -> Option<u32> {
         self.state.start_xwayland()
     }
 
