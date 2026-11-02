@@ -7,7 +7,7 @@ use be_sdk_beui::beui::dock::styled::WINDOW_CHROME;
 use be_sdk_beui::beui::dock::styled::{TabId, use_dock_tab};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Image, NodeId, Rect, Vec2, pos2};
+use be_sdk_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
     WindowAction,
@@ -31,21 +31,28 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
-pub(crate) fn floating_window(window: &HostWindow) -> Rect {
-    let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    let size = window.size;
-    Rect::from_min_size(
-        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        shown_size(size) + WINDOW_CHROME,
-    )
+pub(crate) fn floating_window(window: &HostWindow, area: Rect) -> Rect {
+    cascaded(window.id, shown_size(window.size) + WINDOW_CHROME, area)
 }
 
-pub(crate) fn kept_window(key: HostWindowId) -> Rect {
-    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    Rect::from_min_size(
-        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        PLACEHOLDER_SIZE + WINDOW_CHROME,
-    )
+pub(crate) fn kept_window(key: HostWindowId, area: Rect) -> Rect {
+    cascaded(key, PLACEHOLDER_SIZE + WINDOW_CHROME, area)
+}
+
+pub(crate) fn cascaded(key: HostWindowId, size: Vec2, area: Rect) -> Rect {
+    if !area.is_positive() {
+        let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+        return Rect::from_min_size(pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step), size);
+    }
+    let size = size.min(area.size());
+    let free = area.size() - size;
+    let room = (free.x.min(free.y) - WINDOW_ORIGIN) / WINDOW_CASCADE;
+    let cascades = match room >= 0.0 {
+        true => (room as u64 + 1).min(WINDOW_CASCADES),
+        false => 1,
+    };
+    let step = WINDOW_ORIGIN + (key.0 % cascades) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(area.min + vec2(step.min(free.x), step.min(free.y)), size)
 }
 
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {

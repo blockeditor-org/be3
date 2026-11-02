@@ -170,13 +170,58 @@ pub fn keep_in_work_areas<W: Stacked>(
             continue;
         };
         let rect = window.rect();
-        let to = walled(rect, display, work);
-        if to != rect.min {
-            window.set_rect(Rect::from_min_size(to, rect.size()));
+        let to = fitted(rect, display, work);
+        if to != rect {
+            window.set_rect(to);
             moved = true;
         }
     }
     moved
+}
+
+pub fn fitted(rect: Rect, display: Rect, work: Rect) -> Rect {
+    let shared = display.intersect(rect);
+    if shared.width() <= 0.0 || shared.height() <= 0.0 {
+        let size = rect.size().min(work.size()).max(Vec2::ZERO);
+        let x = rect.min.x.min(work.max.x - size.x).max(work.min.x);
+        let y = rect.min.y.min(work.max.y - size.y).max(work.min.y);
+        return Rect::from_min_size(pos2(x, y), size);
+    }
+    let walls_x = work.min.x > display.min.x + WALL || work.max.x < display.max.x - WALL;
+    let walls_y = work.min.y > display.min.y + WALL || work.max.y < display.max.y - WALL;
+    let mut size = rect.size();
+    if walls_x && work.width() > 0.0 {
+        size.x = size.x.min(work.width());
+    }
+    if walls_y && work.height() > 0.0 {
+        size.y = size.y.min(work.height());
+    }
+    let rect = Rect::from_min_size(rect.min, size);
+    Rect::from_min_size(walled(rect, display, work), size)
+}
+
+pub fn home(displays: &[Rect], rect: Rect) -> Option<usize> {
+    let shared = |display: &Rect| {
+        let shared = display.intersect(rect);
+        shared.width().max(0.0) * shared.height().max(0.0)
+    };
+    let gap = |display: &Rect| {
+        let x = (display.min.x - rect.max.x).max(rect.min.x - display.max.x).max(0.0);
+        let y = (display.min.y - rect.max.y).max(rect.min.y - display.max.y).max(0.0);
+        x * x + y * y
+    };
+    displays
+        .iter()
+        .enumerate()
+        .filter(|(_, display)| shared(display) > 0.0)
+        .max_by(|(_, left), (_, right)| shared(left).total_cmp(&shared(right)))
+        .or_else(|| {
+            displays
+                .iter()
+                .enumerate()
+                .min_by(|(_, left), (_, right)| gap(left).total_cmp(&gap(right)))
+        })
+        .map(|(index, _)| index)
 }
 
 pub fn walled(rect: Rect, display: Rect, work: Rect) -> Pos2 {

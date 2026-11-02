@@ -1111,6 +1111,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
 fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>) -> NodeId {
     let place = super::desktop::place().unwrap_or_else(|| {
         let display = create_memo(move || Rect::from_min_size(Pos2::ZERO, rect.get().size()));
+        super::desktop::hold_window_display(display);
         super::desktop::DesktopPlace {
             display,
             displays: create_memo(move || vec![display.get()]),

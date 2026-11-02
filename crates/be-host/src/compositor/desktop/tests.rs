@@ -7,6 +7,7 @@ use beui_host::native::testing::{Showing, Stepped};
 use beui_host::native::{FreetypeFonts, build};
 
 use super::*;
+mod a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_display;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
 mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;

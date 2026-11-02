@@ -117,6 +117,7 @@ thread_local! {
     static FLOATED: Cell<Option<Signal<Vec<Floated>>>> = const { Cell::new(None) };
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
     static WORK_AREAS: Cell<Option<Signal<Vec<(StatusKey, Rect)>>>> = const { Cell::new(None) };
+    static WINDOW_DISPLAY: Cell<Option<Signal<Option<Rect>>>> = const { Cell::new(None) };
     static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, ViewId), Pos2>> =
@@ -135,12 +136,11 @@ pub(crate) fn install() {
     FLOATED.set(Some(floated));
     GESTURE.set(Some(gesture));
     WORK_AREAS.set(Some(areas));
+    WINDOW_DISPLAY.set(Some(create_signal(None)));
     create_effect(move || {
         areas.with(|_| ());
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
-        let displays = crate::display::made().map_or_else(Vec::new, |shown| {
-            shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
-        });
+        let displays = desktop_displays();
         untrack(|| {
             let mut windows = floated.get();
             if keep_in_work_areas(&mut windows, &displays, moving.as_ref()) {
@@ -148,6 +148,35 @@ pub(crate) fn install() {
             }
         });
     });
+}
+
+pub(crate) fn hold_window_display(display: Memo<Rect>) {
+    let Some(held) = WINDOW_DISPLAY.get() else {
+        return;
+    };
+    create_effect(move || {
+        let display = display.get();
+        untrack(|| held.set(Some(display)));
+    });
+    on_cleanup(move || {
+        if held.is_alive() {
+            held.set(None);
+        }
+    });
+}
+
+fn desktop_displays() -> Vec<Rect> {
+    let shown = crate::display::made().map_or_else(Vec::new, |shown| {
+        shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
+    });
+    match shown.is_empty() {
+        true => WINDOW_DISPLAY
+            .get()
+            .and_then(|held| held.get())
+            .into_iter()
+            .collect(),
+        false => shown,
+    }
 }
 
 fn work_areas_signal() -> Signal<Vec<(StatusKey, Rect)>> {
@@ -198,8 +227,8 @@ fn keep_in_work_areas(
 ) -> bool {
     let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
     be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
-        let display = displays[crate::display::owner(displays, window.rect)?];
-        let work = work_area_on(&window.key.app, window.key.instance, display)?;
+        let display = displays[be_sdk_window_stack::home(displays, window.rect)?];
+        let work = work_area_on(&window.key.app, window.key.instance, display).unwrap_or(display);
         Some((display, work))
     })
 }
@@ -373,9 +402,7 @@ pub(crate) fn apply() {
         .or_else(|| {
             gesture_signal().with_untracked(|held| held.as_ref().map(|held| held.key.clone()))
         });
-    let displays = crate::display::made().map_or_else(Vec::new, |shown| {
-        shown.with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
-    });
+    let displays = untrack(desktop_displays);
     keep_in_work_areas(&mut windows, &displays, moving.as_ref());
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
@@ -477,13 +504,8 @@ fn owner_index(key: &FloatedKey) -> Option<usize> {
             .find(|window| window.key == *key)
             .map(|window| window.rect)
     })?;
-    let displays = desktop_displays();
+    let displays = untrack(desktop_displays);
     crate::display::owner(&displays, rect)
-}
-
-fn desktop_displays() -> Vec<Rect> {
-    crate::display::shown()
-        .with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
 }
 
 pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {

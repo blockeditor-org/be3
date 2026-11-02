@@ -83,7 +83,7 @@ use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 const EDGE_ZONE: f32 = 0.22;
-const HANDLE_REACH: f32 = 8.0;
+pub const HANDLE_REACH: f32 = 8.0;
 const GRIP_CORNER: f32 = 24.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;

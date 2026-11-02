@@ -319,16 +319,8 @@ impl Host<Hosted> for Desk {
 }
 
 fn owner(displays: &[Display], rect: Rect) -> Display {
-    let area = |display: &Display| {
-        let shared = display.rect.intersect(rect);
-        shared.width().max(0.0) * shared.height().max(0.0)
-    };
-    displays
-        .iter()
-        .copied()
-        .max_by(|a, b| area(a).total_cmp(&area(b)))
-        .filter(|display| area(display) > 0.0)
-        .unwrap_or(displays[0])
+    let rects: Vec<Rect> = displays.iter().map(|display| display.rect).collect();
+    displays[be_sdk_window_stack::home(&rects, rect).unwrap_or(0)]
 }
 
 impl<A: BeuiRoot> BeuiTest<A> {

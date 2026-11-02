@@ -17,7 +17,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{NodeId, Rect, Vec2};
+use be_sdk_beui::beui::{NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
     AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
     HostPanel, HostWindow, HostWindowId, PickAnchor, PickedBlock, Pushed, ShellDialog,
@@ -1310,12 +1310,18 @@ pub fn FloatingWindow(
     placeholder: RenderFn<HostWindowId>,
 ) -> DockNode<TabId> {
     let window = workspace.bound(key).get_untracked();
+    let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
+    let area = untrack(|| workspace.layout().area()).size();
+    let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
     let rect = workspace
         .windows
         .get_untracked()
         .iter()
         .find(|listed| Some(listed.id) == window)
-        .map_or_else(|| kept_window(key), floating_window);
+        .map_or_else(
+            || kept_window(key, area),
+            |listed| floating_window(listed, area),
+        );
     let pane = format!("window.{}", key.0);
     view! {
         <DockWindow id={pane.clone()} rect>

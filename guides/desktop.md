@@ -88,10 +88,16 @@ Each display's work area is that display less its own bars' bands: the dock's ar
 (`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the app reports it on the view's frame report
 (`frame-report.work-area`, insets), and be-host (`compositor/desktop.rs`) and be-sdk-test's
-desk, through be-sdk-window-stack's `keep_in_work_areas` and `walled`, keep each of the app's windows on a
-display wholly inside that display's work area on every edge where a band insets it, as the dock's
-`reachable_origin` walls do for windows it draws itself; other edges, and so other displays, stay
-open. A window being moved or resized is let go first, and kept once released.
+desk, through be-sdk-window-stack's `keep_in_work_areas` and `fitted`, keep each of the app's windows on a
+display wholly inside that display's work area on every edge where a band insets it, shrinking one
+too big for it, as the dock's `reachable_origin` walls do for windows it draws itself; other edges,
+and so other displays, stay open. A window on no display, such as one whose display was unplugged,
+belongs to the nearest (`be_sdk_window_stack::home`) and is brought wholly into its work area. A
+window being moved or resized is let go first, and kept once released. Under DRM the displays are
+`display::shown()`; in a window or headless they are one, be-host's window, which the shell's main
+view holds (`desktop::hold_window_display`). The shell opens a program's window, and a restored
+placeholder, on a cascade inside its dock's area (`cascaded` in be-sdk-shell's `window.rs`), with
+fewer steps when the window leaves little room.
 
 The Status bar holds the tray, the device tools (the on-screen keyboard, `desktop.keyboard`,
 while the display settings' `keyboard_in_bar` is on, which does not take the focus from the
