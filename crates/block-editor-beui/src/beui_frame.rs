@@ -175,6 +175,10 @@ pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) {
 pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
     nodes
         .iter()
+        .filter(|node| match node {
+            MenuNode::Action { action, .. } => action.is_alive(),
+            _ => true,
+        })
         .map(|node| match node {
             MenuNode::Action { action, label } => MenuEntry::Command(MenuCommand {
                 id: action.id().to_owned(),

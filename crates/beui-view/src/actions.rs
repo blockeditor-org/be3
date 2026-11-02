@@ -287,6 +287,12 @@ impl Action {
         self.0.radio
     }
 
+    pub fn is_alive(&self) -> bool {
+        self.0.label.is_alive()
+            && self.0.enabled.is_alive()
+            && self.0.checked.is_none_or(|checked| checked.is_alive())
+    }
+
     pub fn pinned(&self) -> Option<Pin> {
         self.0.pin
     }
