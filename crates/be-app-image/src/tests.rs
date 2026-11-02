@@ -8,7 +8,7 @@ use crate::root::ImageRoot;
 use be_type_image::{ImageContent, ImageFile};
 
 mod a_decoded_image_is_painted_at_its_shape;
-mod a_narrow_image_stacks_its_panel_behind_the_picture;
+mod a_narrow_image_gathers_its_panel_below_the_picture;
 mod a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes;
 mod a_new_images_dialog_is_modal_while_its_host_blocks_everything;
 mod an_image_still_loading_shows_its_thumbhash;

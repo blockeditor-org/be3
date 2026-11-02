@@ -3,8 +3,8 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use beui_view::types::Rect;
 
 use super::{
-    Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
-    Split, SplitId, TabId, Tree,
+    Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
+    LeafId, Node, Split, SplitId, TabId, Tree,
 };
 
 const JOINED: &str = "joined:";

@@ -1,8 +1,8 @@
 use be_lib_stable_hash::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockBar, DockBarPlacement, DockCompact, DockDeclaration, DockGroup, DockHold,
-    DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
+    ChildId, DecodeError, DockBar, DockBarPlacement, DockCompact, DockDeclaration, DockGroup,
+    DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
     DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockSplitSize,
     DockTab, DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };

@@ -8,11 +8,12 @@ use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
 use beui::dock::unstyled::SplitSize;
 use beui::dock::unstyled::{
-    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration,
-    DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
-    DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace,
-    DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
-    DockCompact, DockSpecPlace, DockSpecWindow, DockState, DockVisit, DockingSnapshot, TabId,
+    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
+    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge,
+    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
+    DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
+    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
+    DockingSnapshot, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;

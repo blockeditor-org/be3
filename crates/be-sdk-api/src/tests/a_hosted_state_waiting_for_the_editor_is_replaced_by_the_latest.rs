@@ -22,7 +22,10 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                 shown: None,
                 visible: Vec::new(),
                 fullscreen: None,
-                stacked,
+                mode: match stacked {
+                    true => crate::DockMode::Stacked,
+                    false => crate::DockMode::Tiled,
+                },
                 covers: Vec::new(),
             }),
         })

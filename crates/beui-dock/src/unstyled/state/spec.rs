@@ -4,9 +4,9 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect};
 
 use super::{
-    Bar, DockCompact, DockBarPlacement, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE, Group, GroupId,
-    Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, SplitSize, Surface,
-    SurfaceId, TabId, Tree,
+    Bar, DockBarPlacement, DockCompact, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE,
+    Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, SplitSize,
+    Surface, SurfaceId, TabId, Tree,
 };
 
 const FLOAT_ORIGIN: Pos2 = Pos2::new(64.0, 48.0);

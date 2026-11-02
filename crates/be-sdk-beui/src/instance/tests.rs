@@ -102,11 +102,11 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         metrics: ViewportMetrics {
             logical: be_sdk_api::Size {
                 width: width as f32,
-                height: 300.0,
+                height: 600.0,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: width,
-            pixel_height: 300,
+            pixel_height: 600,
             scale_factor: 1.0,
             raster: 1.0,
         },

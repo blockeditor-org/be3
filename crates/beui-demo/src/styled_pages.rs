@@ -4422,6 +4422,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
     let hidden = create_memo(move || BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
     view! {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
+            <Scroll>
             <Frame padding=PAGE_PADDING align=Align::Center>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
@@ -4452,6 +4453,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                     </Show>
                 </List>
             </Frame>
+            </Scroll>
         </Frame>
     }
 }

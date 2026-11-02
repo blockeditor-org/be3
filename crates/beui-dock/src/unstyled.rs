@@ -54,9 +54,9 @@ use beui_view::window::{
 };
 
 pub(crate) use bars::{BarCovers, BarFloats};
-use compact::DockCompactView;
 use bars::{BarHolder, BarPanels, DockBarLifted, DockBarWindows, DockBarred, Lifting};
 pub use bars::{DockBarBandHandle, DockBarControl, use_dock_bar};
+use compact::DockCompactView;
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
@@ -73,11 +73,12 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    COMPACT_SHARE, COMPACT_SIDE, DockAlign, DockBarPlacement, DockCompact, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout,
-    DockMapping, DockOutside, DockOutsidePlace, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
-    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockSplitter, DockState, DockSwitch,
-    DockTree, DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId,
-    TabPosition, Tree, compact_length, layout_surface, layout_tree,
+    COMPACT_SHARE, COMPACT_SIDE, DockAlign, DockBarPlacement, DockCompact, DockDrop, DockEdge,
+    DockFullscreen, DockHome, DockLayout, DockMapping, DockOutside, DockOutsidePlace, DockSpec,
+    DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane, DockSpecPlace,
+    DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree, DockTreeEntry, DockVisit, Entry,
+    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, compact_length,
+    layout_surface, layout_tree,
 };
 use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, tree_shape};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SplitSize};
@@ -96,11 +97,6 @@ const GROUP_ZONE: f32 = 0.3;
 const OUTER_EDGE: f32 = 18.0;
 const WINDOW_KEEP_VISIBLE: f32 = 96.0;
 
-/// How a dock lays out its tabs. `Compact` and `Stacked` are a narrow or
-/// short dock (a phone): `Compact` tiles a dock whose own tree has a bare
-/// stage pane, and `Stacked` shows one tab at a time. In both, a tree with a
-/// bare stage pane gathers its other panes' tabs into one tabbed pane beside
-/// the stage (`DockState::stage_of`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum DockMode {
     #[default]
@@ -2182,7 +2178,8 @@ fn DockStack(dock: State) -> NodeId {
     let barred = create_memo(move || bar.is_some() && occupied.get());
     let gone = dock.away_from(shown);
     let left = create_memo(move || gone.get().is_some() && staged.get().is_none());
-    let here = create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
+    let here =
+        create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
     let empty = dock.empty;
     view! {
         <BackSlide

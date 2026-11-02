@@ -29,5 +29,8 @@ fn a_short_wide_dock_gathers_the_panes_beside_its_stage_to_its_right() {
         "and as tall as the dock, {gathered:?}"
     );
     let tabs = [2, 3, 4].map(|tab| harness.rect(harness.find(&format!("dock.tab.{tab}"))));
-    assert!(tabs.iter().all(|tab| (tab.top() - tabs[0].top()).abs() < 1.0));
+    assert!(
+        tabs.iter()
+            .all(|tab| (tab.top() - tabs[0].top()).abs() < 1.0)
+    );
 }

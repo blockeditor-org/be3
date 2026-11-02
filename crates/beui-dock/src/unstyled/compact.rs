@@ -4,10 +4,6 @@ const STAGE: u64 = 0;
 const SPLITTER: u64 = 1;
 const GATHERED: u64 = 2;
 
-/// A tree with a bare stage pane, as a compact dock (a phone) shows it: the
-/// stage, then every other pane's tabs gathered into one tabbed pane below
-/// it in portrait or beside it in landscape, behind a draggable splitter.
-/// The gathered pane folds to its tab strip.
 #[component]
 pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
     let state = dock.state;
@@ -22,7 +18,9 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
     let arranged = create_memo(move || (portrait.get(), folded.get(), stage.get(), gathered.get()));
     let built = view! {
         <List spacing=0.0>
-            <Dynamic value={arranged}>|(portrait, folded, stage, gathered): (bool, bool, Option<LeafId>, bool)| {
+            <Dynamic
+                value={arranged}
+            >|(portrait, folded, stage, gathered): (bool, bool, Option<LeafId>, bool)| {
                 let dock = dock;
                 let stage = match stage {
                     Some(leaf) => view! {
@@ -50,7 +48,13 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
                         view! {
                             <List direction spacing=0.0 @sizing=ItemSize::Percent(100.0)>
                                 {stage} @sizing=ItemSize::Percent(100.0)
-                                <DockGathered dock tree vertical={!portrait} folded=true @sizing={across} />
+                                <DockGathered
+                                    dock
+                                    tree
+                                    vertical={!portrait}
+                                    folded=true
+                                    @sizing={across}
+                                />
                             </List>
                         }
                     }

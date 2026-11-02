@@ -1,8 +1,8 @@
 use super::{DockEntry, DockFloating, DockNode, DockNodes};
 use crate::{
-    ChildId, DecodeError, DockBar, DockCompact, DockCover, DockDeclaration, DockGroup, DockHome, DockHosted,
-    DockLayout, DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab, DockTabPath,
-    DockTree,
+    ChildId, DecodeError, DockBar, DockCompact, DockCover, DockDeclaration, DockGroup, DockHome,
+    DockHosted, DockLayout, DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab,
+    DockTabPath, DockTree,
 };
 
 pub fn dock_prefix(host_key: &str, block: [u8; 16]) -> String {

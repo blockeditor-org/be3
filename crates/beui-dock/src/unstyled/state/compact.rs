@@ -1,10 +1,5 @@
 use super::{DockState, Entry, LeafId, Node, SplitSize, TabId, Tree};
 
-/// How a tree with a bare stage pane is arranged while its dock is compact
-/// (a phone): the stage, then every other pane's tabs gathered into one
-/// tabbed pane below it (portrait) or beside it (landscape). Kept apart
-/// from the tiled layout, by the stage's tab, so switching sizes doesn't mix
-/// the two.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DockCompact {
     pub stage: TabId,
@@ -26,11 +21,7 @@ impl DockCompact {
     }
 }
 
-/// The gathered pane's share of the dock's height in portrait until the
-/// user drags its splitter.
 pub const COMPACT_SHARE: f32 = 0.4;
-/// The gathered pane's width in landscape when the tree declares no fixed
-/// side pane.
 pub const COMPACT_SIDE: f32 = 280.0;
 
 impl DockState {
@@ -79,8 +70,6 @@ impl DockState {
             .collect()
     }
 
-    /// `tabs` without those a stacked dock shows only through their
-    /// tree's stage: the gathered tabs of every tree with a stage.
     pub fn switchable(&self, tabs: Vec<TabId>) -> Vec<TabId> {
         tabs.into_iter()
             .filter(|tab| {
@@ -124,7 +113,9 @@ impl DockState {
                     .tree_leaves(tree)
                     .into_iter()
                     .find(|leaf| *leaf != stage_leaf && !self.entries(*leaf).is_empty())?;
-                self.standing_tabs(self.active_entry(leaf)?).first().copied()
+                self.standing_tabs(self.active_entry(leaf)?)
+                    .first()
+                    .copied()
             })
             .or_else(|| tabs.first().copied())
     }
@@ -134,8 +125,6 @@ impl DockState {
             .is_some_and(|stage| self.compact(stage).folded)
     }
 
-    /// Picks `tab` in its tree's gathered pane, unfolding it; picking the
-    /// tab already shown folds the pane to its tab strip instead.
     pub fn pick_gathered(&mut self, tab: TabId) {
         let Some(tree) = self.compact_tree_of(tab) else {
             return;
@@ -190,9 +179,6 @@ impl DockState {
         });
     }
 
-    /// What the user dragged the gathered pane to across a compact tree,
-    /// else in landscape the tree's fixed side pane; `None` leaves portrait
-    /// to `compact_length`'s share of the height.
     pub fn compact_wanted(&self, tree: Tree, portrait: bool) -> Option<f32> {
         let held = self.stage_tab(tree).map(|stage| self.compact(stage));
         match portrait {
@@ -217,9 +203,6 @@ impl DockState {
         find(self.root(tree)?)
     }
 
-    /// Whether a compact dock shows `tab`, walking up from its pane: a
-    /// tree with a stage shows its stage and the gathered pane's tab while
-    /// unfolded; any other pane its active entry. Stops at `top`, if given.
     pub(super) fn compact_shows(&self, tab: TabId, top: Option<Tree>) -> bool {
         let Some(position) = self.find(tab) else {
             return false;
@@ -263,8 +246,6 @@ impl DockState {
     }
 }
 
-/// The points the gathered pane takes of a compact tree `length` points
-/// along its split, leaving the stage at least `MIN_PANE_LENGTH`.
 pub fn compact_length(wanted: Option<f32>, length: f32) -> f32 {
     let wanted = wanted.unwrap_or_else(|| (length * COMPACT_SHARE).round());
     let most = (length - super::MIN_PANE_LENGTH).max(length / 2.0);

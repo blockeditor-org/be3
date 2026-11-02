@@ -27,7 +27,8 @@ fn a_narrow_dock_gathers_the_panes_beside_its_stage_below_it() {
 
     let tabs = [2, 3, 4].map(|tab| harness.rect(harness.find(&format!("dock.tab.{tab}"))));
     assert!(
-        tabs.iter().all(|tab| (tab.top() - tabs[0].top()).abs() < 1.0)
+        tabs.iter()
+            .all(|tab| (tab.top() - tabs[0].top()).abs() < 1.0)
             && tabs[0].left() < tabs[1].left()
             && tabs[1].left() < tabs[2].left(),
         "every other pane's tabs share one strip, in the order they are declared: {tabs:?}"
