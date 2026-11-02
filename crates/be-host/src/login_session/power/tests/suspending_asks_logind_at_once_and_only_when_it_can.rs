@@ -11,6 +11,7 @@ fn suspending_asks_logind_at_once_and_only_when_it_can() {
         power.availability(),
         PowerAvailability {
             log_out: true,
+            session: true,
             ..PowerAvailability::default()
         },
         "before logind answers, only logging out is offered"

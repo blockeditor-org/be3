@@ -18,6 +18,7 @@ use beui_view::types::{Align, Direction, Justify};
 use beui_view::types::{ItemSize, TextAlign};
 
 const GLYPH_SPACING: Space = Space::Sm;
+const MIN_HIT: Size = Size::Md;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum ButtonSize {
@@ -46,14 +47,16 @@ impl ButtonSize {
     fn width(self, icon_only: bool) -> Length {
         match (self, icon_only) {
             (ButtonSize::Toolbar, true) => Length::Size(Size::Toolbar),
-            _ => Length::INTRINSIC,
+            (_, true) => Length::AtLeast(MIN_HIT),
+            (_, false) => Length::INTRINSIC,
         }
     }
 
-    fn height(self) -> Length {
-        match self {
-            ButtonSize::Toolbar => Length::Size(Size::Toolbar),
-            _ => Length::INTRINSIC,
+    fn height(self, icon_only: bool) -> Length {
+        match (self, icon_only) {
+            (ButtonSize::Toolbar, _) => Length::Size(Size::Toolbar),
+            (_, true) => Length::AtLeast(MIN_HIT),
+            (_, false) => Length::INTRINSIC,
         }
     }
 
@@ -100,8 +103,7 @@ impl ButtonVariant {
             return match self {
                 ButtonVariant::Primary => ColorRole::AccentSoft,
                 ButtonVariant::Danger => ColorRole::DangerSoft,
-                ButtonVariant::Secondary => ColorRole::Surface,
-                ButtonVariant::Ghost => ColorRole::None,
+                ButtonVariant::Secondary | ButtonVariant::Ghost => ColorRole::None,
             };
         }
         match (self, hovered, active) {
@@ -135,6 +137,7 @@ impl ButtonVariant {
 #[component]
 pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: Prop<ButtonVariant>,
     #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -158,6 +161,7 @@ pub fn Button(
     view! {
         <unstyled::Button
             label
+            description
             glyph
             icon_only
             action
@@ -230,12 +234,13 @@ pub fn ButtonFace(
     let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
     let busy = create_memo(move || busy.get());
-    let justify = create_memo(move || match wide.get() {
+    let justify = create_memo(move || match wide.get() || icon_only.get() {
         true => Justify::Center,
         false => Justify::Start,
     });
     let padding = create_memo(move || size.padding(icon_only.get()));
     let width = create_memo(move || size.width(icon_only.get()));
+    let height = create_memo(move || size.height(icon_only.get()));
     let text = size.text();
     let picture = Size::Custom(text.icon_px());
     view! {
@@ -246,7 +251,7 @@ pub fn ButtonFace(
                     border={border}
                     radius={size.radius()}
                     width={width}
-                    height={size.height()}
+                    height={height}
                     align={size.align()}
                     padding={padding}
                 >

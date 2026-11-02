@@ -1968,9 +1968,13 @@ view! {
 An icon-only button needs no wrapper: `unstyled::Button` and `unstyled::Toggle`
 take `icon_only`, and their handle's `tooltip` is the label (with the action's
 shortcut) while the button is icon-only and nothing it opened is showing, and
-empty otherwise. The styled faces wrap themselves in a `Tooltip` of that text,
+empty otherwise. A button's `description` (why it is disabled, say) is its
+accessibility description and a line of the tooltip under that label, shown on
+any button. The styled faces wrap themselves in a `Tooltip` of that text,
 so the `label` a button publishes to a screen reader is the text the bubble
-shows, and a menu button's tooltip goes away while its menu is open. Wrap anything else whose meaning is not
+shows, and a menu button's tooltip goes away while its menu is open. A styled
+icon-only button is at least `Size::Md` square however small its glyph, so it is
+never a smaller target than that. Wrap anything else whose meaning is not
 on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
 own.
 

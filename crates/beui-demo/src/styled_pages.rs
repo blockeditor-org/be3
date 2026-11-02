@@ -1202,7 +1202,16 @@ fn LockedControls() -> NodeId {
                 disabled={locked}
             />
             <Checkbox label="Minimum" checked=false disabled={locked} />
-            <Button label="Save" variant=ButtonVariant::Primary disabled={locked} />
+            <Button
+                label="Save"
+                variant=ButtonVariant::Primary
+                disabled={locked}
+                description={create_memo(move || match locked.get() {
+                    true => "Unlock to save".to_owned(),
+                    false => String::new(),
+                })}
+                @test_id="demo.locked.save"
+            />
         </List>
     }
 }
@@ -1233,6 +1242,30 @@ fn LightSwitches() -> NodeId {
     }
 }
 
+#[sample]
+#[component]
+fn RaisedSwitches() -> NodeId {
+    let muted = create_signal(false);
+    let wifi = create_signal(true);
+    view! {
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding={Padding::all(Space::Lg)}
+        >
+            <List spacing=Space::Md>
+                <LabelledSwitch label="Mute" on={muted} />
+                <LabelledSwitch label="Wi-Fi" on={wifi} />
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Switch label="Bluetooth" on=false disabled=true />
+                    <Text color=TextColor::Muted>"Bluetooth"</Text>
+                </List>
+            </List>
+        </Frame>
+    }
+}
+
 #[component]
 pub(crate) fn ChoicesPage() -> NodeId {
     view! {
@@ -1248,6 +1281,12 @@ pub(crate) fn ChoicesPage() -> NodeId {
             </Sample>
             <Sample title="Switches with a mixed state" code={vec![LightSwitches::SOURCE]}>
                 <LightSwitches />
+            </Sample>
+            <Sample
+                title="Switches on a raised surface"
+                code={vec![RaisedSwitches::SOURCE, LabelledSwitch::SOURCE]}
+            >
+                <RaisedSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
