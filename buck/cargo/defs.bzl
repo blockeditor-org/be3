@@ -246,7 +246,7 @@ library_path_test = rule(
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/be-host-tests is one: block-app with its apps, driven headless. With
+# crates/be-host-tests is one: be-host with its apps, driven headless. With
 # run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
 # test that fails costs only its own paintings rather than every one the crate
 # accepts, since a failed action keeps no outputs; apart_env adds to run_env

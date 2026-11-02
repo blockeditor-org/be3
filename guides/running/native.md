@@ -1,9 +1,9 @@
-# Running block-app natively
+# Running be-host natively
 
-To see a change working, run block-app headless and drive it: guides/running/drive.md. This
+To see a change working, run be-host headless and drive it: guides/running/drive.md. This
 guide is for what that does not cover.
 
-## block-app's flags
+## be-host's flags
 
 - `--dev-workspace`: sign in to the first local account, registering `dev@localhost` with
   the password `dev-password` if there is none, save a recovery phrase without asking, and
@@ -13,11 +13,11 @@ guide is for what that does not cover.
   (Linux), a login session on the displays themselves (guides/desktop/linux.md). `BEUI_PLATFORM=drm`
   without `--desktop` runs the workspace shell on the displays instead.
   `./scripts/buck run //crates/be-host:dev -- --desktop` drives the desktop shell headless.
-- `--install-login-session [PREFIX]` (Linux): install block-app as a login session
+- `--install-login-session [PREFIX]` (Linux): install be-host as a login session
   (guides/desktop/linux.md).
 
 `./scripts/buck run //crates/be-host:native` runs it in a window, with every app beside it.
-The bundle’s `build-info.json` selects block-app's identity: local builds use
+The bundle’s `build-info.json` selects be-host's identity: local builds use
 `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
 They keep separate accounts, workspaces and caches, including for local release builds.
 
@@ -25,7 +25,7 @@ They keep separate accounts, workspaces and caches, including for local release 
 
 A change to the platform layer - beui-platform-winit's translation of keys, the pointer and
 the clipboard, the native file dialog, the window's surface, IME, key repeat, a crash only a
-real window shows - needs block-app in a real window, which in a container means a virtual X
+real window shows - needs be-host in a real window, which in a container means a virtual X
 display driven with xdotool. Install them first (`sudo apt-get install xvfb xdotool imagemagick`):
 
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
@@ -55,13 +55,13 @@ platform hides: dragging workspace-ui's splitter between Files and an editor, sa
 small steps (`mousedown 1`, then `mousemove` one step at a time) and run `import -window root`
 after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the window a fractional
 scale. To skip building every app, run the binary that `:dev` built
-(`target/programs/dev-app-*/block-app`, where it unpacked block-app, with the
+(`target/programs/dev-app-*/be-host`, where it unpacked be-host, with the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it, read from `/proc/PID/environ`,
 then stop that headless copy) with the variables above in place of `:native`.
 
 ## Profiling
 
-Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or block-app's
+Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or be-host's
 `:dev`) runs it headless with debug info, ready for `drive`. The inspector's Perf tab
 (guides/beui.md, The inspector) times each frame of the document: open it with
 `drive key ctrl+shift+i` and `drive click '"Perf"'`, act, then read the Peak column from

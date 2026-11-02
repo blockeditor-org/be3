@@ -172,7 +172,7 @@ pub fn frame(store: &HostStateStore) {
     if let Some(save) = STATE.with_borrow_mut(|state| state.save.take())
         && let Err(error) = store.set_remapper(save.as_deref())
     {
-        eprintln!("block-app: the input remapper was not kept for the next session: {error}");
+        eprintln!("be-host: the input remapper was not kept for the next session: {error}");
     }
     let shown = STATE.with_borrow(|state| {
         let value = match state

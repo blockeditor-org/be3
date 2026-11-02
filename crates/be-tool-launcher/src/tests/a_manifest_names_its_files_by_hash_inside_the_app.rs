@@ -8,7 +8,7 @@ fn a_manifest_names_its_files_by_hash_inside_the_app() {
             "product": "native-linux_x86_64",
             "commit": "c".repeat(40),
             "files": [
-                {"path": "block-app", "sha256": hash, "size": 3, "executable": true},
+                {"path": "be-host", "sha256": hash, "size": 3, "executable": true},
                 {"path": path, "sha256": sha256, "size": 2},
             ],
         })

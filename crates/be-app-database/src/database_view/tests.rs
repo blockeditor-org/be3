@@ -256,7 +256,7 @@ fn tracker() -> Tracker {
         ),
         ("fractional scaling", backlog, None, Some(wayland)),
         (
-            "block-app --session: system tray",
+            "be-host --session: system tray",
             done,
             None,
             Some(wayland),

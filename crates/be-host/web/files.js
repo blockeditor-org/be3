@@ -1,6 +1,6 @@
 // The file system the host's WASI calls reach in a browser.
 //
-// block-app keeps its state in files on every platform: the object store's
+// be-host keeps its state in files on every platform: the object store's
 // directory, the refs database and the host state's database. In a browser
 // those live in the origin private file system (OPFS), whose only synchronous
 // way in, a FileSystemSyncAccessHandle, has to be opened asynchronously and

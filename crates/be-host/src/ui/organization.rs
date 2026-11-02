@@ -214,7 +214,7 @@ fn HostMenu(
         <Show condition={can_close}>
             <MenuItem
                 row_test_id={"host.menu.close".to_owned()}
-                label="Close block-app"
+                label="Close be-host"
                 glyph=ICON_POWER
                 on_click={move || pick(UiCommand::CloseApp)}
             />

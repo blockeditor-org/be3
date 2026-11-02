@@ -81,7 +81,7 @@ impl fmt::Display for Report {
         }
         if self.unexported > 0 {
             lines.push(format!(
-                "{} blocks have no plain-file form and stay only in block-app; {}/{} lists them",
+                "{} blocks have no plain-file form and stay only in be-host; {}/{} lists them",
                 self.unexported,
                 crate::STATE_DIRECTORY,
                 crate::UNEXPORTED_FILE

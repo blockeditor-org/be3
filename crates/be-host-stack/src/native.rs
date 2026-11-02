@@ -50,7 +50,7 @@ pub(super) fn spawn(
 ) -> Running {
     let previous = std::mem::take(&mut *stopping());
     let worker = thread::Builder::new()
-        .name("block-app-be".into())
+        .name("be-host-be".into())
         .spawn(move || {
             for worker in previous {
                 let _ = worker.join();

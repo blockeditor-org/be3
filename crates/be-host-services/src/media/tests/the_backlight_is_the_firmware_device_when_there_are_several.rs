@@ -15,7 +15,7 @@ fn device(root: &std::path::Path, name: &str, kind: &str, brightness: u32, max: 
 
 #[test]
 fn the_backlight_is_the_firmware_device_when_there_are_several() {
-    let root = std::env::temp_dir().join(format!("block-app-backlight-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("be-host-backlight-{}", uuid::Uuid::new_v4()));
     assert_eq!(find(&root), None, "no directory has no backlight");
 
     device(&root, "intel_backlight", "raw\n", 19200, 96000);

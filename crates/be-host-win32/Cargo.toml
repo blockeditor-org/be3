@@ -1,6 +1,6 @@
 [package]
 name = "be-host-win32"
-description = "Windows windows and the session for block-app's Windows host: enumeration, the Alt-Tab filter, monitors, programs and power"
+description = "Windows windows and the session for be-host's Windows host: enumeration, the Alt-Tab filter, monitors, programs and power"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

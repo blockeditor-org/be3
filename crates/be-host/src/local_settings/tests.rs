@@ -31,7 +31,7 @@ struct Store {
 impl Store {
     fn open() -> Self {
         let path =
-            std::env::temp_dir().join(format!("block-app-settings-{}.sqlite3", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("be-host-settings-{}.sqlite3", Uuid::new_v4()));
         let store = HostStateStore::open(&path).expect("the host state opens");
         Self { path, store }
     }

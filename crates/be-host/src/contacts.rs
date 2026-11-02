@@ -40,8 +40,8 @@ impl Default for Contacts {
             busy: false,
             error: None,
             connected: None,
-            replies: crate::desk().mailbox(|block_app: &mut crate::BlockApp, reply| {
-                block_app.contacts.replied(reply);
+            replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
+                core.contacts.replied(reply);
             }),
             published: None,
         }

@@ -213,7 +213,7 @@ impl<S: ProgramSource> Installed<S> {
     }
 
     fn not_listed(&mut self, problem: String) {
-        eprintln!("block-app: the programs were not listed: {problem}");
+        eprintln!("be-host: the programs were not listed: {problem}");
         be_host_base::notices::report(format!("Programs could not be listed: {problem}"));
         self.scanned = true;
         self.listed_now();
@@ -286,7 +286,7 @@ impl<S: ProgramSource> Installed<S> {
             .as_ref()
             .and_then(|source| source.run(key, launch, file));
         ran.unwrap_or_else(|| {
-            eprintln!("block-app: no program {key} is installed");
+            eprintln!("be-host: no program {key} is installed");
             let problem = format!("{key} could not be opened: it is not installed");
             be_host_base::notices::report(problem.clone());
             Err(problem)

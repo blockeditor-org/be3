@@ -20,7 +20,7 @@ The server speaks plain WebSockets at `/api/be` and the same protocol over
 HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
 The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
 paths, `/auth`, and `/auth/*` to the server, and `/build/*` to the build helper
-on `127.0.0.1:9091` (guides/build_server.md). block-app's web build is served separately by Bunny at `be3.pfg.pw`.
+on `127.0.0.1:9091` (guides/build_server.md). be-host's web build is served separately by Bunny at `be3.pfg.pw`.
 The proxy must allow its origin; native clients send no Origin header.
 A gateway can accept `Be3-Gateway-Authorization` from native clients and a
 host-only cookie from browsers, whose WebSocket API cannot set headers.
@@ -39,7 +39,7 @@ deployment does not change systemd or proxy configuration.
 
 Password sign-ins require `--allow-login`; verified registration also requires
 `--allow-registration`. `/auth` is the only remote password/registration interface:
-block-app's protocol accepts browser authorization, session tokens, and proxy headers.
+be-host's protocol accepts browser authorization, session tokens, and proxy headers.
 There is no command-line account provisioning flag. To bootstrap a server, enable
 registration, create and verify an account through the portal, then disable registration
 if appropriate. Existing accounts do not need retroactive email verification.
@@ -47,7 +47,7 @@ if appropriate. Existing accounts do not need retroactive email verification.
 Remote human sessions predating portal session metadata must sign in again. Agent and local-profile credentials
 are retained because those accounts have no password recovery path. New browser sessions last
 30 days and use a host-only HttpOnly SameSite=Lax cookie scoped to `/auth`; they cannot
-be used as block-app bearer credentials. block-app's sessions are listed alongside browser sessions.
+be used as be-host bearer credentials. be-host's sessions are listed alongside browser sessions.
 Revocation and password reset disconnect active clients and remove their subscriptions.
 Signing out cannot remove data already held by a device.
 
@@ -60,24 +60,24 @@ subject to issuance limits. Password reset changes authentication only: encrypte
 still needs a recovery phrase or another unlocked Block device.
 
 Browser authorization lasts ten minutes independently of the initiating connection.
-block-app retains a private secret separately from the displayed code and keeps the
+be-host retains a private secret separately from the displayed code and keeps the
 connection that began the request open, with one `finish-browser-login` call waiting
 on it until the browser approves or denies the code. Only if that connection drops
 does it reconnect, every two seconds, and call again on the new one. Only that secret
 can redeem an approved request, once. Approval is explicit after portal authentication;
 email verification alone does not approve a device. A revoked approving browser session
-cannot issue a block-app session from an unclaimed approval.
+cannot issue a be-host session from an unclaimed approval.
 
 ## Deploying
 
-`./scripts/deploy` builds be-server, `be` and block-app for every platform in release in one buck2 command
+`./scripts/deploy` builds be-server, `be` and be-host for every platform in release in one buck2 command
 (be-tool-local deploy, in crates/be-tool-local) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `data/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
   `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/pins`,
   which `./scripts/be` must match the server by (guides/tracker.md);
-- uploads block-app's downloads to `data/BUILD/app/` in the same zone, each read
+- uploads be-host's downloads to `data/BUILD/app/` in the same zone, each read
   back the same way: `:native` with its apps for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
   `be-tool-buck archive` into a folder of its own name, and `:android-release`,
@@ -115,7 +115,7 @@ continues to use its existing location until a successful deployment writes
 both the new build and `https://be3.pfg.pw/data`. Third-party tool mirrors remain
 on `lfs.pfg.pw`; they are independent of BE3 deployments.
 
-Configure these response headers in the Bunny pull zone before serving block-app's
+Configure these response headers in the Bunny pull zone before serving be-host's
 web build (they are CDN settings, not files that the uploader can set in storage):
 
 | Paths | Headers / caching |
@@ -131,7 +131,7 @@ types, especially `application/wasm` and JavaScript MIME types. Uploading an
 HTML entry point last avoids incomplete releases; long-lived versioned paths
 avoid mixing modules and apps from different builds. The public web bundle
 contains no gateway key. Visit `https://api.be3.pfg.pw/` to unlock the gateway;
-after setting its host-only cookie it redirects to block-app's web build. Keep the same
+after setting its host-only cookie it redirects to be-host's web build. Keep the same
 gateway secret when adding the new API hostname, and establish a new cookie
 there; the old host's cookie does not move between hosts.
 
@@ -181,7 +181,7 @@ Backups are scheduled on the host. `be-server backup` writes a backup and
 
 ## Never
 
-- Never run `CollectDetached` or `PruneHistory` against the server. block-app
+- Never run `CollectDetached` or `PruneHistory` against the server. be-host
   never sends them, and the backups never delete objects either.
 
 ## Proxy account credentials
@@ -196,16 +196,16 @@ the same account header on every request.
 
 The agent dialog's proxy checkbox omits the token from its JSON bundle and sets
 `authentication` to `proxy`. The recovery phrase stays in the bundle for local
-decryption. `BE3_AUTHORIZATION` and native block-app's gateway field now send
+decryption. `BE3_AUTHORIZATION` and native be-host's gateway field now send
 `Be3-Gateway-Authorization`; the host’s gateway rules must use that header. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-Remote accounts are added through the server's `/auth` portal. block-app begins a
+Remote accounts are added through the server's `/auth` portal. be-host begins a
 short-lived authorization request over its gateway-authorized connection and opens
 `/auth?code=...`. The user signs in or registers and verifies email, then approves the
 matching code. A remembered browser session usually needs only approval. The portal
 also accepts manually entered codes for another browser profile or a login session.
-block-app keeps its URL and code visible even when browser launch appears successful.
+be-host keeps its URL and code visible even when browser launch appears successful.
 The page uses server-rendered forms, same-origin POST checks and single-use form tokens
 bound to the browser credential. Field validation happens on submission; browser
 constraint validation and input length limits are disabled. Password-manager autocomplete
@@ -219,7 +219,7 @@ passes crates/be-server-portal-ui: beui styled components rendered with `render_
 HTML core. Only the executable depends on it, so the be-server library and its tests
 (which run with no portal) build on the native core and never wait on beui;
 `//crates/be-server-bin:bin` builds for `linux_x86_64_html` (`:bin` transitions there from
-any configuration, so `:dist`, deploy and block-app's web scripts get it unchanged).
+any configuration, so `:dist`, deploy and be-host's web scripts get it unchanged).
 be-server-portal-ui's own tests check what each page renders. Each page embeds its `Page` as JSON
 and loads be-server-portal-ui's hydration bundle, which adds live checks such as mismatched
 passwords; every form and link works before and without it. The executable embeds that
@@ -229,8 +229,8 @@ from their contents, with `Cache-Control: public, max-age=31536000, immutable`. 
 `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`,
 since the module's memory is shared, and a Content-Security-Policy that allows only the
 server's own scripts, `'wasm-unsafe-eval'` and the import map's hash. A server with no
-`Portal`, as every server embedded in a native program is (block-app's local server, and
-the servers be-block-frozen's and block-app's tests and be-host-bench drive the portal of), answers each `/auth` page with its
+`Portal`, as every server embedded in a native program is (be-host's local server, and
+the servers be-block-frozen's and be-host's tests and be-host-bench drive the portal of), answers each `/auth` page with its
 `Page` as JSON instead, with the same routes, redirects, cookies and form checks.
 To look at the portal locally: `./scripts/buck build //crates/be-server-bin:dist --show-output`,
 then run the staged `be-server --allow-login --allow-registration` and open

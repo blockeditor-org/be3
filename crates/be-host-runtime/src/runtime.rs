@@ -845,7 +845,7 @@ impl Runtime {
         match be_host_base::panic_guard::contain(|| act(self)) {
             Ok(done) => done,
             Err(panic) => {
-                self.crashed(format!("block-app failed while running it: {panic}"));
+                self.crashed(format!("be-host failed while running it: {panic}"));
                 R::default()
             }
         }

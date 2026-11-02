@@ -3,7 +3,7 @@ Measuring and profiling beui's performance, and the ideas already tried.
 1. Benchmarks
 
 `//crates/be-tool-bench:suite` is every benchmark in one directory, built in release whatever the
-command asks: the runner `be-tool-bench`, each benchmark program under `programs/`, and block-app
+command asks: the runner `be-tool-bench`, each benchmark program under `programs/`, and be-host
 with its apps for the end-to-end ones. `./scripts/buck run //crates/be-tool-bench:suite -- list`
 lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
 whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
@@ -13,7 +13,7 @@ it; adding one is a line in `BENCHMARKS` (crates/be-tool-bench/src/suite.rs) and
 suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
 `./scripts/buck run -m release`:
 
-- `//crates/be-host-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
+- `//crates/be-host-bench:bin` (the suite's `app-canvas-and-text`) runs be-host headless,
   driven as `drive` drives it (crates/be-tool-drive's `Driven`, guides/running/drive.md), against
   a be-server in its own process, with `BE_LATENCY=30` (guides/running/drive.md), so every
   round trip takes 30 ms more, and `BEUI_RENDERER=none`, so it measures the host's own work and
@@ -39,7 +39,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
   so dropping one it would have kept moves the points after it.
   It takes about three minutes; set the two sizes lower while working on it. It needs
-  `BLOCK_APP`, and `HOST_LIBRARIES` for the libraries the host loads, which the suite sets.
+  `BE_HOST`, and `HOST_LIBRARIES` for the libraries the host loads, which the suite sets.
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -96,7 +96,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   `compare BASE` alternates them with a suite built at BASE
   (`./scripts/buck build //crates/be-tool-bench:suite --out BASE` on the base) and prints each
   metric's fastest and median from both.
-- The suite's `app-canvas-and-text` (crates/be-host-bench) drives block-app headless with no GPU
+- The suite's `app-canvas-and-text` (crates/be-host-bench) drives be-host headless with no GPU
   (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
   through `BE_LATENCY`; the server is pinned to one core and the host to the others.
   It times what a person waits for: signing in, making, saving, closing, exporting and
@@ -222,7 +222,7 @@ or dump stacks to fold them yourself:
 - To see where allocations come from, probe malloc:
   `perf probe -x /lib/x86_64-linux-gnu/libc.so.6 malloc`, record with
   `-e probe_libc:malloc -g`, and `perf probe -d 'probe_libc:*'` afterwards.
-- To profile block-app itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
+- To profile be-host itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
   -m release //crates/be-host:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
   apps' compiled wasm has names, and record the running host with `perf record -g -p PID`
   around the `drive` commands being measured. Each app runs on a thread named
@@ -230,9 +230,9 @@ or dump stacks to fold them yourself:
   splits the report by app and `--comms 'app be3.data'` keeps one app's samples.
   Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
   scroll's or resize's samples; leave them out when judging the host's own work.
-  The block store's worker is the thread `block-app-be`, and `:dev`'s embedded server runs on
+  The block store's worker is the thread `be-host-be`, and `:dev`'s embedded server runs on
   `tokio-rt-worker` threads.
-- Time block-app's waits as well as its work: an import or a create that uses little CPU but
+- Time be-host's waits as well as its work: an import or a create that uses little CPU but
   takes long is waiting on round trips to the server, one after another. Run `drive hurry off`
   first (guides/running/drive.md): otherwise the host seals edits at once, and anything shown
   only once an edit is sealed looks faster under `drive` than in a window.
@@ -242,7 +242,7 @@ or dump stacks to fold them yourself:
   the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
   and `import` a generated CSV make a tracker of any size.
 
-4. Starting block-app
+4. Starting be-host
 
 Reopening the host should go straight from the page or window to the workspace the last
 session left, with every step that can overlap running at once. What keeps it that way:
@@ -282,7 +282,7 @@ session left, with every step that can overlap running at once. What keeps it th
 5. Size
 
 What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`:
-block-app, every app and type module, the two libraries (guides/app_libraries.md), and a
+be-host, every app and type module, the two libraries (guides/app_libraries.md), and a
 `.cwasm` of each. In October 2026 on Linux x86_64 that was 896 MB, 297 MB gzipped:
 
 - `.cwasm`, 595 MB (198 MB gzipped): Cranelift's machine code is about two and a half times
@@ -292,9 +292,9 @@ block-app, every app and type module, the two libraries (guides/app_libraries.md
 - `.wasm`, 198 MB: 151 MB of code, of which apps are most; each instantiates beui's and
   `beui-reactive`'s generics for its own types, which no library can hold. Type modules are
   standalone, 1.8 MB each, mostly `be-block-model`, `be-lib-sequence` and `be-sdk-type-guest` again.
-- block-app, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
+- be-host, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
 
-To see where it goes: `size -A` and `nm -S --size-sort -C` for block-app, twiggy
+To see where it goes: `size -A` and `nm -S --size-sort -C` for be-host, twiggy
 (`cargo install twiggy`, `twiggy top -n 100000 --format csv`) for a module, and
 `size -A` on a `.cwasm`, which is an ELF file. Attribute a generic instance to the
 innermost first-party type in its name, not to `core` or `alloc`: that is what put
@@ -303,9 +303,9 @@ functions (`probe_erased`, `Computation::new`'s `parts`), since every closure ty
 
 What is already in place: fat LTO with one codegen unit for the deploy only (`be3.lto`, a ten
 minute link), legacy symbol mangling in release (buck/platforms/profile.bzl) and the hashed
-export names of linked modules (guides/app_libraries.md). Thin LTO left block-app as it was,
+export names of linked modules (guides/app_libraries.md). Thin LTO left be-host as it was,
 and `opt-level=s` for wasm took a twentieth off the apps while growing both libraries and
-beui-gallery by four fifths. Stripping block-app's symbols or the modules' name sections
+beui-gallery by four fifths. Stripping be-host's symbols or the modules' name sections
 would take 24 MB and 27 MB more, but the panic guard's reports and a guest's backtrace read them.
 
 6. Ideas tried and set aside

@@ -1,6 +1,6 @@
 // The wasi thread-spawn call the module makes.
 //
-// block-app and every app are built for wasm32-wasip1-threads, so a
+// be-host and every app are built for wasm32-wasip1-threads, so a
 // std::thread::spawn reaches wasi-libc's pthread implementation, which asks the
 // host for a thread through the be-wasm-threads import "wasi"."thread-spawn". A
 // browser is not a be-wasm-threads host, so a thread is a Worker that instantiates

@@ -9,7 +9,7 @@ that build on it. VISION.md says why each part exists.
 (hyphens, never underscores), and its library is `//crates/NAME:NAME`, which
 `//crates/NAME` abbreviates. Its other targets (`:test`, `:bin`, `:module`,
 `:native` and the rest) sit beside it. A binary keeps its own name where it
-differs from the package's (`block-app` is built from `be-host`, `be` from
+differs from the package's (`be-host` is built from `be-host`, `be` from
 `be-tool-cli`). The name's prefix says which family a crate belongs to:
 
 - `be-app-*`: the apps, each a manifest.json describing its editors and block
@@ -22,7 +22,7 @@ differs from the package's (`block-app` is built from `be-host`, `be` from
   manifest, the framework-free guest library (`be-sdk`) and the beui one
   (`be-sdk-beui`), the libraries apps are linked against
   (`be-sdk-library-base` and `be-sdk-library-beui`) and the test harness.
-- `be-host-*`: block-app, the program apps run in. `be-host` is the binary on
+- `be-host-*`: be-host, the program apps run in. `be-host` is the binary on
   top of its parts, each a crate of its own so they build in parallel:
   `be-host-base` (the frame host, notices, the panic guard, platform requests,
   the host's state and the watches the host publishes; no beui), `be-host-services`

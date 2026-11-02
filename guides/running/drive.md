@@ -8,7 +8,7 @@ see a change working in the real program. Start it with its `:dev` target:
     source ~/.cache/be3/dev/env
     drive tree
 
-`:dev` exists for block-app (signed in, with the personal organization open on My files), beui-demo
+`:dev` exists for be-host (signed in, with the personal organization open on My files), beui-demo
 (`//crates/beui-demo:dev`, `~/.cache/be3/beui-demo/env`) and be-launcher
 (`//crates/be-tool-launcher:dev`). Each builds the program, starts it with no window and returns
 once it has settled; running it again restarts it, which is how to pick up a rebuild. The
@@ -46,7 +46,7 @@ variables (on every platform but Android, which reads none), so a program needs 
 own to be driven:
 
 - `BEUI_PLATFORM` picks the platform: the platform's own (`winit`) by default, one of the others
-  the program lists in `RunOptions::platforms` (block-app's `drm`), or `headless`. A
+  the program lists in `RunOptions::platforms` (be-host's `drm`), or `headless`. A
   name it does not know is an error that lists the ones it takes
   (`beui_runner::environment::choose`).
 - `BEUI_LAYERS` stacks layers between the platform and the program (guides/beui.md, "Layers"):
@@ -59,7 +59,7 @@ own to be driven:
   fullscreen window grows to; either is an error under another platform.
 - `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
   GPU at all (`beui_runner::renderer::NoRenderer`): every frame is laid out and painted as usual,
-  but nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app
+  but nothing draws the painting, so `drive paint` works and `drive shot` does not. be-host
   then gives its apps surfaces it does not render, so they run their frames without a GPU
   either. `none` needs the headless platform.
 - `BEUI_DRIVE_SOCKET=PATH` is the Unix socket the drive layer answers on; `BEUI_LAYERS` naming
@@ -106,7 +106,7 @@ and hands the program the listener (`BEUI_DRIVE_LISTENER`, its file descriptor),
 ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in buck/program/drive.bzl makes a crate's `:dev` target from it.
 Arguments after `--` go to the launcher, which passes on those it does not know:
 
-- `--fresh` deletes the program's data first (programs started with `--data`, which block-app is,
+- `--fresh` deletes the program's data first (programs started with `--data`, which be-host is,
   keep it in `~/.cache/be3/NAME/data` through `XDG_DATA_HOME`).
 - `--stop` stops it.
 - `--size=WIDTHxHEIGHT[@SCALE]` (1100x720 by default) and `--screen=WIDTHxHEIGHT` (1440x900).
@@ -121,7 +121,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   the UTC time zone, and moves it on with the program's clock, so `clock stop` stops it too.
   Without it the program runs on the real time in the machine's time zone. It sets
   `BEUI_HEADLESS_CLOCK=pinned` and `TZ=UTC`.
-- Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
+- Anything else, such as be-host's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/program.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a
@@ -129,11 +129,11 @@ directory of its own. Keep it short, such as `/tmp/be3-123`: the drive socket (`
 and a Unix socket's path fits in 107 bytes. `drive --socket=PATH` or `BE_DRIVE_SOCKET` picks
 the program a command goes to.
 
-block-app keeps a crash report from its last run in its data (`last-panic.txt`) and shows it
+be-host keeps a crash report from its last run in its data (`last-panic.txt`) and shows it
 on its error screen at the next start, which is where `:dev` then settles; `drive tree` reads
 it, and the next `:dev` starts normally, since the report is shown once.
 
-A program that hosts programs (block-app under `--desktop`, whose compositor is be-host-wayland)
+A program that hosts programs (be-host under `--desktop`, whose compositor is be-host-wayland)
 tells drive the variables a program needs to open its windows inside it (`Program::environment`):
 `drive exec PROGRAM [ARGUMENTS]` runs one with them, in the foreground with its output on the
 terminal (end the line with `&` to go on driving), and `eval "$(drive env)"` sets them in the
@@ -144,7 +144,7 @@ its clock pinned as `--pin-clock` pins it, and its output on its own, runs the c
 waits for the program to exit, and fails unless every command succeeded and the program exited
 cleanly. From Rust, `be_tool_drive::Driven` does the same: it starts a program with fresh data and
 its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/be-host-tests drives
-block-app (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
+be-host (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
 `BEUI_RENDERER=none`: frames are painted but no GPU draws them, so `paint` works and `screenshot`
 does not, and neither do the 3D view of `space` or the previews of blocks, which are textures.
 
@@ -162,7 +162,7 @@ does not, and neither do the 3D view of `space` or the previews of blocks, which
         Slider "Load" value=0.8 at 291,476 size 771x20
 
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
-out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each app region is a
+out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In be-host each app region is a
 `Pane` named after its app, holding the nodes its editor describes (guides/adding_an_app.md),
 so dialogs, the file tree and every editor read like the host's own controls. An app's menu,
 tooltip or popover that reaches past its frame (an anchored view, crates/be-sdk-api/PROTOCOL.md,
@@ -182,7 +182,7 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   along the hit path, innermost first, each with its kind, rect, test ids, the components it was
   made in and what it handles, then what forwarded input goes to and which overlays the press
   would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
-  document only; in block-app a press over an app ends at that app region's catcher.
+  document only; in be-host a press over an app ends at that app region's catcher.
 - `drive comps` prints the host document's component tree with module-qualified names, text
   leaves and `#test_id`s. Caller-supplied children appear beneath the component; components
   built by its body are hidden under `internals`. `drive comps --internals` includes those
@@ -197,9 +197,9 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   whether an animation waits for a stopped clock.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
-  each what the program ran elsewhere and reports through `Program::other_frames`, which in block-app is
+  each what the program ran elsewhere and reports through `Program::other_frames`, which in be-host is
   each app's steps by its id (a step takes the app's input, makes its edits and draws its
-  frame). A block-app frame waits for its apps only until its deadline, the next present less its own composite time, so a slower app step shows
+  frame). A be-host frame waits for its apps only until its deadline, the next present less its own composite time, so a slower app step shows
   only on the app's line. It is wall time, not the program's clock, so it is for benchmarks
   (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is
@@ -309,7 +309,7 @@ Every command that gives input waits until the program has settled and prints wh
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The program
-has settled once a frame asks for no other and `Program::busy` gives no reason; block-app is busy while an
+has settled once a frame asks for no other and `Program::busy` gives no reason; be-host is busy while an
 app is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 a view is shown at a size its app has yet to draw (cropped, guides/pan_and_zoom.md), while
 an editor on screen waits for its block's content, while an app's change arrived after the
@@ -347,7 +347,7 @@ when an animation was waiting for the stopped clock, as `drive state` does.
 Anything else waiting on time, such as an app's frame timeout or a type module's clock (which
 groups quick edits into one undo step), waits for `pause` too, and a frame waits for the apps it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 
-A driven program may take shortcuts a person never sees so that it settles sooner: block-app seals
+A driven program may take shortcuts a person never sees so that it settles sooner: be-host seals
 edits at once rather than after the pause a person's edits wait for. A program asks
 `Context::hurried` before taking one. `drive hurry off` turns them off until `drive hurry on`,
 so the program waits as it does in a window; time how long something takes to show with it off,
@@ -400,7 +400,7 @@ real one:
 
 `beui_layer_drive::Drive` is a `Layer` (guides/beui.md, "Layers") in the stack every platform's
 runner carries, so its input lands among the platform's own events, and everything above it -
-the document, block-app's app host, the Wayland compositor - runs as it does with a window.
+the document, be-host's app host, the Wayland compositor - runs as it does with a window.
 `Drive::new(inbox)` is one layer with the program above it; `Drive::taps(inbox, under)` is a tap
 under each layer `under` names, all sharing one session (`Rc<RefCell<Session>>`). The session
 takes each command in the lowest tap's `input`, starts it in the `input` of the tap it goes to,
@@ -408,7 +408,7 @@ steps its clock (in `Layer::now`) and answers it from the lowest tap's hooks. A 
 layer carries a named target down through the layers above it (`Above::from_program`) and sends
 physical pixels, as a platform does. The lowest tap stands in for the file and save dialogs
 (`pick_file`, `save_file`) and reads the clipboard and resizes through the services below it; the native run functions serve
-its `Inbox` on `BEUI_DRIVE_SOCKET` (`beui_layer_drive::socket`), and block-app's web build hands
+its `Inbox` on `BEUI_DRIVE_SOCKET` (`beui_layer_drive::socket`), and be-host's web build hands
 it one its `automate` export fills. A driven program keeps the accessibility tree a screen reader would get, as the program
 does in a window, but writes it out as text only when a command reads it (`tree`, a target, a
 `wait`, the changes it answers with), and then describes again only the nodes that changed

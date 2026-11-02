@@ -84,7 +84,7 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
     }
     while let Some(by) = steps.recv().await {
         let Some(device) = find(Path::new(DEVICES)) else {
-            eprintln!("block-app: there is no backlight in {DEVICES} to brighten or dim");
+            eprintln!("be-host: there is no backlight in {DEVICES} to brighten or dim");
             continue;
         };
         let target = stepped(device.brightness, device.max, by);
@@ -102,7 +102,7 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
                 )
                 .await;
             if let Err(error) = set {
-                eprintln!("block-app: logind did not set the brightness: {error}");
+                eprintln!("be-host: logind did not set the brightness: {error}");
                 continue;
             }
         }
@@ -115,7 +115,7 @@ async fn connect() -> Option<Proxy<'static>> {
     match Proxy::new(&connection, DESTINATION, SESSION, INTERFACE).await {
         Ok(proxy) => Some(proxy),
         Err(error) => {
-            eprintln!("block-app: logind's session is not reachable: {error}");
+            eprintln!("be-host: logind's session is not reachable: {error}");
             None
         }
     }

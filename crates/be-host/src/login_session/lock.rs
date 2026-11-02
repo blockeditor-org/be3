@@ -64,7 +64,7 @@ impl Lock {
         if self.locked {
             return false;
         }
-        eprintln!("block-app: locking the screen, for {}", trigger.reason());
+        eprintln!("be-host: locking the screen, for {}", trigger.reason());
         self.locked = true;
         self.attempt += 1;
         self.checking = false;
@@ -98,7 +98,7 @@ impl Lock {
         self.checking = false;
         match verdict {
             Verdict::Accepted => {
-                eprintln!("block-app: unlocked the screen");
+                eprintln!("be-host: unlocked the screen");
                 self.locked = false;
                 self.failures = 0;
                 self.retry_at = None;
@@ -112,7 +112,7 @@ impl Lock {
                 self.error = Some(reason);
             }
             Verdict::Failed(problem) => {
-                eprintln!("block-app: the password could not be checked: {problem}");
+                eprintln!("be-host: the password could not be checked: {problem}");
                 self.error = Some(format!("The password could not be checked: {problem}"));
             }
         }

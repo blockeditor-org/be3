@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn apps_in_use_persist_across_reopen() {
-    let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("be-host-state-{}.sqlite3", Uuid::new_v4()));
     {
         let store = HostStateStore::open(&path).unwrap();
         assert!(store.warm_apps().unwrap().is_empty());

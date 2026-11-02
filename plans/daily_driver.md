@@ -179,7 +179,7 @@ is left is marked below.
 
 - Done: seal locally on Android `onPause`, on desktop occlusion and on a
   hidden or left browser tab (`beui::App::lifecycle`, `Lifecycle::Background`,
-  which block-app answers with the non-blocking `be::backgrounded`), and
+  which be-host answers with the non-blocking `be::backgrounded`), and
   `be::retry_now` on foreground, focus and network changes (browser `online`,
   Android's default network callback).
 - Done: `status().unsaved` counts what closing would lose (unsealed replicas,
@@ -237,9 +237,9 @@ each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
 
 **Profile before guessing.** The list below comes from reading the code. Before
-working through items 3-8, profile the real block-app with a document of 10,000
+working through items 3-8, profile the real be-host with a document of 10,000
 lines of 200 words each (about 12 MB):
-- Generate it as a text block, open it in native block-app, and also measure on
+- Generate it as a text block, open it in native be-host, and also measure on
   Android.
 - Record a CPU profile (`perf` with frame pointers on Linux, or the
   `performance` module's frame timings) for each of: typing a character,

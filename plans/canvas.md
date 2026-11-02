@@ -200,7 +200,7 @@ can change freely until step 8.
   simulates pressure.
 - Geometry general enough for the vector profile's bezier paths, so that
   profile adds tools, not a second model.
-- Text is rich text. A be-block-model type stores rich text, so block-app can hold
+- Text is rich text. A be-block-model type stores rich text, so be-host can hold
   the rich text beui's editor already edits, and text shapes and labels use
   it. One document provider serves both the text editor and the canvas, so
   the canvas does not reimplement it (as the first attempt, PR #519, had to).

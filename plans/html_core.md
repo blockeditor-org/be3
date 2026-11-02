@@ -133,7 +133,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | `Overlay` | a layer anchored to a node, rect or point: placement, scrim, policy, level, focus trap, dismiss, keep-alive | 11 | 0 | 4 | 2 | CSS + top layer: `popover`/`<dialog>`, CSS anchor positioning with `position-try-fallbacks`, `::backdrop` for the scrim, `showModal()`/`inert` for `BlocksAll` and the trap | `Window` is an `Overlay` mode |
 | `Window` / `WindowHandle` | an `Overlay` that becomes an OS window where the platform opens windows | 0 | 0 | 4 | 4 | CSS (as an `Overlay`); the web opens no windows | Keep as a `beui-view` composition of `Overlay`, not a primitive |
 | `Interactive` | focus, keys, text, IME, paste, pointer, gestures, hit tests: 61 props | 23 | 0 | 4 | 22 | DOM events for focus (`tabindex`, `focus()`, `focusin/out`), keys, pointer (`setPointerCapture`), paste. IME through the hidden `<textarea>`, later EditContext. Custom hit tests (`hit_at`, `capture_at`, `gestures_at`, `drawing_at`, `claim_at`): **unclear** | Split; move gesture recognisers up (§4) |
-| `Embed` | reserves a rect for something composited outside the document, punches a hole, reports placement | 0 | 0 | 0 | 3 | **late** (placement via `ResizeObserver`); the content would be an iframe | Product-only (block-app, be-sdk-beui); apps are out of scope |
+| `Embed` | reserves a rect for something composited outside the document, punches a hole, reports placement | 0 | 0 | 0 | 3 | **late** (placement via `ResizeObserver`); the content would be an iframe | Product-only (be-host, be-sdk-beui); apps are out of scope |
 | `Portal` | shows a subtree it doesn't own, moving it without a rebuild | 2 | 0 | 2 | 3 | DOM: move the element (`moveBefore` keeps focus and iframe state) | — |
 | `BackHandler` | the innermost enabled handler gets Back and the back gesture | 2 | 1 | 0 | 3 | No layout. `popstate`/history and Escape; the back gesture has no web equivalent | A pass-through node for routing only: make it a hook like `on_key` |
 | `Shift` | moves its child by a vector without moving its box | 2 | 0 | 1 | 0 | CSS `transform: translate()` | `Frame` prop |
@@ -151,7 +151,7 @@ how outside code reaches `Interactive`, `Canvas`, `Layers` and `Drawing`.
 
 - `focus.rs` (`Focus`, `ImeCursor`, `focus_within`): the focusable half of
   `InteractiveNode` and the document's focus logic.
-- `focus_scope.rs` (`FocusScope`): pushed by overlay layers, and by block-app's
+- `focus_scope.rs` (`FocusScope`): pushed by overlay layers, and by be-host's
   compositor (`compositor/region.rs`) through `Document::push_focus_scope`, its
   only direct user.
 - `share.rs`: the weight-sharing algorithm `List` and `Grid` use.
@@ -228,7 +228,7 @@ With text editing shared, these go behind the text geometry API and base
 `be-sdk-test` (`input::typing::chord_name`, `renderer::Renderer`),
 `be-tool-local` (a doc string). None of it is base. The wider leak is
 `with_document`, which `beui_view::reactive` re-exports: 11 crate directories
-outside `beui-core` and `beui-view` call it (block-app, be-sdk-shell,
+outside `beui-core` and `beui-view` call it (be-host, be-sdk-shell,
 be-launcher, be-host-wayland, be-sdk-beui, three editors, beui-demo,
 beui-inspector), each reaching the native `Document`.
 
@@ -262,7 +262,7 @@ Patterns in unstyled, with the files that use them:
   `date_time_field.rs`): the hidden `<textarea>`, later EditContext.
 - **Focus ancestry** (`focus_ancestry`, command palette): walk
   `document.activeElement`'s parents.
-- **Focus scopes** (`push_focus_scope`): no unstyled user; block-app's
+- **Focus scopes** (`push_focus_scope`): no unstyled user; be-host's
   compositor only.
 
 Everything except IME maps onto DOM focus.
@@ -398,7 +398,7 @@ differ.
 
 - **A `--cfg beui_html` rustc flag, per buck platform.** Not a cargo feature:
   buck takes features from cargo's plan per platform, and the `wasi` plan
-  already unifies block-app's, beui-web-demo's and be-tool-paint-review-web's, so a
+  already unifies be-host's, beui-web-demo's and be-tool-paint-review-web's, so a
   feature turned on for one would turn on for all. A cfg is also exclusive by
   nature, so `beui-core` drops out of the HTML graph instead of linking unused.
   Two new target platforms in `buck/platforms/BUCK`, each the existing one
@@ -619,7 +619,7 @@ impl TextGeometry {           // Clone; each core's own type, same methods
     against the crate's headless `:dev` program, once normally and once with
     `BEUI_DELAY_MEASUREMENT=1`.
   - HTML: `beui-core-html` exports `automate(words)` (the page's `automate`,
-    as `?automation` already means for block-app): `tree` and `ids` from its
+    as `?automation` already means for be-host): `tree` and `ids` from its
     arena and `getBoundingClientRect`, in native's line format; `find TARGET`
     answers a rect; `wait`/`gone` poll each frame; `settle` waits for no
     frame pending. `buck/program/web-test.mjs`, sharing its command parsing with
@@ -636,7 +636,7 @@ impl TextGeometry {           // Clone; each core's own type, same methods
 
 ### The spike
 
-The screen is block-app's account picker, `AccountsScreen` in
+The screen is be-host's account picker, `AccountsScreen` in
 `crates/be-host/src/ui/onboarding.rs` ("Choose an account to continue.",
 account cards, "Add account"): the first screen a person signs in through,
 small, and still a real mix of `Scroll`, `Card`, `Button`, `MenuButton`,
@@ -646,7 +646,7 @@ small, and still a real mix of `Scroll`, `Card`, `Button`, `MenuButton`,
   `AccountRow`, into a new crate `be-host-accounts-ui`, taking
   `accounts: Memo<Vec<AccountRow>>`, `error: Memo<Option<String>>` and
   callbacks (`on_add`, `on_open`, `on_choose_organization`, `on_log_out`)
-  instead of `HostUiStore` and `send`. block-app passes those; a native
+  instead of `HostUiStore` and `send`. be-host passes those; a native
   painting test in the new crate keeps it from regressing.
 - `crates/beui-html-spike` builds it with two fixture accounts; `on_add`
   appends a third, which shows hydration left it live. Its `:ssr` binary
@@ -677,7 +677,7 @@ have landed; its tasks run in parallel unless marked.
    `on_back(handler)` hook; styled gains `Spacer` taking a `Space`; `Embed`
    moves to `beui::native`. Files: `crates/beui-view/src/components/{frame,shift,fade,turn,overlay,window,back,embed}.rs`,
    `crates/beui-core/src/base/{frame,shift,fade,turn,overlay,back,embed}.rs`,
-   their users in unstyled, styled, beui-demo, block-app, be-sdk-beui,
+   their users in unstyled, styled, beui-demo, be-host, be-sdk-beui,
    editors.
 3. **Measurement API (native).** `measure`, `measure_text`, `TextGeometry`
    with `lines`, delayed measurement; every caller in §2.2 moved to it;
@@ -698,7 +698,7 @@ have landed; its tasks run in parallel unless marked.
    there (or get a `beui-view` API where one is plainly missing). Files:
    `crates/beui-core/src/{base,base.rs,focus*,layout*}`,
    `crates/beui-view/src/{reactive.rs,nodes.rs}`, `crates/beui/src/lib.rs`,
-   block-app, be-sdk-shell, be-launcher, be-host-wayland, be-sdk-beui,
+   be-host, be-sdk-shell, be-launcher, be-host-wayland, be-sdk-beui,
    editors, beui-demo, beui-inspector.
 5. **Interactive.** Gesture recognisers (pan, zoom, scroll drag, autoscroll,
    secondary drag, touch drag axis) move to unstyled hooks over new raw
@@ -717,7 +717,7 @@ have landed; its tasks run in parallel unless marked.
    `Offset`, `Root`, pink `Drawing`, outlined stand-ins for the rest; the
    `beui` facade under HTML; BrowserSnapshot tests per primitive.
 7. **Spike** (after 6; parallel with 8–10). `be-host-accounts-ui`,
-   `crates/beui-html-spike` with `:ssr` and `:web`, block-app switched to the
+   `crates/beui-html-spike` with `:ssr` and `:web`, be-host switched to the
    extracted screen.
 8. **Shared behaviour tests** (after 6; parallel with 7, 9, 10).
    `automate` in `beui-core-html`, `buck/program/web-test.mjs`,
@@ -771,7 +771,7 @@ have landed; its tasks run in parallel unless marked.
   `use_keyboard()` is always true.
 - `Break`'s copy test across Firefox and WebKit (§5, Decided 4): the shared
   scripts run only in Chromium.
-- Porting block-app itself to the HTML core; it runs the native core with wgpu
+- Porting be-host itself to the HTML core; it runs the native core with wgpu
   on the web.
 - Web apps as iframes, which could run the HTML core.
 - `color_var!` is meant to be the only way to make a `ColorVar`, but

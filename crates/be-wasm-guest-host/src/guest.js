@@ -8,7 +8,7 @@
 //
 // On its own the worker answers be3_host and refuses any other import, which is
 // all a type module has. An app's start names an
-// extension, block-app's app.js, which instantiates the guest with its
+// extension, be-host's app.js, which instantiates the guest with its
 // libraries, WASI, threads and the gpu, answers what the worker does not,
 // handles the page's other messages and adds what it painted to each report.
 

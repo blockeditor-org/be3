@@ -41,7 +41,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
 - **Done.** **`unstyled::Dialog`** on top of `Modal`: Enter confirms unless the action is
   destructive or disabled (`DialogActions::enter`), Dialog or AlertDialog
   accessibility with the title as its label, confirm and cancel callbacks.
-  Make it placeable in a given rectangle and not only centred, so block-app
+  Make it placeable in a given rectangle and not only centred, so be-host
   can build keep-changes and the lock screen out of it (see §3).
   `DialogSurface` is `pub(crate)` today, so nothing outside styled can do
   that. It became `unstyled::Dialog` (the outer part, card or sheet) and
@@ -65,7 +65,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   moving out of beui (§3), but they still need it, in two different crates.
   All three used it until main's "a window per DRM display" (#696) removed
   screens from beui (`use_screens()` is gone; an overlay stays in its window).
-  `EveryScreen` and `ModalPlacement::AllScreens` were then deleted: block-app
+  `EveryScreen` and `ModalPlacement::AllScreens` were then deleted: be-host
   shows its keep-changes prompt and lock screen once per display window, and
   The desktop app's `LevelOsd` lays out one card per display rect from the host.
 - **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
@@ -108,12 +108,12 @@ into a new unstyled component, then rebuild the styled one on top of it.
 
 ## 3. Move components out of styled
 
-- **Done.** **`KeepChanges` → block-app.** It is a timed AlertDialog and only block-app's
+- **Done.** **`KeepChanges` → be-host.** It is a timed AlertDialog and only be-host's
   display settings use it. Once §1's Dialog exists, it should
-  be a few lines in block-app. Delete `styled::KeepChanges` and its demo page;
+  be a few lines in be-host. Delete `styled::KeepChanges` and its demo page;
   move its tests with it.
-- **Done.** **`LockScreen` → block-app.** Only block-app uses it (`ui/lock.rs`), and
-  nothing else ever would. Build it in block-app from styled pieces and §1's
+- **Done.** **`LockScreen` → be-host.** Only be-host uses it (`ui/lock.rs`), and
+  nothing else ever would. Build it in be-host from styled pieces and §1's
   `Modal` (one per display window).
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
   used only by the desktop app (`root/media.rs`), so move it there. It is in
@@ -142,7 +142,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   `a_query_no_program_matches_runs_as_a_command`, so it went; the reopening
   tests and the filter test now drive the palette. The palette's rows are
   `RowFace`s (`RowSize::Large`), which gained a `shortcut` slot for them.
-- **Done.** **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
+- **Done.** **`CrashNotice` and `StaleNotice` → be-host.** Only be-host uses them
   (`compositor/region.rs`, `surfaces.rs`). Their text is about apps.
   They are in `surfaces/notices.rs`.
 - **Done.** **`ThemeSelect` and `MotionSelect` → next to the settings editor** (the only
@@ -258,7 +258,7 @@ user that has no scroll, no disabled rows and no Page keys.
   it once the inspector is a dock. Left as `Tabs`: the app isn't a beui node
   the inspector's document can hold, so it can't be a dock pane without the
   dock learning to reserve a pane for an outside surface.
-- **Done.** **The block-app invite role is not tabs.** Editor/Administrator
+- **Done.** **The be-host invite role is not tabs.** Editor/Administrator
   (`be-host/src/ui/dialogs.rs:596`) is a form value. It moves to the
   segmented control below.
 - **Done.** **Keep these as `Tabs`:** the input-remaps Editor/TOML views
@@ -266,7 +266,7 @@ user that has no scroll, no disabled rows and no Page keys.
   Date/Time picker.
 - **Done.** **Add a styled segmented control** over `Choice`'s `Radio` kind, so it has
   radio semantics. Tabs switch a panel; a segmented control picks a value.
-  Move calendar's Day/Week/Month, be-launcher's Open/Closed and block-app's
+  Move calendar's Day/Week/Month, be-launcher's Open/Closed and be-host's
   invite role onto it. Today they use `Tabs` and report tab roles with no tab
   panel. It collapses into a Select when narrow, as `Tabs` does. Add it to
   beui-demo. It is `styled::SegmentedControl` (`options`, `selected: usize`,
@@ -315,7 +315,7 @@ face, which has shortcuts and a different highlight.
 ### 4.7 Dialog, Fullscreen and KeepChanges share Modal
 
 **Done.** These are covered by §1 and §3: `Dialog` and `Fullscreen` sit on
-`unstyled::Modal`, and block-app's keep-changes prompt is a `Dialog` with a
+`unstyled::Modal`, and be-host's keep-changes prompt is a `Dialog` with a
 countdown.
 
 ## 5. Remove appearance defaults from unstyled
@@ -468,7 +468,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   embedded-editor geometry (`be_sdk_ui::EMBEDDED_EDITOR_*`), the timeline's
   lane geometry and the hex view's measured size are `Space::Custom` and
   `Size::Custom`, since other code computes with the same pixels.
-- **Done.** block-app, be-sdk-shell, be-sdk-beui, be-sdk-test,
+- **Done.** be-host, be-sdk-shell, be-sdk-beui, be-sdk-test,
   paint-review, be-host-wayland and be-sdk-beui-platform's tests (be-tool-paint-review-web and
   beui-web-demo had nothing to move). None imports `unstyled::` any more, and
   they build without the §7 conversions.
@@ -801,7 +801,7 @@ Convert every use:
   `Wrap { at: Anywhere, .. }`.
 - Callers that rely on the old default and should be one-line labels get
   `Ellipsis`: `chip.rs`, `choice.rs`, `select.rs` around line 170,
-  `checkbox.rs`, and row labels in editors and block-app. Read each one;
+  `checkbox.rs`, and row labels in editors and be-host. Read each one;
   don't convert them blindly.
 
 Add paintings for wrap, for wrap with a maximum number of lines, and for
@@ -998,10 +998,10 @@ Problems earlier steps found in the beui crates, fixed at their source:
   as beui-terminal-view does); the dock's drop marker is a `Stroke`; painted
   corner radii are fitted to their rect, so `Radius::Full` paints as half the
   side.
-- **Done.** **Host test races.** A driven block-app's type modules used the
+- **Done.** **Host test races.** A driven be-host's type modules used the
   wall clock, so whether two typed words were one undo step depended on how
   long the machine took, and `drive pause` was invisible to them;
-  `be_block_type_host::hold_clock` now holds their clock while block-app's is
+  `be_block_type_host::hold_clock` now holds their clock while be-host's is
   stopped (`Modules::now` reads the held instant through the module host's
   `be_block_client::Clock`, which main's offline work passes in). The checklist test measured `#checklist.add` before the app
   had drawn it; it waits for it first.

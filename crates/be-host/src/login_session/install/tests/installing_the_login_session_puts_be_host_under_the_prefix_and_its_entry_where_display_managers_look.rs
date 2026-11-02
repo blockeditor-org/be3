@@ -1,27 +1,27 @@
 use super::*;
 
 #[test]
-fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_where_display_managers_look()
+fn installing_the_login_session_puts_be_host_under_the_prefix_and_its_entry_where_display_managers_look()
  {
-    let root = std::env::temp_dir().join(format!("block-app-install-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("be-host-install-{}", uuid::Uuid::new_v4()));
     let source = root.join("app");
     let prefix = root.join("prefix");
     let sessions = vec![
         root.join("usr/share/wayland-sessions"),
         root.join("lightdm"),
     ];
-    let old = prefix.join("share/wayland-sessions/block-app.desktop");
+    let old = prefix.join("share/wayland-sessions/be-host.desktop");
     std::fs::create_dir_all(old.parent().unwrap()).unwrap();
     std::fs::write(&old, "an older entry").unwrap();
     std::fs::create_dir_all(source.join("data/notes/files")).unwrap();
-    std::fs::write(source.join(EXECUTABLE), "block-app").unwrap();
+    std::fs::write(source.join(EXECUTABLE), "be-host").unwrap();
     std::fs::write(source.join("notes.app.json"), "{}").unwrap();
     std::fs::write(source.join("data/notes/files/readme.txt"), "hello").unwrap();
-    let stale = prefix.join("lib/block-app/stale.app.json");
+    let stale = prefix.join("lib/be-host/stale.app.json");
     std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
     std::fs::write(
-        prefix.join("lib/block-app").join(EXECUTABLE),
-        "an older block-app",
+        prefix.join("lib/be-host").join(EXECUTABLE),
+        "an older be-host",
     )
     .unwrap();
     std::fs::write(&stale, "{}").unwrap();
@@ -29,11 +29,11 @@ fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_wh
     let installed = place(&source, &prefix, &sessions).unwrap();
     place(&source, &prefix, &sessions).unwrap();
 
-    let home = prefix.join("lib/block-app");
+    let home = prefix.join("lib/be-host");
     assert_eq!(installed.home, home);
     assert_eq!(
         std::fs::read_to_string(home.join(EXECUTABLE)).unwrap(),
-        "block-app"
+        "be-host"
     );
     assert!(home.join("notes.app.json").is_file());
     assert_eq!(
@@ -42,12 +42,12 @@ fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_wh
     );
     assert!(!stale.exists(), "an app left from an older install is gone");
     assert_eq!(
-        std::fs::read_link(prefix.join("bin/block-app")).unwrap(),
+        std::fs::read_link(prefix.join("bin/be-host")).unwrap(),
         home.join(EXECUTABLE)
     );
     let entries: Vec<PathBuf> = sessions
         .iter()
-        .map(|dir| dir.join("block-app.desktop"))
+        .map(|dir| dir.join("be-host.desktop"))
         .collect();
     assert_eq!(installed.entries, entries);
     for entry in entries {

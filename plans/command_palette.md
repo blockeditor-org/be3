@@ -18,7 +18,7 @@ marked **(ask)** need a decision from the user during the work.
   `active_actions_from(focus_path)` lists the ones live where the focus is,
   innermost first, deduplicated by id. `styled::CommandPalette` takes its rows
   from that list when it opens, unless it is handed `PaletteItems::list(..)`.
-- **One focused instance in the host.** block-app keeps a single
+- **One focused instance in the host.** be-host keeps a single
   `host.focus: Option<Target>` (`be-host/src/host.rs`). Key, text and IME
   events go only to that instance (`app_host/input.rs`). The host also knows
   every child instance's parent, which is how `report_child_bars`
@@ -30,10 +30,10 @@ marked **(ask)** need a decision from the user during the work.
   `EditorMessage::ChildBar`, or the host. A new message follows the same path
   and touches the same files: `be-sdk-api` (`lib.rs` variant,
   `instance()`, `direction()`, and `block_ids.rs`), `be-sdk`
-  (`host.rs`, `editor_session.rs`, `screens.rs`), `block-app` (`instances.rs`,
+  (`host.rs`, `editor_session.rs`, `screens.rs`), `be-host` (`instances.rs`,
   `runtime.rs`, `editors/app.rs`, `editors.rs`) and the `be-sdk-test`
   harness.
-- **Host-level keys.** block-app takes F6/Shift+F6 and Escape before apps
+- **Host-level keys.** be-host takes F6/Shift+F6 and Escape before apps
   (`host::consume_key`), so it can take Ctrl+Shift+P the same way.
 
 ## The design
@@ -73,7 +73,7 @@ framework: an app written without beui can publish actions the same way.
 - `RunAction` resolves by id through `active_actions()` and calls `run()`.
 - The frame registers nothing new.
 
-### Host (block-app)
+### Host (be-host)
 
 - Keep the last `Actions` list per instance.
 - On Ctrl+Shift+P, walk from the focused instance up through its parents to
@@ -130,7 +130,7 @@ Recommend 1, limited to keys with Ctrl or Alt (**ask**).
 - `be-sdk-test`: a `BeuiTest` reports an app's published actions, follows
   a change in an action's enabled state, and runs an action from a
   `RunAction`.
-- block-app: with a text child focused inside a canvas inside the workspace,
+- be-host: with a text child focused inside a canvas inside the workspace,
   the palette lists all three instances' actions, innermost first, and running
   a canvas action from it reaches the canvas.
 

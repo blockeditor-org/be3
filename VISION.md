@@ -106,7 +106,7 @@ opens to your sheets and a button to make one. Not designed yet.
   than iOS today, so after the basic port its behaviour needs close attention:
   back navigation, sheets, long press, text selection and scrolling.
 - **The desktop.** If BE3 is the base of a computer, it has to be able to be the
-  computer. As a login session (`BEUI_PLATFORM=drm block-app --desktop`), block-app is a Wayland compositor whose shell is
+  computer. As a login session (`BEUI_PLATFORM=drm be-host --desktop`), be-host is a Wayland compositor whose shell is
   an app (`guides/desktop.md`, `guides/desktop/linux.md`). On Linux, a foreign file's own program
   can then open inside a tab; elsewhere it opens in a separate app, and web and
   Android can't open it at all.
@@ -166,7 +166,7 @@ readers see real content. beui keeps text editing its own in the first
 version, the same code on both cores (the browser's EditContext and password
 inputs may follow), and owns drawing, the escape hatch (`Drawing`) on both.
 Apps stay on canvas on the web for now, and later become iframes that could
-run the HTML core themselves. block-app itself is still drawn on the web until
+run the HTML core themselves. be-host itself is still drawn on the web until
 it moves to that core.
 
 **Why a session owner instead of a CRDT.** A single order makes merging, undo
@@ -199,14 +199,14 @@ view a canvas, not part of it. `plans/canvas.md` has the plan.
 Where you find and organize everything. The file tree is today's only entry
 point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
 `be sync` keeps a folder and a directory on disk in step both ways
-(`guides/sync.md`), so that block-app can one day hold its own source code while
+(`guides/sync.md`), so that be-host can one day hold its own source code while
 buck2, editors, CI and agents still read real files.
 
 ### Version control
 
 Version control is a powerful tool that only programmers get. The aim is to
 make it good and easy enough for anyone, and good enough that this repository
-could keep its source in block-app instead of git. Because collaboration is
+could keep its source in be-host instead of git. Because collaboration is
 already offline merges plus live edits, a third-party editor shouldn't need
 special support to get it.
 
@@ -303,7 +303,7 @@ engine.
 
 Paused. A system web view never worked well, so the tab only says that the host
 can't show web pages yet. A real browser means embedding Chromium, and would
-make sense once block-app can be your whole desktop. Sharing a tab, so someone
+make sense once be-host can be your whole desktop. Sharing a tab, so someone
 else sees your browser live, is one possible direction.
 
 ### Games
@@ -322,7 +322,7 @@ An experiment that might grow into a persistent VR world.
 ### Settings and the desktop shell
 
 Settings are blocks too, so they sync and can be shared like any other. The
-desktop shell is the editor that makes block-app a desktop.
+desktop shell is the editor that makes be-host a desktop.
 
 ### Terminal
 

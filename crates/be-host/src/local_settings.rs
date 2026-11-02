@@ -163,11 +163,11 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                     self.applied = Some(settings);
                 }
                 Err(error) => {
-                    eprintln!("block-app: the saved {name} settings are unreadable: {error}")
+                    eprintln!("be-host: the saved {name} settings are unreadable: {error}")
                 }
             },
             Ok(None) => {}
-            Err(error) => eprintln!("block-app: the saved {name} settings were not read: {error}"),
+            Err(error) => eprintln!("be-host: the saved {name} settings were not read: {error}"),
         }
     }
 
@@ -290,7 +290,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
     fn save(&self, store: &HostStateStore, settings: &R) {
         if let Err(error) = R::save(store, &Document::new(settings).encode()) {
             eprintln!(
-                "block-app: the {} settings were not saved on this device: {error}",
+                "be-host: the {} settings were not saved on this device: {error}",
                 <R as Layered>::NAME
             );
         }

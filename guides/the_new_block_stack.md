@@ -130,7 +130,7 @@ Content-addressed, encrypted object storage.
   owner sends one after every seal and, while it holds the session, every
   `HEARTBEAT_INTERVAL` (half of `LEASE_MILLISECONDS`) on its replica's own
   timer (`wake_at`), with `clean_at` set only while it has nothing unsealed. Its length is `ServerConfig::lease`; tests that claim pass zero
-  (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
+  (be-host's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
   so a claim never waits on the clock.
 - `clean_at` is the commit the owner last reported its state durable at. It
   outlives the session going empty (see `sessions::forgettable`), so a peer
@@ -470,7 +470,7 @@ stopped forwarding) and the transport never says so:
   buffer so that takes megabytes, not tens of them). `count(predicate)` counts
   the calls the client starts whose method id matches from then on (a `watch`
   of the count; the ids are `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so
-  a test waits for a ping or a heartbeat to be sent. The block-app
+  a test waits for a ping or a heartbeat to be sent. The be-host
   `Harness::miss_a_ping` advances the manual clock to each `Connection::due()`
   until the connection gives up.
 
@@ -535,7 +535,7 @@ leaving, makes its first seal a reload for the same reason.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
 own (`Command::Stash`), so the merge commit has both sides as parents and neither
-is lost, and reports a `be_block_type_host::Conflict` to its host. block-app keeps
+is lost, and reports a `be_block_type_host::Conflict` to its host. be-host keeps
 it per block (`be_host_stack::conflicts`) and shows a notice on the block whose "See both
 versions" previews the two sides as revision previews; keeping the merge or
 restoring one side clears it. A session message
@@ -916,7 +916,7 @@ removes the directory when dropped; see `Harness` in
 own tests do the same through the embedded server, register an account and
 create an organization, and then start the host's peer against it the way the host
 does: `Harness` in `crates/be-host-stack/src/tests.rs`. The crates above the
-stack (the app host, block-app) test against it through `be-host-testing`'s
+stack (the app host, be-host) test against it through `be-host-testing`'s
 `Harness`, which turns on be-host-stack's `testing` feature and serves the
 first-party types in process (`be_host_stack::testing::serve_in_process`), as
 the stack's own tests do under `cfg(test)`.
@@ -973,7 +973,7 @@ host deletes `app-cache/` whenever its build id changes; it keeps
 
 `crates/be-host-stack/src/worker.rs` is the peer's loop and
 `be_block_type_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
-`be-host-stack/src/replicas.rs` is block-app's `Host`, where reports land in `Shared`) the host
+`be-host-stack/src/replicas.rs` is be-host's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, constructs the `replica` with the head and calls `head-moved` for
 a later one), answers its calls with the real primitives (`read`, `publish` through
@@ -1146,7 +1146,7 @@ the references it publishes with the block (`Publish`, and `CreateBlock` and
 `KnowExists` see them as they see content's, and a parent holds a child its
 metadata points to (a settings block, an edit kind). They are not the block's
 children, though: the host hands apps only what the content refers to, as
-`BlockInfo::references` and `BlockQuery::References` (block-app `Node::contents`),
+`BlockInfo::references` and `BlockQuery::References` (be-host `Node::contents`),
 so a canvas or a folder never lists the tags or settings its metadata names; read
 those from the metadata, and `BlockQuery::Backrefs` finds the blocks pointing to
 one either way. `BlockMetadata::name` is `NAME` when someone named the
@@ -1530,7 +1530,7 @@ Display settings may not until someone keeps them: a change of mode that moves w
 connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
 other than its preferred one that this device never kept it at (an untried fastest default, or
 a mode another device chose for that monitor), opens the host's "Keep these display
-settings?" prompt (block-app's `ui/keep_changes.rs`, an alert on every screen) in
+settings?" prompt (be-host's `ui/keep_changes.rs`, an alert on every screen) in
 `display::guard`. It is the host's because it must work before any shell app
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
@@ -1630,7 +1630,7 @@ Each account keeps what is its own in an organization under one top-level
 `Settings` block it authored. Every reader finds it by its author: an organization
 administrator can see every block, including other accounts' `Settings`, and
 nothing may pick those up. `root_settings::own_settings_blocks` (apps) and
-`RootSettings::owned` (block-app) list the account's own, and when two devices
+`RootSettings::owned` (be-host) list the account's own, and when two devices
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
@@ -1666,7 +1666,7 @@ Each kind of setting (`InputSettings`, `DisplaySettings`,
 - A settings profile is a `SettingsProfile` block, a child of the `Settings`
   block listed in its `profiles`, with `kinds` of its own and a `class`, the kind
   of device (`DeviceClass`: Desktop, Phone, Tablet, E-paper tablet). Each device
-  (`device_profiles`, keyed by the client id) uses one, and block-app makes one
+  (`device_profiles`, keyed by the client id) uses one, and be-host makes one
   the first time a device opens the organization, named after its class ("Browser"
   on the web).
 
@@ -1738,7 +1738,7 @@ rule. Every write goes through it: in an app through
 `be_sdk_beui::LayeredSettings` (`this_device(editor)`, or `page(editor)` for a
 kind's editor, which acts on this device when opened on the every-device block and on
 just its own block when opened on a profile's), which makes the every-device or
-profile block when it is missing; in block-app through `display::keep` and `revert`.
+profile block when it is missing; in be-host through `display::keep` and `revert`.
 Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this device
 (`<id>.keep`, a checked item that copies the value in use, or the default, into the
 profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
@@ -1753,7 +1753,7 @@ one toast per visit to a page naming what now applies on every device ("Theme, s
 and 1 more now apply on your devices") with Keep on this device only, which moves those
 values into the profile and puts the every-device ones back, and Undo.
 
-A device's class is known before its profile is made: block-app's
+A device's class is known before its profile is made: be-host's
 `root_settings::device_class` says E-paper tablet when the session found an e-paper
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
@@ -1787,12 +1787,12 @@ device when there is none yet (`RootSetting::ensure`).
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
 workspace-ui (`WORKSPACE_EDITOR`), or the desktop app (`DESKTOP_EDITOR`) for
-a client run as the desktop with `block-app --desktop`. `Settings::sessions`
+a client run as the desktop with `be-host --desktop`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the workspace shell each keep their own while
 sharing the device's settings profile. The host opens the shell on that session,
 creating one named after the device when the client has none, and reopens the
-shell when it changes. block-app's sessions screen (the organization list's
+shell when it changes. be-host's sessions screen (the organization list's
 dropdown, or Sessions and profiles in the host's menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
 layout and recents in the session's state; every tab, and the file tree, is a
@@ -1833,7 +1833,7 @@ postcard). One that does not decode is never replaced silently: `Workspace` buil
 nothing from it, saves nothing (`unreadable_layout()` holds the report), and
 `WorkspaceDialogs` shows an alert (`workspace.layout`) with Copy report, Exit and
 Reset layout. Reset starts a fresh layout and saves it over the old bytes. Exit
-(`Workspace::exit`) sends `close-editor` for the shell's own block: block-app
+(`Workspace::exit`) sends `close-editor` for the shell's own block: be-host
 closes for the session it shows itself (logging out in a login
 session), and for a session shown in a window of another shell routes
 `shell-dialog::close` to that shell, which closes the tab. Either way the saved

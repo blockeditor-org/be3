@@ -1,7 +1,7 @@
 import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
             import { bindMemory as bindEnvironmentMemory } from "./env.js";
             import { bindThreads } from "./threads.js";
-            import init, { run_web } from "./block_app_lib.js";
+            import init, { run_web } from "./be_host.js";
 
             const status = document.getElementById("status");
 
@@ -94,7 +94,7 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 await ownTheFiles();
                 navigator.storage?.persist?.().catch(() => {});
                 const files = await startFiles();
-                const module = await WebAssembly.compileStreaming(fetch("./block_app_lib_bg.wasm"));
+                const module = await WebAssembly.compileStreaming(fetch("./be_host_bg.wasm"));
                 const wasm = await init({ module_or_path: module });
                 // The glue runs the module's start function before returning,
                 // so this is the earliest the shims can be given memory.

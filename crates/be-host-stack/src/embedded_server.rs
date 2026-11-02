@@ -35,7 +35,7 @@ pub fn start_embedded_server_at(
     let address = listener.local_addr()?;
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
     let thread = thread::Builder::new()
-        .name("block-app-server".into())
+        .name("be-host-server".into())
         .spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()

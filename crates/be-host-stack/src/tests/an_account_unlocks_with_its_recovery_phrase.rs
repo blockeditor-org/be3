@@ -48,7 +48,7 @@ fn an_account_unlocks_with_its_recovery_phrase() {
         .expect("the account's own phrase unlocks it");
     assert!(!state.needs_unlock(Some(secret)));
 
-    let elsewhere = std::env::temp_dir().join(format!("block-app-be-unlocked-{}", Uuid::new_v4()));
+    let elsewhere = std::env::temp_dir().join(format!("be-host-be-unlocked-{}", Uuid::new_v4()));
     start(Config {
         identity: secret,
         ..harness.config(elsewhere.clone())

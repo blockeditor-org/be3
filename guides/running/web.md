@@ -67,7 +67,7 @@ not go through it: the browser gives it, from Playwright. crates/beui-tests' `:w
 does that for its scripts (guides/testing_a_gui.md, 7), with buck/program/web-test.mjs, which
 shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/program/drive-words.mjs).
 
-crates/beui-html-spike is block-app's account picker (crates/be-host-accounts-ui) on that core,
+crates/beui-html-spike is be-host's account picker (crates/be-host-accounts-ui) on that core,
 prerendered natively and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
 serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
@@ -119,7 +119,7 @@ canvas is shown.
 
 ## Files and offline
 
-The web build keeps the same files as block-app does natively, under `/block` in the
+The web build keeps the same files as be-host does natively, under `/block` in the
 origin private file system: `host.sqlite3`, the refs database and `be-objects`.
 The module reaches them through ordinary WASI file calls; `web/wasi.js`
 forwards every call on a descriptor other than the standard streams to

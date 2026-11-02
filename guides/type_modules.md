@@ -1,12 +1,12 @@
 # Type modules
 
-A block type is moving out of block-app into an app's *type module*: a pure wasm
+A block type is moving out of be-host into an app's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through typed operations. Two crates
-define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
+define it, and a third hosts it. be-host's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the host holds content";
 "Hosts" below): each app that brings types names its module in its manifest's
-`block_types` (guides/adding_a_block.md), and the types block-app applies itself
+`block_types` (guides/adding_a_block.md), and the types be-host applies itself
 (`crates/be-sdk-type-host`) run in process.
 
 - `crates/be-sdk-type-api`: the protocol between a host and a type module, as the WIT
@@ -258,7 +258,7 @@ takes a file by name and first bytes, or with `directory` a new directory), and
 `apply` (a `child` or `from-file` change made to content bytes, or to the type's
 default for `none`, answered with the new bytes, or none when it does not apply),
 which is how a host that publishes commits rather than joining a session edits a
-block: be sync, and block-app's version control when it lists a checkout in its
+block: be sync, and be-host's version control when it lists a checkout in its
 parent (`Replicas::apply`, then `describe` and `Peer::write`). An unknown type
 is `failure.unknown-type`, content that does not decode `failure.malformed`.
 
@@ -432,7 +432,7 @@ form each type has. The order is the order `claims` asks in. A type that takes a
 file (the workspace app's file type) sets `ANY_FILE` on its `BlobFile` or
 `DocumentFile`, and answers only a `claims` with `fallback`: a host asks every
 module without it first, then every module with it (`Modules::claim_requests`,
-which both `be sync` and block-app's import of a picked file follow, so one rule
+which both `be sync` and be-host's import of a picked file follow, so one rule
 decides what a file becomes).
 
 `Module` implements the generated `guest::exports::replicas::Guest` (its stateless
@@ -506,18 +506,18 @@ wasmtime and in process in tests:
   frames for an editor, status, description, history, conflicts) and how it
   spawns IO, each an associated function of the host's shared state.
 
-Where the modules come from: block-app stages each app's type module (and its
+Where the modules come from: be-host stages each app's type module (and its
 `.cwasm` and `.sha256`) beside the app; `be` (and so `be sync`) carries every
 app's manifest and type module in its executable as one bundle
 (`APP_TYPES`, buck/program's `type_bundle`, read by `be_tool_cli::apps`), so its
 release stays the one file guides/bootstrap.md pins, compiles them once into
 `BE3_CACHE/modules` through wasmtime's cache, and runs one module per app
-that has one, as block-app does; the manifests also name the
+that has one, as be-host does; the manifests also name the
 types its own short names (`blocks::type_name`) do not cover. A host gives each
 app's `Source` the types its manifest declares (`Source::declaring`): `Modules`
 registers only those of the types that module lists, and no module takes a type
 another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
-and a block-app built from one tree share sessions. Tests and examples of a host run
+and a be-host built from one tree share sessions. Tests and examples of a host run
 every first-party types crate in process with `be_type_bundle::sources()`
 (`crates/be-type-bundle`), named by app id and declaring each module's types.

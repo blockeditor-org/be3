@@ -3,7 +3,7 @@ load("@root//buck/program:defs.bzl", "prerendered_page", "program")
 load("@root//buck/program:drive.bzl", "web_drive_test")
 load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
 
-# block-app's account picker (crates/be-host-accounts-ui) on beui's HTML core,
+# be-host's account picker (crates/be-host-accounts-ui) on beui's HTML core,
 # with fixture accounts: :ssr renders the page on the host, and :web's module
 # hydrates it in the browser. `./scripts/buck run //crates/beui-html-spike:web`
 # serves it with Caddy on http://127.0.0.1:8060, or on the address after `--`.

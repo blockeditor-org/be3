@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_panic_before_the_end_of_the_log_is_still_reported() {
     let mut log = vec![
-        "block-app: started".to_owned(),
-        "block-app: thread 'be' panicked: panicked at crates/be-host/src/be.rs:1:1:".to_owned(),
+        "be-host: started".to_owned(),
+        "be-host: thread 'be' panicked: panicked at crates/be-host/src/be.rs:1:1:".to_owned(),
         "the replica was gone".to_owned(),
         String::new(),
     ];
@@ -15,7 +15,7 @@ fn a_panic_before_the_end_of_the_log_is_still_reported() {
         "the panic and its message are reported, got {report}"
     );
     assert!(
-        !report.contains("block-app: started"),
+        !report.contains("be-host: started"),
         "only the panic is taken from before the tail"
     );
     assert!(report.ends_with("  99: a backtrace frame"));

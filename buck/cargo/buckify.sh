@@ -71,7 +71,7 @@ for manifest in crates/be-type-*/Cargo.toml; do
 done
 
 # The builds buck2 stands in for, as cargo would be asked for them: the host
-# (without the wasm-only crates), block-app, beui's DOM
+# (without the wasm-only crates), be-host, beui's DOM
 # demo, the paint review page and beui-html's live DOM for the web, the apps, beui's demo and the
 # paint review, whose tests paint as an app's do (a plan of their own: they
 # want a different wgpu), the games, the gpu shim, the remap module and the

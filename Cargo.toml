@@ -331,7 +331,7 @@ overflow-checks = false
 
 # The server hashes every password it registers or checks with Argon2, which
 # unoptimised took half a second: most of what starting a test's server and
-# account cost, paid by every block-app and app test.
+# account cost, paid by every be-host and app test.
 
 [profile.dev.package.argon2]
 opt-level = 2

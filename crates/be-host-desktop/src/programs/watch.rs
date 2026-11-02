@@ -24,7 +24,7 @@ impl Watch {
         let watcher = match watcher {
             Ok(watcher) => Some(watcher),
             Err(error) => {
-                eprintln!("block-app: files open in programs are not watched: {error}");
+                eprintln!("be-host: files open in programs are not watched: {error}");
                 None
             }
         };
@@ -48,7 +48,7 @@ impl Watch {
         if let Some(watcher) = &mut self.watcher
             && let Err(error) = watcher.watch(dir, RecursiveMode::NonRecursive)
         {
-            eprintln!("block-app: {} is not watched: {error}", dir.display());
+            eprintln!("be-host: {} is not watched: {error}", dir.display());
         }
     }
 

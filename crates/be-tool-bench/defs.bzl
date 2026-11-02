@@ -1,11 +1,11 @@
 # The benchmark suite as one directory (guides/performance.md): the runner as
-# `bench`, each benchmark under programs/ by name, and block-app with every
+# `bench`, each benchmark under programs/ by name, and be-host with every
 # app, and the libraries it loads, for the end-to-end benchmarks. `buck2
 # build --out DIR` keeps a build of it to compare another against.
 def _suite_impl(ctx: AnalysisContext) -> list[Provider]:
     contents = {
         "bench": ctx.attrs.runner[DefaultInfo].default_outputs[0],
-        "block-app": ctx.attrs.host[DefaultInfo].default_outputs[0],
+        "be-host": ctx.attrs.host[DefaultInfo].default_outputs[0],
         "lib": ctx.attrs.libraries[DefaultInfo].default_outputs[0],
     }
     for name, program in ctx.attrs.programs.items():

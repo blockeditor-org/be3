@@ -28,7 +28,7 @@ fn hook(info: &std::panic::PanicHookInfo<'_>) {
     #[cfg(target_arch = "wasm32")]
     web_sys::console::error_1(&format!("Block's thread '{name}' {what}: {report}").into());
     #[cfg(not(target_arch = "wasm32"))]
-    eprintln!("block-app: thread '{name}' {what}: {report}");
+    eprintln!("be-host: thread '{name}' {what}: {report}");
     if contained {
         return;
     }

@@ -64,7 +64,7 @@ window capture listener is F6 and Shift+F6 (cut with the window); the first
 window bubble listener asks the innermost dismissable layer around the focus to
 close on Escape (see the beui guide; a key bound for a program never gets that
 far, so a window capture listener that wants Escape over a program asks
-`Document::escape_layer` and `dismiss_overlay` itself, as block-app's
+`Document::escape_layer` and `dismiss_overlay` itself, as be-host's
 presentation mode does); and the last host bubble listener is Tab,
 Escape (which cancels a held activation) and Back. So a window listener for
 Escape hears it only when no layer took it. Ctrl+V asks the host for a paste
@@ -250,8 +250,8 @@ while it has the focus, the window is cut from the path, so window listeners
 and taps leave its keys alone and F6 does not move the focus, and all of them
 reach the program. Only host listeners - `.at(KeyAt::Host).capture()` actions -
 still answer, and only the host's own are ever offered an inhibited key:
-block-app's intercept handler is a window listener, so it hands an app
-nothing while it is set. The host is kept small and fixed: block-app's Super+L
+be-host's intercept handler is a window listener, so it hands an app
+nothing while it is set. The host is kept small and fixed: be-host's Super+L
 lock and be-host-wayland's Super+Escape, which takes the shortcuts back from the
 window (see guides/desktop/linux.md).
 
@@ -265,7 +265,7 @@ program, and hands each press it takes, its repeats and its release back as an
 capture listeners as a key bound for a program and which reaches nothing else. The host goes on sending the held
 modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how the desktop app's
-Alt+Tab works over any window. block-app takes intercepted keys only from the
+Alt+Tab works over any window. be-host takes intercepted keys only from the
 shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
 chord goes the same way as `Input::InterceptedTap`, but only while the
 view does not have the keyboard itself, since it then hears the key and
@@ -274,7 +274,7 @@ counts the tap on its own; the release still reaches whatever had the focus.
 A document with a layer open that traps focus
 (`Layers::takes_keyboard`, such as a dialog, a popover or the command palette) reports `WindowRequests::wants_keyboard`, which the
 runner hands to `Platform::show_window`. An app passes it on as
-`WindowRequests::wants_keyboard` (guides/adding_an_app.md), and block-app's view then takes the focus from
+`WindowRequests::wants_keyboard` (guides/adding_an_app.md), and be-host's view then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when
 the overlay closes, so a dialog an app opens from an intercepted key can be
 typed into.
@@ -310,7 +310,7 @@ button.
 
 ## One input path
 
-Every embedded editor - an app's view, and in `block-app --desktop` each
+Every embedded editor - an app's view, and in `be-host --desktop` each
 Wayland program's window - is a forwarding catcher: an
 `Interactive` with `on_forward` (and `hit_area` for the points it takes),
 handed what beui routes to it as a `ForwardedInput`: the pointer events beui
@@ -358,7 +358,7 @@ What one event goes through, in order:
    also counts the fingers for pinches and two-finger gestures), and moves the
    focus.
 4. Keys, one at a time along the focus path (How a key travels, above): host
-   and window listeners first (capturing actions, and in block-app the shell
+   and window listeners first (capturing actions, and in be-host the shell
    app's intercepted chords, `compositor/intercept.rs`), then F6 and
    Shift+F6, which move the focus between forwarding catchers. A key one of
    them takes is gone, physical key and text with it, and so are its repeats and

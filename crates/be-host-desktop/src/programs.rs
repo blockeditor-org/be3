@@ -358,7 +358,7 @@ impl Programs {
             }
             Err(problem) => {
                 eprintln!(
-                    "block-app: block {block} was not written out for its program: {problem}"
+                    "be-host: block {block} was not written out for its program: {problem}"
                 );
                 Stage::Failed(problem)
             }
@@ -495,7 +495,7 @@ impl Programs {
         be_host_stack::from_file(block, block_type, name, bytes);
         if let Err(error) = files::record(&disk.path, stamp) {
             eprintln!(
-                "block-app: what was taken back from {} was not recorded: {error}",
+                "be-host: what was taken back from {} was not recorded: {error}",
                 disk.path.display()
             );
         }

@@ -52,7 +52,7 @@ sqlite_materializer_state = true
 # lacks, one FindMissingBlobs call at a time, and remembers the answer only
 # for as long as the daemon lives. A crate's test links against the toolchain,
 # the sysroot and every dependency's rlib, tens of thousands of files, so at
-# buck2's default of 100 a call, block-app's first test after a daemon starts
+# buck2's default of 100 a call, be-host's first test after a daemon starts
 # waited half a minute on hundreds of round trips through the proxy before it
 # compiled.
 [buck2_re_client]

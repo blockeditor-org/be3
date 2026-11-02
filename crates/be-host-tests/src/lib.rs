@@ -44,8 +44,8 @@ impl HostTest {
 
     fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
         let started = Instant::now();
-        let program = std::env::var("BLOCK_APP")
-            .expect("BLOCK_APP names the host to test; run these through ./scripts/buck test //crates/be-host-tests:test");
+        let program = std::env::var("BE_HOST")
+            .expect("BE_HOST names the host to test; run these through ./scripts/buck test //crates/be-host-tests:test");
         let mut all = vec!["--dev-workspace"];
         all.extend_from_slice(arguments);
         let host = Driven::start(

@@ -25,7 +25,7 @@ cargo_example("instantiate")
 
 # The standalone guest (src/tests/standalone.wat, which the tests above run on
 # wasmtime) in Chromium: assembled into a module, and run by be-wasm-guest-host's
-# guest.js with block-app's app.js against be-wasm-gpu-shim, which
+# guest.js with be-host's app.js against be-wasm-gpu-shim, which
 # wasm-bindgen prepares as the web bundle does, in a page that checks what it
 # painted (web/standalone.js).
 genrule(

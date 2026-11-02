@@ -5016,13 +5016,13 @@ crates = {
         "binaries": [
             {
                 "crate_root": "src/desktop.rs",
-                "name": "block-app",
+                "name": "be-host",
             },
         ],
         "edition": "2024",
         "examples": [],
         "library": {
-            "crate": "block_app_lib",
+            "crate": "be_host",
             "crate_root": "src/main.rs",
             "proc_macro": False,
         },
@@ -5030,7 +5030,7 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5099,7 +5099,7 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5176,7 +5176,7 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5253,7 +5253,7 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5320,7 +5320,7 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5423,7 +5423,7 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
@@ -5490,7 +5490,7 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {
-                    "block-app": [
+                    "be-host": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",

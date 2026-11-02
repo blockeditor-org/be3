@@ -12,7 +12,7 @@ cargo_test()
 cargo_binary(name = "native")
 
 # The launcher on Android installs the APKs the build helper builds and signs
-# with CI's keystore: block-app's `:android-dist` (`com.be3.block.ci`), and the
+# with CI's keystore: be-host's `:android-dist` (`com.be3.block.ci`), and the
 # launcher's own. As with the app, that APK has an id and label of its own, so
 # that it installs beside a local build rather than colliding with it.
 # `./scripts/buck run //crates/be-tool-launcher:android -- --install` signs the

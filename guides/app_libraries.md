@@ -203,7 +203,7 @@ be-wasm-host; one wasmtime engine per cache directory), so every app after the f
 compiles itself. `Host::load_from` takes a reader that hands back each
 module as a `Stored`: a file (`Stored::file`), whose `.cwasm` wasmtime maps rather than copies,
 or bytes already in memory, as Android's assets are. be-host-stack's `discovery::open` is
-block-app's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each app's worker fetches each library and compiles it with
+be-host's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each app's worker fetches each library and compiles it with
 `WebAssembly.compileStreaming`, which lets the browser cache the compiled code for the next worker
 that fetches the same file; the server has to give `.wasm` the `application/wasm` type for that,
 and `fetchLibrary` compiles the bytes it hashed otherwise.
@@ -283,7 +283,7 @@ of immediate data and `clear_texture`, say they are not in browser WebGPU.
 
 `features` and `limits` in the WIT are the host device's: its optional features that
 browser WebGPU has (`convert::FEATURES` in be-wasm-gpu-host, which leaves out immediate
-data), and its WebGPU limits. block-app's device asks its adapter for those features
+data), and its WebGPU limits. be-host's device asks its adapter for those features
 (`browser_features` in beui-renderer-wgpu), as the shim's device does in a browser.
 `be_wasm_gpu_guest::features()` and `limits()` read them, and an app gets its device
 from `be_wasm_gpu_guest::request_device`, which refuses features and limits beyond them
@@ -339,7 +339,7 @@ handles to nothing), writes, submits and maps, and reports no errors, until the 
 requests a device again (`request-device`, which `be_wasm_gpu_guest::request_device` calls).
 `device-lost` answers why the device was lost, and the guest's poll calls the lost callback
 with it. A device lost by the host reaches the app only where the app is the device's
-only user: the shim's `Gpu::owning_device` takes the device's lost callback. Natively block-app
+only user: the shim's `Gpu::owning_device` takes the device's lost callback. Natively be-host
 shares its device, keeps its own lost callback, and restarts every app on its new device
 (`replace_gpu`). Debug markers and groups reach the host on encoders and passes; a pass's take
 the label as the pointer and length of its UTF-8 in the app's memory (a `string` parameter
@@ -389,7 +389,7 @@ guest share:
   embeds and starts as a blob worker, so it needs no file served. It answers `be3_host` and
   the step, report and wake messages with frames moved as transferable
   buffers, and refuses any other import, which is all a pure guest needs. An editor's start
-  names an extension, block-app's `app.js`, served beside block-app, which instantiates the
+  names an extension, be-host's `app.js`, served beside be-host, which instantiates the
   app with its libraries, WASI, threads and be-wasm-gpu-shim, answers the rest of its imports,
   takes the page's canvas and picture messages (`WebGuest::post`; held until the guest is
   running) and adds `painted`, `pictures`, `gpu` and `submit` to each report, which `P`

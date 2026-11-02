@@ -3,9 +3,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const ENTRY: &str = include_str!("block-app.desktop");
+const ENTRY: &str = include_str!("be-host.desktop");
 const PAM_DIR: &str = super::pam::DIR;
-const EXECUTABLE: &str = "block-app";
+const EXECUTABLE: &str = "be-host";
 const DEFAULT_PREFIX: &str = "/usr/local";
 const SESSIONS: &str = "usr/share/wayland-sessions";
 const LIGHTDM_CONFIGS: [&str; 4] = [
@@ -31,7 +31,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
     let executable = std::env::current_exe()?;
     let source = executable
         .parent()
-        .ok_or("block-app's directory is unknown")?;
+        .ok_or("be-host's directory is unknown")?;
     match place(source, &prefix, &session_dirs(Path::new("/"))) {
         Ok(installed) => {
             let entries: Vec<String> = installed
@@ -40,7 +40,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
                 .map(|entry| entry.display().to_string())
                 .collect();
             println!(
-                "Installed block-app in {}, linked it from {} and added the login session {}.",
+                "Installed be-host in {}, linked it from {} and added the login session {}.",
                 installed.home.display(),
                 installed.link.display(),
                 entries.join(" and ")
@@ -167,7 +167,7 @@ pub(crate) fn place(source: &Path, prefix: &Path, sessions: &[PathBuf]) -> io::R
     if !same {
         if home.exists() && !home.join(EXECUTABLE).is_file() {
             return Err(io::Error::other(format!(
-                "{} is in the way and is not an installed block-app",
+                "{} is in the way and is not an installed be-host",
                 home.display()
             )));
         }

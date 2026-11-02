@@ -4,7 +4,7 @@ painted. They are fast enough to belong in ./scripts/verify: the handful that ex
 well under a second.
 
 An app's tests run where the app runs: compiled to wasm32-wasip1-threads and started by
-the same wasmtime runtime block-app opens an app with (see 5). Nothing about writing one changes
+the same wasmtime runtime be-host opens an app with (see 5). Nothing about writing one changes
 because of that, but what the editor paints is then what the shipped app paints rather than
 what the machine running the tests happens to have installed.
 
@@ -46,7 +46,7 @@ the Screens and EditorSession the shipped app runs, fed the calls the host would
 make: the world's exports and the answers to the app's imports over a be-wasm-ops connection, as
 on the wire, and what the host pushes (acceptance, preferences, input, the draw) encoded and
 decoded as the wire would. Gestures are turned into the protocol's input events the way
-block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
+be-host turns beui's, so a key or a modifier the protocol cannot carry never reaches the
 editor here either, and a call the app refuses fails the test.
 
     let mut test = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
@@ -81,8 +81,8 @@ host has taken an edit.
 Whatever else the app sends the host is kept for the test to read: take_view_changes(),
 take_requests(), take_opens(), take_block_commands() (blocks.act), take_shell_commands() (shell.act: share, leave, rename, close, the host menu) and the other take_ methods drain one
 kind, take_host_calls(reader) the calls of the account and extension interfaces it made (be_sdk_test::requested has a reader per function), and clear_calls() drops what is kept. The host's side of a conversation goes in the same way
-block-app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
-set_peers, report_children, resize and presence_visible each queue the call block-app
+be-host sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
+set_peers, report_children, resize and presence_visible each queue the call be-host
 would make. Setting the same state on the EditorHost directly skips the protocol, and the
 session overwrites what it owns - the chrome, the view, a drag - on the next frame.
 
@@ -114,10 +114,10 @@ An editor that hands work to another thread paints a spinner until the work land
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
 that passes on an idle machine and fails when the suite is running thirty editors at once.
 settle_until paints until a predicate over the harness holds, and fails the test rather
-than the painting if it never does. Between frames it waits the way block-app does: for the
+than the painting if it never does. Between frames it waits the way be-host does: for the
 editor's Waker, or for the delay the editor asked to be painted again after, and never for a
 fixed time. Work that lands without waking the editor and without asking for a frame stalls
-it until the deadline, which is the stall a person would see in block-app.
+it until the deadline, which is the stall a person would see in be-host.
 
 Time in the editor is the harness's own clock, not the wall clock: every frame the harness
 paints is one frame interval later, and the host hands the app that time with each frame,
@@ -153,7 +153,7 @@ pins to that clock each frame; a beui test without an app pins it with
 `beui_core::timer::TEST_WALL_CLOCK` (2026-03-02 09:41 UTC). The host tests and every other test
 that starts a program through `be_tool_drive::Driven` or `be-tool-drive run` start it with its clock
 pinned (`be-drive launch --pin-clock`, guides/running/drive.md): the headless platform pins
-beui's wall clock to that moment as it starts and runs the program in UTC, so block-app hands every
+beui's wall clock to that moment as it starts and runs the program in UTC, so be-host hands every
 app that moment too. An agent's `:dev` runs on the real time unless started with
 `-- --pin-clock`.
 
@@ -337,7 +337,7 @@ build's log, not on this machine. ./scripts/test (below) runs it on a worker too
 copies what it accepts into the crate's snapshots/.
 A painting is compared wherever its test runs, and each crate's BUCK runs its tests in exactly
 one place: app_tests as wasm for an editor, beui-demo and the other crates that paint as
-apps do, and `cargo_test(paints = True)` natively for the host's own crates (block-app, its
+apps do, and `cargo_test(paints = True)` natively for the host's own crates (be-host, its
 desktop and accounts crates, beui-layer-space), whose paintings are what the host draws. An
 editor's tests only mean anything as the wasm guest it ships as, so do not build or test an
 editor package natively by itself.
@@ -378,9 +378,9 @@ passes through a gpu.
 An editor test hosts one editor and fakes the host around it: the children it places are only
 recorded, and a child's statuses are whatever the test reports. What happens between editors
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
-press, a tab closing its editor) lives in block-app's compositor and app host, so it is
+press, a tab closing its editor) lives in be-host's compositor and app host, so it is
 tested in crates/be-host-tests instead, against the host itself. Each test there starts
-block-app headless with the dev organization open, exactly as `:dev` does, in a data
+be-host headless with the dev organization open, exactly as `:dev` does, in a data
 directory of its own, with the editors it names (below); drives it with the commands `drive` has (guides/running/drive.md); paints
 the whole window, every app included; and fails unless the host exits cleanly when it closes,
 which close() checks, so a test that ends without calling it fails too.
@@ -433,7 +433,7 @@ which close() checks, so a test that ends without calling it fails too.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK, by their
   directory's name after crates/be-app-: the app of every block type it creates or opens, the
   canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text-block`
-  for a deck's slides. Its build of block-app stages those beside the ones every build needs to show the Files
+  for a deck's slides. Its build of be-host stages those beside the ones every build needs to show the Files
   (`BASE` in crates/be-host-tests/apps.bzl), each only as its precompiled module, so the test builds
   only those apps, and a change to an app reruns only the tests that name it. A test not
   in `APPS` stages every app: leave a test out whose paintings show what every app
@@ -441,7 +441,7 @@ which close() checks, so a test that ends without calling it fails too.
   rows. A block whose app is missing fails the test within a few seconds, naming the app
   to add; a painting that changes where only the apps changed means the test needs another
   editor (a file's row menu offers Opens in only for a type that two editors edit, such as
-  text-block and block-debug), and a test named `foo` runs against its own build of block-app with
+  text-block and block-debug), and a test named `foo` runs against its own build of be-host with
   `./scripts/test foo`, as verify runs it.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/be-host:dev -- --fresh`, what the host shows (`drive tree`), and
@@ -452,12 +452,12 @@ which close() checks, so a test that ends without calling it fails too.
   the harness on this machine, all the tests at once and as often as needed. Build it with what
   its `run_env` in crates/be-host-tests/BUCK names (`./scripts/buck build
   //crates/be-host-tests:test-harness //crates/be-host-tests:host-with-all //buck/sysroot:amd64-test
-  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:host-with-all` the build of block-app every
+  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:host-with-all` the build of be-host every
   test can run against), then run
   `buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests` with `HOST_LIBRARIES`,
-  `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
+  `BE_HOST`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
   `CARGO_MANIFEST_DIR` to crates/be-host-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
-  apply all bt'` on its block-app shows what every thread waits on. If every thread is parked and the
+  apply all bt'` on its be-host shows what every thread waits on. If every thread is parked and the
   window waits on data, something changed without `host::wake()`: a lost wake, not a deadlock.
 - Each test takes a second or two, most of it the host starting, and they run in parallel. Keep to what only the host can show, and test an
   editor's own behaviour in its own crate.

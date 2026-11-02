@@ -65,9 +65,9 @@ re-import once, and say so in `guides/frozen_formats.md`.
    Done: an artifact block is a backref of the block it describes, and
    `be-block-client/src/transfer.rs` exports and imports it.
    The host keeps them apart from children: `BlockInfo::references` and
-   `BlockQuery::References` hold only what the content refers to (block-app
+   `BlockQuery::References` hold only what the content refers to (be-host
    `Node::contents`), so canvases, presentations, folders and the rest never
-   list a block's tags or settings (block-app
+   list a block's tags or settings (be-host
    `a_block_s_children_leave_out_what_its_metadata_points_to`).
 2. **The access model.** Done (server and model). `Manage` is above `Edit`
    in `be_block_graph::Access` and `AccessLevel`, stored as `manage`. Manage shares
@@ -285,7 +285,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
     policy (required, allowed or blocked), each user's choice per workspace in
     their this-device layer, and, for organization accounts only, what happens
     to what a device kept on losing access (keep or delete) and how long unsent
-    edits wait first. `OfflineSettings::choice` resolves it; block-app publishes
+    edits wait first. `OfflineSettings::choice` resolves it; be-host publishes
     the choice of every workspace (`offline_choice::publish`) and the be worker
     reads it (`offline_choice::choice`): a workspace not kept is forgotten from
     the refs database when a session starts and ends (`Peer::forget_offline`,

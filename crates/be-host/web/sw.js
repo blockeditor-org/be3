@@ -11,7 +11,7 @@
 // where it has to be to answer for the page itself: the bundle's root here,
 // and /sw.js beside the entry point when deployed (crates/be-tool-local deploy).
 
-const CACHE = "block-app";
+const CACHE = "be-host";
 
 // The page itself is kept at once: the load that registered this worker
 // fetched it before there was anything to keep it.

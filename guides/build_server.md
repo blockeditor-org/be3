@@ -166,7 +166,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 `crates/be-tool-build-helper` builds named products of a commit on request, so that
 the build server's outputs are downloaded once, by one long-lived host whose
 `buck-out` persists, and devices download from the Bunny CDN instead. It is
-what be-launcher asks for Android APKs and native block-app builds.
+what be-launcher asks for Android APKs and native be-host builds.
 
 - `POST /build/products/PRODUCT/COMMIT` asks for a build and answers its
   status as JSON: `queued` (with `position`, the builds ahead of it, the
@@ -185,7 +185,7 @@ what be-launcher asks for Android APKs and native block-app builds.
   (`//crates/beui-demo:native`), built with `-m release --target-platforms
   root//buck/platforms:PLATFORM` for `linux_x86_64`, `linux_arm64`,
   `macos_x86_64`, `macos_arm64`, `windows_x86_64` and `windows_arm64`. The
-  executables are named `block-app` and `beui-demo` (`.exe` on Windows).
+  executables are named `be-host` and `beui-demo` (`.exe` on Windows).
 - Every file is uploaded to the be3-ci storage zone as `files/SHA256`, once:
   the helper remembers what it uploaded and otherwise checks the CDN. Then the
   manifest, `builds/PRODUCT/COMMIT.json`, listing each file's path, SHA-256,

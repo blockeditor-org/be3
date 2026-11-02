@@ -19,7 +19,7 @@ pub fn spawn(task: impl Future<Output = ()> + Send + 'static) {
             .name("dbus".to_owned())
             .spawn(|| zbus::block_on(EXECUTOR.run(pending::<()>())));
         if let Err(error) = started {
-            eprintln!("block-app: the D-Bus thread did not start: {error}");
+            eprintln!("be-host: the D-Bus thread did not start: {error}");
         }
     });
     EXECUTOR
@@ -52,7 +52,7 @@ async fn connect(
     match connecting.await {
         Ok(connection) => Some(connection),
         Err(error) => {
-            eprintln!("block-app: the D-Bus {bus} bus is not reachable: {error}");
+            eprintln!("be-host: the D-Bus {bus} bus is not reachable: {error}");
             None
         }
     }

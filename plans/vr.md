@@ -46,7 +46,7 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   whether SteamVR returns `FORM_FACTOR_UNAVAILABLE` with the Beyond
   unplugged, and quits with an instance loss rather than `EXITING`, is
   untried. Finding one reopens the GPU device as a lost GPU does, so
-  whatever block-app keeps on the old device (app textures, dmabuf imports)
+  whatever be-host keeps on the old device (app textures, dmabuf imports)
   must follow `App::renderer_replaced`.
 - **Layers on hardware.** Composition layers (`Space::layers`) are checked
   only against Monado's null compositor, which accepts them but draws
@@ -100,7 +100,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
   off hand (following its grip pose) is untried.
 
 - **Placements across restarts.** Panels reopen in place only within a run.
-  Keeping placements must live in block-app's session (the shell's view
+  Keeping placements must live in be-host's session (the shell's view
   block, `RootSettings::ensure_session`), not in beui or the space host: no
   file under the config folder, so a plain beui app such as beui-demo keeps
   nothing. It needs the `Placed` reports for `WindowId::MAIN`
@@ -112,7 +112,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
   memory (`DockState` holds none); they join the shell's saved `DockState`.
 
 - **App windows.** Outside space they stay overlays inside their region's
-  window; making them OS windows there is deferred. Drags an app starts on a window's bar reach block-app
+  window; making them OS windows there is deferred. Drags an app starts on a window's bar reach be-host
   a frame or two late, so a press let go before `BeginMove` arrives moves
   nothing (space drops it). Drag and drop over an app window, and a
   window's accessibility (its nodes show in the frame's tree at the window's
@@ -128,7 +128,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web
   canvas always repaints everything, app surfaces fold moves into damage,
-  and DRM screens do not copy. App surfaces matter most, for block-app.
+  and DRM screens do not copy. App surfaces matter most, for be-host.
 - **Restored focus.** A restored session focuses the last window reopened,
   even when it is out of view.
 - **Untried on hardware.** winit's lock release on focus loss (X11, macOS,

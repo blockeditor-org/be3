@@ -12,7 +12,7 @@ fn two_peers_of_one_organization_share_a_counter() {
     flush();
     stop();
 
-    let elsewhere = std::env::temp_dir().join(format!("block-app-be-peer-{}", Uuid::new_v4()));
+    let elsewhere = std::env::temp_dir().join(format!("be-host-be-peer-{}", Uuid::new_v4()));
     start(Config {
         server_url: harness.url.clone(),
         token: harness.token.clone(),
