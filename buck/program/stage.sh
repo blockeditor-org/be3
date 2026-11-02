@@ -13,7 +13,8 @@
 # under the name its manifest's block_types give it, with its SHA-256 as
 # NAME.sha256 (the tag of its sessions) and, with --type-artifact, its .cwasm.
 # --compiled-only leaves out each module that has a .cwasm, for the APK,
-# which only falls back to one.
+# which only falls back to one. With an executable, program-files.txt lists
+# every file staged, which is what --install-login-session installs.
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
@@ -25,6 +26,7 @@ out="$1"
 shift
 mkdir -p "$out"
 index=false
+executable=false
 compiled_only=false
 manifests=''
 staged=''
@@ -39,6 +41,7 @@ for argument in "$@"; do
             pair="${argument#--executable=}"
             cp "${pair%%=*}" "$out/${pair#*=}"
             chmod +x "$out/${pair#*=}"
+            executable=true
             ;;
         --file=*)
             cp "${argument#--file=}" "$out/"
@@ -119,4 +122,8 @@ if $index; then
         [ -n "$manifests" ] && printf '\n'
         printf ']\n'
     } > "$out/apps.json"
+fi
+
+if $executable; then
+    (cd "$out" && find . -type f ! -path ./program-files.txt | sed 's|^\./||' | LC_ALL=C sort) > "$out/program-files.txt"
 fi

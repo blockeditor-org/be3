@@ -92,8 +92,14 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
     let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
     #[cfg(target_os = "linux")]
-    if let Some(prefix) = &arguments.install_login_session {
-        return login_session::install(prefix.as_deref());
+    if let Some(setup) = &arguments.login_session {
+        return match setup {
+            arguments::LoginSessionSetup::Install(prefix) => login_session::install(prefix.as_deref()),
+            arguments::LoginSessionSetup::Uninstall(prefix) => {
+                login_session::uninstall(prefix.as_deref())
+            }
+            arguments::LoginSessionSetup::ApplyChanges => login_session::apply_install_changes(),
+        };
     }
     #[cfg(target_os = "linux")]
     if arguments.drm {

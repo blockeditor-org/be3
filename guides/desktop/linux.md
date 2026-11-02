@@ -15,7 +15,7 @@ whose shell is the desktop app. Two ways to run it are Linux's alone:
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
   every display's scale.
-- `--install-login-session [PREFIX]`: see Installing it as a login session, below.
+- `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]`: see Installing it as a login session, below.
 
 Under `--desktop` on Linux programs open as windows inside the shell, as they do in any windowed
 run. What needs the displays and input devices themselves, such as display modes, pointer
@@ -80,8 +80,7 @@ and takes no file descriptors, the "wayland watch" thread (`Server::watch`) poll
 
     ./scripts/buck run //crates/be-host:install-login-session [-- PREFIX]
 
-installs be-host with its apps in `PREFIX/lib/be-host` (`/usr/local` by default, asking
-sudo when it needs root), links `PREFIX/bin/be-host` to it and writes
+installs be-host with its apps in `PREFIX/lib/be-host` (`/usr/local` by default), links `PREFIX/bin/be-host` to it and writes
 `/usr/share/wayland-sessions/be-host.desktop` (from `src/login_session/be-host.desktop`), which
 runs it as `env BEUI_PLATFORM=drm PREFIX/lib/be-host/be-host --desktop`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
 LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
@@ -89,15 +88,41 @@ LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 `/etc/lightdm/lightdm.conf`) leaves that directory out, the entry also goes in the first one it
 lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
 login screen then offers Block on its session menu, where it can be picked and remembered as
-the default. Running it again replaces the install, and removes an entry an older install left
-in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list the commands in
+the default. greetd's greeters (gtkgreet, regreet) list the commands in
 `/etc/greetd/environments` instead, so when that file exists the same command, with the installed link, is
 added to it once, and a line `LINK --session` an install from before `--desktop` left there is removed.
+`/etc/pam.d/be-host` is written unless one is there (Lock screen, below).
+
+It installs exactly the files the build put beside be-host, which `buck/program/stage.sh` lists
+in `program-files.txt` for every program with an executable, and refuses a directory without that
+list, with a listed file missing, or without `apps.json` and the apps it names: files that only sit
+beside be-host stay where they are. `src/login_session/install.rs` plans every change first and
+`install/changes.rs` checks that each destination can be written before anything is; as someone
+other than root it names each destination it cannot write, and then a prefix that needs root (the default) runs the whole install again under sudo, and with a prefix
+of one's own (`~/.local`) be-host is copied in as its user and sudo writes only the files outside it
+(`--apply-login-session-changes`, which reads them on stdin). Nothing in `$HOME` is ever written as
+root, and root refuses to write into a directory another user owns. When sudo cannot ask for a
+password (no terminal and no cached sudo) it refuses before copying anything, and when root's part
+fails the staged copy is removed, so a failed install leaves nothing behind. Running it again
+replaces the install (staged as `lib/be-host.new` and swapped in), and removes an entry an older
+install left in `PREFIX/share/wayland-sessions` or a sessions directory LightDM no longer reads.
+
+The install records what it placed in `PREFIX/lib/be-host/installed.json`, and
+
+    PREFIX/bin/be-host --uninstall-login-session [PREFIX]
+
+removes exactly that, with the same privilege handling: the entries, the link, the PAM service and
+greetd's line unless someone changed them since, and the listed files, then the directories they
+leave empty. A file someone else put in `PREFIX/lib/be-host` stays.
 
 In a login session stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program be-host starts, go to `$XDG_STATE_HOME/block/login-session.log`
-(`~/.local/state/block/login-session.log`); the previous login session's is kept beside it as
-`login-session.previous.log`. The directory is the app id in lower case (`blockdev` for a build
+(`~/.local/state/block/login-session.log`). The log stays under 4 MiB: an inotify watch on it
+(`log.rs`, `Cap`) moves everything after its first 256 KiB, its start, to `login-session.1.log`
+when it passes that, shifting the part before to `login-session.2.log` and dropping the one before
+that, and truncates the log in place, which every writer appends to, so the start of the session
+and its latest output, a crash's included, are always in the log itself. The previous login
+session's log and parts are kept beside it as `login-session.previous.log` and so on. The directory is the app id in lower case (`blockdev` for a build
 without bundle metadata). The error that ends a login session is also written to the stderr be-host
 started with, so a login session run by systemd or greetd shows it in the journal. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_platform_drm::Problems` carries the display and input ones,

@@ -13,8 +13,8 @@ guide is for what that does not cover.
   (Linux), a login session on the displays themselves (guides/desktop/linux.md). `BEUI_PLATFORM=drm`
   without `--desktop` runs the workspace shell on the displays instead.
   `./scripts/buck run //crates/be-host:dev -- --desktop` drives the desktop shell headless.
-- `--install-login-session [PREFIX]` (Linux): install be-host as a login session
-  (guides/desktop/linux.md).
+- `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]` (Linux): install
+  be-host as a login session, or remove it again (guides/desktop/linux.md).
 
 `./scripts/buck run //crates/be-host:native` runs it in a window, with every app beside it.
 The bundle’s `build-info.json` selects be-host's identity: local builds use
