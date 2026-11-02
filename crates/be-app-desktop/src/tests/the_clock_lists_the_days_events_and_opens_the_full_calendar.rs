@@ -50,7 +50,9 @@ fn the_clock_lists_the_days_events_and_opens_the_full_calendar() {
         ),
         (name, DatabaseValue::String("Tomorrow's talk".to_owned())),
     ]);
-    fixture.test.edit::<DatabaseContent>(Some(database), &tomorrow);
+    fixture
+        .test
+        .edit::<DatabaseContent>(Some(database), &tomorrow);
     fixture.settle();
     assert!(
         fixture.says("09:00") && fixture.says("Standup") && fixture.says("Dentist"),
@@ -61,7 +63,10 @@ fn the_clock_lists_the_days_events_and_opens_the_full_calendar() {
         "only today's are"
     );
     for chrome in ["rows", "Filter and display", "Search"] {
-        assert!(!fixture.says(chrome), "the popup has no editor's {chrome:?}");
+        assert!(
+            !fixture.says(chrome),
+            "the popup has no editor's {chrome:?}"
+        );
     }
     let document = fixture.test.document();
     let order: Vec<f32> = ["Standup", "Dentist"]
@@ -76,7 +81,9 @@ fn the_clock_lists_the_days_events_and_opens_the_full_calendar() {
         .collect();
     drop(document);
     assert!(order[0] < order[1], "events are in the order they start");
-    fixture.test.snapshot("the_clock_shows_a_month_and_the_days_events");
+    fixture
+        .test
+        .snapshot("the_clock_shows_a_month_and_the_days_events");
 
     fixture.test.click("desktop.calendar.open");
     fixture.settle();
@@ -84,7 +91,10 @@ fn the_clock_lists_the_days_events_and_opens_the_full_calendar() {
     let [(block, _, _)] = placed[..] else {
         panic!("the full calendar opens, and only it: {placed:?}");
     };
-    assert_eq!(block, calendar, "Open calendar opens the desktop's calendar");
+    assert_eq!(
+        block, calendar,
+        "Open calendar opens the desktop's calendar"
+    );
     assert!(
         fixture.test.test_ids().rect("desktop.calendar").is_none(),
         "the popup closes as the calendar opens"
