@@ -1,5 +1,7 @@
 #[cfg(test)]
 pub mod test_bus;
+#[cfg(test)]
+mod tests;
 
 use std::future::{Future, pending};
 use std::sync::Once;
@@ -7,6 +9,7 @@ use std::sync::Once;
 use async_executor::Executor;
 use async_lock::OnceCell;
 use zbus::Connection;
+use zbus::connection::Builder;
 
 static EXECUTOR: Executor<'static> = Executor::new();
 static STARTED: Once = Once::new();
@@ -33,16 +36,20 @@ pub fn spawn(task: impl Future<Output = ()> + Send + 'static) {
 
 pub async fn system() -> Option<Connection> {
     SYSTEM
-        .get_or_init(|| connect("system", Connection::system()))
+        .get_or_init(|| connect("system", async { build(Builder::system()?).await }))
         .await
         .clone()
 }
 
 pub async fn session() -> Option<Connection> {
     SESSION
-        .get_or_init(|| connect("session", Connection::session()))
+        .get_or_init(|| connect("session", async { build(Builder::session()?).await }))
         .await
         .clone()
+}
+
+pub async fn build(builder: Builder<'_>) -> zbus::Result<Connection> {
+    builder.serve_at("/", zbus::fdo::ObjectManager)?.build().await
 }
 
 async fn connect(
