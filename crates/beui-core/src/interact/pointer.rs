@@ -439,6 +439,10 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
                 lift_latched(doc, frame, event);
             }
         }
+        PointerPhase::Touchpad(_) => {
+            let sink = wheel_sink(doc, frame, event.window, event.pos);
+            doc.pointers.route(sink);
+        }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
             let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {

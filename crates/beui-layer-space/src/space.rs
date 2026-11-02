@@ -772,6 +772,7 @@ impl Space {
                                 | Input::ScrollStarted
                                 | Input::ScrollEnded
                                 | Input::Zoom(_)
+                                | Input::Touchpad(_)
                                 | Input::PointerMotion(_)
                         ) {
                             out.push(Incoming::new(units, input));

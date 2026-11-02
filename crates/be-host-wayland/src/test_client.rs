@@ -33,7 +33,9 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+mod pointer;
 mod protocols;
+pub(crate) use pointer::PointerSeen;
 pub(crate) use protocols::{PenSeen, TouchSeen};
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
@@ -76,6 +78,7 @@ pub(crate) struct Received {
     pub(crate) keymaps: usize,
     pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
+    pub(crate) pointer_at: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) pointer_serial: Option<u32>,
     pub(crate) buttons: Vec<(u32, bool)>,
@@ -760,10 +763,16 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
                 surface_y,
             } => {
                 state.pointer_entered = Some((surface_x, surface_y));
+                state.pointer_at = Some((surface_x, surface_y));
                 state.pointer_serial = Some(serial);
                 state.pointer_surface = Some(surface);
             }
             wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
+            wl_pointer::Event::Motion {
+                surface_x,
+                surface_y,
+                ..
+            } => state.pointer_at = Some((surface_x, surface_y)),
             wl_pointer::Event::Button {
                 button,
                 state: WEnum::Value(pressed),

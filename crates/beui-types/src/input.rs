@@ -8,7 +8,7 @@ use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 pub use be_lib_ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Queued, ScrollDelta, TouchId, TouchPhase,
-    enqueue,
+    TouchpadGesture, enqueue,
 };
 
 pub mod typing;
@@ -310,6 +310,7 @@ pub enum Event {
     Predicted(Pos2),
     Time(Instant),
     Zoom(f32),
+    Touchpad(TouchpadGesture),
     Ime(ImeEvent),
     FileHovered,
     FileHoverCancelled,
@@ -353,6 +354,7 @@ impl Event {
                 | Self::Predicted(_)
                 | Self::Time(_)
                 | Self::Zoom(_)
+                | Self::Touchpad(_)
                 | Self::PointerWindow(_)
                 | Self::PointerOutside
         )
@@ -390,6 +392,7 @@ pub enum PointerPhase {
     Scroll(Vec2),
     ScrollEnded { fling: Vec2 },
     Zoom(f32),
+    Touchpad(TouchpadGesture),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

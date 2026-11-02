@@ -547,6 +547,7 @@ fn is_activity(event: &Event) -> bool {
             | Event::Touch { .. }
             | Event::Pen { .. }
             | Event::Zoom(_)
+            | Event::Touchpad(_)
     )
 }
 

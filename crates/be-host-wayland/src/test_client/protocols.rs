@@ -41,6 +41,7 @@ pub(crate) struct Protocols {
     pub(crate) text_committed: Vec<String>,
     pub(crate) pen: Vec<PenSeen>,
     pub(crate) touch: Vec<TouchSeen>,
+    pub(crate) pointer: Vec<super::PointerSeen>,
     pub(crate) seat_capabilities: Option<wl_seat::Capability>,
     pub(crate) preferred_scale: Option<u32>,
 }

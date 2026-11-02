@@ -48,7 +48,7 @@ pub use input::{
 };
 pub use input::{
     DroppedFile, Event, FileDrag, Input, KeyChord, Keyboard, Keystroke, Pen, PenPhase,
-    PointerEvent, PointerPhase, ScrollDelta, TouchId, TouchPhase,
+    PointerEvent, PointerPhase, ScrollDelta, TouchId, TouchPhase, TouchpadGesture,
 };
 pub use keys::{KeyAt, KeyEvent, KeyInput, KeyTarget};
 pub use layer::{
