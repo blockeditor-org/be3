@@ -6,7 +6,7 @@ use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{Editor, Subregion, SubregionContent, narrow_chrome};
+use be_sdk_beui::{Editor, Subregion, SubregionContent};
 
 use super::session::{PAGE, Session};
 use beui::{Align, ItemSize, Justify};
@@ -144,11 +144,6 @@ fn AddressBar(bar: Bar) -> NodeId {
         navigate,
         focus,
     } = bar;
-    let narrow = narrow_chrome();
-    let address_sizing = create_memo(move || match narrow.get() {
-        true => ItemSize::Percent(100.0).max(ADDRESS_WIDTH),
-        false => ItemSize::Fixed(ADDRESS_WIDTH).into(),
-    });
     view! {
         <DockBarSurface spacing=Space::Md @test_id={"browser.toolbar"}>
             <Frame @test_id={"browser.toolbar.grip"}>
@@ -177,16 +172,15 @@ fn AddressBar(bar: Bar) -> NodeId {
                 @test_id={"browser.reload"}
                 on_click={move || reload.call(())}
             />
-            <Frame @sizing={address_sizing}>
-                <TextInput
-                    value={Binding::new(address, move |value: String| typed.call(value))}
-                    label="Address"
-                    placeholder="Search or enter address"
-                    @test_id={"browser.address"}
-                    on_submit={move |value: String| submit.call(value)}
-                    on_focus_change={move |focused: bool| focus.call(focused)}
-                />
-            </Frame>
+            <TextInput
+                @sizing={ItemSize::Fixed(ADDRESS_WIDTH).shrink(1.0)}
+                value={Binding::new(address, move |value: String| typed.call(value))}
+                label="Address"
+                placeholder="Search or enter address"
+                @test_id={"browser.address"}
+                on_submit={move |value: String| submit.call(value)}
+                on_focus_change={move |focused: bool| focus.call(focused)}
+            />
             <Button
                 label="Go"
                 variant=ButtonVariant::Primary
