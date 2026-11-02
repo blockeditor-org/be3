@@ -37,6 +37,7 @@ struct State<K: 'static> {
     shown: Memo<Vec<K>>,
     enabled: Func<K, bool>,
     highlighted: Signal<Option<K>>,
+    active: Signal<Option<NodeId>>,
     quiet: Stored<RefCell<Option<K>>>,
     rows: Stored<RefCell<HashMap<K, NodeRef>>>,
     page: usize,
@@ -170,6 +171,7 @@ where
         shown,
         enabled,
         highlighted,
+        active: create_signal(None),
         quiet: store(RefCell::default()),
         rows: store(RefCell::default()),
         page,
@@ -210,6 +212,19 @@ where
         search_accessibility,
         Prop::Static(String::new()),
     );
+    let active = state.active;
+    create_effect(move || {
+        if highlighted.with(Option::is_none) && active.get_untracked().is_some() {
+            active.set(None);
+        }
+    });
+    let search_accessibility = Prop::dynamic(move || {
+        let mut node = search_accessibility.get();
+        if let Some(row) = active.get() {
+            node.set_active_descendant(accessibility_reference(row));
+        }
+        node
+    });
     let list = view! {
         <List spacing>
             <TextInput
@@ -287,16 +302,23 @@ where
             }
         }
     });
+    let highlighted = highlight.memo(Some(key.clone()));
     let node = create_memo({
         let key = key.clone();
-        move || accessibility.call(key.clone())
+        move || {
+            let mut node = accessibility.call(key.clone());
+            if node.is_selected().is_none() {
+                node.set_selected(highlighted.get());
+            }
+            node
+        }
     });
     let enabled = create_memo({
         let key = key.clone();
         move || state.enabled.call(key.clone())
     });
     let (hover_key, click_key) = (key.clone(), key.clone());
-    view! {
+    let built = view! {
         <Button
             @node_ref={&button}
             accessibility={node}
@@ -313,12 +335,23 @@ where
             });
             row.call(SearchRowHandle {
                 key: key.clone(),
-                highlighted: highlight.memo(Some(key.clone())),
+                highlighted,
                 enabled,
                 hovered,
             })
         }</Button>
-    }
+    };
+    let active = state.active;
+    let own = button.get();
+    create_effect(move || match highlighted.get() {
+        true => active.set(Some(own)),
+        false => {
+            if active.get_untracked() == Some(own) {
+                active.set(None);
+            }
+        }
+    });
+    built
 }
 
 pub struct SearchListApi<K: 'static>(State<K>);

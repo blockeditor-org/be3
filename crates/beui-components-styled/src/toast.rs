@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::ButtonSize;
@@ -127,6 +128,16 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         false => (TextSize::Base, TextColor::Default),
     };
     let title_color = TextColor::Default;
+    let mut named = Node::new(Role::Button);
+    match titled {
+        true => {
+            named.set_label(title.clone());
+            if said {
+                named.set_description(message.clone());
+            }
+        }
+        false => named.set_label(message.clone()),
+    }
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Show condition={pictured}>
@@ -178,7 +189,11 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     };
     let body = match activates {
         true => view! {
-            <Pressable @test_id={format!("toast.{id}.activate")} on_click={activate}>
+            <Pressable
+                @test_id={format!("toast.{id}.activate")}
+                accessibility={named}
+                on_click={activate}
+            >
                 {content}
             </Pressable>
         },

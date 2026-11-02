@@ -66,6 +66,10 @@ pub fn next_document_id() -> u32 {
     NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
+pub fn reference(id: NodeId) -> AccessNodeId {
+    AccessNodeId((u64::from(id.generation() as u8) << GENERATION_SHIFT) | u64::from(id.index()))
+}
+
 pub fn document_of(id: AccessNodeId) -> u64 {
     id.0 >> DOCUMENT_SHIFT
 }
@@ -489,6 +493,11 @@ impl AccessibilityView<'_> {
 
     pub fn focus(&self) -> Option<AccessNodeId> {
         self.tree.focus
+    }
+
+    pub fn id_of(&self, node: NodeId) -> AccessNodeId {
+        let described = self.document.described_within(node).unwrap_or(node);
+        self.document.access_node_id(described)
     }
 
     pub fn len(&self) -> usize {
@@ -1017,6 +1026,7 @@ impl Document {
         let mut focus = inner.focus;
         let mut node = if let Some(node) = explicit {
             let mut node = node.clone();
+            self.resolve_references(&mut node);
             if let Some(text) = text
                 && node.label().is_none()
                 && node.value().is_none()
@@ -1081,6 +1091,23 @@ impl Document {
             focus = Some(self.access_node_id(id));
         }
         (node, focus)
+    }
+
+    fn resolve_references(&self, node: &mut Node) {
+        let Some(referenced) = node.active_descendant() else {
+            return;
+        };
+        if document_of(referenced) != 0 {
+            return;
+        }
+        let local = self
+            .arena
+            .id_at(referenced.0 as u32 & INDEX_MASK)
+            .filter(|local| (referenced.0 >> GENERATION_SHIFT) as u8 == local.generation() as u8);
+        match local.and_then(|local| self.described_within(local)) {
+            Some(local) => node.set_active_descendant(self.access_node_id(local)),
+            None => node.clear_active_descendant(),
+        }
     }
 
     pub fn handle_accessibility_action(&mut self, request: ActionRequest) -> bool {
@@ -1230,6 +1257,17 @@ impl Document {
 
     pub fn local_node_id(&self, id: AccessNodeId) -> Option<NodeId> {
         self.local_key(id).map(SpaceId::node)
+    }
+
+    fn described_within(&self, id: NodeId) -> Option<NodeId> {
+        if self.accessibility.get(&id).is_some() {
+            return Some(id);
+        }
+        self.arena
+            .get(id)
+            .children()
+            .into_iter()
+            .find_map(|child| self.described_within(child))
     }
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {
