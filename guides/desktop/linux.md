@@ -656,15 +656,25 @@ To try it, give a program a `.desktop` entry in `/usr/local/share/applications` 
 
 ### X11 programs
 
-`be_host_wayland::Server::start_xwayland`, which be-host calls once the server is up, starts
-`Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
-display, with smithay's `X11Wm` as its window manager (`crates/be-host-wayland/src/xwayland.rs`).
+`be_host_wayland::Server::start_xwayland` starts `Xwayland` on the first free display, with
+smithay's `X11Wm` as its window manager (`crates/be-host-wayland/src/xwayland.rs`). be-host calls it
+once the server is up, and again before every launch and whenever it hands out its programs'
+environment (`Host::environment`, which `drive env` and `drive exec` read). So once a missing piece is
+fixed, the next program started from the Apps panel or `drive exec` brings it up, with no restart.
+While it is running, or after it gave up, the call does nothing. Before spawning, it checks that `Xwayland` is
+on `PATH` (the `xwayland` package) and that `/tmp/.X11-unix` is a directory it can write to, making
+it with mode 1777 when it is missing, as X servers do. Each failure (not installed, that directory
+missing and unmakeable, not writable or not a directory, no free display from :0 to :32) is logged
+once with what to fix, as `be-wayland: Xwayland did not start ...`; the same failure again is
+not logged again.
+
 It starts with the compositor rather than when an X11 client first connects: smithay creates
 the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
 at once. Programs the compositor launches get `DISPLAY`, and in a login session both it and
 `WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
 (`src/login_session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
-same display, up to three times. To try it under `:dev`, be-host's log names the display:
+same display, up to three times, after which it stays stopped until be-host restarts. To try it under `:dev`, install `xwayland`
+(`apt-get install xwayland`); the log names the display:
 
     DISPLAY=:0 xterm
     DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server

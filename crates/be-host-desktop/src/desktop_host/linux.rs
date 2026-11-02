@@ -99,12 +99,7 @@ impl DesktopHost for Linux {
                 return;
             }
         };
-        match server.start_xwayland() {
-            Ok(display) => eprintln!("be-host: X11 programs run on Xwayland at :{display}"),
-            Err(error) => {
-                eprintln!("be-host: Xwayland did not start, so X11 programs cannot run: {error}")
-            }
-        }
+        server.start_xwayland();
         let mut compositor = Compositor::new(server, windows);
         compositor.on_failure(be_host_base::notices::report);
         let defaults = be_block::DisplaySettings::default();
@@ -142,6 +137,7 @@ impl DesktopHost for Linux {
 
     fn environment() -> Vec<(String, String)> {
         with(|running| {
+            running.compositor.start_xwayland();
             running
                 .compositor
                 .environment()
