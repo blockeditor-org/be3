@@ -832,7 +832,7 @@ impl Document {
 
     fn inert_roots(&self) -> HashSet<NodeId> {
         let layers = self.layers();
-        if layers.blocking() == 0
+        if !layers.iter().any(|layer| layer.modal)
             && !layers
                 .iter()
                 .any(|layer| layer.policy == LayerPolicy::BlocksParent)

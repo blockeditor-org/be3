@@ -153,7 +153,7 @@ pub struct Document {
     anchor_shift: f32,
     pinned_to_end: Option<beui_types::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
-    pub(crate) viewport: Option<(Context, Rect, f32)>,
+    viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
     pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
     fonts_generation: u64,

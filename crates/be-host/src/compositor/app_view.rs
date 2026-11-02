@@ -384,7 +384,13 @@ pub(crate) fn AppView(
         placed.with(|placed| placed.set(placement));
         placer.call(placement);
         if placement.is_some() {
-            be_host_runtime::set_view_inert(&app_id.value(), instance, region.id, mount, slot.inert());
+            be_host_runtime::set_view_inert(
+                &app_id.value(),
+                instance,
+                region.id,
+                mount,
+                slot.inert(),
+            );
         }
     });
     slot.on_inert(move |inert| {

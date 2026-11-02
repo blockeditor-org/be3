@@ -44,6 +44,7 @@ pub struct Layer {
     pub traps: bool,
     pub dismissable: bool,
     pub locks: bool,
+    pub modal: bool,
     pub window: WindowId,
     pub escapes: bool,
 }
@@ -99,7 +100,15 @@ impl Layers {
     }
 
     pub fn reachable(&self, index: usize) -> bool {
-        let blocking = self.blocking();
+        self.reachable_past(index, self.blocking())
+    }
+
+    pub fn exposed(&self, index: usize) -> bool {
+        let modal = self.0.iter().rposition(|layer| layer.modal).unwrap_or(0);
+        self.reachable_past(index, modal)
+    }
+
+    fn reachable_past(&self, index: usize, blocking: usize) -> bool {
         if index >= blocking {
             return true;
         }
@@ -298,6 +307,7 @@ impl Document {
             traps: false,
             dismissable: false,
             locks: false,
+            modal: false,
             window: WindowId::MAIN,
             escapes: false,
         });
@@ -315,6 +325,7 @@ impl Document {
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
                 dismissable: !node.on_dismiss.is_empty() && !locks,
                 locks,
+                modal: node.policy == LayerPolicy::BlocksAll && (node.dims() || locks),
                 window: self
                     .real_window(overlay)
                     .or_else(|| self.shown_in(overlay))
@@ -707,7 +718,7 @@ impl Document {
             .window_layers(self.window_of(node))
             .is_some_and(|layers| {
                 self.layer_of(&layers, node)
-                    .is_some_and(|layer| layers.reachable(layer))
+                    .is_some_and(|layer| layers.exposed(layer))
             });
         !reachable || self.focus_blocked(&self.layers(), node)
     }
