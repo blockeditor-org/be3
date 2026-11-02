@@ -54,6 +54,19 @@ const COLOR_PRESETS: [(&str, MapColor); 5] = [
 ];
 
 #[component]
+pub(crate) fn MapInspector(state: MapState) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll @test_id={"map.inspector"}>
+                <Frame padding=Space::Lg>
+                    <MapSidebar state={state} />
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
+#[component]
 pub(crate) fn MapSidebar(state: MapState) -> NodeId {
     let selected = create_memo(move || state.selected.get());
     let listing = create_memo(move || selected.get().is_none());
