@@ -39,7 +39,6 @@ fn place(rect: Rect) {
             origin: None,
             anchor_bounds: None,
             fit: None,
-            inert: false,
         },
         None,
         None,
