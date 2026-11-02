@@ -447,7 +447,8 @@ impl Watcher {
                 .map(|point| point.ssid.clone())
                 .filter(|ssid| !ssid.is_empty());
         }
-        let named = active_point.and_then(|point| self.paths.iter().position(|path| *path == point));
+        let named =
+            active_point.and_then(|point| self.paths.iter().position(|path| *path == point));
         model::name_hidden(&mut self.points, named, active.as_deref());
         let active = active.map(|ssid| String::from_utf8_lossy(&ssid).into_owned());
         self.settle(state, active.as_deref()).await;

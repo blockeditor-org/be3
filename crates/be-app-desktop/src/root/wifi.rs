@@ -17,8 +17,11 @@ const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 const PASSPHRASE_LENGTHS: std::ops::RangeInclusive<usize> = 8..=64;
 const WEP_KEY_LENGTHS: [usize; 4] = [5, 10, 13, 26];
-const HIDDEN_SECURITIES: [WifiSecurity; 3] =
-    [WifiSecurity::Password, WifiSecurity::Wep, WifiSecurity::Open];
+const HIDDEN_SECURITIES: [WifiSecurity; 3] = [
+    WifiSecurity::Password,
+    WifiSecurity::Wep,
+    WifiSecurity::Open,
+];
 
 fn bars(strength: u8) -> Glyph {
     match strength {
@@ -194,12 +197,14 @@ fn NetworkRow(
         })
     });
     let glyph = create_memo(move || bars(network.with(|network| network.strength)).to_owned());
-    let secured = create_memo(move || network.with(|network| network.security != WifiSecurity::Open));
+    let secured =
+        create_memo(move || network.with(|network| network.security != WifiSecurity::Open));
     let said = create_memo(move || {
         let network = network.get();
         status.with(|status| caption(status, &network))
     });
-    let label = create_memo(move || network.with(|network| said.with(|said| described(network, said))));
+    let label =
+        create_memo(move || network.with(|network| said.with(|said| described(network, said))));
     let captioned = create_memo(move || !said.with(String::is_empty));
     let linked = ssid.clone();
     let connected = create_memo(move || {
@@ -262,7 +267,11 @@ fn NetworkRow(
                             </Show>
                         </List>
                         <Show condition={secured}>
-                            <Text size=TextSize::Sm color=TextColor::Muted @test_id={lock_id.clone()}>
+                            <Text
+                                size=TextSize::Sm
+                                color=TextColor::Muted
+                                @test_id={lock_id.clone()}
+                            >
                                 <Icon glyph=ICON_LOCK />
                             </Text>
                         </Show>
@@ -278,7 +287,12 @@ fn NetworkRow(
                 </Show>
             </List>
             <Show condition={asked}>
-                <PasswordEntry editor={editor} ssid={entered.clone()} security={security} asking={asking} />
+                <PasswordEntry
+                    editor={editor}
+                    ssid={entered.clone()}
+                    security={security}
+                    asking={asking}
+                />
             </Show>
         </List>
     }

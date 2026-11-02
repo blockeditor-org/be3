@@ -56,11 +56,13 @@ fn checked(request: WifiRequest) -> Option<WifiRequest> {
             password,
         } => {
             let keyed = model::Key::hidden(security, password.clone()).is_some();
-            (named(&ssid) && ssid.len() <= LONGEST_SSID && keyed).then_some(WifiRequest::JoinHidden {
-                ssid,
-                security,
-                password,
-            })
+            (named(&ssid) && ssid.len() <= LONGEST_SSID && keyed).then_some(
+                WifiRequest::JoinHidden {
+                    ssid,
+                    security,
+                    password,
+                },
+            )
         }
         request => Some(request),
     }

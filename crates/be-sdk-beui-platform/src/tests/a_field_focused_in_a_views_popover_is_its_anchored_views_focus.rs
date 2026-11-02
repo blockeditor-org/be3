@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use be_sdk::{AnchorSpace, HostTransform};
 use beui_core::accesskit::{NodeId as AccessNodeId, Role};
@@ -35,7 +35,11 @@ fn a_field_focused_in_a_views_popover_is_its_anchored_views_focus() {
         Windowed::new(move |_| {
             view! {
                 <styled::Popover label="Join" open={open}>|_handle: styled::PopoverHandle|
-                    <styled::TextInput value={create_signal(String::new())} focused=true label="Password" />
+                    <styled::TextInput
+                        value={create_signal(String::new())}
+                        focused=true
+                        label="Password"
+                    />
                 </styled::Popover>
             }
         }),
@@ -48,7 +52,7 @@ fn a_field_focused_in_a_views_popover_is_its_anchored_views_focus() {
         panic!("the open popover is one layer: {:?}", frame.anchored);
     };
     let popover = anchored_shown(&shown, layer);
-    let mut roles = HashMap::new();
+    let mut roles = HashMap::default();
     for _ in 0..3 {
         let framed = one_anchored(&mut surface, &popover);
         let main = one(&mut surface, &shown);
@@ -58,7 +62,7 @@ fn a_field_focused_in_a_views_popover_is_its_anchored_views_focus() {
             "the field stays the popover's focus in frames where it does not change"
         );
         assert_ne!(
-            focus(&main, &mut HashMap::new()),
+            focus(&main, &mut HashMap::default()),
             Some(Role::TextInput),
             "the view the popover escapes from does not claim its focus"
         );
