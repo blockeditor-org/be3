@@ -29,4 +29,5 @@ fn press(test: &mut DocumentTest, key: Key) {
 }
 
 mod it_stays_locked_until_its_password_is_typed;
+mod it_scrolls_on_a_window_too_short_for_it;
 mod its_actions_are_told_apart_by_place;
