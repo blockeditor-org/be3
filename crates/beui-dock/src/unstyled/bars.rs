@@ -2091,9 +2091,12 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
             }
         });
     });
-    let node = create_memo(move || match lifted.get() {
-        true => Some(gap),
-        false => Some(dock.bar_panel(bar)),
+    let node = create_signal(None);
+    create_effect(move || {
+        node.set(Some(match lifted.get() {
+            true => gap,
+            false => dock.bar_panel(bar),
+        }));
     });
     view! {
         <Portal node={node} />
@@ -2104,7 +2107,8 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
 pub(super) fn DockBarLifted(dock: State) -> NodeId {
     let lifting = dock.lifting;
     let lifted = create_memo(move || lifting.lift.with(|lift| lift.map(|lift| lift.bar)));
-    let node = create_memo(move || lifted.get().map(|bar| dock.bar_panel(bar)));
+    let node = create_signal(None);
+    create_effect(move || node.set(lifted.get().map(|bar| dock.bar_panel(bar))));
     let held = view! {
         <Portal node={node} />
     };
