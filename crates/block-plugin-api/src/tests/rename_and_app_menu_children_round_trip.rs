@@ -14,6 +14,7 @@ fn rename_and_app_menu_children_round_trip() {
         layer: ChildLayer::Above,
         mode: ChildMode::Live,
         intrinsic: None,
+        fit: None,
         rotation: 0.0,
         opacity: 1.0,
         follows_view: false,

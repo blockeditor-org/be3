@@ -83,6 +83,7 @@ fn shown(instance: u64) -> ShownView {
         describe: None,
         seen: true,
         windows: true,
+        fit: false,
         docked: false,
         host_place: None,
         anchor_space: None,

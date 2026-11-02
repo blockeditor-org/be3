@@ -74,6 +74,9 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
+pub(crate) struct ChildFit(pub(crate) Memo<Option<Vec2>>);
+
+#[derive(Clone, Copy)]
 pub(crate) struct Placer {
     plugin: Stored<String>,
     instance: EditorInstanceId,
@@ -281,6 +284,10 @@ pub(crate) fn PluginView(
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
     })));
+    let fit = use_context::<ChildFit>()
+        .filter(|_| region.id == ViewId::MAIN)
+        .map(|ChildFit(fit)| fit);
+    provide_context(ChildFit(create_memo(|| None)));
     let placer = use_context::<Placer>().map(|placer| {
         (
             placer.plugin.value().to_string(),
@@ -352,6 +359,7 @@ pub(crate) fn PluginView(
                 origin: origin.get_untracked(),
                 anchor_bounds: (!offscreen && !region.is_preview())
                     .then(|| anchor_bounds.get_untracked()),
+                fit: fit.and_then(|fit| fit.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),

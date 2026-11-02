@@ -20,6 +20,7 @@ fn placements(occluders: Vec<Occluder>) -> LayoutCommit {
             layer: ChildLayer::Below,
             mode: ChildMode::Preview,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

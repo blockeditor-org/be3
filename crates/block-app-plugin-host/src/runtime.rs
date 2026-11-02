@@ -142,22 +142,23 @@ impl Host {
                                 runtime.instances.mounted(placer.instance, placer.view)
                             })
                     })
-                    .map(move |((instance, _), placer)| {
-                        (*instance, placer.plugin.as_str(), id.as_str())
+                    .map(move |((instance, view), placer)| {
+                        match runtime.instances.fits(*instance, *view) {
+                            true => (*instance, id.as_str(), placer.plugin.as_str()),
+                            false => (*instance, placer.plugin.as_str(), id.as_str()),
+                        }
                     })
             })
             .collect();
         edges.sort();
         edges.dedup();
         let mut kept: Vec<(&str, &str)> = Vec::new();
-        for (_, placer, placed) in edges {
-            if !reaches(&kept, placed, placer) {
-                kept.push((placer, placed));
+        for (_, first, then) in edges {
+            if !reaches(&kept, then, first) {
+                kept.push((first, then));
             }
         }
-        kept.into_iter()
-            .map(|(_, placed)| placed.to_owned())
-            .collect()
+        kept.into_iter().map(|(_, then)| then.to_owned()).collect()
     }
 
     fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
@@ -707,14 +708,10 @@ impl Runtime {
             .screens
             .iter()
             .filter(|placement| placement.view != ViewId::PREVIEW)
+            .filter(|placement| self.instances.view_request_of(placement.screen).is_some())
             .any(|placement| {
-                self.instances
-                    .view_request_of(placement.screen)
-                    .is_some_and(|request| {
-                        let requested = super::input::requested_at(
-                            &request.metrics,
-                            super::input::finer(placement),
-                        );
+                self.requested_size(placement.screen)
+                    .is_some_and(|requested| {
                         requested.0 > 0
                             && requested.1 > 0
                             && self
@@ -723,6 +720,34 @@ impl Runtime {
                                 .is_some_and(|drawn| *drawn != requested)
                     })
             })
+    }
+
+    fn requested_size(&self, screen: ScreenId) -> Option<(u32, u32)> {
+        let request = self.instances.request_of(screen)?;
+        let mut metrics = request.metrics.clone();
+        if request.fit
+            && let Some(placed) = self.placements.get(&(request.instance, request.view))
+        {
+            let zoom = placed.zoom.max(f32::EPSILON);
+            let scale = |pixels: u32, logical: f32, shown: f32| match logical > 0.0 {
+                true => (pixels as f32 / logical * shown / zoom).round() as u32,
+                false => 0,
+            };
+            metrics.pixel_width = scale(
+                metrics.pixel_width,
+                metrics.logical.width,
+                placed.rect.width(),
+            );
+            metrics.pixel_height = scale(
+                metrics.pixel_height,
+                metrics.logical.height,
+                placed.rect.height(),
+            );
+        }
+        Some(match self.layout.placement(screen) {
+            Some(placement) => super::input::requested_at(&metrics, super::input::finer(placement)),
+            None => (metrics.pixel_width, metrics.pixel_height),
+        })
     }
 
     fn request_painting(&mut self) {
@@ -1323,15 +1348,7 @@ impl Runtime {
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
             drawn,
-            requested: self
-                .instances
-                .request_of(screen)
-                .map(|request| match placement {
-                    Some(placement) => {
-                        super::input::requested_at(&request.metrics, super::input::finer(placement))
-                    }
-                    None => (request.metrics.pixel_width, request.metrics.pixel_height),
-                }),
+            requested: self.requested_size(screen),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
             layer: None,
@@ -2439,6 +2456,7 @@ pub struct ViewPlace {
     pub placement: Option<String>,
     pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
+    pub fit: Option<Vec2>,
 }
 
 pub(super) struct Offer {
@@ -2506,6 +2524,10 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
     let host_placement = chosen.placement.placement.clone();
     let origin = chosen.placement.origin;
     let anchor_bounds = chosen.placement.anchor_bounds;
+    let fit = chosen
+        .placement
+        .fit
+        .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
     let frame = chosen.frame;
     let view = chosen.view;
     let ViewPlace {
@@ -2525,19 +2547,23 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
             shown: shown.unwrap_or(Rect::ZERO),
         },
     );
-    let (size, scale_factor) = match region {
-        ViewId::PREVIEW => (
+    let (size, scale_factor) = match (region, fit) {
+        (ViewId::PREVIEW, _) => (
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+        (_, Some(fit)) => (fit / zoom, host::pixels_per_point() * zoom),
+        (_, None) => (rect.size() / zoom, host::pixels_per_point() * zoom),
     };
     let raster = match (raster, region) {
         (None, _) => scale_factor,
         (Some(raster), ViewId::PREVIEW) => preview_scale(rect.size(), scale_factor * raster),
         (Some(raster), _) => scale_factor * raster,
     };
-    let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
+    let visible = match fit {
+        Some(_) => Rect::from_min_size(Pos2::ZERO, size),
+        None => shown.map_or(Rect::ZERO, |source| scale_rect(source, size)),
+    };
     let anchor_space = anchor_bounds
         .filter(|_| region != ViewId::PREVIEW)
         .map(|bounds| AnchorSpace {
@@ -2562,6 +2588,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         host_placement,
         origin,
         anchor_space,
+        fit.is_some(),
     );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);

@@ -17,6 +17,7 @@ pub struct View {
     pub ratio: f32,
     pub spec: FrameSpec,
     pub docked: bool,
+    pub fit: bool,
 }
 
 impl View {
@@ -42,6 +43,7 @@ pub struct Report {
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,
     pub work_area: Option<Rect>,
+    pub fitted: Option<Vec2>,
 }
 
 #[derive(Default)]

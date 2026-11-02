@@ -887,15 +887,15 @@ host offers, and where to place what it makes - the location new blocks are
 made in when the filter places none, and whether to lay the picker out for
 touch, as sheets filling the child's rectangle, rather than as a menu and a
 card sized to their content. The instance places the child in an anchored
-view (above) hung from the control that asked, sized to the picker's last
-reported intrinsic size, or one attached to the bottom edge of its bounds
-filling them for touch; it frames the child with its card and beak while the
+view (above) hung from the control that asked, placing the child sized to its
+content (`child-placement.fit`, below) with the room the card may take and
+sizing the card around the size the picker reports, or in one attached to the
+bottom edge of its bounds filling them for touch; it frames the child with its card and beak while the
 picker says it shows a card (`shell.show-card`), and a press outside the view
 answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
 `opening::picker`; that editor reads the block graph for itself, so the
-instance that asked never sees what the picker browses. The picker reports the
-size its content wants as its intrinsic size and answers once with
+instance that asked never sees what the picker browses. The picker answers once with
 `shell.picked`: the block chosen or created and whether it was an existing
 block linked rather than a new one, none when the user cancelled, or why the
 block could not be made. The answer reaches the instance that placed the child
@@ -967,6 +967,22 @@ asked again only once the frame it owes has arrived, and a plugin animating
 without any delay is drawn once per host frame rather than as fast as its
 process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
+
+A child can be placed sized to its content: `child-placement.fit` names the
+most room it may take. The host asks the child's view for that room with
+`screen-request.fit` set, and the child lays the view out once at the smaller
+of the room and its content, lists its screen at that size in its layout,
+draws it, and reports the size it took as the view's `view-size` in its
+layout commit. The host takes that size as the child's intrinsic size at once
+and shows the child's painting at its own size from the placed rectangle's
+top-left, clipped to that rectangle, never stretched. Size flows from whoever
+owns it: for such a child the hold is reversed, so while the child is drawing
+in a frame its placer is asked only once the child's layout commit has
+landed, and the placer then lays its card out around the size the child took
+and paints once. A placer that wants another size changes `fit`, which
+configures the child, and the child shows that size from the next frame.
+`shell.intrinsic-size` stays for children placed at a size their placer
+chooses, such as cards on a canvas, which only take the size as a hint.
 
 A plugin paints at most once per host frame. A change that reaches it after
 the host asked it to draw in this frame, such as a resize a later round of

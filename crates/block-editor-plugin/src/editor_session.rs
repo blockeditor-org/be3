@@ -100,6 +100,7 @@ struct ViewState {
     reported_children: Option<ReportedChildren>,
     age: u32,
     windows: bool,
+    fit: bool,
     docked: bool,
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
@@ -394,6 +395,7 @@ impl EditorSession {
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
             state.windows = request.windows;
+            state.fit = request.fit;
             state.docked = request.docked;
             state.view_placement = Some(request.placement);
             state.host_place.clone_from(&request.host_place);
@@ -818,6 +820,7 @@ impl EditorSession {
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
             windows: state.is_some_and(|state| state.windows),
+            fit: state.is_some_and(|state| state.fit),
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
             anchor_space: state.and_then(|state| state.anchor_space.clone()),
@@ -931,7 +934,10 @@ impl EditorSession {
         }
         let screen = self.placement(view).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
-        self.used(view, content);
+        match frame.fitted {
+            Some(fitted) => self.used(view, Rect::from_min_size(Pos2::ZERO, fitted)),
+            None => self.used(view, content),
+        }
         let reported_content = self
             .host
             .take_content(view)

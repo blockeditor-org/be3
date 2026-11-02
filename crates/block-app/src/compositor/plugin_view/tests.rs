@@ -16,6 +16,7 @@ pub(super) fn child(clip: Rect) -> HostChild {
         layer: ChildLayer::Above,
         mode: ChildMode::Active,
         intrinsic: None,
+        fit: None,
         rotation: 0.0,
         opacity: 1.0,
         corner_radius: 0.0,

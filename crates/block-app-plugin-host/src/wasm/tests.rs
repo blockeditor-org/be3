@@ -128,6 +128,7 @@ fn screens() -> Vec<ScreenRequest> {
         host_place: None,
         docked: false,
         anchor_space: None,
+        fit: false,
         origin: None,
     }]
 }

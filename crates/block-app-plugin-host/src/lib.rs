@@ -126,6 +126,7 @@ pub struct HostChild {
     pub layer: ChildLayer,
     pub mode: ChildMode,
     pub intrinsic: Option<Vec2>,
+    pub fit: Option<Vec2>,
     pub rotation: f32,
     pub opacity: f32,
     pub corner_radius: f32,

@@ -252,6 +252,11 @@ interface types {
         docked: bool,
         anchor-space: option<anchor-space>,
         origin: option<pos2>,
+        /// The view is sized to its content: `metrics` is the most room it may
+        /// take, and the plugin lays it out at the smaller of that and its
+        /// content, lists its screen at that size and reports it as the view's
+        /// `view-size`.
+        fit: bool,
     }
 
     /// Maps a view's logical points to the app window's (host
@@ -444,6 +449,12 @@ interface types {
         layer: child-layer,
         mode: child-mode,
         intrinsic: option<size>,
+        /// Places the child sized to its content, taking at most this much
+        /// room in the view's points: the host asks the child's view for this
+        /// room, the child takes the smaller of it and its content and says
+        /// how much it took, and the host shows it from `rect`'s top-left,
+        /// clipped to `rect`.
+        fit: option<size>,
         rotation: f32,
         opacity: f32,
         follows-view: bool,

@@ -130,6 +130,7 @@ impl ViewHandler for AnchoringViews {
                             1.0,
                             0.0,
                             None,
+                            None,
                             false,
                             None,
                             None,
@@ -266,6 +267,7 @@ impl Rig {
             origin: None,
             docked: false,
             anchor_space: layers,
+            fit: false,
         }];
         screens.deliver(Delivery::Open(Opening::Block(OpenBlock {
             instance: INSTANCE,

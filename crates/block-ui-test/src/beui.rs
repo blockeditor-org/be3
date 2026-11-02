@@ -480,6 +480,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 origin: None,
                 docked: self.docked,
                 anchor_space: None,
+                fit: false,
             }]
         });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);

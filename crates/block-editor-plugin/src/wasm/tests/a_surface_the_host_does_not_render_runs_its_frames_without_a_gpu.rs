@@ -100,6 +100,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         }]),
         Delivery::Configure(1),
     ] {

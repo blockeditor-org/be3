@@ -429,7 +429,9 @@ hooks the higher crates fill in:
   so rows that fill their window fill the width it took. The content is the window frame's
   child, or the node `Document::fit_window_to` names (an overlay's content when that node is
   an overlay, such as a plugin's menu). `Document::window_size` and `fitted_window_size`
-  answer with the size taken.
+  answer with the size taken. A plugin view placed sized to its content is such a window
+  (crates/block-plugin-api/PROTOCOL.md, `child-placement.fit`): block-editor-beui marks it
+  from `View::fit` and fits it to the node `Editor::fit_to` names.
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,

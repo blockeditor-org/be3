@@ -108,6 +108,7 @@ pub struct ShownView {
     pub describe: Option<u64>,
     pub seen: bool,
     pub windows: bool,
+    pub fit: bool,
     pub docked: bool,
     pub host_place: Option<String>,
     pub anchor_space: Option<AnchorSpace>,
@@ -145,6 +146,7 @@ pub struct Frame {
     pub stopped: Option<block_plugin_api::Stopped>,
     pub asks: Vec<block_plugin_api::WindowRequest>,
     pub anchored: Vec<Anchored>,
+    pub fitted: Option<Vec2>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

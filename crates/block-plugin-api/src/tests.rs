@@ -117,6 +117,7 @@ fn view_screen(
         origin: None,
         docked: false,
         anchor_space: None,
+        fit: false,
     }
 }
 

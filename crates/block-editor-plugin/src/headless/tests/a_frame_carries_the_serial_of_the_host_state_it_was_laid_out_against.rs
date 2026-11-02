@@ -72,6 +72,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         }])
         .unwrap();
     plugin.configure(serial).unwrap();

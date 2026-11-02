@@ -616,10 +616,14 @@ impl Screen {
             .at(self.serial)
             .copied()
             .unwrap_or(metrics.scale_factor);
-        vec2(
-            ratio(rect.width(), metrics.logical.width),
-            ratio(rect.height(), metrics.logical.height),
-        ) * ratio(painted, metrics.scale_factor)
+        let fitted = match self.request.fit {
+            true => Vec2::splat(1.0),
+            false => vec2(
+                ratio(rect.width(), metrics.logical.width),
+                ratio(rect.height(), metrics.logical.height),
+            ),
+        };
+        fitted * ratio(painted, metrics.scale_factor)
     }
 
     fn anchor_shift(&self) -> Option<(AnchorSpace, Vec2, f32)> {
@@ -969,6 +973,7 @@ impl Instances {
                     origin: None,
                     docked: false,
                     anchor_space: None,
+                    fit: false,
                 },
                 pass,
             )
@@ -1094,6 +1099,7 @@ impl Instances {
         host_place: Option<String>,
         origin: Option<Pos2>,
         anchor_space: Option<AnchorSpace>,
+        fit: bool,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
@@ -1111,7 +1117,9 @@ impl Instances {
             || screen.request.windows != windows
             || screen.request.host_place != host_place
             || screen.request.origin != origin
+            || screen.request.fit != fit
         {
+            screen.request.fit = fit;
             screen.request.metrics = metrics;
             screen.request.frame = frame;
             screen.request.windows = windows;
@@ -1349,7 +1357,7 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let zoom = match screen.request.metrics.logical.width > 0.0 {
+        let zoom = match screen.request.metrics.logical.width > 0.0 && !screen.request.fit {
             true => input.rect.width() / screen.request.metrics.logical.width,
             false => 1.0,
         };
@@ -1445,6 +1453,7 @@ impl Instances {
                         origin: None,
                         docked: false,
                         anchor_space: None,
+                        fit: false,
                     },
                     0,
                 ),
@@ -2226,13 +2235,31 @@ impl Instances {
     pub(super) fn set_view_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
-            if let Some(screen) = self.screen_by_id(size.screen) {
-                let used = vec2(size.logical.width, size.logical.height);
+            let used = vec2(size.logical.width, size.logical.height);
+            for entry in self.entries.values_mut() {
+                let Some(screen) = entry
+                    .screens
+                    .values_mut()
+                    .find(|placed| placed.request.screen == size.screen)
+                else {
+                    continue;
+                };
                 changed |= screen.used != Some(used);
                 screen.used = Some(used);
+                if screen.request.fit {
+                    changed |= entry.intrinsic != Some(used);
+                    entry.intrinsic = Some(used);
+                }
             }
         }
         changed
+    }
+
+    pub(super) fn fits(&self, instance: EditorInstanceId, view: ViewId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&view))
+            .is_some_and(|screen| screen.request.fit)
     }
 
     pub(super) fn set_windows(&mut self, windows: Vec<ScreenWindow>) -> bool {
@@ -2560,6 +2587,7 @@ impl Instances {
                 layer: child.layer,
                 mode,
                 intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
+                fit: child.fit.map(|size| vec2(size.width, size.height) * scale),
                 rotation: child.rotation,
                 opacity: child.opacity,
                 corner_radius: match layer {
@@ -2918,6 +2946,7 @@ impl Instances {
                     origin: None,
                     docked: false,
                     anchor_space: None,
+                    fit: false,
                 },
                 0,
             ),
@@ -3373,6 +3402,9 @@ impl Instances {
             }
             ShellCall::IntrinsicSize { reply, size, .. } => {
                 ack(reply);
+                if entry.screens.values().any(|screen| screen.request.fit) {
+                    return false;
+                }
                 let intrinsic = size.map(|size| vec2(size.width, size.height));
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;

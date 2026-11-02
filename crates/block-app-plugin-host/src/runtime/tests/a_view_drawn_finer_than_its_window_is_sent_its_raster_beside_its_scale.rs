@@ -86,6 +86,7 @@ fn a_view_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
                 placement: None,
                 origin: None,
                 anchor_bounds: None,
+                fit: None,
             },
             None,
             None,

@@ -66,6 +66,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         origin: None,
         docked: false,
         anchor_space: None,
+        fit: false,
     }
 }
 

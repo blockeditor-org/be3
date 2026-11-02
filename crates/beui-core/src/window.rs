@@ -1,5 +1,12 @@
 pub(crate) mod hosted;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindowFit {
+    Content,
+    Node(beui_types::NodeId),
+    Size(beui_types::Vec2),
+}
+
 use beui_types::Color32;
 use beui_types::Vec2;
 

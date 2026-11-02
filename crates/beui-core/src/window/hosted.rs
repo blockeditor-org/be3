@@ -35,7 +35,7 @@ pub(crate) struct Windows {
     host_focused: Option<WindowId>,
     pub(crate) focus_resized: bool,
     pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
-    fit_nodes: HashMap<WindowId, NodeId>,
+    fit_nodes: HashMap<WindowId, crate::window::WindowFit>,
     fitted: HashMap<WindowId, Vec2>,
 }
 
@@ -193,11 +193,8 @@ impl Document {
         Some(reported.unwrap_or(spec.size))
     }
 
-    pub fn fit_window_to(&mut self, window: WindowId, node: Option<NodeId>) {
-        let changed = match node {
-            Some(node) => self.windows.fit_nodes.insert(window, node) != Some(node),
-            None => self.windows.fit_nodes.remove(&window).is_some(),
-        };
+    pub fn fit_window_to(&mut self, window: WindowId, fit: crate::window::WindowFit) {
+        let changed = self.windows.fit_nodes.insert(window, fit) != Some(fit);
         if changed && let Some(overlay) = self.window_node(window) {
             self.arena.invalidate_node(overlay);
         }
@@ -232,11 +229,24 @@ impl Document {
             .fitted
             .retain(|window, _| fitting.iter().any(|(id, _, _)| id == window));
         for (window, overlay, max) in fitting {
-            let measured = match self.windows.fit_nodes.get(&window).copied() {
-                Some(node) if self.arena.contains(node) => {
+            let fit = self
+                .windows
+                .fit_nodes
+                .get(&window)
+                .copied()
+                .unwrap_or(crate::window::WindowFit::Content);
+            let measured = match fit {
+                crate::window::WindowFit::Size(size) => {
+                    let size = size.min(max).max(Vec2::splat(1.0));
+                    if self.windows.fitted.insert(window, size) != Some(size) {
+                        self.arena.invalidate_node(overlay);
+                    }
+                    continue;
+                }
+                crate::window::WindowFit::Node(node) if self.arena.contains(node) => {
                     Some(self.content_of_overlay(node).unwrap_or(node))
                 }
-                _ => self
+                crate::window::WindowFit::Node(_) | crate::window::WindowFit::Content => self
                     .overlay_content(overlay)
                     .and_then(|frame| self.children(frame).first().copied()),
             };

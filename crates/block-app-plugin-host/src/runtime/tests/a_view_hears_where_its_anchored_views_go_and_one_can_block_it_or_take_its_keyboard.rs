@@ -119,6 +119,7 @@ fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_key
             placement: None,
             origin: None,
             anchor_bounds: Some(window),
+            fit: None,
         },
         None,
         None,

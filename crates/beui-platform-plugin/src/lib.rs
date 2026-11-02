@@ -218,6 +218,7 @@ impl ModuleRunner {
                     ratio,
                     spec: region.spec,
                     docked: region.docked,
+                    fit: region.fit,
                 })
                 .collect(),
         );
@@ -595,6 +596,20 @@ impl ModuleRunner {
         let anchored = escaped::report(held, region.view.id, ratio);
         let report = self.views.take_report(id);
         let to_region = |rect: Rect| rect.scaled(ratio.recip());
+        let fitted = report
+            .fitted
+            .filter(|_| region.fit)
+            .map(|fitted| fitted / ratio);
+        if let Some(fitted) = fitted {
+            let raster = match region.raster.is_finite() && region.raster > 0.0 {
+                true => region.raster,
+                false => 1.0,
+            };
+            surfaces.of(id).size = (
+                ((fitted.x * raster).ceil() as u32).max(1),
+                ((fitted.y * raster).ceil() as u32).max(1),
+            );
+        }
         Frame {
             content: report.content.map(to_region),
             painted: report.painted.into_iter().map(to_region).collect(),
@@ -624,6 +639,7 @@ impl ModuleRunner {
             window: self.requests(id, keyboard, ratio),
             description: region.describe.map(|_| self.describe(id, region, ratio)),
             anchored,
+            fitted,
             ..Frame::default()
         }
     }

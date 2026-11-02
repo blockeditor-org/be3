@@ -84,6 +84,7 @@ struct ChildRecord {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
+    fit: Prop<Option<Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     placed: PlacedChild,
     zone: u64,
@@ -705,6 +706,10 @@ impl Editor {
         self.state().fitted.set(node);
     }
 
+    pub(crate) fn fitted_node(&self) -> Option<beui::NodeId> {
+        self.state().fitted.get().and_then(|node| node.try_get())
+    }
+
     pub(crate) fn fit_intrinsic(&self, document: &mut Document, context: &beui::native::Context) {
         let Some(node) = self.state().fitted.get().and_then(|node| node.try_get()) else {
             return;
@@ -885,6 +890,7 @@ impl Editor {
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
+        fit: Prop<Option<Vec2>>,
         dialog: Prop<Option<DialogFrame>>,
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
@@ -917,6 +923,7 @@ impl Editor {
                 rotation,
                 opacity,
                 intrinsic,
+                fit,
                 dialog,
                 placed,
                 zone: document_zone(),
@@ -1171,6 +1178,10 @@ impl Editor {
                 ))
                 .width(),
                 record.intrinsic.get_untracked(),
+                record
+                    .fit
+                    .get_untracked()
+                    .map(|fit| to_placed(Rect::from_min_size(rect.min, fit)).size()),
                 document.panned_by_canvas(node),
                 record.dialog.get_untracked().map(|dialog| DialogFrame {
                     bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
