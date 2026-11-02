@@ -80,7 +80,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     icon_only=true
                     glyph=ICON_CHEVRON_FIRST
                     label="First move"
-                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.first"}
                     on_click={move || steps.first()}
@@ -89,7 +88,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     icon_only=true
                     glyph=ICON_CHEVRON_LEFT
                     label="Previous move"
-                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.previous"}
                     on_click={move || steps.previous()}
@@ -98,7 +96,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     icon_only=true
                     glyph=ICON_CHEVRON_RIGHT
                     label="Next move"
-                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.next"}
                     on_click={move || steps.next()}
@@ -107,7 +104,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     icon_only=true
                     glyph=ICON_CHEVRON_LAST
                     label="Latest move"
-                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.last"}
                     on_click={move || steps.last()}
