@@ -1336,10 +1336,22 @@ impl XdgShellHandler for State {
             grab.ungrab(PopupUngrabStrategy::All);
             return;
         }
+        // Replacing a popup's pointer grab unsets it, which releases a keyboard grab taken with
+        // the same serial and gives the keyboard back to the toplevel. A client that opens the
+        // next menu of its menubar with the serial of the first click (Qt does) would then see
+        // its new menu lose the keyboard and close it, so the keyboard grab is let go first,
+        // without moving the focus, and taken again once the pointer grab is in place.
+        if keyboard.is_grabbed() {
+            keyboard.unset_grab(self);
+        }
+        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
         keyboard.set_focus(self, grab.current_grab(), serial);
         keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
-        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
         self.popup_grab = Some(grab);
+    }
+
+    fn popup_destroyed(&mut self, _surface: PopupSurface) {
+        self.cleanup();
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {

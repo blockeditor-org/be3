@@ -46,7 +46,10 @@ pub(crate) enum Seen {
     Button(wl_surface::WlSurface, bool),
     Key(wl_surface::WlSurface, u32),
     PopupDone(xdg_popup::XdgPopup),
+    Synced(Option<wl_surface::WlSurface>),
 }
+
+pub(crate) struct Sync;
 
 #[derive(Default)]
 pub(crate) struct Received {
@@ -341,6 +344,10 @@ impl TestClient {
     pub(crate) fn activate(&self, token: &str, surface: &wl_surface::WlSurface) {
         let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
         activation.activate(token.to_owned(), surface);
+    }
+
+    pub(crate) fn sync(&self) {
+        self.connection.display().sync(&self.handle, Sync);
     }
 
     pub(crate) fn flush(&mut self) {
@@ -775,6 +782,23 @@ impl Dispatch<wl_callback::WlCallback, ()> for Received {
     ) {
         if let wl_callback::Event::Done { .. } = event {
             state.frames += 1;
+        }
+    }
+}
+
+impl Dispatch<wl_callback::WlCallback, Sync> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_callback::WlCallback,
+        event: wl_callback::Event,
+        _: &Sync,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_callback::Event::Done { .. } = event {
+            state
+                .seen
+                .push(Seen::Synced(state.keyboard_surface.clone()));
         }
     }
 }

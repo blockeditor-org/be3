@@ -36,7 +36,14 @@ server-side-decorated windows and never grows on its own, opens at a default siz
 
 Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
 is mostly on, not to the window, as the protocol intends, and are drawn and take input in a floating
-overlay above the document, so a menu can reach past its window's edge.
+overlay above the document, so a menu can reach past its window's edge. A popup that grabs
+(`XdgShellHandler::grab` in `state.rs`) holds the keyboard until it is dismissed or destroyed;
+when it is destroyed the keyboard goes back to its parent menu, or its window, at once, before
+the client's next request is answered, as mutter does. Qt and GTK switch from one menubar menu to
+the next by destroying the first and grabbing again with the serial of the click that opened it,
+and Qt closes every menu if a `wl_display.sync` returns while none of its surfaces has the
+keyboard. Smithay's popup pointer grab, when replaced, lets go of a keyboard grab with its
+serial, so `grab` lets go of the keyboard grab itself before it replaces the pointer grab.
 
 ## Displays
 
