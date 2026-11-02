@@ -1,20 +1,20 @@
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::CanvasView;
-use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
-use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
 use be_sdk_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
 use be_sdk_beui::{Editor, FileChooser, Sidebar, narrow_chrome};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
 use be_type_pdf::PdfContent;
-use beui::unstyled::gestures;
 use beui::ItemSize;
+use beui::unstyled::gestures;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 const STAGE: &str = "stage";
@@ -206,7 +206,6 @@ fn PdfDock(
 #[component]
 fn PdfToolbar(controls: Controls) -> NodeId {
     let Controls {
-
         page_label,
         first,
         last,
