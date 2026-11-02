@@ -1080,6 +1080,9 @@ impl Compositor {
         self.watch_idle(context, document);
         self.focus(now);
         self.input(now);
+        if self.owned() {
+            self.carry_files(context);
+        }
         self.apply(now);
         let typing = self
             .server

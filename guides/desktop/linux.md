@@ -694,8 +694,13 @@ be-host's clipboard (beui's, through the runner's `PlatformServices`) and the Wa
 through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
 `zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
 text, which the compositor reads without blocking and hands to be-host with `Context::copy_text`;
-the program's own selection stays, with all its types. Everything be-host copies
-(`Context::watch_copies`) becomes a selection the compositor serves as text. Apps paste
+the program's own selection stays, with all its types. Otherwise the selection is the host's
+clipboard (`HostClipboard`): offered as text from the start and whenever be-host copies
+(`Context::watch_copies`), and read from the platform (`Context::read_clipboard`) only when a
+program pastes, so whatever the outer desktop copied, in a windowed `--desktop`, is what a
+program gets. A platform cannot say when its clipboard changes, so a program's selection gives
+way to the host's when be-host's window is focused again (`Event::Focus(true)`) and the
+platform's text is no longer the program's. Apps paste
 through the host's `request_paste`, so both work in a session, where the platform's clipboard is
 the DRM platform's own. A selection that only offers images is not handed to be-host.
 
@@ -727,10 +732,17 @@ middle-click paste among themselves.
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package), and `xclip -i` and
 `xclip -o -selection clipboard` with `DISPLAY` from `drive env`, with
 `drive exec`, and copy or paste in the host with `drive key ctrl+c`
-and `ctrl+v`.
+and `ctrl+v`. `drive clipboard TEXT` is a copy in the outer desktop; between `drive blur` and
+`drive focus` it also takes the selection from a program.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
 stays with the window it began in, and while the drag lasts the compositor moves it to the
 window beui finds under the pointer (`over` on each `Forwarded::Pointer`). Only a shown window can be dropped on: a
 dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).
+
+Files dragged in from the platform (`Event::FileHovered`, `FileDropped`; `drive grab FILE` and
+`drive drop`) become the compositor's own drag (`selection/files.rs`, smithay's `start_dnd`),
+offering `text/uri-list` and `text/plain;charset=utf-8` (the paths, one a line). It enters
+whichever window the pointer is over, as a window's drag does, and drops there; files dropped
+off every window, or taken back (`FileHoverCancelled`), cancel it.
 

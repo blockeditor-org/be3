@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::PasteRequest;
+use crate::clipboard::{ClipboardRead, PasteRequest};
 use crate::damage;
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FilePickId, FilePickRequest};
@@ -82,6 +82,7 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     copied_image: RefCell<Option<Vec<u8>>>,
     paste: Cell<Option<PasteRequest>>,
+    clipboard_reads: RefCell<Vec<ClipboardRead>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
@@ -270,6 +271,7 @@ pub struct FrameOutput {
     pub copied_text: Option<String>,
     pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
+    pub clipboard_reads: Vec<ClipboardRead>,
     pub file_picks: Vec<FilePickRequest>,
     pub file_saves: Vec<FileSaveRequest>,
     pub repaint: bool,
@@ -371,6 +373,7 @@ impl Context {
                 copied_text: RefCell::new(None),
                 copied_image: RefCell::new(None),
                 paste: Cell::new(None),
+                clipboard_reads: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
@@ -858,6 +861,7 @@ impl Context {
             copied_text,
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
+            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_reads.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             file_saves: std::mem::take(&mut *self.inner.file_save_requests.borrow_mut()),
             repaint_after: self.inner.repaint_after.get(),
@@ -994,6 +998,13 @@ impl Context {
 
     pub fn take_clipboard_keys(&self, keys: bool) {
         self.inner.window.borrow_mut().requests.clipboard_keys = keys;
+    }
+
+    pub fn read_clipboard(&self, answer: impl FnOnce(Option<String>) + 'static) {
+        self.inner
+            .clipboard_reads
+            .borrow_mut()
+            .push(ClipboardRead::new(answer));
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
