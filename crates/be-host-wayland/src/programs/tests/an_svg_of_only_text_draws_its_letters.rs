@@ -10,10 +10,8 @@ const CLEAR: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" heigh
 
 #[test]
 fn an_svg_of_only_text_draws_its_letters() {
-    let image = icons::render_svg(TEXT.as_bytes(), 48, || {
-        Arc::new(icons::bundled_fonts())
-    })
-    .expect("the svg renders");
+    let image = icons::render_svg(TEXT.as_bytes(), 48, || Arc::new(icons::bundled_fonts()))
+        .expect("the svg renders");
     let inked = image
         .pixels()
         .as_chunks::<4>()

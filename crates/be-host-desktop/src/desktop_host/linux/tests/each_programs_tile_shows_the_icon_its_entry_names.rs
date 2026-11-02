@@ -55,7 +55,9 @@ fn each_programs_tile_shows_the_icon_its_entry_names() {
         ..Environment::default()
     });
     let icon = |id: &str| {
-        source.icon(id, 96).map(|icon| Image::from_rgba(icon.width, icon.height, icon.rgba))
+        source
+            .icon(id, 96)
+            .map(|icon| Image::from_rgba(icon.width, icon.height, icon.rgba))
     };
     assert!(
         icon("xterm.desktop").is_some(),

@@ -13,9 +13,8 @@ pub fn rasterize<'a>(
         fade: Fade::NONE,
         rounds: Vec::new(),
     };
-    let texture = |key: TextureKey| {
-        textures(key).ok_or("the painting is missing a texture it uses")
-    };
+    let texture =
+        |key: TextureKey| textures(key).ok_or("the painting is missing a texture it uses");
     let mut chains: std::collections::BTreeMap<TextureKey, Vec<Pixels>> = Default::default();
     let scale = frame.pixels_per_point;
     for primitive in &frame.primitives {

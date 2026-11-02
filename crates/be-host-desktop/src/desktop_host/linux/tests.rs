@@ -1,4 +1,4 @@
 use super::*;
 
-mod exiting_takes_the_compositor_down_before_the_thread_ends;
 mod each_programs_tile_shows_the_icon_its_entry_names;
+mod exiting_takes_the_compositor_down_before_the_thread_ends;
