@@ -15,6 +15,8 @@ on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: th
 windows, notification server, tray, media, power, lock screen or programs to launch.
 The host test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
 and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
+A desktop never shares its data with another be-host: started while one already runs on the same
+data directory, it stops with an error (guides/running/native.md).
 
 Everything the desktop gets from the host comes through `be3:desktop`, a WIT package
 beside the core app protocol rather than in it

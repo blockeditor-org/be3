@@ -109,6 +109,7 @@ struct Inner {
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
+    raise_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
     touchscreen: Cell<bool>,
     preferences: Cell<PreferenceLayers>,
@@ -268,6 +269,7 @@ pub struct FrameOutput {
     dump: Option<AccessibilityDump>,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
+    pub raise_requested: bool,
     pub copied_text: Option<String>,
     pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
@@ -400,6 +402,7 @@ impl Context {
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
+                raise_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 touchscreen: Cell::new(false),
                 preferences: Cell::new(PreferenceLayers::default()),
@@ -714,6 +717,7 @@ impl Context {
         self.inner.escaped.borrow_mut().clear();
         self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
+        self.inner.raise_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
         self.inner.overflows.borrow_mut().clear();
@@ -868,6 +872,7 @@ impl Context {
             animating: self.inner.animating.get(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
+            raise_requested: self.inner.raise_requested.get(),
             repaint: self.inner.repaint.get(),
             accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
@@ -938,6 +943,10 @@ impl Context {
 
     pub fn close_window(&self) {
         self.inner.close_requested.set(true);
+    }
+
+    pub fn raise_window(&self) {
+        self.inner.raise_requested.set(true);
     }
 
     pub fn handle_back(&self) {
