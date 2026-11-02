@@ -790,6 +790,7 @@ fn drag(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
 
 fn secondary(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
     let pos = session.pos;
+    doc.set_focus_visible(false);
     session.owners = match claimant {
         Some(claimant) => vec![claimant],
         None => session

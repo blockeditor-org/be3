@@ -179,6 +179,10 @@ pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     core::focus_ring(focused.into_prop())
 }
 
+pub fn focus_visible() -> bool {
+    core::focus_visible()
+}
+
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     core::holds_focus(node)
 }
