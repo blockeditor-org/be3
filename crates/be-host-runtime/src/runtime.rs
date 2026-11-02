@@ -235,6 +235,9 @@ impl Host {
             return;
         };
         runtime.stop();
+        if runtime.error.is_none() {
+            heard_stop(app_id);
+        }
         presenter::release(runtime.surface, &runtime.status);
         host::request_repaint();
     }
@@ -860,10 +863,17 @@ impl Runtime {
             format!("{} stopped: {first}", self.name()),
             error.clone(),
         );
+        self.stopped(error);
+    }
+
+    fn stopped(&mut self, error: String) {
+        if self.error.is_some() {
+            return;
+        }
         self.error = Some(error);
         let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.app.identity.id);
-        CRASHED.with(|crashed| crashed.borrow_mut().push(self.app.identity.id.clone()));
+        heard_stop(&self.app.identity.id);
         super::forget_windows(&self.app.identity.id);
         mark(&self.app.identity.id);
         host::request_repaint();
@@ -877,12 +887,11 @@ impl Runtime {
             self.crashed(error);
             return;
         }
-        self.error = match self.status.get() {
-            PresenterState::Failed(error) | PresenterState::Unsupported(error) => Some(error),
-            PresenterState::Waiting | PresenterState::Presenting | PresenterState::Released => None,
-        };
-        if self.error.is_some() {
-            mark(&self.app.identity.id);
+        match self.status.get() {
+            PresenterState::Failed(error) | PresenterState::Unsupported(error) => {
+                self.stopped(error);
+            }
+            PresenterState::Waiting | PresenterState::Presenting | PresenterState::Released => {}
         }
     }
 
@@ -932,7 +941,8 @@ impl Runtime {
                 return;
             }
             state => {
-                self.error = Some(format!("The app session stopped: {state:?}"));
+                let error = format!("The app session stopped: {state:?}");
+                self.stopped(error);
                 return;
             }
         }
@@ -2023,7 +2033,14 @@ pub fn set_artifact_states(
 
 pub fn kill(app_id: &str) {
     HOST.with(|host| {
-        host.borrow_mut().shutdown(app_id);
+        let mut host = host.borrow_mut();
+        let Some(runtime) = host.runtimes.get_mut(app_id) else {
+            return;
+        };
+        runtime.stopped("It was killed.".to_owned());
+        if runtime.instances.is_empty() {
+            host.shutdown(app_id);
+        }
     });
     mark(app_id);
 }
@@ -2287,11 +2304,15 @@ fn session() -> Session {
 thread_local! {
     static CHANGED: RefCell<be_lib_stable_hash::HashSet<String>> =
         RefCell::new(be_lib_stable_hash::HashSet::default());
-    static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static STOPPED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
-pub fn take_crashed() -> Vec<String> {
-    CRASHED.with(|crashed| std::mem::take(&mut *crashed.borrow_mut()))
+fn heard_stop(app_id: &str) {
+    STOPPED.with(|stopped| stopped.borrow_mut().push(app_id.to_owned()));
+}
+
+pub fn take_stopped() -> Vec<String> {
+    STOPPED.with(|stopped| std::mem::take(&mut *stopped.borrow_mut()))
 }
 
 pub fn crash(app_id: &str, error: String) {

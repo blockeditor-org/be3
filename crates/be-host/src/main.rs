@@ -2150,7 +2150,7 @@ impl HostCore {
     }
 
     fn watch_shell(&mut self) {
-        let crashed = be_host_runtime::take_crashed();
+        let stopped = be_host_runtime::take_stopped();
         let Some(shell) = self.shell else {
             return;
         };
@@ -2159,7 +2159,7 @@ impl HostCore {
                 editor.app().map(|app| app.identity.id.clone())
             })
             .flatten();
-        let Some(app) = app.filter(|app| crashed.contains(app)) else {
+        let Some(app) = app.filter(|app| stopped.contains(app)) else {
             return;
         };
         self.stop_shell();
