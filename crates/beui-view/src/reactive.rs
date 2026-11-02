@@ -99,6 +99,10 @@ pub fn component_placed() -> ReadSignal<bool> {
     crate::core::tree::component_placed()
 }
 
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    crate::core::tree::accessibility_reference(node)
+}
+
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     crate::core::tree::component_accessibility(node);
 }

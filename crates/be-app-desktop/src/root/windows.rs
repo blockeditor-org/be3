@@ -1,3 +1,4 @@
+use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::styled::TabId;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
@@ -442,6 +443,19 @@ fn WindowChip(
         true => Some(ICON_EYE_OFF),
         false => Some(ICON_EYE),
     });
+    let accessibility = create_memo(move || {
+        let mut node = Node::new(Role::Button);
+        node.set_toggled(Toggled::from(focused.get()));
+        let state = match (waiting, shown.get()) {
+            (true, _) => Some("Not running"),
+            (false, false) => Some("Hidden"),
+            (false, true) => None,
+        };
+        if let Some(state) = state {
+            node.set_description(state);
+        }
+        node
+    });
     let face = NodeRef::new();
     create_effect(move || {
         count.get();
@@ -514,6 +528,7 @@ fn WindowChip(
                 glyph
                 icon_only={icons}
                 press_focus=false
+                accessibility
                 @node_ref=&face
                 @test_id={prefix.clone()}
                 on_click={move || windows.choose(chip)}

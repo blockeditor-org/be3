@@ -76,6 +76,10 @@ pub fn set_component_state<T: 'static>(state: T) {
     }
 }
 
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    crate::accessibility::reference(node)
+}
+
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     let bindings = bindings();
     let node = node.into_prop();
