@@ -734,7 +734,10 @@ impl State {
         with_states(toplevel.wl_surface(), |states| {
             let mut cached = states.cached_state.get::<SurfaceCachedState>();
             let current = cached.current();
-            (points(Some(current.min_size)), points(Some(current.max_size)))
+            (
+                points(Some(current.min_size)),
+                points(Some(current.max_size)),
+            )
         })
     }
 

@@ -54,7 +54,8 @@ fn a_new_window_opens_within_its_programs_least_and_greatest_size() {
         huge.min.x <= small.min.x && huge.min.y <= small.min.y,
         "and at the work area's origin, before every cascaded window: {shown:?}"
     );
-    fixture
-        .test
-        .desk_snapshot("a_new_window_opens_within_its_programs_least_and_greatest_size", 0);
+    fixture.test.desk_snapshot(
+        "a_new_window_opens_within_its_programs_least_and_greatest_size",
+        0,
+    );
 }

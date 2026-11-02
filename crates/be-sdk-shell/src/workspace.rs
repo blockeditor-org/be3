@@ -1265,8 +1265,9 @@ pub fn WindowTab(
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || info.get().map(|info| info.size));
     let limits = create_memo(move || {
-        info.get()
-            .map_or((Vec2::ZERO, Vec2::ZERO), |info| (info.min_size, info.max_size))
+        info.get().map_or((Vec2::ZERO, Vec2::ZERO), |info| {
+            (info.min_size, info.max_size)
+        })
     });
     let note = create_memo(move || info.get()?.note);
     let menu = create_memo(move || info.get()?.menu);

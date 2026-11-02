@@ -75,10 +75,7 @@ pub(crate) fn followed_size(size: Vec2, asked: Option<Vec2>, min: Vec2, max: Vec
         true => asked,
         false => size,
     };
-    vec2(
-        axis(size.x, asked.x, held.x),
-        axis(size.y, asked.y, held.y),
-    )
+    vec2(axis(size.x, asked.x, held.x), axis(size.y, asked.y, held.y))
 }
 
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
