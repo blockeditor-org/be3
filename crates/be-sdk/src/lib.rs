@@ -60,11 +60,12 @@ pub use be_sdk_api::{
     PowerWatch, Press, PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, RemapState,
     RemapsWatch, ResizeMode, Revision, Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta,
     ShellCommand, ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor,
-    TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus,
-    TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand,
-    WebViewEvent, WebViewId, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
-    WifiWatch, WindowAction, WindowKind, WindowMenu, WindowOrigin, WindowRequests, WindowsWatch,
+    TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest,
+    TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched,
+    WebViewCommand, WebViewEvent, WebViewId, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
+    WifiStatus, WifiWatch, WindowAction, WindowKind, WindowMenu, WindowOrigin, WindowRequests,
+    WindowsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
