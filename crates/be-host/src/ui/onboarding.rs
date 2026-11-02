@@ -8,7 +8,7 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
-use super::{AccountForm, HostUiStore, ErrorAction, OrganizationsState, UiCommand, send};
+use super::{AccountForm, ErrorAction, HostUiStore, OrganizationsState, UiCommand, send};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
 use beui::{Align, Direction, ItemSize};

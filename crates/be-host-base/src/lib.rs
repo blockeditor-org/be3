@@ -1,5 +1,5 @@
-pub mod host_state;
 pub mod host;
+pub mod host_state;
 pub mod notices;
 pub mod panic_guard;
 pub mod password;
