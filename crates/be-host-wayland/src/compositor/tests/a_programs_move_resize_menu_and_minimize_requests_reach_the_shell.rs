@@ -69,10 +69,18 @@ fn a_programs_move_resize_menu_and_minimize_requests_reach_the_shell() {
         STEERED.with(|steered| *steered.borrow()) > 0,
         "the window's input passes through the shell that carries it"
     );
-    let serial = harness.client.received.serial.expect("the press reached the program");
+    let serial = harness
+        .client
+        .received
+        .serial
+        .expect("the press reached the program");
     toplevel._move(&seat, serial);
     harness.settle();
-    assert_eq!(begun(), [Grab::Move], "a move asked while the button is held begins one");
+    assert_eq!(
+        begun(),
+        [Grab::Move],
+        "a move asked while the button is held begins one"
+    );
     toplevel.resize(&seat, serial, ResizeEdge::Right);
     harness.settle();
     assert_eq!(
@@ -89,7 +97,10 @@ fn a_programs_move_resize_menu_and_minimize_requests_reach_the_shell() {
     harness.settle();
     toplevel._move(&seat, serial);
     harness.settle();
-    assert!(begun().is_empty(), "a move asked after the press was let go carries nothing");
+    assert!(
+        begun().is_empty(),
+        "a move asked after the press was let go carries nothing"
+    );
 
     toplevel.show_window_menu(&seat, serial, 30, 20);
     harness.settle();

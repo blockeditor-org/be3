@@ -34,5 +34,9 @@ fn a_window_a_program_asks_to_move_or_resize_follows_the_pointer() {
     );
 
     carrying.drag_to(edge);
-    assert_eq!(carrying.placed(), resized, "the window is let go with the button");
+    assert_eq!(
+        carrying.placed(),
+        resized,
+        "the window is let go with the button"
+    );
 }

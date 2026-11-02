@@ -341,7 +341,9 @@ impl DesktopHost for Linux {
                         launch: launched.launch,
                     },
                     note: None,
-                    menu: windows.menu(info.id).map(|(asked, at)| WindowMenu { asked, at }),
+                    menu: windows
+                        .menu(info.id)
+                        .map(|(asked, at)| WindowMenu { asked, at }),
                 }
             })
             .collect()

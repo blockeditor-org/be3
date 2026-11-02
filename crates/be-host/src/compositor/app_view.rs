@@ -22,9 +22,9 @@ use uuid::Uuid;
 
 use super::anchored::AnchoredViews;
 use crate::surfaces::CrashNotice;
+use be_host_desktop::carrier::{Carried, Carrier, Carry};
 use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
-use be_host_desktop::carrier::{Carried, Carrier, Carry};
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
