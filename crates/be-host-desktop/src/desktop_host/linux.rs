@@ -90,7 +90,7 @@ impl DesktopHost for Linux {
         let mut server = match Server::new() {
             Ok(server) => server,
             Err(error) => {
-                eprintln!("block-app: the Wayland server did not start: {error}");
+                eprintln!("be-host: the Wayland server did not start: {error}");
                 be_host_base::notices::report(format!(
                     "Programs cannot be run, since the Wayland server did not start: {error}"
                 ));
@@ -98,9 +98,9 @@ impl DesktopHost for Linux {
             }
         };
         match server.start_xwayland() {
-            Ok(display) => eprintln!("block-app: X11 programs run on Xwayland at :{display}"),
+            Ok(display) => eprintln!("be-host: X11 programs run on Xwayland at :{display}"),
             Err(error) => {
-                eprintln!("block-app: Xwayland did not start, so X11 programs cannot run: {error}")
+                eprintln!("be-host: Xwayland did not start, so X11 programs cannot run: {error}")
             }
         }
         let mut compositor = Compositor::new(server, windows);
@@ -549,7 +549,7 @@ impl ProgramSource for LinuxPrograms {
         let arguments = match self.environment.command(entry, path.as_deref()) {
             Ok(arguments) => arguments,
             Err(error) => {
-                eprintln!("block-app: {} did not start: {error}", entry.name);
+                eprintln!("be-host: {} did not start: {error}", entry.name);
                 let problem = format!("{} did not start: {error}", entry.name);
                 be_host_base::notices::report(problem.clone());
                 return Some(Err(problem));

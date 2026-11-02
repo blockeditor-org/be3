@@ -171,14 +171,14 @@ impl DesktopHost for Win32 {
                     .filter(|entry| entry.kind == EntryKind::Display)
                     .count();
                 eprintln!(
-                    "block-app: Windows has {displays} displays and {} windows",
+                    "be-host: Windows has {displays} displays and {} windows",
                     snapshot.entries.len() - displays
                 );
             }
             Some(newly)
         });
         if newly_secure == Some(true) {
-            eprintln!("block-app: Windows switched to the secure desktop");
+            eprintln!("be-host: Windows switched to the secure desktop");
             be_host_base::notices::report(win32_map::SECURE_DESKTOP.to_owned());
         }
         for event in &events {
@@ -192,7 +192,7 @@ impl DesktopHost for Win32 {
             captures.retain(|source, captured| {
                 if let Some(lost) = captured.capture.lost() {
                     eprintln!(
-                        "block-app: the capture of {} ended: {lost:?}",
+                        "be-host: the capture of {} ended: {lost:?}",
                         describe(captured.target, &captured.title)
                     );
                     let failed = match &lost {
@@ -206,7 +206,7 @@ impl DesktopHost for Win32 {
                             Recovery::Restart => match start_capture(captured.target) {
                                 Ok(capture) => {
                                     eprintln!(
-                                        "block-app: the capture of {} started again",
+                                        "be-host: the capture of {} started again",
                                         describe(captured.target, &captured.title)
                                     );
                                     captured.capture = capture;
@@ -217,7 +217,7 @@ impl DesktopHost for Win32 {
                                 }
                                 Err(error) => {
                                     eprintln!(
-                                        "block-app: the capture of {} did not start again: {error}",
+                                        "be-host: the capture of {} did not start again: {error}",
                                         describe(captured.target, &captured.title)
                                     );
                                     win32_map::recovery(Some(&error), true, &captured.title)
@@ -357,7 +357,7 @@ impl DesktopHost for Win32 {
         if entry.kind == EntryKind::Window
             && let Err(error) = be_host_win32::close_window(entry.handle)
         {
-            eprintln!("block-app: {} did not close: {error}", entry.title);
+            eprintln!("be-host: {} did not close: {error}", entry.title);
         }
     }
 
@@ -568,17 +568,17 @@ fn spawn() {
     let watcher = match Watcher::spawn(be_host_base::host::wake) {
         Ok(watcher) => Arc::new(watcher),
         Err(error) => {
-            eprintln!("block-app: the Windows windows are not watched: {error}");
+            eprintln!("be-host: the Windows windows are not watched: {error}");
             be_host_base::notices::report(format!(
                 "Windows' windows and displays cannot be shown, since watching them did not start: {error}"
             ));
             return;
         }
     };
-    eprintln!("block-app: watching Windows' windows and displays");
+    eprintln!("be-host: watching Windows' windows and displays");
     watcher.set_host_window(HOST_WINDOW.get());
     if HOST_WINDOW.get().is_none() {
-        eprintln!("block-app: Block's own window is unknown, so focus cannot bring it back");
+        eprintln!("be-host: Block's own window is unknown, so focus cannot bring it back");
     }
     if let Err(error) = watcher.set_hotkey(Some(Hotkey::DEFAULT)) {
         hotkey_refused(&error);
@@ -592,7 +592,7 @@ fn spawn() {
 
 fn hotkey_refused(error: &be_host_win32::HotkeyError) {
     eprintln!(
-        "block-app: the shortcut back to Block, {}, was not registered: {error}",
+        "be-host: the shortcut back to Block, {}, was not registered: {error}",
         Hotkey::DEFAULT
     );
     be_host_base::notices::report(format!(
@@ -609,39 +609,39 @@ fn log_event(snapshot: &Snapshot, event: &FocusEvent) {
         )
     };
     match event {
-        FocusEvent::Started(id) => eprintln!("block-app: focus mode started on {}", name(*id)),
+        FocusEvent::Started(id) => eprintln!("be-host: focus mode started on {}", name(*id)),
         FocusEvent::Followed { from, to } => {
             eprintln!(
-                "block-app: focus mode moved from {} to {}",
+                "be-host: focus mode moved from {} to {}",
                 name(*from),
                 name(*to)
             );
         }
         FocusEvent::Ended { entry, reason } => {
             eprintln!(
-                "block-app: focus mode on {} ended: {reason:?}",
+                "be-host: focus mode on {} ended: {reason:?}",
                 name(*entry)
             );
         }
         FocusEvent::Refused { entry, error } => {
             eprintln!(
-                "block-app: focus mode on {} did not start: {error}",
+                "be-host: focus mode on {} did not start: {error}",
                 name(*entry)
             );
         }
         FocusEvent::Suspended(id) => {
             eprintln!(
-                "block-app: focus mode on {} paused for the secure desktop",
+                "be-host: focus mode on {} paused for the secure desktop",
                 name(*id)
             );
         }
-        FocusEvent::Resumed(id) => eprintln!("block-app: focus mode on {} resumed", name(*id)),
-        FocusEvent::Hotkey => eprintln!("block-app: {} pressed", Hotkey::DEFAULT),
+        FocusEvent::Resumed(id) => eprintln!("be-host: focus mode on {} resumed", name(*id)),
+        FocusEvent::Hotkey => eprintln!("be-host: {} pressed", Hotkey::DEFAULT),
         FocusEvent::HostForegroundRefused => {
-            eprintln!("block-app: Windows did not let Block come back to the front");
+            eprintln!("be-host: Windows did not let Block come back to the front");
         }
         FocusEvent::HotkeySet(Some(hotkey)) => {
-            eprintln!("block-app: {hotkey} brings Block back from a Windows window");
+            eprintln!("be-host: {hotkey} brings Block back from a Windows window");
         }
         FocusEvent::HotkeySet(None) => {}
         FocusEvent::HotkeyRefused(error) => hotkey_refused(error),
@@ -662,10 +662,10 @@ fn device() -> Option<Device> {
                 let gpu = gpu.as_ref()?;
                 Device::new(&gpu.device, &gpu.queue, gpu.srgb)
                     .inspect(|device| {
-                        eprintln!("block-app: capturing Windows on {}", device.adapter());
+                        eprintln!("be-host: capturing Windows on {}", device.adapter());
                     })
                     .map_err(|error| {
-                        eprintln!("block-app: Windows cannot be captured: {error}");
+                        eprintln!("be-host: Windows cannot be captured: {error}");
                         be_host_base::notices::report(format!(
                             "Windows' windows and displays cannot be drawn: {error}"
                         ));
@@ -690,7 +690,7 @@ fn resize(id: EntryId, size: Vec2) {
         return;
     };
     if let Err(error) = be_host_win32::resize_window(entry.handle, width, height) {
-        eprintln!("block-app: {} was not resized: {error}", entry.title);
+        eprintln!("be-host: {} was not resized: {error}", entry.title);
     }
 }
 
@@ -712,7 +712,7 @@ fn focus_entry(id: EntryId, at: Option<be_host_win32::Point>) {
     match watcher.focus(id, at) {
         Ok(()) => refuse(id, None),
         Err(error) => {
-            eprintln!("block-app: entry {} was not focused: {error}", id.0);
+            eprintln!("be-host: entry {} was not focused: {error}", id.0);
             refuse(id, win32_map::focus_refusal(&error));
         }
     }
@@ -727,12 +727,12 @@ fn spawn_launch(work: impl FnOnce() -> std::io::Result<be_host_win32::Launch> + 
         .spawn(move || match work() {
             Ok(launch) => watcher.launched(launch),
             Err(error) => {
-                eprintln!("block-app: the program did not start: {error}");
+                eprintln!("be-host: the program did not start: {error}");
                 be_host_base::notices::report(format!("The program did not start: {error}"));
             }
         });
     if let Err(error) = spawned {
-        eprintln!("block-app: the program was not started: {error}");
+        eprintln!("be-host: the program was not started: {error}");
     }
 }
 
@@ -760,7 +760,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
     };
     match start_capture(target) {
         Ok(capture) => {
-            eprintln!("block-app: capturing {}", describe(target, &entry.title));
+            eprintln!("be-host: capturing {}", describe(target, &entry.title));
             CAPTURES.with_borrow_mut(|captures| {
                 captures.insert(
                     source,
@@ -779,7 +779,7 @@ fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
         }
         Err(error) => {
             eprintln!(
-                "block-app: {} cannot be captured: {error}",
+                "be-host: {} cannot be captured: {error}",
                 describe(target, &entry.title)
             );
             if DEVICE.with_borrow(Option::is_some) && matches!(source, Source::Entry(_)) {
@@ -807,7 +807,7 @@ fn release(source: Source, user: u64) {
     });
     if let Some(captured) = &capture {
         eprintln!(
-            "block-app: stopped capturing {}",
+            "be-host: stopped capturing {}",
             describe(captured.target, &captured.title)
         );
     }
@@ -890,7 +890,7 @@ fn forwarded(
             Err(be_host_win32_input::InjectError::Elevated) => {
                 refuse(id, Some(Refusal::Elevated));
             }
-            Err(error) => eprintln!("block-app: input did not reach {}: {error}", entry.title),
+            Err(error) => eprintln!("be-host: input did not reach {}: {error}", entry.title),
         }
     }
 }
@@ -1002,11 +1002,11 @@ fn request_power(action: be_sdk_api::PowerAction) {
         .name("power".to_owned())
         .spawn(move || {
             if let Err(error) = be_host_win32::request_power(action) {
-                eprintln!("block-app: Windows did not {action:?}: {error}");
+                eprintln!("be-host: Windows did not {action:?}: {error}");
                 be_host_base::notices::report(format!("Windows refused to {action:?}: {error}"));
             }
         });
     if let Err(error) = spawned {
-        eprintln!("block-app: the power request was not made: {error}");
+        eprintln!("be-host: the power request was not made: {error}");
     }
 }

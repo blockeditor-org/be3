@@ -3,7 +3,7 @@ use std::path::Path;
 
 use super::lock::Verdict;
 
-pub(crate) const SERVICE: &str = "block-app";
+pub(crate) const SERVICE: &str = "be-host";
 pub(crate) const FALLBACK_SERVICE: &str = "login";
 pub(crate) const DIR: &str = "/etc/pam.d";
 const LIBRARY: &CStr = c"libpam.so.0";

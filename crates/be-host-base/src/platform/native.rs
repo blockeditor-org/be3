@@ -6,7 +6,7 @@ impl<T, F: Future<Output = T> + Send + 'static> Request<T> for F {}
 
 pub fn spawn_request(request: impl Request<()>) {
     thread::Builder::new()
-        .name("block-app-request".into())
+        .name("be-host-request".into())
         .spawn(move || match tokio::runtime::Runtime::new() {
             Ok(runtime) => runtime.block_on(request),
             Err(error) => panic!("failed to start a request runtime: {error}"),

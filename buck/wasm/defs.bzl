@@ -126,7 +126,7 @@ guest_exports = [
     "-Clink-arg=--export=__wasm_call_ctors",
 ]
 
-# block-app on the web: the same exports, which wasm-bindgen needs to prepare the
+# be-host on the web: the same exports, which wasm-bindgen needs to prepare the
 # module for threads, and wasi-libc's setjmp and no-exceptions libc++ for the C
 # and C++ it links.
 wasi_program_flags = guest_exports + [

@@ -188,7 +188,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                 let key = crate::apk_sign::release_key()?;
                 let output = options
                     .repository
-                    .join("target/deploy/block-app-android.apk");
+                    .join("target/deploy/be-host-android.apk");
                 crate::apk_sign::finalize(file, &output, &key, &options.apk_metadata)?;
                 *file = output;
             }
@@ -277,12 +277,12 @@ fn run(options: &mut Options) -> Result<(), String> {
         for (platform, file) in &options.downloads {
             if platform == "android" && options.dry_run {
                 println!(
-                    "would finalize and sign the Android template locally, then upload block-app-android.apk"
+                    "would finalize and sign the Android template locally, then upload be-host-android.apk"
                 );
                 continue;
             }
             let extension = file.extension().and_then(|extension| extension.to_str());
-            let name = format!("block-app-{platform}.{}", extension.unwrap_or("zip"));
+            let name = format!("be-host-{platform}.{}", extension.unwrap_or("zip"));
             let bytes = std::fs::read(file)
                 .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
             let sha256 = store.put(
@@ -607,11 +607,11 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                     </html::Table>
                     <html::P>
                         "Each zip holds the app in a folder of its own: run "
-                        <html::Code>"block-app"</html::Code>
+                        <html::Code>"be-host"</html::Code>
                         " ("
-                        <html::Code>"block-app.exe"</html::Code>
+                        <html::Code>"be-host.exe"</html::Code>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
-                        <html::Code>"xattr -dr com.apple.quarantine block-app-macos-*"</html::Code>
+                        <html::Code>"xattr -dr com.apple.quarantine be-host-macos-*"</html::Code>
                         " lets them open. The web bundle is also available to serve yourself. "
                         <html::A href="https://be3.pfg.pw/">"Open the hosted web app"</html::A>
                         "."

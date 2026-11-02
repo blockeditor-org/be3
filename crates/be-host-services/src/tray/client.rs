@@ -80,7 +80,7 @@ pub async fn run_on(
     mut publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
 ) {
     if let Err(error) = listen(&connection, &sender).await {
-        eprintln!("block-app: tray items cannot be watched: {error}");
+        eprintln!("be-host: tray items cannot be watched: {error}");
         return;
     }
     let serving = serve(&connection, &sender).await;
@@ -89,7 +89,7 @@ pub async fn run_on(
         .request_name_with_flags(host.as_str(), RequestNameFlags::DoNotQueue.into())
         .await
     {
-        eprintln!("block-app: the tray host name cannot be taken: {error}");
+        eprintln!("be-host: the tray host name cannot be taken: {error}");
     }
     match &serving {
         Some(_) => {
@@ -99,7 +99,7 @@ pub async fn run_on(
         }
         None => {
             if let Err(error) = join_watcher(&connection, &sender, &host).await {
-                eprintln!("block-app: the running tray watcher cannot be used: {error}");
+                eprintln!("be-host: the running tray watcher cannot be used: {error}");
             }
         }
     }
@@ -127,7 +127,7 @@ async fn serve(connection: &Connection, events: &UnboundedSender<Event>) -> Opti
         Ok(true) => {}
         Ok(false) => return None,
         Err(error) => {
-            eprintln!("block-app: the tray watcher cannot be served: {error}");
+            eprintln!("be-host: the tray watcher cannot be served: {error}");
             return None;
         }
     }
@@ -138,7 +138,7 @@ async fn serve(connection: &Connection, events: &UnboundedSender<Event>) -> Opti
         Ok(RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner) => Some(registered),
         reply => {
             if let Err(error) = reply {
-                eprintln!("block-app: the tray watcher cannot be served: {error}");
+                eprintln!("be-host: the tray watcher cannot be served: {error}");
             }
             let _ = connection
                 .object_server()
@@ -387,7 +387,7 @@ impl Client {
             false => Watcher::status_notifier_item_unregistered(&emitter, key).await,
         };
         if let Err(error) = sent {
-            eprintln!("block-app: a tray watcher signal was not sent: {error}");
+            eprintln!("be-host: a tray watcher signal was not sent: {error}");
         }
     }
 
@@ -428,7 +428,7 @@ impl Client {
             {
                 Ok(map) => map,
                 Err(error) => {
-                    eprintln!("block-app: the tray item {key} cannot be read: {error}");
+                    eprintln!("be-host: the tray item {key} cannot be read: {error}");
                     return;
                 }
             };
@@ -471,7 +471,7 @@ impl Client {
             let (_, (id, properties, children)) = match layout {
                 Ok(layout) => layout,
                 Err(error) => {
-                    eprintln!("block-app: the menu of the tray item {key} cannot be read: {error}");
+                    eprintln!("be-host: the menu of the tray item {key} cannot be read: {error}");
                     return;
                 }
             };
@@ -576,7 +576,7 @@ impl Target<'_> {
             .call_method(Some(self.destination), path, Some(interface), method, body)
             .await;
         if let Err(error) = &sent {
-            eprintln!("block-app: the tray item did not take {method}: {error}");
+            eprintln!("be-host: the tray item did not take {method}: {error}");
         }
         sent.ok()
     }

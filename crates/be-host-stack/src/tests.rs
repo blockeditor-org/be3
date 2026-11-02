@@ -240,7 +240,7 @@ impl Harness {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         be_lib_build_id::install("test");
-        let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!("be-host-be-test-{}", Uuid::new_v4()));
         let runtime = runtime();
         let (profile, token) = runtime.block_on(async {
             be_server::ServerStore::open(directory.join("server"))

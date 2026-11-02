@@ -34,7 +34,7 @@ pub(crate) fn apply(settings: &InputSettings) {
     be_host_desktop::remap::configure(settings);
     if !be_host_desktop::desktop_host::set_keyboard(&keyboard(settings)) {
         eprintln!(
-            "block-app: the keymap {:?} could not be compiled for Wayland clients",
+            "be-host: the keymap {:?} could not be compiled for Wayland clients",
             settings.keyboard_layout
         );
     }

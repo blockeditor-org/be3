@@ -76,13 +76,13 @@ async fn run(mut requested: UnboundedReceiver<PlayerCommand>) {
     let mut signals = match watch(&connection).await {
         Ok((owners, statuses)) => Some(futures_util::stream::select(owners, statuses)),
         Err(error) => {
-            eprintln!("block-app: media players cannot be watched: {error}");
+            eprintln!("be-host: media players cannot be watched: {error}");
             None
         }
     };
     let mut tracker = Tracker::default();
     if let Err(error) = list(&connection, &mut tracker).await {
-        eprintln!("block-app: media players cannot be listed: {error}");
+        eprintln!("be-host: media players cannot be listed: {error}");
     }
     loop {
         let next = {
@@ -104,7 +104,7 @@ async fn run(mut requested: UnboundedReceiver<PlayerCommand>) {
             Either::Left(None) => return,
             Either::Right(Some(Ok(message))) => observe(&mut tracker, &message),
             Either::Right(Some(Err(error))) => {
-                eprintln!("block-app: a media player signal could not be read: {error}");
+                eprintln!("be-host: a media player signal could not be read: {error}");
             }
             Either::Right(None) => signals = None,
         }
@@ -216,7 +216,7 @@ async fn send(connection: &Connection, tracker: &Tracker, request: PlayerCommand
         .call_method(Some(player), PATH, Some(PLAYER), method(request), &())
         .await;
     if let Err(error) = sent {
-        eprintln!("block-app: the media player did not take {request:?}: {error}");
+        eprintln!("be-host: the media player did not take {request:?}: {error}");
     }
 }
 

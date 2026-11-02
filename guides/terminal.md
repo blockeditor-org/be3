@@ -4,7 +4,7 @@ A terminal block is a shell that runs on a machine someone chose, the host, and
 that every client the block is shared with sees and types into, on any platform,
 the web and Android included. Its first use is running programs that only run
 in a real terminal on a real machine, such as the `claude` command line tool,
-from inside block-app.
+from inside be-host.
 
 ## The pieces
 
@@ -21,7 +21,7 @@ from inside block-app.
   PTY, keeps an emulator of it, and writes what the emulator shows into the
   document.
 - `be_tool_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
-  same `be_block_type_host::Replicas` block-app's peer runs, attached as the host's own
+  same `be_block_type_host::Replicas` be-host's peer runs, attached as the host's own
   editor (`HOST_EDITOR`) through an `EditorMirror<C>`. `content` is the mirror's
   content and `edit` operates on it; `show` and `send` are
   `FromEditor::ShowPresence` and `SendToPeers`, `presence` and `take_messages`
@@ -153,7 +153,7 @@ top bar says no machine is running it, with a popover of the setup steps.
 
 Viewers send the client in `host`, while it shows `TerminalHost`, peer messages
 on the block's live session (guides/the_new_block_stack.md, Peer messages), so
-the server relays them sealed and cannot read the terminal. The terminal host and block-app
+the server relays them sealed and cannot read the terminal. The terminal host and be-host
 are replicas of one session, so both must run the same build of the module that
 holds `TerminalContent` (the session's tag, guides/type_modules.md): `be`
 carries that build in its executable.
@@ -192,8 +192,8 @@ come before a public release.
   `a_restarted_terminal_host_keeps_the_history_and_marks_the_restore`,
   `two_terminal_hosts_take_turns_and_the_second_stands_by` and
   `a_terminal_host_encodes_keys_for_the_mode_its_program_set`.
-- `block-app`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
-  a real host against block-app's own stack, read from the block's content.
+- `be-host`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
+  a real host against be-host's own stack, read from the block's content.
 - be-lib-ghostty-vt's tests cover rows, history, the encoders and paste; be-type-terminal'
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages

@@ -56,7 +56,7 @@ impl SlowSave {
                     id: TOAST_ID,
                     title: "Saving changes…".to_owned(),
                     message:
-                        "This is taking longer than usual. Keep block-app open until it finishes."
+                        "This is taking longer than usual. Keep be-host open until it finishes."
                             .to_owned(),
                     sticky: true,
                     ..Toast::default()

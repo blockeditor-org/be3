@@ -174,7 +174,7 @@ pub async fn run_on(
     let mut signals = match watch(&connection).await {
         Ok(signals) => Some(signals),
         Err(error) => {
-            eprintln!("block-app: NetworkManager cannot be watched: {error}");
+            eprintln!("be-host: NetworkManager cannot be watched: {error}");
             None
         }
     };
@@ -219,7 +219,7 @@ pub async fn run_on(
                 }
             }
             Either::Right(Some(Err(error))) => {
-                eprintln!("block-app: a NetworkManager signal could not be read: {error}");
+                eprintln!("be-host: a NetworkManager signal could not be read: {error}");
             }
             Either::Right(None) => signals = None,
         }
@@ -319,7 +319,7 @@ impl Watcher {
             .call::<()>(path.as_str(), CONNECTION, "Delete", &())
             .await;
         if let Err(error) = deleted {
-            eprintln!("block-app: NetworkManager did not delete a Wi-Fi connection: {error}");
+            eprintln!("be-host: NetworkManager did not delete a Wi-Fi connection: {error}");
         }
         self.saved_stale = true;
     }
@@ -339,7 +339,7 @@ impl Watcher {
             }
             Err(error) => {
                 if !std::mem::replace(&mut self.unreadable, true) {
-                    eprintln!("block-app: NetworkManager's Wi-Fi cannot be read: {error}");
+                    eprintln!("be-host: NetworkManager's Wi-Fi cannot be read: {error}");
                 }
                 self.device = None;
                 self.paths.clear();
@@ -456,7 +456,7 @@ impl Watcher {
                     )
                     .await;
                 if let Err(error) = set {
-                    eprintln!("block-app: NetworkManager did not turn Wi-Fi on or off: {error}");
+                    eprintln!("be-host: NetworkManager did not turn Wi-Fi on or off: {error}");
                 }
             }
             WifiRequest::Scan => {
@@ -474,7 +474,7 @@ impl Watcher {
                         .call::<()>(device.as_str(), DEVICE, "Disconnect", &())
                         .await;
                     if let Err(error) = left {
-                        eprintln!("block-app: NetworkManager did not disconnect: {error}");
+                        eprintln!("be-host: NetworkManager did not disconnect: {error}");
                     }
                 }
             }
@@ -551,7 +551,7 @@ impl Watcher {
         };
         if let Err(error) = started {
             if let Some(error) = error {
-                eprintln!("block-app: NetworkManager did not connect to {ssid:?}: {error}");
+                eprintln!("be-host: NetworkManager did not connect to {ssid:?}: {error}");
             }
             self.attempts.refused(ssid);
         }

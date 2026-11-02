@@ -618,21 +618,21 @@ impl<S: ObjectStore> Pass<'_, S> {
             let label = self.label(&plan.tree, *block);
             let text = match conflict.kind {
                 ConflictKind::Name => {
-                    format!("{label} was renamed here and in block-app; the name here was kept")
+                    format!("{label} was renamed here and in be-host; the name here was kept")
                 }
                 ConflictKind::Placement => format!(
-                    "{label} was moved here and in block-app, or its folder went away; it was put where it is now"
+                    "{label} was moved here and in be-host, or its folder went away; it was put where it is now"
                 ),
                 ConflictKind::EditedAndRemoved => match theirs.entries.contains_key(block) {
                     true => {
-                        format!("{label} was deleted here and changed in block-app; it was kept")
+                        format!("{label} was deleted here and changed in be-host; it was kept")
                     }
                     false => {
-                        format!("{label} was deleted in block-app and changed here; it was kept")
+                        format!("{label} was deleted in be-host and changed here; it was kept")
                     }
                 },
                 ConflictKind::Metadata => format!(
-                    "{label} was made executable or not, here and in block-app; this side was kept"
+                    "{label} was made executable or not, here and in be-host; this side was kept"
                 ),
                 ConflictKind::Content => format!("{label} changed on both sides"),
             };
@@ -666,7 +666,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                 Ok((bytes, false)) => bytes,
                 Ok((bytes, true)) => {
                     self.report.conflicts.push(format!(
-                        "{label} changed here and in block-app; what both changed is kept as the block's type merges it (text between conflict markers, a file as it is here), and the other side is in the block's history"
+                        "{label} changed here and in be-host; what both changed is kept as the block's type merges it (text between conflict markers, a file as it is here), and the other side is in the block's history"
                     ));
                     bytes
                 }
@@ -969,7 +969,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                     }
                     Err(error) => {
                         self.report.problems.push(format!(
-                            "{} was deleted in block-app and could not be brought back ({}); it will be uploaded as a new block",
+                            "{} was deleted in be-host and could not be brought back ({}); it will be uploaded as a new block",
                             self.label(target, id),
                             explain(error)
                         ));
@@ -1122,7 +1122,7 @@ impl<S: ObjectStore> Pass<'_, S> {
             }
             if !self.remote[id].can_edit {
                 self.report.problems.push(format!(
-                    "{} changed here, but this account may only read it in block-app",
+                    "{} changed here, but this account may only read it in be-host",
                     self.label(target, *id)
                 ));
                 self.failed.insert(*id);
@@ -1255,7 +1255,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                 Ok(()) => self.report.deleted += 1,
                 Err(error) => {
                     self.report.problems.push(format!(
-                        "{} could not be deleted in block-app: {}",
+                        "{} could not be deleted in be-host: {}",
                         self.label(theirs, id),
                         explain(error)
                     ));
@@ -1612,8 +1612,8 @@ impl<S: ObjectStore> Pass<'_, S> {
             let _ = std::fs::remove_file(&errors);
         } else {
             let text = format!(
-                "be sync could not write these blocks as files here, so they are only in block-app.\n\
-                 Rename each one in block-app (or rename or move the other file in the way) and run be sync again.\n\
+                "be sync could not write these blocks as files here, so they are only in be-host.\n\
+                 Rename each one in be-host (or rename or move the other file in the way) and run be sync again.\n\
                  A name must be unique among its siblings ignoring letter case, must not hold / \\ < > : \" | ? * or\n\
                  control characters, must not end with a dot or a space, and must not be a Windows device name\n\
                  such as CON, NUL, COM1 or LPT1. A file made here with the same name becomes a new block; it\n\

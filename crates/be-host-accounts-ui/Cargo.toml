@@ -1,6 +1,6 @@
 [package]
 name = "be-host-accounts-ui"
-description = "block-app's account picker, built from props and callbacks so that it runs on either of beui's cores"
+description = "be-host's account picker, built from props and callbacks so that it runs on either of beui's cores"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

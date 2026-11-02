@@ -6,7 +6,7 @@ fn a_refused_web_view_shows_why_in_its_place() {
 
     tab.editor.web_view_event(
         WebViewId(0),
-        WebViewEvent::Failed("block-app can't show web pages yet.".into()),
+        WebViewEvent::Failed("be-host can't show web pages yet.".into()),
     );
     tab.run();
 

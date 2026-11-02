@@ -11,8 +11,8 @@ and what is left for later.
   foreground window, moves the cursor into it and clips the cursor to its frame
   bounds, or to its monitor for a display entry (`ClipCursor`, applied again on
   foreground and location changes). The physical mouse and keyboard then drive
-  it natively; block-app sees none of that input. A `RegisterHotKey` hotkey
-  returns focus to block-app and releases the clip (be-host-win32). Elevated windows
+  it natively; be-host sees none of that input. A `RegisterHotKey` hotkey
+  returns focus to be-host and releases the clip (be-host-win32). Elevated windows
   work in this mode: UIPI blocks only injected input.
 - **Injection is for XR controller clicks.** `crates/be-host-win32-input` turns an
   event at a point in an entry's panel into `SendInput` entries (absolute
@@ -28,7 +28,7 @@ and what is left for later.
 
 - **Keeping the shell's pointer and keyboard when a window takes the foreground
   (not planned).** In VR, a real window that comes forward on its own (a dialog,
-  a program that grabs focus) takes the keyboard from block-app, and the person
+  a program that grabs focus) takes the keyboard from be-host, and the person
   takes off the headset to give it back (or uses the hotkey, once it can be
   reached). Fixing that needs `WH_MOUSE_LL` and `WH_KEYBOARD_LL` hooks that see
   physical input wherever the foreground is and swallow it while the shell owns
@@ -37,7 +37,7 @@ and what is left for later.
     answer each event fast: Windows silently removes a hook that exceeds
     `LowLevelHooksTimeout` (about a second; since Windows 7 it unhooks without
     telling), so the callback only decides swallow or pass and posts the event.
-  - They don't see input while an elevated window is foreground unless block-app
+  - They don't see input while an elevated window is foreground unless be-host
     runs elevated too (UIPI), so the elevated-window notice would still be
     needed.
   - Injected events come back through the hooks; tell them apart by

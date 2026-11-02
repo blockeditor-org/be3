@@ -2,7 +2,7 @@ use super::*;
 #[tokio::test]
 async fn one_connection_carries_sign_in_and_account_requests() {
     be_lib_build_id::install("test");
-    let directory = std::env::temp_dir().join(format!("block-app-one-link-{}", Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("be-host-one-link-{}", Uuid::new_v4()));
     let server = crate::embedded_server::start_embedded_server(directory.clone()).unwrap();
     let target = server.url.split_once("://").unwrap().1.to_owned();
     let relay = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

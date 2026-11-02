@@ -2,7 +2,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // unsafe(env)
     unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
-    block_app_lib::run()
+    be_host::run()
 }
 
 #[cfg(any(target_os = "android", target_arch = "wasm32"))]

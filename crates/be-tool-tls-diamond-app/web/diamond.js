@@ -1,6 +1,6 @@
 // The thread-local diamond (crates/be-tool-tls-diamond-*) in a browser: the app and
 // the libraries it needs, base, left and right, run by be-wasm-guest-host's
-// guest.js with block-app's app.js in this worker as an app's worker runs
+// guest.js with be-host's app.js in this worker as an app's worker runs
 // one. The app checks
 // its thread-locals on the main thread and on a thread it spawns, which wakes
 // it once it is done; the next step sends [1] if all of them were right. A

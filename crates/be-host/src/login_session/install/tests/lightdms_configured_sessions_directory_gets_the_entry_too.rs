@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn lightdms_configured_sessions_directory_gets_the_entry_too() {
-    let root = std::env::temp_dir().join(format!("block-app-lightdm-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("be-host-lightdm-{}", uuid::Uuid::new_v4()));
     let standard = root.join("usr/share/wayland-sessions");
     assert_eq!(
         session_dirs(&root),

@@ -6,17 +6,17 @@ license.workspace = true
 autobins = false
 
 [lib]
-name = "block_app_lib"
+name = "be_host"
 path = "src/main.rs"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "block-app"
+name = "be-host"
 path = "src/desktop.rs"
 
 [package.metadata.android]
 package = "com.be3.block"
-apk_name = "block-app"
+apk_name = "be-host"
 build_targets = ["aarch64-linux-android"]
 
 [package.metadata.android.sdk]

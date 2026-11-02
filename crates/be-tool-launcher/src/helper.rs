@@ -33,7 +33,7 @@ impl Product {
 
     pub(crate) fn title(self) -> &'static str {
         match self {
-            Product::Host => "block-app",
+            Product::Host => "be-host",
             #[cfg(not(target_os = "android"))]
             Product::Demo => "beui's demo",
             #[cfg(target_os = "android")]
@@ -43,10 +43,10 @@ impl Product {
 
     pub(crate) fn executable(self) -> String {
         let name = match self {
-            Product::Host if cfg!(target_os = "android") => return "block-app.apk".to_owned(),
+            Product::Host if cfg!(target_os = "android") => return "be-host.apk".to_owned(),
             #[cfg(target_os = "android")]
             Product::Launcher => return "be-launcher.apk".to_owned(),
-            Product::Host => "block-app",
+            Product::Host => "be-host",
             #[cfg(not(target_os = "android"))]
             Product::Demo => "beui-demo",
         };

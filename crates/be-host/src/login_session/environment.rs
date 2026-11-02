@@ -28,7 +28,7 @@ pub(crate) fn export(variables: Vec<(String, String)>) {
             )
             .await
         {
-            eprintln!("block-app: D-Bus did not take the session's environment: {error}");
+            eprintln!("be-host: D-Bus did not take the session's environment: {error}");
         }
         let assignments: Vec<String> = variables
             .iter()
@@ -44,7 +44,7 @@ pub(crate) fn export(variables: Vec<(String, String)>) {
             )
             .await
         {
-            eprintln!("block-app: systemd did not take the session's environment: {error}");
+            eprintln!("be-host: systemd did not take the session's environment: {error}");
         }
     });
 }

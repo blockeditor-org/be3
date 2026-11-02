@@ -149,7 +149,7 @@ pub fn spawn<R: Runnable + 'static>(
             }));
             if let Err(panic) = ran {
                 let _ = failed.send(Event::Failed(format!(
-                    "block-app failed while running it: {panic}"
+                    "be-host failed while running it: {panic}"
                 )));
                 failing();
             }

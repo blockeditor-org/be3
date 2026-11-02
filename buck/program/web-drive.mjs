@@ -58,7 +58,7 @@ const automate = async (words) => {
             } catch (error) {
                 return { error: `the app did not start: ${error?.message ?? error}` };
             }
-            const app = await import(new URL("block_app_lib.js", document.baseURI).href);
+            const app = await import(new URL("be_host.js", document.baseURI).href);
             try {
                 return { text: await app.automate(words, Math.round(timeout * 1000)) };
             } catch (error) {
@@ -104,7 +104,7 @@ switch (command) {
         await started();
         const tree = await page.evaluate(async (timeoutMs) => {
             await globalThis.blockStarted;
-            const app = await import(new URL("block_app_lib.js", document.baseURI).href);
+            const app = await import(new URL("be_host.js", document.baseURI).href);
             const deadline = performance.now() + timeoutMs;
             while (performance.now() < deadline) {
                 const tree = await app.automate(["tree"], 1000);

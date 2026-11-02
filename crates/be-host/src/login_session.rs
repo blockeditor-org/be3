@@ -45,7 +45,7 @@ impl ScreenLock {
         let user = pam::user();
         if user.is_none() {
             eprintln!(
-                "block-app: this user has no account entry, so the screen cannot be unlocked"
+                "be-host: this user has no account entry, so the screen cannot be unlocked"
             );
         }
         let shown = user
@@ -131,7 +131,7 @@ struct Pam {
 impl Pam {
     fn new(user: Option<String>, answers: Post<(u64, Verdict)>) -> Self {
         let service = pam::service();
-        eprintln!("block-app: the lock screen checks passwords with PAM's {service} service");
+        eprintln!("be-host: the lock screen checks passwords with PAM's {service} service");
         Self {
             user,
             service,
@@ -211,8 +211,8 @@ impl LoginSession {
             LogindEvent::Called(call, result) => self.power.called(call, result, &mut control),
             LogindEvent::PrepareForSleep(starting) => {
                 match starting {
-                    true => eprintln!("block-app: logind is suspending the computer"),
-                    false => eprintln!("block-app: the computer woke up"),
+                    true => eprintln!("be-host: logind is suspending the computer"),
+                    false => eprintln!("be-host: the computer woke up"),
                 }
                 self.sleep
                     .prepare(starting, &mut lock.lock, &mut Inhibitor(&self.logind));

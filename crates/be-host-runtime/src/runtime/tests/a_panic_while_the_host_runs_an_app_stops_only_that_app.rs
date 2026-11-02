@@ -48,7 +48,7 @@ fn a_panic_while_the_host_runs_an_app_stops_only_that_app() {
     let error = with("test.crashing", |runtime| runtime.error.clone()).flatten();
     assert_eq!(
         error.as_deref(),
-        Some("block-app failed while running it: the host lost track of a screen")
+        Some("be-host failed while running it: the host lost track of a screen")
     );
     assert_eq!(
         with("test.steady", |runtime| runtime.error.clone()),
@@ -59,7 +59,7 @@ fn a_panic_while_the_host_runs_an_app_stops_only_that_app() {
         .into_iter()
         .find(|notice| {
             notice.message
-                == "Crashing stopped: block-app failed while running it: the host lost track of a screen"
+                == "Crashing stopped: be-host failed while running it: the host lost track of a screen"
         })
         .expect("the crash is reported as a notice");
     assert!(
@@ -68,14 +68,14 @@ fn a_panic_while_the_host_runs_an_app_stops_only_that_app() {
     );
     assert_eq!(
         be_host_base::notices::report_of(notice.id).as_deref(),
-        Some("block-app failed while running it: the host lost track of a screen"),
+        Some("be-host failed while running it: the host lost track of a screen"),
         "the report is the app's whole error"
     );
     let view = placed_view(&crashing, EditorInstanceId(1), ViewId::MAIN, None, None);
     assert_eq!(
         view.error,
         Some((
-            "block-app failed while running it: the host lost track of a screen".to_owned(),
+            "be-host failed while running it: the host lost track of a screen".to_owned(),
             true
         )),
         "its editors show it stopped, with a way to reload it"

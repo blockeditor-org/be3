@@ -1,7 +1,7 @@
 # be sync
 
 `be sync` keeps a folder or workspace and a directory on disk in step, both
-ways. It is how code that lives in block-app reaches the tools that need real
+ways. It is how code that lives in be-host reaches the tools that need real
 files: buck2, editors, CI runners and cloud agents. It runs natively only;
 the web has no file system to sync.
 
@@ -15,7 +15,7 @@ The code is `crates/be-block-sync`, used by `be` (`crates/be-tool-cli`). It know
 format: every block's file form comes from its type module
 (guides/type_modules.md), through the `be_block_type_host::Modules` its caller hands
 `sync` and `watch`. A folder export in the host (plans/daily_driver.md, phase 7)
-should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
+should use the same requests rather than writing another mapping, as be-host's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
 
 ## What becomes what
 
@@ -37,7 +37,7 @@ should use the same requests rather than writing another mapping, as block-app's
   `directory`, a folder), its children added with `Change::Child`, and a
   directory's entries change the same way.
 - `be sync` never joins a live session. Every change it makes is a commit
-  published against the head it read (step 5 below). A session open in block-app
+  published against the head it read (step 5 below). A session open in be-host
   takes that in as it does any publish from elsewhere (its replica's
   `Head { Moved }`, guides/type_modules.md): it merges the new head with what was
   typed but not yet sealed, line by line, so the person keeps typing. Lines both
@@ -46,7 +46,7 @@ should use the same requests rather than writing another mapping, as block-app's
 - The executable bit is the `EXECUTABLE` metadata key, so `scripts/` stays
   runnable.
 - Any other block (a canvas, a database) has no plain-file form. It and what
-  is inside it stay only in block-app, listed in `.be/unexported.txt`.
+  is inside it stay only in be-host, listed in `.be/unexported.txt`.
 
 ## The index
 
@@ -118,7 +118,7 @@ both sides. Symbolic links are left alone and reported.
 `--watch` takes the lock and runs a pass, then waits for a change under the
 directory (inotify through the `notify` crate, ignoring `.be`, `.git`,
 `target` and `buck-out`), quiet for 200 ms, or for the interval to pass. `be`
-speaks HTTP posts, which carry no pushes from the server, so changes in block-app
+speaks HTTP posts, which carry no pushes from the server, so changes in be-host
 are seen by listing again each interval.
 
 ## Scale

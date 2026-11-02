@@ -20,7 +20,7 @@ const STACK_SIZE = 8 << 20;
 
 async function glue() {
     const base = import.meta.url;
-    let source = await (await fetch(new URL("./block_app_lib.js", base))).text();
+    let source = await (await fetch(new URL("./be_host.js", base))).text();
     for (const [bare, file] of [
         ["wasi_snapshot_preview1", "./wasi.js"],
         ["wasi", "./threads.js"],

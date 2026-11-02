@@ -2,7 +2,7 @@ use super::*;
 
 fn panic_with_backtrace(message: &str, frames: usize) -> Vec<String> {
     let mut lines = vec![
-        "block-app: thread 'main' panicked: panicked at crates/beui-core/src/node.rs:1:1:"
+        "be-host: thread 'main' panicked: panicked at crates/beui-core/src/node.rs:1:1:"
             .to_owned(),
         message.to_owned(),
         String::new(),
@@ -16,7 +16,7 @@ fn panic_with_backtrace(message: &str, frames: usize) -> Vec<String> {
 
 #[test]
 fn a_panic_is_reported_with_its_whole_backtrace() {
-    let mut log = vec!["block-app: started".to_owned()];
+    let mut log = vec!["be-host: started".to_owned()];
     log.extend(panic_with_backtrace("node was removed", 60));
     let report = log_report(&log.join("\n"));
     assert!(
@@ -25,10 +25,10 @@ fn a_panic_is_reported_with_its_whole_backtrace() {
     );
     assert!(report.contains("   0: frame_0\n"));
     assert!(report.ends_with("at ./src/frame_59.rs:1:1"));
-    assert!(!report.contains("block-app: started"));
+    assert!(!report.contains("be-host: started"));
 
     let mut log = panic_with_backtrace("the replica was gone", 60);
-    log.extend((0..50).map(|line| format!("block-app: later line {line}")));
+    log.extend((0..50).map(|line| format!("be-host: later line {line}")));
     let report = log_report(&log.join("\n"));
     let (before, end) = report
         .split_once("The end of the app's log:\n")
@@ -39,5 +39,5 @@ fn a_panic_is_reported_with_its_whole_backtrace() {
         "a panic before the end keeps its whole backtrace, got {before}"
     );
     assert!(!before.contains("later line"));
-    assert!(end.starts_with("block-app: later line 10\n"));
+    assert!(end.starts_with("be-host: later line 10\n"));
 }

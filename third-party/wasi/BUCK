@@ -1,4 +1,4 @@
-# The WASI sysroot the plugins' C (freetype, harfbuzz) and block-app's web build
+# The WASI sysroot the plugins' C (freetype, harfbuzz) and be-host's web build
 # are compiled and linked against. Rust needs none of it.
 http_archive(
     name = "sysroot",

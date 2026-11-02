@@ -75,7 +75,7 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
     for name, bundle in apps:
         if not bundle:
             continue
-        folder = "block-app-" + name
+        folder = "be-host-" + name
         archive = ctx.actions.declare_output(folder + ".zip")
         ctx.actions.run(
             cmd_args(ctx.attrs._archive[RunInfo], "archive", archive.as_output(), folder, bundle[DefaultInfo].default_outputs[0]),

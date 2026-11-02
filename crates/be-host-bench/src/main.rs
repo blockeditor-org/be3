@@ -62,8 +62,8 @@ fn setting(name: &str, default: usize) -> Result<usize, String> {
 }
 
 fn run() -> Result<(), String> {
-    let program = std::env::var("BLOCK_APP")
-        .map_err(|_| "BLOCK_APP names the block-app to run; run this through //crates/be-tool-bench:suite (guides/performance.md)".to_owned())?;
+    let program = std::env::var("BE_HOST")
+        .map_err(|_| "BE_HOST names the be-host to run; run this through //crates/be-tool-bench:suite (guides/performance.md)".to_owned())?;
     let out = std::env::temp_dir().join(format!("app-bench-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out)

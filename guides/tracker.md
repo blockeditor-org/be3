@@ -1,6 +1,6 @@
 # The tracker
 
-The project's issues are meant to live in block-app, as databases: an Issues
+The project's issues are meant to live in be-host, as databases: an Issues
 database whose rows are issues, with Relation columns to a Projects database and
 a Milestones database, kept in a workspace and
 shared with the agents that work on them. Agents read and change them with `be`, the command line tool in

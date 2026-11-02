@@ -2991,7 +2991,7 @@ impl Instances {
                     EditorCall::WebViewEvent {
                         web_view,
                         event: WebViewEvent::Failed(
-                            "block-app can't show web pages yet.".to_owned(),
+                            "be-host can't show web pages yet.".to_owned(),
                         ),
                     },
                 ));

@@ -263,11 +263,11 @@ pub async fn run(
     match connection.object_server().at(PATH, server).await {
         Ok(true) => {}
         Ok(false) => {
-            eprintln!("block-app: notifications are already served on this connection");
+            eprintln!("be-host: notifications are already served on this connection");
             return;
         }
         Err(error) => {
-            eprintln!("block-app: notifications cannot be served: {error}");
+            eprintln!("be-host: notifications cannot be served: {error}");
             return;
         }
     }
@@ -277,12 +277,12 @@ pub async fn run(
     {
         Ok(RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner) => {}
         Ok(_) => {
-            eprintln!("block-app: another notification server is running, so this one is not");
+            eprintln!("be-host: another notification server is running, so this one is not");
             let _ = connection.object_server().remove::<Server, _>(PATH).await;
             return;
         }
         Err(error) => {
-            eprintln!("block-app: notifications cannot be served: {error}");
+            eprintln!("be-host: notifications cannot be served: {error}");
             let _ = connection.object_server().remove::<Server, _>(PATH).await;
             return;
         }
@@ -290,7 +290,7 @@ pub async fn run(
     let emitter = match SignalEmitter::new(&connection, PATH) {
         Ok(emitter) => emitter,
         Err(error) => {
-            eprintln!("block-app: notification signals cannot be sent: {error}");
+            eprintln!("be-host: notification signals cannot be sent: {error}");
             return;
         }
     };
@@ -304,7 +304,7 @@ pub async fn run(
             }
         };
         if let Err(error) = sent {
-            eprintln!("block-app: a notification signal was not sent: {error}");
+            eprintln!("be-host: a notification signal was not sent: {error}");
         }
     }
     let _ = connection.object_server().remove::<Server, _>(PATH).await;

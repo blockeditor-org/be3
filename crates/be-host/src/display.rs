@@ -61,7 +61,7 @@ pub(crate) fn boot(store: &HostStateStore) {
             .unwrap_or_default(),
         Ok(None) => Default::default(),
         Err(error) => {
-            eprintln!("block-app: the display modes tried here were not read: {error}");
+            eprintln!("be-host: the display modes tried here were not read: {error}");
             Default::default()
         }
     };
@@ -97,10 +97,10 @@ fn settle(
     match serde_json::to_string(&tried) {
         Ok(text) => {
             if let Err(error) = store.set_tried_display_modes(&text) {
-                eprintln!("block-app: the display modes tried here were not saved: {error}");
+                eprintln!("be-host: the display modes tried here were not saved: {error}");
             }
         }
-        Err(error) => eprintln!("block-app: the display modes tried here were not saved: {error}"),
+        Err(error) => eprintln!("be-host: the display modes tried here were not saved: {error}"),
     }
     written(layers, &changes)
 }

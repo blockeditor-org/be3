@@ -1,6 +1,6 @@
 // The standalone guest (src/tests/standalone.wat) in a browser: an app with
 // a memory of its own that is not shared, no library, no WASI and no threads,
-// run by be-wasm-guest-host's guest.js with block-app's app.js against
+// run by be-wasm-guest-host's guest.js with be-host's app.js against
 // be-wasm-gpu-shim in this worker, as an app's worker runs one. It paints its surface orange, which the shim
 // exports as a bitmap that is read back here.
 

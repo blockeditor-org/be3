@@ -43,7 +43,7 @@ A folder or a workspace:
                                       text, image, PDF, audio and other files as files,
                                       folders as directories; --watch keeps going, syncing
                                       on every change here and every SECONDS (10) for
-                                      changes in block-app
+                                      changes in be-host
 
 A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT

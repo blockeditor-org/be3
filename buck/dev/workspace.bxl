@@ -17,7 +17,7 @@ def _platform(target) -> str:
     return str(target.label).rpartition("(")[2].partition("#")[0].rpartition(":")[2]
 
 # Every first-party Rust target on those platforms. ./scripts/deploy's target is
-# left out of the universe: it configures block-app for every desktop platform.
+# left out of the universe: it configures be-host for every desktop platform.
 def rust_targets(ctx: bxl.Context) -> list:
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/be-tool-local:deploy"))
     targets = ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/..."))

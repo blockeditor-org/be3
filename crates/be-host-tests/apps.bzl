@@ -13,7 +13,7 @@ def _host_with(name, apps):
         binary = "//crates/be-host:bin",
         compiled_only = True,
         data = [package + ":data" for package in packages],
-        executable_name = "block-app",
+        executable_name = "be-host",
         files = ["build-info.json"],
         index = True,
         manifests = [package + ":manifest" for package in packages],
@@ -43,7 +43,7 @@ def host_test_apps(apps):
         apart_env[test] = {
             "APP_TEST_EDITORS": ",".join(hosts[name]),
             "APP_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
-            "BLOCK_APP": "$(location :{})/block-app".format(name),
+            "BE_HOST": "$(location :{})/be-host".format(name),
         }
     for name, staged in hosts.items():
         _host_with(name, staged)

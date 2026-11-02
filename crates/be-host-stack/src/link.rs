@@ -121,7 +121,7 @@ fn home() -> &'static tokio::runtime::Runtime {
     HOME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
-            .thread_name("block-app-link")
+            .thread_name("be-host-link")
             .enable_all()
             .build()
             .unwrap_or_else(|error| panic!("failed to start the connection runtime: {error}"))

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
-    let dir = std::env::temp_dir().join(format!("block-app-pam-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("be-host-pam-{}", uuid::Uuid::new_v4()));
     assert_eq!(
         place_pam(&dir).unwrap(),
         None,
@@ -15,7 +15,7 @@ fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
         crate::login_session::pam::FALLBACK_SERVICE,
         "without its own service the lock checks with login's"
     );
-    let service = dir.join("block-app");
+    let service = dir.join("be-host");
     assert_eq!(place_pam(&dir).unwrap(), Some(service.clone()));
     assert_eq!(
         crate::login_session::pam::service_in(&dir),

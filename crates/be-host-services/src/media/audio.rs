@@ -100,14 +100,14 @@ async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: Post<MediaE
             Ok(mut connection) => match connection.serve(&mut requested, &events, pending).await {
                 Ok(()) => return,
                 Err(error) => {
-                    eprintln!("block-app: the PulseAudio connection ended: {error}");
+                    eprintln!("be-host: the PulseAudio connection ended: {error}");
                     pending = None;
                     if std::mem::take(&mut reconnect) {
                         continue;
                     }
                 }
             },
-            Err(error) => eprintln!("block-app: PulseAudio is not reachable: {error}"),
+            Err(error) => eprintln!("be-host: PulseAudio is not reachable: {error}"),
         }
         events.send(MediaEvent::Audio(AudioState::default()));
         match requested.recv().await {
@@ -269,7 +269,7 @@ impl Connection {
                     return Ok(());
                 };
                 if let Err(error) = self.acknowledged(Command::SetDefaultSink(name)).await? {
-                    eprintln!("block-app: the output was not chosen: {error:?}");
+                    eprintln!("be-host: the output was not chosen: {error:?}");
                 }
             }
             AudioRequest::ToggleMicMute => {
@@ -405,7 +405,7 @@ async fn read_frames(stream: Arc<Async<UnixStream>>, frames: UnboundedSender<Vec
         let length = u32::from_be_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
         let channel = u32::from_be_bytes([frame[4], frame[5], frame[6], frame[7]]);
         if length > LONGEST_FRAME {
-            eprintln!("block-app: PulseAudio sent a frame of {length} bytes");
+            eprintln!("be-host: PulseAudio sent a frame of {length} bytes");
             return;
         }
         frame.resize(protocol::DESCRIPTOR_SIZE + length, 0);

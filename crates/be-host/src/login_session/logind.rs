@@ -78,7 +78,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
     let manager = match Proxy::new(&connection, DESTINATION, PATH, MANAGER).await {
         Ok(manager) => manager,
         Err(error) => {
-            eprintln!("block-app: logind is not reachable: {error}");
+            eprintln!("be-host: logind is not reachable: {error}");
             return;
         }
     };
@@ -91,7 +91,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
     let mut sleeps = match manager.receive_signal("PrepareForSleep").await {
         Ok(sleeps) => Some(sleeps),
         Err(error) => {
-            eprintln!("block-app: logind's PrepareForSleep cannot be watched: {error}");
+            eprintln!("be-host: logind's PrepareForSleep cannot be watched: {error}");
             None
         }
     };
@@ -100,7 +100,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
         Some(session) => match session.receive_signal("Lock").await {
             Ok(locks) => Some(locks),
             Err(error) => {
-                eprintln!("block-app: logind's Lock cannot be watched: {error}");
+                eprintln!("be-host: logind's Lock cannot be watched: {error}");
                 None
             }
         },
@@ -137,7 +137,7 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
                 if let Some(session) = &session
                     && let Err(error) = session.call::<_, _, ()>("SetLockedHint", &(locked,)).await
                 {
-                    eprintln!("block-app: logind did not take the locked hint: {error}");
+                    eprintln!("be-host: logind did not take the locked hint: {error}");
                 }
             }
             Next::Request(None) => return,
@@ -160,14 +160,14 @@ async fn own_session<'a>(manager: &Proxy<'a>) -> Option<Proxy<'a>> {
     {
         Ok(path) => path,
         Err(error) => {
-            eprintln!("block-app: this process is in no logind session: {error}");
+            eprintln!("be-host: this process is in no logind session: {error}");
             return None;
         }
     };
     match Proxy::new(manager.connection(), DESTINATION, path, SESSION).await {
         Ok(session) => Some(session),
         Err(error) => {
-            eprintln!("block-app: logind's session is not reachable: {error}");
+            eprintln!("be-host: logind's session is not reachable: {error}");
             None
         }
     }
@@ -188,7 +188,7 @@ async fn inhibit(manager: &Proxy<'_>) -> Option<OwnedFd> {
     match asked {
         Ok(inhibitor) => Some(inhibitor),
         Err(error) => {
-            eprintln!("block-app: logind did not let the screen lock before suspending: {error}");
+            eprintln!("be-host: logind did not let the screen lock before suspending: {error}");
             None
         }
     }
@@ -198,7 +198,7 @@ async fn can(manager: &Proxy<'_>, method: &str) -> bool {
     match manager.call::<_, _, String>(method, &()).await {
         Ok(answer) => answer == "yes",
         Err(error) => {
-            eprintln!("block-app: logind did not answer {method}: {error}");
+            eprintln!("be-host: logind did not answer {method}: {error}");
             false
         }
     }
@@ -213,7 +213,7 @@ async fn next_sleep(sleeps: &mut Option<SignalStream<'_>>) -> Option<bool> {
         match message.body().deserialize::<bool>() {
             Ok(starting) => return Some(starting),
             Err(error) => {
-                eprintln!("block-app: logind's PrepareForSleep could not be read: {error}");
+                eprintln!("be-host: logind's PrepareForSleep could not be read: {error}");
             }
         }
     }

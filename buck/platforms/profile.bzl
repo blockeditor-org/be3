@@ -54,7 +54,7 @@ released = rule(
 # Every crate's own flags in a release build (they cannot be the toolchain's,
 # whose rustc_cfg runs rustc without nightly options). Legacy mangling names a
 # generic instance by its path and a hash rather than by every type argument, so
-# a symbol is a third the length: 16 MB less in block-app, whose backtraces
+# a symbol is a third the length: 16 MB less in be-host, whose backtraces
 # still name each function, and a seventh off the apps, whose name sections
 # and exports are made of these symbols.
 RELEASE_SYMBOL_FLAGS = select({

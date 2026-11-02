@@ -8,7 +8,7 @@ fn only_the_files_not_already_here_are_downloaded() {
     let data = store.put(b"some data");
     let first = manifest(vec![
         (
-            "block-app",
+            "be-host",
             helper::File {
                 executable: true,
                 ..app.clone()
@@ -34,7 +34,7 @@ fn only_the_files_not_already_here_are_downloaded() {
 
     let changed = store.put(b"the app, changed");
     let second = manifest(vec![
-        ("block-app", changed.clone()),
+        ("be-host", changed.clone()),
         ("data/index.json", data),
     ]);
     store.asked.clear();
@@ -45,7 +45,7 @@ fn only_the_files_not_already_here_are_downloaded() {
     let app_directory = cache.join("apps").join("android");
     builds::assemble(&cache, &first, &app_directory).unwrap();
     assert_eq!(
-        std::fs::read(app_directory.join("block-app")).unwrap(),
+        std::fs::read(app_directory.join("be-host")).unwrap(),
         b"the app"
     );
     assert_eq!(

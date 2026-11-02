@@ -3,11 +3,11 @@
 `--desktop` on Windows shows the person's Windows monitors and windows inside the desktop shell
 (guides/desktop.md). XR is the main target: each shown entry is a panel of its own, as program
 windows are where `opens_windows()` is true. A windowed `--desktop` is a development view: there
-is no virtual display, so a focused window comes up on the real monitor above block-app.
+is no virtual display, so a focused window comes up on the real monitor above be-host.
 `BEUI_PLATFORM=drm` and `--install-login-session` are refused (`src/arguments.rs`).
 
 All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-host-win32,
-be-host-win32-capture, be-host-win32-input, beui and block-app for `windows_x86_64`, and the logic behind
+be-host-win32-capture, be-host-win32-input, beui and be-host for `windows_x86_64`, and the logic behind
 the Win32 calls is plain Rust tested on Linux with fakes. Running it needs a real Windows
 machine; Wine has no Windows.Graphics.Capture.
 
@@ -25,7 +25,7 @@ machine; Wine has no Windows.Graphics.Capture.
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
   lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
   (`close_window`, `resize_window`, `set_maximized`). Block's own windows are not hidden from
-  captures: a display entry shows block-app's window too, as any screen share does, so what the
+  captures: a display entry shows be-host's window too, as any screen share does, so what the
   panel shows is what a click on it reaches (Displays below).
 - Threads: no thread of ours that the UI thread may wait on (the watcher, the captures) sends a
   message to one of our own windows, since the UI thread answers only between frames. The watcher
@@ -38,7 +38,7 @@ machine; Wine has no Windows.Graphics.Capture.
 - `crates/be-host-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
   imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
-  device extensions are `DEVICE_EXTENSIONS`, which block-app's `RunOptions::device_extensions`
+  device extensions are `DEVICE_EXTENSIONS`, which be-host's `RunOptions::device_extensions`
   names on Windows). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
   is captured only while `set_cursor(true)`.
 - `crates/be-host-win32-input`: `inject` puts pointer, key and text events into an entry at a point
@@ -46,15 +46,15 @@ machine; Wine has no Windows.Graphics.Capture.
   `be_host_win32::bring_forward`. It refuses an elevated window and the secure desktop from
   be-host-win32's snapshot (`target`), the one place either is decided.
 
-## In block-app
+## In be-host
 
 `crates/be-host-desktop/src/desktop_host.rs` is the host facade (the `DesktopHost` trait); on Windows it is `Win32` in `desktop_host/win32.rs`, whose `WindowsPrograms` lists the Start menu, with
 the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on Linux).
 `be-host-runtime/src/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
 `displays` among them (it describes the displays the shell is drawn on, and on Windows that is
-block-app's one window), stay unsupported, so the shell hides what they back.
+be-host's one window), stay unsupported, so the shell hides what they back.
 
-- The watcher starts when the desktop shell is first shown (`set_owned(true)`), with block-app's
+- The watcher starts when the desktop shell is first shown (`set_owned(true)`), with be-host's
   window (`beui::native::NativeWindow`) as the host window and `Hotkey::DEFAULT` (Ctrl+Alt+Space)
   registered; a hotkey that cannot be registered is a toast. The host prints one line to stderr
   for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
@@ -85,7 +85,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   Windows host leaves `HostWindow::name` empty, so the card's header falls back to the title.
 - Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
   does for floating windows: `HostWindow::size` is the size the window last chose itself (its
-  frame bounds in its monitor's points), not one it took because block-app asked, so a window
+  frame bounds in its monitor's points), not one it took because be-host asked, so a window
   shown at its own size keeps following its own size. When a panel's placed size differs from
   where the window is heading (by more than 2 px), because the person resized the panel or docked
   it, the host asks for it: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
@@ -97,24 +97,24 @@ block-app's one window), stay unsupported, so the shell hides what they back.
 - Fullscreen: Windows has no request for another program's window to go fullscreen, so the
   `fullscreen` action maximizes it (`be_host_win32::set_maximized`, `ShowWindowAsync`, which also
   activates it) and leaving restores it. `HostWindow::fullscreen` is the area the shell is shown
-  in (the `rect` `before` is given, block-app's window, as Linux reports in a window) for a window
+  in (the `rect` `before` is given, be-host's window, as Linux reports in a window) for a window
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
   whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
   with its panel.
 - Displays: a click on a display entry does what the same click on the real monitor would. Its
   release point on the monitor (`focus::display_point`) is looked up with `WindowFromPoint`
-  (`GA_ROOT`, on the UI thread): when it is one of block-app's own windows (its mirror image in
+  (`GA_ROOT`, on the UI thread): when it is one of be-host's own windows (its mirror image in
   the capture), nothing happens (`FocusError::OnBlock`, no note), since the click is on Block
   itself; otherwise that window (else the shell window) becomes the foreground, so the keyboard
   follows, and focus mode moves the cursor to the point and clips it to the monitor. Nothing else
   in the z-order moves.
 - Focus mode is the mouse and keyboard path, and only a click on an entry's content starts it: a
   press and release of the mouse inside the panel that moved less than `win32_map::PRESS_SLOP`
-  (`ContentPress`; a drag starts nothing). On the release block-app no longer holds the mouse
+  (`ContentPress`; a drag starts nothing). On the release be-host no longer holds the mouse
   capture, and `Watcher::focus(id, point)` raises the real window and makes it the foreground;
   once Windows reports it in front (`Focused::arrived`), the watcher moves the cursor to the
   release point and clips it there, so the physical mouse and keyboard drive it natively,
-  elevated windows included. Nothing is clipped before it arrives: winit, while block-app's window
+  elevated windows included. Nothing is clipped before it arrives: winit, while be-host's window
   is active, resets any clip it did not set (`ClipCursor(NULL)` on every cursor-flag refresh),
   and a window that never arrives must not trap the cursor. The clip is put back on the events
   that can drop it (foreground, location, minimize end, move/size end, mouse capture changes,
@@ -127,13 +127,13 @@ block-app's one window), stay unsupported, so the shell hides what they back.
 - Ways back, each of which always ends focus, unclips and cancels a focus request still queued
   (`FocusMode::returns`, compared with the count a request was made at): the hotkey
   (`Hotkey::DEFAULT`, Ctrl+Alt+Space, `RegisterHotKey` on the watcher thread, `WM_HOTKEY` with no
-  window in its loop), and block-app becoming the foreground by any means (Alt+Tab, a click),
+  window in its loop), and be-host becoming the foreground by any means (Alt+Tab, a click),
   whether or not the window had arrived. A window that has not arrived after `ARRIVAL_TICKS` ticks
   ends focus with `NeverArrived`, shown as a notice over the entry.
 - The cursor is clipped only while the hotkey is registered (`FocusMode::set_hotkey`). Until
   `RegisterHotKey` answers, or when it is refused (another program holds it), focus mode still
   foregrounds the window but leaves the mouse free, and the panel says why and that Alt+Tab comes
-  back. That one rule also covers a display entry clipped to the monitor block-app's own window is
+  back. That one rule also covers a display entry clipped to the monitor be-host's own window is
   on: there is always a hotkey, and Alt+Tab or a click on Block ends it.
 - The entry's `HostWindow::note` (guides/desktop.md, Notes; `win32_map::Notes`) says the way
   back, shown in its tab's title, never over its content: while focused, "Ctrl+Alt+Space comes
@@ -151,7 +151,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
 - Every toast (`notices::report`) is also a line on stderr. Notices are never left silent: an
   elevated window an injected press could not reach notes "run Block as administrator"; over
   every display entry while the secure desktop is up, and as a toast when it comes up, "take off
-  the headset to answer it"; a toast when Windows refuses to bring block-app back.
+  the headset to answer it"; a toast when Windows refuses to bring be-host back.
 
 ## Not there yet
 

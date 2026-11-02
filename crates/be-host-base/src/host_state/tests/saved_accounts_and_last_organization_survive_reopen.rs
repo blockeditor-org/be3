@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn saved_accounts_and_last_organization_survive_reopen() {
-    let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("be-host-state-{}.sqlite3", Uuid::new_v4()));
     let mut local = account(ServerLocation::Local, "local@example.com");
     let remote = account(
         ServerLocation::Remote("https://blocks.example.com".into()),

@@ -24,10 +24,10 @@ impl Cores {
     pub fn describe(&self) -> String {
         match self.server {
             Some(server) => format!(
-                "the server and its network on core {server}, block-app and the bench on cores {:?}",
+                "the server and its network on core {server}, be-host and the bench on cores {:?}",
                 self.host
             ),
-            None => "one core, shared by the server, block-app and the bench".to_owned(),
+            None => "one core, shared by the server, be-host and the bench".to_owned(),
         }
     }
 

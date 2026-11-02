@@ -1,6 +1,6 @@
 [package]
 name = "beui-html-spike"
-description = "block-app's account picker on beui's HTML core: prerendered on the host, hydrated in the browser"
+description = "be-host's account picker on beui's HTML core: prerendered on the host, hydrated in the browser"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

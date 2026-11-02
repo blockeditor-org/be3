@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_last_organization_belongs_to_its_account_and_leaves_with_it() {
-    let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("be-host-state-{}.sqlite3", Uuid::new_v4()));
     let first = account(ServerLocation::Local, "first@example.com");
     let second = account(ServerLocation::Local, "second@example.com");
     let organization = be_block_protocol::Organization {

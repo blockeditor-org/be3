@@ -206,7 +206,7 @@ impl Host {
         match product {
             Product::Android | Product::LauncherAndroid => {
                 let (target, apk) = if product == Product::Android {
-                    ("//crates/be-host:android-dist", "block-app.apk")
+                    ("//crates/be-host:android-dist", "be-host.apk")
                 } else {
                     ("//crates/be-tool-launcher:android-dist", "be-launcher.apk")
                 };
@@ -261,9 +261,9 @@ impl Host {
                 if path.is_dir() {
                     collect(&path, "", &mut files).map_err(|error| error.to_string())?;
                     let executable = if windows {
-                        "block-app.exe"
+                        "be-host.exe"
                     } else {
-                        "block-app"
+                        "be-host"
                     };
                     if !files.iter().any(|(name, _)| name == executable) {
                         return Err(format!("{target} staged no {executable}"));
