@@ -219,6 +219,7 @@ fn QuickMain(
                         label={network}
                         glyph={wifi_glyph}
                         selected={wifi_on}
+                        toggle=true
                         on_click={networks}
                     />
                 </Show>
@@ -267,6 +268,7 @@ fn QuickTile(
     label: Prop<String>,
     glyph: Prop<Glyph>,
     #[prop(default = false)] selected: Prop<bool>,
+    #[prop(default = false)] toggle: bool,
     on_click: ClickCallback,
 ) -> NodeId {
     let label = create_memo(move || label.get());
@@ -274,7 +276,7 @@ fn QuickTile(
     view! {
         <Frame width=TILE_WIDTH>
             <List spacing=CAPTION_SPACING align=Align::Center>
-                <TileButton @test_id={id} label selected outlined=true size=TILE on_click>
+                <TileButton @test_id={id} label selected toggle outlined=true size=TILE on_click>
                     <Text size=TextSize::Lg>
                         <Icon glyph />
                     </Text>

@@ -5814,9 +5814,11 @@ built on it.
 
 A pick among pictures is a row of `TileButton`s: a square tile (`size`, `Xl` by
 default) around any child, filled `AccentSoft` and ringed in the accent when
-`selected`, with `outlined` for a hairline border at rest and `radio=true` for
-radio semantics (`description` reads after the label). The rename card's icons
-and the display settings' rotation picker use it. A colour pick is a row of
+`selected`, with `outlined` for a hairline border at rest, `radio=true` for
+radio semantics and `toggle=true` for a tile that reads as pressed while `selected`
+(the desktop's Wi-Fi tile); without either, `selected` is only drawn, for a tile that
+only acts (`description` reads after the label). The rename card's icons
+and the display settings' rotation picker are radio tiles. A colour pick is a row of
 `SwatchButton`s.
 
 `Banner` is an inline bar across an editor that says what failed (an import,

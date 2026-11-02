@@ -65,4 +65,18 @@ fn window_chips_and_toasts_tell_a_screen_reader_their_state() {
         (Some("Mia Chen"), Some("Lunch at noon?")),
         "a toast's button is named by its title and described by its message"
     );
+
+    fixture.wifi(nearby());
+    fixture.test.click("desktop.status");
+    fixture.settle();
+    assert_eq!(
+        state(&fixture, "desktop.quick.wifi"),
+        (Some(Toggled::True), None),
+        "the Wi-Fi tile reads as pressed while Wi-Fi is on"
+    );
+    assert_eq!(
+        state(&fixture, "desktop.quick.keyboard"),
+        (None, None),
+        "a tile that only acts is a plain button"
+    );
 }
