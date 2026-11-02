@@ -143,7 +143,7 @@ fn watch(mut log: File, directory: PathBuf, path: &Path) -> io::Result<()> {
     if raw < 0 {
         return Err(io::Error::last_os_error());
     }
-    // unsafe(ffi): inotify_init1 returned a descriptor nothing else owns.
+    // unsafe(ffi)
     let events = unsafe { OwnedFd::from_raw_fd(raw) };
     let name = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(io::Error::other)?;
     // unsafe(ffi)
