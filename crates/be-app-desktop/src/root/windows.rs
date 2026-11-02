@@ -85,28 +85,11 @@ pub(crate) struct DeskWindows {
     workspace: Workspace,
     pub(crate) placeholders: Placeholders,
     all: Memo<Vec<ChipKey>>,
-    tabs: Memo<Vec<TabId>>,
     displays: Memo<Vec<Rect>>,
-    hidden: Signal<Vec<TabId>>,
-    showing: Signal<Option<TabId>>,
 }
 
 impl DeskWindows {
     pub(crate) fn new(workspace: Workspace, placeholders: Placeholders) -> Self {
-        let hidden = create_signal(Vec::new());
-        let showing = create_signal(None::<TabId>);
-        let layout = workspace.layout();
-        create_effect(move || {
-            let Some(tab) = showing.get() else {
-                return;
-            };
-            if layout.contains(&tab) {
-                untrack(|| {
-                    showing.set(None);
-                    layout.show(&tab);
-                });
-            }
-        });
         let entries = workspace.entries();
         let tabs = workspace.block_tabs();
         let all = create_memo(move || {
@@ -125,25 +108,12 @@ impl DeskWindows {
             workspace,
             placeholders,
             all,
-            tabs,
             displays,
-            hidden,
-            showing,
         }
     }
 
     pub(crate) fn displays(&self) -> Vec<Rect> {
         self.displays.get()
-    }
-
-    pub(crate) fn block_windows(&self) -> Memo<Vec<TabId>> {
-        let tabs = self.tabs;
-        let hidden = self.hidden;
-        create_memo(move || {
-            let mut shown = tabs.get();
-            hidden.with(|hidden| shown.retain(|tab| !hidden.contains(tab)));
-            shown
-        })
     }
 
     fn chips(&self, display: Option<u32>) -> Memo<Vec<ChipKey>> {
@@ -217,7 +187,7 @@ impl DeskWindows {
                 .workspace
                 .entries()
                 .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
-            ChipKey::Block(tab) => self.hidden.with(|hidden| !hidden.contains(&tab)),
+            ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
         }
     }
 
@@ -241,12 +211,7 @@ impl DeskWindows {
                 }
                 desktop::windows::request(WindowAction::Focus(id)).detach();
             }),
-            ChipKey::Block(tab) if hidden => {
-                self.hidden
-                    .update(|hidden| hidden.retain(|held| *held != tab));
-                self.showing.set(Some(tab));
-            }
-            ChipKey::Block(tab) => self.workspace.layout().show(&tab),
+            ChipKey::Block(tab) => self.workspace.show(tab),
         }
     }
 
@@ -266,11 +231,7 @@ impl DeskWindows {
                 if let Some(next) = next {
                     layout.show(&next);
                 }
-                self.hidden.update(|hidden| {
-                    if !hidden.contains(&tab) {
-                        hidden.push(tab);
-                    }
-                });
+                self.workspace.hide(tab);
             }
         }
     }

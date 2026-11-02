@@ -194,7 +194,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let desk = workspace.desk();
     let placeholders = Placeholders::new(workspace);
     let windows = DeskWindows::new(workspace, placeholders);
-    let block_windows = windows.block_windows();
+    let block_windows = workspace.shown_block_tabs();
     hold_saving_while_ending(workspace);
     let placeholder = RenderFn::new(move |key: HostWindowId| {
         view! {
