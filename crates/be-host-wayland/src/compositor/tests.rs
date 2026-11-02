@@ -75,6 +75,7 @@ mod pressing_a_windows_bar_gives_it_the_keyboard;
 mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod text_a_program_copies_is_offered_to_x11_programs;
+mod a_focused_window_whose_view_moves_keeps_the_keyboard;
 mod text_a_program_copies_reaches_the_host;
 mod text_an_x11_program_copies_reaches_the_host_and_programs;
 mod text_copied_outside_replaces_a_programs_selection_once_the_host_is_focused;
@@ -164,7 +165,13 @@ fn Shown(windows: Windows) -> NodeId {
         LOCK.with(|lock| *lock.borrow_mut() = Some(locked));
         let asking = create_signal(false);
         DIALOG.with(|dialog| *dialog.borrow_mut() = Some(asking));
-        let ids = create_memo(clone_list(&windows));
+        let moves = create_signal(0u32);
+        MOVES.with(|cell| *cell.borrow_mut() = Some(moves));
+        let listed = clone_list(&windows);
+        let ids = create_memo(move || {
+            let moved = moves.get();
+            listed().into_iter().map(|id| (id, moved)).collect::<Vec<_>>()
+        });
         view! {
             <Interactive
                 claims={vec![beui::Claim::holding(beui::Modifiers::LOGO, true)]}
@@ -177,7 +184,7 @@ fn Shown(windows: Windows) -> NodeId {
             >
                 <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
-                    <ForEach keys={ids}>|id: WindowId| {
+                    <ForEach keys={ids}>|(id, _): (WindowId, u32)| {
                         let list = windows.list();
                         let size = create_memo(move || {
                             list.with(|list| {
@@ -346,6 +353,14 @@ impl Harness {
             .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         set.set(open);
+        self.settle();
+    }
+
+    fn move_views(&mut self) {
+        let moves = MOVES
+            .with(|moves| *moves.borrow())
+            .expect("the harness can move its views");
+        moves.update(|moves| *moves += 1);
         self.settle();
     }
 
@@ -528,6 +543,7 @@ const KEY_LEFTMETA: u32 = 125;
 thread_local! {
     static LOCK: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
     static DIALOG: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
+    static MOVES: std::cell::RefCell<Option<Signal<u32>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }

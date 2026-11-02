@@ -38,6 +38,13 @@ pub fn WindowView(
     let popup_catcher = NodeRef::new();
     let shown_in = use_window().map(WindowHandle::real);
     windows.mounted(id);
+    let scope = owner_scope();
+    let on_focus_change = move |focused: bool| match focused
+        || scope.as_ref().is_some_and(ScopeContext::is_alive)
+    {
+        true => windows.focus(id, focused),
+        false => windows.unmounted_focused(id),
+    };
     create_effect(move || {
         let origin = shown_in
             .and_then(|real| real.get())
@@ -118,7 +125,7 @@ pub fn WindowView(
                 @node_ref={&catcher}
                 focusable=true
                 @test_id={format!("wayland.window.{}", id.0)}
-                on_focus_change={move |focused: bool| windows.focus(id, focused)}
+                on_focus_change={on_focus_change}
                 cursor
                 cursor_image
                 on_forward={move |input: ForwardedInput| {

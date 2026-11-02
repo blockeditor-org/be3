@@ -569,7 +569,9 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
                 doc.tapping = None;
                 taps.push(index);
             }
-            Event::Key { press, .. } if press.pressed => doc.tapping = None,
+            Event::Key { press, .. } | Event::InterceptedKey(press) if press.pressed => {
+                doc.tapping = None;
+            }
             Event::PointerButton { pressed: true, .. }
             | Event::Scroll(_)
             | Event::Focus(false)

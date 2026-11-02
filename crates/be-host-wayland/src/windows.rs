@@ -76,6 +76,7 @@ struct Inner {
     fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
+    handover: Cell<Option<WindowId>>,
     raised: RefCell<HashMap<WindowId, u64>>,
     menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
     minimized: RefCell<Vec<WindowId>>,
@@ -104,6 +105,7 @@ impl Windows {
             fullscreen_requests: RefCell::new(Vec::new()),
             activate: Cell::new(None),
             focused: Cell::new(None),
+            handover: Cell::new(None),
             raised: RefCell::new(HashMap::new()),
             menus: RefCell::new(HashMap::new()),
             minimized: RefCell::new(Vec::new()),
@@ -314,6 +316,9 @@ impl Windows {
         if inner.focused.get() == Some(id) {
             inner.focused.set(None);
         }
+        if inner.handover.get() == Some(id) {
+            inner.handover.set(None);
+        }
     }
 
     pub(crate) fn set_list(&self, list: Vec<WindowInfo>) {
@@ -443,6 +448,11 @@ impl Windows {
         }
         let was = inner.focused.get();
         if focused {
+            if let Some(left) = inner.handover.take().filter(|left| *left != id)
+                && let Some(signals) = self.signals(left)
+            {
+                signals.answered.set(signals.asks.get_untracked());
+            }
             inner.focused.set(Some(id));
         } else if was == Some(id) {
             inner.focused.set(None);
@@ -451,6 +461,16 @@ impl Windows {
             inner.revision.set(inner.revision.get() + 1);
         }
         self.push(Command::Configure(id));
+    }
+
+    pub(crate) fn unmounted_focused(&self, id: WindowId) {
+        self.focus(id, false);
+        let Some(signals) = self.signals(id) else {
+            return;
+        };
+        let inner = self.0.value();
+        inner.handover.set(Some(id));
+        signals.asks.update(|asks| *asks += 1);
     }
 
     pub fn focused(&self) -> Option<WindowId> {
