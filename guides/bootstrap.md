@@ -69,3 +69,12 @@ pins. The
 autofix job, which waits for it, pushes the new pins to the pull request. A
 name that is its content's hash never changes what it points at, and nothing
 deletes them, so every commit's pins keep working.
+
+Every commit is verified with the release pinned before it, so whatever that
+release passes to, reads from or writes into the tree (verify.bxl's
+parameters, be-tool-verify's flags, the names in scripts/internal/pins, build-info.json's path and keys, env vars)
+must keep working with it. Renaming one takes steps, each landing after CI pins
+the release built from the step before: first the bootstrap speaks the new name
+while the tree accepts both, then the tree drops the old one. A directory the
+release writes into needs a tracked file to keep it in a checkout until a
+release that no longer writes there is pinned.

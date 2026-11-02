@@ -73,10 +73,12 @@ cannot issue a be-host session from an unclaimed approval.
 `./scripts/deploy` builds be-server, `be` and be-host for every platform in release in one buck2 command
 (be-tool-local deploy, in crates/be-tool-local) and then, from that build:
 
-- uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
-  `data/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
-  `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/pins`,
-  which `./scripts/be` must match the server by (guides/tracker.md);
+- uploads each `be` bundle (Linux x86_64 and arm64), `be` and its
+  `build-info.json`, to the storage zone as `data/BUILD/be-TRIPLE/`
+  (`BUNNY_STORAGE_KEY`), reads each back from `be3.pfg.pw` to check the hash,
+  and pins both hashes in `scripts/internal/pins`; `./scripts/be` downloads
+  both, so its `be` matches the server and knows its default server
+  (guides/tracker.md);
 - uploads be-host's downloads to `data/BUILD/app/` in the same zone, each read
   back the same way: `:native` with its apps for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
