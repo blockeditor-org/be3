@@ -31,7 +31,7 @@ use play::Play;
 const STAGE: &str = "stage";
 const SIDEBAR: &str = "sidebar";
 const ACTIONS: &str = "actions";
-const SIDEBAR_WIDTH: f32 = 260.0;
+const SIDEBAR_WIDTH: f32 = be_sdk_beui::SIDE_PANEL_WIDTH;
 const PANEL_PADDING: Space = Space::Lg;
 const SECTION_SPACING: Space = Space::Lg;
 const BANNER_MARGIN: Space = Space::Lg;

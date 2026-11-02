@@ -9,7 +9,7 @@ use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Creation, Editor, Sidebar, narrow_chrome};
+use be_sdk_beui::{Creation, Editor, SIDE_PANEL_WIDTH};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -19,16 +19,15 @@ pub(crate) mod state;
 pub(crate) mod tiles;
 pub(crate) mod toolbar;
 
-use beui::ItemSize;
 use canvas::MapCanvas;
-use sidebar::{MapInspector, MapSidebar};
+use sidebar::MapInspector;
 use state::{MapState, WORLD_POINTS};
 use toolbar::MapToolbar;
 
 const STAGE: &str = "stage";
 const INSPECTOR: &str = "inspector";
 const TOOLBAR: &str = "toolbar";
-const INSPECTOR_SHARE: f32 = 0.3;
+const INSPECTOR_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 pub struct MapRoot;
 
@@ -77,24 +76,16 @@ fn MapEditor(editor: Editor) -> NodeId {
     let fitting = editor.keep_fitted(|| Some(Fit::World));
 
     let chrome = editor.chrome_shown();
-    let narrow = narrow_chrome();
-    let sheet = create_memo(move || chrome.get() && narrow.get());
-    let docked = create_memo(move || chrome.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="map" size={SplitSize::Fraction(1.0 - INSPECTOR_SHARE)}>
+            <DockSplit id="map" size={SplitSize::Second(INSPECTOR_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Map">
-                        <List spacing=Space::None>
-                            <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
-                            <Sidebar shown={sheet}>
-                                <MapSidebar state={state} />
-                            </Sidebar>
-                        </List>
+                        <MapCanvas state={state} />
                     </DockTab>
                 </DockPane>
-                <Show condition={docked}>
+                <Show condition={chrome}>
                     <DockPane id="inspector" locked=true>
                         <DockTab id=INSPECTOR title="Inspector">
                             <MapInspector state={state} />

@@ -6,7 +6,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery};
-use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar, narrow_chrome};
+use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, SIDE_PANEL_WIDTH};
 use be_type_database::DatabaseSchemaContent;
 use be_type_database::database::DatabaseContent;
 use be_type_database::database_view::{self, DatabaseViewContent};
@@ -20,7 +20,7 @@ const ROW_HEIGHT: f32 = 24.0;
 const CHROME_HEIGHT: f32 = 90.0;
 const VIEWS: &str = "views";
 const SCHEMA: &str = "schema";
-const SCHEMA_SHARE: f32 = 0.3;
+const SCHEMA_WIDTH: f32 = SIDE_PANEL_WIDTH;
 const SCHEMA_PADDING: Space = Space::Lg;
 
 #[component]
@@ -68,18 +68,14 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     };
 
     let chrome = editor.chrome_shown();
-    let narrow = narrow_chrome();
-    let sheet = create_memo(move || chrome.get() && narrow.get());
-    let docked = create_memo(move || chrome.get() && !narrow.get());
     let content = NodeRef::new();
     editor.content(&content);
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(VIEWS)}>
-            <DockSplit id="database" size={SplitSize::Fraction(1.0 - SCHEMA_SHARE)}>
+            <DockSplit id="database" size={SplitSize::Second(SCHEMA_WIDTH)}>
                 <DockPane id="views" locked=true bare=true>
                     <DockTab id=VIEWS title="Views">
-                        <List direction=Direction::Horizontal spacing=Space::None>
                             <Frame
                                 @sizing=ItemSize::Percent(100.0)
                                 @node_ref={&content}
@@ -107,17 +103,9 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                                     </List>
                                 </List>
                             </Frame>
-                            <Sidebar shown={sheet}>
-                                <SchemaPanel
-                                    @sizing=ItemSize::Percent(100.0)
-                                    editor={editor}
-                                    schema={schema}
-                                />
-                            </Sidebar>
-                        </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={docked}>
+                <Show condition={chrome}>
                     <DockPane id="schema" locked=true>
                         <DockTab id=SCHEMA title="Schema">
                             <Frame fill=ColorRole::Surface>

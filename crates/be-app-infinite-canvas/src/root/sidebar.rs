@@ -3,7 +3,8 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::ICON_DROPLET_OFF;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ResizeMode, Sidebar, narrow_chrome};
+use be_sdk_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
+use be_sdk_beui::{ResizeMode, narrow_chrome};
 use be_type_infinite_canvas::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasProfile,
     CanvasShape, CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize,
@@ -40,15 +41,75 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
     ("Front", CanvasLayerMove::BringToFront),
 ];
 
+#[derive(Clone, Copy)]
+pub(crate) struct InspectorSheet {
+    offered: Memo<bool>,
+    open: Signal<bool>,
+}
+
+impl InspectorSheet {
+    pub(crate) fn new(inspected: Memo<bool>) -> Self {
+        let narrow = narrow_chrome();
+        let sheet = InspectorSheet {
+            offered: create_memo(move || inspected.get() && narrow.get()),
+            open: create_signal(false),
+        };
+        provide_context(sheet);
+        sheet
+    }
+
+    pub(crate) fn shown(self) -> Memo<bool> {
+        let InspectorSheet { offered, open } = self;
+        create_memo(move || offered.get() && open.get())
+    }
+
+    pub(crate) fn open(self) {
+        self.open.set(true);
+    }
+}
+
+pub(crate) fn inspector_sheet() -> Option<InspectorSheet> {
+    use_context::<InspectorSheet>()
+}
+
 #[component]
-pub(crate) fn CanvasSidebar(
-    state: CanvasState,
-    shown: be_sdk_beui::beui::reactive::Prop<bool>,
-) -> DynamicSegment<ListChild> {
+pub(crate) fn CanvasSheet(state: CanvasState, sheet: InspectorSheet) -> NodeId {
+    let shown = sheet.shown();
+    let open = sheet.open;
+    let size = container_size();
+    let extent = create_memo(move || size.map_or(0.0, |size| size.get().y));
+    let offered = sheet.offered;
     view! {
-        <Sidebar shown={shown}>
-            <CanvasPanels state={state} />
-        </Sidebar>
+        <List spacing=Space::None>
+            <Show condition={offered}>
+                <InspectorItem sheet />
+            </Show>
+            <Show condition={shown}>
+                <Sheet
+                    extent={extent}
+                    open={shown}
+                    rest={SHEET_STOPS[0]}
+                    on_close={move || open.set(false)}
+                >
+                    <Frame padding=Space::Lg>
+                        <CanvasPanels state={state} />
+                    </Frame>
+                </Sheet>
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn InspectorItem(sheet: InspectorSheet) -> NodeId {
+    let opener = Action::new("infinite-canvas.open-inspector", "Inspector", move || {
+        sheet.open()
+    })
+    .glyph(ICON_SLIDERS_HORIZONTAL)
+    .register();
+    add_to_menu(vec![MenuNode::action(&opener)]);
+    view! {
+        <List spacing=Space::None />
     }
 }
 

@@ -30,7 +30,7 @@ const CELL_EDITOR_WIDTH: f32 = 360.0;
 const STAGE: &str = "stage";
 const ROW: &str = "row";
 const CELL_BAR: &str = "cell-editor";
-const ROW_SHARE: f32 = 0.5;
+const ROW_WIDTH: f32 = 460.0;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
@@ -72,7 +72,7 @@ fn ViewEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="view" size={SplitSize::Fraction(1.0 - ROW_SHARE)}>
+            <DockSplit id="view" size={SplitSize::Second(ROW_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="View">
                         <List spacing=Space::None>

@@ -9,7 +9,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{AudioStatus, Editor, FileChooser};
+use be_sdk_beui::{AudioStatus, Editor, FileChooser, SIDE_PANEL_WIDTH};
 
 use super::{decode, filter, format_micros};
 use be_type_audio::AudioContent;
@@ -20,7 +20,7 @@ const SPACING: Space = Space::Md;
 const SECOND_MICROS: u64 = 1_000_000;
 const STAGE: &str = "stage";
 const PANEL: &str = "panel";
-const PANEL_SHARE: f32 = 0.26;
+const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 fn played_to(status: &AudioStatus, since: Duration) -> u64 {
     let since = match status.playing {
@@ -41,7 +41,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="audio" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
+            <DockSplit id="audio" size={SplitSize::Second(PANEL_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Track">
                         <Track @node_ref={&content} editor={editor} />

@@ -29,7 +29,7 @@ use state::{VideoState, ZOOM_STEP};
 use timeline::Timeline;
 
 const DEFAULT_EDITOR_SIZE: Vec2 = Vec2::new(1000.0, 640.0);
-const EFFECTS_SHARE: f32 = 0.27;
+const EFFECTS_WIDTH: f32 = 268.0;
 const TIMELINE_SHARE: f32 = 0.42;
 const TOOL_SEPARATOR_LENGTH: Size = Size::Sm;
 const EFFECTS_PADDING: Space = Space::Md;
@@ -95,7 +95,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
                 direction=Direction::Vertical
                 size={SplitSize::Fraction(1.0 - TIMELINE_SHARE)}
             >
-                <DockSplit id="upper" size={SplitSize::Fraction(EFFECTS_SHARE)}>
+                <DockSplit id="upper" size={SplitSize::First(EFFECTS_WIDTH)}>
                     <DockPane id="effects" locked=true>
                         <DockTab id=EFFECTS title="Effects">
                             <EffectsColumn state={state} />

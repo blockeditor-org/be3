@@ -9,7 +9,7 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
-use be_sdk_beui::{Editor, FileChooser, Sidebar, narrow_chrome};
+use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
@@ -21,7 +21,7 @@ const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 const STAGE: &str = "stage";
 const SIDEBAR: &str = "sidebar";
 const TOOLBAR: &str = "toolbar";
-const SIDEBAR_SHARE: f32 = 0.32;
+const SIDEBAR_WIDTH: f32 = SIDE_PANEL_WIDTH;
 const PANEL_PADDING: Space = Space::Lg;
 
 #[component]
@@ -94,7 +94,6 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let name = create_memo(move || source.get());
 
     let chrome = editor.chrome_shown();
-    let narrow = narrow_chrome();
     let content = NodeRef::new();
     editor.content(&content);
     let controls = Controls {
@@ -122,7 +121,6 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                             editor
                             content
                             shown
-                            narrow
                             controls
                             details
                         />
@@ -160,27 +158,19 @@ fn PdfDock(
     editor: Editor,
     content: NodeRef,
     shown: Memo<Shown>,
-    narrow: Memo<bool>,
     controls: Controls,
     details: Details,
 ) -> NodeId {
-    let wide = create_memo(move || !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pdf" size={SplitSize::Fraction(1.0 - SIDEBAR_SHARE)}>
+            <DockSplit id="pdf" size={SplitSize::Second(SIDEBAR_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Page">
-                        <List spacing=Space::None>
-                            <Viewer @sizing=ItemSize::Percent(100.0) editor content shown />
-                            <Sidebar shown={narrow}>
-                                <DetailsPanel details />
-                            </Sidebar>
-                        </List>
+                        <Viewer editor content shown />
                     </DockTab>
                 </DockPane>
-                <Show condition={wide}>
-                    <DockPane id="sidebar" locked=true>
+                <DockPane id="sidebar" locked=true>
                         <DockTab id=SIDEBAR title="PDF">
                             <Frame fill=ColorRole::Surface>
                                 <Scroll @test_id={"pdf.sidebar"}>
@@ -191,7 +181,6 @@ fn PdfDock(
                             </Frame>
                         </DockTab>
                     </DockPane>
-                </Show>
             </DockSplit>
             <DockBar
                 id=TOOLBAR

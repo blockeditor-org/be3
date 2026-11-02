@@ -5,7 +5,7 @@ use be_sdk_beui::beui::dock::styled::{
     SplitSize,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::{Editor, LoadingPane, Side, Sidebar, narrow_chrome};
+use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
 use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
@@ -17,7 +17,7 @@ use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
 use beui::native::draw_gpu;
-use beui::{Direction, ItemSize};
+use beui::ItemSize;
 
 const ZOOM_STEP: f32 = 1.25;
 const STAGE: &str = "stage";
@@ -25,8 +25,7 @@ const HOTBAR: &str = "hotbar";
 const PANELS: &str = "panels";
 const TOOLS: &str = "tools";
 const ZOOM: &str = "zoom";
-const HOTBAR_SHARE: f32 = 0.27;
-const PANELS_SHARE: f32 = 0.45;
+const PANELS_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 #[component]
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
@@ -52,37 +51,24 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
 
 #[component]
 fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
-    let narrow = narrow_chrome();
-    let sheet = create_memo(move || chrome.get() && narrow.get());
-    let docked = create_memo(move || chrome.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="grid" size={SplitSize::Fraction(HOTBAR_SHARE)}>
-                <Show condition={docked}>
+            <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
+                <Show condition={chrome}>
                     <DockPane id="hotbar" locked=true>
                         <DockTab id=HOTBAR title="Components">
                             <HotbarPane session={session} />
                         </DockTab>
                     </DockPane>
                 </Show>
-                <DockSplit id="workspace" size={SplitSize::Fraction(1.0 - PANELS_SHARE)}>
+                <DockSplit id="workspace" size={SplitSize::Second(PANELS_WIDTH)}>
                     <DockPane id="stage" locked=true bare=true>
                         <DockTab id=STAGE title="Grid">
-                            <List direction=Direction::Horizontal spacing=Space::None>
-                                <Sidebar side=Side::Left shown={sheet} width=HOTBAR_WIDTH>
-                                    <Hotbar session={session} />
-                                    <Separator />
-                                    <ToolSettings session={session} />
-                                </Sidebar>
-                                <GridCanvas @sizing=ItemSize::Percent(100.0) session={session} />
-                                <Sidebar shown={sheet}>
-                                    <Panels session={session} />
-                                </Sidebar>
-                            </List>
+                            <GridCanvas session={session} />
                         </DockTab>
                     </DockPane>
-                    <Show condition={docked}>
+                    <Show condition={chrome}>
                         <DockPane id="panels" locked=true>
                             <DockTab id=PANELS title="Simulation">
                                 <PanelsPane session={session} />

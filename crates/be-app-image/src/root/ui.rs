@@ -5,7 +5,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
-use be_sdk_beui::{Editor, FileChooser, fit_content};
+use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
@@ -14,7 +14,7 @@ use beui::{Align, ItemSize};
 
 const STAGE: &str = "stage";
 const PANEL: &str = "panel";
-const PANEL_SHARE: f32 = 0.26;
+const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Md;
 
@@ -56,7 +56,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="image" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
+            <DockSplit id="image" size={SplitSize::Second(PANEL_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Picture">
                         <Frame @node_ref={&content}>

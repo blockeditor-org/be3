@@ -4,14 +4,14 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{Editor, FileChooser};
+use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
 use be_type_deterministic_game::GameModuleContent;
 use tabletop_host::Game;
 
 use super::{filter, imported};
 const STAGE: &str = "stage";
 const PANEL: &str = "panel";
-const PANEL_SHARE: f32 = 0.3;
+const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 
@@ -57,7 +57,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="module" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
+            <DockSplit id="module" size={SplitSize::Second(PANEL_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Module">
                         <Frame @node_ref={&content} padding=PADDING>

@@ -40,7 +40,7 @@ use canvas::CanvasStage;
 use export::ExportDialog;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
-use sidebar::{CanvasInspector, CanvasSidebar};
+use sidebar::{CanvasInspector, CanvasSheet, InspectorSheet};
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
@@ -114,10 +114,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);
+    let sheet = InspectorSheet::new(inspected);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
     let narrow = narrow_chrome();
-    let sheet = create_memo(move || inspected.get() && narrow.get());
     let docked = create_memo(move || inspected.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
@@ -134,7 +134,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                                 <CanvasStage @node_ref={&content} state={state} />
                                 <SelectionDock state layout open bar={bar_size.read_only()} />
                             </Layers>
-                            <CanvasSidebar state={state} shown={sheet} />
+                            <CanvasSheet state sheet />
                         </List>
                     </DockTab>
                 </DockPane>

@@ -14,7 +14,7 @@ const STAGE: &str = "stage";
 const CARDS_TAB: &str = "cards";
 const ZOOM: &str = "zoom";
 const REOPEN: &str = "reopen";
-const SIDEBAR_SHARE: f32 = 0.275;
+const SIDEBAR_WIDTH: f32 = 220.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Md;
 const CARD_TITLE_SIZE: f32 = 17.0;
@@ -114,7 +114,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
 
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pan_zoom" size={SplitSize::Fraction(SIDEBAR_SHARE)}>
+            <DockSplit id="pan_zoom" size={SplitSize::First(SIDEBAR_WIDTH)}>
                 <Show condition={panel_shown}>
                     <DockPane id="sidebar" locked=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>
