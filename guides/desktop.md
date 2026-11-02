@@ -226,11 +226,11 @@ stops declaring it) and the next shown window in the dock's focus order takes th
 has a context menu (secondary click, long press or Shift+F10): Hide or Show, and Close for a
 window (`close`). While placeholders from last time wait, a Restore chip
 (`desktop.windows.restore`) leads the row and launches them all. `WindowChips` takes a `display`
-to list only the windows mostly on that display, but the app learns a window's place only from
-its own dock state, which the host does not update when it moves a window, so the bars on every
-display still list every window. Moving a window to another display is not offered: the protocol
-has no request for it. On Linux it is a window
-switcher too. be-host's Wayland host opens every window shown and lists no displays; `hide`
+to list only the windows mostly on that display (`display_of`: the display holding most of the
+window's rect in the dock, which follows each window's reported `origin`, Displays below; a hidden
+window, which has no rect, is listed on the first display), and with more than one display a
+shown floating window's chip menu adds "Move to display N" for each other display (Displays,
+below). On Linux it is a window switcher too. be-host's Wayland host opens every window shown and lists no displays; `hide`
 only stops the shells drawing it (the client keeps running and connected), and the shown state
 lives in `be-host-desktop/src/desktop_host/shown.rs` for as long as be-host runs, forgotten when the window closes.
 A hidden window shown again opens at its default place, not where it was.
@@ -320,8 +320,9 @@ and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is liste
 responding. The lock screen is the host's and works throughout. The new shell sees the
 windows in `WindowsWatch` and shows them as it shows any window; the desktop app's saved layout
 names window tabs by `HostWindowId`, which the host keeps, so a restored layout puts
-each window back where it was, fullscreen and dialogs included. To try it, open the Apps
-panel from the Apps panel's Menu and press Crash beside `be3.desktop`.
+each window back where it was, fullscreen and dialogs included. To try it, open be-host's
+menu (the Apps panel's Menu row), choose Running Apps, be-host's debug panel of the apps it runs,
+and press Crash beside `be3.desktop`.
 
 ## A layout that cannot be read
 

@@ -518,7 +518,7 @@ impl HostPanel {
         match self {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
-            Self::Apps => "Apps",
+            Self::Apps => "Running Apps",
             Self::Menu => "Menu",
         }
     }

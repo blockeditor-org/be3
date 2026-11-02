@@ -64,15 +64,17 @@ Reading the program:
   env                       NAME=VALUE lines a program needs to show its windows inside the program,
                             such as WAYLAND_DISPLAY; empty when the program hosts no programs
   windows                   the program's windows, each one's number and size
-  paint [TARGET] [in WINDOW]   what a window of the program paints (the main one unless WINDOW names
-                            another), apps included, as a paint snapshot, of TARGET only when given;
+  paint FILE.paint|FILE.png [TARGET] [in WINDOW]   what a window of the program paints (the main
+                            one unless WINDOW names another), apps included, of TARGET only when
+                            given, as a paint snapshot, or drawn into a PNG with what an app draws
+                            itself left as placeholders;
                             in platform, what reaches the platform instead, below the layers that
                             compose the program's windows, such as space's 3D scene
   overflows                 what the program shows out of bounds, apps included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
 The platform's side:
-  shot [TARGET]             a screenshot of what the platform shows, of TARGET only when given
+  shot FILE.png [TARGET]    a screenshot of what the platform shows, of TARGET only when given
   resize WIDTHxHEIGHT[@SCALE]   resize the headless window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen headless window fills
   focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
@@ -1601,7 +1603,7 @@ impl Session {
                 let target = match target {
                     [] => None,
                     [target] => Some(target.clone()),
-                    _ => return Err("usage: paint [TARGET] [in WINDOW|platform]".to_owned()),
+                    _ => return Err("usage: paint FILE.paint|FILE.png [TARGET] [in WINDOW|platform]".to_owned()),
                 };
                 if let Some(target) = &target {
                     reveal_first(target, rendered.lines())?;

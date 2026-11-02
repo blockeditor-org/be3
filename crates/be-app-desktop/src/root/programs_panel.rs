@@ -106,7 +106,7 @@ pub(crate) fn ProgramsPanelKey(
         };
         pointer.or_else(focused).unwrap_or(0) as u32
     };
-    Action::new("desktop.apps.toggle", "ProgramsPanel", move || {
+    Action::new("desktop.apps.toggle", "Apps", move || {
         programs_panel.toggle(|| untrack(pointed))
     })
     .glyph(ICON_LAYOUT_GRID)
@@ -142,7 +142,7 @@ pub(crate) fn ProgramsPanelButton(
     view! {
         <BarPopup
             @node_ref={&button}
-            label="ProgramsPanel"
+            label="Apps"
             glyph={Some(ICON_LAYOUT_GRID)}
             icon_only=true
             width=PANEL_WIDTH

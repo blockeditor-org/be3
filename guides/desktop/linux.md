@@ -145,7 +145,7 @@ seconds before the session ends or logind is asked to restart or power off) and
 `src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
 signal. Logging out closes be-host the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops be-host, the outputs, the input devices, the DRM device (which
-puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
+puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
 nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
@@ -196,7 +196,7 @@ returns.
 ## The tray
 
 Programs such as Discord, Steam and Nextcloud show tray icons as StatusNotifierItems. The
-desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from be-host's
+desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from be-host-services'
 `src/tray/` and is its `StatusNotifierHost`; under another desktop whose watcher already owns
 the name it registers with that one as a host instead. `client.rs` is one task on the D-Bus
 thread that every change reaches as an `Event`: registrations, `NameOwnerChanged` (an item
@@ -270,7 +270,7 @@ once; a protected one asks for its password first, and asks again when the host 
 joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
 from a connection saved elsewhere.
 
-be-host's `src/wifi/` starts once an app watches `Wifi` and talks to NetworkManager on the
+be-host-services' `src/wifi/` starts once an app watches `Wifi` and talks to NetworkManager on the
 system bus (`network_manager.rs`, a task on the D-Bus thread). It reads the first Wi-Fi device,
 its access points and the saved Wi-Fi connections again after every signal NetworkManager sends,
 so a change made elsewhere (`nmcli`, another program) shows at once. A saved network is joined
@@ -491,7 +491,7 @@ the dock's, so maximizing would change nothing (a request to maximize is still a
 with the maximized state, for programs that ask anyway). GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
-(`src/gtk_settings.rs`) writes a dconf profile into `be-host-wayland` in its runtime directory: the
+(`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
 profile dconf would otherwise use, plus a database of its own that sets and locks that key to
 `appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
 it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
@@ -584,7 +584,7 @@ tab of whichever shell opened it, the workspace-ui inside the desktop app includ
 `programs` reads `MimeType` (`DesktopEntry::mime_types`) and turns MIME types into extensions with
 shared-mime-info's `mime/globs2` and `mime/aliases` in the XDG data dirs (`MimeGlobs`).
 
-be-host's `src/programs.rs` scans the programs once the compositor runs and adds one
+be-host-desktop's `src/programs.rs` scans the programs once the compositor runs and adds one
 `EditorDescriptor` per program that opens anything to the catalog every app gets: `Edits::Any`,
 the program's name, and `extensions` (shell.wit's `editor-descriptor`). Its editor id is `programs::editor_id`, `program\0` in the
 high half and a hash of the desktop id in the low, so a tab saved with it names the same program

@@ -36,7 +36,7 @@ pub(crate) fn command(command: DebugCommand) {
     match command {
         DebugCommand::KillApp(app_id) => be_host_runtime::kill(&app_id),
         DebugCommand::CrashApp(app_id) => {
-            be_host_runtime::crash(&app_id, "It was crashed from the Apps panel.".to_owned())
+            be_host_runtime::crash(&app_id, "It was crashed from be-host's Running Apps panel.".to_owned())
         }
     }
 }

@@ -56,7 +56,7 @@ impl HostTest {
             space,
             render,
         )
-        .unwrap_or_else(|error| panic!("block-host did not start: {error}"));
+        .unwrap_or_else(|error| panic!("be-host did not start: {error}"));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
