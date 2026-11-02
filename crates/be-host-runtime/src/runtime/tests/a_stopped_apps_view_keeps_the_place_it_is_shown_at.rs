@@ -32,6 +32,7 @@ fn a_stopped_apps_view_keeps_the_place_it_is_shown_at() {
         clip: rect,
         radius: 0.0,
         raster: 1.0,
+        inert: false,
     };
     let view = placed_view(&app, EditorInstanceId(1), ViewId::MAIN, Some(placed), None);
     assert!(view.error.is_some(), "the view shows the app stopped");

@@ -355,6 +355,7 @@ pub(crate) fn AppView(
                 anchor_bounds: (!offscreen && !region.is_preview())
                     .then(|| anchor_bounds.get_untracked()),
                 fit: fit.and_then(|fit| fit.get_untracked()),
+                inert: placement.inert,
             },
             frame.get_untracked(),
             view.get_untracked(),
@@ -374,6 +375,7 @@ pub(crate) fn AppView(
             clip: at,
             radius: 0.0,
             raster: 1.0,
+            inert: false,
         };
         placed.with(|placed| placed.set(Some(placement)));
         placer.call(Some(placement));
