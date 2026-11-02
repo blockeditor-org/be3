@@ -26,7 +26,10 @@ fn text_copied_outside_replaces_a_programs_selection_once_the_host_is_focused() 
         .expect("the platform's clipboard is set");
     harness.frame(vec![Input::Focus(true)]);
     harness.settle();
-    assert!(client::source_cancelled(), "the program's selection is replaced");
+    assert!(
+        client::source_cancelled(),
+        "the program's selection is replaced"
+    );
     let offer = client::selection().expect("the host's clipboard is offered");
     let answer = client::ask(&offer);
     harness.settle();

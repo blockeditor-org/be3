@@ -25,7 +25,11 @@ fn a_program_reads_the_clipboard_outside_any_focus() {
         read: read.clone(),
     });
     driven.ask(&["settle"]).expect("the program settles");
-    assert_eq!(*read.borrow(), [None], "an empty clipboard reads as nothing");
+    assert_eq!(
+        *read.borrow(),
+        [None],
+        "an empty clipboard reads as nothing"
+    );
 
     driven
         .ask(&["clipboard", "copied outside"])

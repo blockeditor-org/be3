@@ -20,7 +20,10 @@ fn a_file_taken_back_outside_leaves_the_window_without_a_drop() {
     harness.settle();
     assert_eq!(client::drop_target().as_ref(), Some(&window.surface));
 
-    harness.stepped.ask(&["ungrab"]).expect("the file is taken back");
+    harness
+        .stepped
+        .ask(&["ungrab"])
+        .expect("the file is taken back");
     harness.settle();
     assert_eq!(client::drop_target(), None, "the drag leaves the window");
     assert_eq!(client::dropped_on(), None, "nothing is dropped");

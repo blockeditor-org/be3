@@ -3,8 +3,8 @@ use std::os::fd::OwnedFd;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use beui::native::Context;
 use beui::Event;
+use beui::native::Context;
 
 use super::Compositor;
 
@@ -48,7 +48,9 @@ impl Compositor {
             clipboard.host_offered = true;
             state.offer_host_clipboard();
         }
-        clipboard.asked.extend(state.take_asked_for_host_clipboard());
+        clipboard
+            .asked
+            .extend(state.take_asked_for_host_clipboard());
         let refocused = context.input(|input| input.events.contains(&Event::Focus(true)));
         let answer = clipboard.read.borrow_mut().take();
         if let Some(text) = &answer {
@@ -99,9 +101,7 @@ impl Compositor {
             match event {
                 Event::FileHovered => state.file_hovered(),
                 Event::FileHoverCancelled => state.file_drag_cancelled(),
-                Event::FileDropped(file) => dropped
-                    .get_or_insert_with(Vec::new)
-                    .extend(file.path),
+                Event::FileDropped(file) => dropped.get_or_insert_with(Vec::new).extend(file.path),
                 _ => {}
             }
         }
