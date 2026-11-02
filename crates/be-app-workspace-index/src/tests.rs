@@ -10,6 +10,7 @@ use crate::root::WorkspaceIndexRoot;
 mod an_empty_folder_says_so;
 mod dropping_a_block_reports_whether_the_folder_takes_it;
 mod every_entry_in_the_index_gets_a_cell;
+mod on_a_phone_the_folder_toolbar_fits_above_the_entries;
 mod the_folder_toolbar_is_a_bar_above_the_entries_that_goes_with_the_chrome;
 
 struct Fixture {

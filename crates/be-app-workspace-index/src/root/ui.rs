@@ -202,6 +202,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                     <DockBarSurface spacing=Space::Md @test_id={"folder.toolbar"}>
                         <DockBarGrip />
                         <Select
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
                             options={view! {
                                 <ChoiceOption label={FolderView::LargeGrid.label()} />
                                 <ChoiceOption label={FolderView::SmallGrid.label()} />
@@ -217,6 +218,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             @test_id={"folder.view"}
                         />
                         <Select
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
                             options={view! {
                                 <ChoiceOption label={FolderSort::Intrinsic.label()} />
                                 <ChoiceOption label={FolderSort::Name.label()} />
