@@ -14,4 +14,7 @@ fn clicking_a_clip_selects_it_for_the_effects_panel() {
         fixture.editor.shown("video.clip-length"),
         "the effects panel shows the length of the clip that was chosen"
     );
+    fixture
+        .editor
+        .snapshot("clicking_a_clip_selects_it_for_the_effects_panel");
 }

@@ -8,7 +8,12 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Creation, Editor, Toolbar};
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    use_dock_bar,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::{Creation, Editor};
 use be_type_video::{VideoFrameRate, VideoOperation};
 use uuid::Uuid;
 
@@ -17,17 +22,23 @@ pub(crate) mod player;
 pub(crate) mod state;
 pub(crate) mod timeline;
 
-use beui::{Align, Direction, ItemSize};
+use beui::Direction;
 use effects::EffectsPanel;
 use player::Player;
 use state::{VideoState, ZOOM_STEP};
 use timeline::Timeline;
 
 const DEFAULT_EDITOR_SIZE: Vec2 = Vec2::new(1000.0, 640.0);
-const EFFECTS_WIDTH: Size = Size::Custom(268.0);
-const TIMELINE_SHARE: f32 = 42.0;
+const EFFECTS_SHARE: f32 = 0.27;
+const TIMELINE_SHARE: f32 = 0.42;
 const TOOL_SEPARATOR_LENGTH: Size = Size::Sm;
-const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
+const EFFECTS_PADDING: Space = Space::Md;
+const PLAYER: &str = "player";
+const EFFECTS: &str = "effects";
+const TIMELINE: &str = "timeline";
+const FRAME_RATE_BAR: &str = "frame-rate";
+const PLAYBACK_BAR: &str = "playback";
+const TIMELINE_BAR: &str = "timeline-tools";
 
 const FRAME_RATES: [VideoFrameRate; 7] = [
     VideoFrameRate::new(24, 1),
@@ -75,30 +86,53 @@ impl be_sdk_beui::BeuiRoot for VideoRoot {
 #[component]
 fn VideoEditor(editor: Editor) -> NodeId {
     let state = VideoState::new(editor);
-
     let chrome = editor.chrome_shown();
-
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List spacing=Space::None>
-            <FrameRateBar state={state} shown={chrome} />
-            <List
-                @sizing=ItemSize::Percent(100.0 - TIMELINE_SHARE)
-                direction=Direction::Horizontal
-                spacing=Space::None
+        <Docking layout focus={Some(PLAYER)}>
+            <DockSplit id="video" direction=Direction::Vertical fraction={1.0 - TIMELINE_SHARE}>
+                <DockSplit id="upper" fraction=EFFECTS_SHARE>
+                    <DockPane id="effects" locked=true>
+                        <DockTab id=EFFECTS title="Effects">
+                            <EffectsColumn state={state} />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="player" locked=true bare=true>
+                        <DockTab id=PLAYER title="Player">
+                            <Player state={state} />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+                <DockPane id="timeline" locked=true bare=true>
+                    <DockTab id=TIMELINE title="Timeline">
+                        <Timeline state={state} />
+                    </DockTab>
+                </DockPane>
+            </DockSplit>
+            <Show condition={chrome}>
+                <DockBar
+                    id=FRAME_RATE_BAR
+                    parent=PLAYER
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                >
+                    <FrameRateBar state={state} />
+                </DockBar>
+            </Show>
+            <DockBar
+                id=PLAYBACK_BAR
+                parent=PLAYER
+                placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start)}
             >
-                <EffectsColumn state={state} />
-                <Separator direction=Direction::Vertical />
-                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <Player @sizing=ItemSize::Percent(100.0) state={state} />
-                    <Separator />
-                    <PlaybackBar state={state} />
-                </List>
-            </List>
-            <Separator />
-            <TimelineTools state={state} />
-            <Separator />
-            <Timeline @sizing=ItemSize::Percent(TIMELINE_SHARE) state={state} />
-        </List>
+                <PlaybackBar state={state} />
+            </DockBar>
+            <DockBar
+                id=TIMELINE_BAR
+                parent=TIMELINE
+                placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+            >
+                <TimelineTools state={state} />
+            </DockBar>
+        </Docking>
     }
 }
 
@@ -113,16 +147,18 @@ fn VideoPreview(editor: Editor) -> NodeId {
 #[component]
 fn EffectsColumn(state: VideoState) -> NodeId {
     view! {
-        <Frame width=EFFECTS_WIDTH padding=Space::Md>
-            <Scroll>
-                <EffectsPanel state={state} />
+        <Frame fill=ColorRole::Surface>
+            <Scroll @test_id={"video.effects"}>
+                <Frame padding=EFFECTS_PADDING>
+                    <EffectsPanel state={state} />
+                </Frame>
             </Scroll>
         </Frame>
     }
 }
 
 #[component]
-fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
+fn FrameRateBar(state: VideoState) -> NodeId {
     let rate = state.frame_rate;
     let chosen = create_memo(move || {
         FRAME_RATES
@@ -131,7 +167,10 @@ fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChil
     });
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
-        <Toolbar shown={shown}>
+        <DockBarSurface spacing=Space::Sm @test_id={"video.frame-rate-bar"}>
+            <Frame @test_id={"video.frame-rate-bar.grip"}>
+                <DockBarGrip />
+            </Frame>
             <Select
                 options={view! {
                     <ForEach keys={options}>|index: usize|
@@ -148,7 +187,7 @@ fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> DynamicSegment<ListChil
                 label="Frames per second"
                 @test_id={"video.frame-rate"}
             />
-        </Toolbar>
+        </DockBarSurface>
     }
 }
 
@@ -171,8 +210,10 @@ fn PlaybackBar(state: VideoState) -> NodeId {
         )
     });
     view! {
-        <Frame padding=BAR_PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+        <DockBarSurface spacing=Space::Sm @test_id={"video.playback"}>
+            <Frame @test_id={"video.playback.grip"}>
+                <DockBarGrip />
+            </Frame>
                 <Button
                     icon_only=true
                     glyph=ICON_SKIP_BACK
@@ -194,17 +235,23 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
                 <Text style=TextStyle::CAPTION>{position}</Text>
-            </List>
-        </Frame>
+        </DockBarSurface>
     }
 }
 
 #[component]
 fn TimelineTools(state: VideoState) -> NodeId {
     let none = create_memo(move || state.selected.get().is_none());
+    let bar = use_dock_bar();
+    let across = create_memo(move || match bar.map(|bar| bar.direction()) {
+        Some(Direction::Vertical) => Direction::Horizontal,
+        _ => Direction::Vertical,
+    });
     view! {
-        <Frame padding=BAR_PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+        <DockBarSurface spacing=Space::Sm @test_id={"video.timeline-tools"}>
+            <Frame @test_id={"video.timeline-tools.grip"}>
+                <DockBarGrip />
+            </Frame>
                 <Button
                     icon_only=true
                     glyph=ICON_PLUS
@@ -238,7 +285,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     @test_id={"video.delete"}
                     on_click={move || state.remove_selected()}
                 />
-                <Separator direction=Direction::Vertical length=TOOL_SEPARATOR_LENGTH />
+                <Separator direction={across} length=TOOL_SEPARATOR_LENGTH />
                 <Button
                     icon_only=true
                     glyph=ICON_ZOOM_OUT
@@ -257,8 +304,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     label="Fit the whole video in the timeline"
                     on_click={move || state.request_fit()}
                 />
-            </List>
-        </Frame>
+        </DockBarSurface>
     }
 }
 
