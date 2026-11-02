@@ -1,56 +1,48 @@
 use std::rc::Rc;
 
-use beui::dock::styled::DockingLayout;
 use beui::reactive::*;
 use beui::styled::PanZoomView;
 
 use crate::Fetch;
 use crate::images::Images;
-use be_tool_paint_review_manifest::{Frame, Manifest, Painting, Status};
+use be_tool_paint_review_manifest::{Frame, Manifest, Painting, Picture, Status};
+
+const NEAR: usize = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Mode {
+pub(crate) enum Side {
     Before,
     After,
     Changes,
-    SideBySide,
 }
 
-impl Mode {
+impl Side {
+    pub(crate) const ALL: [Side; 3] = [Side::After, Side::Before, Side::Changes];
+
     pub(crate) fn label(self) -> &'static str {
         match self {
-            Mode::Before => "Before",
-            Mode::After => "After",
-            Mode::Changes => "Changes",
-            Mode::SideBySide => "Side by side",
+            Side::Before => "Before",
+            Side::After => "After",
+            Side::Changes => "Changes",
         }
     }
 
-    pub(crate) fn id(self) -> &'static str {
+    pub(crate) fn of(self, frame: &Frame) -> Option<&Picture> {
         match self {
-            Mode::Before => "before",
-            Mode::After => "after",
-            Mode::Changes => "changes",
-            Mode::SideBySide => "side_by_side",
+            Side::Before => frame.before.as_ref(),
+            Side::After => frame.after.as_ref(),
+            Side::Changes => frame.changes.as_ref(),
         }
     }
+}
 
-    pub(crate) fn available(self, frame: &Frame) -> bool {
-        match self {
-            Mode::Before => frame.before.is_some(),
-            Mode::After => frame.after.is_some(),
-            Mode::Changes => frame.changes.is_some(),
-            Mode::SideBySide => frame.before.is_some() && frame.after.is_some(),
-        }
-    }
-
-    pub(crate) fn images(self, frame: &Frame) -> Vec<String> {
-        match self {
-            Mode::Before => frame.before.iter().cloned().collect(),
-            Mode::After => frame.after.iter().cloned().collect(),
-            Mode::Changes => frame.changes.iter().cloned().collect(),
-            Mode::SideBySide => frame.before.iter().chain(&frame.after).cloned().collect(),
-        }
+pub(crate) fn missing(status: Status, side: Side) -> &'static str {
+    match (status, side) {
+        (Status::Unreadable, _) => "Unreadable",
+        (Status::Added, _) => "Added",
+        (Status::Removed, _) => "Removed",
+        (Status::Changed, Side::Before) => "Not drawn before",
+        (Status::Changed, _) => "Not drawn after",
     }
 }
 
@@ -58,17 +50,20 @@ impl Mode {
 pub(crate) struct Review {
     pub(crate) manifest: ReadSignal<Fetch<Rc<Manifest>>>,
     pub(crate) images: Images,
-    pub(crate) order: Memo<Vec<usize>>,
-    pub(crate) selected: Memo<Option<usize>>,
+    pub(crate) count: Memo<usize>,
+    pub(crate) open: Memo<Option<usize>>,
+    pub(crate) hovered: Signal<Option<usize>>,
+    pub(crate) columns: Signal<usize>,
+    pub(crate) space: Signal<bool>,
+    pub(crate) side: Memo<Side>,
+    pub(crate) holding: Memo<bool>,
     pub(crate) painting: Memo<Option<Painting>>,
     pub(crate) frame_index: Memo<usize>,
     pub(crate) frame: Memo<Option<Frame>>,
-    pub(crate) mode: Memo<Option<Mode>>,
-    pub(crate) layout: DockingLayout<u64>,
+    pub(crate) split: Signal<f32>,
     pub(crate) camera: Signal<PanZoomView>,
-    wanted: Signal<Option<String>>,
+    opened: Signal<Option<String>>,
     frame_wanted: Signal<usize>,
-    mode_wanted: Signal<Mode>,
 }
 
 impl Review {
@@ -77,38 +72,35 @@ impl Review {
         images: Images,
         initial: Option<String>,
     ) -> Self {
-        let wanted = create_signal(initial);
+        let opened = create_signal(initial);
         let frame_wanted = create_signal(0usize);
-        let mode_wanted = create_signal(Mode::After);
-        let order = create_memo(move || {
+        let space = create_signal(false);
+        let modifiers = held_modifiers();
+        let shift = create_memo(move || modifiers.get().shift);
+        let side = create_memo(move || match (shift.get(), space.get()) {
+            (true, _) => Side::Changes,
+            (false, true) => Side::Before,
+            (false, false) => Side::After,
+        });
+        let holding = create_memo(move || shift.get() || space.get());
+        let count = create_memo(move || {
             manifest.with(|manifest| match manifest {
-                Fetch::Ready(manifest) => {
-                    let mut order: Vec<usize> = (0..manifest.paintings.len()).collect();
-                    order.sort_by_key(|index| manifest.paintings[*index].status);
-                    order
-                }
-                _ => Vec::new(),
+                Fetch::Ready(manifest) => manifest.paintings.len(),
+                _ => 0,
             })
         });
-        let selected = create_memo(move || {
-            let order = order.get();
-            let wanted = wanted.get();
-            manifest.with(|manifest| {
-                let Fetch::Ready(manifest) = manifest else {
-                    return None;
-                };
-                wanted
-                    .and_then(|name| {
-                        order
-                            .iter()
-                            .copied()
-                            .find(|index| manifest.paintings[*index].name == name)
-                    })
-                    .or_else(|| order.first().copied())
+        let open = create_memo(move || {
+            let name = opened.get()?;
+            manifest.with(|manifest| match manifest {
+                Fetch::Ready(manifest) => manifest
+                    .paintings
+                    .iter()
+                    .position(|painting| painting.name == name),
+                _ => None,
             })
         });
         let painting = create_memo(move || {
-            let index = selected.get()?;
+            let index = open.get()?;
             manifest.with(|manifest| match manifest {
                 Fetch::Ready(manifest) => manifest.paintings.get(index).cloned(),
                 _ => None,
@@ -122,56 +114,84 @@ impl Review {
             let index = frame_index.get();
             painting.with(|painting| painting.as_ref()?.frames.get(index).cloned())
         });
-        let mode = create_memo(move || {
-            let wanted = mode_wanted.get();
-            frame.with(|frame| {
-                let frame = frame.as_ref()?;
-                if wanted.available(frame) {
-                    return Some(wanted);
-                }
-                [Mode::After, Mode::Before, Mode::Changes]
-                    .into_iter()
-                    .find(|mode| mode.available(frame))
-            })
-        });
         let review = Self {
             manifest,
             images,
-            order,
-            selected,
+            count,
+            open,
+            hovered: create_signal(None),
+            columns: create_signal(1),
+            space,
+            side,
+            holding,
             painting,
             frame_index,
             frame,
-            mode,
-            layout: DockingLayout::new(),
+            split: create_signal(0.5),
             camera: create_signal(PanZoomView::IDENTITY),
-            wanted,
+            opened,
             frame_wanted,
-            mode_wanted,
         };
         create_effect(move || {
-            frame.with(|frame| {
-                for hash in frame.iter().flat_map(|frame| {
-                    [&frame.before, &frame.after, &frame.changes]
-                        .into_iter()
-                        .flatten()
-                }) {
-                    images.want(hash);
+            manifest.with(|manifest| {
+                let Fetch::Ready(manifest) = manifest else {
+                    return;
+                };
+                for side in Side::ALL {
+                    for painting in &manifest.paintings {
+                        if let Some(picture) = painting.frames.first().and_then(|f| side.of(f)) {
+                            images.want(&picture.thumbnail);
+                        }
+                    }
                 }
             })
+        });
+        create_effect(move || {
+            frame.with(|frame| {
+                for side in Side::ALL {
+                    if let Some(picture) = frame.as_ref().and_then(|frame| side.of(frame)) {
+                        images.want(&picture.image);
+                    }
+                }
+            })
+        });
+        create_effect(move || {
+            if open.get().is_some() {
+                return;
+            }
+            let Some(hovered) = review.hovered.get() else {
+                return;
+            };
+            let shown = side.get();
+            let columns = review.columns.get().max(1);
+            review.prefetch(hovered, &Side::ALL);
+            for index in nearby(hovered, columns, count.get_untracked()) {
+                review.prefetch(index, &[shown]);
+            }
         });
         review
     }
 
-    pub(crate) fn names(self, status: Status) -> Vec<(usize, String)> {
-        let order = self.order.get();
+    fn prefetch(self, index: usize, sides: &[Side]) {
+        self.manifest.with_untracked(|manifest| {
+            let Fetch::Ready(manifest) = manifest else {
+                return;
+            };
+            let Some(frame) = manifest.paintings.get(index).and_then(|p| p.frames.first()) else {
+                return;
+            };
+            for side in sides {
+                if let Some(picture) = side.of(frame) {
+                    self.images.want(&picture.image);
+                }
+            }
+        });
+    }
+
+    pub(crate) fn with_painting<T>(self, index: usize, read: impl FnOnce(&Painting) -> T) -> Option<T> {
         self.manifest.with(|manifest| match manifest {
-            Fetch::Ready(manifest) => order
-                .into_iter()
-                .filter(|index| manifest.paintings[*index].status == status)
-                .map(|index| (index, manifest.paintings[index].name.clone()))
-                .collect(),
-            _ => Vec::new(),
+            Fetch::Ready(manifest) => manifest.paintings.get(index).map(read),
+            _ => None,
         })
     }
 
@@ -181,26 +201,24 @@ impl Review {
             _ => None,
         });
         if let Some(name) = name {
-            self.layout.show(&2);
-            self.wanted.set(Some(name));
+            self.opened.set(Some(name));
             self.frame_wanted.set(0);
+            self.split.set(0.5);
         }
     }
 
+    pub(crate) fn close(self) {
+        self.opened.set(None);
+    }
+
     pub(crate) fn step_painting(self, by: isize) {
-        let order = self.order.get_untracked();
-        let Some(at) = self
-            .selected
-            .get_untracked()
-            .and_then(|selected| order.iter().position(|index| *index == selected))
-        else {
+        let count = self.count.get_untracked();
+        let Some(at) = self.open.get_untracked() else {
             return;
         };
-        let next = at
-            .saturating_add_signed(by)
-            .min(order.len().saturating_sub(1));
+        let next = at.saturating_add_signed(by).min(count.saturating_sub(1));
         if next != at {
-            self.select(order[next]);
+            self.select(next);
         }
     }
 
@@ -222,24 +240,26 @@ impl Review {
         let next = at.saturating_add_signed(by).min(count.saturating_sub(1));
         self.frame_wanted.set(next);
     }
+}
 
-    pub(crate) fn choose(self, mode: Mode) {
-        self.mode_wanted.set(mode);
-    }
-
-    pub(crate) fn flip(self) {
-        let both = self.frame.with_untracked(|frame| {
-            frame
-                .as_ref()
-                .is_some_and(|frame| frame.before.is_some() && frame.after.is_some())
-        });
-        if !both {
-            return;
+pub(crate) fn nearby(index: usize, columns: usize, count: usize) -> Vec<usize> {
+    let (row, column) = ((index / columns) as isize, (index % columns) as isize);
+    let near = NEAR as isize;
+    let mut found = Vec::new();
+    for dy in -1..=1isize {
+        for dx in -near..=near {
+            if (dx, dy) == (0, 0) || (dy != 0 && dx.abs() > 1) {
+                continue;
+            }
+            let (r, c) = (row + dy, column + dx);
+            if r < 0 || c < 0 || c >= columns as isize {
+                continue;
+            }
+            let at = (r * columns as isize + c) as usize;
+            if at < count {
+                found.push(at);
+            }
         }
-        let next = match self.mode.get_untracked() {
-            Some(Mode::Before) => Mode::After,
-            _ => Mode::Before,
-        };
-        self.mode_wanted.set(next);
     }
+    found
 }

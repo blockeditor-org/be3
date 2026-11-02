@@ -2,7 +2,7 @@
 #
 # Serves the paint review page with Caddy on http://127.0.0.1:8075, or on the
 # address given, laid out as CI uploads it: the bundle at site/dev/ and every
-# file in DIRECTORY (CHANGES.json lists and IMAGE.png images) beside site/.
+# file in DIRECTORY (CHANGES.json lists and IMAGE.webp images) beside site/.
 #
 #   ./scripts/buck run //crates/be-tool-paint-review-web:web [-- HOST:PORT [DIRECTORY]]
 #

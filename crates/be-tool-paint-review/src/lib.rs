@@ -1,29 +1,28 @@
 use std::rc::Rc;
 
-use beui::dock::styled::Docking;
-use beui::dock::styled::{DockPane, DockSplit, DockTab, SplitSize};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Key, KeyPress, NodeId, Rect, native::Context};
+use beui::{Key, KeyAt, KeyEvent, KeyPhase, KeyPress, NodeId, Rect, native::Context};
 
+mod gallery;
 mod images;
-mod painting;
 mod review;
-mod sidebar;
-mod stage;
+mod status;
+mod viewer;
 
 pub use images::{ImageRequest, ImageState, Images};
 
 use be_tool_paint_review_manifest::Manifest;
-use beui::{Align, ItemSize};
+use beui::{Align, Direction, ItemSize};
 use beui_host::native::build;
-use painting::PaintingView;
-use review::{Mode, Review};
-use sidebar::PaintingList;
+use gallery::Gallery;
+use review::Review;
+use viewer::Viewer;
 
 const MESSAGE_SPACING: Space = Space::Md;
 const MESSAGE_PADDING: Space = Space::Xl3;
+const HINT_PADDING: Padding = Padding::symmetric(Space::Xl, Space::Sm);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fetch<T> {
@@ -78,11 +77,12 @@ fn PaintReview(
     images: Images,
     painting: Prop<Option<String>>,
 ) -> NodeId {
-    let initial = painting.get_untracked();
-    let focus = if initial.is_some() { 2u64 } else { 1u64 };
-    let review = Review::new(manifest, images, initial);
-    let layout = review.layout;
-    on_shortcut(move |press: KeyPress| shortcut(review, press));
+    let review = Review::new(manifest, images, painting.get_untracked());
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Capture,
+        move |event: KeyEvent| event.press().is_some_and(|press| shortcut(review, press)),
+    );
     let loading = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Loading)));
     let failure = create_memo(move || match manifest.get() {
         Fetch::Failed(error) => Some(error),
@@ -91,6 +91,8 @@ fn PaintReview(
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let ready = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_))));
+    let opened = create_memo(move || ready.get() && review.open.get().is_some());
+    let browsing = create_memo(move || ready.get() && review.open.get().is_none());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
@@ -126,21 +128,11 @@ fn PaintReview(
                         </List>
                     </Frame>
                 </Show>
-                <Show condition={ready}>
-                    <Docking @sizing=ItemSize::Percent(100.0) layout focus>
-                        <DockSplit id="review" size={SplitSize::Fraction(0.28)}>
-                            <DockPane id="paintings">
-                                <DockTab id=1u64 title="Paintings">
-                                    <PaintingList review={review} />
-                                </DockTab>
-                            </DockPane>
-                            <DockPane id="painting">
-                                <DockTab id=2u64 title="Painting">
-                                    <PaintingView review={review} />
-                                </DockTab>
-                            </DockPane>
-                        </DockSplit>
-                    </Docking>
+                <Show condition={browsing}>
+                    <Gallery @sizing=ItemSize::Percent(100.0) review={review} />
+                </Show>
+                <Show condition={opened}>
+                    <Viewer @sizing=ItemSize::Percent(100.0) review={review} />
                 </Show>
             </List>
         </Frame>
@@ -149,41 +141,55 @@ fn PaintReview(
 
 fn shortcut(review: Review, press: KeyPress) -> bool {
     let modifiers = press.modifiers;
-    if !press.pressed || modifiers.ctrl || modifiers.alt || modifiers.logo || focus_takes_text() {
+    if modifiers.ctrl || modifiers.alt || modifiers.logo || focus_takes_text() {
         return false;
     }
-    let mode = |mode: Mode| {
-        review.choose(mode);
-        true
-    };
+    if press.key == Key::Space {
+        if !press.repeat {
+            review.space.set(press.pressed);
+        }
+        return true;
+    }
+    if !press.pressed {
+        return false;
+    }
+    let open = review.open.get_untracked().is_some();
     match press.key {
-        Key::Space => {
-            if !press.repeat {
-                review.flip();
+        Key::Escape if open => review.close(),
+        Key::J if open => review.step_painting(1),
+        Key::K if open => review.step_painting(-1),
+        Key::Period if open => review.step_frame(1),
+        Key::Comma if open => review.step_frame(-1),
+        _ => return false,
+    }
+    true
+}
+
+#[component]
+fn Shortcuts(hints: Vec<(&'static str, &'static str)>) -> NodeId {
+    let hints: Children<ListChild> = hints
+        .into_iter()
+        .map(|(keys, description)| {
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                    <Chip label={keys.to_owned()} />
+                    <Text style=TextStyle::CAPTION>{description.to_owned()}</Text>
+                </List>
             }
-            true
-        }
-        Key::J => {
-            review.step_painting(1);
-            true
-        }
-        Key::K => {
-            review.step_painting(-1);
-            true
-        }
-        Key::Period => {
-            review.step_frame(1);
-            true
-        }
-        Key::Comma => {
-            review.step_frame(-1);
-            true
-        }
-        Key::One => mode(Mode::Before),
-        Key::Two => mode(Mode::After),
-        Key::Three => mode(Mode::Changes),
-        Key::Four => mode(Mode::SideBySide),
-        _ => false,
+        })
+        .collect();
+    view! {
+        <Frame padding=HINT_PADDING>
+            <List
+                direction=Direction::Horizontal
+                align=Align::Center
+                spacing=Space::Xl
+                wrap=true
+                @test_id={"paint_review.shortcuts"}
+            >
+                {hints}
+            </List>
+        </Frame>
     }
 }
 
