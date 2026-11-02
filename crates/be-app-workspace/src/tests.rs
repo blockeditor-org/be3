@@ -416,7 +416,7 @@ fn catalog() -> be_sdk_beui::Catalog {
 }
 
 const WIDE: Vec2 = Vec2::new(1100.0, 600.0);
-const SIDEBAR_EDGE: f32 = WIDE.x * 0.22;
+const SIDEBAR_EDGE: f32 = crate::root::FILES_WIDTH;
 const SIDEBAR: be_sdk_beui::beui::Pos2 =
     be_sdk_beui::beui::Pos2::new(SIDEBAR_EDGE / 2.0, WIDE.y / 2.0);
 

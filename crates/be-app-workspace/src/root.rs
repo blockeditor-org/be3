@@ -4,7 +4,7 @@ use std::cell::Cell;
 use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
-    DockMode, DockPane, DockSplit, SplitSize, DockTab, Docking, TabId, use_dock_tab,
+    DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
 };
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use be_sdk_beui::beui::reactive::*;
@@ -20,7 +20,7 @@ use be_sdk_shell::{
 };
 use beui::{Align, ItemSize};
 
-const FILES_WIDTH: f32 = 260.0;
+pub(crate) const FILES_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
 
