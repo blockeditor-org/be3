@@ -127,8 +127,11 @@ and output (`root/volume.rs`); and the power row (`root/power.rs`), which asks b
 restarting, powering off or logging out, and gives each action `PowerAvailability` does not
 allow its reason as the button's description (the session is ending, the host does not run the
 login session, which `session` says, or the computer does not allow it). The clock carries the count of listed notifications
-(`desktop.clock.unread`) and opens the desktop's calendar beside the notification history
-(`root/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. be-host publishes each as soon as the
+(`desktop.clock.unread`) and opens a month (beui's `Calendar`, today marked) with the chosen day's
+events beside the notification history (`root/notifications/history.rs`), stacked on a narrow
+screen (`root/calendar.rs`). The events come from the desktop's own calendar, a database calendar
+view it creates once and remembers in its `desktop.calendar` view state; Open calendar
+(`desktop.calendar.open`) opens that view in a window of its own, the popup never embeds it; toasts make way while it is open. be-host publishes each as soon as the
 service behind it runs, even empty. be-host publishes the package on Linux, and on Windows its
 `windows`, `programs` and `power` (`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop

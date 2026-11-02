@@ -13,6 +13,7 @@ use beui::dock::unstyled::{
 };
 use beui::icons::Glyph;
 use beui::icons::{
+    ICON_ROTATE_CCW,
     ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
     ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
@@ -785,6 +786,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             />
             <Button
                 label="Reset layout"
+                glyph=ICON_ROTATE_CCW
+                icon_only={narrow}
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />
