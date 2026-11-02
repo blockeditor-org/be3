@@ -1,4 +1,4 @@
-use beui_core::app::{Setup, Waker};
+use beui_core::program::{Setup, Waker};
 
 use super::*;
 
@@ -19,7 +19,7 @@ fn switching_the_cursor_icon_keeps_the_cursor_renderer() {
             pixels_per_point,
             ..view(now)
         };
-        space.frame(&app_frame(icon), &view);
+        space.frame(&program_frame(icon), &view);
         space.cursor_drawn().expect("the cursor is drawn")
     };
 

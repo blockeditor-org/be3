@@ -1,4 +1,4 @@
-use beui_core::app::{Setup, Waker};
+use beui_core::program::{Setup, Waker};
 use beui_core::context::Context;
 use beui_font_freetype::FreetypeFonts;
 

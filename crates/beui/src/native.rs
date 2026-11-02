@@ -1,7 +1,7 @@
 pub use crate::geometry::Region;
 pub use beui_core::accessibility;
-pub use beui_core::app::accessibility_dump;
-pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
+pub use beui_core::program::accessibility_dump;
+pub use beui_core::program::{Program, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::clipboard::{PasteAnswer, PasteRequest};
 pub use beui_core::context::{

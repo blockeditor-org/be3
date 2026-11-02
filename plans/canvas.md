@@ -35,7 +35,7 @@ It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
 pressure-aware pen tools; resize, rotate, group, lock, layers, align and
 distribute; peers' cursors and selections; child blocks edited in place; and a
 phone dock and selection bar. A viewer picks a profile from the mode dock (a
-dock bar of radio buttons at the top-left of the stage, `app/mode.rs`; on a
+dock bar of radio buttons at the top-left of the stage, `root/mode.rs`; on a
 narrow frame it folds into a menu button at the start of the tool dock, since
 it would not fit beside the zoom pill), the frame's menu, the context menu or
 the palette: Prototyping (the default: a style popover in the selection bar,
@@ -49,7 +49,7 @@ letter picks a different tool per profile: R, O, L, E and P draw pixel
 rectangles, ellipses, lines, erase pixels and draw with the pencil in Raster,
 and shapes, lines, the eraser and the pen elsewhere.
 
-The Raster profile (`app/raster.rs`, with the rasterization pixel-art had in
+The Raster profile (`root/raster.rs`, with the rasterization pixel-art had in
 `src/raster.rs`) has pencil (B or P), pixel eraser (E), fill (G), eyedropper
 (I), replace colour (C), and pixel line, rectangle and ellipse (L, R, O), with
 a brush size (`[` and `]`), a square or round brush, filled shapes (X), mirror
@@ -129,10 +129,10 @@ or dragging an end keeps that end free. Turning it off leaves lines already
 bound as they are.
 
 Shapes, lines and arrows have a clean look and a hand-drawn one: `rough.rs`
-ports rough.js, seeded by the shape's stored `seed`, and `app/sketch.rs` turns
+ports rough.js, seeded by the shape's stored `seed`, and `root/sketch.rs` turns
 an entity into the paths it draws in either look (strokes, solid and hatched
 fills, freehand outlines), kept per entity until its geometry or style
-changes. Export (`app/export.rs`) reads the same sketches: Copy as PNG / SVG
+changes. Export (`root/export.rs`) reads the same sketches: Copy as PNG / SVG
 and Export as PNG / SVG… take the selection, a selected frame (clipped to it),
 or the whole canvas. SVG writes each sketch's paths, text and labels as SVG text with a
 `<tspan>` per formatted run, and images embedded; PNG paints the entities into an offscreen beui context and

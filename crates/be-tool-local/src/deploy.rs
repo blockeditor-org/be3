@@ -753,9 +753,9 @@ fn read_build(path: &Path) -> Result<String, String> {
     let id = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     let metadata = be_lib_build_id::Metadata::parse(&id)?;
-    if metadata.app_id != "Block" || metadata.default_server.is_none() {
+    if metadata.program_id != "Block" || metadata.default_server.is_none() {
         return Err(format!(
-            "{} has no deployed app identity or default server; build through ./scripts/deploy",
+            "{} has no deployed program identity or default server; build through ./scripts/deploy",
             path.display()
         ));
     }

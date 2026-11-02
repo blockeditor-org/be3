@@ -13,7 +13,7 @@ use ui::{ImageEditor, ImagePreview};
 pub struct ImageRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for ImageRoot {
+impl be_sdk_beui::BeuiRoot for ImageRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

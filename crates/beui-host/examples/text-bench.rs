@@ -10,7 +10,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::TextAreaState;
 use beui::{Input, PointerButton, Pos2, Vec2, native::Setup, native::Waker, pos2};
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_host::native::Document;
 use beui_host::native::build;
 use beui_host::native::enter;
@@ -43,7 +43,7 @@ impl Bench {
                 ..RunOptions::default()
             },
             context: beui_host::native::context(),
-            app: Box::new(Showing(document)),
+            program: Box::new(Showing(document)),
             layers: Vec::new(),
         });
         runner
@@ -74,8 +74,8 @@ impl Bench {
     }
 
     fn update(&mut self, change: impl FnOnce()) {
-        let app: &mut dyn Any = self.runner.app_mut();
-        let Showing(document) = app.downcast_mut().expect("the bench shows a document");
+        let program: &mut dyn Any = self.runner.program_mut();
+        let Showing(document) = program.downcast_mut().expect("the bench shows a document");
         enter(document, change);
     }
 

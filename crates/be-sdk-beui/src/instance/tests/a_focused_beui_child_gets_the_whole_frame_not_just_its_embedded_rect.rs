@@ -5,7 +5,7 @@ use beui::styled::*;
 struct RecordingRoot;
 
 #[component]
-impl crate::BeuiApp for RecordingRoot {
+impl crate::BeuiRoot for RecordingRoot {
     #[component]
     fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = {

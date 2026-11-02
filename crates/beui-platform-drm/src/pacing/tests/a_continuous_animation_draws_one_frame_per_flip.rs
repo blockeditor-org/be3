@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_continuous_animation_draws_one_frame_per_flip() {
-    let mut session = Session::new(App::Animating, vec![Display::new(240)]);
+    let mut session = Session::new(Program::Animating, vec![Display::new(240)]);
     session.run_until(SECOND);
     let display = &session.displays[0];
     assert!(

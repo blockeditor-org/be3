@@ -25,7 +25,7 @@ pub(crate) type Opener = Open;
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
     module: Module,
-    apps: Vec<(Uuid, Opener)>,
+    openers: Vec<(Uuid, Opener)>,
     waker: Waker,
     requests: Vec<ScreenRequest>,
     opened: Vec<ScreenRequest>,
@@ -62,11 +62,11 @@ impl Dirty {
 }
 
 impl Screens {
-    pub(crate) fn new(apps: Vec<(Uuid, Opener)>, waker: Waker) -> Self {
+    pub(crate) fn new(openers: Vec<(Uuid, Opener)>, waker: Waker) -> Self {
         Self {
             sessions: HashMap::default(),
             module: Module::default(),
-            apps,
+            openers,
             waker,
             requests: Vec::new(),
             opened: Vec::new(),
@@ -349,7 +349,7 @@ impl Screens {
     }
 
     fn open(&mut self, instance: EditorInstanceId, editor: Uuid) -> &mut EditorSession {
-        let apps = &self.apps;
+        let openers = &self.openers;
         let marks = Arc::clone(&self.dirty);
         let inner = self.waker.clone();
         let waker = Waker::default();
@@ -362,7 +362,7 @@ impl Screens {
         });
         let module = &self.module;
         self.sessions.entry(instance).or_insert_with(|| {
-            let open = apps
+            let open = openers
                 .iter()
                 .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)

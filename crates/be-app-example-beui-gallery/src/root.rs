@@ -7,7 +7,7 @@ use beui_demo::Demo;
 pub struct BeuiGalleryRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for BeuiGalleryRoot {
+impl be_sdk_beui::BeuiRoot for BeuiGalleryRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         view! {

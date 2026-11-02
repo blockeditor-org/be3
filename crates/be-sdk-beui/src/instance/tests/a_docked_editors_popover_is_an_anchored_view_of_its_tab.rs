@@ -30,7 +30,7 @@ fn PopoverBody() -> beui::NodeId {
 struct PopoverRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for PopoverRoot {
+impl crate::BeuiRoot for PopoverRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};

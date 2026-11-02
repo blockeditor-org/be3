@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_build_helper_is_asked_with_the_gateway_key() {
     let commit = "c".repeat(40);
-    let product = Product::App;
+    let product = Product::Host;
     let base = format!(
         "{}/products/native-{}/{commit}",
         helper::HELPER,

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 struct Hosting(Document);
 
-impl App for Hosting {
+impl Program for Hosting {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.0.show(context, rect);
     }
@@ -59,6 +59,6 @@ fn a_driver_reports_the_longest_frame_since_it_last_asked() {
     assert_eq!(
         (*stepped, *slowest),
         (*ran, 40.0),
-        "what the app ran elsewhere is counted with the window's frames, and its longest kept:\n{frames}"
+        "what the program ran elsewhere is counted with the window's frames, and its longest kept:\n{frames}"
     );
 }

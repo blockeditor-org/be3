@@ -62,7 +62,7 @@ fn a_headset_found_after_the_start_is_shown_and_waited_for_again_when_its_runtim
     });
     let mut host = XrSpace::new(Space::new(), link.clone());
     setup(&mut host, &gpu, waker.clone());
-    let output = app();
+    let output = program();
     let mut last = None;
     step(&mut host, &output, &mut last);
     assert!(host.headset().is_none());

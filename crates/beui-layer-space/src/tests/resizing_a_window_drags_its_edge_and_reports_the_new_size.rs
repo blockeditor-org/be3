@@ -23,7 +23,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(
         delivered(&sent),
         [],
-        "the app sees no moves while it resizes"
+        "the program sees no moves while it resizes"
     );
     let panel = space.panel(window).unwrap().clone();
     let along = start
@@ -37,7 +37,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(
         reports(&sent),
         [WindowReport::Resized { window, size }],
-        "the app hears the new size"
+        "the program hears the new size"
     );
     assert!(
         close(panel.world(Pos2::ZERO), corner),
@@ -49,7 +49,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(space.mouse.resize, None, "letting go ends the resize");
     let got = delivered(&released);
     let [(to, Input::PointerButton { pressed: false, .. })] = got.as_slice() else {
-        panic!("the app gets the release, not {got:?}");
+        panic!("the program gets the release, not {got:?}");
     };
     assert_eq!(*to, window);
     assert_eq!(placed(&released).len(), 1, "and the panel's new place");

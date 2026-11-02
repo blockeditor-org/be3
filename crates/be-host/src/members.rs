@@ -23,8 +23,8 @@ impl Default for Members {
             removing: None,
             busy: false,
             error: None,
-            replies: crate::desk().mailbox(|app: &mut crate::BlockApp, reply| {
-                app.members.replied(reply);
+            replies: crate::desk().mailbox(|block_app: &mut crate::BlockApp, reply| {
+                block_app.members.replied(reply);
             }),
         }
     }

@@ -199,7 +199,7 @@ mod web {
             target: KeyTarget {
                 node,
                 typing,
-                app: false,
+                program: false,
             },
         });
         if handled {

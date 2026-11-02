@@ -26,7 +26,7 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
-use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
+use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
@@ -54,7 +54,7 @@ const META_META_ON: jint = 0x10000;
 
 // unsafe(ffi)
 unsafe extern "Rust" {
-    fn android_main(app: AndroidApp);
+    fn android_main(program: AndroidApp);
 }
 
 #[derive(Clone)]
@@ -190,7 +190,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take()
-        .ok_or("the app is already running")?;
+        .ok_or("the program is already running")?;
     let mut runner = Runner {
         runner: beui_runner::Runner::new(launch),
         platform: AndroidPlatform {
@@ -986,7 +986,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
             ndk_sys::AAssetManager_fromJava(env.get_raw().cast(), assets.as_raw().cast())
         };
         let manager = NonNull::new(manager).ok_or(JniError::NullPtr("AAssetManager"))?;
-        let app = AndroidApp(Arc::new(AppInner {
+        let program = AndroidApp(Arc::new(AppInner {
             _assets: env.new_global_ref(&assets)?,
             manager,
             files: PathBuf::from(files.try_to_string(env)?),
@@ -995,9 +995,9 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
             .name("beui".to_owned())
             .spawn(move || {
                 let _ = vm.attach_current_thread(|_| Ok::<_, JniError>(()));
-                unsafe { android_main(app) };
+                unsafe { android_main(program) };
             })
-            .expect("the app's thread starts");
+            .expect("the program's thread starts");
         Ok(())
     })
     .resolve::<LogErrorAndDefault>();

@@ -8,10 +8,10 @@ fn losing_focus_lets_the_pointer_go_and_the_click_back_is_swallowed() {
     assert_eq!(
         blurred,
         [(WindowId::MAIN, Input::Focus(false))],
-        "the app hears it lost focus"
+        "the program hears it lost focus"
     );
     assert!(!space.grabbed(), "an unfocused window lets the pointer go");
-    let output = app_frame(CursorIcon::Default);
+    let output = program_frame(CursorIcon::Default);
     assert!(
         !space
             .frame(&output, &view(now))

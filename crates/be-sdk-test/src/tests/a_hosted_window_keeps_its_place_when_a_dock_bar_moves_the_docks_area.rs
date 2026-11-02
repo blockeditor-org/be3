@@ -14,7 +14,7 @@ thread_local! {
 struct HostedRoot;
 
 #[component]
-impl BeuiApp for HostedRoot {
+impl BeuiRoot for HostedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;

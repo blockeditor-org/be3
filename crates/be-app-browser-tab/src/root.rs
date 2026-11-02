@@ -17,7 +17,7 @@ use ui::BrowserTab;
 pub struct BrowserTabRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for BrowserTabRoot {
+impl be_sdk_beui::BeuiRoot for BrowserTabRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

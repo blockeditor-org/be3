@@ -6,7 +6,7 @@ use super::*;
 struct BarRoot;
 
 #[component]
-impl BeuiApp for BarRoot {
+impl BeuiRoot for BarRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

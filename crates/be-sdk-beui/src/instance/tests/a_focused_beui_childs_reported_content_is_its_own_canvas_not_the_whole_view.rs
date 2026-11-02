@@ -6,7 +6,7 @@ use beui::{Direction, ItemSize};
 struct SidebarRoot;
 
 #[component]
-impl crate::BeuiApp for SidebarRoot {
+impl crate::BeuiRoot for SidebarRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {

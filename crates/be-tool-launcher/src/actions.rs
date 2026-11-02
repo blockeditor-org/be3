@@ -18,7 +18,7 @@ const LOG_HEIGHT: f32 = 360.0;
 
 #[cfg(target_os = "android")]
 const MORE: [(&str, Product, bool); 2] = [
-    ("Run with fresh data", Product::App, true),
+    ("Run with fresh data", Product::Host, true),
     ("Install its launcher", Product::Launcher, false),
 ];
 #[cfg(not(target_os = "android"))]
@@ -35,7 +35,7 @@ fn RunButton(
 ) -> NodeId {
     let runs = model.runs;
     let disabled = create_memo(move || runs.work.with(Option::is_some) || refused.get());
-    let run = move || runs.run(slot, commit.get_untracked(), Product::App, false);
+    let run = move || runs.run(slot, commit.get_untracked(), Product::Host, false);
     let pick = move |path: Vec<usize>| {
         if let [index] = path.as_slice()
             && let Some((_, product, fresh)) = MORE.get(*index)

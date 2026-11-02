@@ -20,7 +20,7 @@ fn count(editor: crate::Editor) -> beui::NodeId {
 }
 
 #[component]
-impl crate::BeuiApp for CountingRoot {
+impl crate::BeuiRoot for CountingRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = { count(editor) };

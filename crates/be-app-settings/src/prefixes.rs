@@ -11,7 +11,7 @@ const INTRINSIC_HEIGHT: f32 = 240.0;
 pub struct PrefixesRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PrefixesRoot {
+impl be_sdk_beui::BeuiRoot for PrefixesRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

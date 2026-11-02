@@ -13,13 +13,13 @@ fn a_press_between_two_popups_reaches_what_is_under_them() {
     let above = (input.min.y - shown.min.y) as i32;
 
     let _below = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (10, 280),
         (150, 200),
     );
     let _beside = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (300, above),
         (50, 20),

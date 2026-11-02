@@ -15,7 +15,7 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 120.0);
 pub struct GameModuleRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for GameModuleRoot {
+impl be_sdk_beui::BeuiRoot for GameModuleRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

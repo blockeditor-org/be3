@@ -18,7 +18,7 @@ const COLOR_WIDTH: Size = Size::Custom(100.0);
 pub struct TagsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for TagsRoot {
+impl be_sdk_beui::BeuiRoot for TagsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

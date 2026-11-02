@@ -20,24 +20,24 @@ use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::docked::{DockedTabBody, DockedTabs};
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;
-use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
+use crate::{Artifacts, BeuiRoot, Creation, Editor, OwnedEditor};
 
-pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);
+pub struct BeuiPlugin<A: BeuiRoot>(PhantomData<A>);
 
-impl<A: BeuiApp> be_sdk::Plugin for BeuiPlugin<A> {
+impl<A: BeuiRoot> be_sdk::Plugin for BeuiPlugin<A> {
     fn open(host: EditorHost) -> Box<dyn Instance> {
         Box::new(BeuiInstance::<A>::new(host))
     }
 }
 
-pub(crate) struct BeuiInstance<A: BeuiApp> {
+pub(crate) struct BeuiInstance<A: BeuiRoot> {
     host: EditorHost,
     parts: Rc<Parts<A>>,
     keeps_accessibility: bool,
     shown: Option<(Rc<Module>, EditorInstanceId)>,
 }
 
-struct Parts<A: BeuiApp> {
+struct Parts<A: BeuiRoot> {
     host: EditorHost,
     dialog: Rc<Cell<Option<beui::NodeId>>>,
     dialog_control: Rc<Cell<Option<DialogControl>>>,
@@ -49,7 +49,7 @@ struct Parts<A: BeuiApp> {
     docked: Rc<DockedTabs>,
 }
 
-struct Views<A: BeuiApp> {
+struct Views<A: BeuiRoot> {
     creating: bool,
     chrome: Rc<BeuiFrame>,
     view: Option<crate::headless::View>,
@@ -57,10 +57,10 @@ struct Views<A: BeuiApp> {
     preview: Option<OwnedEditor>,
     creation: Option<Creation>,
     artifacts: Option<Artifacts>,
-    app: PhantomData<A>,
+    root: PhantomData<A>,
 }
 
-impl<A: BeuiApp> Views<A> {
+impl<A: BeuiRoot> Views<A> {
     fn empty() -> Self {
         Self {
             creating: false,
@@ -70,12 +70,12 @@ impl<A: BeuiApp> Views<A> {
             creation: None,
             artifacts: None,
             view: None,
-            app: PhantomData,
+            root: PhantomData,
         }
     }
 }
 
-impl<A: BeuiApp> Parts<A> {
+impl<A: BeuiRoot> Parts<A> {
     fn rebuild(&self) {
         self.generation
             .handle()
@@ -303,7 +303,7 @@ fn empty() -> RenderFn<WindowHandle> {
     })
 }
 
-impl<A: BeuiApp> Shown for Parts<A> {
+impl<A: BeuiRoot> Shown for Parts<A> {
     fn host(&self) -> EditorHost {
         self.host.clone()
     }
@@ -458,7 +458,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
     }
 }
 
-impl<A: BeuiApp> BeuiInstance<A> {
+impl<A: BeuiRoot> BeuiInstance<A> {
     pub(crate) fn adopting(adopted: crate::headless::Adopted) -> Self {
         let mut instance = Self::new(adopted.host());
         instance.keeps_accessibility = true;
@@ -503,7 +503,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
     }
 }
 
-impl<A: BeuiApp> Drop for BeuiInstance<A> {
+impl<A: BeuiRoot> Drop for BeuiInstance<A> {
     fn drop(&mut self) {
         if let Some((module, instance)) = self.shown.take() {
             module.hide(instance);
@@ -511,7 +511,7 @@ impl<A: BeuiApp> Drop for BeuiInstance<A> {
     }
 }
 
-impl<A: BeuiApp> Instance for BeuiInstance<A> {
+impl<A: BeuiRoot> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
         let mut views = self.parts.views.borrow_mut();
         let fresh = |editor: &Option<OwnedEditor>| {

@@ -1,7 +1,7 @@
 use super::*;
 use beui::geometry::Region;
 use beui::window::{WindowId, WindowReport};
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, Layer, LayerFrame, RunOptions, Runner, Shown};
@@ -36,7 +36,7 @@ impl Renderer for Screen {
 
 struct Sized(Rc<RefCell<Vec<Rect>>>);
 
-impl App for Sized {
+impl Program for Sized {
     fn update(&mut self, _context: &Context, rect: Rect) {
         self.0.borrow_mut().push(rect);
     }
@@ -63,7 +63,7 @@ impl Layer for Host {
 
     fn output(&mut self, shown: &mut Shown, _output: &FrameOutput, frame: &mut LayerFrame<'_>) {
         let view = frame.view;
-        let main = shown.main().expect("the app shows its main window");
+        let main = shown.main().expect("the program shows its main window");
         self.seen.borrow_mut().push((main.size, view.platform));
         let mut window = WindowState::default();
         window.appearance.clear_color = Color32::WHITE;
@@ -93,7 +93,7 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context.clone(),
-        app: Box::new(Sized(Rc::clone(&rects))),
+        program: Box::new(Sized(Rc::clone(&rects))),
         layers: vec![Box::new(Host {
             reported: false,
             seen: Rc::clone(&seen),
@@ -101,7 +101,7 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     });
     assert!(
         context.opens_windows(),
-        "a window hosting layer opens the app's windows"
+        "a window hosting layer opens the program's windows"
     );
     runner
         .start(
@@ -118,12 +118,12 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     assert_eq!(
         rects.take(),
         [Rect::from_min_size(Pos2::ZERO, vec2(120.0, 80.0))],
-        "the app lays out at the size the host gave its main window, not the platform's"
+        "the program lays out at the size the host gave its main window, not the platform's"
     );
     assert_eq!(
         seen.take(),
         [(vec2(120.0, 80.0), vec2(400.0, 300.0))],
-        "the host sees the app's main window and the platform window it shows it in"
+        "the host sees the program's main window and the platform window it shows it in"
     );
     assert_eq!(
         backgrounds.take(),

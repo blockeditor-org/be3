@@ -57,7 +57,7 @@ fn a_toplevel_and_its_popup_are_panels_of_their_own_in_space() {
     harness.settle();
 
     let menu = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (40, 60),
         (160, 120),

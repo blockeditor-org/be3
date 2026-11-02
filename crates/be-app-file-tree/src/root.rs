@@ -16,7 +16,7 @@ use ui::FileTreeEditor;
 pub struct FileTreeRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for FileTreeRoot {
+impl be_sdk_beui::BeuiRoot for FileTreeRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

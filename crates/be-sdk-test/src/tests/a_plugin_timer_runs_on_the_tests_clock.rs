@@ -8,7 +8,7 @@ const ALARM: Duration = Duration::from_secs(60);
 struct AlarmRoot;
 
 #[component]
-impl BeuiApp for AlarmRoot {
+impl BeuiRoot for AlarmRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         view! {

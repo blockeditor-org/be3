@@ -10,7 +10,7 @@ fn a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it() {
     let shown = harness.window(id);
 
     let menu = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (10, 280),
         (150, 200),

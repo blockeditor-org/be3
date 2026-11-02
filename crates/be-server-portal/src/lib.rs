@@ -36,7 +36,7 @@ pub struct Account {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionKind {
     Browser,
-    App,
+    Host,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

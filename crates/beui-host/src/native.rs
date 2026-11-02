@@ -62,6 +62,6 @@ pub fn system_context() -> Context {
 }
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub fn run(app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    run_with(RunOptions::default(), app)
+pub fn run(program: impl Program + 'static) -> Result<(), Box<dyn Error>> {
+    run_with(RunOptions::default(), program)
 }

@@ -1,5 +1,5 @@
 use be_sdk_beui::{
-    BeuiApp, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
+    BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
     Editor, EditorHost, OwnedEditor,
 };
 use beui::NodeId;
@@ -43,7 +43,7 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 struct ChildRoot;
 
 #[component]
-impl BeuiApp for ChildRoot {
+impl BeuiRoot for ChildRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -115,7 +115,7 @@ fn undoable_editor() -> (BeuiTest<ChildRoot>, Uuid) {
     (test, block)
 }
 
-fn settings_here<A: BeuiApp>(test: &mut BeuiTest<A>, display: DisplaySettingsContent) -> Uuid {
+fn settings_here<A: BeuiRoot>(test: &mut BeuiTest<A>, display: DisplaySettingsContent) -> Uuid {
     let client = test.host().client_id();
     let (settings, profile, held) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let store = test.store();
@@ -153,7 +153,7 @@ thread_local! {
 struct StandaloneRoot;
 
 #[component]
-impl BeuiApp for StandaloneRoot {
+impl BeuiRoot for StandaloneRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         use beui::dock::styled::{DockBar, DockBarPlacement, DockEdge};
@@ -211,7 +211,7 @@ fn standalone(
     (test, held, layout)
 }
 
-fn kept_dock<A: BeuiApp>(test: &BeuiTest<A>, display: Uuid) -> (String, String) {
+fn kept_dock<A: BeuiRoot>(test: &BeuiTest<A>, display: Uuid) -> (String, String) {
     let root = test.content::<DisplaySettingsContent>(Some(display)).root();
     root.docks
         .iter()

@@ -16,7 +16,7 @@ pub(crate) struct Runtime {
 
 impl Runtime {
     pub(crate) fn new(
-        apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
+        openers: Vec<(uuid::Uuid, crate::screens::Opener)>,
         id: &str,
         name: &str,
         version: &str,
@@ -24,7 +24,7 @@ impl Runtime {
     ) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new(apps, waker),
+            screens: Screens::new(openers, waker),
             surfaces: None,
             asked: false,
             told: false,

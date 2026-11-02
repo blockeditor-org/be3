@@ -12,7 +12,7 @@ const PANEL: f32 = 120.0;
 struct OverlaidRoot;
 
 #[component]
-impl crate::BeuiApp for OverlaidRoot {
+impl crate::BeuiRoot for OverlaidRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {

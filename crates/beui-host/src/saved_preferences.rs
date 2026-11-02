@@ -3,34 +3,34 @@ use std::path::{Path, PathBuf};
 use beui::PreferenceLayer;
 use beui::PreferenceSource;
 use beui::Rect;
-use beui_core::app::{App, FrameTimes, Lifecycle, Setup};
+use beui_core::program::{Program, FrameTimes, Lifecycle, Setup};
 use beui_core::context::Context;
 
 pub(crate) struct SavedPreferences<A> {
-    app: A,
+    program: A,
     path: PathBuf,
     saved: Option<PreferenceLayer>,
 }
 
-impl<A: App> SavedPreferences<A> {
-    pub(crate) fn new(app: A, path: PathBuf) -> Self {
+impl<A: Program> SavedPreferences<A> {
+    pub(crate) fn new(program: A, path: PathBuf) -> Self {
         Self {
-            app,
+            program,
             path,
             saved: None,
         }
     }
 }
 
-impl<A: App> App for SavedPreferences<A> {
+impl<A: Program> Program for SavedPreferences<A> {
     fn update(&mut self, context: &Context, rect: Rect) {
         if self.saved.is_none() {
             let loaded = load(&self.path);
-            context.set_preference_layer(PreferenceSource::App, loaded);
+            context.set_preference_layer(PreferenceSource::Program, loaded);
             self.saved = Some(loaded);
         }
-        self.app.update(context, rect);
-        let chosen = context.preference_layer(PreferenceSource::App);
+        self.program.update(context, rect);
+        let chosen = context.preference_layer(PreferenceSource::Program);
         if self.saved != Some(chosen) {
             self.saved = Some(chosen);
             if let Err(error) = save(&self.path, chosen) {
@@ -43,43 +43,43 @@ impl<A: App> App for SavedPreferences<A> {
     }
 
     fn setup(&mut self, setup: &Setup) {
-        self.app.setup(setup);
+        self.program.setup(setup);
     }
 
     fn renderer_replaced(&mut self, setup: &Setup) {
-        self.app.renderer_replaced(setup);
+        self.program.renderer_replaced(setup);
     }
 
     fn close_requested(&mut self) -> bool {
-        self.app.close_requested()
+        self.program.close_requested()
     }
 
     fn exiting(&mut self) {
-        self.app.exiting();
+        self.program.exiting();
     }
 
     fn lifecycle(&mut self, change: Lifecycle) {
-        self.app.lifecycle(change);
+        self.program.lifecycle(change);
     }
 
     fn busy(&self) -> Vec<String> {
-        self.app.busy()
+        self.program.busy()
     }
 
     fn environment(&self) -> Vec<(String, String)> {
-        self.app.environment()
+        self.program.environment()
     }
 
     fn drawing(&self) -> bool {
-        self.app.drawing()
+        self.program.drawing()
     }
 
     fn request_painting(&mut self) {
-        self.app.request_painting();
+        self.program.request_painting();
     }
 
     fn other_frames(&mut self) -> Vec<(String, FrameTimes)> {
-        self.app.other_frames()
+        self.program.other_frames()
     }
 }
 

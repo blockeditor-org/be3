@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => fixture = argument,
         }
     }
-    beui_host::native::run(beui_tests::FixtureApp::new(fixture))
+    beui_host::native::run(beui_tests::FixtureProgram::new(fixture))
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -16,7 +16,7 @@ use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessPlugin};
 use be_sdk_beui::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
+    Artifacts, BeuiRoot, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
     Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
     WebViewId,
 };
@@ -72,7 +72,7 @@ thread_local! {
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
-pub struct BeuiTest<A: BeuiApp> {
+pub struct BeuiTest<A: BeuiRoot> {
     plugin: HeadlessPlugin,
     kind: Kind,
     host: EditorHost,
@@ -132,7 +132,7 @@ pub struct BeuiTest<A: BeuiApp> {
     desk: Option<desk::Desk>,
     desk_batches: Vec<InputBatch>,
     drawn_screens: Vec<(ScreenId, beui::WindowId)>,
-    app: PhantomData<A>,
+    root: PhantomData<A>,
 }
 
 #[derive(Default)]
@@ -171,7 +171,7 @@ enum Kind {
     Rename(Uuid),
 }
 
-impl<A: BeuiApp> BeuiTest<A> {
+impl<A: BeuiRoot> BeuiTest<A> {
     pub fn new(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(
@@ -214,7 +214,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         Self::open(Kind::Picker, Adopted::Editor(editor, None), Vec::new())
     }
 
-    pub fn picker_beside<B: BeuiApp>(
+    pub fn picker_beside<B: BeuiRoot>(
         beside: &BeuiTest<B>,
         host: EditorHost,
         request: be_sdk_beui::PickerRequest,
@@ -228,7 +228,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         test
     }
 
-    pub fn rename_beside<B: BeuiApp>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+    pub fn rename_beside<B: BeuiRoot>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let editor = OwnedEditor::new(host, Uuid::nil());
@@ -416,7 +416,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             desk: None,
             desk_batches: Vec::new(),
             drawn_screens: Vec::new(),
-            app: PhantomData,
+            root: PhantomData,
         };
         roundtrip(test.plugin.hello(), "the plugin's hello");
         let accepted = roundtrip(

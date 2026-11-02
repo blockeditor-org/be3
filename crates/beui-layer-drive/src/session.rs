@@ -5,8 +5,8 @@ use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use beui_core::app::FrameTimes;
-use beui_core::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
+use beui_core::program::FrameTimes;
+use beui_core::program::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
@@ -35,16 +35,16 @@ const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
   settle                    wait until nothing is left to draw
-  pause MILLISECONDS        let that much time pass, by the app's clock
-  clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
-  hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
+  pause MILLISECONDS        let that much time pass, by the program's clock
+  clock stop / clock run    stop the program's clock, so time passes only with pause, frame by frame
+  hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
   frames                    how many frames ran since the last frames, and the longest one's wall time:
-                            the window's, and those the app ran elsewhere, such as a plugin's
-  close                     ask the window to close, as its close button does; an app that stays
+                            the window's, and those the program ran elsewhere, such as a plugin's
+  close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
   help                      this
-Reading the app:
+Reading the program:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
@@ -61,14 +61,14 @@ Reading the app:
   wait TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id is on
                             screen, with its node over the point X,Y if given
   gone TEXT|#TEST_ID [over X,Y]   wait until it is not
-  env                       NAME=VALUE lines a program needs to show its windows inside the app,
-                            such as WAYLAND_DISPLAY; empty when the app hosts no programs
-  windows                   the app's windows, each one's number and size
-  paint [TARGET] [in WINDOW]   what a window of the app paints (the main one unless WINDOW names
+  env                       NAME=VALUE lines a program needs to show its windows inside the program,
+                            such as WAYLAND_DISPLAY; empty when the program hosts no programs
+  windows                   the program's windows, each one's number and size
+  paint [TARGET] [in WINDOW]   what a window of the program paints (the main one unless WINDOW names
                             another), plugins included, as a paint snapshot, of TARGET only when given;
                             in platform, what reaches the platform instead, below the layers that
-                            compose the app's windows, such as space's 3D scene
-  overflows                 what the app shows out of bounds, plugins included, one per line:
+                            compose the program's windows, such as space's 3D scene
+  overflows                 what the program shows out of bounds, plugins included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
 The platform's side:
@@ -86,11 +86,11 @@ The platform's side:
   xr HAND pose X Y Z [YAW PITCH]   a controller, as a layer that shows windows in 3D (space) reads
                             it: HAND (left or right) at X, Y, Z metres, its laser turned YAW
                             degrees left and PITCH up from straight ahead (-Z)
-  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the app's tree
+  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the program's tree
   xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
   xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
   xr HAND lost              the controller is no longer tracked
-Input (it reaches the app, unless --into=LAYER before the command sends it into LAYER from below,
+Input (it reaches the program, unless --into=LAYER before the command sends it into LAYER from below,
 where the platform's input would come from; state is what that place sees). Any of these may end
 with in WINDOW, a number `windows` lists: its targets are then found among that window's nodes and
 its input goes to that window, in its points:
@@ -131,9 +131,9 @@ its input goes to that window, in its points:
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
 A TARGET is #TEST_ID, #TEST_ID+X,Y (that far from its top left corner), X,Y or X,Y,WIDTH,HEIGHT
 in the tree's pixels, or text found in one line of the tree. Below another layer (--into, or a
-shot under one), a named target is found in the app and carried down to where it shows there,
+shot under one), a named target is found in the program and carried down to where it shows there,
 while X,Y and X,Y,WIDTH,HEIGHT are that place's own pixels, such as the platform window's.
-Every command that gives input waits for the app to settle and answers with what changed in the tree,
+Every command that gives input waits for the program to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
 nothing, without comparing the trees), and --no-settle answers after the frame that took the input
 instead of waiting.";
@@ -199,7 +199,7 @@ impl Layer for Drive {
         self.context = Some(context.clone());
     }
 
-    fn setup(&mut self, setup: &beui_core::app::Setup) {
+    fn setup(&mut self, setup: &beui_core::program::Setup) {
         self.session.borrow().inbox.set_waker(setup.waker.clone());
     }
 
@@ -283,7 +283,7 @@ struct View<'a> {
     pixels_per_point: f32,
     now: Instant,
     platform: Vec2,
-    app: Vec2,
+    program: Vec2,
     fullscreen: bool,
 }
 
@@ -296,7 +296,7 @@ impl<'a> View<'a> {
             pixels_per_point,
             now: frame.context.now(),
             platform,
-            app: frame
+            program: frame
                 .context
                 .window_size(WindowId::MAIN)
                 .unwrap_or(platform),
@@ -482,7 +482,7 @@ impl Session {
                 "{command} goes to the platform, below every layer; it takes no --into"
             )),
             (Kind::Reading, Some(_)) => {
-                Err(format!("{command} reads the app itself; it takes no --into"))
+                Err(format!("{command} reads the program itself; it takes no --into"))
             }
             (Kind::Input, Some(into)) => self
                 .taps
@@ -492,7 +492,7 @@ impl Session {
                     let names: Vec<&str> = self.taps.iter().flatten().map(String::as_str).collect();
                     match names.is_empty() {
                         true => format!(
-                            "--into={into} names no layer: no other layer is stacked, so input goes straight to the app"
+                            "--into={into} names no layer: no other layer is stacked, so input goes straight to the program"
                         ),
                         false => format!(
                             "--into takes a layer with a drive tap under it ({}), not {into}",
@@ -635,7 +635,7 @@ impl Session {
             && !*asked
         {
             *asked = true;
-            frame.app.request_painting();
+            frame.program.request_painting();
         }
     }
 
@@ -714,17 +714,17 @@ impl Session {
                 .collect(),
             false => Vec::new(),
         };
-        for (name, times) in frame.app.other_frames() {
+        for (name, times) in frame.program.other_frames() {
             self.other_frames.entry(name).or_default().merge(times);
         }
         let mut busy = frame_busy(run, self.clock_stopped);
-        busy.extend(frame.app.busy());
+        busy.extend(frame.program.busy());
         self.inbox
             .note_busy(&busy, frame_held(run, self.clock_stopped));
         let owed = !busy.is_empty();
         let settled = Settled {
             busy,
-            drawing: frame.app.drawing(),
+            drawing: frame.program.drawing(),
         };
         self.settle(view, settled, output, &frame.above);
         run.unpaced |= self.clock_stopped && owed && self.active.is_some();
@@ -748,7 +748,7 @@ impl Session {
                     beui_core::painting::Punches::Erase,
                 ),
                 None => Err(format!(
-                    "the app has no window {window}; `windows` lists them"
+                    "the program has no window {window}; `windows` lists them"
                 )),
             };
             self.painted(painting);
@@ -1070,7 +1070,7 @@ impl Session {
         let reply = match capture {
             Some(capture) => cropped(capture, *crop),
             None => Reply::Error(
-                "this renderer cannot take screenshots; run the app headless with the wgpu renderer, or use paint".to_owned(),
+                "this renderer cannot take screenshots; run the program headless with the wgpu renderer, or use paint".to_owned(),
             ),
         };
         self.finish(reply);
@@ -1185,7 +1185,7 @@ impl Session {
         };
         match command {
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
-            "close" => match frame.app.close_requested() {
+            "close" => match frame.program.close_requested() {
                 true => {
                     frame.close();
                     Ok(Started::Done(Reply::Text(
@@ -1273,13 +1273,13 @@ impl Session {
             if let Some(rect) = coordinates(target) {
                 if shown_in.is_some() {
                     return Err(format!(
-                        "in WINDOW finds named targets in that window of the app; under {under}, X,Y is in the pixels where the input enters"
+                        "in WINDOW finds named targets in that window of the program; under {under}, X,Y is in the pixels where the input enters"
                     ));
                 }
                 return Ok(Pos2::new(rect.center().x / scale, rect.center().y / scale));
             }
             let (window, at) = above
-                .from_app(
+                .from_program(
                     shown_in.unwrap_or(WindowId::MAIN),
                     point(target, lines, scale)?,
                 )
@@ -1294,7 +1294,7 @@ impl Session {
                 }
             }
         };
-        let app_point = |target: &str| point(target, lines, scale);
+        let program_point = |target: &str| point(target, lines, scale);
         let entering = |steps: Vec<Vec<Incoming>>| -> VecDeque<Vec<Incoming>> {
             let window = match under {
                 Some(_) => entered.get(),
@@ -1349,13 +1349,13 @@ impl Session {
                 Ok(Started::Phase(Phase::Components))
             }
             "hit" => {
-                frame.context.request_hit(app_point(argument(0)?)?);
+                frame.context.request_hit(program_point(argument(0)?)?);
                 Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(tap, view)))),
             "env" => Ok(Started::Done(Reply::Text(
                 frame
-                    .app
+                    .program
                     .environment()
                     .into_iter()
                     .map(|(name, value)| format!("{name}={value}\n"))
@@ -1376,7 +1376,7 @@ impl Session {
                     before: view.rendered(),
                 }))
             }
-            "xr" => incoming(controller(arguments, app_point)?),
+            "xr" => incoming(controller(arguments, program_point)?),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -1640,7 +1640,7 @@ impl Session {
         let fallback = WindowState::default();
         let (window, size) = match &self.shown[tap] {
             Some(shown) => (&shown.window, shown.size),
-            None => (&fallback, view.app),
+            None => (&fallback, view.program),
         };
         let size = match screen {
             true => view.platform,
@@ -1707,7 +1707,7 @@ impl Session {
         match (&gestures.composing, window.requests.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
-                "the app asks for an input method, its caret {}, {}\n",
+                "the program asks for an input method, its caret {}, {}\n",
                 place(scaled(area.cursor, scale)),
                 match area.keyboard {
                     Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
@@ -1731,7 +1731,7 @@ impl Session {
             text.push_str(&format!("{held}\n"));
         }
         if self.unhurried {
-            text.push_str("hurry off: the app waits as it does for a person\n");
+            text.push_str("hurry off: the program waits as it does for a person\n");
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));
@@ -2001,7 +2001,7 @@ fn shown_at(
     let mut shown: Option<Rect> = None;
     for corner in corners {
         let (_, at) = above
-            .from_app(WindowId::MAIN, pos2(corner.x / scale, corner.y / scale))
+            .from_program(WindowId::MAIN, pos2(corner.x / scale, corner.y / scale))
             .ok_or_else(|| format!("{target} does not show under {under}"))?;
         let at = pos2(at.x * scale, at.y * scale);
         shown = Some(match shown {

@@ -1,4 +1,4 @@
-load("@root//buck/app:defs.bzl", "app", "type_bundle")
+load("@root//buck/program:defs.bzl", "program", "type_bundle")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 
 cargo_library()
@@ -25,11 +25,11 @@ cargo_binary(
 
 # be with its build-info.json file beside it, which it greets the server with:
 # `./scripts/buck run //crates/be-tool-cli:native -- ARGS`.
-app(
+program(
     name = "native",
     binary = ":bin",
     executable_name = "be",
-    files = ["//buck/app:build-info.json"],
+    files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
     visibility = ["//crates/be-tool-local:"],

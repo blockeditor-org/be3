@@ -10,7 +10,7 @@ use ui::CompiledLogicView;
 pub struct CompiledLogicRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for CompiledLogicRoot {
+impl be_sdk_beui::BeuiRoot for CompiledLogicRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

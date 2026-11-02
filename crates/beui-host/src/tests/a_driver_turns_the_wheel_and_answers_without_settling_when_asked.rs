@@ -5,7 +5,7 @@ struct Busy {
     scrolled: Signal<Vec<Vec2>>,
 }
 
-impl App for Busy {
+impl Program for Busy {
     fn update(&mut self, context: &Context, _rect: Rect) {
         let frames = self.frames.update(|frames| {
             *frames += 1;
@@ -36,10 +36,10 @@ fn a_driver_turns_the_wheel_and_answers_without_settling_when_asked() {
         .expect("the move is answered");
     assert!(
         frames.get_untracked() < 5,
-        "the answer came before the app settled, after {} frames",
+        "the answer came before the program settled, after {} frames",
         frames.get_untracked()
     );
-    driven.ask(&["settle"]).expect("the app settles");
+    driven.ask(&["settle"]).expect("the program settles");
     assert!(frames.get_untracked() >= 20);
 
     driven

@@ -12,7 +12,7 @@ const INTRINSIC_HEIGHT: f32 = 360.0;
 pub struct HomeRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for HomeRoot {
+impl be_sdk_beui::BeuiRoot for HomeRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

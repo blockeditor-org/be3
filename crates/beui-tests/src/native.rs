@@ -5,11 +5,11 @@ use beui_host::native::build;
 
 use crate::Fixture;
 
-pub struct FixtureApp {
+pub struct FixtureProgram {
     document: Document,
 }
 
-impl FixtureApp {
+impl FixtureProgram {
     pub fn new(name: String) -> Self {
         Self {
             document: build(move || {
@@ -21,7 +21,7 @@ impl FixtureApp {
     }
 }
 
-impl beui::native::App for FixtureApp {
+impl beui::native::Program for FixtureProgram {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }

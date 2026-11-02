@@ -25,10 +25,10 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
             Input::PointerMoved(to),
         ],
     );
-    assert_eq!(delivered(&sent), [], "the app sees nothing of the handle");
+    assert_eq!(delivered(&sent), [], "the program sees nothing of the handle");
     assert_eq!(reports(&sent), [], "and is told of no new size");
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Text)),
+        space.cursor_icon(&program_frame(CursorIcon::Text)),
         CursorIcon::ResizeNwSe,
         "the cursor shows the handle resizes"
     );

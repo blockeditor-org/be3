@@ -1,4 +1,4 @@
-mod apps;
+mod programs_panel;
 mod bar;
 mod calendar;
 mod clock;
@@ -33,8 +33,8 @@ use be_sdk_shell::{
 };
 use uuid::Uuid;
 
-use apps::{Apps, AppsKey, AppsOverlay};
-use bar::{APPS_PLACE, AppsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar};
+use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
+use bar::{PROGRAMS_PLACE, ProgramsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar};
 use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
@@ -49,7 +49,7 @@ const WINDOW_SIZE: Vec2 = vec2(960.0, 640.0);
 pub struct DesktopRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DesktopRoot {
+impl be_sdk_beui::BeuiRoot for DesktopRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -126,7 +126,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     let main = shell.workspace.layout();
     let layout = bar::display_layout(editor, main, display);
     cover_under_fullscreen(editor, layout, display);
-    let launches = shell.apps.launches();
+    let launches = shell.programs_panel.launches();
     let area = windows_area(layout, region_area());
     provide_context(bar::BarArea(area));
     let bars = Bars::of(display);
@@ -140,8 +140,8 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
                     <DockPane id={"desktop".to_owned()} bare=true></DockPane>
-                    <DockBar id={bars.apps} placement=APPS_PLACE>
-                        <AppsBar shell display layout />
+                    <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                        <ProgramsBar shell display layout />
                     </DockBar>
                     <DockBar id={bars.windows} placement=WINDOWS_PLACE>
                         <WindowsBar shell display />
@@ -152,9 +152,9 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                 </Docking>
                 <media::LevelDisplay osd={desktop.osd} area display />
                 <Show condition={launches}>
-                    <AppsKey apps={shell.apps} windows={shell.windows} layout={main} />
+                    <ProgramsPanelKey programs_panel={shell.programs_panel} windows={shell.windows} layout={main} />
                 </Show>
-                <AppsOverlay apps={shell.apps} display layout area />
+                <ProgramsPanelOverlay programs_panel={shell.programs_panel} display layout area />
             </List>
         </Frame>
     }
@@ -198,8 +198,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
-    let apps = Apps::new(workspace);
-    let launches = apps.launches();
+    let programs_panel = ProgramsPanel::new(workspace);
+    let launches = programs_panel.launches();
     let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
     let region = region_area();
@@ -213,7 +213,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let corner = create_memo(move || bar::toast_corner(status.get()));
     let toasts = create_memo(move || bar::clear_of_status(layout, status.get(), area.get()));
     let osd = media::Osd::new(editor);
-    let shell = Shell::new(workspace, notifications, apps, windows);
+    let shell = Shell::new(workspace, notifications, programs_panel, windows);
     publish(editor.block_id(), Desktop { shell, osd });
     view! {
         <Frame @node_ref={&surface}>
@@ -238,8 +238,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
                     </ForEach>
-                    <DockBar id={bars.apps} placement=APPS_PLACE>
-                        <AppsBar shell display=0 layout />
+                    <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                        <ProgramsBar shell display=0 layout />
                     </DockBar>
                     <DockBar id={bars.windows} placement=WINDOWS_PLACE>
                         <WindowsBar shell display=0 />
@@ -254,9 +254,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 </Show>
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
-                    <AppsKey apps windows layout />
+                    <ProgramsPanelKey programs_panel windows layout />
                 </Show>
-                <AppsOverlay apps display=0 layout area />
+                <ProgramsPanelOverlay programs_panel display=0 layout area />
                 <DesktopToasts notifications area={toasts} corner />
             </List>
         </Frame>

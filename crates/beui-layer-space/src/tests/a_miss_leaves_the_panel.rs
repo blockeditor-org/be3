@@ -23,6 +23,6 @@ fn a_miss_leaves_the_panel() {
             ]
         )),
         [],
-        "nothing that misses reaches the app"
+        "nothing that misses reaches the program"
     );
 }

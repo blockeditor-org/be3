@@ -856,7 +856,7 @@ fn Sessions(page: Shown) -> NodeId {
 fn SessionRow(session: Session, csrf: String) -> NodeId {
     let (glyph, kind) = match session.kind {
         SessionKind::Browser => (ICON_GLOBE, "Browser"),
-        SessionKind::App => (ICON_LAPTOP, "Block app"),
+        SessionKind::Host => (ICON_LAPTOP, "Block app"),
     };
     let detail = match session.current {
         true => format!("Created {} · this browser", session.age),

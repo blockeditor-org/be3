@@ -28,8 +28,8 @@ mod a_view_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_views_keyboard_reaches_the_host_with_its_asks;
 mod a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
 mod a_window_opened_where_the_host_places_windows_is_the_hosts_own;
-mod a_window_the_app_floats_inside_a_view_stays_in_that_view;
-mod a_window_the_app_opens_is_painted_in_the_frame_that_opens_it;
+mod a_window_the_program_floats_inside_a_view_stays_in_that_view;
+mod a_window_the_program_opens_is_painted_in_the_frame_that_opens_it;
 mod a_zoomed_out_views_menu_paints_all_of_itself;
 mod an_anchored_view_left_empty_keeps_a_finite_place;
 mod an_image_copied_in_a_view_reaches_the_host;
@@ -141,7 +141,7 @@ impl Windowed {
     }
 }
 
-impl App for Windowed {
+impl Program for Windowed {
     fn setup(&mut self, setup: &Setup) {
         let views = setup
             .get::<Views>()
@@ -211,16 +211,16 @@ fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: C
     }
 }
 
-fn launched(host: &EditorHost, app: impl App + 'static) -> Box<Driver<ModuleRunner>> {
+fn launched(host: &EditorHost, program: impl Program + 'static) -> Box<Driver<ModuleRunner>> {
     let module = Module::default();
     host.join_module(&module);
     launch(
         host,
         RunOptions::default(),
         beui_host::native::context(),
-        Box::new(app),
+        Box::new(program),
     )
-    .expect("a plugin app starts");
+    .expect("a plugin program starts");
     let handler: Box<dyn Any> = module
         .take_handler()
         .expect("the platform registers its handler with the module");

@@ -9,7 +9,7 @@ use jni::refs::Reference;
 use jni::vm::JavaVM;
 use jni::{Env, EnvUnowned, jni_sig, jni_str};
 
-use crate::LauncherApp;
+use crate::LauncherProgram;
 use crate::runs;
 use crate::tasks::{Event, Tasks};
 
@@ -23,7 +23,7 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
     let options = beui_host::native::RunOptions::default();
-    let launcher = match LauncherApp::new(files) {
+    let launcher = match LauncherProgram::new(files) {
         Ok(launcher) => launcher,
         Err(error) => {
             eprintln!("The launcher did not start: {error}");

@@ -3,18 +3,18 @@ use be_lib_ui_types::{PreferenceLayer, Preferences};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PreferenceSource {
     System,
-    App,
+    Program,
     Developer,
 }
 
 impl PreferenceSource {
-    pub const ALL: [Self; 3] = [Self::System, Self::App, Self::Developer];
+    pub const ALL: [Self; 3] = [Self::System, Self::Program, Self::Developer];
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PreferenceLayers {
     system: PreferenceLayer,
-    app: PreferenceLayer,
+    program: PreferenceLayer,
     developer: PreferenceLayer,
 }
 
@@ -22,7 +22,7 @@ impl PreferenceLayers {
     pub fn layer(self, source: PreferenceSource) -> PreferenceLayer {
         match source {
             PreferenceSource::System => self.system,
-            PreferenceSource::App => self.app,
+            PreferenceSource::Program => self.program,
             PreferenceSource::Developer => self.developer,
         }
     }
@@ -30,7 +30,7 @@ impl PreferenceLayers {
     pub fn layer_mut(&mut self, source: PreferenceSource) -> &mut PreferenceLayer {
         match source {
             PreferenceSource::System => &mut self.system,
-            PreferenceSource::App => &mut self.app,
+            PreferenceSource::Program => &mut self.program,
             PreferenceSource::Developer => &mut self.developer,
         }
     }
@@ -45,6 +45,6 @@ impl PreferenceLayers {
     }
 
     pub fn resolve(self) -> Preferences {
-        self.developer.over(self.app).over(self.system).resolve()
+        self.developer.over(self.program).over(self.system).resolve()
     }
 }

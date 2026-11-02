@@ -1,7 +1,7 @@
-load("@root//buck/app:defs.bzl", "app", "prerendered_page")
-load("@root//buck/app:drive.bzl", "web_drive_test")
+load("@root//buck/program:defs.bzl", "program", "prerendered_page")
+load("@root//buck/program:drive.bzl", "web_drive_test")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
-load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_html_module")
 
 # block-app's account picker (crates/be-host-accounts-ui) on beui's HTML core,
 # with fixture accounts: :ssr renders the page on the host, and :web's module
@@ -10,7 +10,7 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
 cargo_library(
     rustc_flags = select({
         "DEFAULT": [],
-        "prelude//cpu/constraints:cpu[wasm32]": wasi_app_flags,
+        "prelude//cpu/constraints:cpu[wasm32]": wasi_program_flags,
     }),
     target_compatible_with = ["root//buck/constraints:html"],
 )
@@ -41,7 +41,7 @@ wasi_html_module(
     module = "beui_html_spike",
 )
 
-app(
+program(
     name = "web",
     bindgen = [":web-module"],
     files = [
@@ -61,9 +61,9 @@ app(
     modules = [],
     run_with = [
         "sh",
-        "$(location //buck/app:serve-bundle.sh)",
+        "$(location //buck/program:serve-bundle.sh)",
         "$(location //buck/tools:caddy)",
-        "$(location //buck/app:bundle.Caddyfile)",
+        "$(location //buck/program:bundle.Caddyfile)",
         "127.0.0.1:8060",
     ],
     wasm_bindgen = "//buck/cargo:wasm-bindgen",

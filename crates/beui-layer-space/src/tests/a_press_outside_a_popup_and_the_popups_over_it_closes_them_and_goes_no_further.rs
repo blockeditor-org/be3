@@ -109,7 +109,7 @@ fn a_press_outside_a_popup_and_the_popups_over_it_closes_them_and_goes_no_furthe
     assert_eq!(
         buttons(&got),
         [WindowId::MAIN, WindowId::MAIN],
-        "the next press reaches the app"
+        "the next press reaches the program"
     );
 
     let window = open_as(&mut space, now, over(WindowId::MAIN), WindowRole::Normal);

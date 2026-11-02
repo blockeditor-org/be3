@@ -9,7 +9,7 @@ use super::*;
 struct ActionRoot;
 
 #[component]
-impl BeuiApp for ActionRoot {
+impl BeuiRoot for ActionRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

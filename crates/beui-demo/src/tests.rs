@@ -133,7 +133,7 @@ fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
     let mut test = DocumentTest::new(demo_document(Date::new(year, month, day)), size);
     test.context().set_preference_layer(
-        beui::PreferenceSource::App,
+        beui::PreferenceSource::Program,
         beui::PreferenceLayer {
             theme: Some(theme),
             ..beui::PreferenceLayer::EMPTY

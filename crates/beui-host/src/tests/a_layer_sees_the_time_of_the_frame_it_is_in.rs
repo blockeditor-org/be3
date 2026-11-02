@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::context::FrameOutput;
 use beui_runner::renderer::Loaded;
 use beui_runner::{
@@ -12,7 +12,7 @@ enum Seen {
     Input(Instant),
     Output(Instant),
     Framed(Instant),
-    App(Instant),
+    Program(Instant),
 }
 
 type Log = Rc<RefCell<Vec<Seen>>>;
@@ -39,9 +39,9 @@ impl Layer for Recording {
 
 struct Clocked(Log);
 
-impl App for Clocked {
+impl Program for Clocked {
     fn update(&mut self, context: &Context, _rect: Rect) {
-        self.0.borrow_mut().push(Seen::App(context.now()));
+        self.0.borrow_mut().push(Seen::Program(context.now()));
     }
 }
 
@@ -52,7 +52,7 @@ fn a_layer_sees_the_time_of_the_frame_it_is_in() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(Clocked(log.clone())),
+        program: Box::new(Clocked(log.clone())),
         layers: vec![Box::new(Recording(log.clone()))],
     });
     let loaded = Loaded {
@@ -67,18 +67,18 @@ fn a_layer_sees_the_time_of_the_frame_it_is_in() {
         let seen = std::mem::take(&mut *log.borrow_mut());
         let [
             Seen::Input(input),
-            Seen::App(app),
+            Seen::Program(program),
             Seen::Output(output),
             Seen::Framed(framed),
         ] = seen[..]
         else {
-            panic!("the layer and the app each see the frame once, in order: {seen:?}");
+            panic!("the layer and the program each see the frame once, in order: {seen:?}");
         };
         assert_eq!(
-            input, app,
+            input, program,
             "the layer's input sees this frame's time, not the last frame's"
         );
-        assert_eq!(output, app, "the layer's output sees this frame's time");
-        assert_eq!(framed, app, "the layer's timing sees this frame's time");
+        assert_eq!(output, program, "the layer's output sees this frame's time");
+        assert_eq!(framed, program, "the layer's timing sees this frame's time");
     }
 }

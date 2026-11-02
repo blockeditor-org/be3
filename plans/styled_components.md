@@ -116,7 +116,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   nothing else ever would. Build it in block-app from styled pieces and §1's
   `Modal` (one per display window).
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
-  used only by the desktop plugin (`app/media.rs`), so move it there. It is in
+  used only by the desktop plugin (`root/media.rs`), so move it there. It is in
   `app/osd.rs` now, with its tests in the desktop plugin's, and lays out one card
   per display rect.
 - **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled

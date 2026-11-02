@@ -22,7 +22,7 @@ const INTRINSIC_HEIGHT: f32 = 240.0;
 pub struct SettingsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for SettingsRoot {
+impl be_sdk_beui::BeuiRoot for SettingsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let block = editor.block_id();
@@ -66,7 +66,7 @@ impl be_sdk_beui::BeuiApp for SettingsRoot {
 pub struct SettingsProfileRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for SettingsProfileRoot {
+impl be_sdk_beui::BeuiRoot for SettingsProfileRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

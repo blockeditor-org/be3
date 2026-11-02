@@ -13,7 +13,7 @@ use ui::{PdfEditor, PdfPreview};
 pub struct PdfRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PdfRoot {
+impl be_sdk_beui::BeuiRoot for PdfRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

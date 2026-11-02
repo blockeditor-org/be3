@@ -6,7 +6,7 @@ use beui::reactive::untrack;
 use beui::{Input, Modifiers, Vec2};
 
 use super::{Person, PullRequest, State, scratch};
-use crate::LauncherApp;
+use crate::LauncherProgram;
 use crate::github::Filter;
 use crate::model::{Model, Tab};
 use crate::pane::{Pane, Session};
@@ -57,9 +57,9 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     let (sender, events) = channel();
     let tasks = Tasks::new(scratch("tabs"), sender);
     let session = Session::new().expect("a terminal");
-    let LauncherApp {
+    let LauncherProgram {
         document, model, ..
-    } = LauncherApp::with(tasks, events, move |tasks| {
+    } = LauncherProgram::with(tasks, events, move |tasks| {
         let runs = Runs::new(tasks.clone(), Pane::new(session));
         Model::new(tasks, runs)
     });

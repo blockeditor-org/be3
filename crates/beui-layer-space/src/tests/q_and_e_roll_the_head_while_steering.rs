@@ -9,7 +9,7 @@ fn q_and_e_roll_the_head_while_steering() {
     assert_eq!(
         delivered(&pressed),
         [],
-        "the app does not get Q while steering"
+        "the program does not get Q while steering"
     );
     for step in 1..=10 {
         send(&mut space, later(now, 0.05 * step as f32), []);

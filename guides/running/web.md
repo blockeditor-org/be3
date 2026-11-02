@@ -47,7 +47,7 @@ platform here. Its own commands take their place (`drive` with no command lists 
 - `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
 
 Both aim where the host's own input does: they ask the host to `reveal` TARGET and use the part
-that shows, with web-test.mjs's lookup (`shownPlaces` in buck/app/drive-words.mjs).
+that shows, with web-test.mjs's lookup (`shownPlaces` in buck/program/drive-words.mjs).
 - `drive size W H` resizes the page. `drive reload` reloads it and returns once the host answers
   again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
@@ -64,8 +64,8 @@ drive layer's line format, `find`, `reveal` and `shown` (where a target shows, o
 has revealed it, or as it is), `wait`, `gone`, `settle`, `pause` and `clock stop|run`, parsed and
 formatted by the same `beui_types::drive` the native drive layer uses. Input does
 not go through it: the browser gives it, from Playwright. crates/beui-tests' `:web-test`
-does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
-shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/app/drive-words.mjs).
+does that for its scripts (guides/testing_a_gui.md, 7), with buck/program/web-test.mjs, which
+shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/program/drive-words.mjs).
 
 crates/beui-html-spike is block-app's account picker (crates/be-host-accounts-ui) on that core,
 prerendered natively and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`

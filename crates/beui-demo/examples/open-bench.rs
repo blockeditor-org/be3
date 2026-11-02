@@ -51,7 +51,7 @@ mod bench {
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
         native::Setup, native::Waker, native::WindowOutput,
     };
-    use beui_core::app::SafeArea;
+    use beui_core::program::SafeArea;
     use beui_core::context::RendererInfo;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
@@ -159,7 +159,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui_host::native::build(|| {
+                program: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }
@@ -187,9 +187,9 @@ mod bench {
             }
         }
 
-        fn app(&self) -> &Document {
-            let app: &dyn Any = self.runner.app();
-            app.downcast_ref().expect("the bench runs the demo")
+        fn program(&self) -> &Document {
+            let program: &dyn Any = self.runner.program();
+            program.downcast_ref().expect("the bench runs the demo")
         }
 
         fn frame(&mut self, inputs: Vec<Input>) -> Timed {
@@ -222,7 +222,7 @@ mod bench {
                 prepare,
                 present,
                 repaint,
-                perf: self.app().performance(),
+                perf: self.program().performance(),
             }
         }
 
@@ -240,7 +240,7 @@ mod bench {
         }
 
         fn row(&self, title: &str) -> Rect {
-            let document = self.app();
+            let document = self.program();
             let node = document
                 .find_test_id(&format!("demo.catalog.{title}"))
                 .unwrap_or_else(|| panic!("no catalog row for {title}"));
@@ -289,7 +289,7 @@ mod bench {
             frames.extend(self.settle());
             let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
-                let document = self.app();
+                let document = self.program();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
                 let mut found = be_lib_stable_hash::HashMap::<String, (usize, usize)>::default();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {

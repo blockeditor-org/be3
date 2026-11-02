@@ -2,29 +2,29 @@ use super::*;
 
 #[test]
 fn a_save_that_takes_a_while_shows_a_toast_until_it_finishes() {
-    let mut app = Saving::start();
+    let mut test = Saving::start();
     let short = SLOW_SAVE - Duration::from_secs(1);
     assert!(
-        !app.after(short, saving(false, 0)),
+        !test.after(short, saving(false, 0)),
         "a save that finishes quickly shows nothing"
     );
     assert!(
-        !app.after(short, saving(false, 1)),
+        !test.after(short, saving(false, 1)),
         "nor does one that keeps landing commits while edits keep coming"
     );
     assert!(
-        app.after(Duration::from_secs(2), saving(false, 1)),
+        test.after(Duration::from_secs(2), saving(false, 1)),
         "a save that makes no progress for a while shows a toast"
     );
     assert!(
-        app.after(TOAST_DURATION, saving(false, 2)),
+        test.after(TOAST_DURATION, saving(false, 2)),
         "which stays up past the usual toast duration while saving goes on"
     );
-    app.stepped.frame(Vec::new());
-    app.stepped
+    test.stepped.frame(Vec::new());
+    test.stepped
         .snapshot("a_save_that_takes_a_while_shows_a_toast_until_it_finishes");
     assert!(
-        !app.after(Duration::from_millis(300), saving(true, 3)),
+        !test.after(Duration::from_millis(300), saving(true, 3)),
         "and goes away once everything is saved"
     );
 }

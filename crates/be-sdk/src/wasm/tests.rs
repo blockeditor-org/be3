@@ -236,13 +236,13 @@ impl Rig {
         }));
         let host = EditorHost::new(crate::Waker::default());
         let shared = Rc::new(Shared::default());
-        let app = Layered {
+        let editor = Layered {
             host: host.clone(),
             shared: Rc::clone(&shared),
         };
         screens.adopt(
             INSTANCE,
-            EditorSession::adopt(INSTANCE, Box::new(app), host),
+            EditorSession::adopt(INSTANCE, Box::new(editor), host),
         );
         let requests = vec![ScreenRequest {
             screen: SCREEN,

@@ -13,7 +13,7 @@ use ui::SchemaView;
 pub struct DatabaseSchemaRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DatabaseSchemaRoot {
+impl be_sdk_beui::BeuiRoot for DatabaseSchemaRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

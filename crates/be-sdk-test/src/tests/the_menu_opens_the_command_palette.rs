@@ -7,7 +7,7 @@ use super::*;
 struct PaletteRoot;
 
 #[component]
-impl BeuiApp for PaletteRoot {
+impl BeuiRoot for PaletteRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

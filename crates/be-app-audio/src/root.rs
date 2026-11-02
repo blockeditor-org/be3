@@ -16,7 +16,7 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 180.0);
 pub struct AudioRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for AudioRoot {
+impl be_sdk_beui::BeuiRoot for AudioRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

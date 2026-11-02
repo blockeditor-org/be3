@@ -105,14 +105,14 @@ pub mod __private {
     pub use crate::wasm::Editor;
 
     #[cfg(target_arch = "wasm32")]
-    pub struct App {
+    pub struct EditorEntry {
         name: &'static str,
         open: crate::screens::Opener,
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn app<P: crate::Plugin>(name: &'static str) -> App {
-        App {
+    pub fn editor_entry<P: crate::Plugin>(name: &'static str) -> EditorEntry {
+        EditorEntry {
             name,
             open: P::open,
         }
@@ -121,7 +121,7 @@ pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(
         manifest: &str,
-        apps: Vec<App>,
+        entries: Vec<EditorEntry>,
         waker: Waker,
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Editor, String> {
@@ -132,27 +132,27 @@ pub mod __private {
             .iter()
             .map(|editor| editor.name.as_str())
             .collect();
-        let mut implemented: Vec<_> = apps.iter().map(|app| app.name).collect();
+        let mut implemented: Vec<_> = entries.iter().map(|entry| entry.name).collect();
         declared.sort_unstable();
         implemented.sort_unstable();
         assert_eq!(
             declared, implemented,
             "{name} must implement exactly the editors its manifest declares"
         );
-        let apps = apps
+        let openers = entries
             .into_iter()
-            .map(|app| {
+            .map(|entry| {
                 let editor = manifest
                     .editors
                     .iter()
-                    .find(|editor| editor.name == app.name)
-                    .expect("every app names a declared editor");
-                (uuid::Uuid::from_bytes(editor.id), app.open)
+                    .find(|editor| editor.name == entry.name)
+                    .expect("every entry names a declared editor");
+                (uuid::Uuid::from_bytes(editor.id), entry.open)
             })
             .collect();
         let identity = manifest.identity;
         let started = crate::wasm::Started {
-            apps,
+            openers,
             id: identity.id,
             name: identity.name,
             version: identity.version,
@@ -169,7 +169,7 @@ pub mod __private {
 #[cfg(target_arch = "wasm32")]
 #[macro_export]
 macro_rules! platform_entry {
-    ($manifest:ident, $apps:expr) => {
+    ($manifest:ident, $entries:expr) => {
         struct PluginGuest($crate::__private::Editor);
 
         impl $crate::__private::Guest for PluginGuest {
@@ -177,7 +177,7 @@ macro_rules! platform_entry {
                 waker: $crate::__private::Waker,
                 outbound: &mut Vec<Vec<u8>>,
             ) -> Result<Self, String> {
-                $crate::__private::start_wasm($manifest, $apps, waker, outbound).map(PluginGuest)
+                $crate::__private::start_wasm($manifest, $entries, waker, outbound).map(PluginGuest)
             }
 
             fn step(
@@ -197,7 +197,7 @@ macro_rules! platform_entry {
 #[cfg(not(target_arch = "wasm32"))]
 #[macro_export]
 macro_rules! platform_entry {
-    ($manifest:ident, $apps:expr) => {};
+    ($manifest:ident, $entries:expr) => {};
 }
 
 #[macro_export]
@@ -208,7 +208,7 @@ macro_rules! plugin {
         $crate::platform_entry!(
             PLUGIN_MANIFEST,
             vec![$(
-                $crate::__private::app::<$plugin>(stringify!($name))
+                $crate::__private::editor_entry::<$plugin>(stringify!($name))
             ),+]
         );
     };

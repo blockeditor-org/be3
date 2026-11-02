@@ -6,7 +6,7 @@ use beui::{Key, KeyPress, Modifiers};
 struct ShortcutRoot;
 
 #[component]
-impl BeuiApp for ShortcutRoot {
+impl BeuiRoot for ShortcutRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         let pressed = create_signal(String::new());

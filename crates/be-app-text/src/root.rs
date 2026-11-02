@@ -26,7 +26,7 @@ use toolbar::{EditorMenu, FormatBar, format_actions};
 pub struct TextRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for TextRoot {
+impl be_sdk_beui::BeuiRoot for TextRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

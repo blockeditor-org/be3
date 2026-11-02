@@ -12,7 +12,7 @@ const REBUILT_TYPE: Uuid = Uuid::from_u128(0x0b44);
 struct RebuiltRoot;
 
 #[component]
-impl BeuiApp for RebuiltRoot {
+impl BeuiRoot for RebuiltRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presenting = editor.presenting();

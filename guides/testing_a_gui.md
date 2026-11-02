@@ -488,7 +488,7 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   that only works when measurement is synchronous fails. A test per script is in src/tests/.
 - In a browser, `./scripts/test //crates/beui-tests:web-test [NAME]` serves `:web`, the
   screens built for `wasi_html`, and runs every script in Chromium through Playwright
-  (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
+  (buck/program/web-test.mjs, `web_drive_test` in buck/program/drive.bzl). The page answers the reading
   commands through beui-core-html's `automate` (its tree is in native's line format, from the
   core's nodes and `getBoundingClientRect`); `click`, `move`, `down`, `up`, `drag`, `wheel` (a tick is a line, 40 pixels), `type` and `key` are real Playwright input
   at the place `reveal` answers (beui-core-html's: the part of the target that shows, once a
@@ -508,7 +508,7 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   count, as natively. It prints `ok NAME` for a script that passes, and for one that fails its
   commands so far with their answers, the failure, the tree and the page's console. It runs on this machine, not a worker, which have no
   browser: `BE3_CHROME` when set, else Playwright's Chromium, through Node's `playwright`
-  package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
+  package (installed globally, or from buck/program/browser-tests' lockfile with `npm ci` and
   `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.
   ./scripts/verify runs it too, as `:web-test-run`.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`

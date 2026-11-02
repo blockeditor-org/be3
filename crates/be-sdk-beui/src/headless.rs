@@ -9,7 +9,7 @@ use be_sdk_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
 
 use crate::instance::BeuiInstance;
 use crate::module::Module;
-use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
+use crate::{Artifacts, BeuiRoot, Creation, Editor, EditorHost, OwnedEditor};
 
 pub type View = Box<dyn FnOnce() -> beui::styled::Root>;
 
@@ -34,16 +34,16 @@ pub(crate) trait Parts {
     fn editor(&self) -> Option<Editor>;
 }
 
-impl<A: BeuiApp> Parts for BeuiInstance<A> {
+impl<A: BeuiRoot> Parts for BeuiInstance<A> {
     fn editor(&self) -> Option<Editor> {
         BeuiInstance::editor(self)
     }
 }
 
-fn parts<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
+fn parts<A: BeuiRoot>(instance: &dyn Instance) -> &dyn Parts {
     (instance as &dyn Any)
         .downcast_ref::<BeuiInstance<A>>()
-        .expect("an adopted instance keeps its app")
+        .expect("an adopted instance keeps its root")
 }
 
 pub struct Drawn {
@@ -83,7 +83,7 @@ impl HeadlessPlugin {
         }
     }
 
-    pub fn adopt<A: BeuiApp>(&mut self, instance: EditorInstanceId, adopted: Adopted) {
+    pub fn adopt<A: BeuiRoot>(&mut self, instance: EditorInstanceId, adopted: Adopted) {
         let host = adopted.host();
         self.core.adopt(
             instance,

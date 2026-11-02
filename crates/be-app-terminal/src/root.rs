@@ -15,7 +15,7 @@ use ui::TerminalBlock;
 pub struct TerminalRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for TerminalRoot {
+impl be_sdk_beui::BeuiRoot for TerminalRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

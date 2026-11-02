@@ -52,6 +52,6 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
     assert_eq!(
         painting.frame.size,
         [202, 68],
-        "at the app window's density, whatever the region's zoom"
+        "at the program window's density, whatever the region's zoom"
     );
 }

@@ -5,7 +5,7 @@ fn a_repositioned_popup_is_configured_again() {
     let mut harness = Harness::new();
     let (window, _id) = harness.open();
     let menu = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (10, 10),
         (150, 200),
@@ -14,7 +14,7 @@ fn a_repositioned_popup_is_configured_again() {
     harness.client.received.configured = None;
 
     harness.client.reposition(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &menu,
         (20, 30),
         (180, 90),

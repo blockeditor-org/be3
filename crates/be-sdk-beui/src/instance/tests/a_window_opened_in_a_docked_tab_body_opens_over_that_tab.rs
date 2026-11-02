@@ -37,7 +37,7 @@ fn OverOwnWindow() -> beui::NodeId {
 struct WindowedRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for WindowedRoot {
+impl crate::BeuiRoot for WindowedRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};

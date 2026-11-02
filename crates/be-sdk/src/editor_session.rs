@@ -32,7 +32,7 @@ pub const FRAME_STEP: std::time::Duration = std::time::Duration::from_micros(16_
 static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
-    app: Box<dyn Instance>,
+    editor: Box<dyn Instance>,
     module: Module,
     opened: HashSet<ViewId>,
     instance: EditorInstanceId,
@@ -142,12 +142,12 @@ impl EditorSession {
         Self::adopt(instance, open(host.clone()), host)
     }
 
-    pub fn adopt(instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) -> Self {
+    pub fn adopt(instance: EditorInstanceId, editor: Box<dyn Instance>, host: EditorHost) -> Self {
         host.set_instance(instance);
         let module = host.module().unwrap_or_default();
         module.enter(instance, &host);
         Self {
-            app,
+            editor,
             module,
             opened: HashSet::default(),
             instance,
@@ -215,11 +215,11 @@ impl EditorSession {
     }
 
     pub fn instance(&self) -> &dyn Instance {
-        self.app.as_ref()
+        self.editor.as_ref()
     }
 
     pub fn instance_mut(&mut self) -> &mut dyn Instance {
-        self.app.as_mut()
+        self.editor.as_mut()
     }
 
     pub fn module(&self) -> &Module {
@@ -238,7 +238,7 @@ impl EditorSession {
         }
         if self.opened.insert(view) {
             let view = self.view(view);
-            self.app.open_view(view);
+            self.editor.open_view(view);
         }
     }
 
@@ -283,7 +283,7 @@ impl EditorSession {
     }
 
     pub(crate) fn resized(&mut self, size: Vec2) {
-        self.app.resized(size);
+        self.editor.resized(size);
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
@@ -304,11 +304,11 @@ impl EditorSession {
             });
             self.host.show_presence(None, UserActive::ID, value);
         }
-        self.app.presence_visible(visible);
+        self.editor.presence_visible(visible);
     }
 
     pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        self.app.replace_child(old, new)
+        self.editor.replace_child(old, new)
     }
 
     pub(crate) fn set_presenting(&self, presenting: bool) {
@@ -323,30 +323,30 @@ impl EditorSession {
         self.host.set_block_type(block_type);
         self.own_block = Some(block_id);
         self.link.connect(block_id, block_type);
-        self.app.connect(block_id);
+        self.editor.connect(block_id);
     }
 
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
         self.host.set_editable(true);
         self.host.set_picker(picker);
-        self.app.connect(Uuid::nil());
+        self.editor.connect(Uuid::nil());
     }
 
     pub(crate) fn connect_rename(&mut self, rename: crate::host::RenameRequest) {
         self.host.set_editable(true);
         self.host.set_renaming(rename);
-        self.app.connect(Uuid::nil());
+        self.editor.connect(Uuid::nil());
     }
 
     pub(crate) fn connect_creation(&mut self, template: String) {
         self.host.set_editable(true);
-        self.app.connect_creation(template);
+        self.editor.connect_creation(template);
     }
 
     pub(crate) fn connect_artifact(&mut self, artifact: crate::Artifact, data: Vec<u8>) {
         self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
-        self.app.connect_artifact(artifact);
+        self.editor.connect_artifact(artifact);
     }
 
     pub(crate) fn artifact_settings(&mut self, data: Vec<u8>) {
@@ -365,11 +365,11 @@ impl EditorSession {
             return;
         };
         artifact.regenerating = Some(regenerated);
-        self.app.regenerate_artifact(data);
+        self.editor.regenerate_artifact(data);
     }
 
     pub(crate) fn commit_creation(&mut self) -> Result<[u8; 16], Failure> {
-        self.app
+        self.editor
             .create_block()
             .map(Uuid::into_bytes)
             .map_err(Failure::Failed)
@@ -437,7 +437,7 @@ impl EditorSession {
         if let Some(accepted) = self.host.take_drag_accepted() {
             shell::drag_accepted(instance, accepted).detach();
         }
-        let intrinsic = self.app.intrinsic_size();
+        let intrinsic = self.editor.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
             shell::intrinsic_size(
@@ -449,7 +449,7 @@ impl EditorSession {
             )
             .detach();
         }
-        let aspect_ratio = self.app.aspect_ratio();
+        let aspect_ratio = self.editor.aspect_ratio();
         if aspect_ratio != self.aspect_ratio {
             self.aspect_ratio = aspect_ratio;
             shell::aspect_ratio(instance, aspect_ratio).detach();
@@ -466,7 +466,7 @@ impl EditorSession {
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());
-                let description = match self.app.describe_artifact(&artifact.data) {
+                let description = match self.editor.describe_artifact(&artifact.data) {
                     Ok(summary) => ArtifactDescription::Described(summary),
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
@@ -477,7 +477,7 @@ impl EditorSession {
                 shell::artifact_edited(instance, artifact.draft.clone()).detach();
             }
             if artifact.regenerating.is_some()
-                && let Some(result) = self.app.poll_artifact()
+                && let Some(result) = self.editor.poll_artifact()
                 && let Some(regenerated) = artifact.regenerating.take()
             {
                 regenerated.send(result.map_err(Failure::Failed));

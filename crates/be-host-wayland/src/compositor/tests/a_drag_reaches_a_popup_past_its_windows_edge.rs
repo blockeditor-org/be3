@@ -26,7 +26,7 @@ fn a_drag_reaches_a_popup_past_its_windows_edge() {
         .serial
         .expect("the press carried a serial");
     let menu = harness.client.popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (10, 280),
         (150, 200),

@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::app::Waker;
-use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
+use crate::program::Waker;
+use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::PasteRequest;
 use crate::damage;
 use crate::display::{Display, Group, Layer};

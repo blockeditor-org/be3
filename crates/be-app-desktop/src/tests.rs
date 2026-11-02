@@ -110,7 +110,7 @@ mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const MAX_TAB: u64 = 64;
-const APPS_BAR: u64 = 0;
+const PROGRAMS_BAR: u64 = 0;
 const WINDOWS_BAR: u64 = 1;
 const STATUS_BAR: u64 = 2;
 const WINDOW_TABS: u64 = 1 << 41;

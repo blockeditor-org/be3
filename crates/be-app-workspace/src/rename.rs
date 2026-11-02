@@ -6,7 +6,7 @@ use be_sdk_shell::RenameView;
 pub struct RenameRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for RenameRoot {
+impl be_sdk_beui::BeuiRoot for RenameRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let renaming = editor.host().renaming();

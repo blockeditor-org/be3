@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use beui_core::app::Setup;
+use beui_core::program::Setup;
 use beui_core::context::{RendererInfo, WindowOutput};
 use beui_runner::renderer::{Renderer, WindowHandle};
 use beui_types::Color32;

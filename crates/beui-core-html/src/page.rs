@@ -44,10 +44,10 @@ fn signals() -> PageSignals {
 pub fn choose_theme(theme: Option<ThemeKind>) {
     let layers = signals().layers.get_untracked();
     set_preference_layer(
-        PreferenceSource::App,
+        PreferenceSource::Program,
         PreferenceLayer {
             theme,
-            ..layers.layer(PreferenceSource::App)
+            ..layers.layer(PreferenceSource::Program)
         },
     );
 }
@@ -69,7 +69,7 @@ pub fn chosen_theme() -> Memo<Option<ThemeKind>> {
         let layers = layers.get();
         layers
             .layer(PreferenceSource::Developer)
-            .over(layers.layer(PreferenceSource::App))
+            .over(layers.layer(PreferenceSource::Program))
             .theme
     })
 }

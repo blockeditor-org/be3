@@ -5,7 +5,7 @@ fn rasters(surface: &Driver<ModuleRunner>, region: &ShownView) -> (f32, Vec<f32>
     let window = surface
         .regions()
         .window(region.id())
-        .expect("the region is a window of the app");
+        .expect("the region is a window of the program");
     let output = surface
         .regions()
         .runner
@@ -54,7 +54,7 @@ fn a_view_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out(
         .borrow()
         .as_ref()
         .map(|document: &Document| document.performance().latest.work)
-        .expect("the app built its document");
+        .expect("the program built its document");
     assert_eq!(
         (work.measured, work.placed),
         (0, 0),

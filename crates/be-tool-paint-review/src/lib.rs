@@ -32,13 +32,13 @@ pub enum Fetch<T> {
     Failed(String),
 }
 
-pub struct PaintReviewApp {
+pub struct PaintReviewProgram {
     pub document: Document,
     manifest: OwnedSignal<Fetch<Rc<Manifest>>>,
     images: OwnedStored<images::ImageTable>,
 }
 
-impl PaintReviewApp {
+impl PaintReviewProgram {
     pub fn new(painting: Option<String>, request: impl Fn(ImageRequest) + 'static) -> Self {
         let manifest = OwnedSignal::new(Fetch::Loading);
         let images = Images::owned(request);
@@ -66,7 +66,7 @@ impl PaintReviewApp {
     }
 }
 
-impl beui::native::App for PaintReviewApp {
+impl beui::native::Program for PaintReviewProgram {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }

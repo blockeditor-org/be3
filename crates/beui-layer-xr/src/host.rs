@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use beui_core::app::Setup;
+use beui_core::program::Setup;
 use beui_core::context::{Context, FrameOutput};
 use beui_layer_space::head::{Fov, View, Views};
 use beui_layer_space::layers::Allowance;
@@ -91,7 +91,7 @@ impl XrSpace {
         match headset.lost() {
             None if headset.running() => None,
             None => waiting(format!(
-                "{} has not started this app's session yet",
+                "{} has not started this program's session yet",
                 headset.runtime()
             )),
             Some(Lost::Session) => waiting(format!("{} lost the headset", headset.runtime())),

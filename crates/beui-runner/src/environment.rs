@@ -129,7 +129,7 @@ pub fn choose(natives: &[&str], var: impl Fn(&str) -> Option<String>) -> Result<
     {
         return Err(format!(
             "{LAYERS} puts two drive taps under {}; --into could not tell them apart",
-            twice.map_or("the app", Stacked::name)
+            twice.map_or("the program", Stacked::name)
         ));
     }
     if drives > 0 && var(DRIVE_SOCKET).is_none() {

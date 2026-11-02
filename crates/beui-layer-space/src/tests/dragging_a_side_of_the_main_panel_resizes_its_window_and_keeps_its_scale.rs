@@ -32,7 +32,7 @@ fn dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale() {
             Input::PointerMoved(wider),
         ],
     );
-    assert_eq!(delivered(&sent), [], "the app sees nothing of the side");
+    assert_eq!(delivered(&sent), [], "the program sees nothing of the side");
     let size = vec2(start.size.x - 120.0, start.size.y);
     assert_eq!(
         resized(&sent),
@@ -40,7 +40,7 @@ fn dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale() {
         "the main window is told its new size at once, its height kept"
     );
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Text)),
+        space.cursor_icon(&program_frame(CursorIcon::Text)),
         CursorIcon::ResizeHorizontal
     );
     let panel = *main(&space);
@@ -91,5 +91,5 @@ fn dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale() {
     );
     let let_go = drive(&mut space, now, [trigger(Hand::Right, 0.0)]);
     assert_eq!(placed(&let_go).len(), 1);
-    assert!(touches(&let_go).is_empty(), "and the app is never touched");
+    assert!(touches(&let_go).is_empty(), "and the program is never touched");
 }

@@ -1,7 +1,7 @@
-load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/platforms:profile.bzl", "released")
-load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
 
 # The paintings a pull request changed (crates/be-tool-paint-review) in a browser,
 # drawn with wgpu like beui's web demo. The page lives at
@@ -10,17 +10,17 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 # `./scripts/buck run //crates/be-tool-paint-review-web:web` serves the bundle with
 # Caddy on http://127.0.0.1:8075, or on the address after `--`.
 cargo_library(
-    rustc_flags = wasi_app_flags,
+    rustc_flags = wasi_program_flags,
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
 )
 
-wasi_app_module(
+wasi_program_module(
     name = "web-module",
     library = ":be-tool-paint-review-web",
     module = "paint_review_web",
 )
 
-app(
+program(
     name = "web",
     bindgen = [":web-module"],
     files = [

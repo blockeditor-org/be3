@@ -2,7 +2,7 @@ use be_sdk_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewRef,
     ViewportMetrics, WindowOpen, WindowRequest,
 };
-use be_sdk_beui::{BeuiApp, View, ViewId};
+use be_sdk_beui::{BeuiRoot, View, ViewId};
 use be_sdk_window_stack::{Gesture, Host, Stacked};
 use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, vec2};
 use beui_host::native::drive::gestures::Frames;
@@ -329,7 +329,7 @@ fn owner(displays: &[Display], rect: Rect) -> Display {
         .unwrap_or(displays[0])
 }
 
-impl<A: BeuiApp> BeuiTest<A> {
+impl<A: BeuiRoot> BeuiTest<A> {
     pub fn show_on_displays(&mut self, displays: &[(Rect, f32)]) {
         let desk = Desk::new(displays);
         self.size = desk.displays[0].rect.size();

@@ -15,7 +15,7 @@ use ui::{PresentationPreview, PresentationView};
 pub struct PresentationRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PresentationRoot {
+impl be_sdk_beui::BeuiRoot for PresentationRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

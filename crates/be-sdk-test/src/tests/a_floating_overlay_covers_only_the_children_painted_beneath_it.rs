@@ -10,7 +10,7 @@ const BENEATH: Uuid = Uuid::from_u128(0x0012);
 struct WindowRoot;
 
 #[component]
-impl BeuiApp for WindowRoot {
+impl BeuiRoot for WindowRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

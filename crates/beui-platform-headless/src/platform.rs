@@ -2,7 +2,7 @@ use std::error::Error;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::program::{SafeArea, Setup, Waker};
 use beui_core::window::WindowSize;
 use beui_renderer_wgpu::offscreen::OffscreenSurface;
 use beui_renderer_wgpu::present::OpenDevice;

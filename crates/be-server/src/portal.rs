@@ -288,7 +288,7 @@ fn session(session: AccountSession) -> Session {
         kind: if session.kind == "browser" {
             SessionKind::Browser
         } else {
-            SessionKind::App
+            SessionKind::Host
         },
         age: session_age(session.created),
         current: session.current,

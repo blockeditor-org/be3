@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use be_sdk_beui::be_block::Edit;
 use be_sdk_beui::beui::Key;
-use be_sdk_beui::{BeuiApp, Creation, EditorHost, be_sdk_ui::BlockLabel};
+use be_sdk_beui::{BeuiRoot, Creation, EditorHost, be_sdk_ui::BlockLabel};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_test::BeuiTest;
 use be_type_database::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};

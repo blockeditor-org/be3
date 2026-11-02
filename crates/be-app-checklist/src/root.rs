@@ -12,7 +12,7 @@ use ui::Checklist;
 pub struct ChecklistRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for ChecklistRoot {
+impl be_sdk_beui::BeuiRoot for ChecklistRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

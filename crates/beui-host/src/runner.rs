@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use beui_core::app::App;
+use beui_core::program::Program;
 use beui_layer_xr::Link;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
@@ -11,7 +11,7 @@ use beui_runner::{Launch, Layer, Platform, RunOptions};
 
 use beui_runner::environment::{Base, Choice, Stacked};
 
-pub fn run_with(mut options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+pub fn run_with(mut options: RunOptions, program: impl Program + 'static) -> Result<(), Box<dyn Error>> {
     let mut others = std::mem::take(&mut options.platforms);
     let mut open_device = OpenDevice {
         extensions: options.device_extensions,
@@ -45,7 +45,7 @@ pub fn run_with(mut options: RunOptions, app: impl App + 'static) -> Result<(), 
     if let Some(link) = &link {
         open_device = link.open_device(open_device.extensions);
     }
-    let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
+    let program: Box<dyn Program> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
                 platform: Base::Native(_),
@@ -53,8 +53,8 @@ pub fn run_with(mut options: RunOptions, app: impl App + 'static) -> Result<(), 
             })
             | None,
             Some(path),
-        ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
-        _ => Box::new(app),
+        ) => Box::new(crate::saved_preferences::SavedPreferences::new(program, path)),
+        _ => Box::new(program),
     };
     let (platform, layers) =
         choose_platform(choice, link, open_device.clone(), |index| {
@@ -66,7 +66,7 @@ pub fn run_with(mut options: RunOptions, app: impl App + 'static) -> Result<(), 
     let launch = Launch {
         options,
         context: crate::native::system_context(),
-        app,
+        program,
         layers,
     };
     pollster::block_on(platform.run(launch))

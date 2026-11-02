@@ -201,11 +201,11 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
-    pub app: EmbedSlot,
+    pub program: EmbedSlot,
     pub width: Signal<f32>,
 }
 
-pub fn build(state: Stored<State>, width: f32, embeds_app: bool) -> Panel {
+pub fn build(state: Stored<State>, width: f32, embeds_program: bool) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
@@ -213,8 +213,8 @@ pub fn build(state: Stored<State>, width: f32, embeds_app: bool) -> Panel {
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
     let width = create_signal(width);
-    let fraction = create_memo(move || app_share(width.get()));
-    let app = EmbedSlot::new();
+    let fraction = create_memo(move || program_share(width.get()));
+    let program = EmbedSlot::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
@@ -243,16 +243,16 @@ pub fn build(state: Stored<State>, width: f32, embeds_app: bool) -> Panel {
                 </DockTab>
             </DockPane>
         };
-        let layout = match embeds_app {
+        let layout = match embeds_program {
             true => view! {
                 <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
                     <DockPane id="app">
                         <DockTab
-                            id=InspectorTab::App
-                            title={InspectorTab::App.title()}
+                            id=InspectorTab::Program
+                            title={InspectorTab::Program.title()}
                             see_through=true
                         >
-                            <AppTool app state />
+                            <ProgramTool program state />
                         </DockTab>
                     </DockPane>
                     {tool_pane}
@@ -276,12 +276,12 @@ pub fn build(state: Stored<State>, width: f32, embeds_app: bool) -> Panel {
         summary,
         performance,
         renderer,
-        app,
+        program,
         width,
     }
 }
 
-fn app_share(width: f32) -> f32 {
+fn program_share(width: f32) -> f32 {
     match width > DEFAULT_WIDTH {
         true => 1.0 - DEFAULT_WIDTH / width,
         false => 0.5,
@@ -289,7 +289,7 @@ fn app_share(width: f32) -> f32 {
 }
 
 #[component]
-fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
+fn ProgramTool(program: EmbedSlot, state: Stored<State>) -> NodeId {
     if let Some(tab) = use_dock_tab() {
         create_effect(move || {
             if tab.keyboard().is_some() {
@@ -297,9 +297,9 @@ fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
             }
         });
     }
-    let embed = with_document(|document| document.create_embed(app.0.value())).id();
-    app.0.with(|held| held.node.set(Some(embed)));
-    test_id(embed, "inspector.app")
+    let embed = with_document(|document| document.create_embed(program.0.value())).id();
+    program.0.with(|held| held.node.set(Some(embed)));
+    test_id(embed, "inspector.program")
 }
 
 fn close_action(state: Stored<State>) -> Action {
@@ -581,7 +581,7 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     let from_right = create_signal(false);
     let caption = create_memo(move || match handles_back.get() {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
-        false => "Nothing in the app takes back: the system would leave it.".to_owned(),
+        false => "Nothing in the program takes back: the system would leave it.".to_owned(),
     });
     let moved = move |value: f32| {
         progress.set(value);

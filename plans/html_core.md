@@ -622,12 +622,12 @@ impl TextGeometry {           // Clone; each core's own type, same methods
     as `?automation` already means for block-app): `tree` and `ids` from its
     arena and `getBoundingClientRect`, in native's line format; `find TARGET`
     answers a rect; `wait`/`gone` poll each frame; `settle` waits for no
-    frame pending. `buck/app/web-test.mjs`, sharing its command parsing with
+    frame pending. `buck/program/web-test.mjs`, sharing its command parsing with
     `web-drive.mjs`, serves the bundle, opens it in Chromium through
     Playwright, sends the read commands to `automate`, and performs `click`,
     `type` and `key` as real Playwright input at the rect `find` answered, so
     the browser's own focus, IME and event paths run.
-  - The HTML run is a buck test (`web_drive_test` in `buck/app/drive.bzl`)
+  - The HTML run is a buck test (`web_drive_test` in `buck/program/drive.bzl`)
     run locally, since it needs a browser: `BE3_CHROME` when set (CI's
     runner Chrome, as the rasterizer uses), else Playwright's Chromium. It
     fails, never skips, when neither is there. If the workers' image gains
@@ -720,8 +720,8 @@ have landed; its tasks run in parallel unless marked.
    `crates/beui-html-spike` with `:ssr` and `:web`, block-app switched to the
    extracted screen.
 8. **Shared behaviour tests** (after 6; parallel with 7, 9, 10).
-   `automate` in `beui-core-html`, `buck/app/web-test.mjs`,
-   `web_drive_test` in `buck/app/drive.bzl`, `crates/beui-tests` with
+   `automate` in `beui-core-html`, `buck/program/web-test.mjs`,
+   `web_drive_test` in `buck/program/drive.bzl`, `crates/beui-tests` with
    fixtures for `Frame`, `List`, `Text`, focus and `Interactive`, the native
    runs under `be_tool_drive::Driven`, CI's workflow installing Playwright, and
    guides/running/web.md and guides/testing_a_gui.md.

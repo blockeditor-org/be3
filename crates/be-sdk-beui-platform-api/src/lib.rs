@@ -5,7 +5,7 @@ use std::error::Error;
 use be_sdk::{EditorHost, ViewHandler, ViewRef};
 use beui::WindowId;
 use beui::styled::Root;
-use beui_core::app::App;
+use beui_core::program::Program;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
 
@@ -16,7 +16,7 @@ pub trait PluginRuntime {
         &self,
         host: &EditorHost,
         keeps_accessibility: bool,
-        app: Box<dyn App>,
+        program: Box<dyn Program>,
     ) -> Result<(), Box<dyn Error>>;
 
     fn build(&self, root: Box<dyn FnOnce() -> Root>) -> Document;

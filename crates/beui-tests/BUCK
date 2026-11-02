@@ -1,7 +1,7 @@
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/app:drive.bzl", "headless", "web_drive_test")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/program:drive.bzl", "headless", "web_drive_test")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
-load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_html_module")
 
 # Screens built for both of beui's cores, and src/drive/*.drive, scripts both
 # cores must answer the same way (guides/testing_a_gui.md, 7). The script's
@@ -9,7 +9,7 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_html_module")
 cargo_library(
     rustc_flags = select({
         "DEFAULT": [],
-        "prelude//cpu/constraints:cpu[wasm32]": wasi_app_flags,
+        "prelude//cpu/constraints:cpu[wasm32]": wasi_program_flags,
     }),
 )
 
@@ -34,7 +34,7 @@ cargo_test(
 # //crates/beui-tests:dev -- frame`.
 headless(
     name = "dev",
-    app_name = "beui-shared-tests",
+    program_name = "beui-shared-tests",
     program = "$(location :bin)",
 )
 
@@ -45,7 +45,7 @@ wasi_html_module(
     module = "beui_shared_tests",
 )
 
-app(
+program(
     name = "web",
     bindgen = [":web-module"],
     files = [

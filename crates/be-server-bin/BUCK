@@ -1,4 +1,4 @@
-load("@root//buck/app:defs.bzl", "app", "html_host_program")
+load("@root//buck/program:defs.bzl", "program", "html_host_program")
 load("@root//buck/cargo:defs.bzl", "cargo_binary")
 
 # The executable renders the account portal on beui's HTML core and embeds
@@ -18,11 +18,11 @@ html_host_program(
 
 # What CI and a host ship: the executable as be-server, with the build-info.json
 # it refuses clients of any other build by (guides/hosting.md).
-app(
+program(
     name = "dist",
     binary = ":bin",
     executable_name = "be-server",
-    files = ["//buck/app:build-info.json"],
+    files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
 )

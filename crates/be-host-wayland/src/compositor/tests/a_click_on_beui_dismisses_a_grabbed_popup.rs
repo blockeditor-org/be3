@@ -11,7 +11,7 @@ fn a_click_on_beui_dismisses_a_grabbed_popup() {
     harness.click(&format!("wayland.window.{}", id.0));
 
     let menu = harness.client.grabbing_popup(
-        harness.stepped.app_mut().compositor.server(),
+        harness.stepped.program_mut().compositor.server(),
         &window,
         (0, 10),
         (40, 30),

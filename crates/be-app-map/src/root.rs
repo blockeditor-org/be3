@@ -24,7 +24,7 @@ use toolbar::MapToolbar;
 pub struct MapRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for MapRoot {
+impl be_sdk_beui::BeuiRoot for MapRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

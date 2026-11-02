@@ -10,7 +10,7 @@ use ui::CheckoutView;
 pub struct CheckoutRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for CheckoutRoot {
+impl be_sdk_beui::BeuiRoot for CheckoutRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

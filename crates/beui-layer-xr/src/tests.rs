@@ -3,7 +3,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use beui_core::app::{Setup, Waker};
+use beui_core::program::{Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_renderer_wgpu::present::Gpu;
 use beui_runner::LayerView;
@@ -80,7 +80,7 @@ fn setup(host: &mut XrSpace, gpu: &Gpu, waker: Waker) {
     host.setup(&setup);
 }
 
-fn app() -> FrameOutput {
+fn program() -> FrameOutput {
     let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
         beui_font_freetype::FontSources::default(),
     ));

@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use be_tool_paint_review::{Fetch, PaintReviewApp};
+use be_tool_paint_review::{Fetch, PaintReviewProgram};
 use be_tool_paint_review_manifest::Manifest;
 use beui::reactive::Set;
 use wasm_bindgen::prelude::*;
@@ -20,7 +20,7 @@ pub async fn run_review(root_id: String) -> Result<(), JsValue> {
     let root = web_sys::Url::new_with_base("../../", &page.href())?.href();
 
     let images = root.clone();
-    let app = PaintReviewApp::new(painting, move |request| {
+    let app = PaintReviewProgram::new(painting, move |request| {
         let url = format!("{images}{}.png", request.hash());
         let hash = request.hash().to_owned();
         wasm_bindgen_futures::spawn_local(async move {

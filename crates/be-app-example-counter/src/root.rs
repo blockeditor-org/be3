@@ -12,7 +12,7 @@ use ui::Counter;
 pub struct CounterRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for CounterRoot {
+impl be_sdk_beui::BeuiRoot for CounterRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

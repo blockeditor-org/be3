@@ -1,6 +1,6 @@
 use super::*;
 use be_sdk_beui::be_block::BlockContent;
-use be_sdk_beui::{BeuiApp, Creation, GraphCommand};
+use be_sdk_beui::{BeuiRoot, Creation, GraphCommand};
 use be_type_infinite_canvas::CanvasContent;
 use be_type_infinite_canvas::CanvasShape;
 

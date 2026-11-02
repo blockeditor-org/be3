@@ -1,7 +1,7 @@
 // Hydrates the page :ssr prerendered (src/lib.rs, page()). Before the module
 // loads it notes every prerendered element and starts collecting console
 // warnings, so that checks() can say whether hydration kept the elements it
-// was given and found nothing to rebuild. buck/app/web-test.mjs waits on
+// was given and found nothing to rebuild. buck/program/web-test.mjs waits on
 // beuiStarted and calls automate(words) and checks() on what it resolves to,
 // once for each colour scheme: the prerendered page must already show the
 // scheme's colours, so hydration changes none.

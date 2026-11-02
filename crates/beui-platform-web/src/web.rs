@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
+use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
@@ -439,7 +439,7 @@ impl Runner {
 impl Runner {
     fn closed(&self, window: &web_sys::Window) {
         if let Some(failure) = self.runner.failure() {
-            web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
+            web_sys::console::error_1(&format!("the program stopped after a panic: {failure}").into());
         }
         if !LEAVING.get() {
             let _ = window.close();

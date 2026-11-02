@@ -26,7 +26,7 @@ fn a_released_panel_turns_to_face_the_viewer() {
     assert_eq!(
         delivered(&released),
         [],
-        "that click is the carry's, not the app's"
+        "that click is the carry's, not the program's"
     );
     assert_eq!(placed(&released).len(), 1);
 

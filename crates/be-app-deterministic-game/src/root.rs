@@ -480,7 +480,7 @@ impl GameCreationModel for GameCreation {
 pub struct DeterministicGameRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DeterministicGameRoot {
+impl be_sdk_beui::BeuiRoot for DeterministicGameRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let game = store(BlockGame::new(editor));

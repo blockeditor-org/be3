@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use be_sdk::driver::{Damage, Surface};
-use beui_core::app::Setup;
+use beui_core::program::Setup;
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::display::Layer;
 use beui_runner::renderer::Renderer;

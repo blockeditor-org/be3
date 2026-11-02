@@ -68,7 +68,7 @@ fn each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it() {
         now,
         [Input::PointerMoved(title), button(title, true)],
     );
-    assert_eq!(delivered(&sent), [], "the app sees nothing of the title");
+    assert_eq!(delivered(&sent), [], "the program sees nothing of the title");
     assert!(
         space
             .mouse
@@ -78,7 +78,7 @@ fn each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it() {
         "pressing the title starts carrying its panel"
     );
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Text)),
+        space.cursor_icon(&program_frame(CursorIcon::Text)),
         CursorIcon::Grabbing
     );
     let start = space.panel(notes).unwrap().pose.position;

@@ -40,7 +40,7 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::app::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
+use beui_core::program::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};

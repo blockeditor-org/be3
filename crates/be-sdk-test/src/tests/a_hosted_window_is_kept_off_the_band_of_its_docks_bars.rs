@@ -14,7 +14,7 @@ thread_local! {
 struct BandedRoot;
 
 #[component]
-impl BeuiApp for BandedRoot {
+impl BeuiRoot for BandedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;

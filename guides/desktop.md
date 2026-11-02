@@ -38,7 +38,7 @@ and the tray its items.
 The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.dock`), declared in
 `DesktopBody` (`root/bar.rs`), each a `DockBarSurface` with a `DockBarGrip` first:
 
-- Apps (`desktop.bar.apps`, `AppsBar`): the Apps button (The Apps panel, below).
+- Apps (`desktop.bar.apps`, `ProgramsBar`): the Apps button (The Apps panel, below).
 - Windows (`desktop.bar.windows`, `WindowsBar`): the window chips (Shown and hidden entries).
 - Status (`desktop.bar.status`, `StatusBar`): the tray, the device tools, the status button and
   the clock.
@@ -64,7 +64,7 @@ their submenus too.
 
 The grip menu's Hide hides a bar on its display; that display's Apps panel then offers "Show this
 display's bars" (`desktop.apps.bars`), which shows its three again, and Super still opens Apps,
-centred over that display's windows' area (`AppsOverlay`) while its Apps bar is hidden. Super opens
+centred over that display's windows' area (`ProgramsPanelOverlay`) while its Apps bar is hidden. Super opens
 Apps on the display the pointer was last over (`beui::native::last_pointer`, its window's
 `window_origin`), else the one holding the focused window, else the first. The windows' area is the dock inside its bands
 (`DockingLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
@@ -168,12 +168,12 @@ texture back, opaque), so paintings and `drive paint` show what programs drew.
 
 ## The Apps panel
 
-The Apps bar holds one icon-only Apps button (`desktop.apps`, `root/apps.rs`, labelled Apps for
+The Apps bar holds one icon-only Apps button (`desktop.apps`, `root/programs_panel.rs`, labelled Apps for
 its tooltip and screen readers), and a tap of Super alone opens the same panel (the
 `desktop.apps.toggle` action, captured from programs too, registered while the host offers
 `ProgramsWatch`). The panel (`desktop.apps.panel`) is a popover of the button, and when no Apps
-button shows on the display it opens on (`Apps` keeps which displays have one), as while the Apps
-bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It holds, top to bottom:
+button shows on the display it opens on (`ProgramsPanel` keeps which displays have one), as while the Apps
+bar is hidden, it is centred over the windows' area instead (`ProgramsPanelOverlay`). It holds, top to bottom:
 
 - while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`root/launcher.rs`):
   opening the panel asks the host to list them with icons at the display's scale, an empty query
@@ -303,8 +303,8 @@ intercept the tap) and paints a display with the windows and escaped layers on i
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
 desktop's points and its `scale`. The desktop plugin draws, in every view, a level display (`desktop.osd.{n}`, n the view's
 display), a dock with that display's three bars and its Apps overlay, and in the frame alone the
-windows, pickers and notification toasts; `BeuiApp::Display` draws the further displays' views
-from what the frame's view shares (`app.rs`, `Desktop`). The dock fills the frame,
+windows, pickers and notification toasts; `BeuiRoot::Display` draws the further displays' views
+from what the frame's view shares (`root.rs`, `DesktopRoot`). The dock fills the frame,
 and its windows open over it.
 
 ## A shell that stops

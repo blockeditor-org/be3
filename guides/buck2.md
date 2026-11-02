@@ -21,14 +21,14 @@ one build can hold both, and every transition keeps it. Every other build is car
 crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
-`//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
+`//buck/program:build-info.json` is the JSON file `buck/program/build-info.json`, and every bundle
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-tool-cli's
 `:native`, be-server-bin's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and block-app shows the id
-as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
-by default, `Block` for deploy). block-app reads `app_id` at startup for its window
-and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
+as its build. The metadata contains `id` (the compatibility identity) and `program_id` (`BlockDev`
+by default, `Block` for deploy). block-app reads `program_id` at startup for its window
+and data directory, so deployment identity changes only packaging. `BE3_PROGRAM_ID`
 selects it when generating the file. `./scripts/deploy` also includes an optional
 `default_server` descriptor (public name, API and authentication URLs, and whether
 native clients need a gateway token); ordinary local and CI builds omit it. The id is the hash of the tree, not of a commit, so two commits
@@ -69,8 +69,8 @@ buck2:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
 - **The build id.** Every command that builds or queries first writes the
-  working tree's hash into the `id` field of `buck/app/build-info.json`, which git ignores, if it
-  changed. The `app_id` field comes from `BE3_APP_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
+  working tree's hash into the `id` field of `buck/program/build-info.json`, which git ignores, if it
+  changed. The `program_id` field comes from `BE3_PROGRAM_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
   count and the same tree always gives the same id. As a source file, a new id
   invalidates only what reads it. `BE3_BUILD_ID` overrides it.
 - **Retries.** buck2 exits with 2 for an infrastructure error, such as a
@@ -114,7 +114,7 @@ It also lets `test` put tests on the workers (below).
   buck2 command, built for it in that command: `be-tool-verify` for `./scripts/verify`,
   and be-tool-local' `ci`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
-- `buck/app`, `buck/android`: how the native bundles, the web bundle and the APK are
+- `buck/program`, `buck/android`: how the native bundles, the web bundle and the APK are
   laid out.
 - `third-party/rust`: every third-party crate as `<name>-<version>`, and
   `fixups.bzl`, what cargo's plans cannot say about a crate: environment for
@@ -126,7 +126,7 @@ It also lets `test` put tests on the workers (below).
 **Target names** are kebab-case, and a role has one name in every package:
 `:bin` a crate's binary, `:test` its tests and `:test-run` the action that
 runs them, `:example-<name>` and `:fuzz-<name>` its examples and fuzz targets,
-`:wasm` a guest library and `:module` its module. A bundled program's targets (`app()` in buck/app/defs.bzl) are named by
+`:wasm` a guest library and `:module` its module. A bundled program's targets (`program()` in buck/program/defs.bzl) are named by
 platform, `:native`, `:web` and `:android`, each the bundle that `buck2 run`
 runs, serves or installs here, with `-dist` the build CI publishes, and `:dev`
 the program headless for an agent to drive.
@@ -244,13 +244,13 @@ then loses only its own paintings, not every one the crate accepts. `apart_env` 
 environment.
 crates/be-server-portal-ui captures its SSR portal as text browser paintings without a browser.
 
-**Browser tests** (`web_drive_test` in `buck/app/drive.bzl`, and `page_test` there for a page that
+**Browser tests** (`web_drive_test` in `buck/program/drive.bzl`, and `page_test` there for a page that
 checks itself, such as crates/be-tool-tls-diamond-app's) are the one kind that runs on this
 machine rather than a worker, since the workers have no browser: their `:<name>-run` is a
 local-only action in ./scripts/verify, and ./scripts/test runs a test labelled `local` here
 (buck/dev/test.bxl). They need Node, its `playwright` package and a Chrome or Chromium
 (guides/testing_a_gui.md, 7). A crate on the HTML core builds its browser module with
-`wasi_html_module` (buck/wasm/defs.bzl), as `wasi_app_module` builds block-app's.
+`wasi_html_module` (buck/wasm/defs.bzl), as `wasi_program_module` builds block-app's.
 
 Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
 maps it into the compiler sandbox for automatic macro support-crate discovery.
@@ -330,13 +330,13 @@ A native target depends on a wasm one through a transition in
   per module for the platform the bundle is built for, by
   `//crates/be-sdk-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run. Those actions are `:precompiled`'s
-  (`precompiled_plugins`), which an `app()` given it as `precompiled` takes each
+  (`precompiled_plugins`), which an `program()` given it as `precompiled` takes each
   `.cwasm` from, so the host tests' bundles share them rather than precompiling
   their own: an action's output path names its target, so the same compile in
   two targets is two cache entries. `plugins.json` lists the manifests: every
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
-- Every `app()` also has `[archive]`, its directory as one zstd-compressed file
+- Every `program()` also has `[archive]`, its directory as one zstd-compressed file
   (`crates/be-host-archive`, packed on a worker): a quarter of the release bundle and a
   seventh of a debug one, since zstd's long matching finds the code the plugins
   share. `buck2 run` and `:dev` download only that, unpack it into

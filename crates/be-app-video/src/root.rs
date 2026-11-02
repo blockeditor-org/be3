@@ -42,7 +42,7 @@ const FRAME_RATES: [VideoFrameRate; 7] = [
 pub struct VideoRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for VideoRoot {
+impl be_sdk_beui::BeuiRoot for VideoRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

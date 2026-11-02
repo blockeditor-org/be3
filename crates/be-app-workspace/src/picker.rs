@@ -6,7 +6,7 @@ use be_sdk_shell::{Picker, PickerView};
 pub struct PickerRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PickerRoot {
+impl be_sdk_beui::BeuiRoot for PickerRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let shown = match Picker::new(editor) {

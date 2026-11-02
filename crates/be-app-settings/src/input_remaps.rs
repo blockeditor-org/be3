@@ -19,7 +19,7 @@ pub const MODULE: &str = "remapper.wasm";
 pub struct InputRemapsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for InputRemapsRoot {
+impl be_sdk_beui::BeuiRoot for InputRemapsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

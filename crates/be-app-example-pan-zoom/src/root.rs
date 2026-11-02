@@ -11,7 +11,7 @@ use ui::PanZoom;
 pub struct PanZoomRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PanZoomRoot {
+impl be_sdk_beui::BeuiRoot for PanZoomRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

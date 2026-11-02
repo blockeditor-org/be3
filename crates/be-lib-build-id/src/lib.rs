@@ -5,7 +5,7 @@ pub const FILE: &str = "build-info.json";
 #[derive(Debug, serde::Deserialize)]
 pub struct Metadata {
     pub id: String,
-    pub app_id: String,
+    pub program_id: String,
     #[serde(default)]
     pub default_server: Option<DefaultServer>,
 }
@@ -22,8 +22,8 @@ impl Metadata {
     pub fn parse(json: &str) -> Result<Self, String> {
         let info: Self = serde_json::from_str(json)
             .map_err(|error| format!("invalid build metadata: {error}"))?;
-        if info.id.trim().is_empty() || info.id == "unknown" || info.app_id.trim().is_empty() {
-            return Err("the build metadata has no build or app identity".to_owned());
+        if info.id.trim().is_empty() || info.id == "unknown" || info.program_id.trim().is_empty() {
+            return Err("the build metadata has no build or program identity".to_owned());
         }
         Ok(info)
     }
@@ -45,7 +45,7 @@ pub fn current() -> Result<&'static str, String> {
 pub fn install(id: &str) {
     let _ = CURRENT.set(Ok(Metadata {
         id: id.to_owned(),
-        app_id: "BlockDev".to_owned(),
+        program_id: "BlockDev".to_owned(),
         default_server: None,
     }));
 }

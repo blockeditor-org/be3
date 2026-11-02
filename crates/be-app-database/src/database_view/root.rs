@@ -26,7 +26,7 @@ use ui::{DatabaseViewEditor, DatabaseViewPreview};
 pub struct DatabaseViewRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DatabaseViewRoot {
+impl be_sdk_beui::BeuiRoot for DatabaseViewRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

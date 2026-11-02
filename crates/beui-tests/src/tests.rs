@@ -16,7 +16,7 @@ fn run(fixture: &str, script: &str, delayed: bool) {
     if delayed {
         arguments.push("--delay-measurement");
     }
-    let app = Driven::start(
+    let program = Driven::start(
         &program,
         &arguments,
         SIZE,
@@ -29,16 +29,16 @@ fn run(fixture: &str, script: &str, delayed: bool) {
         .unwrap_or_else(|error| panic!("{fixture}'s script does not parse: {error}"));
     for (line, words) in commands {
         let words: Vec<&str> = words.iter().map(String::as_str).collect();
-        match app.request(&words) {
+        match program.request(&words) {
             Ok(Reply::Text(_)) => {}
             Ok(_) => panic!("{fixture}{mode}: `{line}` answered with something other than text"),
             Err(error) => panic!(
                 "{fixture}{mode}: `{line}` failed: {error}\n\n{}",
-                app.log_report()
+                program.log_report()
             ),
         }
     }
-    if let Err(error) = app.close() {
+    if let Err(error) = program.close() {
         panic!("{fixture}{mode} did not exit cleanly: {error}");
     }
 }

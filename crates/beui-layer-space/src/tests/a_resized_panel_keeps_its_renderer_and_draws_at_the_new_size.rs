@@ -9,7 +9,7 @@ fn a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size() {
     ))
     .expect("no graphics adapter is available");
     let compositor = Compositor::new(&gpu.setup());
-    let mut output = app_frame(CursorIcon::Default).main().clone();
+    let mut output = program_frame(CursorIcon::Default).main().clone();
     let mut draw = |size: Vec2| {
         output.size = size;
         output.changed = true;

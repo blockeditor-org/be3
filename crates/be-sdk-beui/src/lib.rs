@@ -55,7 +55,7 @@ pub use rotation::RotationPicker;
 pub use version_control::{VersionHistory, VersionSteps};
 
 #[beui::reactive::component]
-pub trait BeuiApp: 'static {
+pub trait BeuiRoot: 'static {
     #[beui::reactive::component]
     fn View(editor: Editor) -> beui::styled::Root;
     #[beui::reactive::component]
@@ -107,7 +107,7 @@ pub fn context() -> beui::native::Context {
 
 #[macro_export]
 macro_rules! beui_plugin {
-    ($manifest:expr, { $($name:ident => $app:ty),+ $(,)? }) => {
-        $crate::be_sdk::plugin!($manifest, { $($name => $crate::BeuiPlugin<$app>),+ });
+    ($manifest:expr, { $($name:ident => $root:ty),+ $(,)? }) => {
+        $crate::be_sdk::plugin!($manifest, { $($name => $crate::BeuiPlugin<$root>),+ });
     };
 }

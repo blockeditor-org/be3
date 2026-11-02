@@ -4,7 +4,7 @@ use be_sdk_api::{DockMessage, DockTabPath};
 struct NestingRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for NestingRoot {
+impl crate::BeuiRoot for NestingRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockDialog, DockPane, DockTab, Docking, DockingLayout};

@@ -25,7 +25,7 @@ fn a_view_tells_the_host_it_locks_the_pointer_and_when_it_stops() {
     assert_eq!(
         one(&mut surface, &shown).stopped,
         Some(be_sdk_api::Stopped::Closed),
-        "an app that closed its window says so rather than going blank"
+        "a program that closed its window says so rather than going blank"
     );
     assert_eq!(
         one(&mut surface, &shown).stopped,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use beui_core::app::Setup;
+use beui_core::program::Setup;
 use beui_core::context::{Context, RendererInfo, WindowOutput};
 use beui_core::font::FontBackend;
 use beui_types::Color32;

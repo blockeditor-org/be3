@@ -2436,7 +2436,7 @@ fn RunButtons() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <SplitButton
-                    label="Run the app"
+                    label="Run the program"
                     glyph=ICON_PLAY
                     variant=ButtonVariant::Primary
                     menu_label="More ways to run it"
@@ -2444,13 +2444,13 @@ fn RunButtons() -> NodeId {
                         <MenuItem label="Run with fresh data" />
                         <MenuItem label="Run on the web" />
                     }}
-                    on_click={move || run_text.set("Running the app".to_owned())}
+                    on_click={move || run_text.set("Running the program".to_owned())}
                     on_select={move |path: Vec<usize>| {
                         let how = match path.as_slice() {
                             [0] => "with fresh data",
                             _ => "on the web",
                         };
-                        run_text.set(format!("Running the app {how}"));
+                        run_text.set(format!("Running the program {how}"));
                     }}
                 />
                 <SplitButton

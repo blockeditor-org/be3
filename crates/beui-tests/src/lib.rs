@@ -20,7 +20,7 @@ mod tests;
 mod web;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use native::FixtureApp;
+pub use native::FixtureProgram;
 
 const PAPER: Color32 = Color32::from_rgb(250, 250, 247);
 const INK: Color32 = Color32::from_rgb(30, 30, 40);

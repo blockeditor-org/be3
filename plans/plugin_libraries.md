@@ -116,7 +116,7 @@ What changed from the plan:
     `ViewHandler`: input, per-view surfaces, the `Frame` accounting (windows,
     floats, scrims, claims, descriptions), and host services in `platform.rs`
     (clipboard, paste, file pick and save).
-  - `be-sdk-beui` (about 7.5k lines) is the `BeuiApp` trait, `Editor`
+  - `be-sdk-beui` (about 7.5k lines) is the `BeuiRoot` trait, `Editor`
     and its signals over `EditorHost` (`editor.rs`), docks (`docked.rs`, on
     `beui::dock::unstyled`), dialogs, chrome, child blocks, picking, the file
     chooser, layered settings, version history.
@@ -301,7 +301,7 @@ the split needs it.
 - `editor(libraries = [...])` replaces the hard-coded `PLUGIN_SDK`.
   `libraries = []` builds a standalone module. Default to base and beui so
   existing editors' BUCK files need no change; triangle names base.
-- `buck/app/stage.sh` stages every library in every staged plugin's closure.
+- `buck/program/stage.sh` stages every library in every staged plugin's closure.
 - `./scripts/buck run //:buckify` keeps working: a library's Cargo.toml lists
   its crates as today's `block-plugin-sdk/Cargo.toml` does.
 

@@ -12,7 +12,7 @@ const KEY_FILE: &str = "gateway-authorization";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Product {
-    App,
+    Host,
     #[cfg(not(target_os = "android"))]
     Demo,
     #[cfg(target_os = "android")]
@@ -22,8 +22,8 @@ pub(crate) enum Product {
 impl Product {
     pub(crate) fn name(self) -> String {
         match self {
-            Product::App if cfg!(target_os = "android") => "android".to_owned(),
-            Product::App => format!("native-{}", platform()),
+            Product::Host if cfg!(target_os = "android") => "android".to_owned(),
+            Product::Host => format!("native-{}", platform()),
             #[cfg(not(target_os = "android"))]
             Product::Demo => format!("beui-demo-{}", platform()),
             #[cfg(target_os = "android")]
@@ -33,7 +33,7 @@ impl Product {
 
     pub(crate) fn title(self) -> &'static str {
         match self {
-            Product::App => "the app",
+            Product::Host => "block-app",
             #[cfg(not(target_os = "android"))]
             Product::Demo => "beui's demo",
             #[cfg(target_os = "android")]
@@ -43,10 +43,10 @@ impl Product {
 
     pub(crate) fn executable(self) -> String {
         let name = match self {
-            Product::App if cfg!(target_os = "android") => return "block-app.apk".to_owned(),
+            Product::Host if cfg!(target_os = "android") => return "block-app.apk".to_owned(),
             #[cfg(target_os = "android")]
             Product::Launcher => return "be-launcher.apk".to_owned(),
-            Product::App => "block-app",
+            Product::Host => "block-app",
             #[cfg(not(target_os = "android"))]
             Product::Demo => "beui-demo",
         };

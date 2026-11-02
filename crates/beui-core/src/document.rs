@@ -2917,7 +2917,7 @@ impl Default for Document {
     }
 }
 
-impl crate::app::App for Document {
+impl crate::program::Program for Document {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.show(context, rect);
     }

@@ -4,7 +4,7 @@ use be_block::presence::{PresenceKind, UserActive};
 struct BlockIgnoringRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for BlockIgnoringRoot {
+impl crate::BeuiRoot for BlockIgnoringRoot {
     #[beui::reactive::component]
     fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = { beui::styled::Frame().build() };

@@ -11,7 +11,7 @@ use ui::Scene3DView;
 pub struct Scene3DRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for Scene3DRoot {
+impl be_sdk_beui::BeuiRoot for Scene3DRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         view! {

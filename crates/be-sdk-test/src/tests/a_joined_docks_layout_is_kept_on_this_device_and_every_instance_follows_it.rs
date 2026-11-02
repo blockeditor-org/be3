@@ -13,7 +13,7 @@ const BARRED_TYPE: Uuid = Uuid::from_u128(0x0b42);
 struct BarredRoot;
 
 #[component]
-impl BeuiApp for BarredRoot {
+impl BeuiRoot for BarredRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;

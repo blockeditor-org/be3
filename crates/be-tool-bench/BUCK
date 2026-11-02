@@ -15,7 +15,7 @@ cargo_binary()
 # in release. The names under programs are the ones src/suite.rs runs.
 suite(
     name = "suite-any-profile",
-    app = "//crates/be-host:native",
+    host = "//crates/be-host:native",
     libraries = "//buck/sysroot:amd64-libraries",
     programs = {
         "access-bench": "//crates/be-block-graph:example-access-bench",

@@ -1,4 +1,4 @@
-load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/cargo:defs.bzl", "editor_packages")
 
 # What every test's host stages whatever its editors: the editors the host needs
@@ -7,7 +7,7 @@ BASE = ["file-tree", "workspace"]
 
 def _host(name, editors):
     packages = ["//crates/be-app-" + editor for editor in editors]
-    app(
+    program(
         name = name,
         binary = "//crates/be-host:bin",
         compiled_only = True,

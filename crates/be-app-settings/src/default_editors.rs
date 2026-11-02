@@ -16,7 +16,7 @@ const INTRINSIC_HEIGHT: f32 = 360.0;
 pub struct DefaultEditorsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DefaultEditorsRoot {
+impl be_sdk_beui::BeuiRoot for DefaultEditorsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

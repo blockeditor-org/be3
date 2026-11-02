@@ -18,7 +18,7 @@ use be_sdk::{
 };
 #[cfg(target_arch = "wasm32")]
 use be_sdk::{PaintTarget, SurfaceGpu, SurfaceRect};
-use beui_core::app::{App, SafeArea, Setup, Waker};
+use beui_core::program::{Program, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
 use beui_core::window::{WindowHosting, WindowState};
@@ -102,13 +102,13 @@ impl PluginRuntime for Runtime {
         &self,
         host: &EditorHost,
         keeps_accessibility: bool,
-        app: Box<dyn App>,
+        program: Box<dyn Program>,
     ) -> Result<(), Box<dyn Error>> {
         let options = RunOptions {
             accessibility_tree: keeps_accessibility,
             ..RunOptions::default()
         };
-        launch(host, options, fonts::context(), app)
+        launch(host, options, fonts::context(), program)
     }
 
     fn build(&self, root: Box<dyn FnOnce() -> Root>) -> Document {
@@ -138,12 +138,12 @@ fn launch(
     host: &EditorHost,
     options: RunOptions,
     context: Context,
-    app: Box<dyn App>,
+    program: Box<dyn Program>,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context,
-        app,
+        program,
         layers: Vec::new(),
     };
     let mut running = Box::new(PluginPlatform::new(host.clone())).run(launch);

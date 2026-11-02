@@ -13,7 +13,7 @@ mod bench {
         CursorIcon, Input, PointerButton, Pos2, Vec2, WindowId, native::Context, native::Setup,
         native::Waker,
     };
-    use beui_core::app::SafeArea;
+    use beui_core::program::SafeArea;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
@@ -57,7 +57,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui_host::native::build(|| {
+                program: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }
@@ -87,9 +87,9 @@ mod bench {
             Self { runner, space }
         }
 
-        fn app(&self) -> &Document {
-            let app: &dyn Any = self.runner.app();
-            app.downcast_ref().expect("the bench runs the demo")
+        fn program(&self) -> &Document {
+            let program: &dyn Any = self.runner.program();
+            program.downcast_ref().expect("the bench runs the demo")
         }
 
         fn frame(&mut self, inputs: Vec<Input>) -> Timed {
@@ -113,7 +113,7 @@ mod bench {
                     .filter(|window| window.changed)
                     .count()
             });
-            let latest = self.app().performance().latest;
+            let latest = self.program().performance().latest;
             Timed {
                 frame,
                 present,
@@ -195,7 +195,7 @@ mod bench {
         }
 
         fn docking_tab(&self) -> Pos2 {
-            let document = self.app();
+            let document = self.program();
             let close = (0..64)
                 .find_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
                 .expect("the Docking page is open in a tab");

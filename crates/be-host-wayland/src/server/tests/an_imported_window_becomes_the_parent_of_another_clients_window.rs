@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn an_imported_window_becomes_the_parent_of_another_clients_window() {
     let mut server = server();
-    let mut app = TestClient::connect(&mut server);
+    let mut program = TestClient::connect(&mut server);
     let mut portal = TestClient::connect(&mut server);
-    let (window, parent) = app.open(&mut server);
+    let (window, parent) = program.open(&mut server);
     let (dialog, child) = portal.open(&mut server);
 
-    let exported = app.export(&window);
-    app.exchange(&mut server);
-    let handle = app
+    let exported = program.export(&window);
+    program.exchange(&mut server);
+    let handle = program
         .received
         .protocols
         .exported
@@ -30,7 +30,7 @@ fn an_imported_window_becomes_the_parent_of_another_clients_window() {
     );
 
     exported.destroy();
-    app.exchange(&mut server);
+    program.exchange(&mut server);
     portal.exchange(&mut server);
     assert_eq!(
         server.state.parent(child),

@@ -2,7 +2,7 @@ use accesskit::{Node, NodeId, Rect as AccessRect, Role, Toggled, Tree, TreeId, T
 
 use super::*;
 use beui_core::accessibility::{Embedded, tree_update};
-use beui_core::app::accessibility_dump::AccessibilityDump;
+use beui_core::program::accessibility_dump::AccessibilityDump;
 
 fn update(nodes: Vec<(u64, Node)>, root: bool) -> TreeUpdate {
     TreeUpdate {

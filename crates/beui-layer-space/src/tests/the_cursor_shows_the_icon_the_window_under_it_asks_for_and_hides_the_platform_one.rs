@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platform_one() {
     let (mut space, now) = space();
-    let output = app_frame(CursorIcon::Text);
+    let output = program_frame(CursorIcon::Text);
     send(&mut space, now, [Input::PointerMoved(centre())]);
 
     assert_eq!(

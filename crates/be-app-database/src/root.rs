@@ -12,7 +12,7 @@ use ui::DatabaseEditor;
 pub struct DatabaseRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DatabaseRoot {
+impl be_sdk_beui::BeuiRoot for DatabaseRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

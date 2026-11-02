@@ -4,7 +4,7 @@ use be_sdk_api::DockMessage;
 struct NestedBarRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for NestedBarRoot {
+impl crate::BeuiRoot for NestedBarRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{

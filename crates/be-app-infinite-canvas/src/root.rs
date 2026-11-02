@@ -54,7 +54,7 @@ const INSPECTOR_SHARE: f32 = 0.3;
 pub struct CanvasRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for CanvasRoot {
+impl be_sdk_beui::BeuiRoot for CanvasRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presented = editor.presenting();

@@ -1,5 +1,5 @@
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/app:drive.bzl", "page_test")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/program:drive.bzl", "page_test")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
 
 cargo_library()
@@ -35,7 +35,7 @@ genrule(
     srcs = ["src/tests/standalone.wat"],
 )
 
-app(
+program(
     name = "standalone-bundle",
     bindgen = ["//crates/be-wasm-gpu-shim:module"],
     files = [

@@ -4,7 +4,7 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{
-    BeuiApp, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    BeuiRoot, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
     VersionCommit, VersionOperation, VersionStatus, short_id,
 };
 use be_sdk_test::BeuiTest;
@@ -24,7 +24,7 @@ mod checking_a_branch_out_asks_the_host;
 
 const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 
-fn editor<A: BeuiApp, C: LiveEdit + be_sdk_beui::be_block::Merge + Clone + Default>(
+fn editor<A: BeuiRoot, C: LiveEdit + be_sdk_beui::be_block::Merge + Clone + Default>(
     content: C,
     status: VersionStatus,
 ) -> BeuiTest<A> {
@@ -50,7 +50,7 @@ fn branches() -> Vec<VersionBranch> {
     }]
 }
 
-fn own(editor: &BeuiTest<impl BeuiApp>) -> Uuid {
+fn own(editor: &BeuiTest<impl BeuiRoot>) -> Uuid {
     editor.block_id().expect("the editor has a block")
 }
 

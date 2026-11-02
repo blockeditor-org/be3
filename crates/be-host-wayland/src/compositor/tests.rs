@@ -54,7 +54,7 @@ mod a_window_whose_first_focus_was_refused_gets_the_keyboard_when_raised;
 mod a_window_whose_text_field_is_enabled_asks_for_the_keyboard_and_takes_typed_text;
 mod a_windows_surfaces_are_drawn_back_to_front;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
-mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
+mod a_program_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod each_monitor_is_an_output_and_a_window_enters_the_one_it_is_on;
@@ -99,7 +99,7 @@ struct Shell {
     copy: Option<String>,
 }
 
-impl beui::native::App for Shell {
+impl beui::native::Program for Shell {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.compositor.before(context, rect);
         self.document.show(context, rect);
@@ -298,7 +298,7 @@ impl Harness {
     }
 
     fn compositor(&mut self) -> &mut Compositor {
-        &mut self.stepped.app_mut().compositor
+        &mut self.stepped.program_mut().compositor
     }
 
     fn context(&self) -> &Context {

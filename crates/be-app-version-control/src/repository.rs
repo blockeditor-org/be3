@@ -12,7 +12,7 @@ use ui::RepositoryView;
 pub struct RepositoryRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for RepositoryRoot {
+impl be_sdk_beui::BeuiRoot for RepositoryRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

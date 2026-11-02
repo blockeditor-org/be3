@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use beui_core::app::Setup;
+use beui_core::program::Setup;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::display::Layer;
 use beui_core::drawing::Drawing;
@@ -161,7 +161,7 @@ pub struct Space {
     grabbed: bool,
     hold: Hold,
     regrabbing: Vec<PointerButton>,
-    app_locked: bool,
+    program_locked: bool,
     sprite: Sprite,
     focused: Option<WindowId>,
     keyboards: Vec<WindowId>,
@@ -216,7 +216,7 @@ impl Space {
             grabbed: true,
             hold: Hold::default(),
             regrabbing: Vec::new(),
-            app_locked: false,
+            program_locked: false,
             sprite: Sprite::new(),
             focused: None,
             keyboards: Vec::new(),
@@ -492,7 +492,7 @@ impl Space {
     }
 
     pub fn cursor_shown(&self) -> bool {
-        self.grabbed || self.app_locked
+        self.grabbed || self.program_locked
     }
 
     fn toward(&self, point: Vec3) -> Ray {
@@ -723,7 +723,7 @@ impl Space {
             Input::PointerMotion(motion) if self.steering() => {
                 self.look(self.pixels(units, motion));
             }
-            Input::PointerMotion(motion) if !self.app_locked => {
+            Input::PointerMotion(motion) if !self.program_locked => {
                 self.move_cursor(self.pixels(units, motion), out);
             }
             Input::PointerMoved(at) => {
@@ -1700,7 +1700,7 @@ impl Space {
         }
     }
 
-    fn app_locks(&self, windows: &[WindowOutput]) -> bool {
+    fn program_locks(&self, windows: &[WindowOutput]) -> bool {
         self.mouse
             .hovered
             .or(self.mouse.captured)
@@ -1817,8 +1817,8 @@ impl Space {
                 .min(self.hold.due_in(self.clock))
                 .min(self.tuning.due_in(self.clock)),
         };
-        self.app_locked = self.app_locks(windows);
-        let main = find(windows, WindowId::MAIN).expect("the app shows its main window");
+        self.program_locked = self.program_locks(windows);
+        let main = find(windows, WindowId::MAIN).expect("the program shows its main window");
         let icon = self.icon_over(windows);
         let state = Self::window_state(main, self.cursor_shown(), icon);
         let chrome_changed = self.refresh_chrome(view.pixels_per_point);
@@ -2077,9 +2077,9 @@ impl Space {
     }
 
     fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
-        let app = self.pick(ray);
+        let program = self.pick(ray);
         let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider)?;
-        app.is_none_or(|app| hit.distance < app.distance)
+        program.is_none_or(|program| hit.distance < program.distance)
             .then_some((part, hit))
     }
 

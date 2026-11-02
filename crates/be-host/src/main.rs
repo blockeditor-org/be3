@@ -58,9 +58,9 @@ use ui::{AccountForm, ErrorAction, HostUi, HostUiStore, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
-fn app_id() -> &'static str {
+fn program_id() -> &'static str {
     be_lib_build_id::metadata()
-        .map(|info| info.app_id.as_str())
+        .map(|info| info.program_id.as_str())
         .unwrap_or("BlockDev")
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn build() -> &'static str {
 fn run_options() -> beui_host::native::RunOptions {
     beui_host::native::RunOptions {
         #[cfg(not(target_arch = "wasm32"))]
-        program_id: Some(app_id().to_owned()),
+        program_id: Some(program_id().to_owned()),
         size: beui::vec2(1100.0, 720.0),
         ..Default::default()
     }
@@ -82,7 +82,7 @@ const WEB_DATA_DIR: &str = "/block";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
-    directories_next::ProjectDirs::from("", "", app_id()).map(|dirs| dirs.data_dir().to_path_buf())
+    directories_next::ProjectDirs::from("", "", program_id()).map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -97,24 +97,24 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "linux")]
     if arguments.drm {
         let console = login_session::start_log();
-        let ran = run_app(arguments);
+        let ran = run_host(arguments);
         if let (Err(error), Some(mut console)) = (&ran, console) {
             use std::io::Write;
             let _ = writeln!(console, "block-app: the login session ended: {error}");
         }
         return ran;
     }
-    run_app(arguments)
+    run_host(arguments)
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
+fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
-    let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
-    app.login_session_mode = arguments.drm;
+    let mut block_app = BlockApp::new(None).map_err(|error| error.to_string())?;
+    block_app.login_session_mode = arguments.drm;
     #[cfg(target_os = "linux")]
     if arguments.drm {
-        app.start_screen_lock();
+        block_app.start_screen_lock();
     }
     let options = beui_host::native::RunOptions {
         #[cfg(target_os = "linux")]
@@ -126,13 +126,13 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
         ..run_options()
     };
     if arguments.dev_workspace {
-        app.open_dev_workspace(None);
+        block_app.open_dev_workspace(None);
     }
     if arguments.desktop {
-        app.run_as_desktop();
+        block_app.run_as_desktop();
     }
-    app.warm_plugins();
-    beui_host::native::run_with(options, Shell::new(app))
+    block_app.warm_plugins();
+    beui_host::native::run_with(options, Shell::new(block_app))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -141,7 +141,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     be_wasm_threads::initialize_main_thread();
     panic_guard::install();
     be_host_stack::discovery::load().await;
-    let mut app =
+    let mut block_app =
         BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     let options = run_options();
     let location = web_sys::window()
@@ -149,15 +149,15 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         .ok_or("no browser window is available")?;
     let page = web_sys::Url::new(&location.href()?)?;
     if page.search_params().has("dev-workspace") {
-        app.open_dev_workspace(Some(location.origin()?));
+        block_app.open_dev_workspace(Some(location.origin()?));
     }
     if location.hash()?.starts_with("#invite/") {
-        app.open_invite(&location.href()?);
+        block_app.open_invite(&location.href()?);
         page.set_hash("");
         location.replace(&page.href())?;
     }
     if location.hash()?.starts_with("#contact/") {
-        app.contacts.open_from_address(&location.href()?);
+        block_app.contacts.open_from_address(&location.href()?);
         page.set_hash("");
         location.replace(&page.href())?;
     }
@@ -165,7 +165,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     if let Some(inbox) = automation()? {
         layers.push(Box::new(beui_host::native::drive::Drive::new(inbox)));
     }
-    beui_host::native::run_web(&canvas_id, options, layers, Shell::new(app))
+    beui_host::native::run_web(&canvas_id, options, layers, Shell::new(block_app))
         .await
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
@@ -229,8 +229,8 @@ pub async fn automate(
 // unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(app: beui_host::native::AndroidApp) {
-    let assets = app.clone();
+fn android_main(android: beui_host::native::AndroidApp) {
+    let assets = android.clone();
     be_host_stack::discovery::use_assets(move |path| {
         use std::io::Read;
         let name = std::ffi::CString::new(path)
@@ -243,7 +243,7 @@ fn android_main(app: beui_host::native::AndroidApp) {
         Ok(bytes)
     });
     panic_guard::install();
-    let storage_root = app.internal_data_path();
+    let storage_root = android.internal_data_path();
     let options = run_options();
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
@@ -264,11 +264,11 @@ fn android_main(app: beui_host::native::AndroidApp) {
 struct Shell {
     document: Document,
     view: HostUiStore,
-    app: BlockApp,
+    block_app: BlockApp,
 }
 
 impl Shell {
-    fn new(app: BlockApp) -> Self {
+    fn new(block_app: BlockApp) -> Self {
         let mut view = None;
         let mut document = beui_host::native::build(|| {
             compositor::install();
@@ -291,12 +291,12 @@ impl Shell {
         Self {
             document,
             view: view.expect("the view store is created while the document is built"),
-            app,
+            block_app,
         }
     }
 }
 
-impl beui::native::App for Shell {
+impl beui::native::Program for Shell {
     fn setup(&mut self, setup: &beui::native::Setup) {
         let waker = setup.waker.clone();
         host::install_waker(move || waker.wake());
@@ -309,14 +309,14 @@ impl beui::native::App for Shell {
             problems.listen(notices::report);
         }
         #[cfg(target_os = "linux")]
-        if self.app.login_session.is_none() && login_session::owns_a_seat(setup) {
-            self.app.login_session = Some(login_session::LoginSession::start(
+        if self.block_app.login_session.is_none() && login_session::owns_a_seat(setup) {
+            self.block_app.login_session = Some(login_session::LoginSession::start(
                 desk().mailbox(BlockApp::logind_heard),
             ));
             login_session::export_environment(Host::environment());
         }
         display::start(setup);
-        be_host_desktop::remap::load_cached(self.app.host_state.remapper().unwrap_or_else(
+        be_host_desktop::remap::load_cached(self.block_app.host_state.remapper().unwrap_or_else(
             |error| {
                 eprintln!(
                     "block-app: the input remapper kept for this session was not read: {error}"
@@ -324,9 +324,9 @@ impl beui::native::App for Shell {
                 None
             },
         ));
-        self.app.input.boot(&self.app.host_state);
-        self.app.display.boot(&self.app.host_state);
-        display::boot(&self.app.host_state);
+        self.block_app.input.boot(&self.block_app.host_state);
+        self.block_app.display.boot(&self.block_app.host_state);
+        display::boot(&self.block_app.host_state);
     }
 
     fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
@@ -347,27 +347,27 @@ impl beui::native::App for Shell {
                 .any(|event| matches!(event, beui::Event::Focus(true)))
         }) {
             be_host_stack::retry_now();
-            self.app.retry_organizations();
+            self.block_app.retry_organizations();
         }
         Host::before(context, rect, &mut self.document);
-        self.app.frame();
-        self.app.sync_ui_settings();
-        if let Some(preferences) = self.app.preferences.take() {
-            context.set_preference_layer(beui::PreferenceSource::App, preferences);
+        self.block_app.frame();
+        self.block_app.sync_ui_settings();
+        if let Some(preferences) = self.block_app.preferences.take() {
+            context.set_preference_layer(beui::PreferenceSource::Program, preferences);
         }
-        if let Some(scale) = self.app.scale.take() {
+        if let Some(scale) = self.block_app.scale.take() {
             context.set_zoom_factor(scale);
         }
-        if let Some(share) = self.app.keyboard_share.take() {
+        if let Some(share) = self.block_app.keyboard_share.take() {
             context.set_keyboard_share(share);
         }
-        if let Some(open) = self.app.inspector_requested.take()
+        if let Some(open) = self.block_app.inspector_requested.take()
             && open
         {
             self.document.open_inspector();
         }
-        let view = self.app.view();
-        Host::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
+        let view = self.block_app.view();
+        Host::set_owned(view.screen == ui::Screen::Organization && self.block_app.shell.is_some());
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
@@ -385,14 +385,14 @@ impl beui::native::App for Shell {
         self.document.show(context, rect);
         be_host_runtime::describe(context);
         #[cfg(target_os = "linux")]
-        if let Some(lock) = &mut self.app.screen_lock {
+        if let Some(lock) = &mut self.block_app.screen_lock {
             lock.note_drawn(self.document.locked());
         }
         Host::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
-                self.app.command(context, command);
+                self.block_app.command(context, command);
             }
             context.request_repaint();
         }
@@ -411,10 +411,10 @@ impl beui::native::App for Shell {
     }
 
     fn busy(&self) -> Vec<String> {
-        if self.app.error.is_some() {
+        if self.block_app.error.is_some() {
             return Vec::new();
         }
-        let mut reasons = self.app.busy();
+        let mut reasons = self.block_app.busy();
         reasons.extend(be_host_runtime::busy());
         reasons.extend(compositor::owes_frame());
         reasons
@@ -437,7 +437,7 @@ impl beui::native::App for Shell {
     }
 
     fn close_requested(&mut self) -> bool {
-        self.app.close_requested()
+        self.block_app.close_requested()
     }
 
     fn lifecycle(&mut self, change: beui::native::Lifecycle) {
@@ -455,10 +455,10 @@ impl beui::native::App for Shell {
         display::stop();
         #[cfg(target_os = "linux")]
         {
-            self.app.media = None;
-            self.app.notifications = None;
-            self.app.tray = None;
-            self.app.login_session = None;
+            self.block_app.media = None;
+            self.block_app.notifications = None;
+            self.block_app.tray = None;
+            self.block_app.login_session = None;
         }
         be_host_stack::flush();
         be_host_stack::stop_and_wait();
@@ -695,11 +695,11 @@ impl BlockApp {
         let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
         let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
-        let mut app = Self::with_state(host_state, url)?;
-        app.programs.keep_files_in(data_dir.join("files"));
-        app.data_dir = data_dir;
-        app.embedded_server = Some(embedded_server);
-        Ok(app)
+        let mut block_app = Self::with_state(host_state, url)?;
+        block_app.programs.keep_files_in(data_dir.join("files"));
+        block_app.data_dir = data_dir;
+        block_app.embedded_server = Some(embedded_server);
+        Ok(block_app)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -707,9 +707,9 @@ impl BlockApp {
         let data_dir = PathBuf::from(WEB_DATA_DIR);
         std::fs::create_dir_all(&data_dir)?;
         let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
-        let mut app = Self::with_state(host_state, String::new())?;
-        app.data_dir = data_dir;
-        Ok(app)
+        let mut block_app = Self::with_state(host_state, String::new())?;
+        block_app.data_dir = data_dir;
+        Ok(block_app)
     }
 
     fn with_state(
@@ -747,7 +747,7 @@ impl BlockApp {
         };
         let registry = Rc::new(EditorRegistry::new());
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
-        let mut app = Self {
+        let mut block_app = Self {
             host_state,
             client_id,
             local_server_url: url,
@@ -840,8 +840,8 @@ impl BlockApp {
             #[cfg(target_os = "linux")]
             wifi: None,
         };
-        app.resume_organization();
-        Ok(app)
+        block_app.resume_organization();
+        Ok(block_app)
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -1640,16 +1640,16 @@ impl BlockApp {
     }
 
     fn recovery_saved() -> keys::Answer<()> {
-        desk().mailbox(|app: &mut BlockApp, saved| {
-            let event = app.keys.saved(saved);
-            app.key_event(event);
+        desk().mailbox(|block_app: &mut BlockApp, saved| {
+            let event = block_app.keys.saved(saved);
+            block_app.key_event(event);
         })
     }
 
     fn paired() -> keys::Answer<[u8; 32]> {
-        desk().mailbox(|app: &mut BlockApp, paired| {
-            let event = app.keys.paired(paired);
-            app.key_event(event);
+        desk().mailbox(|block_app: &mut BlockApp, paired| {
+            let event = block_app.keys.paired(paired);
+            block_app.key_event(event);
         })
     }
 

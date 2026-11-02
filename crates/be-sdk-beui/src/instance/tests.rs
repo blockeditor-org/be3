@@ -31,7 +31,7 @@ mod an_open_beui_overlay_is_reported_over_the_child_it_covers;
 mod each_frame_of_a_session_moves_its_clock_on_by_one_step;
 mod the_frame_and_the_preview_of_one_block_both_load_its_content;
 
-fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
+fn session<A: BeuiRoot>(block_type: Uuid) -> EditorSession {
     let mut session =
         EditorSession::new(EditorInstanceId(0), Waker::default(), BeuiPlugin::<A>::open);
     session.connect(Uuid::new_v4(), block_type);
@@ -238,7 +238,7 @@ fn CountedBody(editor: crate::Editor) -> beui::NodeId {
 struct DockedRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for DockedRoot {
+impl crate::BeuiRoot for DockedRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -291,7 +291,7 @@ fn BarProbe() -> beui::NodeId {
 struct BarredRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for BarredRoot {
+impl crate::BeuiRoot for BarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -329,7 +329,7 @@ fn barred_session() -> EditorSession {
 struct DockBarredRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for DockBarredRoot {
+impl crate::BeuiRoot for DockBarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};

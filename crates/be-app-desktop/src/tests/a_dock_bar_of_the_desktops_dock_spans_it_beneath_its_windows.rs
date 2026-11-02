@@ -5,7 +5,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::{Button, ButtonSize, ButtonVariant, Frame, Root};
 use be_sdk_beui::beui::{pos2, vec2};
-use be_sdk_beui::{BeuiApp, Editor};
+use be_sdk_beui::{BeuiRoot, Editor};
 
 use super::*;
 
@@ -18,7 +18,7 @@ thread_local! {
 struct BandedRoot;
 
 #[component]
-impl BeuiApp for BandedRoot {
+impl BeuiRoot for BandedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;

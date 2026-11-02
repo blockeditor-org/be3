@@ -82,15 +82,15 @@ impl Module {
         if self.launched.replace(true) {
             return;
         }
-        let app = ModuleApp {
+        let program = ModuleProgram {
             module: Rc::clone(self),
             views: None,
             requested: OwnedSignal::new(Vec::new()),
         };
         if let Err(error) =
-            be_sdk_beui_platform_api::runtime().launch(host, keeps_accessibility, Box::new(app))
+            be_sdk_beui_platform_api::runtime().launch(host, keeps_accessibility, Box::new(program))
         {
-            panic!("the plugin's beui app could not start: {error}");
+            panic!("the plugin's beui program could not start: {error}");
         }
     }
 
@@ -116,13 +116,13 @@ impl Module {
     }
 }
 
-struct ModuleApp {
+struct ModuleProgram {
     module: Rc<Module>,
     views: Option<Views>,
     requested: OwnedSignal<Vec<View>>,
 }
 
-impl beui::native::App for ModuleApp {
+impl beui::native::Program for ModuleProgram {
     fn setup(&mut self, setup: &beui::native::Setup) {
         let Some(views) = setup.get::<Views>().cloned() else {
             return;

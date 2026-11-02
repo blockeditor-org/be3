@@ -833,7 +833,7 @@ fn stop_on_escape(overlay: NodeRef) {
         let Some(press) = event.press() else {
             return false;
         };
-        if press.key != Key::Escape || !press.pressed || !event.target.app {
+        if press.key != Key::Escape || !press.pressed || !event.target.program {
             return false;
         }
         let Some(overlay) = overlay.try_get() else {

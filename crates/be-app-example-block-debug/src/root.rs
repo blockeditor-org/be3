@@ -10,7 +10,7 @@ use ui::BlockDebug;
 pub struct BlockDebugRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for BlockDebugRoot {
+impl be_sdk_beui::BeuiRoot for BlockDebugRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

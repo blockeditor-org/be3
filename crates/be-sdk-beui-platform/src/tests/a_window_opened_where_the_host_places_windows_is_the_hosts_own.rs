@@ -63,7 +63,7 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
     let shown = surface
         .regions()
         .window(window.id())
-        .expect("the host's window region shows the app's window");
+        .expect("the host's window region shows the program's window");
     assert_eq!(
         window_view(shown),
         opened.view,

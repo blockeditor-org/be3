@@ -50,11 +50,11 @@ impl Review {
     fn sized(painting: Option<&str>, size: Vec2) -> Self {
         let requests: Rc<RefCell<Vec<ImageRequest>>> = Rc::default();
         let asked = requests.clone();
-        let app = PaintReviewApp::new(painting.map(str::to_owned), move |request| {
+        let app = PaintReviewProgram::new(painting.map(str::to_owned), move |request| {
             asked.borrow_mut().push(request)
         });
         let manifest = app.manifest();
-        let PaintReviewApp {
+        let PaintReviewProgram {
             document,
             manifest: owned,
             images,

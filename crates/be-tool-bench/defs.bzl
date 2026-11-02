@@ -5,7 +5,7 @@
 def _suite_impl(ctx: AnalysisContext) -> list[Provider]:
     contents = {
         "bench": ctx.attrs.runner[DefaultInfo].default_outputs[0],
-        "block-app": ctx.attrs.app[DefaultInfo].default_outputs[0],
+        "block-app": ctx.attrs.host[DefaultInfo].default_outputs[0],
         "lib": ctx.attrs.libraries[DefaultInfo].default_outputs[0],
     }
     for name, program in ctx.attrs.programs.items():
@@ -15,7 +15,7 @@ def _suite_impl(ctx: AnalysisContext) -> list[Provider]:
 
 suite = rule(
     attrs = {
-        "app": attrs.dep(),
+        "host": attrs.dep(),
         "libraries": attrs.dep(),
         "programs": attrs.dict(attrs.string(), attrs.dep()),
         "runner": attrs.dep(),

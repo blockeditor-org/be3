@@ -57,7 +57,7 @@ fn spaced(region: &ShownView) -> ShownView {
     }
 }
 
-fn sheet_app() -> Windowed {
+fn sheet_program() -> Windowed {
     Windowed::new(move |_| {
         view! {
             <styled::ModalSheet open=true fit=true on_close={|| {}}>
@@ -92,7 +92,7 @@ fn shown_spaced(
 #[test]
 fn a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view() {
     let _root = RootScope::new();
-    let mut surface = launched(&EditorHost::default(), sheet_app());
+    let mut surface = launched(&EditorHost::default(), sheet_program());
     let mut first = whole(300.0, 200.0);
     first.describe = Some(1);
     let mut main = Tree::default();

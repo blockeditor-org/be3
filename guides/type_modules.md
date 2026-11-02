@@ -509,7 +509,7 @@ wasmtime and in process in tests:
 Where the modules come from: block-app stages each plugin's type module (and its
 `.cwasm` and `.sha256`) beside the plugin; `be` (and so `be sync`) carries every
 plugin's manifest and type module in its executable as one bundle
-(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_tool_cli::plugins`), so its
+(`PLUGIN_TYPES`, buck/program's `type_bundle`, read by `be_tool_cli::plugins`), so its
 release stays the one file guides/bootstrap.md pins, compiles them once into
 `BE3_CACHE/modules` through wasmtime's cache, and runs one module per plugin
 that has one, as block-app does; the manifests also name the

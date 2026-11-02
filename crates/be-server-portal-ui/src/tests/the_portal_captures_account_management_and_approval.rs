@@ -25,7 +25,7 @@ fn the_portal_captures_account_management_and_approval() {
             },
             Session {
                 id: "snapshot-app-session".into(),
-                kind: SessionKind::App,
+                kind: SessionKind::Host,
                 age: "2 days ago".into(),
                 current: false,
             },

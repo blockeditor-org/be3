@@ -20,7 +20,7 @@ const INTRINSIC_HEIGHT: f32 = 520.0;
 pub struct DisplaySettingsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DisplaySettingsRoot {
+impl be_sdk_beui::BeuiRoot for DisplaySettingsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

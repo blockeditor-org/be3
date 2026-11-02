@@ -1,5 +1,5 @@
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/app:drive.bzl", "page_test")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/program:drive.bzl", "page_test")
 load("@root//buck/wasm:defs.bzl", "linked_plugin")
 
 # The plugin at the top of the thread-local diamond (guides/plugin_libraries.md,
@@ -19,7 +19,7 @@ linked_plugin(
 # The thread-local diamond in Chromium: the plugin run by be-wasm-guest-host's
 # guest.js with block-app's plugin.js against be-wasm-gpu-shim, as a plugin's
 # worker runs one, with base, left and right staged beside it as libraries.
-app(
+program(
     name = "web-bundle",
     bindgen = ["//crates/be-wasm-gpu-shim:module"],
     files = [

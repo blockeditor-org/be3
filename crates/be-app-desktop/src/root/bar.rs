@@ -20,7 +20,7 @@ use be_sdk_beui::{
 };
 use be_sdk_shell::{SHELL_BARS, Workspace};
 
-use super::apps::{Apps, AppsButton};
+use super::programs_panel::{ProgramsPanel, ProgramsPanelButton};
 use super::clock::ClockButton;
 use super::notifications::DesktopNotifications;
 use super::rotate::RotateButton;
@@ -29,13 +29,13 @@ use super::tray::TrayItems;
 use super::windows::{DeskWindows, WindowChips};
 use beui::{Align, Direction};
 
-pub(crate) const APPS_PLACE: DockBarPlacement =
+pub(crate) const PROGRAMS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start);
 pub(crate) const WINDOWS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center);
 pub(crate) const STATUS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End);
-const PLACES: [DockBarPlacement; 3] = [APPS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
+const PLACES: [DockBarPlacement; 3] = [PROGRAMS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
 const DISPLAY_BARS: &str = "display-bars";
 
 const STATUS_SPACING: Space = Space::Xs2;
@@ -65,7 +65,7 @@ fn wall_clock() -> ReadSignal<String> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Bars {
-    pub(crate) apps: TabId,
+    pub(crate) programs: TabId,
     pub(crate) windows: TabId,
     pub(crate) status: TabId,
 }
@@ -74,14 +74,14 @@ impl Bars {
     pub(crate) const fn of(display: u32) -> Self {
         let first = SHELL_BARS + 3 * display as u64;
         Self {
-            apps: TabId::new(first),
+            programs: TabId::new(first),
             windows: TabId::new(first + 1),
             status: TabId::new(first + 2),
         }
     }
 
     pub(crate) fn all(self) -> [TabId; 3] {
-        [self.apps, self.windows, self.status]
+        [self.programs, self.windows, self.status]
     }
 }
 
@@ -191,7 +191,7 @@ pub(crate) fn clear_of_status(
 pub(crate) struct Shell {
     pub(crate) workspace: Workspace,
     pub(crate) notifications: DesktopNotifications,
-    pub(crate) apps: Apps,
+    pub(crate) programs_panel: ProgramsPanel,
     pub(crate) windows: DeskWindows,
     pub(crate) clock: ReadSignal<String>,
 }
@@ -200,13 +200,13 @@ impl Shell {
     pub(crate) fn new(
         workspace: Workspace,
         notifications: DesktopNotifications,
-        apps: Apps,
+        programs_panel: ProgramsPanel,
         windows: DeskWindows,
     ) -> Self {
         Self {
             workspace,
             notifications,
-            apps,
+            programs_panel,
             windows,
             clock: wall_clock(),
         }
@@ -214,14 +214,14 @@ impl Shell {
 }
 
 #[component]
-pub(crate) fn AppsBar(shell: Shell, display: u32, layout: DockingLayout<TabId>) -> NodeId {
+pub(crate) fn ProgramsBar(shell: Shell, display: u32, layout: DockingLayout<TabId>) -> NodeId {
     let bar = use_dock_bar();
     let shown = create_memo(move || bar.is_none_or(|bar| !bar.is_hidden()));
     view! {
         <DockBarSurface @test_id={"desktop.bar.apps"}>
             <DockBarGrip bounds={bar_bounds()} />
             <Show condition={shown}>
-                <AppsButton apps={shell.apps} display layout />
+                <ProgramsPanelButton programs_panel={shell.programs_panel} display layout />
             </Show>
         </DockBarSurface>
     }

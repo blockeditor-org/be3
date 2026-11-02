@@ -13,7 +13,7 @@ fn a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer() {
 
     let (window, sent) = open(&mut space, now, WindowPlacement::AtPointer);
     let panel = space.panel(window).expect("the window has a panel").clone();
-    assert_eq!(panel.size, SMALL, "at the size the app asked for");
+    assert_eq!(panel.size, SMALL, "at the size the program asked for");
     let grabbed = panel.world(OPEN_GRAB);
     assert!(
         close(grabbed, ray.at(under.distance - OPEN_NEARER)),

@@ -1,5 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/app:defs.bzl", "plugin_data", "plugin_types")
+load("@root//buck/program:defs.bzl", "plugin_data", "plugin_types")
 load(
     "@root//buck/cargo:defs.bzl",
     "RemoteTestInfo",
@@ -37,11 +37,11 @@ wasi_transition = transition(
     refs = {"wasi_guest": "root//buck/platforms:wasi_guest"} | PROFILE_REFS,
 )
 
-def _wasi_app_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+def _wasi_program_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.wasi[PlatformInfo], refs)
 
-wasi_app_transition = transition(
-    impl = _wasi_app_transition_impl,
+wasi_program_transition = transition(
+    impl = _wasi_program_transition_impl,
     refs = {"wasi": "root//buck/platforms:wasi"} | PROFILE_REFS,
 )
 
@@ -110,14 +110,14 @@ wasm32_module = _module_rule(wasm32_transition)
 
 wasi_module = _module_rule(wasi_transition)
 
-wasi_app_module = _module_rule(wasi_app_transition)
+wasi_program_module = _module_rule(wasi_program_transition)
 
 wasi_html_module = _module_rule(wasi_html_transition)
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
 # lay out a thread's storage and leaves nothing to run libc's constructors; the
 # host does both itself, so a guest exports them.
-plugin_exports = [
+guest_exports = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
     "-Clink-arg=--export=__tls_size",
@@ -129,7 +129,7 @@ plugin_exports = [
 # block-app on the web: the same exports, which wasm-bindgen needs to prepare the
 # module for threads, and wasi-libc's setjmp and no-exceptions libc++ for the C
 # and C++ it links.
-wasi_app_flags = plugin_exports + [
+wasi_program_flags = guest_exports + [
     "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
@@ -166,7 +166,7 @@ def _needs(libraries):
 def wasm_library(module, libraries = [], rustc_flags = []):
     facts = cargo_wasm_facts()
     linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = plugin_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
+    rustc_flags = guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
     if native.glob(["library.rs"]):
         cargo_library(rustc_flags = rustc_flags)
         native.rust_library(
@@ -221,7 +221,7 @@ def linked_plugin(module, libraries, rustc_flags = []):
         linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
@@ -257,7 +257,7 @@ def editor_module(name, module, libraries = None, extra_deps = [], visibility = 
         linker_flags = linker_flags,
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = guest_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
@@ -319,7 +319,7 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
     )
     plugin_tests(
         env = test_env,
-        exports = plugin_exports,
+        exports = guest_exports,
         extra_deps = extra_deps,
     )
     examples = native.glob(["examples/*.rs"])

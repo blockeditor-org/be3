@@ -1,4 +1,4 @@
-use beui_core::app::accessibility_dump::AccessibilityDump;
+use beui_core::program::accessibility_dump::AccessibilityDump;
 
 use super::*;
 use crate::primitives::*;

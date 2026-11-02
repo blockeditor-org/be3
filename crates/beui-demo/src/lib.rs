@@ -737,9 +737,9 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
-    let app_layer = use_preference_layer(PreferenceSource::App);
+    let program_layer = use_preference_layer(PreferenceSource::Program);
     let selected_theme = create_memo(move || {
-        let theme = app_layer.get().theme;
+        let theme = program_layer.get().theme;
         Some(
             theme
                 .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
@@ -768,7 +768,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     let theme = index
                         .and_then(|index| index.checked_sub(1))
                         .and_then(|index| ThemeKind::ALL.get(index).copied());
-                    app_layer.set(PreferenceLayer { theme, ..app_layer.get_untracked() });
+                    program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
                 })}
             />
             <Button

@@ -12,7 +12,7 @@ use super::*;
 pub struct LogicGridRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for LogicGridRoot {
+impl be_sdk_beui::BeuiRoot for LogicGridRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

@@ -14,7 +14,7 @@ use ui::FolderEditor;
 pub struct WorkspaceIndexRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for WorkspaceIndexRoot {
+impl be_sdk_beui::BeuiRoot for WorkspaceIndexRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

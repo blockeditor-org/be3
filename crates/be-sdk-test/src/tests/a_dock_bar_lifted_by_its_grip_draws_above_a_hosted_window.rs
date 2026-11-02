@@ -10,7 +10,7 @@ const DISPLAY: Vec2 = vec2(900.0, 600.0);
 struct LiftedRoot;
 
 #[component]
-impl BeuiApp for LiftedRoot {
+impl BeuiRoot for LiftedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;

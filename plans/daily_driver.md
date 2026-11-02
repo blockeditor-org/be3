@@ -341,7 +341,7 @@ Needed before daily use:
 - **Move to… on touch.**
   - A folder picker sheet from the ⋮ menu on phone and from the context menu
     on desktop.
-  - Today phone has only "Move to the top level" (`file-tree/src/app/phone.rs:776-781`).
+  - Today phone has only "Move to the top level" (`file-tree/src/root/phone.rs:776-781`).
   - Also add Duplicate.
 - **Search.**
   - A `BlockQuery::Search` that searches names and text content on the

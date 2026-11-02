@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use beui_core::app::{Setup, Waker};
+use beui_core::program::{Setup, Waker};
 use beui_core::context::{Context, WindowOutput};
 use beui_core::display::Layer;
 use beui_core::icons::{ICON_FOLDER, ICON_SEARCH, ICON_SETTINGS};

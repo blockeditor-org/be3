@@ -23,7 +23,7 @@ fn every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
     let framed = surface
         .regions()
         .window(frame.id())
-        .expect("the app opened a window for the region in that same frame");
+        .expect("the program opened a window for the region in that same frame");
     assert!(surface.painting(frame.id()).is_some());
 
     let both = surface.frame(&[frame.clone(), preview.clone()]);
@@ -34,7 +34,7 @@ fn every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
     let previewed = surface
         .regions()
         .window(preview.id())
-        .expect("the second region is a window of the same app");
+        .expect("the second region is a window of the same program");
     assert_ne!(framed, previewed);
     assert_eq!(surface.regions().window(frame.id()), Some(framed));
     let painting = surface

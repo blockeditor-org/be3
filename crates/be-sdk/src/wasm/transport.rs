@@ -11,7 +11,7 @@ pub struct Editor {
 }
 
 pub(crate) struct Started {
-    pub(crate) apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
+    pub(crate) openers: Vec<(uuid::Uuid, crate::screens::Opener)>,
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) version: String,
@@ -24,12 +24,12 @@ impl Editor {
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Self, String> {
         let Started {
-            apps,
+            openers,
             id,
             name,
             version,
         } = started;
-        let runtime = Runtime::new(apps, &id, &name, &version, Waker::new(move || waker.wake()));
+        let runtime = Runtime::new(openers, &id, &name, &version, Waker::new(move || waker.wake()));
         let wire = Shared::default();
         let executor = wire.executor();
         executor.enter(|| {

@@ -22,6 +22,6 @@ fn a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size() {
             window,
             size: vec2(400.0, 300.0)
         }],
-        "the host tells the app the size it gave"
+        "the host tells the program the size it gave"
     );
 }

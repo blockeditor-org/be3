@@ -10,7 +10,7 @@ use ui::HotbarView;
 pub struct HotbarRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for HotbarRoot {
+impl be_sdk_beui::BeuiRoot for HotbarRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

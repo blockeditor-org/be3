@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
-use beui_core::app::Waker;
+use beui_core::program::Waker;
 
 mod diff;
 pub mod gestures;
@@ -112,7 +112,7 @@ pub fn timed_out(timeout: Duration, inbox: &Inbox) -> String {
     let mut text = format!("timed out after {} seconds", timeout.as_secs_f32());
     if !state.busy.is_empty() {
         text.push_str(&format!(
-            "; the app was still busy: {}",
+            "; the program was still busy: {}",
             state.busy.join("; ")
         ));
     }

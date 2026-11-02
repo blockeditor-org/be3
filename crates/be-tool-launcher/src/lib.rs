@@ -29,7 +29,7 @@ use std::sync::mpsc::{Receiver, channel};
 
 use beui::native::Document;
 use beui::reactive::*;
-use beui::{Rect, native::App, native::Context, native::Setup};
+use beui::{Rect, native::Program, native::Context, native::Setup};
 
 use beui_host::native::build;
 use model::Model;
@@ -40,17 +40,17 @@ use view::Launcher;
 
 #[cfg(not(target_os = "android"))]
 pub fn run() -> Result<(), Box<dyn Error>> {
-    beui_host::native::run(LauncherApp::new(runs::cache_directory())?)
+    beui_host::native::run(LauncherProgram::new(runs::cache_directory())?)
 }
 
-struct LauncherApp {
+struct LauncherProgram {
     document: Document,
     model: Model,
     tasks: Tasks,
     events: Receiver<Event>,
 }
 
-impl LauncherApp {
+impl LauncherProgram {
     fn new(root: PathBuf) -> Result<Self, String> {
         let (sender, events) = channel();
         let tasks = Tasks::new(root, sender);
@@ -95,7 +95,7 @@ impl LauncherApp {
     }
 }
 
-impl App for LauncherApp {
+impl Program for LauncherProgram {
     fn setup(&mut self, setup: &Setup) {
         self.tasks.set_waker(setup.waker.clone());
     }

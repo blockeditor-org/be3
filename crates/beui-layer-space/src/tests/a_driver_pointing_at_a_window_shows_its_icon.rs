@@ -7,7 +7,7 @@ fn a_driver_pointing_at_a_window_shows_its_icon() {
         vec![Incoming::points(Input::PointerMoved(pos2(20.0, 20.0))).in_window(WindowId::MAIN)];
     space.input(&mut incoming, &view(now));
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Text)),
+        space.cursor_icon(&program_frame(CursorIcon::Text)),
         CursorIcon::Text
     );
 }

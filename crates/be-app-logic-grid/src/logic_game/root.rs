@@ -21,7 +21,7 @@ pub(crate) fn operate(block: &GameBlock, operation: be_type_logic_grid::LogicGam
 pub struct LogicGameRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for LogicGameRoot {
+impl be_sdk_beui::BeuiRoot for LogicGameRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

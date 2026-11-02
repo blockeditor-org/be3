@@ -9,7 +9,7 @@ struct Counted {
     frames: Signal<u32>,
 }
 
-impl App for Counted {
+impl Program for Counted {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.frames.update(|frames| *frames += 1);
         self.document.show(context, rect);
