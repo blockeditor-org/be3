@@ -7,13 +7,13 @@ use be_sdk_beui::be_block::{
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
-    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
-    MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
-    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink,
-    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
-    WindowOrigin, WindowsWatch,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EndingAnswer,
+    EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
+    IncomingNotification, MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox,
+    NotificationRequest, NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand,
+    PowerAction, PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch,
+    SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch,
+    WindowAction, WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
@@ -107,6 +107,7 @@ mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_desktops_three_bars_share_one_band_along_its_foot;
+mod the_ending_bar_waits_for_the_programs_still_open_and_answers;
 mod the_keyboard_button_shows_when_the_display_settings_ask_for_it;
 mod the_layout_notice_shows_above_the_desktops_windows;
 mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
@@ -128,6 +129,7 @@ mod the_windows_bar_shares_its_length_between_many_chips;
 mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod typing_in_the_apps_panel_keeps_its_search_field_still;
 mod windows_that_close_as_the_session_ends_are_kept;
+mod windows_that_closed_before_a_cancel_come_back_as_placeholders;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const PROGRAMS_BAR: u64 = 0;
@@ -141,7 +143,7 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
     power_off: true,
     log_out: true,
     session: true,
-    ending: false,
+    ending: None,
 };
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 const DEFAULT_ACTION: &str = "default";
@@ -769,6 +771,15 @@ fn accessible_label_around(fixture: &Fixture, test_id: &str) -> Option<String> {
         node = document.arena.parent(at);
     }
     None
+}
+
+fn ending(end: SessionEnd) -> PowerAvailability {
+    PowerAvailability {
+        lock: true,
+        session: true,
+        ending: Some(end),
+        ..PowerAvailability::default()
+    }
 }
 
 fn kept_keys(fixture: &Fixture) -> Vec<u64> {

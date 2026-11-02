@@ -364,6 +364,7 @@ impl beui::native::Program for Shell {
             self.core.login_session = Some(login_session::LoginSession::start(
                 desk().mailbox(HostCore::logind_heard),
             ));
+            self.core.power.log_in();
             login_session::export_environment(Host::environment());
         }
         display::start(setup);
@@ -611,6 +612,8 @@ struct HostCore {
     login_session: Option<login_session::LoginSession>,
     #[cfg(target_os = "linux")]
     screen_lock: Option<login_session::ScreenLock>,
+    #[cfg(target_os = "linux")]
+    power: login_session::Power,
     #[cfg(target_os = "linux")]
     published_power: Option<be_sdk_api::PowerAvailability>,
     #[cfg(target_os = "linux")]
@@ -890,6 +893,8 @@ impl HostCore {
             #[cfg(target_os = "linux")]
             screen_lock: None,
             #[cfg(target_os = "linux")]
+            power: login_session::Power::default(),
+            #[cfg(target_os = "linux")]
             published_power: None,
             #[cfg(target_os = "linux")]
             media: None,
@@ -939,14 +944,6 @@ impl HostCore {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = be_host_base::watches::take_calls(be_sdk_api::requested::power).pop();
-        if let Some(action) = request
-            && self
-                .published_power
-                .is_some_and(|power| power.allows(action))
-        {
-            self.request_power(action, login_session::Trigger::Menu);
-        }
         self.run_media();
         self.run_wifi();
         display::run_epaper();
@@ -961,12 +958,36 @@ impl HostCore {
                 }
             }
             action => {
-                if let Some(login_session) = &mut self.login_session {
-                    login_session.request(action);
-                    host::request_repaint();
-                }
+                self.power.request(
+                    action,
+                    &mut login_session::Live::of(self.login_session.as_ref()),
+                );
+                host::request_repaint();
             }
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_power(&mut self, locked: bool) {
+        let request = be_host_base::watches::take_calls(be_sdk_api::requested::power).pop();
+        if let Some(action) = request
+            && self
+                .published_power
+                .is_some_and(|power| power.allows(action))
+        {
+            self.request_power(action, login_session::Trigger::Menu);
+        }
+        for answer in be_host_base::watches::take_calls(be_sdk_api::requested::ending_answer) {
+            self.power.answer(answer);
+        }
+        let mut availability = self.power.availability();
+        availability.lock = !locked;
+        if self.published_power != Some(availability) {
+            self.published_power = Some(availability);
+            be_host_base::watches::publish::<be_sdk_api::PowerWatch>(&availability);
+        }
+        self.power
+            .frame(&mut login_session::Live::of(self.login_session.as_ref()));
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -989,8 +1010,9 @@ impl HostCore {
     fn logind_heard(&mut self, event: login_session::LogindEvent) {
         if let (Some(login_session), Some(lock)) = (&mut self.login_session, &mut self.screen_lock)
         {
-            login_session.heard(event, lock);
+            login_session.heard(event, lock, &mut self.power);
         }
+        host::request_repaint();
     }
 
     #[cfg(target_os = "linux")]
@@ -1009,16 +1031,7 @@ impl HostCore {
         Host::set_locked(locked);
         be_host_desktop::remap::set_locked(locked);
         be_host_base::watches::publish::<be_sdk_api::ScreenLockedWatch>(&locked);
-        let mut availability = self
-            .login_session
-            .as_ref()
-            .map(login_session::LoginSession::availability)
-            .unwrap_or_default();
-        availability.lock = !locked;
-        if self.published_power != Some(availability) {
-            self.published_power = Some(availability);
-            be_host_base::watches::publish::<be_sdk_api::PowerWatch>(&availability);
-        }
+        self.run_power(locked);
     }
 
     #[cfg(target_os = "linux")]
@@ -1027,11 +1040,7 @@ impl HostCore {
             return ui::LockView::default();
         };
         let state = lock.state();
-        let offered = self
-            .login_session
-            .as_ref()
-            .map(login_session::LoginSession::availability)
-            .unwrap_or_default();
+        let offered = self.power.availability();
         ui::LockView {
             available: true,
             locked: state.locked,
@@ -1851,9 +1860,20 @@ impl HostCore {
     }
 
     fn close_requested(&mut self) -> bool {
+        #[cfg(target_os = "linux")]
+        if !self.allow_close
+            && !self
+                .power
+                .close(&mut login_session::Live::of(self.login_session.as_ref()))
+        {
+            host::request_repaint();
+            return false;
+        }
         if be_host_stack::flush() == 0 || self.allow_close {
             return true;
         }
+        #[cfg(target_os = "linux")]
+        self.power.stay();
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
         host::request_repaint();
         false

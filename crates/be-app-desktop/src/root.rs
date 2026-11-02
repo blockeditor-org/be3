@@ -1,6 +1,7 @@
 mod bar;
 mod calendar;
 mod clock;
+mod ending;
 mod fullscreen;
 mod launcher;
 pub(crate) mod media;
@@ -25,7 +26,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::{DisplaysWatch, MediaWatch, PowerWatch, WindowsWatch};
+use be_sdk_beui::{DisplaysWatch, MediaWatch, WindowsWatch};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
@@ -195,7 +196,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let placeholders = Placeholders::new(workspace);
     let windows = DeskWindows::new(workspace, placeholders);
     let block_windows = workspace.shown_block_tabs();
-    hold_saving_while_ending(workspace);
+    ending::keep_windows_through_ending(workspace);
     let placeholder = RenderFn::new(move |key: HostWindowId| {
         view! {
             <Placeholder placeholders key />
@@ -264,6 +265,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 </Show>
                 <ProgramsPanelOverlay programs_panel display=0 layout area />
                 <DesktopToasts notifications area={toasts} corner />
+                <ending::EndingBar workspace area />
             </List>
         </Frame>
     }
@@ -308,15 +310,6 @@ fn windows_area(layout: DockingLayout<TabId>, region: Memo<Rect>) -> Memo<Rect> 
             false => region.get(),
         }
     })
-}
-
-fn hold_saving_while_ending(workspace: Workspace) {
-    let power = workspace.editor().watch::<PowerWatch>();
-    let ending = create_memo(move || power.with(|power| power.ending));
-    create_effect(move || {
-        let ending = ending.get();
-        untrack(|| workspace.hold_saving(ending));
-    });
 }
 
 fn block_window(tab: TabId, area: Vec2) -> Rect {

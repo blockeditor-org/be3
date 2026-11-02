@@ -92,7 +92,6 @@ pub struct Workspace {
     keeps_windows: bool,
     kept: Signal<Kept>,
     desk: Memo<kept::Desk>,
-    held: Signal<bool>,
     unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
@@ -122,7 +121,6 @@ impl Workspace {
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
         });
-        let held = create_signal(false);
         let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
             revisions: super::revisions::RevisionHistory::new(editor),
@@ -158,7 +156,6 @@ impl Workspace {
             keeps_windows,
             kept,
             desk,
-            held,
             unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
@@ -298,8 +295,17 @@ impl Workspace {
             .update(|kept| kept.records.retain(|record| record.key != key));
     }
 
-    pub fn hold_saving(&self, held: bool) {
-        self.held.set(held);
+    pub fn keep_through_ending(&self, ending: bool) {
+        if !self.keeps_windows || !self.kept.with_untracked(|kept| kept.restored) {
+            return;
+        }
+        let next = self.kept.with_untracked(|kept| {
+            self.desk.with_untracked(|desk| {
+                self.windows
+                    .with_untracked(|windows| kept::ending(kept, desk, windows, ending))
+            })
+        });
+        self.kept.set(next);
     }
 
     fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
@@ -806,6 +812,7 @@ impl Workspace {
             .with_untracked(|windows| windows.iter().map(|window| window.id).collect());
         self.kept.set(Kept {
             restored: true,
+            ending: false,
             records,
             seen,
         });
@@ -828,7 +835,7 @@ impl Workspace {
             false => Vec::new(),
         };
         let unreadable = self.unreadable.with(Option::is_some);
-        if !inner.restored.get() || self.held.get() || unreadable {
+        if !inner.restored.get() || unreadable {
             return;
         }
         let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);

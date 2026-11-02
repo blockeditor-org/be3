@@ -191,9 +191,25 @@ interface power {
         log-out,
     }
 
+    /// How the session is ending: be-host's window or the shell closing, or a power action.
+    enum session-end {
+        close,
+        log-out,
+        restart,
+        power-off,
+    }
+
+    /// What the person chose while the session waits for its programs to close.
+    enum ending-answer {
+        /// Stop ending: the programs still open stay open.
+        cancel,
+        /// End now, with the programs still open.
+        end-now,
+    }
+
     /// Which power actions the session may take now, whether the host runs
-    /// the login session (without it only locking is possible), and whether
-    /// the session is ending.
+    /// the login session (without it only locking is possible), and how the
+    /// session is ending, if it is.
     record power-availability {
         lock: bool,
         suspend: bool,
@@ -201,7 +217,7 @@ interface power {
         power-off: bool,
         log-out: bool,
         session: bool,
-        ending: bool,
+        ending: option<session-end>,
     }
 
     resource power-watch {
@@ -210,6 +226,9 @@ interface power {
     }
 
     request: async func(action: power-action);
+
+    /// Answers the ending the availability names; ignored when none is.
+    answer-ending: async func(answer: ending-answer);
 }
 
 /// Sound levels and outputs, the brightness and the media players.

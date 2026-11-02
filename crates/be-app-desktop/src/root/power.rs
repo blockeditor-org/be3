@@ -44,7 +44,7 @@ pub(crate) fn unavailable(available: PowerAvailability, action: PowerAction) -> 
     match () {
         _ if available.allows(action) => "",
         _ if action == PowerAction::Lock => "The screen is already locked",
-        _ if available.ending => "The session is ending",
+        _ if available.ending.is_some() => "The session is ending",
         _ if !available.session => "Only when be3 is your login session",
         _ => "This computer does not allow it",
     }

@@ -7,6 +7,7 @@ fn suspending_asks_logind_at_once_and_only_when_it_can() {
         ..Recorder::default()
     };
     let mut power = Power::default();
+    power.log_in();
     assert_eq!(
         power.availability(),
         PowerAvailability {
@@ -16,17 +17,15 @@ fn suspending_asks_logind_at_once_and_only_when_it_can() {
         },
         "before logind answers, only logging out is offered"
     );
-    power.request(PowerAction::Suspend, seconds(1), &mut control);
+    power.request(PowerAction::Suspend, &mut control);
     assert!(
         control.calls.is_empty(),
         "logind said nothing about suspending"
     );
 
     power.set_abilities(EVERYTHING);
-    assert_eq!(
-        power.request(PowerAction::Suspend, seconds(2), &mut control),
-        None
-    );
+    power.request(PowerAction::Suspend, &mut control);
+    power.frame(&mut control);
     assert_eq!(control.calls, vec![LogindCall::Suspend]);
     assert_eq!(control.closes, 0, "suspending leaves the programs open");
     power.called(LogindCall::Suspend, Ok(()), &mut control);
