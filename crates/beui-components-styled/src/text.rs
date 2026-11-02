@@ -363,7 +363,17 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text font color underline align vertical_align overflow marks carets on_truncated>
+        <primitives::Text
+            font
+            color
+            underline
+            align
+            vertical_align
+            overflow
+            marks
+            carets
+            on_truncated
+        >
             {children}
         </primitives::Text>
     }

@@ -171,33 +171,33 @@ fn PaletteTile(handle: CommandRowHandle) -> NodeId {
     });
     view! {
         <Tooltip label disabled={whole}>
-        <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
-            <List align=Align::Center spacing=TILE_SPACING>
-                <Show condition={pictured}>
-                    <Frame width=TILE_ICON height=TILE_ICON>
-                        <Picture image />
-                    </Frame>
-                </Show>
-                <Show condition={plain}>
-                    <Frame width=TILE_ICON height=TILE_ICON>
-                        <List align=Align::Center spacing=Space::None>
-                            <Text size=TextSize::Xl color align=TextAlign::Center>
-                                <Icon glyph />
-                            </Text>
-                        </List>
-                    </Frame>
-                </Show>
-                <Text
-                    size=TextSize::Sm
-                    color
-                    align=TextAlign::Center
-                    overflow=Overflow::Ellipsis
-                    on_truncated={move |cut: bool| truncated.set(cut)}
-                >
-                    {label}
-                </Text>
-            </List>
-        </Frame>
+            <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
+                <List align=Align::Center spacing=TILE_SPACING>
+                    <Show condition={pictured}>
+                        <Frame width=TILE_ICON height=TILE_ICON>
+                            <Picture image />
+                        </Frame>
+                    </Show>
+                    <Show condition={plain}>
+                        <Frame width=TILE_ICON height=TILE_ICON>
+                            <List align=Align::Center spacing=Space::None>
+                                <Text size=TextSize::Xl color align=TextAlign::Center>
+                                    <Icon glyph />
+                                </Text>
+                            </List>
+                        </Frame>
+                    </Show>
+                    <Text
+                        size=TextSize::Sm
+                        color
+                        align=TextAlign::Center
+                        overflow=Overflow::Ellipsis
+                        on_truncated={move |cut: bool| truncated.set(cut)}
+                    >
+                        {label}
+                    </Text>
+                </List>
+            </Frame>
         </Tooltip>
     }
 }

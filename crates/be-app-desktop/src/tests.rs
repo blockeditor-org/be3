@@ -25,9 +25,6 @@ use crate::root::DesktopRoot;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
-mod typing_in_the_apps_panel_keeps_its_search_field_still;
-mod reopening_the_apps_panel_highlights_its_first_program_again;
-mod a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
 mod a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it;
@@ -56,6 +53,7 @@ mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_new_window_opens_within_its_programs_least_and_greatest_size;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
+mod a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover;
 mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
 mod a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab;
 mod a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it;
@@ -97,6 +95,7 @@ mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
 mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
 mod power_actions_the_host_cannot_take_say_why;
 mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
+mod reopening_the_apps_panel_highlights_its_first_program_again;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
 mod the_apps_button_is_named_apps;
@@ -127,6 +126,7 @@ mod the_wifi_list_asks_the_host_to_connect;
 mod the_wifi_tile_lists_the_networks_the_host_reports;
 mod the_windows_bar_shares_its_length_between_many_chips;
 mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
+mod typing_in_the_apps_panel_keeps_its_search_field_still;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
@@ -758,7 +758,11 @@ fn accessible_label_around(fixture: &Fixture, test_id: &str) -> Option<String> {
     let document = fixture.test.document();
     let mut node = document.find_test_id(test_id);
     while let Some(at) = node {
-        if let Some(label) = document.accessibility.get(&at).and_then(|node| node.label()) {
+        if let Some(label) = document
+            .accessibility
+            .get(&at)
+            .and_then(|node| node.label())
+        {
             return Some(label.to_owned());
         }
         node = document.arena.parent(at);

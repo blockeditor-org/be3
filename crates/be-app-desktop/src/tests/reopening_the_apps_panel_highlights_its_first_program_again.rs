@@ -4,7 +4,9 @@ use super::*;
 fn reopening_the_apps_panel_highlights_its_first_program_again() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    fixture.test.set_watched::<ProgramsWatch>(&a_shelf_of_programs());
+    fixture
+        .test
+        .set_watched::<ProgramsWatch>(&a_shelf_of_programs());
     fixture.test.click("desktop.apps");
     fixture.settle();
     fixture.test.key(Key::ArrowRight, Modifiers::NONE);
