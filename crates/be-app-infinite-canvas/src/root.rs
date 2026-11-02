@@ -38,9 +38,9 @@ pub(crate) mod touch;
 use actions::canvas_actions;
 use canvas::CanvasStage;
 use export::ExportDialog;
+use layers::CanvasLayers;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
-use layers::CanvasLayers;
 use sidebar::{CanvasInspector, CanvasSheet, InspectorSheet};
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
@@ -142,7 +142,11 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
                 <Show condition={docked}>
-                    <DockSplit id="side" direction=Direction::Vertical size={SplitSize::Second(LAYERS_HEIGHT)}>
+                    <DockSplit
+                        id="side"
+                        direction=Direction::Vertical
+                        size={SplitSize::Second(LAYERS_HEIGHT)}
+                    >
                         <DockPane id="inspector" locked=true>
                             <DockTab id=INSPECTOR title="Inspector">
                                 <CanvasInspector state={state} />

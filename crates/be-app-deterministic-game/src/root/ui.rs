@@ -372,9 +372,7 @@ fn GameDock(
     panel: Panel,
 ) -> NodeId {
     let steps = panel.steps;
-    let Panel {
-        table, shown, ..
-    } = panel;
+    let Panel { table, shown, .. } = panel;
     let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     let dock = DockingLayout::<&'static str>::new();
     view! {
