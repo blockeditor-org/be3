@@ -1,7 +1,7 @@
+use be_sdk_beui::beui::Vec2;
 use be_sdk_test::{BeuiTest, HostCall, Reply, wire};
 use be_type_map::MapRegion;
 use be_type_map::{Map, MapContent};
-use be_sdk_beui::beui::Vec2;
 use uuid::Uuid;
 
 use crate::root::MapRoot;
