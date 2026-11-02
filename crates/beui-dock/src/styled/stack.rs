@@ -88,11 +88,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                         }</Dynamic>
                     </List>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
-                    <DockTabCount
-                        count={open_tabs}
-                        label={switch_label}
-                        on_click={open_switcher}
-                    />
+                    <DockTabCount count={open_tabs} label={switch_label} on_click={open_switcher} />
                 </List>
             </Frame>
             <Separator />
@@ -350,10 +346,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                             label="More"
                             glyph=ICON_ELLIPSIS_VERTICAL
                             items={view! {
-                                <unstyled::MenuNodes
-                                    nodes={menu}
-                                    test_prefix={menu_id.clone()}
-                                />
+                                <unstyled::MenuNodes nodes={menu} test_prefix={menu_id.clone()} />
                             }}
                         />
                     </Show>
