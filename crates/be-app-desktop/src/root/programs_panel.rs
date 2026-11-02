@@ -299,11 +299,13 @@ fn SessionRow(programs_panel: ProgramsPanel, block: Uuid, close: Callback<()>) -
                 .unwrap_or_default()
         })
     });
-    let detail = create_memo(move || match (workspace.shows(block), workspace.holds(block)) {
-        (true, _) => "Open".to_owned(),
-        (false, true) => "Hidden".to_owned(),
-        (false, false) => String::new(),
-    });
+    let detail = create_memo(
+        move || match (workspace.shows(block), workspace.holds(block)) {
+            (true, _) => "Open".to_owned(),
+            (false, true) => "Hidden".to_owned(),
+            (false, false) => String::new(),
+        },
+    );
     let choose = move || {
         close.call(());
         programs_panel.sessions.open(block);

@@ -30,7 +30,9 @@ fn a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focu
     fixture.settle();
     assert!(fixture.says("Hidden"), "a hidden session says so");
     assert!(fixture.says("Open"), "and the shown one says it is open");
-    fixture.test.snapshot("the_apps_panel_with_a_hidden_session");
+    fixture
+        .test
+        .snapshot("the_apps_panel_with_a_hidden_session");
     fixture
         .test
         .click(&format!("desktop.apps.sessions.{}", sessions[0]));
