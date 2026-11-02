@@ -186,9 +186,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                     return Err("APK metadata and native bundles have different build ids".into());
                 }
                 let key = crate::apk_sign::release_key()?;
-                let output = options
-                    .repository
-                    .join("target/deploy/be-host-android.apk");
+                let output = options.repository.join("target/deploy/be-host-android.apk");
                 crate::apk_sign::finalize(file, &output, &key, &options.apk_metadata)?;
                 *file = output;
             }

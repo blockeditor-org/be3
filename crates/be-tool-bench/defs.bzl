@@ -4,8 +4,8 @@
 # build --out DIR` keeps a build of it to compare another against.
 def _suite_impl(ctx: AnalysisContext) -> list[Provider]:
     contents = {
-        "bench": ctx.attrs.runner[DefaultInfo].default_outputs[0],
         "be-host": ctx.attrs.host[DefaultInfo].default_outputs[0],
+        "bench": ctx.attrs.runner[DefaultInfo].default_outputs[0],
         "lib": ctx.attrs.libraries[DefaultInfo].default_outputs[0],
     }
     for name, program in ctx.attrs.programs.items():

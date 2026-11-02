@@ -44,9 +44,7 @@ impl ScreenLock {
     pub(crate) fn start() -> Self {
         let user = pam::user();
         if user.is_none() {
-            eprintln!(
-                "be-host: this user has no account entry, so the screen cannot be unlocked"
-            );
+            eprintln!("be-host: this user has no account entry, so the screen cannot be unlocked");
         }
         let shown = user
             .as_ref()

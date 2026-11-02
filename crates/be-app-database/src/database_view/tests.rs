@@ -255,12 +255,7 @@ fn tracker() -> Tracker {
             Some(wayland),
         ),
         ("fractional scaling", backlog, None, Some(wayland)),
-        (
-            "be-host --session: system tray",
-            done,
-            None,
-            Some(wayland),
-        ),
+        ("be-host --session: system tray", done, None, Some(wayland)),
     ];
     for (index, (name, state, urgency, area)) in rows.into_iter().enumerate() {
         fixture.set(index, title, DatabaseValue::String(name.into()));

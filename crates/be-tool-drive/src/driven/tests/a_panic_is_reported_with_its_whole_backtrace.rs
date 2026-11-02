@@ -2,8 +2,7 @@ use super::*;
 
 fn panic_with_backtrace(message: &str, frames: usize) -> Vec<String> {
     let mut lines = vec![
-        "be-host: thread 'main' panicked: panicked at crates/beui-core/src/node.rs:1:1:"
-            .to_owned(),
+        "be-host: thread 'main' panicked: panicked at crates/beui-core/src/node.rs:1:1:".to_owned(),
         message.to_owned(),
         String::new(),
     ];

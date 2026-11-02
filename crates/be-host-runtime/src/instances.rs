@@ -2990,9 +2990,7 @@ impl Instances {
                     *instance,
                     EditorCall::WebViewEvent {
                         web_view,
-                        event: WebViewEvent::Failed(
-                            "be-host can't show web pages yet.".to_owned(),
-                        ),
+                        event: WebViewEvent::Failed("be-host can't show web pages yet.".to_owned()),
                     },
                 ));
             }
