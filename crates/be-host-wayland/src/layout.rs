@@ -120,7 +120,7 @@ impl State {
         keyboard.with_xkb_state(self, |context| {
             let xkb = context.xkb().lock().unwrap();
             let layout = xkb.active_layout().0;
-            // SAFETY: the keymap is used only inside this call, while the `Xkb` lives.
+            // unsafe(ffi)
             let keymap = unsafe { xkb.keymap() };
             find(keymap, layout, wanted, shifts)
         })
