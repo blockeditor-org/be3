@@ -7,6 +7,7 @@ use crate::root::DatabaseRoot;
 
 mod a_database_without_views_says_so;
 mod a_new_database_starts_with_a_name_field;
+mod on_a_phone_the_schema_is_gathered_beside_the_views;
 mod the_schema_sidebar_goes_away_with_the_chrome;
 
 fn editor() -> (BeuiTest<DatabaseRoot>, Editor) {

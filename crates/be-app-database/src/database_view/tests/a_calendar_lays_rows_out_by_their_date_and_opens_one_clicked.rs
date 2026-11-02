@@ -37,7 +37,7 @@ fn a_calendar_lays_rows_out_by_their_date_and_opens_one_clicked() {
     fixture.harness.click("database-view.calendar.event.1");
     fixture.settle();
 
-    assert!(fixture.harness.shown("database-view.detail.close"));
+    assert!(fixture.harness.shown("dock.tab.row.close"));
     fixture
         .harness
         .snapshot("a_calendar_lays_rows_out_by_their_date_and_opens_one_clicked");

@@ -42,8 +42,5 @@ fn a_row_scrolled_into_a_reused_line_opens_the_row_it_shows() {
     fixture.harness.click(line(target));
     fixture.settle();
     let id = rows.rows.get_index(target).unwrap().id;
-    assert_eq!(
-        fixture.harness.label("database-view.detail.id"),
-        rows.short_id(id)
-    );
+    assert!(fixture.harness.label("dock.tab.row").starts_with(&rows.short_id(id)));
 }

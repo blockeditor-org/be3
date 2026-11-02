@@ -2,7 +2,7 @@ use be_sdk_beui::be_block::ObjectId;
 use be_sdk_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{NodeId, TextAlign};
+use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
 use be_sdk_beui::narrow_chrome;
 use be_sdk_database::{ChoiceMark, use_choice_colors};
 use be_sdk_ui_database::cell_text;
@@ -76,7 +76,8 @@ pub fn ListView(data: Data) -> NodeId {
     );
     view! {
         <Frame fill=ColorRole::Background>
-            <Scroll>
+            <Container>|viewport: ReadSignal<Vec2>|
+            <Scroll @test_id={"database-view.list"}>
                 <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
                     <List spacing=Space::None>
                         <Show condition={empty}>
@@ -85,39 +86,13 @@ pub fn ListView(data: Data) -> NodeId {
                             </Frame>
                         </Show>
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
-                            <AnyLine data={data} groups={groups} line={line} />
+                            <AnyLine data={data} groups={groups} line={line} viewport={viewport} />
                         </VirtualList>
                     </List>
                 </Frame>
             </Scroll>
+            </Container>
         </Frame>
-    }
-}
-
-#[component]
-pub fn RowBeside(
-    data: Data,
-    enabled: bool,
-    children: be_sdk_beui::beui::reactive::Child,
-) -> NodeId {
-    let selected = create_memo(move || {
-        match enabled
-            && data.kind.get() != be_type_database::database_view::DatabaseViewKind::Spreadsheet
-        {
-            true => data.selected_row(),
-            false => None,
-        }
-    });
-    let narrow = narrow_chrome();
-    let instead = create_memo(move || narrow.get() && selected.get().is_some());
-    let main_shown = create_memo(move || !instead.get());
-    view! {
-        <Layers>
-            <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
-            <Show condition={instead}>
-                <OpenRow data={data} row={selected} />
-            </Show>
-        </Layers>
     }
 }
 
@@ -245,7 +220,12 @@ enum LineKind {
 }
 
 #[component]
-fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> NodeId {
+fn AnyLine(
+    data: Data,
+    groups: Memo<Vec<Group>>,
+    line: ReadSignal<Line>,
+    viewport: ReadSignal<Vec2>,
+) -> NodeId {
     let kind = create_memo(move || match line.get() {
         Line::Header(_) => LineKind::Header,
         Line::Row(_) => LineKind::Row,
@@ -277,7 +257,7 @@ fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> Node
                         </List>
                     },
                     LineKind::Row => view! {
-                        <RowLine data={data} row={row} />
+                        <RowLine data={data} row={row} viewport={viewport} />
                     },
                 }
             }</Dynamic>
@@ -286,7 +266,7 @@ fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> Node
 }
 
 #[component]
-fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
+fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) -> NodeId {
     let index = create_memo(move || {
         let row = row.get()?;
         data.row_index.with(|indices| indices.get(&row).copied())
@@ -348,10 +328,25 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             data.select_row(row);
         }
     };
+    let shown = NodeRef::new();
+    create_effect(move || {
+        viewport.get();
+        if selected.get()
+            && let Some(node) = shown.try_get()
+        {
+            node.reveal();
+        }
+    });
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     view! {
-        <ListRow selected={selected} @test_id={element_test_id} on_click={pick} on_activate={pick}>
+        <ListRow
+            @node_ref=&shown
+            selected={selected}
+            @test_id={element_test_id}
+            on_click={pick}
+            on_activate={pick}
+        >
             <List spacing=Space::None>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

@@ -1,12 +1,12 @@
 use be_sdk_beui::be_block::{BlockContent, ObjectId};
 use be_sdk_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK,
+    ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK,
     ICON_FILE_PLUS, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{BackGesture, NodeId};
-use be_sdk_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
+use be_sdk_beui::{ChildBlock, ChildMode, ChildTarget};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_database::{ChoiceMark, DatabaseValueEditor};
 use be_sdk_ui_database::DatabaseValueChange;
@@ -31,7 +31,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
         data.row_ids
             .with(|ids| ids.iter().position(|id| *id == row))
     });
-    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
     let values = create_memo(move || {
         let Some(index) = index.get() else {
             return Default::default();
@@ -117,95 +116,65 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
         page.get()
             .map(|page| ChildTarget::new(page, TextContent::CONTENT_TYPE))
     });
-    let narrow = narrow_chrome();
-    let wide = create_memo(move || !narrow.get());
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let editor = data.editor();
     let row = view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Frame padding={Padding::symmetric(SPACING, Space::Sm)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
-                        <Show condition={narrow}>
-                            <Button
-                                icon_only=true
-                                glyph=ICON_ARROW_LEFT
-                                label="Back to the list"
-                                variant=ButtonVariant::Ghost
-                                @test_id={"database-view.detail.back"}
-                                on_click={close}
-                            />
-                        </Show>
-                        <Button
-                            icon_only=true
-                            glyph=ICON_CHEVRON_UP
-                            label="Previous row"
-                            variant=ButtonVariant::Ghost
-                            @test_id={"database-view.detail.previous"}
-                            on_click={move || step(-1)}
-                        />
-                        <Button
-                            icon_only=true
-                            glyph=ICON_CHEVRON_DOWN
-                            label="Next row"
-                            variant=ButtonVariant::Ghost
-                            @test_id={"database-view.detail.next"}
-                            on_click={move || step(1)}
-                        />
-                        <Frame padding={Padding::horizontal(Space::Sm)}>
-                            <Text style=TextStyle::CAPTION @test_id={"database-view.detail.id"}>
-                                {code}
-                            </Text>
-                        </Frame>
-                        <Frame @sizing=ItemSize::Percent(100.0) />
-                        <Button
-                            icon_only=true
-                            glyph=ICON_EXTERNAL_LINK
-                            label="Open the page"
-                            variant=ButtonVariant::Ghost
-                            @test_id={"database-view.detail.open"}
-                            on_click={open_page}
-                        />
-                        <MenuButton
-                            icon_only=true
-                            variant=ButtonVariant::Ghost
-                            label="More"
-                            glyph=ICON_ELLIPSIS
-                            @test_id={"database-view.detail.more"}
-                            items={view! {
-                                <MenuItem
-                                    label="Delete row"
-                                    glyph=ICON_TRASH
-                                    danger=true
-                                    disabled={delete_off}
-                                    row_test_id={"database-view.detail.delete".to_owned()}
-                                    on_click={remove}
-                                />
-                            }}
-                        />
-                        <Show condition={wide}>
-                            <Button
-                                icon_only=true
-                                glyph=ICON_X
-                                label="Close"
-                                variant=ButtonVariant::Ghost
-                                @test_id={"database-view.detail.close"}
-                                on_click={close}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
-                <Separator />
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame padding=PADDING>
                         <List spacing=Space::Xl>
-                            <TextInput
-                                value={Binding::new(title, retitled)}
-                                placeholder="Title"
-                                disabled={title_off}
-                                focused={untitled}
-                                @test_id={"database-view.detail.title"}
-                            />
+                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
+                                <TextInput
+                                    @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                                    value={Binding::new(title, retitled)}
+                                    placeholder="Title"
+                                    disabled={title_off}
+                                    focused={untitled}
+                                    @test_id={"database-view.detail.title"}
+                                />
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_CHEVRON_UP
+                                    label="Previous row"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.detail.previous"}
+                                    on_click={move || step(-1)}
+                                />
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_CHEVRON_DOWN
+                                    label="Next row"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.detail.next"}
+                                    on_click={move || step(1)}
+                                />
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_EXTERNAL_LINK
+                                    label="Open the page"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.detail.open"}
+                                    on_click={open_page}
+                                />
+                                <MenuButton
+                                    icon_only=true
+                                    variant=ButtonVariant::Ghost
+                                    label="More"
+                                    glyph=ICON_ELLIPSIS
+                                    @test_id={"database-view.detail.more"}
+                                    items={view! {
+                                        <MenuItem
+                                            label="Delete row"
+                                            glyph=ICON_TRASH
+                                            danger=true
+                                            disabled={delete_off}
+                                            row_test_id={"database-view.detail.delete".to_owned()}
+                                            on_click={remove}
+                                        />
+                                    }}
+                                />
+                            </List>
                             <List spacing=Space::Xs2>
                                 <ForEach keys={properties}>|field: Uuid|
                                     <Property data={data} row={row} field={field} />
