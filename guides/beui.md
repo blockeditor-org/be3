@@ -2685,8 +2685,8 @@ answer from it.
 Tiled, the styled `Docking` lays its panes edge to edge, divided by a one-point line
 (`splitter_thickness`) that takes presses a few points either side of it (`splitter_reach`);
 only floating windows and cards keep a border, rounded corners and a focus outline.
-A dock narrower than `NARROW_WIDTH` or shorter than `SHORT_HEIGHT` (a phone either way up) is
-compact. A compact dock whose own tree has no bare stage pane stacks (`DockMode::Stacked`): it draws
+A dock narrower than `NARROW_WIDTH`, or shorter than `SHORT_HEIGHT` while narrower than
+`PHONE_LANDSCAPE_WIDTH` (a phone either way up, never a short desktop window), is compact. A compact dock whose own tree has no bare stage pane stacks (`DockMode::Stacked`): it draws
 the same state as one screen, the focused tab filling the dock, edge to edge, with no tab bars,
 splitters or windows, and everything else in the state is kept, so widening it tiles the layout
 again. A tree with a bare stage pane (`DockState::stage_of`: a bare pane among others, an editor's
@@ -2702,8 +2702,9 @@ unfolds it to that tab. The dragged sizes, the fold and the gathered tab are a `
 stage tab (`DockState::compacts`), saved with the layout (`DockSpec::compact`, dock-layout's
 `compact`) apart from the tiled splits, so going back and forth between sizes mixes neither. A
 stacked dock's switcher lists such a tree by its stage alone (`DockState::switchable`). The dock
-picks the mode from its own size (the unstyled `Docking` is compact below its `stack_below` wide
-or `short_below` tall, which the styled one sets to `NARROW_WIDTH` and `SHORT_HEIGHT`), and
+picks the mode from its own size (the unstyled `Docking` is compact below its `stack_below` wide, or below its `short_below`
+tall and `short_narrower_than` wide, which the styled one sets to `NARROW_WIDTH`, `SHORT_HEIGHT`
+and `PHONE_LANDSCAPE_WIDTH`), and
 `DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone; a joined
 dock reads the mode of the dock it joined (dock-hosted's `mode`).
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
@@ -4907,7 +4908,7 @@ the window, and the inspected program is one of its tabs: an Program tab, in a p
 the tools (Beui, Comp, A11y, Perf and Sim) with the tools 340 points wide, whose body is an
 `Embed` the program's document is laid out in. So the tools can be dragged beside the program, under it,
 beside one another or into floating windows, and the splitter sizes the program. A window narrower
-than `NARROW_WIDTH` or shorter than `SHORT_HEIGHT` stacks the dock, so the program and the tools take turns behind the stacked
+than `NARROW_WIDTH` or a phone-sized one shorter than `SHORT_HEIGHT` stacks the dock, so the program and the tools take turns behind the stacked
 bar, picking shows the Program tab, and a pick returns to the tool shown last.
 
 The program is drawn under the inspector: `InspectorTools` shows the inspector's document first, so the

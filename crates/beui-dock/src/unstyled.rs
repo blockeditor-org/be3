@@ -1679,6 +1679,7 @@ pub(crate) struct DockConfig {
     pub(crate) menu: MenuStyle,
     pub(crate) stack_below: f32,
     pub(crate) short_below: f32,
+    pub(crate) short_narrower_than: f32,
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
@@ -1739,6 +1740,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         menu,
         stack_below,
         short_below,
+        short_narrower_than,
         mode: published,
         drag_modifier,
         splitter_thickness,
@@ -1787,8 +1789,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let outer = outer_held.read_only();
     let mode = create_memo(move || {
         let size = outer.get().size();
-        let compact =
-            size.x > 0.0 && (size.x < stack_below || (size.y > 0.0 && size.y < short_below));
+        let short = size.y > 0.0 && size.y < short_below && size.x < short_narrower_than;
+        let compact = size.x > 0.0 && (size.x < stack_below || short);
         if !compact {
             return DockMode::Tiled;
         }
