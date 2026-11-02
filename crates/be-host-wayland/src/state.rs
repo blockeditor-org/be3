@@ -1034,6 +1034,16 @@ impl State {
         handle.set_xkb_config(self, xkb).is_ok()
     }
 
+    pub fn set_layout(&mut self, index: u32) {
+        let keyboard = self.keyboard();
+        keyboard.with_xkb_state(self, |mut context| {
+            let count = context.xkb().lock().unwrap().layouts().count();
+            if (index as usize) < count {
+                context.set_layout(smithay::input::keyboard::Layout(index));
+            }
+        });
+    }
+
     pub fn key(&mut self, code: u32, pressed: bool) {
         let keyboard = self.keyboard();
         let time = self.time();

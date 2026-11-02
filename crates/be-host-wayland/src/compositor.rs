@@ -123,6 +123,10 @@ impl Compositor {
         self.server.state.set_keyboard(keyboard)
     }
 
+    pub fn set_layout(&mut self, index: u32) {
+        self.server.state.set_layout(index);
+    }
+
     pub fn set_blank_after(&mut self, after: Option<Duration>) {
         self.server.state.idle.set_blank_after(after);
     }

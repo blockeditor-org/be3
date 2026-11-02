@@ -4,6 +4,7 @@ mod clock;
 mod ending;
 mod fullscreen;
 mod launcher;
+mod layouts;
 pub(crate) mod media;
 mod notifications;
 pub(crate) mod osd;
@@ -220,7 +221,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let corner = create_memo(move || bar::toast_corner(status.get()));
     let toasts = create_memo(move || bar::clear_of_status(layout, status.get(), area.get()));
     let osd = media::Osd::new(editor);
-    let shell = Shell::new(workspace, notifications, programs_panel, windows);
+    let layouts = layouts::Layouts::new(editor);
+    let several_layouts = layouts.several;
+    let shell = Shell::new(workspace, notifications, programs_panel, windows, layouts);
     publish(editor.block_id(), Desktop { shell, osd });
     view! {
         <Frame @node_ref={&surface}>
@@ -258,6 +261,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <WorkspaceDialogs workspace />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />
+                </Show>
+                <Show condition={several_layouts}>
+                    <layouts::LayoutKey layouts />
                 </Show>
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>

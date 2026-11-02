@@ -65,7 +65,7 @@ pub use be_sdk_api::{
     VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
     WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
-    WindowKind, WindowMenu, WindowOrigin, WindowRequests, WindowsWatch,
+    WindowKind, WindowMenu, WindowOrigin, WindowRequests, WindowsWatch, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,

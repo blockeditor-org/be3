@@ -4,7 +4,7 @@ use crate::__args::{
     DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST, DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs,
     DesktopMediaRequestArgs, DesktopNotificationsReportArgs, DesktopPowerAnswerEndingArgs,
     DesktopPowerRequestArgs, DesktopProgramsRequestArgs, DesktopTrayRequestArgs,
-    DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
+    DesktopWifiRequestArgs, DesktopWindowsRequestArgs, DESKTOP_INPUT_SWITCH_LAYOUT, DesktopInputSwitchLayoutArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
@@ -41,6 +41,10 @@ pub fn wifi(started: &Started) -> Option<WifiRequest> {
 
 pub fn epaper_refresh(started: &Started) -> Option<()> {
     args::<DesktopEpaperRefreshArgs>(started, DESKTOP_EPAPER_REFRESH).map(|_| ())
+}
+
+pub fn switch_layout(started: &Started) -> Option<u32> {
+    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT).map(|args| args.index)
 }
 
 pub fn notification_report(started: &Started) -> Option<NotificationReport> {

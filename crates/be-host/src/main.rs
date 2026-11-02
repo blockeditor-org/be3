@@ -947,6 +947,7 @@ impl HostCore {
         self.run_media();
         self.run_wifi();
         display::run_epaper();
+        input::run_layout_requests();
     }
 
     #[cfg(target_os = "linux")]

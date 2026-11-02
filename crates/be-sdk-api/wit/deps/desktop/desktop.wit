@@ -148,6 +148,32 @@ interface input {
         constructor();
         next: async func() -> input-reach;
     }
+
+    /// One of the layouts the keymap holds.
+    record keyboard-layout {
+        /// Its name, as the keymap gives it: "English (US)", "German".
+        name: string,
+        /// A short label for an indicator, upper case: "EN", "DE".
+        label: string,
+    }
+
+    /// The keymap's layouts and the one keys type in.
+    record keyboard-layouts {
+        /// In the order the keymap's settings list them.
+        layouts: list<keyboard-layout>,
+        /// The index in `layouts` of the active one.
+        active: u32,
+    }
+
+    /// Answered where the keymap takes effect (`input-reach`'s `keyboard`).
+    resource keyboard-layouts-watch {
+        constructor();
+        next: async func() -> keyboard-layouts;
+    }
+
+    /// Makes the layout at `index` the one keys type in, for every program the session
+    /// hosts and for the session's own text. An index past the last does nothing.
+    switch-layout: async func(index: u32);
 }
 
 /// The displays connected to the session.

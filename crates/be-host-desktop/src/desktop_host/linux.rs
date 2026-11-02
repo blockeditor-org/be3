@@ -477,6 +477,10 @@ pub fn set_keyboard(keyboard: &be_host_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }
 
+pub fn set_layout(index: u32) {
+    with(|running| running.compositor.set_layout(index));
+}
+
 fn set_shown(window: HostWindowId, shown: bool) {
     if SHOWN.with(|kept| kept.borrow_mut().set(window, shown)) {
         be_host_base::host::wake();
