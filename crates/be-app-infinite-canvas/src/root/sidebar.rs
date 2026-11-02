@@ -15,7 +15,7 @@ use crate::geometry::*;
 
 use super::actions::CanvasActions;
 use super::components::CanvasComponents;
-use super::layers::LayersSection;
+use super::layers::LayerList;
 use super::paint::resolve_color;
 use super::raster::RasterPanel;
 use super::selection_bar::Swatch;
@@ -92,11 +92,24 @@ pub(crate) fn CanvasSheet(state: CanvasState, sheet: InspectorSheet) -> NodeId {
                     on_close={move || open.set(false)}
                 >
                     <Frame padding=Space::Lg>
-                        <CanvasPanels state={state} />
+                        <List spacing=SPACING>
+                            <CanvasPanels state={state} />
+                            <SheetLayers state />
+                        </List>
                     </Frame>
                 </Sheet>
             </Show>
         </List>
+    }
+}
+
+#[component]
+fn SheetLayers(state: CanvasState) -> NodeId {
+    let open = create_signal(true);
+    view! {
+        <Accordion title="Layers" open={open}>
+            <LayerList state />
+        </Accordion>
     }
 }
 
@@ -172,7 +185,6 @@ fn Inspector(state: CanvasState) -> NodeId {
                     <CanvasComponents state={state} />
                 </List>
             </Show>
-            <LayersSection state={state} />
             <Show condition={roomy}>
                 <List spacing=SPACING>
                     <Separator />

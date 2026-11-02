@@ -40,16 +40,19 @@ use canvas::CanvasStage;
 use export::ExportDialog;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
+use layers::CanvasLayers;
 use sidebar::{CanvasInspector, CanvasSheet, InspectorSheet};
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
-use beui::ItemSize;
+use beui::{Direction, ItemSize};
 
 const INSPECTOR: &str = "inspector";
+const LAYERS: &str = "layers";
 const INSPECTOR_WIDTH: f32 = 280.0;
+const LAYERS_HEIGHT: f32 = 240.0;
 
 pub struct CanvasRoot;
 
@@ -139,11 +142,18 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
                 <Show condition={docked}>
-                    <DockPane id="inspector" locked=true>
-                        <DockTab id=INSPECTOR title="Inspector">
-                            <CanvasInspector state={state} />
-                        </DockTab>
-                    </DockPane>
+                    <DockSplit id="side" direction=Direction::Vertical size={SplitSize::Second(LAYERS_HEIGHT)}>
+                        <DockPane id="inspector" locked=true>
+                            <DockTab id=INSPECTOR title="Inspector">
+                                <CanvasInspector state={state} />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="layers" locked=true>
+                            <DockTab id=LAYERS title="Layers">
+                                <CanvasLayers state={state} />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
                 </Show>
             </DockSplit>
             <DockBar

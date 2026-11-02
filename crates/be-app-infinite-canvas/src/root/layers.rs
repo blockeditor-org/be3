@@ -17,23 +17,33 @@ const ROW_RADIUS: Radius = Radius::Sm;
 struct Layer(Uuid);
 
 #[component]
-pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
-    let open = create_signal(true);
+pub(crate) fn CanvasLayers(state: CanvasState) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll>
+                <Frame padding=Space::Lg>
+                    <LayerList state />
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn LayerList(state: CanvasState) -> NodeId {
     let entities = state.entities.ids();
     let ids =
         create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
-        <Accordion title="Layers" open={open}>
-            <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
-                <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
-                </Show>
-                <ForEach keys={ids}>|id: Uuid|
-                    <LayerRow state id />
-                </ForEach>
-            </List>
-        </Accordion>
+        <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
+            <Show condition={empty}>
+                <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
+            </Show>
+            <ForEach keys={ids}>|id: Uuid|
+                <LayerRow state id />
+            </ForEach>
+        </List>
     }
 }
 

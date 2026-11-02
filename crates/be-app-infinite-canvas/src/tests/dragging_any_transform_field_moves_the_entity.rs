@@ -27,6 +27,7 @@ fn dragging_any_transform_field_moves_the_entity() {
     for field in ["x", "y", "width", "height", "rotation"] {
         let before = editor.rect_of(&drawn);
         let held = entities(&editor)[0].transform;
+        editor.reveal(&format!("infinite-canvas.transform.{field}"));
         let at = editor
             .rect_of(&format!("infinite-canvas.transform.{field}"))
             .center();
