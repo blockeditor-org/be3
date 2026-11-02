@@ -7,7 +7,9 @@ fn hovering_a_painting_shows_it_at_full_size() {
 
     review.test.hover("paint_review.painting.beui-demo.buttons");
     assert!(
-        review.requested().contains(&"after-beui-demo.buttons".to_owned()),
+        review
+            .requested()
+            .contains(&"after-beui-demo.buttons".to_owned()),
         "hovering fetches the full image at once"
     );
     assert!(review.test.shows("paint_review.preview"));

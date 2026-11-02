@@ -61,14 +61,21 @@ fn an_added_painting_is_linked_into_the_review_page() {
     assert_eq!(frame.before, None);
     let after = frame.after.as_ref().unwrap();
     assert_eq!((after.width, after.height), (2, 2));
-    assert_eq!(after.thumbnail, after.image, "a small image is its own thumbnail");
+    assert_eq!(
+        after.thumbnail, after.image,
+        "a small image is its own thumbnail"
+    );
     assert_eq!(painting.changed_pixels, 4);
     assert!(files.contains(&format!("{}.webp", after.image)));
     let webp = fs::read(output.join(format!("{}.webp", after.image))).unwrap();
     let decoded = image::load_from_memory_with_format(&webp, image::ImageFormat::WebP)
         .unwrap()
         .to_rgba8();
-    assert_eq!(decoded.get_pixel(0, 0).0, [255, 0, 0, 255], "the image is lossless");
+    assert_eq!(
+        decoded.get_pixel(0, 0).0,
+        [255, 0, 0, 255],
+        "the image is lossless"
+    );
     assert!(comment.contains(&format!(
         "<a href=\"PREVIEW_ROOT/{0}.webp\"><img alt=\"After\" src=\"PREVIEW_ROOT/{0}.webp\"></a>",
         after.image

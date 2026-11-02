@@ -4,10 +4,10 @@ use beui::styled::*;
 use beui::unstyled;
 use beui::{Align, Align2, Direction, ImageFit, ItemSize, NodeId, Vec2};
 
+use crate::Shortcuts;
 use crate::images::ImageState;
 use crate::review::{Review, missing};
 use crate::status::{color, glyph, label};
-use crate::Shortcuts;
 use be_tool_paint_review_manifest::{Picture, Status};
 
 const PADDING: Space = Space::Xl;
@@ -76,9 +76,9 @@ pub(crate) fn Gallery(review: Review) -> NodeId {
                                     wrap=true
                                     @test_id={"paint_review.grid"}
                                 >
-                                    <ForEach keys={keys}>|index: usize| {
-                                        view! { <Tile review index /> }
-                                    }</ForEach>
+                                    <ForEach keys={keys}>|index: usize|
+                                        <Tile review index />
+                                    </ForEach>
                                 </List>
                             </Frame>
                         </Scroll>
@@ -101,7 +101,11 @@ fn Tile(review: Review, index: usize) -> NodeId {
         let side = review.side.get();
         let picture = review
             .with_painting(index, |painting| {
-                painting.frames.first().and_then(|frame| side.of(frame)).cloned()
+                painting
+                    .frames
+                    .first()
+                    .and_then(|frame| side.of(frame))
+                    .cloned()
             })
             .flatten();
         (side, picture)
@@ -153,12 +157,7 @@ fn Tile(review: Review, index: usize) -> NodeId {
                 false => Some(Border::DEFAULT),
             });
             view! {
-                <Frame
-                    padding=TILE_PADDING
-                    radius=Radius::Md
-                    fill={fill}
-                    border={border}
-                >
+                <Frame padding=TILE_PADDING radius=Radius::Md fill={fill} border={border}>
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(THUMBNAIL_WIDTH)}
@@ -208,7 +207,11 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
         let index = review.hovered.get()?;
         let side = review.side.get();
         review.with_painting(index, |painting| {
-            let picture = painting.frames.first().and_then(|frame| side.of(frame)).cloned();
+            let picture = painting
+                .frames
+                .first()
+                .and_then(|frame| side.of(frame))
+                .cloned();
             (painting.name.clone(), painting.status, side, picture)
         })
     });
@@ -246,26 +249,29 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
     view! {
         <Frame align={Align2::CENTER}>
             <List spacing=Space::None>
-            <Show condition={showing}>
-                <Frame
-                    fill=ColorRole::Surface
-                    border={Some(Border::DEFAULT)}
-                    radius=Radius::Md
-                    padding=Space::Sm
-                    @test_id={"paint_review.preview"}
-                >
-                    <List spacing=Space::Xs align=Align::Center>
-                        <Show condition={pictured}>
-                            <Frame width={width} height={height}>
-                                <Picture image={image} fit=ImageFit::Fill smooth=false />
-                            </Frame>
-                        </Show>
-                        <Text style=TextStyle::CAPTION @test_id={"paint_review.preview.caption"}>
-                            {caption}
-                        </Text>
-                    </List>
-                </Frame>
-            </Show>
+                <Show condition={showing}>
+                    <Frame
+                        fill=ColorRole::Surface
+                        border={Some(Border::DEFAULT)}
+                        radius=Radius::Md
+                        padding=Space::Sm
+                        @test_id={"paint_review.preview"}
+                    >
+                        <List spacing=Space::Xs align=Align::Center>
+                            <Show condition={pictured}>
+                                <Frame width={width} height={height}>
+                                    <Picture image={image} fit=ImageFit::Fill smooth=false />
+                                </Frame>
+                            </Show>
+                            <Text
+                                style=TextStyle::CAPTION
+                                @test_id={"paint_review.preview.caption"}
+                            >
+                                {caption}
+                            </Text>
+                        </List>
+                    </Frame>
+                </Show>
             </List>
         </Frame>
     }
@@ -277,4 +283,3 @@ fn fitted(picture: &Picture, room: Vec2) -> Vec2 {
     let scale = (room.x / actual.x).min(room.y / actual.y).min(1.0);
     actual * scale
 }
-

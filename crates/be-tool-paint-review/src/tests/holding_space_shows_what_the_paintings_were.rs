@@ -4,7 +4,9 @@ use super::*;
 fn holding_space_shows_what_the_paintings_were() {
     let mut review = Review::with(mixed());
     review.deliver();
-    review.test.hover("paint_review.painting.beui-demo.a_new_page");
+    review
+        .test
+        .hover("paint_review.painting.beui-demo.a_new_page");
     review.deliver();
 
     review.hold(beui::Key::Space, true);

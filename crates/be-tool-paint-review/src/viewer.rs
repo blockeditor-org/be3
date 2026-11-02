@@ -1,11 +1,10 @@
 use beui::Overflow;
 use beui::icons::{ICON_ARROW_LEFT, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
-use beui::primitives::Interactive;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Align, Align2, CursorIcon, Direction, ImageFit, ItemSize, NodeId, PointerPress, Rect, TextAlign,
-    Vec2, pos2,
+    Align, Align2, CursorIcon, Direction, ImageFit, ItemSize, NodeId, PointerPress, Rect,
+    TextAlign, Vec2, pos2,
 };
 
 use crate::Shortcuts;
@@ -262,7 +261,11 @@ fn Stage(review: Review) -> NodeId {
     });
     let noticed = create_memo(move || !notice.get().is_empty());
     let loading = create_memo(move || {
-        states.with(|states| states.iter().any(|state| matches!(state, ImageState::Loading)))
+        states.with(|states| {
+            states
+                .iter()
+                .any(|state| matches!(state, ImageState::Loading))
+        })
     });
     let failure = create_memo(move || {
         states.with(|states| {
@@ -281,10 +284,12 @@ fn Stage(review: Review) -> NodeId {
     let centering = create_memo(move || (review.open.get(), content.get()));
 
     let image_of = move |which: usize| {
-        create_memo(move || match states.with(|states| states.get(which).cloned()) {
-            Some(ImageState::Ready(image)) => Some(image),
-            _ => None,
-        })
+        create_memo(
+            move || match states.with(|states| states.get(which).cloned()) {
+                Some(ImageState::Ready(image)) => Some(image),
+                _ => None,
+            },
+        )
     };
     let first = image_of(0);
     let second = image_of(1);
@@ -334,7 +339,10 @@ fn Stage(review: Review) -> NodeId {
                 });
                 view! {
                     <Layers>
-                        <PanZoom view={camera} @test_id="paint_review.pan_zoom">|handle: PanZoomHandle| {
+                        <PanZoom
+                            view={camera}
+                            @test_id="paint_review.pan_zoom"
+                        >|handle: PanZoomHandle| {
                             let PanZoomHandle { view, scale, focused, .. } = handle;
                             let handle_x = create_memo(move || {
                                 split_x.get() - HANDLE_WIDTH / 2.0 / scale.get().max(0.01)
@@ -356,7 +364,11 @@ fn Stage(review: Review) -> NodeId {
                                             width={create_memo(move || first_size.get().x)}
                                             height={create_memo(move || first_size.get().y)}
                                         >
-                                            <Picture image={first} fit=ImageFit::Fill smooth=false />
+                                            <Picture
+                                                image={first}
+                                                fit=ImageFit::Fill
+                                                smooth=false
+                                            />
                                         </CanvasItem>
                                         <CanvasItem
                                             x={second_x}
@@ -383,7 +395,9 @@ fn Stage(review: Review) -> NodeId {
                                                 on_drag={drag}
                                                 @test_id="paint_review.split"
                                             >
-                                                <Frame align={Align2::new(Align::Center, Align::Stretch)}>
+                                                <Frame
+                                                    align={Align2::new(Align::Center, Align::Stretch)}
+                                                >
                                                     <Frame
                                                         width={Size::Custom(HANDLE_LINE)}
                                                         height=Length::FILL
@@ -397,7 +411,10 @@ fn Stage(review: Review) -> NodeId {
                             }
                         }</PanZoom>
                         <Show condition={comparing}>
-                            <Frame align={Align2::new(Align::Start, Align::Start)} padding=Space::Lg>
+                            <Frame
+                                align={Align2::new(Align::Start, Align::Start)}
+                                padding=Space::Lg
+                            >
                                 <Text style=TextStyle::CAPTION>"Before"</Text>
                             </Frame>
                         </Show>
@@ -414,7 +431,10 @@ fn Stage(review: Review) -> NodeId {
                                         spacing=SPACING
                                         @test_id={"paint_review.image.loading"}
                                     >
-                                        <Progress width=INLINE_PROGRESS_WIDTH label="Loading the image" />
+                                        <Progress
+                                            width=INLINE_PROGRESS_WIDTH
+                                            label="Loading the image"
+                                        />
                                         <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                                     </List>
                                 </Show>
@@ -427,7 +447,10 @@ fn Stage(review: Review) -> NodeId {
                                     </Text>
                                 </Show>
                                 <Show condition={failed}>
-                                    <Text color=TextColor::Danger @test_id={"paint_review.image.failed"}>
+                                    <Text
+                                        color=TextColor::Danger
+                                        @test_id={"paint_review.image.failed"}
+                                    >
                                         {reason}
                                     </Text>
                                 </Show>

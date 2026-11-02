@@ -11,7 +11,10 @@ fn an_unreadable_painting_says_why() {
     assert!(review.test.shows("paint_review.detail"));
     assert!(review.test.shows("paint_review.image.none"));
     assert!(
-        !review.requested().iter().any(|hash| hash.contains("map.broken")),
+        !review
+            .requested()
+            .iter()
+            .any(|hash| hash.contains("map.broken")),
         "an unreadable painting has no image to fetch"
     );
     review.test.snapshot("an_unreadable_painting_says_why");

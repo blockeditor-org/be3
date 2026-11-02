@@ -188,7 +188,11 @@ impl Review {
         });
     }
 
-    pub(crate) fn with_painting<T>(self, index: usize, read: impl FnOnce(&Painting) -> T) -> Option<T> {
+    pub(crate) fn with_painting<T>(
+        self,
+        index: usize,
+        read: impl FnOnce(&Painting) -> T,
+    ) -> Option<T> {
         self.manifest.with(|manifest| match manifest {
             Fetch::Ready(manifest) => manifest.paintings.get(index).map(read),
             _ => None,
