@@ -288,22 +288,17 @@ pub(crate) fn AppView(
         .filter(|_| region.id == ViewId::MAIN)
         .map(|ChildFit(fit)| fit);
     provide_context(ChildFit(create_memo(|| None)));
-    let placer = use_context::<Placer>().map(|placer| {
-        (
-            placer.app.value().to_string(),
-            placer.instance,
-            placer.view,
-        )
-    });
+    let placer = use_context::<Placer>()
+        .map(|placer| (placer.app.value().to_string(), placer.instance, placer.view));
     be_host_runtime::mount_view(ViewSlot {
         app: &editor.app,
-        placer: placer.as_ref().map(
-            |(app, instance, view)| be_host_runtime::ViewPlacer {
+        placer: placer
+            .as_ref()
+            .map(|(app, instance, view)| be_host_runtime::ViewPlacer {
                 app,
                 instance: *instance,
                 view: *view,
-            },
-        ),
+            }),
         block_types: &editor.block_types,
         client_id: editor.client_id,
         role: editor.role,

@@ -71,7 +71,7 @@ fn configure(app: &mut HeadlessApp, height: f32, serial: u64) {
         origin: None,
         docked: false,
         anchor_space: None,
-            fit: false,
+        fit: false,
     }])
     .unwrap();
     app.configure(serial).unwrap();

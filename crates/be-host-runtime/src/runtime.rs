@@ -127,7 +127,10 @@ impl Host {
         }
     }
 
-    fn held_behind(&self, active: &be_lib_stable_hash::HashSet<String>) -> be_lib_stable_hash::HashSet<String> {
+    fn held_behind(
+        &self,
+        active: &be_lib_stable_hash::HashSet<String>,
+    ) -> be_lib_stable_hash::HashSet<String> {
         let mut edges: Vec<(EditorInstanceId, &str, &str)> = self
             .runtimes
             .iter()
@@ -1306,11 +1309,6 @@ impl Runtime {
             }
         }
         super::request_windows(&self.app.identity.id, window_requests);
-        self.pacing.animating = animating;
-        self.await_next_frame(repaint_after_micros);
-        if let Some(presented) = presented {
-            self.presents.report(presented);
-        }
         self.instances.adopt_anchored(&reports, &self.layout);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);

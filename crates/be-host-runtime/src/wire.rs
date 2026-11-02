@@ -739,10 +739,8 @@ impl Wire {
                 }
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
-                        let commit: be_sdk_api::PresentCommit =
-                            be_sdk_api::ops::decode(&bytes).ok_or(
-                                "the app answered a draw with a present that did not decode",
-                            )?;
+                        let commit: be_sdk_api::PresentCommit = be_sdk_api::ops::decode(&bytes)
+                            .ok_or("the app answered a draw with a present that did not decode")?;
                         heard.push(Heard::Presented(commit));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => heard.push(Heard::ShutDown),
