@@ -357,9 +357,7 @@ impl Programs {
                 Stage::Placed
             }
             Err(problem) => {
-                eprintln!(
-                    "be-host: block {block} was not written out for its program: {problem}"
-                );
+                eprintln!("be-host: block {block} was not written out for its program: {problem}");
                 Stage::Failed(problem)
             }
         };

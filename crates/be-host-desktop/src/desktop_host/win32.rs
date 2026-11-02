@@ -618,10 +618,7 @@ fn log_event(snapshot: &Snapshot, event: &FocusEvent) {
             );
         }
         FocusEvent::Ended { entry, reason } => {
-            eprintln!(
-                "be-host: focus mode on {} ended: {reason:?}",
-                name(*entry)
-            );
+            eprintln!("be-host: focus mode on {} ended: {reason:?}", name(*entry));
         }
         FocusEvent::Refused { entry, error } => {
             eprintln!(

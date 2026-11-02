@@ -260,11 +260,7 @@ impl Host {
                 let mut files = Vec::new();
                 if path.is_dir() {
                     collect(&path, "", &mut files).map_err(|error| error.to_string())?;
-                    let executable = if windows {
-                        "be-host.exe"
-                    } else {
-                        "be-host"
-                    };
+                    let executable = if windows { "be-host.exe" } else { "be-host" };
                     if !files.iter().any(|(name, _)| name == executable) {
                         return Err(format!("{target} staged no {executable}"));
                     }
