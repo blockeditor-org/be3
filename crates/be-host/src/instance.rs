@@ -152,7 +152,11 @@ pub(crate) fn parse(line: &str, token: &str) -> Result<Handoff, String> {
     for word in words {
         match word {
             "dev-workspace" => handoff.dev_workspace = true,
-            other => return Err(format!("it asked for {other:?}, which be-host does not know")),
+            other => {
+                return Err(format!(
+                    "it asked for {other:?}, which be-host does not know"
+                ));
+            }
         }
     }
     Ok(handoff)

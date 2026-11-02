@@ -28,7 +28,9 @@ fn a_second_be_host_hands_over_to_the_first() {
         .hand_over(Handoff::default())
         .expect("the first be-host answers every second be-host");
     assert_eq!(
-        heard.recv().expect("the first be-host heard the second again"),
+        heard
+            .recv()
+            .expect("the first be-host heard the second again"),
         Handoff::default()
     );
 }

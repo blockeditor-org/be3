@@ -171,7 +171,9 @@ fn hand_over(
             dev_workspace: arguments.dev_workspace,
         })
         .map_err(|error| {
-            format!("another be-host is already running on {data}, but {error}; quit that one first")
+            format!(
+                "another be-host is already running on {data}, but {error}; quit that one first"
+            )
         })?;
     eprintln!("be-host: already running on {data}; showed its window");
     Ok(())
