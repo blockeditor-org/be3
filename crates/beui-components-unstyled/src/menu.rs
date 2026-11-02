@@ -344,7 +344,7 @@ pub(crate) fn MenuList(
     api.fill(MenuListApi(state));
     let active_focus = active.map(move |active| match active {
         false => Focus::Away,
-        true => first_focus(state, focus_first),
+        true => first_focus(state, focus_first || focus_visible()),
     });
     create_effect(move || {
         let focus_now = active_focus.get();

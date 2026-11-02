@@ -53,6 +53,12 @@ pub(crate) fn focus_ring(focused: Prop<bool>) -> Memo<bool> {
     create_memo(move || focused.get() && visible.get() && keyboard.get())
 }
 
+pub(crate) fn focus_visible() -> bool {
+    with_document(|document| {
+        document.watch_focus_visible().get_untracked() && document.watch_keyboard().get_untracked()
+    })
+}
+
 pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     let focused = with_document(|document| document.watch_focused());
     create_memo(move || {
