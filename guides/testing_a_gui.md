@@ -325,7 +325,7 @@ an incomplete preview. Browser rendering is not part of snapshot equality.
 
 5. Running them
 
-./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the app
+./scripts/verify runs them, through buck2: ./scripts/verify --app-tests is the app
 tests alone, and accepts what they paint. buck2 compiles each app's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
 and runs the module through crates/be-sdk-test-runner, which is wasmtime with the

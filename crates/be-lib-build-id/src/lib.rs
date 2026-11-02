@@ -5,7 +5,6 @@ pub const FILE: &str = "build-info.json";
 #[derive(Debug, serde::Deserialize)]
 pub struct Metadata {
     pub id: String,
-    #[serde(alias = "app_id")]
     pub program_id: String,
     #[serde(default)]
     pub default_server: Option<DefaultServer>,

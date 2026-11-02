@@ -199,7 +199,7 @@ what be-launcher asks for Android APKs and native be-host builds.
   `target/` and the credential files at its root, and builds with
   `./scripts/buck`, so the build server is the service environment's
   (`BE3_BUILD_SERVER` and its key). An APK is built with
-  `//buck/app:build-info.json` and `//crates/be-tool-local:release`, and signed
+  `//buck/program:build-info.json` and `//crates/be-tool-local:release`, and signed
   by that be-tool-local `apk-sign` with `--keystore`, so the key never becomes an
   action input.
 

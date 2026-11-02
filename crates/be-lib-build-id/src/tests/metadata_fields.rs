@@ -11,11 +11,5 @@ fn metadata_fields() {
     assert_ne!(dev.program_id, deployed.program_id);
     assert!(Metadata::parse("abc").is_err());
     assert!(Metadata::parse(r#"{"id":"unknown","program_id":"Block"}"#).is_err());
-    assert_eq!(
-        Metadata::parse(r#"{"id":"abc","app_id":"Block"}"#)
-            .unwrap()
-            .program_id,
-        "Block"
-    );
     assert!(Metadata::parse(r#"{"id":"abc"}"#).is_err());
 }

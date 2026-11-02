@@ -22,7 +22,7 @@ program(
     name = "dist",
     binary = ":bin",
     executable_name = "be-server",
-    files = ["//buck/app:build-info.json"],
+    files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
 )

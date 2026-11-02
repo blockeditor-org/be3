@@ -107,7 +107,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--check" => options.check = true,
             "--lint" => options.lint = true,
             "--tests" => {}
-            "--app-tests" | "--plugin-tests" => options.app_tests = true,
+            "--app-tests" => options.app_tests = true,
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;

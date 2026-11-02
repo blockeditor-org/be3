@@ -258,9 +258,10 @@ pub fn write_build_id() -> Result<()> {
     } else {
         format!("{{\"id\":\"{id}\",\"program_id\":\"{program_id}\"}}\n")
     };
-    for path in ["buck/program/build-info.json", "buck/app/build-info.json"] {
-        write_if_changed(&repository().join(path), text.as_bytes())?;
-    }
+    write_if_changed(
+        &repository().join("buck/program/build-info.json"),
+        text.as_bytes(),
+    )?;
     Ok(())
 }
 

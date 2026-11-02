@@ -29,7 +29,7 @@ program(
     name = "native",
     binary = ":bin",
     executable_name = "be",
-    files = ["//buck/app:build-info.json"],
+    files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
     visibility = ["//crates/be-tool-local:"],
