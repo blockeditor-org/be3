@@ -515,6 +515,8 @@ pub(crate) fn density_context() -> Option<Memo<Density>> {
 }
 
 pub const NARROW_WIDTH: f32 = 700.0;
+pub const SHORT_HEIGHT: f32 = 500.0;
+pub const PHONE_LANDSCAPE_WIDTH: f32 = 1000.0;
 
 pub const POINTER_REACH: f32 = 10.0;
 pub const SCROLLBAR_WIDTH: f32 = Size::Track.px() + Space::Xs2.px();

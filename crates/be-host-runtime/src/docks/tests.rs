@@ -150,13 +150,14 @@ fn hosted_by_root() -> DockHosted {
             bars: Vec::new(),
             outside: Vec::new(),
             unlocked: Vec::new(),
+            compact: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
         focused: Some(path(&[INNER_CHILD], 5)),
         shown: None,
         visible: vec![path(&[], 1), path(&[INNER_CHILD], 5)],
         fullscreen: None,
-        stacked: false,
+        mode: be_sdk_api::DockMode::Tiled,
         covers: Vec::new(),
     }
 }

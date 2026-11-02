@@ -3,7 +3,7 @@ use super::*;
 const CARD: &str = "GenericContainer #infinite-canvas.entity.";
 const BOARD: &str = "#game.board";
 const CANVAS_TOOLS: &str = "#infinite-canvas.dock";
-const MOVES: &str = "Tab \"Moves\"";
+const HISTORY: &str = "#game.history";
 const FIRST_MOVE: &str = "#game.history.0.0";
 
 #[test]
@@ -24,7 +24,7 @@ fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
     host.run(&["settle"]);
 
     assert!(
-        !host.shown(MOVES) && !host.shown("#game.actions"),
+        !host.shown(HISTORY) && !host.shown("#game.actions"),
         "on the canvas the game shows only its board"
     );
     assert!(host.shown(CANVAS_TOOLS));
@@ -41,7 +41,7 @@ fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
     host.run(&["move", &to]);
     host.run(&["up", &to]);
     host.wait(FIRST_MOVE);
-    host.wait(MOVES);
+    host.wait(HISTORY);
     host.wait("#game.actions");
     assert!(
         !host.shown(CANVAS_TOOLS),
@@ -52,7 +52,7 @@ fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
     host.snapshot("a_game_on_a_canvas_takes_its_first_drag_as_a_move");
 
     host.key("Escape");
-    host.gone(MOVES);
+    host.gone(HISTORY);
     host.wait(CANVAS_TOOLS);
     assert_eq!(
         host.place(CARD),
@@ -62,9 +62,9 @@ fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
 
     let square = center(host.place("#game.tile.2.4"));
     host.run(&["click", &square]);
-    host.wait(MOVES);
+    host.wait(HISTORY);
     host.run(&["click", &away]);
-    host.gone(MOVES);
+    host.gone(HISTORY);
     host.wait(CANVAS_TOOLS);
     assert_eq!(
         host.place(CARD),

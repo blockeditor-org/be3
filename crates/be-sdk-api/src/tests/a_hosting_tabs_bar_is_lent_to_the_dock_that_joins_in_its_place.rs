@@ -39,6 +39,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
             tree: spliced.tree.clone(),
             homes: Vec::new(),
             unlocked: Vec::new(),
+            compact: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: DockTabPath::own(8),
                 owner: Some(side),
@@ -55,7 +56,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         shown: None,
         visible: Vec::new(),
         fullscreen: None,
-        stacked: false,
+        mode: crate::DockMode::Tiled,
         covers: Vec::new(),
     };
     assert_eq!(

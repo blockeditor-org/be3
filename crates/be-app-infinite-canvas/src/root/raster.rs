@@ -25,7 +25,6 @@ use crate::raster::{
 
 use super::actions::CanvasActions;
 use super::export::DIALOG_SPACING;
-use super::layers::LayersSection;
 use super::sidebar::{OpacityRow, ShortcutsSection};
 use super::state::{CanvasState, Gesture, Tool};
 use beui::{Align, Direction, ItemSize};
@@ -558,7 +557,6 @@ pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
                 <LayerSection state={state} />
             </Show>
             <PixelSection />
-            <LayersSection state={state} />
             <Show condition={roomy}>
                 <List spacing=SPACING>
                     <Separator />

@@ -18,6 +18,7 @@ fn dragging_a_transform_field_twice_keeps_the_first_drag() {
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
+    editor.reveal("infinite-canvas.transform.x");
     let field = editor.point_of("infinite-canvas.transform.x");
     editor.drag(field, field + Vec2::new(20.0, 0.0));
     editor.run();

@@ -1,8 +1,8 @@
 use be_lib_stable_hash::HashSet;
 
 use crate::{
-    ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
-    DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
+    ChildId, DecodeError, DockBar, DockBarPlacement, DockCompact, DockDeclaration, DockGroup,
+    DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
     DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockSplitSize,
     DockTab, DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
@@ -509,7 +509,23 @@ impl DockLayout {
         collection(self.outside.len())?;
         self.outside.iter().try_for_each(DockOutside::validate)?;
         collection(self.unlocked.len())?;
-        self.unlocked.iter().try_for_each(DockPlace::validate)
+        self.unlocked.iter().try_for_each(DockPlace::validate)?;
+        collection(self.compact.len())?;
+        self.compact.iter().try_for_each(DockCompact::validate)
+    }
+}
+
+impl DockCompact {
+    fn validate(&self) -> Result<(), DecodeError> {
+        self.stage.validate()?;
+        if let Some(shown) = &self.shown {
+            shown.validate()?;
+        }
+        let finite = |points: Option<f32>| points.is_none_or(f32::is_finite);
+        match finite(self.portrait) && finite(self.landscape) {
+            true => Ok(()),
+            false => Err(DecodeError::MalformedPayload),
+        }
     }
 }
 

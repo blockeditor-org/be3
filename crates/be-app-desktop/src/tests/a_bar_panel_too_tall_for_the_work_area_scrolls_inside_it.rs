@@ -2,7 +2,7 @@ use be_sdk_beui::beui::Vec2;
 
 use super::*;
 
-const SHORT: Vec2 = Vec2::new(800.0, 320.0);
+const SHORT: Vec2 = Vec2::new(1100.0, 320.0);
 
 #[test]
 fn a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it() {

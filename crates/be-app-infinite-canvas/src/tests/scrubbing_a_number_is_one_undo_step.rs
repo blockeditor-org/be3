@@ -10,6 +10,7 @@ fn scrubbing_a_number_is_one_undo_step() {
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
+    editor.reveal("infinite-canvas.transform.x");
 
     let field = editor.point_of("infinite-canvas.transform.x");
     let path: Vec<_> = (0..=6)

@@ -497,7 +497,7 @@ impl State {
             false => {
                 let tab = state.bar_tab(bar)?;
                 let leaf = state.find(tab)?.leaf;
-                if !state.is_shown(tab, false) {
+                if !state.is_shown(tab, DockMode::Tiled) {
                     return None;
                 }
                 *self.bodies.value().borrow().get(&leaf)?

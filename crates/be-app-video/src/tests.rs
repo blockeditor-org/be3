@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block::BlockContent;
 use be_type_example_counter::CounterContent;
 
-use be_sdk_beui::beui::Pos2;
+use be_sdk_beui::beui::{Pos2, Vec2};
 use be_sdk_beui::{BlockInfo, BlockParent};
 use be_sdk_test::BeuiTest;
 use be_type_video::VideoContent;
@@ -12,6 +12,8 @@ use crate::root::VideoRoot;
 use crate::timeline::timecode;
 
 mod a_trim_keeps_following_the_pointer_once_its_first_edit_lands;
+mod a_video_on_a_phone_on_its_side_shows_its_panes_beside_the_player;
+mod a_video_on_a_phone_shows_its_panes_below_the_player;
 mod an_empty_video_has_nothing_at_the_playhead;
 mod clicking_a_clip_selects_it_for_the_effects_panel;
 mod dragging_a_clip_past_the_next_one_reorders_the_base_track;
@@ -24,8 +26,14 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let block = Uuid::new_v4();
-        let mut editor = BeuiTest::editing(block);
+        Self::start(BeuiTest::editing(Uuid::new_v4()))
+    }
+
+    fn sized(size: Vec2) -> Self {
+        Self::start(BeuiTest::editing(Uuid::new_v4()).with_size(size))
+    }
+
+    fn start(mut editor: BeuiTest<VideoRoot>) -> Self {
         editor.hold(None, VideoContent::default());
         Self { editor }
     }

@@ -2,14 +2,15 @@ use be_sdk_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
     SplitSize,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge, DockMode};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Editor, Loaded, narrow_chrome};
+use be_sdk_beui::{Editor, Loaded};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_database::DatabaseValueEditor;
 use be_sdk_ui_database::DatabaseValueChange;
+use be_type_database::database::short_id;
 use be_type_database::database_schema::DatabaseField;
 use be_type_database::database_view::DatabaseViewKind;
 use uuid::Uuid;
@@ -18,7 +19,7 @@ use crate::database_view::root::calendar::CalendarView;
 use crate::database_view::root::data::{Data, ViewData};
 use crate::database_view::root::header::ViewHeader;
 use crate::database_view::root::kanban::Kanban;
-use crate::database_view::root::list::{ListView, OpenRow, RowBeside};
+use crate::database_view::root::list::{ListView, OpenRow};
 use crate::database_view::root::scatter::Scatter;
 use crate::database_view::root::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
@@ -57,37 +58,41 @@ fn ViewEditor(editor: Editor) -> NodeId {
 
     let spreadsheet = create_memo(move || data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
-    let narrow = narrow_chrome();
-    let header_shown = create_memo(move || {
-        let covered = narrow.get()
-            && data.kind.get() != DatabaseViewKind::Spreadsheet
-            && data.selected_row().is_some();
-        chrome.get() && !covered
-    });
     let cell_bar = create_memo(move || chrome.get() && spreadsheet.get());
     let opened = open_row(data);
-    let beside = create_memo(move || !narrow.get() && opened.get().is_some());
+    let beside = create_memo(move || opened.get().is_some());
+    let code = create_memo(move || {
+        opened
+            .get()
+            .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
+            .unwrap_or_default()
+    });
     let content = NodeRef::new();
     editor.content(&content);
     let layout = DockingLayout::<&'static str>::new();
+    create_effect(move || {
+        if opened.get().is_some() && layout.mode().get_untracked() == DockMode::Compact {
+            layout.show(&ROW);
+        }
+    });
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="view" size={SplitSize::Second(ROW_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="View">
                         <List spacing=Space::None>
-                            <Show condition={header_shown}>
+                            <Show condition={chrome}>
                                 <ViewHeader data={data} />
                             </Show>
                             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                                <Content data={data} panels=true />
+                                <Content data={data} />
                             </Frame>
                         </List>
                     </DockTab>
                 </DockPane>
                 <Show condition={beside}>
                     <DockPane id="row" locked=true>
-                        <DockTab id=ROW title="Row">
+                        <DockTab id=ROW title={code} on_close={move || data.deselect()}>
                             <OpenRow data={data} row={opened} />
                         </DockTab>
                     </DockPane>
@@ -129,37 +134,35 @@ pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
 fn PreviewContent(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
     view! {
-        <Content data={data} panels=false />
+        <Content data={data} />
     }
 }
 
 #[component]
-fn Content(data: Data, panels: bool) -> NodeId {
+fn Content(data: Data) -> NodeId {
     let kind = data.kind;
     view! {
-        <RowBeside data={data} enabled={panels}>
-            <List spacing=Space::None>
-                <Dynamic value={kind}>|kind: DatabaseViewKind| {
-                    match kind {
-                        DatabaseViewKind::Spreadsheet => view! {
-                            <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Kanban => view! {
-                            <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Scatter => view! {
-                            <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::List => view! {
-                            <ListView @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Calendar => view! {
-                            <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                    }
-                }</Dynamic>
-            </List>
-        </RowBeside>
+        <List spacing=Space::None>
+            <Dynamic value={kind}>|kind: DatabaseViewKind| {
+                match kind {
+                    DatabaseViewKind::Spreadsheet => view! {
+                        <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Kanban => view! {
+                        <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Scatter => view! {
+                        <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::List => view! {
+                        <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Calendar => view! {
+                        <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                }
+            }</Dynamic>
+        </List>
     }
 }
 
