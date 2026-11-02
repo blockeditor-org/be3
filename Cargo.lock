@@ -793,6 +793,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-example-scoreboard"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-scoreboard",
+ "beui",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-example-triangle"
 version = "0.1.0"
 dependencies = [
@@ -2332,6 +2343,17 @@ dependencies = [
 
 [[package]]
 name = "be-type-example-pan-zoom"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-example-scoreboard"
 version = "0.1.0"
 dependencies = [
  "be-block",

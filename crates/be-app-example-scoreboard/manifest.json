@@ -1,0 +1,31 @@
+{
+  "id": "be3.scoreboard",
+  "name": "Scoreboard",
+  "version": "0.1.0",
+  "editors": {
+    "scoreboard": {
+      "id": "44d006d4-017e-4c8a-b34f-21cb329de58e",
+      "edits": "0ac5bc05-abd1-4a2a-8ce3-c740562ea5b2",
+      "display_name": "Scoreboard",
+      "icon": "",
+      "templates": {
+        "main": {
+          "category": "debug"
+        }
+      },
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "scoreboard": {
+      "id": "0ac5bc05-abd1-4a2a-8ce3-c740562ea5b2",
+      "display_name": "Scoreboard",
+      "icon": "",
+      "color": [214, 160, 52],
+      "module": "scoreboard_types.wasm"
+    }
+  },
+  "entry_point": "scoreboard.wasm"
+}
