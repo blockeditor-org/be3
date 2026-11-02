@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, SplitSize, DockTab, DockingLayout,
     TabId, use_dock_bar,
 };
 
@@ -68,7 +68,7 @@ fn bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_sh
         handle.set(Some((outer, pressed)));
         view! {
             <dock::styled::Docking layout=outer focus=2u64>
-                <DockSplit id="root" fraction=0.7>
+                <DockSplit id="root" size={SplitSize::Fraction(0.7)}>
                     <DockPane id="canvases">
                         <DockTab id=1u64 title="Canvas 1">
                             <SharedCanvas id=1 tools=2 pressed />

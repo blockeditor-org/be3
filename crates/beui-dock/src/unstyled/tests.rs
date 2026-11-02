@@ -6,6 +6,7 @@ mod a_bar_keeps_its_placement_wherever_its_tab_goes;
 mod a_bare_pane_shows_its_one_tab_and_takes_no_other;
 mod a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab;
 mod a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane;
+mod a_fixed_half_keeps_its_width_when_the_dock_resizes;
 mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;
 mod a_group_cannot_be_dropped_inside_itself;
 mod a_group_left_with_one_tab_becomes_that_tab_again;
@@ -52,6 +53,7 @@ mod bars_of_one_key_share_one_window_that_follows_the_tab_shown_last;
 mod bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in;
 mod cancelling_a_switch_leaves_the_tab_that_was_shown;
 mod closing_the_last_tab_of_a_window_closes_the_window;
+mod dragging_a_fixed_splitter_changes_its_points;
 mod dropping_a_tab_onto_another_tab_groups_them;
 mod emptying_a_pane_gives_its_room_to_the_pane_it_was_split_from;
 mod going_back_closes_a_tab_it_opened_and_returns_from_a_tab_switched_to;
@@ -103,10 +105,20 @@ fn split(
     first: DockSpecNode,
     second: DockSpecNode,
 ) -> DockSpecNode {
+    sized(key, direction, SplitSize::Fraction(fraction), first, second)
+}
+
+fn sized(
+    key: &str,
+    direction: Direction,
+    size: SplitSize,
+    first: DockSpecNode,
+    second: DockSpecNode,
+) -> DockSpecNode {
     DockSpecNode::Split {
         key: key.to_owned(),
         direction,
-        fraction,
+        size,
         first: Box::new(first),
         second: Box::new(second),
     }

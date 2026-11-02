@@ -223,7 +223,7 @@ fn declaration() -> DockDeclaration {
                     kind: DockItemKind::Split(DockSplit {
                         key: "main".into(),
                         direction: DockDirection::Horizontal,
-                        fraction: 0.25,
+                        size: DockSplitSize::First(260.0),
                     }),
                 },
                 pane(1, "files", true),

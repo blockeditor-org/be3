@@ -77,8 +77,8 @@ pub use state::{
     DockTree, DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId,
     TabPosition, Tree, layout_surface, layout_tree,
 };
-use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved, tree_shape};
-pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, tree_shape};
+pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SplitSize};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
@@ -3274,12 +3274,19 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     let direction = state
         .with_untracked(|state| state.split_direction(split))
         .unwrap_or(Direction::Horizontal);
-    let fraction = create_memo(move || state.with(|state| state.split_fraction(split)));
+    let size = create_memo(move || state.with(|state| state.split_size(split)));
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Splitter);
-        node.set_numeric_value(f64::from(fraction.get() * 100.0));
+        match size.get() {
+            SplitSize::Fraction(fraction) => {
+                node.set_numeric_value(f64::from(fraction * 100.0));
+                node.set_max_numeric_value(100.0);
+            }
+            SplitSize::First(points) | SplitSize::Second(points) => {
+                node.set_numeric_value(f64::from(points));
+            }
+        }
         node.set_min_numeric_value(0.0);
-        node.set_max_numeric_value(100.0);
         node
     }));
     let face = dock.splitter.call(DockSplitterHandle {
@@ -3288,13 +3295,12 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         active: active.read_only(),
         focused: focused.read_only(),
     });
-    let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
+    let held: Rc<Cell<Option<(SplitSize, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    let shown = Rc::new(move || {
+    let start = move || {
         dock.splitter_of(tree, split)
-            .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
-    });
-    let start = shown.clone();
+            .map_or_else(|| size.get_untracked(), |splitter| splitter.size)
+    };
     let node = view! {
         <Interactive
             @test_id={dock.splitter_test_id(split)}
@@ -3312,8 +3318,12 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     (Direction::Vertical, Key::ArrowDown) => SPLIT_STEP,
                     _ => return false,
                 };
-                let next = shown() + step;
-                dock.edit(|state| state.set_split_fraction(split, next));
+                let Some(splitter) = dock.splitter_of(tree, split) else {
+                    return false;
+                };
+                let available = splitter.available(dock.thickness);
+                let next = splitter.size.moved(available, step * available);
+                dock.edit(|state| state.set_split_size(split, next));
                 true
             }}
             cursor={match direction {
@@ -3337,14 +3347,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 let Some(splitter) = dock.splitter_of(tree, split) else {
                     return;
                 };
-                let fraction = fraction_moved(
-                    splitter.area,
-                    splitter.direction,
-                    dock.thickness,
-                    start,
-                    moved,
-                );
-                dock.drag_edit(move |state| state.set_split_fraction(split, fraction));
+                let next = start.moved(splitter.available(dock.thickness), moved);
+                dock.drag_edit(move |state| state.set_split_size(split, next));
             }}
         >
             <Frame>{face}</Frame>

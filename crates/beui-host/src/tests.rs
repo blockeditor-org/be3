@@ -2062,7 +2062,7 @@ pub(crate) struct NestedDock {
 }
 
 pub(crate) fn nested_dock() -> (Document, NestedDock) {
-    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
     let dock = NodeRef::new();
     let built = Rc::new(std::cell::Cell::new(None));
     let handle = Rc::clone(&built);
@@ -2073,7 +2073,7 @@ pub(crate) fn nested_dock() -> (Document, NestedDock) {
         handle.set(Some((outer, inner, hosts)));
         view! {
             <dock::styled::Docking @node_ref=&dock layout=outer focus=2u64>
-                <DockSplit id="root" fraction=0.3>
+                <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
                     <DockPane id="side">
                         <DockTab id=1u64 title="Side">
                             <Frame @test_id="content.1" />
@@ -3039,7 +3039,7 @@ pub(crate) fn bar_dock(
     placement: dock::unstyled::DockBarPlacement,
     bare: bool,
 ) -> (Document, BarDock) {
-    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout};
+    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
     let built = Rc::new(std::cell::Cell::new(None));
     let handle = Rc::clone(&built);
     let document = build_node(move || {
@@ -3048,7 +3048,7 @@ pub(crate) fn bar_dock(
         handle.set(Some(BarDock { layout, shown }));
         view! {
             <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" fraction=0.6>
+                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
                     <DockPane id="stage" bare>
                         <ForEach keys={shown}>|id: u64|
                             <DockTab id title={format!("Tab {id}")}>

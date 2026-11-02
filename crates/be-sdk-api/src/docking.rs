@@ -3,7 +3,8 @@ use be_lib_stable_hash::HashSet;
 use crate::{
     ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
     DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
-    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockTab,
+    DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockSplitSize,
+    DockTab,
     DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
@@ -286,7 +287,15 @@ fn built(kind: DockItemKind, children: Vec<Built>) -> Result<Built, DecodeError>
     match kind {
         DockItemKind::Split(split) => {
             string(&split.key)?;
-            if !(split.fraction.is_finite() && (0.0..=1.0).contains(&split.fraction)) {
+            let valid = match split.size {
+                DockSplitSize::Fraction(fraction) => {
+                    fraction.is_finite() && (0.0..=1.0).contains(&fraction)
+                }
+                DockSplitSize::First(points) | DockSplitSize::Second(points) => {
+                    points.is_finite() && points >= 0.0
+                }
+            };
+            if !valid {
                 return Err(DecodeError::MalformedPayload);
             }
             let [Built::Node(first), Built::Node(second)] =

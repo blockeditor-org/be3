@@ -517,7 +517,9 @@ as it presents its own dialogs, a card hanging from the dialog's parent and
 pointing at it, closing it with a `close` of the dialog's `tab`; a small form
 of a tab body's own is no dock dialog, its owner draws it as an anchored view
 of its own), a pane's `empty` view, which the root shows
-while the pane holds no tab, and a `dock-bar`'s. A bar belongs to a tab
+while the pane holds no tab, and a `dock-bar`'s. A `dock-split` divides its
+length by a share, or keeps one half a fixed number of points wide as the dock
+is resized (`dock-split-size`). A bar belongs to a tab
 (`owner`) and shows while it does, floating over an edge of its body or in
 the band along that edge beside it, at its start, centre or end
 (`dock-bar-edge`; the bars docked on one edge share its band side by side), or

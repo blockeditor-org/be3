@@ -5,7 +5,7 @@ use beui_view::types::{Pos2, Rect};
 
 use super::{
     Bar, DockBarPlacement, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE, Group, GroupId,
-    Home, Leaf, LeafId, MIN_FRACTION, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, Surface,
+    Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, SplitSize, Surface,
     SurfaceId, TabId, Tree,
 };
 
@@ -55,7 +55,7 @@ pub enum DockSpecNode {
     Split {
         key: String,
         direction: Direction,
-        fraction: f32,
+        size: SplitSize,
         first: Box<DockSpecNode>,
         second: Box<DockSpecNode>,
     },
@@ -417,7 +417,7 @@ impl DockState {
             DockSpecNode::Split {
                 key,
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => {
@@ -427,7 +427,7 @@ impl DockState {
                     (Some(first), Some(second)) => Some(Node::Split(Split {
                         id: SplitId(self.mint()),
                         direction: *direction,
-                        fraction: fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION),
+                        size: size.clamped(),
                         first: Box::new(first),
                         second: Box::new(second),
                         key: Some(key.clone()),
@@ -617,24 +617,24 @@ impl DockState {
             }
         }
         self.prune_loose(loosened);
-        let mut fractions = Vec::new();
+        let mut sizes = Vec::new();
         if let Some(main) = &spec.main {
-            split_fractions(main, &mut fractions);
+            split_sizes(main, &mut sizes);
         }
         for window in &spec.windows {
             if let Some(root) = &window.root {
-                split_fractions(root, &mut fractions);
+                split_sizes(root, &mut sizes);
             }
         }
-        for (key, direction, fraction) in fractions {
-            let fraction = fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION);
+        for (key, direction, size) in sizes {
+            let size = size.clamped();
             for root in self.roots_mut() {
                 visit_splits(root, &mut |split| {
                     if split.key.as_deref() == Some(key.as_str())
                         && !split.adjusted
                         && split.direction == direction
                     {
-                        split.fraction = fraction;
+                        split.size = size;
                     }
                 });
             }
@@ -659,7 +659,7 @@ impl DockState {
             let DockSpecNode::Split {
                 key,
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } = step.split
@@ -675,8 +675,8 @@ impl DockState {
             };
             let side = side_of(*direction, step.first);
             let share = match step.first {
-                true => *fraction,
-                false => 1.0 - fraction,
+                true => *size,
+                false => size.mirrored(),
             };
             let named = depth + 1 == site.steps.len()
                 && matches!(**sibling, DockSpecNode::Pane(_))
@@ -714,24 +714,24 @@ impl DockState {
             Some((
                 DockSpecNode::Split {
                     direction,
-                    fraction,
+                    size,
                     ..
                 },
                 first,
             )) => (
                 side_of(*direction, first),
                 match first {
-                    true => *fraction,
-                    false => 1.0 - fraction,
+                    true => *size,
+                    false => size.mirrored(),
                 },
             ),
-            _ => (Side::Right, 0.5),
+            _ => (Side::Right, SplitSize::default()),
         };
         let split = SplitId(self.mint());
-        let share = share.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION);
-        let fraction = match side.leads() {
+        let share = share.clamped();
+        let size = match side.leads() {
             true => share,
-            false => 1.0 - share,
+            false => share.mirrored(),
         };
         let root = self.root_mut(tree)?;
         let existing = std::mem::replace(root, Node::Leaf(Leaf::new(id, Vec::new())));
@@ -743,7 +743,7 @@ impl DockState {
         *root = Node::Split(Split {
             id: split,
             direction: side.direction(),
-            fraction,
+            size,
             first: Box::new(first),
             second: Box::new(second),
             key: None,
@@ -1055,23 +1055,23 @@ fn spec_tabs(node: &DockSpecNode, out: &mut Vec<TabId>) {
     }
 }
 
-fn split_fractions(node: &DockSpecNode, out: &mut Vec<(String, Direction, f32)>) {
+fn split_sizes(node: &DockSpecNode, out: &mut Vec<(String, Direction, SplitSize)>) {
     match node {
         DockSpecNode::Split {
             key,
             direction,
-            fraction,
+            size,
             first,
             second,
         } => {
-            out.push((key.clone(), *direction, *fraction));
-            split_fractions(first, out);
-            split_fractions(second, out);
+            out.push((key.clone(), *direction, *size));
+            split_sizes(first, out);
+            split_sizes(second, out);
         }
         DockSpecNode::Pane(pane) => {
             for entry in &pane.entries {
                 if let DockSpecEntry::Group { root, .. } = entry {
-                    split_fractions(root, out);
+                    split_sizes(root, out);
                 }
             }
         }

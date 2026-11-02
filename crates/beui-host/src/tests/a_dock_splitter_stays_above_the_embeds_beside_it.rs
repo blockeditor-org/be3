@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 #[test]
 fn a_dock_splitter_stays_above_the_embeds_beside_it() {
@@ -10,7 +10,7 @@ fn a_dock_splitter_stays_above_the_embeds_beside_it() {
         let layout = DockingLayout::<u64>::new();
         view! {
             <dock::styled::Docking layout>
-                <DockSplit id="root" fraction=0.5>
+                <DockSplit id="root" size={SplitSize::Fraction(0.5)}>
                     <DockPane id="left">
                         <DockTab id=1u64 title="Left">
                             <Embed slot={EmbedSlot::new()} @test_id="embed" />

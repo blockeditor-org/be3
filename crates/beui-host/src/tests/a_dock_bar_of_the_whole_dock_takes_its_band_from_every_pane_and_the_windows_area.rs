@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockWindow,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, SplitSize, DockTab, DockWindow,
     DockingLayout,
 };
 use crate::geometry::Rect;
@@ -15,7 +15,7 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
         handle.set(Some(layout));
         view! {
             <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" fraction=0.6>
+                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
                     <DockPane id="stage">
                         <DockTab id=1u64 title="One">
                             <Frame @test_id="content.1" />

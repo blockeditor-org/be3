@@ -805,12 +805,22 @@ interface types {
         vertical,
     }
 
+    /// How a split divides its length: `fraction` gives the first half a
+    /// share from 0 to 1; `first` and `second` fix that half's width (or
+    /// height) in points, which it keeps when the dock is resized, the other
+    /// half taking the rest. Dragging the splitter changes the share or the
+    /// points, never which of the three it is.
+    variant dock-split-size {
+        fraction(f32),
+        first(f32),
+        second(f32),
+    }
+
     /// Two halves, which follow it one level deeper, first then second.
-    /// `fraction` is the first half's share, from 0 to 1.
     record dock-split {
         key: string,
         direction: dock-direction,
-        fraction: f32,
+        size: dock-split-size,
     }
 
     /// A pane of tabs, whose entries (tabs and groups) follow it one level

@@ -14,8 +14,8 @@ fn a_split_leaves_each_pane_room_for_its_tab_bar() {
         "a pane given a sliver of a narrow area is still laid out wide enough to use"
     );
     assert_eq!(
-        layout.splitters[0].fraction,
-        1.0 - MIN_PANE_LENGTH / 400.0,
+        layout.splitters[0].size,
+        SplitSize::Fraction(1.0 - MIN_PANE_LENGTH / 400.0),
         "the splitter reports the share it is drawn at, so dragging it starts from there"
     );
 
