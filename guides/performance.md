@@ -20,7 +20,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
   browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
   canvas and a text block from the files' New menu, draws a rectangle and a pen line of
-  `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
+  `HOST_BENCH_POINTS` samples (10,000), pastes `HOST_BENCH_TEXT_BYTES` of text (50 MB), paints
   and closes each, exports the folder as a .block file and closes the host. A second device,
   with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
   paints them and exports the folder again. It fails unless both exports are identical and
@@ -39,7 +39,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
   so dropping one it would have kept moves the points after it.
   It takes about three minutes; set the two sizes lower while working on it. It needs
-  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the host loads, which the suite sets.
+  `BLOCK_APP`, and `HOST_LIBRARIES` for the libraries the host loads, which the suite sets.
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)

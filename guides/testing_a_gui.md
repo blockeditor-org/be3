@@ -454,7 +454,7 @@ which close() checks, so a test that ends without calling it fails too.
   //crates/be-host-tests:test-harness //crates/be-host-tests:host-with-all //buck/sysroot:amd64-test
   //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:host-with-all` the build of block-app every
   test can run against), then run
-  `buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
+  `buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests` with `HOST_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
   `CARGO_MANIFEST_DIR` to crates/be-host-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
   apply all bt'` on its block-app shows what every thread waits on. If every thread is parked and the

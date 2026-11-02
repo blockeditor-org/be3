@@ -20,7 +20,7 @@ fn run(fixture: &str, script: &str, delayed: bool) {
         &program,
         &arguments,
         SIZE,
-        std::env::var("APP_LIBRARIES").ok(),
+        std::env::var("HOST_LIBRARIES").ok(),
         false,
         false,
     )

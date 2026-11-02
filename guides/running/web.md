@@ -120,7 +120,7 @@ canvas is shown.
 ## Files and offline
 
 The web build keeps the same files as block-app does natively, under `/block` in the
-origin private file system: `app.sqlite3`, the refs database and `be-objects`.
+origin private file system: `host.sqlite3`, the refs database and `be-objects`.
 The module reaches them through ordinary WASI file calls; `web/wasi.js`
 forwards every call on a descriptor other than the standard streams to
 `web/files.js`, a worker that owns the files' sync access handles and reads

@@ -334,7 +334,7 @@ fn build(
     {
         let _ = file;
         tasks.send(tasks::Event::Run(Event::Stage(Stage::Starting)));
-        let directory = cache.join("apps").join(&manifest.product);
+        let directory = cache.join("programs").join(&manifest.product);
         builds::assemble(&cache, &manifest, &directory)?;
         crate::tasks::start(&directory.join(&executable))?;
         Ok(Ready { installed })

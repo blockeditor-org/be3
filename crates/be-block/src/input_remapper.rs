@@ -5,7 +5,6 @@ use crate::Root;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct InputRemapper {
-    #[model(rename = "plugin")]
     pub app: Option<String>,
     pub module: Option<String>,
     pub config: Option<Bytes>,

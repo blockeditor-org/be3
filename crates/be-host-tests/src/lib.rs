@@ -52,7 +52,7 @@ impl HostTest {
             &program,
             &all,
             SIZE,
-            std::env::var("APP_LIBRARIES").ok(),
+            std::env::var("HOST_LIBRARIES").ok(),
             space,
             render,
         )
@@ -66,7 +66,7 @@ impl HostTest {
             started,
             reported: Cell::new(false),
             space,
-            editors: std::env::var("APP_TEST_EDITORS").ok(),
+            editors: std::env::var("HOST_TEST_APPS").ok(),
         };
         test.wait(ready);
         test.run(&["clock", "stop"]);
@@ -306,13 +306,13 @@ impl Drop for HostTest {
 }
 
 fn editors_naming(text: &str) -> Vec<String> {
-    let manifests = std::env::var("APP_TEST_MANIFESTS").unwrap_or_default();
+    let manifests = std::env::var("HOST_TEST_MANIFESTS").unwrap_or_default();
     manifests
         .split(':')
         .filter(|path| std::fs::read_to_string(path).is_ok_and(|manifest| manifest.contains(text)))
         .filter_map(|path| {
             path.split('/')
-                .find_map(|part| part.strip_prefix("be-host-"))
+                .find_map(|part| part.strip_prefix("be-app-"))
                 .map(str::to_owned)
         })
         .collect()

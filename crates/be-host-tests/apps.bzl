@@ -41,8 +41,8 @@ def host_test_apps(apps):
         name = "host-with-" + ("+".join(extra) if extra else "base")
         hosts[name] = sorted(BASE + extra)
         apart_env[test] = {
-            "APP_TEST_EDITORS": ",".join(hosts[name]),
-            "APP_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
+            "HOST_TEST_APPS": ",".join(hosts[name]),
+            "HOST_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
             "BLOCK_APP": "$(location :{})/block-app".format(name),
         }
     for name, staged in hosts.items():

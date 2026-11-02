@@ -6,7 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "app-archive"
+name = "program-archive"
 path = "src/main.rs"
 
 [dependencies]

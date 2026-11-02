@@ -324,7 +324,7 @@ The remapper that ships is the settings app's Input Remaps editor (`be-app-setti
 written, comments and layout included, and its module is `crates/be-host-remap-module`, staged as its data
 (`remapper.wasm`). The module is `be-host-remap`'s engine and text reader (`be_host_remap::text`, whose errors
 name the group and rule): rules apply in every window or only while a window whose executable, program id (the
-`app_id` key) or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
+`program_id` key) or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
 milliseconds or play a sequence of taps. Keys are named the way `be_host_remap::names` does (evdev's names,
 AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). Its page has two
 tabs over the same text. Editor shows each group and rule as settings rows and changes the text through

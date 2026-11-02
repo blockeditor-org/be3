@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-const MAGIC: &[u8; 8] = b"be3-app\x01";
+const MAGIC: &[u8; 8] = b"be3prog\\x01";
 const LEVEL: i32 = 3;
 const WINDOW_LOG: u32 = 27;
 
@@ -88,7 +88,7 @@ pub fn unpack(archive: &Path, dir: &Path) -> Result<(), String> {
         .read_exact(&mut magic)
         .map_err(|error| failed("read", archive, error))?;
     if &magic != MAGIC {
-        return Err(format!("{} is not an app archive", archive.display()));
+        return Err(format!("{} is not a program archive", archive.display()));
     }
     let mut decoder =
         zstd::Decoder::with_buffer(input).map_err(|error| failed("decompress", archive, error))?;
@@ -177,7 +177,7 @@ pub fn unpacked(archive: &Path) -> Result<PathBuf, String> {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let stem = archive.file_stem().map_or_else(
-        || "app".to_owned(),
+        || "program".to_owned(),
         |stem| stem.to_string_lossy().into_owned(),
     );
     let dir = root.join(format!("{stem}-{key}"));

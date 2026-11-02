@@ -671,7 +671,7 @@ struct PendingCopy {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 1] = ["plugin-cache"];
+const CACHES: [&str; 1] = ["app-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
@@ -704,10 +704,10 @@ impl BlockApp {
         std::fs::create_dir_all(&data_dir)?;
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
-        be_host_runtime::cache_in(data_dir.join("plugin-cache"));
+        be_host_runtime::cache_in(data_dir.join("app-cache"));
         let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
-        let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
+        let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut block_app = Self::with_state(host_state, url)?;
         block_app.programs.keep_files_in(data_dir.join("files"));
         block_app.data_dir = data_dir;
@@ -719,7 +719,7 @@ impl BlockApp {
     fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
         let data_dir = PathBuf::from(WEB_DATA_DIR);
         std::fs::create_dir_all(&data_dir)?;
-        let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
+        let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut block_app = Self::with_state(host_state, String::new())?;
         block_app.data_dir = data_dir;
         Ok(block_app)
@@ -3451,7 +3451,7 @@ impl BlockApp {
     }
 
     fn delete_client_database(&mut self) {
-        let path = self.data_dir.join("app.sqlite3");
+        let path = self.data_dir.join("host.sqlite3");
         let _ = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
         if let Err(error) = std::fs::remove_file(&path)
             && error.kind() != io::ErrorKind::NotFound
