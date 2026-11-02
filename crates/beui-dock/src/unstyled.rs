@@ -822,7 +822,13 @@ impl State {
         let Some(at) = order.iter().position(|surface| *surface == from) else {
             return;
         };
-        let raised: Vec<(SurfaceId, NodeRef)> = self.stacked.value().borrow().iter().map(|(surface, overlay)| (*surface, *overlay)).collect();
+        let raised: Vec<(SurfaceId, NodeRef)> = self
+            .stacked
+            .value()
+            .borrow()
+            .iter()
+            .map(|(surface, overlay)| (*surface, *overlay))
+            .collect();
         for surface in &order[at..] {
             if let Some((_, overlay)) = raised.iter().find(|(held, _)| held == surface) {
                 self.raise_window_of(*overlay, Some(*surface));

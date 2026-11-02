@@ -1,7 +1,7 @@
 use be_sdk_beui::beui::dock::styled::TabId;
 use be_sdk_beui::beui::icons::{
-    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF, ICON_MONITOR,
-    ICON_X,
+    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
+    ICON_MONITOR, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::button::ButtonFace;

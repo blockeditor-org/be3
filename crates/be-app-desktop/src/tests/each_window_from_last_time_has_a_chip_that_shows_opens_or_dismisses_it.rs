@@ -54,13 +54,13 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
         .click_with("desktop.windows.placeholder.1", PointerButton::Secondary);
     resumed.settle();
     assert!(
-        !resumed.test.shown("desktop.windows.placeholder.1.visibility")
+        !resumed
+            .test
+            .shown("desktop.windows.placeholder.1.visibility")
             && !resumed.test.shown("desktop.windows.placeholder.1.close"),
         "a window that is not running cannot be hidden or closed"
     );
-    resumed
-        .test
-        .snapshot("the_menu_of_a_window_from_last_time");
+    resumed.test.snapshot("the_menu_of_a_window_from_last_time");
     resumed.test.click("desktop.windows.placeholder.1.open");
     resumed.settle();
     assert_eq!(
@@ -81,7 +81,8 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
     resumed.test.click("desktop.windows.placeholder.6.dismiss");
     resumed.settle();
     assert!(
-        !resumed.test.shown("desktop.windows.placeholder.6") && resumed.placeholder_rect(6).is_none(),
+        !resumed.test.shown("desktop.windows.placeholder.6")
+            && resumed.placeholder_rect(6).is_none(),
         "its menu's Dismiss forgets the window"
     );
     assert_eq!(kept_keys(&resumed), vec![1, 9]);
