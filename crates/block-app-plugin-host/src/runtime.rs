@@ -723,6 +723,10 @@ impl Runtime {
             ),
             (!self.backend.settled(), "has input or a step in flight"),
             (
+                !self.held.is_empty(),
+                "has answers it sent mid-frame for the next frame to take in",
+            ),
+            (
                 self.instances.awaiting_content(),
                 "has an editor waiting for its block's content",
             ),
@@ -1123,7 +1127,7 @@ impl Runtime {
         commit.children = moving;
         let later = Laid {
             serial: commit.serial,
-            sizes: std::mem::take(&mut commit.sizes),
+            sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
         };
