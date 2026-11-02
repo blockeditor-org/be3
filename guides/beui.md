@@ -67,7 +67,8 @@ because they only take a component whose output implements `BuildsNode`.
 `checked` state (`Some` makes it a check box item, or a radio item with
 `radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
-own submenu or page items, so a menu is written as tags and each row follows
+own submenu or page items (`MenuNodes` ticks a submenu row with no glyph of its own that holds radio
+items as chosen while one inside it is), so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
@@ -3206,11 +3207,11 @@ and in its place the moment it is let go. A bar popped out by being dropped away
 opens its window where it was let go, with no spring. The bars floating over an edge are kept clear together
 (`keep_clear` on their list). The menu docks a popped-out bar again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
-its menu when clicked or pressed with Enter, never on the release of a press that
+its menu when clicked, pressed with Enter or given a secondary click or long press, never on the release of a press that
 dragged it, wherever the drag went (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
 submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
-`over.top.left`, `beside.bottom.right`; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+`over.top.left`, `beside.bottom.right`, the submenu row ticked while the bar sits at one of its ends; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that

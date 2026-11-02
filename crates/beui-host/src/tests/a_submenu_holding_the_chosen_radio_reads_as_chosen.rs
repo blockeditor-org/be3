@@ -3,6 +3,7 @@ use accesskit::{Role, Toggled};
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::unstyled::MenuNodes;
 
 fn radios(harness: &mut Harness) -> Vec<(String, Option<Toggled>)> {
     let output = harness.frame(Vec::new());
@@ -13,7 +14,7 @@ fn radios(harness: &mut Harness) -> Vec<(String, Option<Toggled>)> {
         .filter(|(_, node)| node.role() == Role::MenuItemRadio)
         .map(|(_, node)| (node.label().unwrap_or_default().to_owned(), node.toggled()))
         .collect();
-    radios.sort();
+    radios.sort_by(|a, b| a.0.cmp(&b.0));
     radios
 }
 
@@ -34,9 +35,12 @@ fn a_submenu_holding_the_chosen_radio_reads_as_chosen() {
             MenuNode::submenu("ends", "At an end", None, ends),
         ];
         view! {
-            <MenuRows active=true items={view! {
-                <crate::unstyled::MenuNodes nodes={nodes} />
-            }} />
+            <MenuRows
+                active=true
+                items={view! {
+                    <MenuNodes nodes={nodes} />
+                }}
+            />
         }
     });
     let mut harness = Harness::new(document);
