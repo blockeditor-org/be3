@@ -122,11 +122,11 @@ impl DockedTabs {
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);
         create_effect(move || {
-            frame.with(|_| ());
+            frame.with(|frame| crate::beui_frame::menu_entries(frame));
             sizes.with(|_| ());
             menus.with(|menus| {
                 for (_, items) in menus.values() {
-                    items.with(|_| ());
+                    items.with(|items| crate::beui_frame::menu_entries(items));
                 }
             });
             if let Some(link) = menued.upgrade() {

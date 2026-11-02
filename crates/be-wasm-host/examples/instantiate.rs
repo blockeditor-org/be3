@@ -195,6 +195,7 @@ fn screens() -> Vec<ScreenRequest> {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -208,6 +209,7 @@ fn screens() -> Vec<ScreenRequest> {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         },
     ]
 }

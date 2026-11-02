@@ -1463,6 +1463,9 @@ fn HostedChild(
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let tab = use_context::<TabContext>();
     let any = super::any();
+    provide_context(super::app_view::ChildFit(create_memo(move || {
+        child.with(|child| child.as_ref().and_then(|child| child.fit))
+    })));
     let inherited = be_host_desktop::occlusion::occlusion();
     provide_context(be_host_desktop::occlusion::Occlusion(create_memo(
         move || {

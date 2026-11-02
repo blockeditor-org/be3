@@ -45,10 +45,12 @@ pub(crate) fn ChildPopover(
         PickAnchor::Centre | PickAnchor::Rect(_) => None,
     }
     .or_else(|| editor.content_window());
+    let room = create_signal(None::<Vec2>);
     let child = view! {
         <Subregion
             editor
             placed={Some(content)}
+            fit={create_memo(move || room.get())}
             mode=ChildMode::Live
             layer=ChildLayer::Below
             opacity={create_memo(move || match ready.get() {
@@ -65,7 +67,7 @@ pub(crate) fn ChildPopover(
     };
     let inner = match shown {
         Shown::Anchored => view! {
-            <AnchoredPopover window anchor face child size ready on_dismiss />
+            <AnchoredPopover window anchor face child size ready room_out={room} on_dismiss />
         },
         Shown::Sheet => view! {
             <Overlay
@@ -107,6 +109,7 @@ fn AnchoredPopover(
     child: NodeId,
     size: Memo<Vec2>,
     ready: Memo<bool>,
+    room_out: Signal<Option<Vec2>>,
     on_dismiss: ClickCallback,
 ) -> NodeId {
     let viewport = create_memo(move || {
@@ -138,6 +141,12 @@ fn AnchoredPopover(
             (area.max.y - anchored.max.y).max(anchored.min.y - area.min.y)
         });
         Vec2::new(area.width() - margins, tall - margins)
+    });
+    create_effect(move || {
+        let room = room.get();
+        if room_out.get_untracked() != Some(room) {
+            room_out.set(Some(room));
+        }
     });
     let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
     let width = create_memo(move || Size::Custom(shown.get().x));

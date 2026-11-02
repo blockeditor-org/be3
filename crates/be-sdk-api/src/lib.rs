@@ -71,12 +71,12 @@ pub use shell_types::{
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
-    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit,
-    FrameReport, FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch,
-    Insets, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentedFrame, PressClaim,
-    ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size,
-    SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor,
-    ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
+    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
+    LayoutCommit, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentCommit,
+    PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput,
+    TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
@@ -668,7 +668,7 @@ impl fmt::Display for DecodeError {
 
 impl std::error::Error for DecodeError {}
 
-impl FrameCommit {
+impl LayoutCommit {
     pub fn validate(&self) -> Result<(), DecodeError> {
         for placements in &self.children {
             let mut covered = 0;

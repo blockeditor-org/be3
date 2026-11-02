@@ -1,5 +1,6 @@
 use crate::{
     Waker,
+    panes::Ran,
     screens::Screens,
     session::{ClientSession, State},
     wasm::Surfaces,
@@ -10,6 +11,8 @@ pub(crate) struct Runtime {
     session: ClientSession,
     screens: Screens,
     surfaces: Option<Surfaces>,
+    laid: Option<(u64, Ran)>,
+    waker: Waker,
     asked: bool,
     told: bool,
 }
@@ -24,8 +27,10 @@ impl Runtime {
     ) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new(openers, waker),
+            screens: Screens::new(openers, waker.clone()),
             surfaces: None,
+            laid: None,
+            waker,
             asked: false,
             told: false,
         }
@@ -42,6 +47,12 @@ impl Runtime {
         wire: &Shared,
     ) -> Result<bool, String> {
         let mut changed = woken;
+        if let Some((serial, ran)) = self.laid.take()
+            && let Some(surfaces) = &mut self.surfaces
+        {
+            wire.drawn(surfaces.paint(&mut self.screens, serial, ran)?);
+            changed = self.screens.dirty();
+        }
         let mut draw = false;
         let mut paintings = Vec::new();
         for delivery in batch {
@@ -66,12 +77,14 @@ impl Runtime {
         if let Some(surfaces) = &mut self.surfaces {
             if draw || (replaced && self.told && wire.drawing()) {
                 self.asked = false;
-                let commit = surfaces.render(&mut self.screens)?;
+                let laid = surfaces.lay_out(&mut self.screens);
                 if surfaces.take_relaid() {
                     be_sdk_api::guest::host::layout(surfaces.layout().clone()).detach();
                 }
-                if let Some(commit) = commit {
-                    wire.drawn(commit);
+                if let Some((commit, ran)) = laid {
+                    self.laid = Some((commit.serial, ran));
+                    be_sdk_api::guest::host::laid_out(commit).detach();
+                    self.waker.wake();
                 }
             } else if (changed || replaced) && !self.asked {
                 self.asked = true;

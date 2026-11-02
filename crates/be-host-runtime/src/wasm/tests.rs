@@ -128,6 +128,7 @@ fn screens() -> Vec<ScreenRequest> {
         host_place: None,
         docked: false,
         anchor_space: None,
+        fit: false,
         origin: None,
     }]
 }
@@ -141,7 +142,11 @@ fn painted(device: &wgpu::Device, queue: &wgpu::Queue, mut app: App, editor: [u8
     session.step(&mut app);
     session.draw = Some(app::draw(&mut session.connection, 0, 0, true).op());
     session.step(&mut app);
-    assert!(session.drawn, "the app answered the draw with a frame");
+    session.step(&mut app);
+    assert!(
+        session.drawn,
+        "the app answered the draw in the step after the one that laid it out"
+    );
     assert!(
         app.take_presented().contains(&SURFACE),
         "the app presented its surface"

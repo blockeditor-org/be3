@@ -25,6 +25,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             layer: ChildLayer::Below,
             mode: ChildMode::Active,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

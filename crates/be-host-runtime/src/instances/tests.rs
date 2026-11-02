@@ -159,6 +159,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             layer: be_sdk_api::ChildLayer::Below,
             mode: ChildMode::Passive,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view,
@@ -309,6 +310,7 @@ fn place_layered(instances: &mut Instances, origin: Pos2, bounds: Rect) {
             },
             bounds,
         }),
+        false,
     );
     instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
 }

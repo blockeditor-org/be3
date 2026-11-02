@@ -53,7 +53,7 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
                 raster_millis: 1000,
             }],
         });
-        runtime.commit(FrameCommit {
+        runtime.commit(LayoutCommit {
             serial,
             sizes: Vec::new(),
             reports: vec![be_sdk_api::FrameReport {
@@ -71,9 +71,6 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
             }],
             windows: Vec::new(),
             children: Vec::new(),
-            repaint_after_micros: None,
-            animating: false,
-            presented: None,
             window_requests: Vec::new(),
             docks: Vec::new(),
         });
@@ -122,6 +119,7 @@ fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_key
             placement: None,
             origin: None,
             anchor_bounds: Some(window),
+            fit: None,
         },
         None,
         None,

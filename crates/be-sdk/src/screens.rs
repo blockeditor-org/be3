@@ -1,7 +1,7 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
-    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, FrameCommit,
-    HostTransform, HostView, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
+    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
     ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
@@ -43,6 +43,7 @@ pub(crate) struct Screens {
     reporting_everything: bool,
     laid_out: HashSet<EditorInstanceId>,
     serial: u64,
+    fitted: HashMap<ScreenId, (u32, u32)>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -83,6 +84,7 @@ impl Screens {
             reporting_everything: true,
             laid_out: HashSet::default(),
             serial: 0,
+            fitted: HashMap::default(),
         }
     }
 
@@ -124,7 +126,9 @@ impl Screens {
         let mut framed = Vec::new();
         let mut opened = Vec::new();
         let mut anchored = Vec::new();
+        let mut refitted = false;
         for ((placement, region), mut frame) in begun.into_iter().zip(frames) {
+            refitted |= self.refit(placement.screen, frame.fitted);
             self.open_windows(&region, &mut frame.asks, &mut opened);
             let hung = std::mem::take(&mut frame.anchored);
             self.anchor(&region, hung, &mut anchored);
@@ -133,12 +137,30 @@ impl Screens {
                 self.ran(region.instance);
             }
         }
+        if refitted {
+            self.relayout();
+        }
         let ages: HashMap<ScreenId, u32> = shown
             .iter()
             .map(|(placement, age)| (placement.screen, *age))
             .collect();
         framed.extend(self.frame_created(opened, anchored, &ages));
         framed
+    }
+
+    fn refit(&mut self, screen: ScreenId, fitted: Option<be_lib_geometry::Vec2>) -> bool {
+        let Some(request) = self
+            .requests
+            .iter()
+            .find(|request| request.screen == screen && request.fit)
+        else {
+            return self.fitted.remove(&screen).is_some();
+        };
+        let Some(fitted) = fitted else {
+            return false;
+        };
+        let size = crate::app::fitted_pixels(fitted, request.metrics.raster);
+        self.fitted.insert(screen, size) != Some(size)
     }
 
     fn open_windows(
@@ -305,16 +327,13 @@ impl Screens {
         &self.module
     }
 
-    pub(crate) fn commit(&mut self) -> FrameCommit {
-        let mut commit = FrameCommit {
+    pub(crate) fn commit(&mut self) -> LayoutCommit {
+        let mut commit = LayoutCommit {
             serial: self.serial,
             sizes: Vec::new(),
             reports: Vec::new(),
             windows: Vec::new(),
             children: Vec::new(),
-            repaint_after_micros: None,
-            animating: false,
-            presented: None,
             window_requests: Vec::new(),
             docks: Vec::new(),
         };
@@ -326,6 +345,16 @@ impl Screens {
             }
         }
         commit
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn dirty(&self) -> bool {
+        self.everything
+            || !self
+                .dirty
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .is_empty()
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -685,6 +714,17 @@ impl Screens {
                 .placement(screen)
                 .map_or_else(new_surface, |placement| placement.surface)
         });
+        self.fitted.retain(|screen, _| {
+            requests
+                .iter()
+                .any(|request| request.screen == *screen && request.fit)
+        });
+        for placement in &mut self.layout.screens {
+            if let Some((width, height)) = self.fitted.get(&placement.screen) {
+                placement.width = *width;
+                placement.height = *height;
+            }
+        }
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::default();
         for placement in &self.layout.screens {
             placements
@@ -814,6 +854,7 @@ fn anchored_request(
             },
             bounds: space.bounds,
         }),
+        fit: false,
     }
 }
 
@@ -851,6 +892,7 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size)
         origin: None,
         docked: false,
         anchor_space: None,
+        fit: false,
     }
 }
 

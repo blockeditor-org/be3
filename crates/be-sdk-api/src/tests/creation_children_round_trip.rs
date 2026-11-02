@@ -19,6 +19,7 @@ fn creation_children_round_trip() {
             layer: ChildLayer::Below,
             mode: ChildMode::Live,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

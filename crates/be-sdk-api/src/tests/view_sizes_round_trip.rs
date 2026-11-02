@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn view_sizes_round_trip() {
-    let message = FrameCommit {
+    let message = LayoutCommit {
         sizes: vec![
             ViewSize {
                 screen: ScreenId(1),

@@ -3,8 +3,8 @@ use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
-    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
+    HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
     OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewId, ViewportMetrics,
 };
@@ -476,6 +476,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 origin: None,
                 docked: self.docked,
                 anchor_space: None,
+                fit: false,
             }]
         });
         be_sdk_api::embed::exports::app::screens(&mut self.connection, screens);
@@ -1166,7 +1167,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn committed(&mut self, commit: FrameCommit) {
+    fn committed(&mut self, commit: LayoutCommit) {
         self.docks.extend(commit.docks);
         let view = self.view().id;
         let asked = commit.window_requests;

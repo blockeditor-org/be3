@@ -1,5 +1,5 @@
 use be_sdk_api::{
-    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening, Preferences,
+    EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, LayoutCommit, Opening, Preferences,
     ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
 };
 
@@ -142,7 +142,7 @@ impl HeadlessApp {
             .collect()
     }
 
-    pub fn outbound(&mut self) -> Option<FrameCommit> {
+    pub fn outbound(&mut self) -> Option<LayoutCommit> {
         let commit = std::mem::take(&mut self.drawn).then(|| self.screens.commit());
         let screens = &mut self.screens;
         self.executor.enter(|| screens.outbound());

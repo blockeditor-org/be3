@@ -199,7 +199,7 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the program ran elsewhere and reports through `Program::other_frames`, which in block-app is
   each app's steps by its id (a step takes the app's input, makes its edits and draws its
-  frame). A block-app frame waits at most 8 ms for its apps, so a slower app step shows
+  frame). A block-app frame waits for its apps only until its deadline, the next present less its own composite time, so a slower app step shows
   only on the app's line. It is wall time, not the program's clock, so it is for benchmarks
   (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is
@@ -311,6 +311,7 @@ change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prin
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The program
 has settled once a frame asks for no other and `Program::busy` gives no reason; block-app is busy while an
 app is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
+a view is shown at a size its app has yet to draw (cropped, guides/pan_and_zoom.md), while
 an editor on screen waits for its block's content, while an app's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which it asks

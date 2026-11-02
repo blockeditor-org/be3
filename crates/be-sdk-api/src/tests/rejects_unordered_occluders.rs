@@ -1,6 +1,6 @@
 use super::*;
 
-fn placements(occluders: Vec<Occluder>) -> FrameCommit {
+fn placements(occluders: Vec<Occluder>) -> LayoutCommit {
     committed(ChildPlacements {
         instance: EditorInstanceId(1),
         view: ViewId::MAIN,
@@ -20,6 +20,7 @@ fn placements(occluders: Vec<Occluder>) -> FrameCommit {
             layer: ChildLayer::Below,
             mode: ChildMode::Preview,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

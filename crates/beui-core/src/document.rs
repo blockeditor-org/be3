@@ -134,6 +134,7 @@ pub struct Document {
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
+    laid_out_again: bool,
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
@@ -376,6 +377,7 @@ impl Document {
             invalidated: Vec::new(),
             interaction_done: None,
             laid_out: None,
+            laid_out_again: false,
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
@@ -1256,6 +1258,10 @@ impl Document {
         self.laid_out = Some(Rc::new(laid_out));
     }
 
+    pub fn run_laid_out_again(&mut self) {
+        self.laid_out_again = true;
+    }
+
     pub fn set_keyboard_host(&mut self, host: Box<dyn crate::software_keyboard::KeyboardHost>) {
         self.keyboard_host = Some(host);
     }
@@ -1466,10 +1472,13 @@ impl Document {
             });
         self.sync_escapes();
         self.ask_for_windows(ctx);
-        ctx.set_keyboard_window(
-            self.focused
-                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
-        );
+        let layers = self.layers();
+        let keyboard_window = match self.focused {
+            Some(focused) => self.window_of(focused),
+            None if layers.takes_keyboard() => layers[layers.keyboard()].window,
+            None => WindowId::MAIN,
+        };
+        ctx.set_keyboard_window(keyboard_window);
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
@@ -2721,7 +2730,7 @@ impl Document {
         measured
     }
 
-    fn needs_layout(&self) -> bool {
+    pub fn needs_layout(&self) -> bool {
         self.layout_revision != self.arena.layout_revision
             || self.root.is_some_and(|root| self.arena.unplaced(root))
     }
@@ -2746,12 +2755,24 @@ impl Document {
         let mut passes = 0;
         if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
         }
         let mut watermark = self.arena.relaid_len();
         self.report_laid_out();
         self.run_laid_out();
-        while self.needs_layout() {
+        let mut reruns = 0;
+        loop {
+            if !self.needs_layout() {
+                if !std::mem::take(&mut self.laid_out_again) || reruns >= HOOK_RUNS_PER_FRAME {
+                    self.laid_out_again = false;
+                    return passes;
+                }
+                reruns += 1;
+                self.run_laid_out();
+                continue;
+            }
+            self.laid_out_again = false;
             if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
@@ -2759,11 +2780,20 @@ impl Document {
                 return passes + 1;
             }
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
             watermark = self.arena.relaid_len();
             self.report_laid_out();
+            self.run_laid_out();
         }
-        passes
+    }
+
+    fn point_again(&mut self, ctx: &Context) {
+        let rects = Rc::clone(&self.rects);
+        crate::current::run_in(self, |document| {
+            crate::interact::pointer::rehover(document, ctx, &rects);
+            crate::interact::forward::reforward(document, ctx, &rects);
+        });
     }
 
     fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
@@ -2777,6 +2807,7 @@ impl Document {
             self.layout_parent = None;
             ((), removing) = crate::current::enter_holding_removals(self, || {
                 crate::current::with_document(|document| {
+                    document.refit_windows(ctx);
                     layout::layout(document, &painter, root, rect, placed);
                     document.lay_out_boundaries(ctx, placed);
                     document.place_moved_overlays(ctx, placed);
@@ -2857,6 +2888,7 @@ fn failing_unsettled_layout() -> bool {
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;
+const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {
     pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {

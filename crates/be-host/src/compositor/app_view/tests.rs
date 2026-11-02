@@ -16,6 +16,7 @@ pub(super) fn child(clip: Rect) -> HostChild {
         layer: ChildLayer::Above,
         mode: ChildMode::Active,
         intrinsic: None,
+        fit: None,
         rotation: 0.0,
         opacity: 1.0,
         corner_radius: 0.0,
@@ -62,3 +63,4 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
 mod a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_it;
 mod a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint;
 mod a_pan_drag_asked_for_late_pans_from_the_press;
+mod the_view_opened_last_of_those_that_want_the_keyboard_holds_it;

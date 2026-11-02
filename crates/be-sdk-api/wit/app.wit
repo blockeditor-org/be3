@@ -2,7 +2,7 @@ package be3:app@0.1.0;
 
 /// What an app offers its host.
 interface app {
-    use types.{child-id, frame-commit, opening, screen-id, screen-request, size, view-id};
+    use types.{child-id, opening, present-commit, screen-id, screen-request, size, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, drag-over, focus};
@@ -89,11 +89,12 @@ interface app {
     /// that shows them carries the serial back.
     configure: async func(serial: u64);
 
-    /// Draws a frame of every screen and answers with what it drew.
+    /// Draws a frame of every screen: the app lays it out, sends the host
+    /// its `laid-out` commit, paints it, and answers with what it presented.
     /// `wall-micros` is the host's wall clock at `now-micros`, in
     /// microseconds since the Unix epoch: the app's wall clock, so a host
     /// that pins its own (a test) pins every app's too.
-    draw: async func(now-micros: u64, wall-micros: u64, seen: bool) -> frame-commit;
+    draw: async func(now-micros: u64, wall-micros: u64, seen: bool) -> present-commit;
 
     /// Stops the app; it answers once it saved what it holds.
     shutdown: async func();

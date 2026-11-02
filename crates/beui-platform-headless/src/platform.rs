@@ -39,6 +39,7 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     let mut runner = Runner::new(launch);
     runner.set_occluded(true);
     let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());
+    runner.reports().refreshes_every(FRAME_INTERVAL);
     let (width, height) = window.physical();
     let renderer: Box<dyn Renderer> = match headless.render {
         true => Box::new(pollster::block_on(OffscreenSurface::new(

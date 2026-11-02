@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use be_sdk_api::{
-    BarAction, ChildId, EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch,
-    Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size, ViewId,
+    BarAction, ChildId, EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, Opening,
+    Preferences, PresentCommit, Rect, ScreenId, ScreenRequest, ShellDialog, Size, ViewId,
     guest::{
         debug::debug,
         exports::{
@@ -68,7 +68,7 @@ impl Delivery {
 #[derive(Default)]
 struct Wire {
     inbox: Vec<Delivery>,
-    draws: VecDeque<Sender<FrameCommit>>,
+    draws: VecDeque<Sender<PresentCommit>>,
     shutdowns: Vec<Sender<()>>,
 }
 
@@ -102,7 +102,7 @@ impl Shared {
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn drawn(&self, commit: FrameCommit) {
+    pub(crate) fn drawn(&self, commit: PresentCommit) {
         let draw = self.0.borrow_mut().draws.pop_front();
         if let Some(draw) = draw {
             draw.send(commit);
@@ -235,7 +235,7 @@ impl Guest for Exports {
         now_micros: u64,
         wall_micros: u64,
         seen: bool,
-    ) -> impl Future<Output = FrameCommit> + 'static {
+    ) -> impl Future<Output = PresentCommit> + 'static {
         let (sender, drawn) = oneshot();
         self.0.0.borrow_mut().draws.push_back(sender);
         self.0.push(Delivery::Draw {

@@ -6,7 +6,7 @@ fn an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it() {
     let menu = Rect::from_min_size(pos2(220.0, 130.0), vec2(60.0, 40.5));
     let submenu = Rect::from_min_size(pos2(280.0, 140.0), vec2(50.0, 30.0));
     rig.open(vec![layer(4, 0, menu), layer(5, 4, submenu)]);
-    let commit = rig.draw();
+    let (commit, presented) = rig.draw_and_present();
 
     assert_eq!(
         rig.shared.seen.borrow().spaces,
@@ -60,7 +60,7 @@ fn an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it() {
         [(ViewId(4), [60, 81]), (ViewId(5), [50, 60])],
         "each view was painted at the raster over its zoom on each axis, in the frame that opened it"
     );
-    let damage = commit.presented.expect("the frame presented").damage;
+    let damage = presented.presented.expect("the frame presented").damage;
     assert!(
         damage.iter().any(|damage| damage.screen == anchored[0].0),
         "the frame presented the views with the screen: {damage:?}"

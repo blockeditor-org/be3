@@ -1999,6 +1999,7 @@ impl EditorHost {
         opacity: f32,
         corner_radius: f32,
         intrinsic: Option<Vec2>,
+        fit: Option<Vec2>,
         follows_view: bool,
         dialog: Option<DialogFrame>,
         dock_tab: Option<u64>,
@@ -2031,6 +2032,10 @@ impl EditorHost {
                 layer,
                 mode,
                 intrinsic: intrinsic.map(|size| Size {
+                    width: size.x.max(0.0),
+                    height: size.y.max(0.0),
+                }),
+                fit: fit.map(|size| Size {
                     width: size.x.max(0.0),
                     height: size.y.max(0.0),
                 }),

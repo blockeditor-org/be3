@@ -791,7 +791,24 @@ impl State {
             .resolve_bar(point, lift.bar)
             .filter(|(placement, _)| !placement.is_window());
         self.retarget(target);
+        self.follow_pointer();
         self.animate_lift();
+    }
+
+    fn follow_pointer(&self) {
+        let lifting = self.lifting;
+        let Some(lift) = lifting.lift.get_untracked() else {
+            return;
+        };
+        let flight = lifting.flight.value();
+        let mut flight = flight.borrow_mut();
+        if let Some(goal) = self.lift_goal(lift, &flight) {
+            flight.pos = goal;
+            flight.speed = Vec2::ZERO;
+            if lifting.at.get_untracked() != goal {
+                lifting.at.set(goal);
+            }
+        }
     }
 
     fn retarget(&self, target: Option<(DockBarPlacement, usize)>) {

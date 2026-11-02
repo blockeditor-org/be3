@@ -20,19 +20,24 @@ fn manifest() -> AppManifest {
     .expect("the manifest is valid")
 }
 
-fn animating(serial: u64) -> Answer {
-    Answer::Frame(FrameCommit {
-        serial,
-        sizes: Vec::new(),
-        reports: Vec::new(),
-        windows: Vec::new(),
-        children: Vec::new(),
-        repaint_after_micros: Some(0),
-        animating: true,
-        presented: None,
-        window_requests: Vec::new(),
-        docks: Vec::new(),
-    })
+fn animating(serial: u64) -> Vec<Answer> {
+    vec![
+        Answer::LaidOut(LayoutCommit {
+            serial,
+            sizes: Vec::new(),
+            reports: Vec::new(),
+            windows: Vec::new(),
+            children: Vec::new(),
+            window_requests: Vec::new(),
+            docks: Vec::new(),
+        }),
+        Answer::Presented(PresentCommit {
+            serial,
+            repaint_after_micros: Some(0),
+            animating: true,
+            presented: None,
+        }),
+    ]
 }
 
 #[test]
@@ -40,8 +45,8 @@ fn an_app_frame_that_changes_nothing_the_host_draws_leaves_the_host_with_nothing
     let mut runtime = Runtime::new(&manifest(), 0);
     take_changed();
 
-    runtime.apply(vec![animating(1)]);
-    runtime.apply(vec![animating(1)]);
+    runtime.apply(animating(1));
+    runtime.apply(animating(1));
     assert!(
         take_changed().is_empty(),
         "an animating app's frame that changes nothing makes the host owe no frame"

@@ -1,6 +1,6 @@
 use crate::{
     ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
-    ChildPlacements, EditorInstanceId, FrameCommit, Opening, VersionCommand, blocks::OpenRequest,
+    ChildPlacements, EditorInstanceId, LayoutCommit, Opening, VersionCommand, blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -11,7 +11,7 @@ pub enum BlockIdRole {
 
 type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
 
-impl FrameCommit {
+impl LayoutCommit {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         for placements in &mut self.children {
             placements.visit_block_ids(visit);

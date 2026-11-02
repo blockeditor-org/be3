@@ -421,6 +421,17 @@ hooks the higher crates fill in:
   did, whether the program asked or not, which the program reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
   platform is always fullscreen; Android and apps say nothing.
+- A window can be sized to its content: `<Window fit={Some(max)}>` (`WindowSpec::fit`)
+  ignores the size it is given or reported and takes min(content, max). Each layout of the
+  frame first measures the window's content (`Document::refit_windows`, before
+  `layout::layout`) with the measure pass, at an unbounded width and again at the most it
+  may take when wider, and lays the window out once at that size, with its frame filling it,
+  so rows that fill their window fill the width it took. The content is the window frame's
+  child, or the node `Document::fit_window_to` names (an overlay's content when that node is
+  an overlay, such as an app's menu). `Document::window_size` and `fitted_window_size`
+  answer with the size taken. An app view placed sized to its content is such a window
+  (crates/be-sdk-api/PROTOCOL.md, `child-placement.fit`): be-sdk-beui marks it
+  from `View::fit` and fits it to the node `Editor::fit_to` names.
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`beui_reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
@@ -5622,7 +5633,14 @@ hears `on_hover_change` when it joins or leaves the path whether the pointer
 moved or the layout did. `on_pointed_change` is the stricter state, as a platform's
 menus and lists have it: a catcher is pointed once the pointer moves while it is on
 the path, so one that only scrolled or was laid out under a resting pointer is
-hovered but not pointed until the pointer moves. A list whose highlight follows the
+hovered but not pointed until the pointer moves. A forwarding catcher that a
+layout moves under a resting mouse is handed a pointer move at the mouse's
+position in the same frame (`forward::reforward`), so what it shows hovered
+follows its new place rather than where it was when the mouse last moved; one
+that appears or a layout moves under the resting mouse in place of another is
+handed that move too, and the one it replaces `Left`. A resting mouse keeps
+its pixel when the zoom changes: its position is rescaled into the new points
+before the frame runs. A list whose highlight follows the
 pointer (`SearchList`, and menus, whose `MenuRowHandle` carries `pointed`)
 follows `ButtonHandle::pointed`, so keys walking it under a resting pointer keep
 the highlight; other hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the

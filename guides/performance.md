@@ -33,7 +33,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   `canvas.line-longest-frame` and `canvas.line-longest-app-frame` are the longest host
   frame and the longest canvas app step meanwhile (`drive frames`, guides/running/drive.md):
   a frame packed with samples is where a per-sample cost that grows with the stroke shows as
-  stutter, and since a host frame waits at most 8 ms for its apps, the app's own line
+  stutter, and since a host frame waits for its apps only until its deadline (the next present less the host's own composite time, guides/adding_an_app.md), the app's own line
   is where the canvas's share shows. The run fails unless the exported stroke holds exactly
   the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
   than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),

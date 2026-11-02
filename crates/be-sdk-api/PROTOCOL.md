@@ -692,7 +692,12 @@ arriving as the child's `child-status.dialog`) and shows the host's menu
 (`host-panel.menu`, which the host draws and reports done the same way,
 its size as the child's intrinsic size). The instance marks the view
 `keyboard`, so the child takes the keyboard when it opens and gives it back
-when it closes. A press outside the view closes it and removes the child,
+when it closes. A screen may also ask for the keyboard in its window requests,
+as an app does while a layer of its own traps the focus, and asks on the
+screen that layer is in. When several views want the keyboard - screens that
+ask and children given it - the host gives it to the view opened last, and
+when that one lets go, to the latest of the rest, so which one holds it never
+depends on the order their requests arrive in. A press outside the view closes it and removes the child,
 which closes the editor in it. On touch or a phone the instance instead
 attaches a bare view to the bottom edge of its bounds and has the child fill
 it; the host tells a child placed in a view attached to an edge that it is a
@@ -887,15 +892,15 @@ host offers, and where to place what it makes - the location new blocks are
 made in when the filter places none, and whether to lay the picker out for
 touch, as sheets filling the child's rectangle, rather than as a menu and a
 card sized to their content. The instance places the child in an anchored
-view (above) hung from the control that asked, sized to the picker's last
-reported intrinsic size, or one attached to the bottom edge of its bounds
-filling them for touch; it frames the child with its card and beak while the
+view (above) hung from the control that asked, placing the child sized to its
+content (`child-placement.fit`, below) with the room the card may take and
+sizing the card around the size the picker reports, or in one attached to the
+bottom edge of its bounds filling them for touch; it frames the child with its card and beak while the
 picker says it shows a card (`shell.show-card`), and a press outside the view
 answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
 `opening::picker`; that editor reads the block graph for itself, so the
-instance that asked never sees what the picker browses. The picker reports the
-size its content wants as its intrinsic size and answers once with
+instance that asked never sees what the picker browses. The picker answers once with
 `shell.picked`: the block chosen or created and whether it was an existing
 block linked rather than a new one, none when the user cancelled, or why the
 block could not be made. The answer reaches the instance that placed the child
@@ -937,14 +942,20 @@ names the last serial it had received when it laid out, so the host knows
 which of the states it sent the frame was built from. The host keeps the
 states it sent by serial and forgets each once a frame names a later one.
 
-A frame is one commit of everything an app laid out together: the serial,
-the size each view used, its frame report, its window requests - cursor,
-input method area, intercepted keys and the rest - and its child placements
-and occluders, along with how long it wants to wait before being drawn again
-and the surfaces it presented. Each part is present only for a screen it
-changed; one a frame leaves out still holds at the frame's serial, since an
-app lays out again every instance whose host state changed. A frame may
-move children without painting anything, and may paint without moving any.
+A frame is two commits with the same serial. The layout commit carries
+everything an app laid out together: the size each view used, its frame
+report, its window requests - cursor, input method area, intercepted keys and
+the rest - its child placements and occluders, and what its docks say. The
+app sends it through `laid-out` as soon as the frame is laid out, before
+it paints anything, so the host can place the children and send their
+apps their new sizes while it paints. The present commit, the answer to
+`draw`, follows once the frame is painted, with how long the app wants to
+wait before being drawn again and the surfaces it presented. Every draw has
+exactly one of each, the layout commit first. Each part of the layout commit
+is present only for a screen it changed; one a frame leaves out still holds
+at the frame's serial, since an app lays out again every instance whose
+host state changed. A frame may move children without painting anything, and
+may paint without moving any.
 
 The host decides when an app draws. An app paints only when the host asks
 it for a frame, and never on its own: when a call changes what it shows, or
@@ -961,6 +972,60 @@ asked again only once the frame it owes has arrived, and an app animating
 without any delay is drawn once per host frame rather than as fast as its
 process can run. A request left unanswered for a second is asked again. An
 app the host is not drawing is asked for nothing.
+
+A child can be placed sized to its content: `child-placement.fit` names the
+most room it may take. The host asks the child's view for that room with
+`screen-request.fit` set, and the child lays the view out once at the smaller
+of the room and its content, lists its screen at that size in its layout,
+draws it, and reports the size it took as the view's `view-size` in its
+layout commit. The child's pixels decide: it sizes its surface at that size
+times the raster, rounded up, and reports the size as those pixels over the
+raster, and the host takes the surface the child lists as the size it asked
+for, so a fractional scale never leaves the two a pixel apart. The host takes that size as the child's intrinsic size at once
+and shows the child's painting at its own size from the placed rectangle's
+top-left, clipped to that rectangle, never stretched. Size flows from whoever
+owns it: for such a child the hold is reversed, so while the child is drawing
+in a frame its placer is asked only once the child's layout commit has
+landed, and the placer then lays its card out around the size the child took
+and paints once. A placer that wants another size changes `fit`, which
+configures the child, and the child shows that size from the next frame.
+`shell.intrinsic-size` stays for children placed at a size their placer
+chooses, such as cards on a canvas, which only take the size as a hint.
+
+Input reaches an app through its `input` watch, which the app pulls,
+while `draw` is pushed, so a draw could otherwise overtake input the host
+sent before it and the frame would show it a frame late, or not, depending on
+timing. The host therefore asks for a draw only once the app has taken all
+the input queued for it: while input waits for the app's next
+`input.next`, the draw waits too, and the frame waits for both.
+
+An app paints at most once per host frame. A change that reaches it after
+the host asked it to draw in this frame, such as a resize a later round of
+layout gives it, waits for the next frame, and the view shows the frame the
+app last drew, cropped, until then. So that this happens rarely, the host
+asks an app to draw only once whatever places it has laid out in the frame:
+the host itself, when its own layout is pending, and a placer app it has
+asked to draw, until that placer's layout commit has said where its children
+go. The placer of a view is the instance whose child placement shows it.
+Since an app draws all its instances at once, two apps can place each
+other (one's editor placing the other's picker, say); among the apps
+drawing in a frame the host then keeps the edges into the earliest opened
+instances first and drops whichever edge would close a cycle, so in a cycle
+the most recently opened child is asked without waiting for its placer.
+
+A host frame runs in rounds. The host asks every app it is drawing at
+once and waits on all of them together; when a commit's child placements
+change another app's view, the host lays out again and sends that app
+its screens, a configure and a draw request within the same frame, and waits
+for it too. Dock messages in a commit work the same way: the updates they
+give another app (a bar a child moved, a tab it declared) reach that app
+in a later round of the same frame, so if it has yet to draw in the frame it
+draws with them, and if it already has, it gets them before its next draw. The frame stops waiting once no app owes it anything or its
+deadline passes: the display's next present less the time the host itself
+needs to composite and submit, so the wait never runs past what the screen
+can show in that refresh. A child that answers in time is shown at its new size in the
+frame its placer resized it in; one that does not is shown at the size it last
+drew, cropped rather than stretched, until a later frame picks it up.
 
 The host shows whatever the app has committed by the time it finishes
 building its own frame. Which surface each view is drawn from is settled then

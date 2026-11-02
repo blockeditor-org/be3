@@ -33,7 +33,9 @@ mod state;
 mod wasm;
 mod wire;
 
-pub use app::{Anchored, App, Claim, Frame, Instance, SettingsDraft, ShownView, ViewHandler};
+pub use app::{
+    Anchored, App, Claim, Frame, Instance, SettingsDraft, ShownView, ViewHandler, fitted_pixels,
+};
 #[cfg(target_arch = "wasm32")]
 pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use asked::{Asked, Task};

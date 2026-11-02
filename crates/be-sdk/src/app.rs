@@ -106,6 +106,7 @@ pub struct ShownView {
     pub describe: Option<u64>,
     pub seen: bool,
     pub windows: bool,
+    pub fit: bool,
     pub docked: bool,
     pub host_place: Option<String>,
     pub anchor_space: Option<AnchorSpace>,
@@ -123,6 +124,15 @@ impl ShownView {
     pub fn chrome_drawn(&self) -> bool {
         self.spec.chrome == FrameChrome::Drawn
     }
+}
+
+pub fn fitted_pixels(fitted: be_lib_geometry::Vec2, raster: f32) -> (u32, u32) {
+    let raster = match raster.is_finite() && raster > 0.0 {
+        true => raster,
+        false => 1.0,
+    };
+    let pixels = |size: f32| ((size * raster).ceil() as u32).max(1);
+    (pixels(fitted.x), pixels(fitted.y))
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -143,6 +153,7 @@ pub struct Frame {
     pub stopped: Option<be_sdk_api::Stopped>,
     pub asks: Vec<be_sdk_api::WindowRequest>,
     pub anchored: Vec<Anchored>,
+    pub fitted: Option<Vec2>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

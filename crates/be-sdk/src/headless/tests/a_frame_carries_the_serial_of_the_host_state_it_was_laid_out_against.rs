@@ -1,5 +1,5 @@
 use be_sdk_api::{
-    EditorInstanceId, FrameCommit, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId,
+    EditorInstanceId, HelloAccepted, LayoutCommit, OpenBlock, Opening, ParentView, ScreenId,
     ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
     ViewportMetrics,
 };
@@ -71,12 +71,13 @@ fn configure(app: &mut HeadlessApp, height: f32, serial: u64) {
         origin: None,
         docked: false,
         anchor_space: None,
+            fit: false,
     }])
     .unwrap();
     app.configure(serial).unwrap();
 }
 
-fn drawn(app: &mut HeadlessApp) -> FrameCommit {
+fn drawn(app: &mut HeadlessApp) -> LayoutCommit {
     app.draw();
     app.outbound().expect("a drawn app commits a frame")
 }

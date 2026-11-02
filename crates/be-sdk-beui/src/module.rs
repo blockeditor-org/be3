@@ -20,6 +20,8 @@ pub(crate) trait Shown {
 
     fn window_id(&self, view: be_sdk::View) -> Option<WindowId>;
 
+    fn fit(&self) -> beui::native::WindowFit;
+
     fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document);
 
     fn after(
@@ -154,6 +156,13 @@ impl beui::native::Program for ModuleProgram {
             }))
         });
         beui::native::with_reactive_scope(document, || {});
+        for view in shown_views.iter().filter(|view| view.fit) {
+            if let (Some(shown), Some(window)) =
+                (module.shown(view.id.instance), module.window(view.id))
+            {
+                document.fit_window_to(window, shown.fit());
+            }
+        }
         for view in &shown_views {
             if let Some(shown) = module.shown(view.id.instance) {
                 shown
@@ -269,6 +278,14 @@ fn ViewWindow(
     });
     let docked = requested
         .with_untracked(|requested| requested.iter().any(|view| view.id == id && view.docked));
+    let fit = create_memo(move || {
+        requested.with(|requested| {
+            requested
+                .iter()
+                .find(|view| view.id == id && view.fit)
+                .map(|view| view.size)
+        })
+    });
     let content = match registry.shown(id.instance) {
         Some(held) => held.content(shown, docked),
         None => RenderFn::new(|_: WindowHandle| {
@@ -278,6 +295,6 @@ fn ViewWindow(
         }),
     };
     view! {
-        <Window id={Some(window)} size={size} placement={views.placement(id)} content />
+        <Window id={Some(window)} size={size} fit={fit} placement={views.placement(id)} content />
     }
 }

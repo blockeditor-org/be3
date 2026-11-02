@@ -45,23 +45,24 @@ pub use presenter::{AnchoredBlits, Blit};
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
-    PlacedView, ViewPlace, ViewSlot, anchored_blits, anchored_drawing, back_view,
+    PlacedView, ViewPlace, ViewPlacer, ViewSlot, anchored_blits, anchored_drawing, back_view,
     dismiss_anchored_views, drag_over_view, forward_anchored, forward_view, frames, intercept_tap,
     intercept_view, mount_view, place_view, placed_view, pressed_outside_view, take_block_drags,
     take_changed, take_focus_request, take_view_actions, unmount_view, unplace_view, view_damage,
     view_drawing, view_placed, view_published,
 };
 pub use runtime::{
-    artifact, artifact_draft, aspect_ratio, assigned_size, busy, card, close, commit_creation,
-    content_view, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
-    frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, picked,
-    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, replace_child,
-    replace_gpu, report_child_bars, report_child_focus, report_children, request_painting, resized,
-    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
-    set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_child_commits,
-    take_child_dismissals, take_child_menu_picks, take_crashed, take_created, take_focus_report,
-    take_leaving, take_steps, take_view_changes, view_placement_of, view_size, warm,
+    artifact, artifact_draft, aspect_ratio, assigned_size, begin_frame, busy, card, close,
+    commit_creation, content_view, crash, creation, dialog_status, dismiss, drawing, flush,
+    forget_dialog_answer, frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill,
+    menu, menu_pick, picked, poll, present, presenting, preview_image, record_pacing,
+    regenerate_artifact, replace_child, replace_gpu, report_child_bars, report_child_focus,
+    report_children, request_painting, resized, revoke_frame_child, running, set_artifact_states,
+    set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
+    show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
+    take_child_commits, take_child_dismissals, take_child_menu_picks, take_crashed, take_created,
+    take_focus_report, take_leaving, take_steps, take_view_changes, view_placement_of, view_size,
+    warm,
 };
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
@@ -125,6 +126,7 @@ pub struct HostChild {
     pub layer: ChildLayer,
     pub mode: ChildMode,
     pub intrinsic: Option<Vec2>,
+    pub fit: Option<Vec2>,
     pub rotation: f32,
     pub opacity: f32,
     pub corner_radius: f32,

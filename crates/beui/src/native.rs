@@ -37,7 +37,7 @@ pub use beui_core::program::accessibility_dump;
 pub use beui_core::program::{FrameTimes, Lifecycle, NativeWindow, Program, Setup, Waker};
 pub use beui_core::rich;
 pub use beui_core::touch_cursor;
-pub use beui_core::window::{Resize, WindowHosting, WindowSize};
+pub use beui_core::window::{Resize, WindowFit, WindowHosting, WindowSize};
 pub use beui_draw::{Draw, DrawAt, drawing, painted_drawing, texture_quad};
 pub use beui_view::native_api::{core_painter, draw_gpu, wrap_painter};
 pub use embed::Embed;

@@ -74,15 +74,12 @@ fn show_windowed(session: &mut EditorSession, screens: &[(View, u64)]) -> Vec<Wi
     let mut asked = Vec::new();
     for _ in 0..2 {
         session.frame(&framed);
-        let mut commit = be_sdk_api::FrameCommit {
+        let mut commit = be_sdk_api::LayoutCommit {
             serial: 0,
             sizes: Vec::new(),
             reports: Vec::new(),
             windows: Vec::new(),
             children: Vec::new(),
-            repaint_after_micros: None,
-            animating: false,
-            presented: None,
             window_requests: Vec::new(),
             docks: Vec::new(),
         };

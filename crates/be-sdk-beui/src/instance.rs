@@ -199,6 +199,7 @@ impl<A: BeuiRoot> Parts<A> {
                 .map(|(modifiers, rect)| be_sdk::Claim { modifiers, rect })
                 .collect(),
             work_area: document.work_area(window),
+            fitted: document.fitted_window_size(window),
         }
     }
 
@@ -248,7 +249,8 @@ impl<A: BeuiRoot> Parts<A> {
             editor.end_frame(document, window);
             editor.fit_intrinsic(document, context);
         }
-        let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, view.size);
+        let fitted = document.fitted_window_size(window);
+        let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, fitted.unwrap_or(view.size));
         let report = Report {
             content: views
                 .chrome
@@ -265,6 +267,7 @@ impl<A: BeuiRoot> Parts<A> {
                 .map(|(modifiers, rect)| be_sdk::Claim { modifiers, rect })
                 .collect(),
             work_area: document.work_area(window),
+            fitted,
         };
         (report, views.chrome.exit().take())
     }
@@ -324,6 +327,18 @@ impl<A: BeuiRoot> Shown for Parts<A> {
             ViewPlacement::Host(HostView::Display(display)) => self.display_content(display),
             ViewPlacement::Dock => self.tab_content(view.id.0),
             ViewPlacement::Host(HostView::Window) | ViewPlacement::Anchored => empty(),
+        }
+    }
+
+    fn fit(&self) -> beui::native::WindowFit {
+        let views = self.views.borrow();
+        let Some(editor) = views.editor.as_deref() else {
+            return beui::native::WindowFit::Content;
+        };
+        match (editor.fitted_node(), editor.intrinsic_size()) {
+            (Some(node), _) => beui::native::WindowFit::Node(node),
+            (None, Some(size)) => beui::native::WindowFit::Size(size),
+            (None, None) => beui::native::WindowFit::Content,
         }
     }
 

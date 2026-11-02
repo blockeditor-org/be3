@@ -1,9 +1,14 @@
 use be_lib_stable_hash::HashSet;
 use std::cell::{Cell, RefCell};
 
-use be_sdk_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
+use be_sdk_api::{
+    LayoutCommit, PresentCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec,
+};
 
-use crate::{panes::Panes, screens::Screens};
+use crate::{
+    panes::{Panes, Ran},
+    screens::Screens,
+};
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
@@ -112,9 +117,9 @@ impl Surfaces {
         self.layout = layout;
     }
 
-    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Option<FrameCommit>, String> {
+    pub(crate) fn lay_out(&mut self, screens: &mut Screens) -> Option<(LayoutCommit, Ran)> {
         if self.layout.is_empty() {
-            return Ok(None);
+            return None;
         }
         let ran = self.panes.run(
             &self.layout,
@@ -123,12 +128,21 @@ impl Surfaces {
             crate::screens::seen(),
             self.gpu.is_some(),
         );
-        let repaint = ran.repaint;
-        let animating = ran.animating;
         if !self.layout.same_placements(screens.layout()) {
             self.place(screens.layout().clone());
             self.relaid = true;
         }
+        Some((screens.commit(), ran))
+    }
+
+    pub(crate) fn paint(
+        &mut self,
+        screens: &mut Screens,
+        serial: u64,
+        ran: Ran,
+    ) -> Result<PresentCommit, String> {
+        let repaint = ran.repaint;
+        let animating = ran.animating;
         let mut presented = None;
         if let Some((gpu, format)) = &self.gpu
             && !ran.painting.is_empty()
@@ -150,11 +164,12 @@ impl Surfaces {
             });
             presented = Some(PresentedFrame { sequence, damage });
         }
-        let mut commit = screens.commit();
-        commit.repaint_after_micros = repaint.map(|delay| delay.as_micros() as u64);
-        commit.animating = animating;
-        commit.presented = presented;
-        Ok(Some(commit))
+        Ok(PresentCommit {
+            serial,
+            repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
+            animating,
+            presented,
+        })
     }
 }
 

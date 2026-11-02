@@ -486,7 +486,10 @@ impl Element for OverlayNode {
             (None, None) => doc.viewport_window(),
         });
         if let Some(window) = real {
-            let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
+            let size = match window.fit {
+                Some(max) => doc.fitted_size_of(window.id).unwrap_or(max),
+                None => painter.ctx().window_size(window.id).unwrap_or(window.size),
+            };
             let rect = painter
                 .ctx()
                 .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
