@@ -6,7 +6,7 @@ use beui_view::types::{Modifiers, SecondaryDrag};
 use beui_view::types::{Pos2, Rect, Vec2};
 use beui_view::window::WindowHandle;
 
-use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};
+use super::{DockLayout, Grip, SplitId, SplitSize, State, SurfaceId, layout_tree};
 
 const EDGE_MARGIN: f32 = 4.0;
 
@@ -22,7 +22,7 @@ enum Resize {
         split: SplitId,
         direction: Direction,
         area: Rect,
-        start: f32,
+        start: SplitSize,
     },
     Window {
         surface: SurfaceId,
@@ -86,7 +86,7 @@ impl State {
                 split: splitter.id,
                 direction: splitter.direction,
                 area: splitter.area,
-                start: splitter.fraction,
+                start: splitter.size,
             })
     }
 
@@ -98,14 +98,9 @@ impl State {
                 area,
                 start,
             } => {
-                let fraction = fraction_moved(
-                    area,
-                    direction,
-                    self.thickness,
-                    start,
-                    direction.main(moved),
-                );
-                self.drag_edit(move |state| state.set_split_fraction(split, fraction));
+                let available = direction.main(area.size()) - self.thickness;
+                let next = start.moved(available, direction.main(moved));
+                self.drag_edit(move |state| state.set_split_size(split, next));
             }
             Resize::Window {
                 surface,

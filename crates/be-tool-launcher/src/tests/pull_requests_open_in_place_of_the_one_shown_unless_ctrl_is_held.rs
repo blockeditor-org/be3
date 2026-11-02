@@ -1,7 +1,7 @@
 use std::sync::mpsc::channel;
 
 use be_sdk_test::DocumentTest;
-use beui::dock::styled::TabId;
+use beui::dock::unstyled::DockKey;
 use beui::reactive::untrack;
 use beui::{Input, Modifiers, Vec2};
 
@@ -36,14 +36,15 @@ fn pull_request(number: u64, title: &str) -> PullRequest {
     }
 }
 
-fn tab(model: Model, number: u64) -> Option<TabId> {
+fn tab(model: Model, number: u64) -> Option<Tab> {
     let slot = untrack(|| model.documents.find(&number))?;
-    model.layout.tab_of(&Tab::PullRequest(slot))
+    let tab = Tab::PullRequest(slot);
+    model.layout.tab_of(&tab).map(|_| tab)
 }
 
 fn close(model: Model, number: u64) -> String {
     let tab = tab(model, number).expect("the pull request has a tab");
-    format!("dock.tab.{}.close", tab.value())
+    format!("dock.tab.{}.close", tab.key())
 }
 
 fn click(test: &mut DocumentTest, number: u64, modifiers: Modifiers) {
@@ -73,7 +74,7 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     ));
     let mut test = DocumentTest::new(document, WIDE);
     let is_open = |test: &DocumentTest, number: u64| {
-        tab(model, number).is_some_and(|tab| test.shows(&format!("dock.tab.{}.close", tab.value())))
+        tab(model, number).is_some_and(|tab| test.shows(&format!("dock.tab.{}.close", tab.key())))
     };
 
     click(&mut test, 1, Modifiers::NONE);

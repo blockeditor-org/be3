@@ -18,16 +18,16 @@ fn a_split_follows_the_code_until_the_user_moves_it() {
 
     state.reconcile(&layout(0.4));
     assert_eq!(
-        state.split_fraction(split),
-        0.4,
+        state.split_size(split),
+        SplitSize::Fraction(0.4),
         "a split nobody moved follows the fraction in the code"
     );
 
-    state.set_split_fraction(split, 0.6);
+    state.set_split_size(split, SplitSize::Fraction(0.6));
     state.reconcile(&layout(0.45));
     assert_eq!(
-        state.split_fraction(split),
-        0.6,
+        state.split_size(split),
+        SplitSize::Fraction(0.6),
         "once the user moves a split it stays where they put it"
     );
 }

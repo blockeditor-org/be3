@@ -36,8 +36,8 @@ fn a_spec_seeds_the_layout_it_describes() {
     let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1006.0, 400.0));
     let splitter = layout_surface(&state, state.main(), area, 6.0).splitters[0];
     assert_eq!(
-        state.split_fraction(splitter.id),
-        0.3,
+        state.split_size(splitter.id),
+        SplitSize::Fraction(0.3),
         "the split starts at the fraction the code gave it"
     );
     let windows = state.windows();

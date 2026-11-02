@@ -19,7 +19,6 @@ use crate::database_view::root::row::RowPanel;
 use crate::database_view::sort::BlockLabels;
 use beui::{Align, Direction, ItemSize};
 
-const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;
 const CODE_WIDTH: f32 = 76.0;
 const MARK: TextSize = TextSize::Sm;
@@ -109,33 +108,21 @@ pub fn RowBeside(
             false => None,
         }
     });
-    let open = create_memo(move || selected.get().is_some());
     let narrow = narrow_chrome();
-    let main_shown = create_memo(move || !(narrow.get() && open.get()));
-    let beside = create_memo(move || !narrow.get() && open.get());
-    let instead = create_memo(move || narrow.get() && open.get());
+    let instead = create_memo(move || narrow.get() && selected.get().is_some());
+    let main_shown = create_memo(move || !instead.get());
     view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Layers @sizing=ItemSize::Percent(100.0)>
-                <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
-                <Show condition={instead}>
-                    <OpenRow data={data} row={selected} />
-                </Show>
-            </Layers>
-            <Show condition={beside}>
-                <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
-                    <List direction=Direction::Horizontal spacing=Space::None>
-                        <Separator direction=Direction::Vertical />
-                        <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={selected} />
-                    </List>
-                </Frame>
+        <Layers>
+            <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
+            <Show condition={instead}>
+                <OpenRow data={data} row={selected} />
             </Show>
-        </List>
+        </Layers>
     }
 }
 
 #[component]
-fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
+pub fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Dynamic value={row}>|row: Option<ObjectId>| {

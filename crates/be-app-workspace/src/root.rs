@@ -4,7 +4,7 @@ use std::cell::Cell;
 use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
-    DockMode, DockPane, DockSplit, DockTab, Docking, TabId, use_dock_tab,
+    DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
 };
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use be_sdk_beui::beui::reactive::*;
@@ -20,7 +20,7 @@ use be_sdk_shell::{
 };
 use beui::{Align, ItemSize};
 
-const FILES_SHARE: f32 = 0.22;
+pub(crate) const FILES_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
 
@@ -92,7 +92,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout>
-                    <DockSplit id="workspace" fraction=FILES_SHARE>
+                    <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
                         <DockPane id="files" locked=true>
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
                                 <FilesPanel workspace />

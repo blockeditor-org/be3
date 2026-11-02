@@ -1,9 +1,12 @@
 use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::beui::dock::styled::{
+    DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
+};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery};
-use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
+use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, SIDE_PANEL_WIDTH};
 use be_type_database::DatabaseSchemaContent;
 use be_type_database::database::DatabaseContent;
 use be_type_database::database_view::{self, DatabaseViewContent};
@@ -15,6 +18,10 @@ const SECTION_SPACING: Space = Space::Md;
 const INTRINSIC_WIDTH: f32 = 400.0;
 const ROW_HEIGHT: f32 = 24.0;
 const CHROME_HEIGHT: f32 = 90.0;
+const VIEWS: &str = "views";
+const SCHEMA: &str = "schema";
+const SCHEMA_WIDTH: f32 = SIDE_PANEL_WIDTH;
+const SCHEMA_PADDING: Space = Space::Lg;
 
 #[component]
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
@@ -63,33 +70,52 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                <List spacing=SECTION_SPACING>
-                    <Text style=TextStyle::HEADING>"Views"</Text>
-                    <Show condition={none_yet}>
-                        <Text style=TextStyle::CAPTION>"This database has no views yet."</Text>
-                    </Show>
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <ViewLinks editor={editor} rows={rows} />
-                    </Scroll>
-                    <List direction=Direction::Horizontal spacing=Space::None>
-                        <Button
-                            label="New view"
-                            variant=ButtonVariant::Primary
-                            disabled={read_only}
-                            @test_id={"database.new-view"}
-                            on_click={new_view}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
-                </List>
-            </Frame>
-            <Sidebar shown={chrome}>
-                <SchemaPanel @sizing=ItemSize::Percent(100.0) editor={editor} schema={schema} />
-            </Sidebar>
-        </List>
+        <Docking layout focus={Some(VIEWS)}>
+            <DockSplit id="database" size={SplitSize::Second(SCHEMA_WIDTH)}>
+                <DockPane id="views" locked=true bare=true>
+                    <DockTab id=VIEWS title="Views">
+                        <Frame @node_ref={&content} padding=PADDING>
+                            <List spacing=SECTION_SPACING>
+                                <Text style=TextStyle::HEADING>"Views"</Text>
+                                <Show condition={none_yet}>
+                                    <Text style=TextStyle::CAPTION>
+                                        "This database has no views yet."
+                                    </Text>
+                                </Show>
+                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <ViewLinks editor={editor} rows={rows} />
+                                </Scroll>
+                                <List direction=Direction::Horizontal spacing=Space::None>
+                                    <Button
+                                        label="New view"
+                                        variant=ButtonVariant::Primary
+                                        disabled={read_only}
+                                        @test_id={"database.new-view"}
+                                        on_click={new_view}
+                                    />
+                                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                                </List>
+                            </List>
+                        </Frame>
+                    </DockTab>
+                </DockPane>
+                <Show condition={chrome}>
+                    <DockPane id="schema" locked=true>
+                        <DockTab id=SCHEMA title="Schema">
+                            <Frame fill=ColorRole::Surface>
+                                <Scroll @test_id={"database.schema"}>
+                                    <Frame padding=SCHEMA_PADDING>
+                                        <SchemaPanel editor={editor} schema={schema} />
+                                    </Frame>
+                                </Scroll>
+                            </Frame>
+                        </DockTab>
+                    </DockPane>
+                </Show>
+            </DockSplit>
+        </Docking>
     }
 }
 

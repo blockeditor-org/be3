@@ -41,18 +41,15 @@ pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
 #[component]
 fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
     let DockSwitchRowHandle {
-        tab,
+        test_key,
         title,
         icon,
         chosen,
         pick,
+        ..
     } = handle;
     view! {
-        <ListRow
-            @test_id={format!("dock.switch.{}", tab.value())}
-            selected={chosen}
-            on_click={pick}
-        >
+        <ListRow @test_id={format!("dock.switch.{test_key}")} selected={chosen} on_click={pick}>
             <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                     <Text color=TextColor::Accent align=TextAlign::Center>

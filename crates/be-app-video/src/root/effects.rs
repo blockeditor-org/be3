@@ -17,8 +17,6 @@ pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     let none = create_memo(move || !chosen.get());
     view! {
         <List spacing=Space::Md>
-            <Text style=TextStyle::HEADING>"Effects"</Text>
-            <Separator />
             <Show condition={none}>
                 <Text style=TextStyle::CAPTION>"Select a clip to see its effects."</Text>
             </Show>

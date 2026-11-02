@@ -1,7 +1,7 @@
 use super::{
     Bar, DockHome, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
-    DockSpecPlace, DockSpecWindow, DockState, Entry, Group, GroupId, Home, MIN_FRACTION,
-    MIN_SIDEBAR_WIDTH, Node, Split, SplitId, Surface, SurfaceId,
+    DockSpecPlace, DockSpecWindow, DockState, Entry, Group, GroupId, Home, MIN_SIDEBAR_WIDTH, Node,
+    Split, SplitId, Surface, SurfaceId,
 };
 
 fn named(key: &str) -> Option<String> {
@@ -99,7 +99,7 @@ impl DockState {
             Node::Split(split) => DockSpecNode::Split {
                 key: split.key.clone().unwrap_or_default(),
                 direction: split.direction,
-                fraction: split.fraction,
+                size: split.size,
                 first: Box::new(self.spec_node(&split.first)),
                 second: Box::new(self.spec_node(&split.second)),
             },
@@ -208,7 +208,7 @@ impl DockState {
             DockSpecNode::Split {
                 key,
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => {
@@ -217,7 +217,7 @@ impl DockState {
                 Node::Split(Split {
                     id: SplitId(self.mint()),
                     direction: *direction,
-                    fraction: fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION),
+                    size: size.clamped(),
                     first: Box::new(first),
                     second: Box::new(second),
                     key: named(key),

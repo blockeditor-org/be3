@@ -140,6 +140,83 @@ pub struct TabPosition {
 }
 
 pub const MIN_FRACTION: f32 = 0.05;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SplitSize {
+    Fraction(f32),
+    First(f32),
+    Second(f32),
+}
+
+fn shown_fraction(fraction: f32, available: f32) -> f32 {
+    if available < MIN_PANE_LENGTH * 2.0 {
+        return fraction;
+    }
+    let least = MIN_PANE_LENGTH / available;
+    fraction.clamp(least, 1.0 - least)
+}
+
+impl Default for SplitSize {
+    fn default() -> Self {
+        SplitSize::Fraction(0.5)
+    }
+}
+
+impl SplitSize {
+    pub fn clamped(self) -> Self {
+        match self {
+            SplitSize::Fraction(fraction) => {
+                SplitSize::Fraction(fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION))
+            }
+            SplitSize::First(points) => SplitSize::First(points.max(0.0)),
+            SplitSize::Second(points) => SplitSize::Second(points.max(0.0)),
+        }
+    }
+
+    pub fn mirrored(self) -> Self {
+        match self {
+            SplitSize::Fraction(fraction) => SplitSize::Fraction(1.0 - fraction),
+            SplitSize::First(points) => SplitSize::Second(points),
+            SplitSize::Second(points) => SplitSize::First(points),
+        }
+    }
+
+    pub fn first_length(self, available: f32) -> f32 {
+        let available = available.max(0.0);
+        let wanted = match self {
+            SplitSize::Fraction(fraction) => {
+                return (available * shown_fraction(fraction, available)).round();
+            }
+            SplitSize::First(points) => points,
+            SplitSize::Second(points) => available - points,
+        };
+        let least = MIN_PANE_LENGTH.min(available / 2.0);
+        wanted.clamp(least, available - least).round()
+    }
+
+    pub fn shown(self, available: f32) -> Self {
+        let first = self.first_length(available);
+        match self {
+            SplitSize::Fraction(fraction) => {
+                SplitSize::Fraction(shown_fraction(fraction, available))
+            }
+            SplitSize::First(_) => SplitSize::First(first),
+            SplitSize::Second(_) => SplitSize::Second(available.max(0.0) - first),
+        }
+    }
+
+    pub fn moved(self, available: f32, moved: f32) -> Self {
+        match self {
+            SplitSize::Fraction(fraction) => match available > 0.0 {
+                true => SplitSize::Fraction(fraction + moved / available),
+                false => self,
+            },
+            SplitSize::First(points) => SplitSize::First(points + moved),
+            SplitSize::Second(points) => SplitSize::Second(points - moved),
+        }
+        .clamped()
+    }
+}
 pub const MIN_PANE_LENGTH: f32 = 120.0;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
@@ -181,7 +258,7 @@ impl Leaf {
 struct Split {
     id: SplitId,
     direction: Direction,
-    fraction: f32,
+    size: SplitSize,
     first: Box<Node>,
     second: Box<Node>,
     key: Option<String>,
@@ -325,7 +402,7 @@ pub enum DockTree {
     },
     Split {
         direction: Direction,
-        fraction: f32,
+        size: SplitSize,
         first: Box<DockTree>,
         second: Box<DockTree>,
     },
@@ -411,7 +488,7 @@ impl DockTree {
             }
             DockTree::Split {
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => {
@@ -425,7 +502,7 @@ impl DockTree {
                 match (first_gone, second_gone) {
                     (false, false) => DockTree::Split {
                         direction: *direction,
-                        fraction: *fraction,
+                        size: *size,
                         first: Box::new(kept_first),
                         second: Box::new(kept_second),
                     },
@@ -1144,7 +1221,7 @@ impl DockState {
             });
         let mut added = self.new_leaf(entries);
         added.area = area;
-        let id = self.split_off(leaf, side, share, added, None)?;
+        let id = self.split_off(leaf, side, SplitSize::Fraction(share), added, None)?;
         self.focus(id);
         Some(id)
     }
@@ -1153,17 +1230,17 @@ impl DockState {
         &mut self,
         leaf: LeafId,
         side: Side,
-        share: f32,
+        share: SplitSize,
         added: Leaf,
         key: Option<String>,
     ) -> Option<LeafId> {
         let tree = self.tree_of(leaf)?;
         let id = added.id;
         let split = SplitId(self.mint());
-        let share = share.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION);
-        let fraction = match side.leads() {
+        let share = share.clamped();
+        let size = match side.leads() {
             true => share,
-            false => 1.0 - share,
+            false => share.mirrored(),
         };
         let direction = side.direction();
         let leads = side.leads();
@@ -1177,7 +1254,7 @@ impl DockState {
             Node::Split(Split {
                 id: split,
                 direction,
-                fraction,
+                size,
                 first: Box::new(first),
                 second: Box::new(second),
                 key,
@@ -2011,7 +2088,7 @@ impl DockState {
             },
             Node::Split(split) => DockTree::Split {
                 direction: split.direction,
-                fraction: split.fraction,
+                size: split.size,
                 first: Box::new(self.export(&split.first)),
                 second: Box::new(self.export(&split.second)),
             },
@@ -2119,7 +2196,7 @@ impl DockState {
             }
             DockTree::Split {
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => {
@@ -2128,7 +2205,7 @@ impl DockState {
                 Node::Split(Split {
                     id: SplitId(self.mint()),
                     direction: *direction,
-                    fraction: fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION),
+                    size: size.clamped(),
                     first: Box::new(first),
                     second: Box::new(second),
                     key: None,
@@ -2150,14 +2227,14 @@ impl DockState {
             .and_then(|split| split.key.as_deref())
     }
 
-    pub fn split_fraction(&self, split: SplitId) -> f32 {
+    pub fn split_size(&self, split: SplitId) -> SplitSize {
         self.roots()
             .find_map(|root| root.split(split))
-            .map_or(0.5, |split| split.fraction)
+            .map_or_else(SplitSize::default, |split| split.size)
     }
 
-    pub fn set_split_fraction(&mut self, split: SplitId, fraction: f32) {
-        let fraction = fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION);
+    pub fn set_split_size(&mut self, split: SplitId, size: SplitSize) {
+        let size = size.clamped();
         for root in self
             .surfaces
             .iter_mut()
@@ -2165,7 +2242,7 @@ impl DockState {
             .chain(self.groups.iter_mut().map(|group| &mut group.root))
         {
             if let Some(found) = root.split_mut(split) {
-                found.fraction = fraction;
+                found.size = size;
                 found.adjusted = true;
                 return;
             }
@@ -2189,7 +2266,13 @@ pub struct DockSplitter {
     pub direction: Direction,
     pub handle: Rect,
     pub area: Rect,
-    pub fraction: f32,
+    pub size: SplitSize,
+}
+
+impl DockSplitter {
+    pub fn available(&self, thickness: f32) -> f32 {
+        self.direction.main(self.area.size()) - thickness
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -2242,7 +2325,7 @@ pub enum DockShape {
     Split {
         id: SplitId,
         direction: Direction,
-        fraction: f32,
+        size: SplitSize,
         first: Box<DockShape>,
         second: Box<DockShape>,
     },
@@ -2255,7 +2338,7 @@ impl DockShape {
             Node::Split(split) => Self::Split {
                 id: split.id,
                 direction: split.direction,
-                fraction: split.fraction,
+                size: split.size,
                 first: Box::new(Self::of(&split.first)),
                 second: Box::new(Self::of(&split.second)),
             },
@@ -2302,19 +2385,19 @@ impl DockShape {
             Self::Split {
                 id,
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => {
-                let fraction = shown_fraction(area, *direction, *fraction, thickness);
+                let available = (direction.main(area.size()) - thickness).max(0.0);
                 let (first_area, handle, second_area) =
-                    divide(area, *direction, fraction, thickness);
+                    divide(area, *direction, size.first_length(available), thickness);
                 out.splitters.push(DockSplitter {
                     id: *id,
                     direction: *direction,
                     handle,
                     area,
-                    fraction,
+                    size: size.shown(available),
                 });
                 first.place(first_area, thickness, out);
                 second.place(second_area, thickness, out);
@@ -2323,18 +2406,7 @@ impl DockShape {
     }
 }
 
-fn shown_fraction(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> f32 {
-    let available = direction.main(area.size()) - thickness;
-    if available < MIN_PANE_LENGTH * 2.0 {
-        return fraction;
-    }
-    let least = MIN_PANE_LENGTH / available;
-    fraction.clamp(least, 1.0 - least)
-}
-
-fn divide(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> (Rect, Rect, Rect) {
-    let available = (direction.main(area.size()) - thickness).max(0.0);
-    let first = (available * fraction).round();
+fn divide(area: Rect, direction: Direction, first: f32, thickness: f32) -> (Rect, Rect, Rect) {
     match direction {
         Direction::Horizontal => {
             let split = area.left() + first;
@@ -2359,18 +2431,4 @@ fn divide(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> (R
             )
         }
     }
-}
-
-pub fn fraction_moved(
-    area: Rect,
-    direction: Direction,
-    thickness: f32,
-    fraction: f32,
-    moved: f32,
-) -> f32 {
-    let length = direction.main(area.size()) - thickness;
-    if length <= 0.0 {
-        return fraction;
-    }
-    (fraction + moved / length).clamp(MIN_FRACTION, 1.0 - MIN_FRACTION)
 }

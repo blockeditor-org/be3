@@ -6,6 +6,7 @@ use be_sdk::{EditorHost, Pushed, ViewId, ViewRef};
 use be_sdk_api as api;
 use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
+use beui::dock::unstyled::SplitSize;
 use beui::dock::unstyled::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration,
     DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
@@ -968,6 +969,22 @@ fn direction_from_api(direction: api::DockDirection) -> beui::Direction {
     }
 }
 
+fn size_to_api(size: SplitSize) -> api::DockSplitSize {
+    match size {
+        SplitSize::Fraction(fraction) => api::DockSplitSize::Fraction(fraction),
+        SplitSize::First(points) => api::DockSplitSize::First(points),
+        SplitSize::Second(points) => api::DockSplitSize::Second(points),
+    }
+}
+
+fn size_from_api(size: api::DockSplitSize) -> SplitSize {
+    match size {
+        api::DockSplitSize::Fraction(fraction) => SplitSize::Fraction(fraction),
+        api::DockSplitSize::First(points) => SplitSize::First(points),
+        api::DockSplitSize::Second(points) => SplitSize::Second(points),
+    }
+}
+
 fn spec_panes(spec: &DockSpec) -> Vec<&DockSpecPane> {
     fn walk<'a>(node: &'a DockSpecNode, out: &mut Vec<&'a DockSpecPane>) {
         match node {
@@ -1003,14 +1020,14 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
         DockSpecNode::Split {
             key,
             direction,
-            fraction,
+            size,
             first,
             second,
         } => api::DockNode::Split {
             split: api::DockSplit {
                 key: key.clone(),
                 direction: direction_to_api(*direction),
-                fraction: *fraction,
+                size: size_to_api(*size),
             },
             first: Box::new(spec_node(first, path, empty)),
             second: Box::new(spec_node(second, path, empty)),
@@ -1154,7 +1171,7 @@ fn api_node(node: &api::DockNode, tab: TabOf<'_>) -> DockSpecNode {
         } => DockSpecNode::Split {
             key: split.key.clone(),
             direction: direction_from_api(split.direction),
-            fraction: split.fraction,
+            size: size_from_api(split.size),
             first: Box::new(api_node(first, tab)),
             second: Box::new(api_node(second, tab)),
         },

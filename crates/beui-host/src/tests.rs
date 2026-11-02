@@ -111,6 +111,7 @@ mod a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_
 mod a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it;
 mod a_dock_bar_sits_at_each_placement_of_its_pane;
 mod a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles;
+mod a_dock_bar_whose_content_writes_a_signal_while_it_builds_is_shown;
 mod a_dock_bars_grip_menu_moves_it_without_dragging;
 mod a_dock_dialog_hangs_from_its_parents_tab_and_hides_with_it;
 mod a_dock_dialog_is_never_a_tab;
@@ -185,6 +186,7 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_first_fit_moves_on_when_the_child_it_shows_grows_too_wide;
 mod a_first_fit_sized_by_its_row_shows_its_first_child_again_when_the_row_widens;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
+mod a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes;
 mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
@@ -256,6 +258,7 @@ mod a_layout_read_before_its_dock_declares_a_key_follows_it_once_declared;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker;
+mod a_locked_pane_with_one_closable_tab_shows_one_close_named_by_the_tabs_key;
 mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_long_change_is_cut_short_unless_asked_for_in_full;
@@ -2061,7 +2064,7 @@ pub(crate) struct NestedDock {
 }
 
 pub(crate) fn nested_dock() -> (Document, NestedDock) {
-    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
     let dock = NodeRef::new();
     let built = Rc::new(std::cell::Cell::new(None));
     let handle = Rc::clone(&built);
@@ -2072,7 +2075,7 @@ pub(crate) fn nested_dock() -> (Document, NestedDock) {
         handle.set(Some((outer, inner, hosts)));
         view! {
             <dock::styled::Docking @node_ref=&dock layout=outer focus=2u64>
-                <DockSplit id="root" fraction=0.3>
+                <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
                     <DockPane id="side">
                         <DockTab id=1u64 title="Side">
                             <Frame @test_id="content.1" />
@@ -3038,7 +3041,7 @@ pub(crate) fn bar_dock(
     placement: dock::unstyled::DockBarPlacement,
     bare: bool,
 ) -> (Document, BarDock) {
-    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout};
+    use dock::unstyled::{DockBar, DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
     let built = Rc::new(std::cell::Cell::new(None));
     let handle = Rc::clone(&built);
     let document = build_node(move || {
@@ -3047,7 +3050,7 @@ pub(crate) fn bar_dock(
         handle.set(Some(BarDock { layout, shown }));
         view! {
             <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" fraction=0.6>
+                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
                     <DockPane id="stage" bare>
                         <ForEach keys={shown}>|id: u64|
                             <DockTab id title={format!("Tab {id}")}>
