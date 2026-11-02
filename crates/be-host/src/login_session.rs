@@ -15,7 +15,7 @@ use be_host_base::host::{Desk, Mailbox, Post};
 use be_host_base::password::Password;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 pub(crate) use environment::export as export_environment;
-pub(crate) use install::install;
+pub(crate) use install::{apply_elevated as apply_install_changes, install, uninstall};
 use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Trigger};
 pub(crate) use log::start_log;
