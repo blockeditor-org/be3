@@ -128,7 +128,10 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
         &changes,
         &Here,
         &User::current(),
-        &[crate::arguments::INSTALL, &layout.prefix.display().to_string()],
+        &[
+            crate::arguments::INSTALL,
+            &layout.prefix.display().to_string(),
+        ],
     )?;
     if elevated {
         return Ok(());
@@ -200,7 +203,10 @@ fn run(
             changes::apply(changes, &[], |_| Ok(()))?;
             Ok(false)
         }
-        Decision::Elevate { whole: true, blocked } => {
+        Decision::Elevate {
+            whole: true,
+            blocked,
+        } => {
             changes::sudo_can_ask(&blocked)?;
             println!(
                 "{} needs root, so it all runs as root with sudo.",
@@ -488,7 +494,10 @@ pub(crate) fn greetd_listing(listed: &str, link: &Path) -> Option<GreetdListing>
     }
     let line = command(&path);
     let stale = format!("{path} --session");
-    let kept: Vec<&str> = listed.lines().filter(|listed| listed.trim() != stale).collect();
+    let kept: Vec<&str> = listed
+        .lines()
+        .filter(|listed| listed.trim() != stale)
+        .collect();
     let listed_already = kept.iter().any(|listed| listed.trim() == line);
     let changed = !listed_already || kept.len() != listed.lines().count();
     let updated = changed.then(|| {
@@ -574,7 +583,8 @@ fn exec_argument(path: &str) -> String {
 
 #[cfg(test)]
 pub(crate) fn apply_here(changes: &[Change]) -> std::io::Result<()> {
-    changes::apply(changes, &[], |_| Ok(())).map_err(|error| std::io::Error::other(error.to_string()))
+    changes::apply(changes, &[], |_| Ok(()))
+        .map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 #[cfg(test)]

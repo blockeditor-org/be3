@@ -94,7 +94,9 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "linux")]
     if let Some(setup) = &arguments.login_session {
         return match setup {
-            arguments::LoginSessionSetup::Install(prefix) => login_session::install(prefix.as_deref()),
+            arguments::LoginSessionSetup::Install(prefix) => {
+                login_session::install(prefix.as_deref())
+            }
             arguments::LoginSessionSetup::Uninstall(prefix) => {
                 login_session::uninstall(prefix.as_deref())
             }

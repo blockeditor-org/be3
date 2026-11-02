@@ -35,6 +35,10 @@ fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
     );
 
     std::fs::write(&service, "auth include system-auth\n").unwrap();
-    assert_eq!(pam_to_place(&dir), None, "a service someone changed is kept");
+    assert_eq!(
+        pam_to_place(&dir),
+        None,
+        "a service someone changed is kept"
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }

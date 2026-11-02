@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
-    let directory =
-        std::env::temp_dir().join(format!("be-host-log-{}", uuid::Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("be-host-log-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&directory).unwrap();
     let cap = Cap {
         limit: 100,
@@ -19,7 +18,10 @@ fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
     let read = |part: usize| std::fs::read_to_string(log_path(&directory, LOG, part)).unwrap();
 
     write!(log, "Block started.\nthe start\n").unwrap();
-    assert!(!cap.check(&mut log, &directory).unwrap(), "under the cap it stays");
+    assert!(
+        !cap.check(&mut log, &directory).unwrap(),
+        "under the cap it stays"
+    );
     let first: String = (0..10).map(|line| format!("first {line}\n")).collect();
     log.write_all(first.as_bytes()).unwrap();
     assert!(cap.check(&mut log, &directory).unwrap());
@@ -28,8 +30,15 @@ fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
         "the start is kept, cut at a line: {}",
         read(0)
     );
-    assert!(read(0).contains("is in"), "the log says where the rest went");
-    assert_eq!(read(1), first, "what followed the start moves to the first part");
+    assert!(
+        read(0).contains("is in"),
+        "the log says where the rest went"
+    );
+    assert_eq!(
+        read(1),
+        first,
+        "what followed the start moves to the first part"
+    );
 
     let second: String = (0..10).map(|line| format!("second {line}\n")).collect();
     log.write_all(second.as_bytes()).unwrap();
