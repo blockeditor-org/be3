@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{
-    BlockTypeDescriptor, BlockTypeManifest, ChildOperations, EditorCapabilities, EditorManifest,
-    Edits, InteractionMode, ManifestError, ParentView, AppIdentity, AppManifest, Press,
+    AppIdentity, AppManifest, BlockTypeDescriptor, BlockTypeManifest, ChildOperations,
+    EditorCapabilities, EditorManifest, Edits, InteractionMode, ManifestError, ParentView, Press,
     ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 

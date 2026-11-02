@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use beui::PreferenceLayer;
 use beui::PreferenceSource;
 use beui::Rect;
-use beui_core::program::{Program, FrameTimes, Lifecycle, Setup};
 use beui_core::context::Context;
+use beui_core::program::{FrameTimes, Lifecycle, Program, Setup};
 
 pub(crate) struct SavedPreferences<A> {
     program: A,

@@ -30,9 +30,7 @@ fn an_interrupted_app_stops_on_every_thread() {
     let (shared, threads) = mpsc::channel();
     let worker = std::thread::spawn(move || {
         let mut app = host.load_bytes(STUCK.as_bytes()).unwrap();
-        shared
-            .send(Arc::clone(&app.store.data().threads))
-            .unwrap();
+        shared.send(Arc::clone(&app.store.data().threads)).unwrap();
         app.on_wake(move || {
             let _ = woken.send(());
         });

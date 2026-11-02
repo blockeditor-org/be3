@@ -10,14 +10,8 @@ const CI_USAGE: &str = "Usage: ./scripts/ci [--check] [--previews BASE OUT] [--b
 
 pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
     for argument in &arguments {
-        if ![
-            "--check",
-            "--lint",
-            "--tests",
-            "--app-tests",
-            "--verbose",
-        ]
-        .contains(&argument.as_str())
+        if !["--check", "--lint", "--tests", "--app-tests", "--verbose"]
+            .contains(&argument.as_str())
         {
             return Err(VERIFY_USAGE.to_owned());
         }
@@ -45,8 +39,7 @@ pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
 
 fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
     let has = |flag: &str| arguments.iter().any(|argument| argument == flag);
-    let (mut lint, mut tests, mut app_tests) =
-        (has("--lint"), has("--tests"), has("--app-tests"));
+    let (mut lint, mut tests, mut app_tests) = (has("--lint"), has("--tests"), has("--app-tests"));
     let verbose = has("--verbose") || in_ci();
     let mut passed: Vec<String> = arguments
         .iter()

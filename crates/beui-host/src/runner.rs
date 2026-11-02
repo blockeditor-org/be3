@@ -11,7 +11,10 @@ use beui_runner::{Launch, Layer, Platform, RunOptions};
 
 use beui_runner::environment::{Base, Choice, Stacked};
 
-pub fn run_with(mut options: RunOptions, program: impl Program + 'static) -> Result<(), Box<dyn Error>> {
+pub fn run_with(
+    mut options: RunOptions,
+    program: impl Program + 'static,
+) -> Result<(), Box<dyn Error>> {
     let mut others = std::mem::take(&mut options.platforms);
     let mut open_device = OpenDevice {
         extensions: options.device_extensions,
@@ -53,7 +56,9 @@ pub fn run_with(mut options: RunOptions, program: impl Program + 'static) -> Res
             })
             | None,
             Some(path),
-        ) => Box::new(crate::saved_preferences::SavedPreferences::new(program, path)),
+        ) => Box::new(crate::saved_preferences::SavedPreferences::new(
+            program, path,
+        )),
         _ => Box::new(program),
     };
     let (platform, layers) =

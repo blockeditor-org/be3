@@ -38,7 +38,11 @@ fn holding_ctrl_and_shift_steers_the_head() {
 
     let yaw = space.head.yaw;
     let turned = send(&mut space, now, [Input::PointerMotion(vec2(100.0, -40.0))]);
-    assert_eq!(delivered(&turned), [], "motion turns the head, not the program");
+    assert_eq!(
+        delivered(&turned),
+        [],
+        "motion turns the head, not the program"
+    );
     assert!(space.head.yaw > yaw, "moving right turns right");
     assert!(space.head.pitch > 0.0, "moving up looks up");
     send(

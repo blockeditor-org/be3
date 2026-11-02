@@ -4,7 +4,7 @@ use super::*;
 fn a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again() {
     let mut fixture = Fixture::with_windows(&[1]);
     assert!(!fixture.test.shown("desktop.apps.bars") && fixture.test.shown("desktop.apps"));
-    fixture.bar_menu(APPS_BAR, &["hide"]);
+    fixture.bar_menu(PROGRAMS_BAR, &["hide"]);
     assert!(
         !fixture.test.shown("desktop.bar.apps") && !fixture.test.shown("desktop.apps"),
         "the hidden bar and its button are gone"

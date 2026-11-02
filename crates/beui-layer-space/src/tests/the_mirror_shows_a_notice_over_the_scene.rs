@@ -1,5 +1,5 @@
-use beui_core::program::{Setup, Waker};
 use beui_core::painting::Punches;
+use beui_core::program::{Setup, Waker};
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;

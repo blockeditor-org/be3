@@ -913,9 +913,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_preferences(&mut self, preferences: be_sdk_api::Preferences) {
         let preferences = roundtrip(preferences, "the host's preferences");
-        self.inbox.push(Inbound::pushed(move |app| {
-            app.set_preferences(preferences)
-        }));
+        self.inbox
+            .push(Inbound::pushed(move |app| app.set_preferences(preferences)));
     }
 
     pub fn set_watched<W: be_sdk_api::Watched>(&mut self, value: &W::Value) {
@@ -1374,9 +1373,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
             }
             match &call {
                 ShellCall::Menu { view, items, .. } if view.is_main() => {
-                    self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
-                        panic!("the app sent a menu it may not: {error}")
-                    });
+                    self.menu = MenuEntry::nest(items.clone())
+                        .unwrap_or_else(|error| panic!("the app sent a menu it may not: {error}"));
                 }
                 ShellCall::LeaveFrame { .. } => self.exited = true,
                 ShellCall::ArtifactEdited { data, .. } => self.draft.clone_from(data),

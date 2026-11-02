@@ -646,11 +646,7 @@ fn carry_from(key: &FloatedKey, by: Vec2) {
     });
 }
 
-pub(crate) fn overlaid(
-    app: String,
-    instance: EditorInstanceId,
-    region: View,
-) -> Memo<Vec<ViewId>> {
+pub(crate) fn overlaid(app: String, instance: EditorInstanceId, region: View) -> Memo<Vec<ViewId>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {
@@ -705,11 +701,7 @@ pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
     })
 }
 
-pub(crate) fn panels(
-    app: String,
-    instance: EditorInstanceId,
-    region: View,
-) -> Memo<Vec<ViewId>> {
+pub(crate) fn panels(app: String, instance: EditorInstanceId, region: View) -> Memo<Vec<ViewId>> {
     let floated = floated();
     create_memo(move || {
         floated.with(|held| {

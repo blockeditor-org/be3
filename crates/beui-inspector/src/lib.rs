@@ -542,7 +542,11 @@ impl Inspector {
         if self.width.get_untracked() != width {
             self.width.set(width);
         }
-        if let Some(tab) = self.tools.focused().filter(|tab| *tab != InspectorTab::Program) {
+        if let Some(tab) = self
+            .tools
+            .focused()
+            .filter(|tab| *tab != InspectorTab::Program)
+        {
             self.last_tool = tab;
         }
         let revealed = self.state().reveal.get().map(|reveal| match reveal {
@@ -1087,7 +1091,9 @@ impl Inspector {
                 tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
+            InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => {
+                Vec::new()
+            }
         }
     }
 

@@ -392,7 +392,7 @@ pub fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 }
 
 pub struct CreationSlot<'a> {
-    pub app: &'an AppManifest,
+    pub app: &'a AppManifest,
     pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub instance: EditorInstanceId,
@@ -431,7 +431,7 @@ impl InstanceRole {
 }
 
 pub struct ArtifactSlot<'a> {
-    pub app: &'an AppManifest,
+    pub app: &'a AppManifest,
     pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub instance: EditorInstanceId,

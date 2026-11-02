@@ -52,7 +52,10 @@ fn a_runner_whose_program_panics_lets_the_program_exit_and_reports_why() {
         runner.frame(&mut Nowhere, SafeArea::default()).is_none(),
         "a frame whose program panicked draws nothing"
     );
-    assert!(runner.exited(), "the runner stops once its program panicked");
+    assert!(
+        runner.exited(),
+        "the runner stops once its program panicked"
+    );
     assert_eq!(runner.failure(), Some("the second frame went wrong"));
     assert_eq!(
         log.update(std::mem::take),

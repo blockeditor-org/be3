@@ -10,8 +10,8 @@ fn a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go(
     fixture.report_screens(vec![monitor("left", DISPLAY, 1.0)]);
     fixture.test.show_on_displays(&[(DISPLAY, 1.0)]);
     fixture.settle();
-    fixture.bar_menu(APPS_BAR, &["over.ends", "over.bottom.left"]);
-    let grip = format!("dock.bar.{}.grip", SHELL_BARS + APPS_BAR);
+    fixture.bar_menu(PROGRAMS_BAR, &["over.ends", "over.bottom.left"]);
+    let grip = format!("dock.bar.{}.grip", SHELL_BARS + PROGRAMS_BAR);
     let from = fixture.test.desk_rects_of(&grip)[0].center();
 
     let rest = pos2(DISPLAY.center().x, DISPLAY.top() + DISPLAY.height() * 0.3);

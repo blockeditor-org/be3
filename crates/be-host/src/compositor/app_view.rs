@@ -356,9 +356,7 @@ pub(crate) fn AppView(
     if shows_desktop {
         create_effect(move || {
             let origin = origin.get().unwrap_or(Pos2::ZERO);
-            untrack(|| {
-                super::desktop::note_origin(&app_id.value(), instance, region.id, origin)
-            });
+            untrack(|| super::desktop::note_origin(&app_id.value(), instance, region.id, origin));
         });
         on_cleanup(move || super::desktop::forget_origin(&app_id.value(), instance, region.id));
     }
@@ -1468,9 +1466,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(app) = restart.get_untracked() {
-            be_host_base::host::push_command(be_host_base::host::HostCommand::RestartApp(
-                app,
-            ));
+            be_host_base::host::push_command(be_host_base::host::HostCommand::RestartApp(app));
         }
     };
     let loading_item = create_memo(|| HostItem::Notice {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use be_sdk_api::{Edits, AppIdentity};
-use be_sdk_manifest::{EditorManifest, AppManifest};
+use be_sdk_api::{AppIdentity, Edits};
+use be_sdk_manifest::{AppManifest, EditorManifest};
 
 use super::*;
 
@@ -56,9 +56,8 @@ fn a_child_asking_for_another_editor_reopens_in_it() {
     let registry = Rc::new(EditorRegistry::from_manifests(vec![built_in, debug]));
     let editors = OwnedEditors::install(registry, Uuid::new_v4());
     let (id, parent) = (Uuid::new_v4(), Uuid::new_v4());
-    let opened = |editors: &OwnedEditors| {
-        editors.with(|open| open.get(&id).and_then(AppEditor::editor_id))
-    };
+    let opened =
+        |editors: &OwnedEditors| editors.with(|open| open.get(&id).and_then(AppEditor::editor_id));
 
     editors.ensure(id, block_type, None, None, parent);
     assert_eq!(

@@ -209,10 +209,10 @@ main = bxl_main(
         # Ignored: the bootstrap a pull request's CI runs is the one main pins,
         # which may be older than this file and still pass it.
         "android": cli_args.bool(False),
+        "app_tests": cli_args.bool(False),
         "bootstrap": cli_args.bool(False),
         "host": cli_args.string("linux_x86_64"),
         "lint": cli_args.bool(False),
-        "app_tests": cli_args.bool(False),
         "previews": cli_args.bool(False),
         # crates/be-tool-bootstrap's release for six platforms, which ./scripts/ci builds
         # and ./scripts/verify leaves to it. True for a bootstrap older than this

@@ -1,11 +1,11 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use beui_core::program::Setup;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::display::Layer;
 use beui_core::drawing::Drawing;
 use beui_core::painter::Shape;
+use beui_core::program::Setup;
 use beui_core::window::{WindowHosting, WindowState};
 use beui_renderer_wgpu::present::GpuSetup;
 use beui_runner::{
@@ -2079,7 +2079,8 @@ impl Space {
     fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
         let program = self.pick(ray);
         let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider)?;
-        program.is_none_or(|program| hit.distance < program.distance)
+        program
+            .is_none_or(|program| hit.distance < program.distance)
             .then_some((part, hit))
     }
 

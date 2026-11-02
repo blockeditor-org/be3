@@ -2,7 +2,7 @@ use be_sdk_api::{
     DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, FrameSpec, HostPanel,
     InteractionMode, ParentView, ResizeMode, View, ViewId,
 };
-use be_sdk_manifest::{EditorManifest, AppManifest};
+use be_sdk_manifest::{AppManifest, EditorManifest};
 use beui::{Vec2, vec2};
 use std::sync::{
     Arc,
@@ -98,12 +98,7 @@ impl AppPicker {
         }
     }
 
-    pub(crate) fn rename(
-        app: Arc<AppManifest>,
-        editor: Uuid,
-        block: Uuid,
-        sheet: bool,
-    ) -> Self {
+    pub(crate) fn rename(app: Arc<AppManifest>, editor: Uuid, block: Uuid, sheet: bool) -> Self {
         Self {
             app,
             role: InstanceRole::Rename(editor, block, sheet),
@@ -268,12 +263,7 @@ pub(crate) struct InstanceSource {
 }
 
 impl AppEditor {
-    pub(super) fn new(
-        app: Arc<AppManifest>,
-        editor: Uuid,
-        id: Uuid,
-        block_type: Uuid,
-    ) -> Self {
+    pub(super) fn new(app: Arc<AppManifest>, editor: Uuid, id: Uuid, block_type: Uuid) -> Self {
         Self::open(Some((app, editor)), id, block_type)
     }
 

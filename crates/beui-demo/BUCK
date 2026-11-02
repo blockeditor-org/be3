@@ -1,5 +1,5 @@
-load("@root//buck/program:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library")
+load("@root//buck/program:drive.bzl", "headless")
 load("@root//buck/wasm:defs.bzl", "app_tests")
 
 cargo_library()
@@ -15,8 +15,8 @@ app_tests()
 # Headless for an agent to drive: guides/running/drive.md.
 headless(
     name = "dev",
-    program_name = "beui-demo",
     program = "$(location :native)",
+    program_name = "beui-demo",
 )
 
 # Times opening each page: `./scripts/buck run -m release //crates/beui-demo:example-open-bench`.

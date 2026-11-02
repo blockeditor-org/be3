@@ -121,10 +121,7 @@ impl Carrying {
     fn press(&mut self, at: Pos2) {
         self.pointer(PointerPhase::Down(PointerButton::Primary), at);
         self.inside(|key| {
-            be_host_runtime::request_windows(
-                &key.app,
-                vec![WindowRequest::BeginMove(key.window)],
-            );
+            be_host_runtime::request_windows(&key.app, vec![WindowRequest::BeginMove(key.window)]);
             apply();
         });
         self.stepped.frame(Vec::new());

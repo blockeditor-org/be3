@@ -17,7 +17,11 @@ fn dragging_the_inspectors_splitter_resizes_the_program() {
     harness.toggle_inspector();
     harness.settle();
     let program = harness.program_rect();
-    assert_eq!(program.left(), 0.0, "the program keeps the left of the window");
+    assert_eq!(
+        program.left(),
+        0.0,
+        "the program keeps the left of the window"
+    );
     assert!(
         (WIDE_VIEWPORT.x - program.right() - 340.0).abs() <= 1.0,
         "the tools start 340 points wide, the program has {program:?}"

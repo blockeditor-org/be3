@@ -91,5 +91,8 @@ fn dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale() {
     );
     let let_go = drive(&mut space, now, [trigger(Hand::Right, 0.0)]);
     assert_eq!(placed(&let_go).len(), 1);
-    assert!(touches(&let_go).is_empty(), "and the program is never touched");
+    assert!(
+        touches(&let_go).is_empty(),
+        "and the program is never touched"
+    );
 }

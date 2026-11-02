@@ -25,9 +25,6 @@ fn a_packed_directory_unpacks_as_it_was() {
     assert_eq!(fs::read(&archive).unwrap(), fs::read(&again).unwrap());
     let cached = unpacked(&archive).unwrap();
     assert_eq!(cached, unpacked(&archive).unwrap());
-    assert_eq!(
-        fs::read(cached.join("app.wasm")).unwrap(),
-        vec![7; 300_000]
-    );
+    assert_eq!(fs::read(cached.join("app.wasm")).unwrap(), vec![7; 300_000]);
     fs::remove_dir_all(&scratch).unwrap();
 }

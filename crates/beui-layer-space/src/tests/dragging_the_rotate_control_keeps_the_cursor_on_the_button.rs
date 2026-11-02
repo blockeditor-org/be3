@@ -13,7 +13,11 @@ fn dragging_the_rotate_control_keeps_the_cursor_on_the_button() {
     );
 
     let sent = send(&mut space, now, [Input::PointerMotion(vec2(80.0, 40.0))]);
-    assert_eq!(delivered(&sent), [], "the program sees nothing of the control");
+    assert_eq!(
+        delivered(&sent),
+        [],
+        "the program sees nothing of the control"
+    );
     let normal = main(&space).normal();
     assert!(
         normal.x > 0.1 && normal.y < -0.05,

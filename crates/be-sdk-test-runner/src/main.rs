@@ -7,9 +7,7 @@ const GUEST_PATHS: [&str; 3] = ["CARGO_MANIFEST_DIR", "USED_PAINTINGS", "CHANGED
 fn main() {
     absolute_guest_paths();
     let mut arguments = std::env::args();
-    let program = arguments
-        .next()
-        .unwrap_or_else(|| "app-test-runner".into());
+    let program = arguments.next().unwrap_or_else(|| "app-test-runner".into());
     let Some(first) = arguments.next() else {
         usage(&program);
     };

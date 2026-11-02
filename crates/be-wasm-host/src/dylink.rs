@@ -212,9 +212,10 @@ fn answered<T>(
         return Ok(answered);
     }
     let (from, name) = (import.module(), import.name());
-    let signature = import.ty().func().cloned().ok_or_else(|| {
-        format!("the app imports {from}.{name}, which its host does not answer")
-    })?;
+    let signature =
+        import.ty().func().cloned().ok_or_else(|| {
+            format!("the app imports {from}.{name}, which its host does not answer")
+        })?;
     let refusal = format!("the app called {from}.{name}, which its host does not answer");
     Ok(Func::new(&mut *store, signature, move |_, _, _| {
         Err(Error::msg(refusal.clone()))

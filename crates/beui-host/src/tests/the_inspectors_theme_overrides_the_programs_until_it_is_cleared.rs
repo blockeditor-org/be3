@@ -42,7 +42,9 @@ fn the_inspectors_theme_overrides_the_programs_until_it_is_cleared() {
     );
     assert_eq!(captions(&restyled, Theme::EPAPER), 1);
     assert_eq!(
-        harness.context().preference_layer(PreferenceSource::Program),
+        harness
+            .context()
+            .preference_layer(PreferenceSource::Program),
         program,
         "the override is not the program's own preference"
     );

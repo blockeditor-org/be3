@@ -1,8 +1,8 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/program:defs.bzl", "program", "precompiled_apps")
-load("@root//buck/program:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "app_packages")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
+load("@root//buck/program:drive.bzl", "headless")
 load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
 
 # On Android block-app is this library, loaded by MainActivity under cargo's
@@ -46,8 +46,8 @@ cargo_binary(
 # once, for :native, :dev-host and the hosts crates/be-host-tests stages per test.
 precompiled_apps(
     name = "precompiled",
-    modules = ["//{}:module".format(package) for package in app_packages()],
     app_types = ["//{}:types".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/be-sdk-test-runner:precompiler",
     visibility = ["//crates/be-host-tests:"],
@@ -57,6 +57,7 @@ precompiled_apps(
 # runs it. buck/app says how it is laid out.
 program(
     name = "native",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
     binary = ":bin",
     data = ["//{}:data".format(package) for package in app_packages()],
     executable_name = "block-app",
@@ -64,7 +65,6 @@ program(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
-    app_types = ["//{}:types".format(package) for package in app_packages()],
     precompiled = ":precompiled",
     visibility = ["//crates/be-tool-bench:", "//crates/be-tool-local:"],
 )
@@ -74,11 +74,11 @@ program(
 # the machine it was compiled for.
 program(
     name = "apps",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
     data = ["//{}:data".format(package) for package in app_packages()],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
-    app_types = ["//{}:types".format(package) for package in app_packages()],
 )
 
 # What CI ships per platform: block-app under cargo's name; the apps ship
@@ -127,13 +127,13 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:block-index"] + ["//bu
 
 program(
     name = "web",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
     bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
     data = ["//{}:data".format(package) for package in app_packages()],
     files = web_files,
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
-    app_types = ["//{}:types".format(package) for package in app_packages()],
     run_with = [
         "sh",
         "$(location :serve.sh)",
@@ -193,12 +193,12 @@ export_file(
 # over one signed with another.
 program(
     name = "android-assets",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
     compiled_only = True,
     data = ["//{}:data".format(package) for package in app_packages()],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
-    app_types = ["//{}:types".format(package) for package in app_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/be-sdk-test-runner:precompiler",
 )
@@ -270,6 +270,7 @@ dev_apps = [
 
 program(
     name = "dev-host",
+    app_types = ["//{}:types".format(package) for package in dev_apps],
     binary = ":bin",
     compiled_only = True,
     data = ["//{}:data".format(package) for package in dev_apps],
@@ -278,15 +279,14 @@ program(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in dev_apps],
     modules = ["//{}:module".format(package) for package in dev_apps],
-    app_types = ["//{}:types".format(package) for package in dev_apps],
     precompiled = ":precompiled",
 )
 
 headless(
     name = "dev",
-    program_name = "dev",
     archive = "$(location :dev-host[archive])",
     args = ["--dev-workspace"],
     data = True,
     program = "block-app",
+    program_name = "dev",
 )

@@ -1,7 +1,7 @@
+pub mod apps;
 pub mod blocks;
 pub mod cli;
 pub mod csv;
-pub mod apps;
 pub mod replica;
 pub mod session;
 pub mod terminal_host;

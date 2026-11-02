@@ -40,10 +40,7 @@ fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_wh
         std::fs::read_to_string(home.join("data/notes/files/readme.txt")).unwrap(),
         "hello"
     );
-    assert!(
-        !stale.exists(),
-        "an app left from an older install is gone"
-    );
+    assert!(!stale.exists(), "an app left from an older install is gone");
     assert_eq!(
         std::fs::read_link(prefix.join("bin/block-app")).unwrap(),
         home.join(EXECUTABLE)

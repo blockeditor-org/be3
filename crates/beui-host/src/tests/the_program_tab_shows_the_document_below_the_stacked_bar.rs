@@ -14,7 +14,10 @@ fn the_program_tab_shows_the_document_below_the_stacked_bar() {
     let program = harness.program_rect();
     let content = harness.rect(padding);
     assert_eq!(content.width(), VIEWPORT.x);
-    assert!(program.top() > 0.0, "the stacked bar stays above the program");
+    assert!(
+        program.top() > 0.0,
+        "the stacked bar stays above the program"
+    );
     assert!(content.top() >= program.top());
     assert!(
         harness

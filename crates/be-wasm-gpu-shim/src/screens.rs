@@ -480,9 +480,7 @@ impl Screens {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
             status => {
-                return Err(format!(
-                    "an app screen's canvas is unavailable: {status:?}"
-                ));
+                return Err(format!("an app screen's canvas is unavailable: {status:?}"));
             }
         };
         let target = frame.texture.create_view(&wgpu::TextureViewDescriptor {

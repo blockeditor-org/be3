@@ -46,7 +46,7 @@ use be_sdk_api::{
 use be_sdk_manifest::ShellRequest;
 use beui::native::Document;
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorRegistry, AppEditor, SidebarDragSource,
+    AppEditor, ArtifactSession, ArtifactStatus, EditorRegistry, SidebarDragSource,
     app::InstanceSource,
 };
 use host_state::{HostStateStore, SavedAccount, ServerLocation};
@@ -82,7 +82,8 @@ const WEB_DATA_DIR: &str = "/block";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
-    directories_next::ProjectDirs::from("", "", program_id()).map(|dirs| dirs.data_dir().to_path_buf())
+    directories_next::ProjectDirs::from("", "", program_id())
+        .map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]

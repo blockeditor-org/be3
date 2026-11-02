@@ -151,8 +151,8 @@ pub use be_lib_ui_types::{
 pub use be_lib_ui_types::{ImeArea, WindowRequests};
 use be_sdk_manifest::extension_of;
 pub use be_sdk_manifest::{
-    BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
-    MAX_STRING_BYTES, PanMode, ParentView, AppIdentity, Press, ResizeMode, TemplateCategory,
+    AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
+    MAX_STRING_BYTES, PanMode, ParentView, Press, ResizeMode, TemplateCategory,
 };
 pub use block_ids::BlockIdRole;
 pub use docking::{

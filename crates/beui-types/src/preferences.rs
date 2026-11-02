@@ -45,6 +45,9 @@ impl PreferenceLayers {
     }
 
     pub fn resolve(self) -> Preferences {
-        self.developer.over(self.program).over(self.system).resolve()
+        self.developer
+            .over(self.program)
+            .over(self.system)
+            .resolve()
     }
 }

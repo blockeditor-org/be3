@@ -6,8 +6,8 @@ use be_sdk_api::{
     guest::{
         debug::debug,
         exports::{
-            debug::paintings,
             app::{Guest, GuestEditor},
+            debug::paintings,
         },
         host, shell,
     },

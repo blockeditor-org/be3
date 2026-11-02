@@ -1,6 +1,7 @@
 pub use be_block;
 pub use be_lib_geometry as geometry;
 
+mod app;
 mod asked;
 mod clock;
 mod content;
@@ -19,7 +20,6 @@ mod link;
 mod module;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-mod app;
 mod preferences;
 #[cfg(target_arch = "wasm32")]
 mod previews;
@@ -33,6 +33,9 @@ mod state;
 mod wasm;
 mod wire;
 
+pub use app::{Anchored, App, Claim, Frame, Instance, SettingsDraft, ShownView, ViewHandler};
+#[cfg(target_arch = "wasm32")]
+pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use asked::{Asked, Task};
 pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use be_sdk_api::accesskit;
@@ -86,9 +89,6 @@ pub use host::{
 };
 pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
-pub use app::{Anchored, Claim, Frame, Instance, App, SettingsDraft, ShownView, ViewHandler};
-#[cfg(target_arch = "wasm32")]
-pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use previews::preview_texture;

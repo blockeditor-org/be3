@@ -68,7 +68,11 @@ fn each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it() {
         now,
         [Input::PointerMoved(title), button(title, true)],
     );
-    assert_eq!(delivered(&sent), [], "the program sees nothing of the title");
+    assert_eq!(
+        delivered(&sent),
+        [],
+        "the program sees nothing of the title"
+    );
     assert!(
         space
             .mouse

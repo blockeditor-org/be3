@@ -1,5 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_test")
 load("@root//buck/program:defs.bzl", "program", "type_bundle")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "app_packages")
 
 cargo_library()
 
@@ -13,8 +13,8 @@ cargo_test(
 # release is one file (guides/type_modules.md, "Hosts").
 type_bundle(
     name = "app-types",
-    manifests = ["//{}:manifest".format(package) for package in app_packages()],
     app_types = ["//{}:types".format(package) for package in app_packages()],
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
 )
 
 cargo_binary(

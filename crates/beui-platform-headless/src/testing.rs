@@ -7,11 +7,11 @@ use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
-use beui_core::program::{Program, SafeArea, Setup, Waker};
 use beui_core::context::RendererInfo;
 use beui_core::context::{Context, EscapedOutput, FrameOutput, WindowOutput};
 use beui_core::document::Document;
 pub use beui_core::document::delay_measurement;
+use beui_core::program::{Program, SafeArea, Setup, Waker};
 use beui_core::window::{Resize, WindowSize};
 use beui_layer_drive::{Drive, Inbox, Reply, ask};
 use beui_runner::renderer::{Loaded, Renderer};
@@ -390,12 +390,16 @@ impl<A: Program + 'static> Stepped<A> {
 
     pub fn program(&self) -> &A {
         let program: &dyn Any = self.runner.program();
-        program.downcast_ref().expect("the program is there until it exits")
+        program
+            .downcast_ref()
+            .expect("the program is there until it exits")
     }
 
     pub fn program_mut(&mut self) -> &mut A {
         let program: &mut dyn Any = self.runner.program_mut();
-        program.downcast_mut().expect("the program is there until it exits")
+        program
+            .downcast_mut()
+            .expect("the program is there until it exits")
     }
 
     pub fn context(&self) -> &Context {

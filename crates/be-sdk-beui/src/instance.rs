@@ -16,7 +16,7 @@ use beui::styled::WindowHandle;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
-use crate::dialog::{DialogControl, AppDialog, SettingsDialog};
+use crate::dialog::{AppDialog, DialogControl, SettingsDialog};
 use crate::docked::{DockedTabBody, DockedTabs};
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;

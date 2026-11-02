@@ -1,5 +1,5 @@
-load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/cargo:defs.bzl", "app_packages")
+load("@root//buck/program:defs.bzl", "program")
 
 # The apps every test's host stages whatever else it names: the apps the host
 # needs to start, open the dev workspace and show the Files.
@@ -9,6 +9,7 @@ def _host_with(name, apps):
     packages = ["//crates/be-app-" + app for app in apps]
     program(
         name = name,
+        app_types = [package + ":types" for package in packages],
         binary = "//crates/be-host:bin",
         compiled_only = True,
         data = [package + ":data" for package in packages],
@@ -17,7 +18,6 @@ def _host_with(name, apps):
         index = True,
         manifests = [package + ":manifest" for package in packages],
         modules = [package + ":module" for package in packages],
-        app_types = [package + ":types" for package in packages],
         precompiled = "//crates/be-host:precompiled",
     )
 

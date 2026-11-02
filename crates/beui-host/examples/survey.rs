@@ -1,6 +1,6 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Rect, native::Program, native::Context};
+use beui::{Rect, native::Context, native::Program};
 use beui_host::native::Document;
 use beui_host::native::build;
 

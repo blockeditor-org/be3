@@ -7,13 +7,12 @@ use be_sdk_api::{
 };
 
 fn accepted(app: &mut HeadlessApp) {
-    app
-        .accept(HelloAccepted {
-            host_name: "test host".into(),
-            surface: None,
-            preferences: be_sdk_api::Preferences::default(),
-        })
-        .unwrap();
+    app.accept(HelloAccepted {
+        host_name: "test host".into(),
+        surface: None,
+        preferences: be_sdk_api::Preferences::default(),
+    })
+    .unwrap();
 }
 
 fn asked(app: &mut HeadlessApp) -> Vec<Vec<char>> {

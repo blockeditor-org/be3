@@ -6,16 +6,15 @@ use crate::frame_time;
 use crate::headless::HeadlessApp;
 
 fn drawn(app: &mut HeadlessApp) {
-    app
-        .accept(HelloAccepted {
-            host_name: "test host".into(),
-            surface: Some(SurfaceSpec {
-                format: SurfaceFormat::Rgba8Unorm,
-                render: false,
-            }),
-            preferences: be_sdk_api::Preferences::default(),
-        })
-        .unwrap();
+    app.accept(HelloAccepted {
+        host_name: "test host".into(),
+        surface: Some(SurfaceSpec {
+            format: SurfaceFormat::Rgba8Unorm,
+            render: false,
+        }),
+        preferences: be_sdk_api::Preferences::default(),
+    })
+    .unwrap();
     app.draw_frame(0, 0, true).unwrap();
 }
 

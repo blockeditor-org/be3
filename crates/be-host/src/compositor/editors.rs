@@ -18,11 +18,9 @@ use uuid::Uuid;
 
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
-use super::app_view::{ChildView, AppView, ViewEditor};
-use crate::editors::app::{InstanceSource, AppPicker};
-use crate::editors::{
-    Chrome, EditorRegistry, PendingCreation, AppEditor, editor_access_ceiling,
-};
+use super::app_view::{AppView, ChildView, ViewEditor};
+use crate::editors::app::{AppPicker, InstanceSource};
+use crate::editors::{AppEditor, Chrome, EditorRegistry, PendingCreation, editor_access_ceiling};
 use crate::surfaces::{ConflictNotice, HostedSurface, HostedView, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use be_host_desktop::host_item::{HostItem, HostItemFace};
@@ -190,9 +188,7 @@ impl Editors {
             open.values()
                 .find(|editor| {
                     editor.instance() == instance
-                        && editor
-                            .app()
-                            .is_some_and(|app| app.identity.id == app_id)
+                        && editor.app().is_some_and(|app| app.identity.id == app_id)
                 })
                 .map(AppEditor::id)
         })
@@ -521,9 +517,7 @@ impl Handle {
     }
 
     fn app_id(&self) -> Option<&str> {
-        self.app
-            .as_ref()
-            .map(|app| app.identity.id.as_str())
+        self.app.as_ref().map(|app| app.identity.id.as_str())
     }
 }
 
@@ -2041,12 +2035,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
                     };
                 };
                 view! {
-                    <AppView
-                        editor={view_editor}
-                        region=View::PREVIEW
-                        offscreen=true
-                        child_view
-                    />
+                    <AppView editor={view_editor} region=View::PREVIEW offscreen=true child_view />
                 }
             }</ForEach>
         </Layers>

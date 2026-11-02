@@ -1,4 +1,3 @@
-mod programs_panel;
 mod bar;
 mod calendar;
 mod clock;
@@ -10,6 +9,7 @@ pub(crate) mod osd;
 mod placeholders;
 mod popup;
 mod power;
+mod programs_panel;
 mod rotate;
 mod sessions;
 mod status;
@@ -33,12 +33,14 @@ use be_sdk_shell::{
 };
 use uuid::Uuid;
 
-use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
-use bar::{PROGRAMS_PLACE, ProgramsBar, Bars, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar};
+use bar::{
+    Bars, PROGRAMS_PLACE, ProgramsBar, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar,
+};
 use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use placeholders::{Placeholder, Placeholders};
+use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
 use windows::DeskWindows;
 
 const WINDOW_ORIGIN: f32 = 48.0;
@@ -152,7 +154,11 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                 </Docking>
                 <media::LevelDisplay osd={desktop.osd} area display />
                 <Show condition={launches}>
-                    <ProgramsPanelKey programs_panel={shell.programs_panel} windows={shell.windows} layout={main} />
+                    <ProgramsPanelKey
+                        programs_panel={shell.programs_panel}
+                        windows={shell.windows}
+                        layout={main}
+                    />
                 </Show>
                 <ProgramsPanelOverlay programs_panel={shell.programs_panel} display layout area />
             </List>

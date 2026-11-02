@@ -8,7 +8,7 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
     let right = Rect::from_min_size(pos2(800.0, 0.0), vec2(800.0, 600.0));
     let mut fixture = Fixture::with_windows(&[1]);
     fixture.on_two_displays((left, 1.0), (right, 1.0));
-    fixture.display_bar_menu(1, APPS_BAR, right, &["hide"]);
+    fixture.display_bar_menu(1, PROGRAMS_BAR, right, &["hide"]);
     assert!(
         fixture.shown_on("desktop.apps", right).is_empty()
             && fixture.shown_on("desktop.apps", left).len() == 1,

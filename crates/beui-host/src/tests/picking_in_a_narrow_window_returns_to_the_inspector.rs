@@ -9,7 +9,10 @@ fn picking_in_a_narrow_window_returns_to_the_inspector() {
     harness.toggle_inspector();
     harness.toggle_picking();
     harness.settle();
-    assert!(harness.inspector().program_visible(), "picking shows the program");
+    assert!(
+        harness.inspector().program_visible(),
+        "picking shows the program"
+    );
 
     harness.click(harness.center(text));
     harness.settle();

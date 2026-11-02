@@ -1,6 +1,6 @@
 use be_lib_stable_hash::HashSet;
 use be_sdk_api::{
-    EditorInstanceId, Hello, HelloAccepted, AppIdentity, ScreenId, SurfaceSpec, SurfaceSupport,
+    AppIdentity, EditorInstanceId, Hello, HelloAccepted, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 
 use crate::wire::Delivery;

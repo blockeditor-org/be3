@@ -1,6 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "page_test")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
 
 cargo_library()
 
@@ -8,9 +8,9 @@ cargo_test(
     env = {
         "COUNTER_TYPES_WASM": "$(location //crates/be-type-example-counter:module)",
         "GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)",
+        "TLS_DIAMOND_APP_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
         "TLS_DIAMOND_BASE_WASM": "$(location //crates/be-tool-tls-diamond-base:module)",
         "TLS_DIAMOND_LEFT_WASM": "$(location //crates/be-tool-tls-diamond-left:module)",
-        "TLS_DIAMOND_APP_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
         "TLS_DIAMOND_RIGHT_WASM": "$(location //crates/be-tool-tls-diamond-right:module)",
     }
 )

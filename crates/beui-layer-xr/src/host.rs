@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use beui_core::program::Setup;
 use beui_core::context::{Context, FrameOutput};
+use beui_core::program::Setup;
 use beui_layer_space::head::{Fov, View, Views};
 use beui_layer_space::layers::Allowance;
 use beui_layer_space::notice::Notice;

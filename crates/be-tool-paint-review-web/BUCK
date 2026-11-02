@@ -1,6 +1,6 @@
-load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/platforms:profile.bzl", "released")
+load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
 
 # The paintings a pull request changed (crates/be-tool-paint-review) in a browser,

@@ -6,7 +6,7 @@ use beui::styled::*;
 use beui::{Align, NodeId};
 use uuid::Uuid;
 
-use crate::compositor::{ChildView, AppView, ShellSurface, ViewEditor};
+use crate::compositor::{AppView, ChildView, ShellSurface, ViewEditor};
 use beui::{Align2, Direction};
 
 mod notices;

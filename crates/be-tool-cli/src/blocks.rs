@@ -89,9 +89,7 @@ pub fn default_parent(top: &[Entry]) -> Result<&Entry, String> {
         false => workspaces,
         true => top
             .iter()
-            .filter(|entry| {
-                crate::apps::adds_children(entry.block_type) && entry.access.can_edit()
-            })
+            .filter(|entry| crate::apps::adds_children(entry.block_type) && entry.access.can_edit())
             .collect(),
     };
     match candidates.as_slice() {

@@ -24,9 +24,7 @@ fn a_stopped_apps_view_keeps_the_place_it_is_shown_at() {
         host.runtimes
             .insert(app.identity.id.clone(), Runtime::new(&app, 0));
     });
-    with("test.stopping", |_| -> u32 {
-        panic!("the app went wrong")
-    });
+    with("test.stopping", |_| -> u32 { panic!("the app went wrong") });
 
     let rect = Rect::from_min_size(pos2(497.0, 234.0), vec2(553.0, 388.0));
     let placed = EmbedPlacement {
@@ -35,13 +33,7 @@ fn a_stopped_apps_view_keeps_the_place_it_is_shown_at() {
         radius: 0.0,
         raster: 1.0,
     };
-    let view = placed_view(
-        &app,
-        EditorInstanceId(1),
-        ViewId::MAIN,
-        Some(placed),
-        None,
-    );
+    let view = placed_view(&app, EditorInstanceId(1), ViewId::MAIN, Some(placed), None);
     assert!(view.error.is_some(), "the view shows the app stopped");
     assert_eq!(
         view.rect, rect,

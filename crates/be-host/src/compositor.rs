@@ -1,8 +1,8 @@
 pub(crate) mod anchored;
+pub(crate) mod app_view;
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
-pub(crate) mod app_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -14,11 +14,11 @@ use beui::reactive::*;
 use be_host_runtime::EditorAction;
 
 pub(crate) use anchored::AnchoredViews;
+pub(crate) use app_view::{AppView, ChildView, ViewEditor};
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use app_view::{ChildView, AppView, ViewEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 

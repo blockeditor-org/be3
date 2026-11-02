@@ -8,7 +8,7 @@ fn a_display_plugged_in_later_starts_from_the_first_displays_bars() {
     let right = Rect::from_min_size(pos2(800.0, 0.0), vec2(800.0, 600.0));
     let mut fixture = Fixture::new();
     fixture.settle();
-    fixture.bar_menu(APPS_BAR, &["hide"]);
+    fixture.bar_menu(PROGRAMS_BAR, &["hide"]);
     fixture.bar_menu(STATUS_BAR, &["beside.top"]);
     fixture.on_two_displays((left, 1.0), (right, 1.0));
     assert!(

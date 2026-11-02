@@ -59,12 +59,7 @@ pub(super) struct Docks {
 }
 
 impl Docks {
-    pub(super) fn register(
-        &mut self,
-        instance: EditorInstanceId,
-        app: &str,
-        block: Option<Uuid>,
-    ) {
+    pub(super) fn register(&mut self, instance: EditorInstanceId, app: &str, block: Option<Uuid>) {
         self.apps.insert(instance, app.to_owned());
         if let Some(block) = block
             && self.blocks.insert(block, instance) != Some(instance)
@@ -330,9 +325,7 @@ impl Docks {
     }
 
     fn owns(&self, app: &str, instance: EditorInstanceId) -> bool {
-        self.apps
-            .get(&instance)
-            .is_some_and(|held| held == app)
+        self.apps.get(&instance).is_some_and(|held| held == app)
     }
 
     fn instance_of(&self, placer: EditorInstanceId, record: &Placed) -> Option<EditorInstanceId> {

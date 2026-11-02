@@ -1,5 +1,5 @@
-use beui_core::program::{Setup, Waker};
 use beui_core::context::Context;
+use beui_core::program::{Setup, Waker};
 use beui_font_freetype::FreetypeFonts;
 
 use super::the_chrome_around_a_curved_panel::window;

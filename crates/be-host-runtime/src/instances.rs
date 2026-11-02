@@ -22,7 +22,7 @@ use super::{
     ChildCommit, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
-    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, AppCall},
+    calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
     heads::{HeadRead, Heads},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
@@ -1904,9 +1904,7 @@ impl Instances {
             let mut block_types = block_types.catalog.clone();
             block_types.editors.extend(program_editors);
             opened.push(Outbound::App(AppCall::BlockTypes(block_types)));
-            opened.push(Outbound::App(AppCall::DebugTemplates(
-                debug_templates,
-            )));
+            opened.push(Outbound::App(AppCall::DebugTemplates(debug_templates)));
         }
         for instance in instances {
             let scope = self.scope(instance);
@@ -3136,9 +3134,7 @@ impl Instances {
         let held = std::mem::take(&mut self.unannounced_input);
         let (announced, waiting): (Vec<Outbound>, Vec<Outbound>) =
             held.into_iter().partition(|message| match message {
-                Outbound::App(AppCall::Input(batch)) => {
-                    self.announced.contains(&batch.screen)
-                }
+                Outbound::App(AppCall::Input(batch)) => self.announced.contains(&batch.screen),
                 _ => true,
             });
         self.unannounced_input = waiting

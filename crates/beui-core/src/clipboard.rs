@@ -13,7 +13,10 @@ pub struct PasteAnswer {
 }
 
 impl PasteAnswer {
-    pub fn new(sender: std::sync::mpsc::Sender<Pasted>, waker: Option<crate::program::Waker>) -> Self {
+    pub fn new(
+        sender: std::sync::mpsc::Sender<Pasted>,
+        waker: Option<crate::program::Waker>,
+    ) -> Self {
         Self { sender, waker }
     }
 

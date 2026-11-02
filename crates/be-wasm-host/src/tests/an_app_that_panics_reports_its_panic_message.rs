@@ -20,14 +20,8 @@ fn an_app_that_panics_reports_its_panic_message() {
     let mut app = host().load_bytes(source.as_bytes()).unwrap();
     app.start().unwrap();
 
-    let failure = app
-        .step()
-        .expect_err("a panicking app fails its step");
+    let failure = app.step().expect_err("a panicking app fails its step");
 
     assert_eq!(failure, message);
-    assert_eq!(
-        app.step(),
-        Ok(()),
-        "an app that panicked is not run again"
-    );
+    assert_eq!(app.step(), Ok(()), "an app that panicked is not run again");
 }

@@ -49,8 +49,8 @@ def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
 
 type_bundle = rule(
     attrs = {
-        "manifests": attrs.list(attrs.source()),
         "app_types": attrs.list(attrs.dep()),
+        "manifests": attrs.list(attrs.source()),
         "_bundle": attrs.default_only(attrs.source(default = "root//buck/program:bundle.sh")),
     },
     impl = _type_bundle_impl,
@@ -96,8 +96,8 @@ def _precompiled_apps_impl(ctx: AnalysisContext) -> list[Provider]:
 
 precompiled_apps = rule(
     attrs = {
-        "modules": attrs.list(attrs.dep()),
         "app_types": attrs.list(attrs.dep(), default = []),
+        "modules": attrs.list(attrs.dep()),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.dep(providers = [RunInfo]),
     },
@@ -203,6 +203,10 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
 
 program = rule(
     attrs = {
+        # Each app's type module (app_types), in the order of manifests:
+        # staged beside its editor module under the name its manifest's
+        # block_types give it.
+        "app_types": attrs.list(attrs.dep(), default = []),
         "binary": attrs.option(attrs.dep(), default = None),
         "bindgen": attrs.list(attrs.dep(), default = []),
         # Each precompiled app without its module, for an app that only
@@ -219,10 +223,6 @@ program = rule(
         "linked": attrs.list(attrs.dep(), default = []),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
-        # Each app's type module (app_types), in the order of manifests:
-        # staged beside its editor module under the name its manifest's
-        # block_types give it.
-        "app_types": attrs.list(attrs.dep(), default = []),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         # Where each .cwasm comes from in place of the precompiler: a
         # precompiled_apps target over these modules or more.

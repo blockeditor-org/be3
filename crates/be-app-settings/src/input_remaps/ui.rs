@@ -6,7 +6,7 @@ use be_sdk_beui::{ContentProjection, Editor, RemapState, RemapsWatch};
 
 use super::gui::EditorTab;
 use super::raw::TomlTab;
-use super::{MODULE, APP};
+use super::{APP, MODULE};
 
 pub(super) type Remapper = ContentProjection<InputRemapperContent>;
 

@@ -265,8 +265,7 @@ impl HostStateStore {
         Ok(self
             .setting("warm_plugins")?
             .map(|apps| {
-                apps
-                    .split('\n')
+                apps.split('\n')
                     .filter(|app| !app.is_empty())
                     .map(str::to_owned)
                     .collect()

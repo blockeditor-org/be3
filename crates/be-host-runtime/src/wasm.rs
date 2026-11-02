@@ -13,7 +13,7 @@ use be_wasm_guest_host::{
     Presented, Produced,
     thread::{self, Runnable, Threaded},
 };
-use be_wasm_host::{Host, App};
+use be_wasm_host::{App, Host};
 
 use super::{
     backend::StepTime,
@@ -134,9 +134,9 @@ pub(super) fn spawn(
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
     let prepared = PREPARED.with(|prepared| {
         let mut prepared = prepared.borrow_mut();
-        let index = prepared.iter().position(|prepared| {
-            prepared.app_id == app.identity.id && prepared.module == module
-        })?;
+        let index = prepared
+            .iter()
+            .position(|prepared| prepared.app_id == app.identity.id && prepared.module == module)?;
         Some(prepared.remove(index))
     });
     if let Some(mut prepared) = prepared {

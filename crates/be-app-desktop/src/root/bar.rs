@@ -20,9 +20,9 @@ use be_sdk_beui::{
 };
 use be_sdk_shell::{SHELL_BARS, Workspace};
 
-use super::programs_panel::{ProgramsPanel, ProgramsPanelButton};
 use super::clock::ClockButton;
 use super::notifications::DesktopNotifications;
+use super::programs_panel::{ProgramsPanel, ProgramsPanelButton};
 use super::rotate::RotateButton;
 use super::status::{Status, StatusButton};
 use super::tray::TrayItems;

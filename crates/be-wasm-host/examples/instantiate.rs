@@ -7,7 +7,7 @@ use be_sdk_api::{
     },
     ops::{Connection, Incoming, OpId, Outcome, Side},
 };
-use be_wasm_host::{Host, App};
+use be_wasm_host::{App, Host};
 
 const SCREENS_SURFACE: u32 = 1;
 const WIDTH: u32 = 640;

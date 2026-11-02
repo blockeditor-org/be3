@@ -3,8 +3,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use beui_core::program::{Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
+use beui_core::program::{Setup, Waker};
 use beui_renderer_wgpu::present::Gpu;
 use beui_runner::LayerView;
 use beui_types::vec2;

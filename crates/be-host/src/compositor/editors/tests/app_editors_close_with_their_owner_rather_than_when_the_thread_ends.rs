@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use be_sdk_api::AppIdentity;
-use be_sdk_manifest::{EditorManifest, AppManifest};
+use be_sdk_manifest::{AppManifest, EditorManifest};
 
 use super::*;
 

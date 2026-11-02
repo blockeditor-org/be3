@@ -51,8 +51,8 @@ mod bench {
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
         native::Setup, native::Waker, native::WindowOutput,
     };
-    use beui_core::program::SafeArea;
     use beui_core::context::RendererInfo;
+    use beui_core::program::SafeArea;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};

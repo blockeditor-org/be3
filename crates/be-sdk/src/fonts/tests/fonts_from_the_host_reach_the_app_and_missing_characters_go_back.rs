@@ -11,23 +11,22 @@ fn fonts_from_the_host_reach_the_app_and_missing_characters_go_back() {
     let listener = heard.clone();
     watch_fonts(move |added, _| listener.set(listener.get() + added.len()));
 
-    app
-        .set_fonts(Fonts {
-            replace: true,
-            faces: vec![
-                FontFace {
-                    role: FontRole::Text,
-                    index: 0,
-                    data: vec![1, 2, 3],
-                },
-                FontFace {
-                    role: FontRole::Icons,
-                    index: 0,
-                    data: vec![4],
-                },
-            ],
-        })
-        .unwrap();
+    app.set_fonts(Fonts {
+        replace: true,
+        faces: vec![
+            FontFace {
+                role: FontRole::Text,
+                index: 0,
+                data: vec![1, 2, 3],
+            },
+            FontFace {
+                role: FontRole::Icons,
+                index: 0,
+                data: vec![4],
+            },
+        ],
+    })
+    .unwrap();
     assert_eq!(
         heard.get(),
         2,

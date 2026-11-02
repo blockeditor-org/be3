@@ -20,8 +20,7 @@ fn the_hosts_initial_and_changed_preferences_reach_the_app() {
         motion: Motion::Animated,
         canvas_touch: Default::default(),
     };
-    app
-        .set_preferences(decode(&encode(&changed)).unwrap())
+    app.set_preferences(decode(&encode(&changed)).unwrap())
         .unwrap();
     assert_eq!(host_preferences(), changed);
 }

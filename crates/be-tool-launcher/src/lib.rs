@@ -29,7 +29,7 @@ use std::sync::mpsc::{Receiver, channel};
 
 use beui::native::Document;
 use beui::reactive::*;
-use beui::{Rect, native::Program, native::Context, native::Setup};
+use beui::{Rect, native::Context, native::Program, native::Setup};
 
 use beui_host::native::build;
 use model::Model;

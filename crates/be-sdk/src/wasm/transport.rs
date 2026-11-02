@@ -29,7 +29,13 @@ impl Editor {
             name,
             version,
         } = started;
-        let runtime = Runtime::new(openers, &id, &name, &version, Waker::new(move || waker.wake()));
+        let runtime = Runtime::new(
+            openers,
+            &id,
+            &name,
+            &version,
+            Waker::new(move || waker.wake()),
+        );
         let wire = Shared::default();
         let executor = wire.executor();
         executor.enter(|| {

@@ -7,7 +7,7 @@ use be_sdk_api::{
     },
     ops::{Connection, Incoming, OpId, Outcome, Side},
 };
-use be_wasm_host::{Host, App};
+use be_wasm_host::{App, Host};
 
 mod a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints;
 
@@ -132,12 +132,7 @@ fn screens() -> Vec<ScreenRequest> {
     }]
 }
 
-fn painted(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    mut app: App,
-    editor: [u8; 16],
-) -> Vec<u8> {
+fn painted(device: &wgpu::Device, queue: &wgpu::Queue, mut app: App, editor: [u8; 16]) -> Vec<u8> {
     let mut session = Session::new();
     app.start().expect("the app starts");
     session.hear(&mut app);
@@ -151,9 +146,7 @@ fn painted(
         app.take_presented().contains(&SURFACE),
         "the app presented its surface"
     );
-    let (texture, _) = app
-        .surface(SURFACE)
-        .expect("the app asked for a surface");
+    let (texture, _) = app.surface(SURFACE).expect("the app asked for a surface");
     let pixels = read_back(device, queue, &texture);
     app.stop();
     pixels

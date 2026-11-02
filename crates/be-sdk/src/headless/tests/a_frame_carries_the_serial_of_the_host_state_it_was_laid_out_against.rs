@@ -49,31 +49,30 @@ impl ViewHandler for StillViews {
 }
 
 fn configure(app: &mut HeadlessApp, height: f32, serial: u64) {
-    app
-        .screens(vec![ScreenRequest {
-            screen: SCREEN,
-            instance: INSTANCE,
-            view: ViewId::MAIN,
-            placement: ViewPlacement::Parent(ParentView::Main),
-            frame: None,
-            metrics: ViewportMetrics {
-                logical: Size {
-                    width: 100.0,
-                    height,
-                },
-                visible: be_sdk_api::Pos2::ZERO,
-                pixel_width: 100,
-                pixel_height: height as u32,
-                scale_factor: 1.0,
-                raster: 1.0,
+    app.screens(vec![ScreenRequest {
+        screen: SCREEN,
+        instance: INSTANCE,
+        view: ViewId::MAIN,
+        placement: ViewPlacement::Parent(ParentView::Main),
+        frame: None,
+        metrics: ViewportMetrics {
+            logical: Size {
+                width: 100.0,
+                height,
             },
-            windows: false,
-            host_place: None,
-            origin: None,
-            docked: false,
-            anchor_space: None,
-        }])
-        .unwrap();
+            visible: be_sdk_api::Pos2::ZERO,
+            pixel_width: 100,
+            pixel_height: height as u32,
+            scale_factor: 1.0,
+            raster: 1.0,
+        },
+        windows: false,
+        host_place: None,
+        origin: None,
+        docked: false,
+        anchor_space: None,
+    }])
+    .unwrap();
     app.configure(serial).unwrap();
 }
 
@@ -85,31 +84,29 @@ fn drawn(app: &mut HeadlessApp) -> FrameCommit {
 #[test]
 fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
     let mut app = HeadlessApp::new("still", "Still", "1");
-    app
-        .accept(HelloAccepted {
-            host_name: "test host".into(),
-            surface: Some(SurfaceSpec {
-                format: SurfaceFormat::Rgba8Unorm,
-                render: true,
-            }),
-            preferences: be_sdk_api::Preferences::default(),
-        })
-        .unwrap();
+    app.accept(HelloAccepted {
+        host_name: "test host".into(),
+        surface: Some(SurfaceSpec {
+            format: SurfaceFormat::Rgba8Unorm,
+            render: true,
+        }),
+        preferences: be_sdk_api::Preferences::default(),
+    })
+    .unwrap();
     let host = EditorHost::new(Waker::default());
     app.adopt(INSTANCE, Box::new(Still(host.clone())), host);
-    app
-        .open(Opening::Block(OpenBlock {
-            instance: INSTANCE,
-            editor: [6; 16],
-            block_id: [1; 16],
-            block_type: [2; 16],
-            view_block: None,
-            account_id: [3; 16],
-            organization_id: [4; 16],
-            client_id: [5; 16],
-            editable: true,
-        }))
-        .unwrap();
+    app.open(Opening::Block(OpenBlock {
+        instance: INSTANCE,
+        editor: [6; 16],
+        block_id: [1; 16],
+        block_type: [2; 16],
+        view_block: None,
+        account_id: [3; 16],
+        organization_id: [4; 16],
+        client_id: [5; 16],
+        editable: true,
+    }))
+    .unwrap();
 
     configure(&mut app, 100.0, 3);
     let first = drawn(&mut app);

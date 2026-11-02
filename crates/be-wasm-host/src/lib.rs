@@ -319,9 +319,8 @@ impl App {
             let defined = match &shared {
                 Some(shared) => linker.define(&store, &module, &name, shared.clone()),
                 None => {
-                    let own = wasmtime::Memory::new(&mut store, declared).map_err(|error| {
-                        format!("the app memory could not be created: {error}")
-                    })?;
+                    let own = wasmtime::Memory::new(&mut store, declared)
+                        .map_err(|error| format!("the app memory could not be created: {error}"))?;
                     store.data_mut().memory = Memory::Own(Some(own));
                     linker.define(&store, &module, &name, own)
                 }
@@ -705,8 +704,7 @@ fn compilation_cache(directory: &Path) -> Result<Cache, String> {
     })?;
     let mut configuration = CacheConfig::new();
     configuration.with_directory(directory);
-    Cache::new(configuration)
-        .map_err(|error| format!("the app cache could not be opened: {error}"))
+    Cache::new(configuration).map_err(|error| format!("the app cache could not be opened: {error}"))
 }
 
 fn shared_memory(engine: &Engine, module: &Module) -> Result<SharedMemory, String> {

@@ -18,9 +18,9 @@ use be_sdk::{
 };
 #[cfg(target_arch = "wasm32")]
 use be_sdk::{PaintTarget, SurfaceGpu, SurfaceRect};
-use beui_core::program::{Program, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
+use beui_core::program::{Program, SafeArea, Setup, Waker};
 use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};

@@ -1,7 +1,7 @@
 use be_lib_stable_hash::HashMap;
 use std::collections::BTreeMap;
 
-use super::calls::{EditorAnswer, EditorCall, Heard, AppCall};
+use super::calls::{AppCall, EditorAnswer, EditorCall, Heard};
 use be_sdk_api::{Encoded, Watch};
 
 use be_sdk_api::{
@@ -12,8 +12,8 @@ use be_sdk_api::{
         debug::debug::Call as DebugCall,
         dock::Call as DockCall,
         exports::{
-            debug::paintings,
             app::{self, Editor},
+            debug::paintings,
         },
         host::Call,
         host_services,
@@ -737,9 +737,9 @@ impl Wire {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
                         let commit: be_sdk_api::FrameCommit = be_sdk_api::ops::decode(&bytes)
                             .ok_or("the app answered a draw with a frame that did not decode")?;
-                        commit.validate().map_err(|error| {
-                            format!("the app drew a frame it may not: {error}")
-                        })?;
+                        commit
+                            .validate()
+                            .map_err(|error| format!("the app drew a frame it may not: {error}"))?;
                         heard.push(Heard::Frame(Box::new(commit)));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => heard.push(Heard::ShutDown),

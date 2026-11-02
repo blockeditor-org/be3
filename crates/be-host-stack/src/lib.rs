@@ -8,6 +8,7 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
 pub mod accounts;
+pub mod app_graph;
 pub mod conflicts;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]
@@ -18,7 +19,6 @@ pub mod keys;
 pub mod link;
 mod nudge;
 pub mod offline_choice;
-pub mod app_graph;
 mod replicas;
 pub mod revisions;
 #[cfg(feature = "testing")]

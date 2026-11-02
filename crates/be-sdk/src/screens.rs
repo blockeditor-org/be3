@@ -15,8 +15,8 @@ use uuid::Uuid;
 
 use crate::{
     Frame, Module, ShownView, Waker,
-    editor_session::{EditorSession, Open},
     app::Anchored,
+    editor_session::{EditorSession, Open},
     wire::Delivery,
 };
 

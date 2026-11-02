@@ -20,8 +20,8 @@ pub use document::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use types::{
-    BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode, PanMode,
-    ParentView, AppIdentity, Press, ResizeMode, TemplateCategory,
+    AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
+    PanMode, ParentView, Press, ResizeMode, TemplateCategory,
 };
 
 pub const MAX_STRING_BYTES: usize = 16 * 1024;

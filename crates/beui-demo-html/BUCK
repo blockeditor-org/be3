@@ -1,7 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "web_drive_test")
-load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_html_module")
+load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
 
 # beui's demo (crates/beui-demo) on beui's
 # HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with

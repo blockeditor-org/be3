@@ -318,8 +318,7 @@ pub(super) fn Camera(
         if let Some(steered) = steered.get() {
             area = area.without(steered.translate(-origin));
         }
-        if let Some(frame) = be_host_runtime::frame_rects(&app_id.value(), instance, shown_view)
-        {
+        if let Some(frame) = be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
             for floating in frame.floating {
                 area = area.without(floating);
             }

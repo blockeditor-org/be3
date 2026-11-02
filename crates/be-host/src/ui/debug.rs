@@ -251,19 +251,9 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 
 #[component]
 fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
-    let lines = create_memo(move || {
-        apps
-            .get()
-            .map(|apps| apps.lines)
-            .unwrap_or_default()
-    });
+    let lines = create_memo(move || apps.get().map(|apps| apps.lines).unwrap_or_default());
     let line_keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
-    let runtimes = create_memo(move || {
-        apps
-            .get()
-            .map(|apps| apps.runtimes)
-            .unwrap_or_default()
-    });
+    let runtimes = create_memo(move || apps.get().map(|apps| apps.runtimes).unwrap_or_default());
     let runtime_keys = create_memo(move || {
         runtimes
             .get()

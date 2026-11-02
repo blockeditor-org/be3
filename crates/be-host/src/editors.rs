@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use be_block_graph::Access;
 use be_sdk_api::{Edits, TemplateCategory};
-use be_sdk_manifest::{EditorManifest, AppManifest, ShellRequest};
+use be_sdk_manifest::{AppManifest, EditorManifest, ShellRequest};
 use uuid::Uuid;
 
 use crate::surfaces::HostedView;
@@ -232,9 +232,7 @@ impl EditorRegistry {
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
                 debug: template.debug,
-                create: Box::new(move || {
-                    Box::new(app::AppCreation::new(Arc::clone(&app), target))
-                }),
+                create: Box::new(move || Box::new(app::AppCreation::new(Arc::clone(&app), target))),
             });
         }
     }
@@ -286,10 +284,7 @@ impl EditorRegistry {
         }
     }
 
-    pub(crate) fn picker(
-        &self,
-        request: be_host_runtime::PickerRequest,
-    ) -> Option<app::AppPicker> {
+    pub(crate) fn picker(&self, request: be_host_runtime::PickerRequest) -> Option<app::AppPicker> {
         let editor = self.editors.iter().find(|editor| {
             editor
                 .manifest

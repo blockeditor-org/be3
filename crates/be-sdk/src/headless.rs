@@ -52,7 +52,12 @@ impl HeadlessApp {
         self.session.hello()
     }
 
-    pub fn adopt(&mut self, instance: EditorInstanceId, editor: Box<dyn Instance>, host: EditorHost) {
+    pub fn adopt(
+        &mut self,
+        instance: EditorInstanceId,
+        editor: Box<dyn Instance>,
+        host: EditorHost,
+    ) {
         let screens = &mut self.screens;
         self.executor.enter(|| {
             screens.adopt(instance, EditorSession::adopt(instance, editor, host));

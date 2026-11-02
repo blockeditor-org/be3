@@ -1,5 +1,4 @@
 pub mod accessibility;
-pub mod program;
 pub mod back;
 pub mod base;
 pub mod child_list;
@@ -35,6 +34,7 @@ pub mod painter;
 pub mod painting;
 pub mod path;
 pub mod performance;
+pub mod program;
 
 pub mod rich;
 pub mod screen_simulation;

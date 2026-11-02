@@ -26,10 +26,10 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
-use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
+use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::window::WindowState;
 use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};

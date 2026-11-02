@@ -4,7 +4,7 @@ use super::*;
 fn bars_docked_down_the_left_lay_their_parts_out_down_it() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     fixture.hear(0.45, false, SPEAKERS);
-    fixture.bar_menu(APPS_BAR, &["beside.ends", "beside.left.top"]);
+    fixture.bar_menu(PROGRAMS_BAR, &["beside.ends", "beside.left.top"]);
     fixture.bar_menu(WINDOWS_BAR, &["beside.left"]);
     fixture.bar_menu(STATUS_BAR, &["beside.ends", "beside.left.bottom"]);
     assert!(

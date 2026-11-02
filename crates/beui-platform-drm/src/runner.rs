@@ -12,8 +12,8 @@ use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
     native::Setup, native::Waker, vec2,
 };
-use beui_core::program::SafeArea;
 use beui_core::clipboard::PasteAnswer;
+use beui_core::program::SafeArea;
 use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::Incoming;
 use beui_runner::renderer::Loaded;

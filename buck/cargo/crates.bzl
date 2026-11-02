@@ -11452,7 +11452,7 @@ crates = {
         "binaries": [
             {
                 "crate_root": "src/main.rs",
-                "name": "plugin-test-runner",
+                "name": "app-test-runner",
             },
         ],
         "edition": "2024",
@@ -11462,7 +11462,7 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11476,7 +11476,7 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11490,7 +11490,7 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11504,7 +11504,7 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11518,7 +11518,7 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11532,7 +11532,7 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",
@@ -11546,7 +11546,7 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {
-                    "plugin-test-runner": [
+                    "app-test-runner": [
                         "//crates/be-wasm-host:be-wasm-host",
                         "//third-party/rust:pollster-0.4.0",
                         "//third-party/rust:wgpu-29.0.3",

@@ -25,7 +25,7 @@ use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
-    calls::{EditorAnswer, EditorCall, Heard, Outbound, AppCall},
+    calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound},
     input::{BlockDrag, DragEvent},
     instances::{DragKind, EditorView, Focus, Instances, Placement},
     presenter::{
@@ -1350,10 +1350,7 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
-pub fn take_child_dismissals(
-    app_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<be_sdk_api::ChildId> {
+pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
     with(app_id, |runtime| {
         runtime.instances.take_child_dismissals(instance)
     })
@@ -1701,12 +1698,7 @@ pub fn menu(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEnt
     with(app_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
 
-pub fn menu_pick(
-    app_id: &str,
-    instance: EditorInstanceId,
-    id: String,
-    anchor: Option<beui::Rect>,
-) {
+pub fn menu_pick(app_id: &str, instance: EditorInstanceId, id: String, anchor: Option<beui::Rect>) {
     with(app_id, |runtime| {
         let messages = runtime.instances.menu_pick(instance, id, anchor);
         runtime.send(messages);
@@ -1791,10 +1783,7 @@ pub fn close(app_id: &str, instance: EditorInstanceId) {
 }
 
 pub fn artifact_draft(app_id: &str, instance: EditorInstanceId) -> Option<Vec<u8>> {
-    with(app_id, |runtime| {
-        runtime.instances.artifact_draft(instance)
-    })
-    .flatten()
+    with(app_id, |runtime| runtime.instances.artifact_draft(instance)).flatten()
 }
 
 pub fn regenerate_artifact(app_id: &str, instance: EditorInstanceId, data: &[u8]) {
@@ -1821,14 +1810,8 @@ pub fn view_size(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Op
     .flatten()
 }
 
-pub fn dialog_status(
-    app_id: &str,
-    instance: EditorInstanceId,
-) -> Option<be_sdk_api::DialogStatus> {
-    with(app_id, |runtime| {
-        runtime.instances.dialog_status(instance)
-    })
-    .flatten()
+pub fn dialog_status(app_id: &str, instance: EditorInstanceId) -> Option<be_sdk_api::DialogStatus> {
+    with(app_id, |runtime| runtime.instances.dialog_status(instance)).flatten()
 }
 
 pub fn forget_dialog_answer(app_id: &str, instance: EditorInstanceId) {
@@ -1852,10 +1835,7 @@ pub fn commit_creation(app_id: &str, instance: EditorInstanceId) {
 }
 
 pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_created(instance)
-    })
-    .flatten()
+    with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
 }
 
 pub fn frame_child(app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
@@ -1871,16 +1851,11 @@ pub fn revoke_frame_child(app_id: &str, instance: EditorInstanceId) {
 }
 
 pub fn take_leaving(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| {
-        runtime.instances.take_leaving(instance)
-    })
-    .unwrap_or_default()
+    with(app_id, |runtime| runtime.instances.take_leaving(instance)).unwrap_or_default()
 }
 
 pub fn hold(app_id: &str, instance: EditorInstanceId, region: ViewId) {
-    with(app_id, |runtime| {
-        runtime.instances.hold(instance, region)
-    });
+    with(app_id, |runtime| runtime.instances.hold(instance, region));
 }
 
 pub fn frame_rects(app_id: &str, instance: EditorInstanceId, view: ViewId) -> Option<HostFrame> {
@@ -1897,10 +1872,7 @@ pub fn frame_rects(app_id: &str, instance: EditorInstanceId, view: ViewId) -> Op
 }
 
 pub fn content_view(app_id: &str, instance: EditorInstanceId) -> ViewId {
-    with(app_id, |runtime| {
-        runtime.instances.content_view(instance)
-    })
-    .unwrap_or(ViewId::MAIN)
+    with(app_id, |runtime| runtime.instances.content_view(instance)).unwrap_or(ViewId::MAIN)
 }
 
 pub fn presenting(app_id: &str, instance: EditorInstanceId) -> bool {
@@ -1970,24 +1942,15 @@ pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_
 }
 
 pub fn aspect_ratio(app_id: &str, instance: EditorInstanceId) -> Option<f32> {
-    with(app_id, |runtime| {
-        runtime.instances.aspect_ratio(instance)
-    })
-    .flatten()
+    with(app_id, |runtime| runtime.instances.aspect_ratio(instance)).flatten()
 }
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
-    with(app_id, |runtime| {
-        runtime.instances.assigned_size(instance)
-    })
-    .flatten()
+    with(app_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
 }
 
 pub fn intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
-    with(app_id, |runtime| {
-        runtime.instances.intrinsic_size(instance)
-    })
-    .flatten()
+    with(app_id, |runtime| runtime.instances.intrinsic_size(instance)).flatten()
 }
 
 pub fn warm(app: &AppManifest) {
@@ -2087,7 +2050,7 @@ pub fn take_changed() -> Vec<String> {
 }
 
 pub struct ViewSlot<'a> {
-    pub app: &'an AppManifest,
+    pub app: &'a AppManifest,
     pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub role: InstanceRole,
@@ -2891,11 +2854,7 @@ pub fn anchored_drawing(blits: AnchoredBlits) -> beui::native::Drawing {
     beui::native::painted_drawing(AnchoredDrawing::new(blits))
 }
 
-pub fn view_placed(
-    app_id: &str,
-    instance: EditorInstanceId,
-    region: ViewId,
-) -> Option<[u32; 3]> {
+pub fn view_placed(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<[u32; 3]> {
     with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         runtime
@@ -2926,10 +2885,7 @@ pub fn view_damage(
 }
 
 pub fn view_published(app_id: &str) -> u64 {
-    with(app_id, |runtime| {
-        runtime.shared.borrow().published.count()
-    })
-    .unwrap_or_default()
+    with(app_id, |runtime| runtime.shared.borrow().published.count()).unwrap_or_default()
 }
 
 pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {

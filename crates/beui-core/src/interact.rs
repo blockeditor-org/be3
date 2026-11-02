@@ -146,7 +146,8 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             }
             let asked = doc.paste_requested();
             let fate = key_press(doc, *press);
-            let asks = matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
+            let asks =
+                matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
             if asks && pastes(*press) {
                 ctx.paste_shortcut();
             }

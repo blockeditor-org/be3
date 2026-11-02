@@ -34,10 +34,7 @@ impl Previews {
     fn retire(&mut self, image: u64) {
         for (app, offered) in &mut self.offered {
             if offered.remove(&image) {
-                self.withdrawn
-                    .entry(app.clone())
-                    .or_default()
-                    .push(image);
+                self.withdrawn.entry(app.clone()).or_default().push(image);
             }
         }
     }
@@ -78,10 +75,7 @@ pub(super) fn exported(app: &str, shared: &Rc<RefCell<Shared>>, painted: Vec<Pai
                 screen,
                 shared: Rc::clone(shared),
             };
-            if let Some(old) = previews
-                .latest
-                .insert((app.to_owned(), instance), exported)
-            {
+            if let Some(old) = previews.latest.insert((app.to_owned(), instance), exported) {
                 previews.retire(old.image.image);
             }
         }

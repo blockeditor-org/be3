@@ -242,10 +242,7 @@ const DATA: &str = "data";
 const DATA_INDEX: &str = "index.json";
 const DATA_FILES: &str = "files";
 
-pub fn data_listing(
-    app_id: &str,
-    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
-) {
+pub fn data_listing(app_id: &str, deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
     staged(app_id, DATA_INDEX, deliver);
 }
 

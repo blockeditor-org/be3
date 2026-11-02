@@ -1,6 +1,6 @@
-load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
-load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_html_module")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
 
 # be-server's account portal on beui's HTML core (guides/hosting.md): be-server
 # renders each page on the host with render(), and :assets, which be-server's

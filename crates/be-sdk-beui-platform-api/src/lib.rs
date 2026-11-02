@@ -5,9 +5,9 @@ use std::error::Error;
 use be_sdk::{EditorHost, ViewHandler, ViewRef};
 use beui::WindowId;
 use beui::styled::Root;
-use beui_core::program::Program;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::document::Document;
+use beui_core::program::Program;
 
 pub use views::{Report, View, Views, anchored_layer, anchored_view, window_view};
 

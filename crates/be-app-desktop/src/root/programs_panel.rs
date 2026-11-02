@@ -89,7 +89,11 @@ impl ProgramsPanel {
 }
 
 #[component]
-pub(crate) fn ProgramsPanelKey(programs_panel: ProgramsPanel, windows: DeskWindows, layout: DockingLayout<TabId>) -> NodeId {
+pub(crate) fn ProgramsPanelKey(
+    programs_panel: ProgramsPanel,
+    windows: DeskWindows,
+    layout: DockingLayout<TabId>,
+) -> NodeId {
     let pointed = move || {
         let displays = windows.displays();
         let pointer = last_pointer().and_then(|sample| {
@@ -116,8 +120,14 @@ pub(crate) fn ProgramsPanelKey(programs_panel: ProgramsPanel, windows: DeskWindo
 }
 
 #[component]
-pub(crate) fn ProgramsPanelButton(programs_panel: ProgramsPanel, display: u32, layout: DockingLayout<TabId>) -> NodeId {
-    programs_panel.buttons.update(|buttons| buttons.push(display));
+pub(crate) fn ProgramsPanelButton(
+    programs_panel: ProgramsPanel,
+    display: u32,
+    layout: DockingLayout<TabId>,
+) -> NodeId {
+    programs_panel
+        .buttons
+        .update(|buttons| buttons.push(display));
     on_cleanup(move || {
         if !programs_panel.buttons.is_alive() {
             return;
@@ -172,7 +182,14 @@ pub(crate) fn ProgramsPanelOverlay(
             open={shown}
             on_dismiss={move || programs_panel.close(display)}
         >|handle: AnchoredHandle|
-            <ProgramsPanelContent programs_panel display layout shown={handle.shown} close menu={PickAnchor::Centre} />
+            <ProgramsPanelContent
+                programs_panel
+                display
+                layout
+                shown={handle.shown}
+                close
+                menu={PickAnchor::Centre}
+            />
         </Anchored>
     }
 }

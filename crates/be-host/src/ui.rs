@@ -21,7 +21,7 @@ use be_host_base::host_state::{SavedAccount, ServerLocation};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, AppsView, RuntimeView,
+    AppsView, DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, RuntimeView,
 };
 
 thread_local! {

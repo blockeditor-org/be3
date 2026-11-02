@@ -1,5 +1,4 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/program:defs.bzl", "app_data", "app_types")
 load(
     "@root//buck/cargo:defs.bzl",
     "RemoteTestInfo",
@@ -13,6 +12,7 @@ load(
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "dev_only", "keep_profile")
+load("@root//buck/program:defs.bzl", "app_data", "app_types")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the

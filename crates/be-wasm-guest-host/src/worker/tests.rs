@@ -1,3 +1,3 @@
 use super::*;
-mod an_app_that_never_finishes_a_step_stops_responding;
 mod a_worker_steps_its_guest_only_for_frames_or_a_wake;
+mod an_app_that_never_finishes_a_step_stops_responding;

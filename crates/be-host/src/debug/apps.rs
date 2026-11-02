@@ -4,7 +4,7 @@ use be_sdk_api::{EditorCapabilities, ParentView};
 use be_sdk_manifest::AppManifest;
 use beui::Vec2;
 
-use crate::ui::{Line, LineStyle, AppsView, RuntimeView};
+use crate::ui::{AppsView, Line, LineStyle, RuntimeView};
 use be_host_runtime::{InstanceStatus, RuntimeStatus, ScreenStatus};
 
 fn push(lines: &mut Vec<Line>, style: LineStyle, indent: u8, text: impl Into<String>) {

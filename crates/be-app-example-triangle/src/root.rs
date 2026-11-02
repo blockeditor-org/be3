@@ -2,8 +2,8 @@ use be_sdk::wgpu;
 use std::collections::HashMap;
 
 use be_sdk::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, App, ShownView, SurfaceRect,
-    TimedInput, View, ViewHandler, ViewRef,
+    App, BlockParent, EditorHost, Frame, Instance, PaintTarget, ShownView, SurfaceRect, TimedInput,
+    View, ViewHandler, ViewRef,
 };
 use be_type_example_triangle::TriangleContent;
 use uuid::Uuid;

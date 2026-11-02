@@ -8,8 +8,6 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::program::Waker;
-use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::PasteRequest;
 use crate::damage;
 use crate::display::{Display, Group, Layer};
@@ -20,6 +18,8 @@ use crate::font::{FontBackend, Fonts, Galley};
 use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
+use crate::program::Waker;
+use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::screen_simulation::ScreenSimulation;
 use crate::window::{Appearance, WindowHosting, WindowState};
 use beui_types::Event;
