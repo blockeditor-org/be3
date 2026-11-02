@@ -295,6 +295,7 @@ pub(crate) fn WindowChips(
     let spacing = use_space(CHIP_SPACING);
     let count = create_memo(move || chips.with(Vec::len));
     let listed = create_memo(move || count.get() > 0);
+    let empty = create_memo(move || !listed.get() && !waiting.get() && !vertical.get());
     let gaps = move || spacing.get() * count.get().saturating_sub(1) as f32;
     let wanted = create_memo(move || match vertical.get() {
         true => Extent::INTRINSIC,
@@ -340,6 +341,11 @@ pub(crate) fn WindowChips(
                         {chips_row}
                     </Layers>
                 </Scroll>
+            </Show>
+            <Show condition={empty}>
+                <Frame width={Length::Size(CHIP_WIDTH)} align=Align::Center @test_id={"desktop.windows.none"}>
+                    <Text size=TextSize::Sm color=TextColor::Muted>"No windows"</Text>
+                </Frame>
             </Show>
         </List>
     }

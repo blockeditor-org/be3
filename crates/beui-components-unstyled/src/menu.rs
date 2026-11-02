@@ -1187,8 +1187,13 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         }
         Some(MenuNode::Submenu(submenu)) => {
             let items = submenu.items.clone();
+            let choices = radio_choices(&items);
+            let radio = !choices.is_empty();
+            let checked = create_memo(move || {
+                radio.then(|| choices.iter().any(|chosen| chosen.get()))
+            });
             view! {
-                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} separated>
+                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} checked radio separated>
                     <MenuNodes nodes={items} test_prefix />
                 </MenuItem>
             }
@@ -1199,6 +1204,19 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
     };
     item.test_id = row_test_id;
     item
+}
+
+fn radio_choices(nodes: &[MenuNode]) -> Vec<Prop<bool>> {
+    nodes
+        .iter()
+        .flat_map(|node| match node {
+            MenuNode::Action { action, .. } if action.is_radio() => {
+                action.checked().into_iter().collect()
+            }
+            MenuNode::Submenu(submenu) => radio_choices(&submenu.items),
+            MenuNode::Action { .. } | MenuNode::Separator => Vec::new(),
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]
