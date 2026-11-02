@@ -390,7 +390,6 @@ pub struct Inspector {
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
     program: EmbedSlot,
-    width: Signal<f32>,
     last_tool: InspectorTab,
     toolbar: responsive::Toolbar,
     resizing: Option<Resize>,
@@ -409,10 +408,10 @@ pub struct Inspector {
 }
 
 impl Inspector {
-    pub fn new(ctx: &Context, rect: Rect) -> Self {
+    pub fn new(ctx: &Context) -> Self {
         let state = OwnedStored::new(State::new(ctx));
         let embeds_program = ctx.shows_main();
-        let panel = panel::build(state.handle(), rect.width() / scale(ctx), embeds_program);
+        let panel = panel::build(state.handle(), embeds_program);
         let toolbar = responsive::build(state.handle());
         Self {
             toolbar,
@@ -432,7 +431,6 @@ impl Inspector {
             performance: panel.performance,
             renderer: panel.renderer,
             program: panel.program,
-            width: panel.width,
             last_tool: InspectorTab::default(),
             held: false,
             letting_go: false,
@@ -538,10 +536,6 @@ impl Inspector {
     ) -> Layout {
         ctx.set_screen_simulation(self.screen_simulation());
         let scale = scale(ctx);
-        let width = rect.width() / scale;
-        if self.width.get_untracked() != width {
-            self.width.set(width);
-        }
         if let Some(tab) = self
             .tools
             .focused()
@@ -1273,7 +1267,7 @@ impl Tools for InspectorTools {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect) {
         let viewport = rect;
         let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
-        let open = || Box::new(Inspector::new(ctx, rect));
+        let open = || Box::new(Inspector::new(ctx));
         let focused = self
             .inspector
             .as_ref()
