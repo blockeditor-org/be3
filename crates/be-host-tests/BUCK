@@ -22,6 +22,7 @@ APPS = {
     "a_canvas_tool_bar_popped_out_lifts_out_of_its_window_and_follows_its_grip": ["infinite-canvas"],
     "a_checklist_on_a_canvas_works_in_place_and_zooms_with_it": ["checklist", "infinite-canvas"],
     "a_contact_link_asks_before_connecting_two_accounts": [],
+    "a_control_focused_in_the_desktops_apps_panel_reads_as_focused": ["desktop"],
     "a_deleted_joined_block_says_so_on_each_of_its_tabs": ["example-beui-gallery"],
     "a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page": ["example-beui-gallery"],
     "a_dock_grip_menu_row_loses_its_highlight_when_the_pointer_leaves_the_menu": [],
