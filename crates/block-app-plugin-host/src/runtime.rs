@@ -4,16 +4,16 @@ use std::{
     collections::{BTreeMap, VecDeque},
     rc::Rc,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
-    FrameCommit, FrameSpec, HostPanel, HostTransform, Opening, PresentedFrame, PreviewImage,
-    ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
+    FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
+    PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
     shell_types::{Dragged, DraggedBlock},
 };
 use block_plugin_manifest::PluginManifest;
@@ -39,7 +39,10 @@ use super::{
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
-const FRAME_BUDGET: Duration = Duration::from_millis(8);
+const UNKNOWN_REFRESH: Duration = Duration::from_micros(16_667);
+const UNMEASURED_COMPOSITE: Duration = Duration::from_millis(4);
+const SUBMIT_MARGIN: Duration = Duration::from_millis(1);
+const REMEMBERED_COMPOSITES: usize = 16;
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 use block_app_base::performance::PACING;
 const REMEMBERED_PRESENTS: usize = 16;
@@ -61,6 +64,9 @@ pub fn take_steps() -> Vec<(String, beui::native::FrameTimes)> {
 struct Host {
     availability: Availability,
     deadline: Option<(u64, Deadline)>,
+    present: Option<(Instant, Duration)>,
+    settled_at: Option<Instant>,
+    composites: VecDeque<Duration>,
     waited: Duration,
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
@@ -76,6 +82,9 @@ impl Host {
         Self {
             availability: Availability::missing(),
             deadline: None,
+            present: None,
+            settled_at: None,
+            composites: VecDeque::new(),
             waited: Duration::ZERO,
             over_budget: 0,
             runtimes: HashMap::default(),
@@ -84,6 +93,73 @@ impl Host {
             shell: None,
             grabbed: false,
         }
+    }
+
+    fn frame_deadline(&self) -> Deadline {
+        if host::clock_stopped() {
+            return Deadline::after(STOPPED_CLOCK_FRAME_BUDGET);
+        }
+        let now = Instant::now();
+        let origin = self.present.map_or(now, |(at, _)| at.min(now));
+        let present = self
+            .present
+            .map(|(at, interval)| (at.duration_since(origin), interval));
+        let wait = frame_wait(now.duration_since(origin), present, &self.composites);
+        Deadline::at(now + wait)
+    }
+
+    fn request_frames(&mut self, asked: &[String]) {
+        let active: stable_hash::HashSet<String> = self
+            .runtimes
+            .iter()
+            .filter(|(id, runtime)| {
+                runtime.pacing.laying_out(host::pass())
+                    || (asked.contains(*id) && runtime.will_draw())
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        let held = self.held_behind(&active);
+        for id in asked {
+            let held = held.contains(id.as_str());
+            if let Some(runtime) = self.runtimes.get_mut(id) {
+                runtime.contain(|runtime| runtime.request_frame(held));
+            }
+        }
+    }
+
+    fn held_behind(&self, active: &stable_hash::HashSet<String>) -> stable_hash::HashSet<String> {
+        let mut edges: Vec<(EditorInstanceId, &str, &str)> = self
+            .runtimes
+            .iter()
+            .filter(|(id, _)| active.contains(*id))
+            .flat_map(|(id, runtime)| {
+                runtime
+                    .placers
+                    .iter()
+                    .filter(|(_, placer)| {
+                        placer.plugin != *id
+                            && active.contains(&placer.plugin)
+                            && self.runtimes.get(&placer.plugin).is_some_and(|runtime| {
+                                runtime.instances.mounted(placer.instance, placer.view)
+                            })
+                    })
+                    .map(move |((instance, view), placer)| {
+                        match runtime.instances.fits(*instance, *view) {
+                            true => (*instance, id.as_str(), placer.plugin.as_str()),
+                            false => (*instance, placer.plugin.as_str(), id.as_str()),
+                        }
+                    })
+            })
+            .collect();
+        edges.sort();
+        edges.dedup();
+        let mut kept: Vec<(&str, &str)> = Vec::new();
+        for (_, first, then) in edges {
+            if !reaches(&kept, then, first) {
+                kept.push((first, then));
+            }
+        }
+        kept.into_iter().map(|(_, then)| then.to_owned()).collect()
     }
 
     fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
@@ -191,6 +267,10 @@ pub(super) struct Runtime {
     presents: Presents,
     frames: u64,
     steps: u64,
+    relaid: bool,
+    awaiting_input: bool,
+    drawn: HashMap<ScreenId, (u32, u32)>,
+    placers: HashMap<(EditorInstanceId, ViewId), Placer>,
     idle_since: Option<Duration>,
 }
 
@@ -211,7 +291,8 @@ enum Answer {
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
     Withdrawn(block_plugin_api::ops::OpId),
-    Frame(FrameCommit),
+    LaidOut(LayoutCommit),
+    Presented(PresentCommit),
     Laid(Laid),
 }
 
@@ -221,7 +302,8 @@ impl From<Heard> for Answer {
             Heard::Layout(layout) => Self::Layout(layout),
             Heard::FrameNeeded => Self::FrameNeeded,
             Heard::MissingCharacters(missing) => Self::MissingCharacters(missing),
-            Heard::Frame(commit) => Self::Frame(*commit),
+            Heard::LaidOut(commit) => Self::LaidOut(*commit),
+            Heard::Presented(presented) => Self::Presented(presented),
             Heard::Hello(_) | Heard::ShutDown | Heard::Unanswered(_) => {
                 unreachable!("the session takes what it hears of its own")
             }
@@ -281,6 +363,9 @@ struct Pacing {
     drawn_at: Duration,
     requested_at: Option<Duration>,
     animated: u64,
+    asked_in: u64,
+    painting: bool,
+    needed_again: bool,
 }
 
 impl Pacing {
@@ -290,10 +375,16 @@ impl Pacing {
         self.animating = false;
         self.paint_at = None;
         self.requested_at = None;
+        self.painting = false;
+        self.needed_again = false;
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
-        (self.needed || (self.animated != pass && self.asked_by(now)))
+        self.due_once_seen(false, now, pass)
+    }
+
+    fn due_once_seen(&self, seen: bool, now: Duration, pass: u64) -> bool {
+        (self.needed || (seen && self.unseen) || (self.animated != pass && self.asked_by(now)))
             && self
                 .requested_at
                 .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
@@ -306,10 +397,20 @@ impl Pacing {
     fn request(&mut self, now: Duration, pass: u64) {
         self.requested_at = Some(now);
         self.animated = pass;
+        self.asked_in = pass;
+    }
+
+    fn laying_out(&self, pass: u64) -> bool {
+        self.requested_at.is_some() && self.asked_in == pass && !self.painting
+    }
+
+    fn need(&mut self) {
+        self.needed = true;
+        self.needed_again |= self.requested_at.is_some();
     }
 
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
-        self.needed = false;
+        self.needed = std::mem::take(&mut self.needed_again);
         self.requested_at = None;
         self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
@@ -396,6 +497,10 @@ impl Runtime {
             presents: Presents::default(),
             frames: 0,
             steps: 0,
+            relaid: false,
+            awaiting_input: false,
+            drawn: HashMap::default(),
+            placers: HashMap::default(),
             idle_since: None,
         }
     }
@@ -427,6 +532,7 @@ impl Runtime {
         self.painting = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
+        self.drawn.clear();
         self.instances.reopen();
         super::docks::restarted(&plugin.identity.id);
         self.backend.start(&plugin);
@@ -543,25 +649,33 @@ impl Runtime {
             true => self.update(Vec::new()),
             false => self.pump(),
         }
-        self.request_frame();
         true
     }
 
-    fn start(&mut self, pass: u64) {
+    fn start(&mut self, pass: u64) -> bool {
         self.detect_error();
         if self.error.is_some() || !(self.instances.has_mounted() || self.pass + 1 >= pass) {
-            return;
+            return false;
         }
         self.pump();
-        self.request_frame();
+        true
     }
 
-    fn settle(&mut self, deadline: Deadline) -> bool {
-        while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
-            self.pump();
-            self.request_frame();
-        }
-        self.error.is_none() && !self.backend.settled()
+    fn will_draw(&self) -> bool {
+        let pass = host::pass();
+        self.error.is_none()
+            && self.session.granted_surface().is_some()
+            && self.pacing.asked_in != pass
+            && self.pacing.due_once_seen(host::seen(), self.now(), pass)
+    }
+
+    fn outstanding(&self) -> bool {
+        self.error.is_none()
+            && (!self.backend.settled() || self.pacing.painting || self.awaiting_input)
+    }
+
+    fn take_relaid(&mut self) -> bool {
+        std::mem::take(&mut self.relaid)
     }
 
     pub(super) fn name(&self) -> &str {
@@ -603,7 +717,15 @@ impl Runtime {
             (starting, "is starting"),
             (self.painting, "has yet to answer a paint"),
             (self.drawing(), "is drawing a frame"),
+            (
+                self.shows_undrawn_size(),
+                "shows a view at a size it has yet to draw",
+            ),
             (!self.backend.settled(), "has input or a step in flight"),
+            (
+                !self.held.is_empty(),
+                "has answers it sent mid-frame for the next frame to take in",
+            ),
             (
                 self.instances.awaiting_content(),
                 "has an editor waiting for its block's content",
@@ -612,6 +734,40 @@ impl Runtime {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason))
         .collect()
+    }
+
+    fn shows_undrawn_size(&self) -> bool {
+        self.layout
+            .screens
+            .iter()
+            .filter(|placement| placement.view != ViewId::PREVIEW)
+            .filter(|placement| self.instances.view_request_of(placement.screen).is_some())
+            .any(|placement| {
+                self.requested_size(placement.screen)
+                    .is_some_and(|requested| {
+                        requested.0 > 0
+                            && requested.1 > 0
+                            && self
+                                .drawn
+                                .get(&placement.screen)
+                                .is_some_and(|drawn| *drawn != requested)
+                    })
+            })
+    }
+
+    fn requested_size(&self, screen: ScreenId) -> Option<(u32, u32)> {
+        let request = self.instances.request_of(screen)?;
+        if request.fit {
+            return self
+                .layout
+                .placement(screen)
+                .map(|placement| (placement.width, placement.height));
+        }
+        let metrics = &request.metrics;
+        Some(match self.layout.placement(screen) {
+            Some(placement) => super::input::requested_at(metrics, super::input::finer(placement)),
+            None => (metrics.pixel_width, metrics.pixel_height),
+        })
     }
 
     fn request_painting(&mut self) {
@@ -646,15 +802,22 @@ impl Runtime {
         drawing && (self.pacing.needed || self.pacing.requested_at.is_some())
     }
 
-    fn request_frame(&mut self) {
+    fn request_frame(&mut self, held: bool) {
         if self.error.is_some() {
             return;
         }
         let drawing = self.session.granted_surface().is_some();
         let seen = host::seen();
+        let pass = host::pass();
         self.pacing.needed |= seen && self.pacing.unseen;
-        if drawing && self.pacing.due(self.now(), host::pass()) {
-            self.pacing.request(self.now(), host::pass());
+        let due = drawing && self.pacing.due(self.now(), pass);
+        self.awaiting_input = false;
+        if due && (held || self.pacing.asked_in == pass) {
+            host::request_repaint();
+        } else if due && self.backend.holds_input() {
+            self.awaiting_input = true;
+        } else if due {
+            self.pacing.request(self.now(), pass);
             self.pacing.unseen = !seen;
             self.send(vec![PluginCall::Draw {
                 now_micros: self.now().as_micros() as u64,
@@ -834,15 +997,18 @@ impl Runtime {
                 let mut held = false;
                 for heard in forwarded {
                     match heard {
-                        Heard::Frame(commit) => {
+                        Heard::LaidOut(commit) => {
                             let (now, later) = self.split(*commit);
-                            drawing.push(Answer::Frame(now));
+                            drawing.push(Answer::LaidOut(now));
                             if let Some(later) = later {
                                 held = true;
                                 self.held.push(Answer::Laid(later));
                             }
                         }
-                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
+                        heard @ (Heard::Paintings(_)
+                        | Heard::Layout(_)
+                        | Heard::FrameNeeded
+                        | Heard::Presented(_)) => {
                             drawing.push(Answer::from(heard));
                         }
                         heard => {
@@ -932,7 +1098,7 @@ impl Runtime {
         }
     }
 
-    fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
+    fn split(&self, commit: LayoutCommit) -> (LayoutCommit, Option<Laid>) {
         let mut commit = commit;
         self.instances.translate(&mut commit, true);
         let (moving, coming) =
@@ -948,7 +1114,7 @@ impl Runtime {
         commit.children = moving;
         let later = Laid {
             serial: commit.serial,
-            sizes: std::mem::take(&mut commit.sizes),
+            sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
         };
@@ -973,7 +1139,8 @@ impl Runtime {
                 | Answer::Ended(_)
                 | Answer::Service(_)
                 | Answer::Withdrawn(_)
-                | Answer::Frame(_) => None,
+                | Answer::LaidOut(_)
+                | Answer::Presented(_) => None,
             })
             .flatten()
             .collect()
@@ -987,26 +1154,28 @@ impl Runtime {
             changed |= self.instances.set_children(placements);
         }
         self.instances.laid(laid.serial, &screens);
-        self.report_docked();
+        changed |= self.report_docked();
         changed
     }
 
-    fn report_docked(&self) {
+    fn report_docked(&self) -> bool {
         let mut framed: stable_hash::HashMap<_, _> =
             self.instances.frame_children().into_iter().collect();
+        let mut changed = false;
         for (placer, children) in self.instances.docked_children() {
             let frame = framed.remove(&placer).flatten();
-            match self.instances.on_screen(placer) {
+            changed |= match self.instances.on_screen(placer) {
                 true => super::docks::placed(placer, &children, frame),
                 false => super::docks::offscreen(placer),
-            }
+            };
         }
         for (placer, frame) in framed {
-            match self.instances.on_screen(placer) {
+            changed |= match self.instances.on_screen(placer) {
                 true => super::docks::placed(placer, &[], frame),
                 false => super::docks::offscreen(placer),
-            }
+            };
         }
+        changed
     }
 
     fn apply(&mut self, answers: Vec<Answer>) {
@@ -1017,7 +1186,7 @@ impl Runtime {
         let mut changed = false;
         let heard = answers
             .iter()
-            .any(|answer| !matches!(answer, Answer::Frame(_)));
+            .any(|answer| !matches!(answer, Answer::LaidOut(_) | Answer::Presented(_)));
         for answer in answers {
             changed |= match answer {
                 Answer::Layout(layout) => {
@@ -1025,7 +1194,7 @@ impl Runtime {
                     true
                 }
                 Answer::FrameNeeded => {
-                    self.pacing.needed = true;
+                    self.pacing.need();
                     true
                 }
                 Answer::MissingCharacters(missing) => {
@@ -1045,8 +1214,17 @@ impl Runtime {
                     self.instances.translate(&mut answered, true);
                     self.instances.answered(answered.0, answered.1)
                 }
-                Answer::Frame(commit) => self.commit(commit),
-                Answer::Laid(laid) => self.lay(laid),
+                Answer::Presented(presented) => self.present(presented),
+                Answer::LaidOut(commit) => {
+                    let changed = self.commit(commit);
+                    self.relaid |= changed;
+                    changed
+                }
+                Answer::Laid(laid) => {
+                    let changed = self.lay(laid);
+                    self.relaid |= changed;
+                    changed
+                }
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
                 Answer::Published(instance, started) => {
@@ -1092,30 +1270,45 @@ impl Runtime {
         self.backend.answer_watches(answers, accepted);
     }
 
-    fn commit(&mut self, commit: FrameCommit) -> bool {
-        let FrameCommit {
+    fn present(&mut self, presented: PresentCommit) -> bool {
+        let PresentCommit {
+            serial: _,
+            repaint_after_micros,
+            animating,
+            presented,
+        } = presented;
+        self.pacing.animating = animating;
+        self.pacing.painting = false;
+        self.await_next_frame(repaint_after_micros);
+        if let Some(presented) = presented {
+            self.presents.report(presented);
+        }
+        self.drawn = self
+            .layout
+            .screens
+            .iter()
+            .map(|placement| (placement.screen, (placement.width, placement.height)))
+            .collect();
+        false
+    }
+
+    fn commit(&mut self, commit: LayoutCommit) -> bool {
+        let LayoutCommit {
             serial,
             sizes,
             reports,
             windows,
             children,
-            repaint_after_micros,
-            animating,
-            presented,
             window_requests,
             docks,
         } = commit;
+        self.pacing.painting = self.pacing.requested_at.is_some();
         for request in &window_requests {
             if let WindowRequest::Open(open) = request {
                 self.instances.adopt_window(open, &self.layout);
             }
         }
         super::request_windows(&self.plugin.identity.id, window_requests);
-        self.pacing.animating = animating;
-        self.await_next_frame(repaint_after_micros);
-        if let Some(presented) = presented {
-            self.presents.report(presented);
-        }
         self.instances.adopt_anchored(&reports, &self.layout);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
@@ -1127,7 +1320,7 @@ impl Runtime {
             children,
         });
         changed |= self.instances.refresh_anchoring_views();
-        super::docks::heard(&self.plugin.identity.id, docks);
+        changed |= super::docks::heard(&self.plugin.identity.id, docks);
         changed
     }
 
@@ -1186,15 +1379,7 @@ impl Runtime {
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
             drawn,
-            requested: self
-                .instances
-                .request_of(screen)
-                .map(|request| match placement {
-                    Some(placement) => {
-                        super::input::requested_at(&request.metrics, super::input::finer(placement))
-                    }
-                    None => (request.metrics.pixel_width, request.metrics.pixel_height),
-                }),
+            requested: self.requested_size(screen),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
             layer: None,
@@ -1515,37 +1700,100 @@ pub fn poll() {
     });
 }
 
-pub fn settle() {
+pub fn settle() -> bool {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let deadline = match host.deadline {
             Some((at, deadline)) if at == pass => deadline,
-            _ => Deadline::after(match host::clock_stopped() {
-                true => STOPPED_CLOCK_FRAME_BUDGET,
-                false => FRAME_BUDGET,
-            }),
+            _ => host.frame_deadline(),
         };
         host.deadline = Some((pass, deadline));
         let asked: Vec<String> = host
             .runtimes
             .iter_mut()
             .filter_map(|(id, runtime)| {
+                runtime.take_relaid();
                 runtime
                     .contain(|runtime| runtime.ask(pass))
                     .then(|| id.clone())
             })
             .collect();
+        host.request_frames(&asked);
         let started = std::time::Instant::now();
-        let mut over = false;
-        for id in asked {
-            if let Some(runtime) = host.runtimes.get_mut(&id) {
-                over |= runtime.contain(|runtime| runtime.settle(deadline));
-            }
-        }
+        let (relaid, over) = wait_on(&mut host, &asked, deadline);
         host.waited += started.elapsed();
         host.over_budget += u64::from(over);
+        host.settled_at = Some(Instant::now());
+        relaid
+    })
+}
+
+fn frame_wait(
+    now: Duration,
+    present: Option<(Duration, Duration)>,
+    composites: &VecDeque<Duration>,
+) -> Duration {
+    let composite = composites
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or(UNMEASURED_COMPOSITE)
+        + SUBMIT_MARGIN;
+    let (mut present, interval) = present.unwrap_or((now + UNKNOWN_REFRESH, UNKNOWN_REFRESH));
+    let interval = interval.max(Duration::from_millis(1));
+    while present < now + composite {
+        present += interval;
+    }
+    present - composite - now
+}
+
+pub fn begin_frame(
+    next_present: Option<Instant>,
+    refresh: Option<Duration>,
+    prepared: Option<Instant>,
+) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if let (Some(settled), Some(prepared)) = (host.settled_at.take(), prepared)
+            && prepared > settled
+        {
+            if host.composites.len() == REMEMBERED_COMPOSITES {
+                host.composites.pop_front();
+            }
+            host.composites.push_back(prepared - settled);
+        }
+        host.present = next_present.map(|at| (at, refresh.unwrap_or(UNKNOWN_REFRESH)));
     });
+}
+
+fn wait_on(host: &mut Host, asked: &[String], deadline: Deadline) -> (bool, bool) {
+    loop {
+        let rung = block_guest_host::bell::rung();
+        let mut relaid = false;
+        let mut outstanding = false;
+        for id in asked {
+            if let Some(runtime) = host.runtimes.get_mut(id) {
+                runtime.contain(Runtime::pump);
+                relaid |= runtime.take_relaid();
+            }
+        }
+        if relaid {
+            return (true, false);
+        }
+        host.request_frames(asked);
+        for id in asked {
+            if let Some(runtime) = host.runtimes.get(id) {
+                outstanding |= runtime.outstanding();
+            }
+        }
+        if !outstanding {
+            return (false, false);
+        }
+        if !block_guest_host::bell::wait(rung, deadline) {
+            return (false, true);
+        }
+    }
 }
 
 pub fn busy() -> Vec<String> {
@@ -1585,11 +1833,21 @@ pub fn drawing() -> bool {
     })
 }
 
-pub fn start_frames() {
+pub fn start_frames(laying_out: bool) {
     let pass = host::pass();
     HOST.with(|host| {
-        for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.contain(|runtime| runtime.start(pass));
+        let mut host = host.borrow_mut();
+        let started: Vec<String> = host
+            .runtimes
+            .iter_mut()
+            .filter_map(|(id, runtime)| {
+                runtime
+                    .contain(|runtime| runtime.start(pass))
+                    .then(|| id.clone())
+            })
+            .collect();
+        if !laying_out {
+            host.request_frames(&started);
         }
     });
 }
@@ -2092,8 +2350,42 @@ pub fn take_changed() -> Vec<String> {
     CHANGED.with(|changed| changed.borrow_mut().drain().collect())
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ViewPlacer<'a> {
+    pub plugin: &'a str,
+    pub instance: EditorInstanceId,
+    pub view: ViewId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Placer {
+    plugin: String,
+    instance: EditorInstanceId,
+    view: ViewId,
+}
+
+fn reaches(edges: &[(&str, &str)], from: &str, to: &str) -> bool {
+    let mut seen = stable_hash::HashSet::default();
+    let mut next = vec![from];
+    while let Some(at) = next.pop() {
+        if at == to {
+            return true;
+        }
+        if seen.insert(at) {
+            next.extend(
+                edges
+                    .iter()
+                    .filter(|(placer, _)| *placer == at)
+                    .map(|(_, placed)| *placed),
+            );
+        }
+    }
+    false
+}
+
 pub struct ViewSlot<'a> {
     pub plugin: &'a PluginManifest,
+    pub placer: Option<ViewPlacer<'a>>,
     pub block_types: &'a Arc<crate::PluginCatalog>,
     pub client_id: Uuid,
     pub role: InstanceRole,
@@ -2104,6 +2396,7 @@ pub struct ViewSlot<'a> {
 pub fn mount_view(slot: ViewSlot<'_>) {
     let ViewSlot {
         plugin,
+        placer,
         block_types,
         client_id,
         role,
@@ -2131,6 +2424,17 @@ pub fn mount_view(slot: ViewSlot<'_>) {
             runtime
                 .instances
                 .mount(instance, view, client_id, role, block_types);
+            match placer {
+                Some(placer) => runtime.placers.insert(
+                    (instance, view.id),
+                    Placer {
+                        plugin: placer.plugin.to_owned(),
+                        instance: placer.instance,
+                        view: placer.view,
+                    },
+                ),
+                None => runtime.placers.remove(&(instance, view.id)),
+            };
             runtime.release_reported();
         });
         mark(&plugin.identity.id);
@@ -2141,6 +2445,9 @@ pub fn mount_view(slot: ViewSlot<'_>) {
 pub fn unmount_view(plugin_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
     with(plugin_id, |runtime| {
         runtime.instances.unmount(instance, region);
+        if !runtime.instances.mounted(instance, region) {
+            runtime.placers.remove(&(instance, region));
+        }
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
     });
@@ -2183,6 +2490,7 @@ pub struct ViewPlace {
     pub placement: Option<String>,
     pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
+    pub fit: Option<Vec2>,
 }
 
 pub(super) struct Offer {
@@ -2250,6 +2558,10 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
     let host_placement = chosen.placement.placement.clone();
     let origin = chosen.placement.origin;
     let anchor_bounds = chosen.placement.anchor_bounds;
+    let fit = chosen
+        .placement
+        .fit
+        .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
     let frame = chosen.frame;
     let view = chosen.view;
     let ViewPlace {
@@ -2269,19 +2581,23 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
             shown: shown.unwrap_or(Rect::ZERO),
         },
     );
-    let (size, scale_factor) = match region {
-        ViewId::PREVIEW => (
+    let (size, scale_factor) = match (region, fit) {
+        (ViewId::PREVIEW, _) => (
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+        (_, Some(fit)) => (fit / zoom, host::pixels_per_point() * zoom),
+        (_, None) => (rect.size() / zoom, host::pixels_per_point() * zoom),
     };
     let raster = match (raster, region) {
         (None, _) => scale_factor,
         (Some(raster), ViewId::PREVIEW) => preview_scale(rect.size(), scale_factor * raster),
         (Some(raster), _) => scale_factor * raster,
     };
-    let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
+    let visible = match fit {
+        Some(_) => Rect::from_min_size(Pos2::ZERO, size),
+        None => shown.map_or(Rect::ZERO, |source| scale_rect(source, size)),
+    };
     let anchor_space = anchor_bounds
         .filter(|_| region != ViewId::PREVIEW)
         .map(|bounds| AnchorSpace {
@@ -2306,6 +2622,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         host_placement,
         origin,
         anchor_space,
+        fit.is_some(),
     );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);

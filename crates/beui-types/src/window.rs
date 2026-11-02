@@ -20,6 +20,7 @@ pub struct WindowSpec {
     pub title: Option<String>,
     pub notice: Option<String>,
     pub role: WindowRole,
+    pub fit: Option<Vec2>,
     pub on_report: Callback<WindowReport>,
 }
 
@@ -31,5 +32,6 @@ impl PartialEq for WindowSpec {
             && self.title == other.title
             && self.notice == other.notice
             && self.role == other.role
+            && self.fit == other.fit
     }
 }

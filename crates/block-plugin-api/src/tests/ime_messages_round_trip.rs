@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn ime_messages_round_trip() {
-    round_trips(&FrameCommit {
+    round_trips(&LayoutCommit {
         windows: vec![ScreenWindow {
             screen: ScreenId(6),
             window: WindowRequests {

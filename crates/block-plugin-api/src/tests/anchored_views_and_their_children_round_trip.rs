@@ -50,7 +50,7 @@ fn anchored_views_and_their_children_round_trip() {
         },
         radius: 10.0,
     }];
-    let frame = FrameCommit {
+    let frame = LayoutCommit {
         reports: vec![
             anchored_report(
                 menu,
@@ -93,6 +93,7 @@ fn anchored_views_and_their_children_round_trip() {
                 layer: ChildLayer::Above,
                 mode: ChildMode::Live,
                 intrinsic: None,
+                fit: None,
                 rotation: 0.0,
                 opacity: 1.0,
                 follows_view: false,

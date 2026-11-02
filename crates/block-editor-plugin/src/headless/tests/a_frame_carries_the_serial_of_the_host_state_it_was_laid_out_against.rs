@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    EditorInstanceId, FrameCommit, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId,
+    EditorInstanceId, HelloAccepted, LayoutCommit, OpenBlock, Opening, ParentView, ScreenId,
     ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
     ViewportMetrics,
 };
@@ -72,12 +72,13 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         }])
         .unwrap();
     plugin.configure(serial).unwrap();
 }
 
-fn drawn(plugin: &mut HeadlessPlugin) -> FrameCommit {
+fn drawn(plugin: &mut HeadlessPlugin) -> LayoutCommit {
     plugin.draw();
     plugin.outbound().expect("a drawn plugin commits a frame")
 }

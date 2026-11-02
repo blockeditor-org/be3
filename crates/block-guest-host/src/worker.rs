@@ -25,6 +25,10 @@ impl Deadline {
         }
     }
 
+    pub fn at(at: Instant) -> Self {
+        Self { at }
+    }
+
     pub fn remaining(self) -> Option<Duration> {
         self.at.checked_duration_since(Instant::now())
     }

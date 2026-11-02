@@ -861,18 +861,23 @@ fn empty_declaration() -> DockDeclaration {
 }
 
 fn with<R>(act: impl FnOnce(&mut Docks) -> R) -> R {
+    with_changed(act).0
+}
+
+fn with_changed<R>(act: impl FnOnce(&mut Docks) -> R) -> (R, bool) {
     let (result, changed) = DOCKS.with(|docks| {
         let mut docks = docks.borrow_mut();
         let result = act(&mut docks);
         (result, docks.take_changed())
     });
-    if !changed.is_empty() {
+    let any = !changed.is_empty();
+    if any {
         for plugin in changed {
             super::runtime::mark(&plugin);
         }
         block_app_base::host::request_repaint();
     }
-    result
+    (result, any)
 }
 
 pub(super) fn register(instance: EditorInstanceId, plugin: &str, block: Option<Uuid>) {
@@ -891,16 +896,16 @@ pub(super) fn placed(
     placer: EditorInstanceId,
     children: &[DockedChild],
     framed: Option<DockedChild>,
-) {
-    with(|docks| docks.placed(placer, children, framed));
+) -> bool {
+    with_changed(|docks| docks.placed(placer, children, framed)).1
 }
 
-pub(super) fn offscreen(placer: EditorInstanceId) {
-    with(|docks| docks.offscreen(placer));
+pub(super) fn offscreen(placer: EditorInstanceId) -> bool {
+    with_changed(|docks| docks.offscreen(placer)).1
 }
 
-pub(super) fn heard(plugin: &str, messages: Vec<DockMessage>) {
-    with(|docks| docks.heard(plugin, messages));
+pub(super) fn heard(plugin: &str, messages: Vec<DockMessage>) -> bool {
+    with_changed(|docks| docks.heard(plugin, messages)).1
 }
 
 pub(super) fn docked(instance: EditorInstanceId) -> bool {

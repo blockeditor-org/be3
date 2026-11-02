@@ -6,9 +6,9 @@ use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
     ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
-    Failure, FrameChrome, FrameCommit, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size,
-    TimedInput, View, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
+    Failure, FrameChrome, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
+    Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
+    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -100,6 +100,7 @@ struct ViewState {
     reported_children: Option<ReportedChildren>,
     age: u32,
     windows: bool,
+    fit: bool,
     docked: bool,
     view_placement: Option<ViewPlacement>,
     host_place: Option<String>,
@@ -394,6 +395,7 @@ impl EditorSession {
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
             state.windows = request.windows;
+            state.fit = request.fit;
             state.docked = request.docked;
             state.view_placement = Some(request.placement);
             state.host_place.clone_from(&request.host_place);
@@ -402,7 +404,7 @@ impl EditorSession {
         }
     }
 
-    pub fn commit(&mut self, commit: &mut FrameCommit) {
+    pub fn commit(&mut self, commit: &mut block_plugin_api::LayoutCommit) {
         commit.sizes.extend(self.view_sizes());
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
@@ -707,6 +709,19 @@ impl EditorSession {
         sizes
     }
 
+    fn fitted(&mut self, view: ViewId, fitted: Vec2) {
+        let Some(state) = self.views.get_mut(&view) else {
+            return;
+        };
+        let raster = state.metrics.as_ref().map_or(1.0, |metrics| metrics.raster);
+        let raster = match raster.is_finite() && raster > 0.0 {
+            true => raster,
+            false => 1.0,
+        };
+        let (width, height) = crate::plugin::fitted_pixels(fitted, raster);
+        state.used = Some(vec2(width as f32 / raster, height as f32 / raster));
+    }
+
     fn used(&mut self, view: ViewId, content: Rect) {
         let Some(state) = self.views.get_mut(&view) else {
             return;
@@ -818,6 +833,7 @@ impl EditorSession {
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
             windows: state.is_some_and(|state| state.windows),
+            fit: state.is_some_and(|state| state.fit),
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
             anchor_space: state.and_then(|state| state.anchor_space.clone()),
@@ -931,7 +947,10 @@ impl EditorSession {
         }
         let screen = self.placement(view).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
-        self.used(view, content);
+        match frame.fitted {
+            Some(fitted) => self.fitted(view, fitted),
+            None => self.used(view, content),
+        }
         let reported_content = self
             .host
             .take_content(view)

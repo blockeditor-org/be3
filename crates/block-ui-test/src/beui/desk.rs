@@ -197,6 +197,7 @@ impl Desk {
                     },
                     bounds: display.rect,
                 }),
+                fit: false,
             });
         let windows = self.windows.iter().map(|window| {
             let display = owner(&self.displays, window.rect);
@@ -218,6 +219,7 @@ impl Desk {
                     },
                     bounds: display.rect,
                 }),
+                fit: false,
             }
         });
         displays.chain(windows).collect()

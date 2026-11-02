@@ -100,6 +100,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         }]),
         Delivery::Configure(1),
     ] {
@@ -108,10 +109,16 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
 
     let mut surfaces = Surfaces::new(spec).expect("surfaces need no gpu when not rendered");
     surfaces.place(screens.layout().clone());
-    let commit = surfaces
-        .render(&mut screens)
-        .expect("the frame runs")
-        .expect("the plugin drew one frame");
+    let (commit, ran) = surfaces
+        .lay_out(&mut screens)
+        .expect("the plugin lays out one frame");
     assert_eq!(commit.reports.len(), 1, "the editor's frame ran");
-    assert_eq!(commit.presented, None, "nothing was presented");
+    let presented = surfaces
+        .paint(&mut screens, commit.serial, ran)
+        .expect("the frame runs");
+    assert_eq!(
+        presented.serial, commit.serial,
+        "the present names the layout it painted"
+    );
+    assert_eq!(presented.presented, None, "nothing was presented");
 }

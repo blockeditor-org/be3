@@ -283,10 +283,17 @@ impl Shell {
                 </beui::styled::Root>
             }
         });
-        document.on_interacted(block_app_plugin_host::start_frames);
+        document.on_interacted(|| {
+            block_app_plugin_host::start_frames(beui::native::with_document(|document| {
+                document.needs_layout()
+            }));
+        });
         document.on_laid_out(|| {
-            block_app_plugin_host::settle();
+            let relaid = block_app_plugin_host::settle();
             compositor::notify_after_layout();
+            if relaid {
+                beui::native::with_document(beui::native::Document::run_laid_out_again);
+            }
         });
         Self {
             document,
@@ -336,6 +343,11 @@ impl beui::native::App for Shell {
 
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
+        block_app_plugin_host::begin_frame(
+            context.next_present(),
+            context.refresh_interval(),
+            context.last_prepared(),
+        );
         frame::begin(context);
         if context.hurried() {
             block_app_stack::seal_owed();

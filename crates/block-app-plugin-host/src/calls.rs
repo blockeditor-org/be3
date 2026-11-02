@@ -1,6 +1,6 @@
 use block_plugin_api::{
     AudioStatus, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
-    EditorInstanceId, Failure, Fonts, FrameCommit, Hello, InputBatch, Opening, PickedBlock,
+    EditorInstanceId, Failure, Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock,
     Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
@@ -128,7 +128,8 @@ pub(super) enum Heard {
     Layout(ScreenLayout),
     FrameNeeded,
     MissingCharacters(Vec<char>),
-    Frame(Box<FrameCommit>),
+    LaidOut(Box<LayoutCommit>),
+    Presented(block_plugin_api::PresentCommit),
     ShutDown,
     Unanswered(String),
     Shell(ShellCall),
@@ -190,9 +191,9 @@ pub(super) trait BlockIds {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>);
 }
 
-impl BlockIds for FrameCommit {
+impl BlockIds for LayoutCommit {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        FrameCommit::visit_block_ids(self, visit);
+        LayoutCommit::visit_block_ids(self, visit);
     }
 }
 

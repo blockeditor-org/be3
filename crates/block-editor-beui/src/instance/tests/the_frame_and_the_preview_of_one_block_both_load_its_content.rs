@@ -68,6 +68,7 @@ fn screen(shown: View, screen: u32) -> (ScreenPlacement, ScreenRequest) {
         origin: None,
         docked: false,
         anchor_space: None,
+        fit: false,
     };
     (placement, request)
 }

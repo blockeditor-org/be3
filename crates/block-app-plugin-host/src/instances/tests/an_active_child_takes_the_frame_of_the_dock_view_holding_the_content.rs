@@ -81,6 +81,7 @@ fn an_active_child_takes_the_frame_of_the_dock_view_holding_the_content() {
             layer: ChildLayer::Below,
             mode: ChildMode::Active,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

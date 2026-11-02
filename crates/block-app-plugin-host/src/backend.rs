@@ -176,21 +176,12 @@ impl Backend {
         Some(platform::frame(presented, presents))
     }
 
-    pub(super) fn settled(&self) -> bool {
-        self.worker.as_ref().is_none_or(Worker::settled)
+    pub(super) fn holds_input(&self) -> bool {
+        self.wire.holds_input()
     }
 
-    pub(super) fn wait(&mut self, deadline: Deadline) -> bool {
-        let Some(worker) = &mut self.worker else {
-            return false;
-        };
-        match worker.wait(deadline) {
-            Ok(woken) => woken,
-            Err(failure) => {
-                self.fail(failure);
-                true
-            }
-        }
+    pub(super) fn settled(&self) -> bool {
+        self.worker.as_ref().is_none_or(Worker::settled)
     }
 
     pub(super) fn took(&mut self) -> Option<StepTime> {

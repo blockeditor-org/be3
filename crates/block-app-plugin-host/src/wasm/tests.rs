@@ -128,6 +128,7 @@ fn screens() -> Vec<ScreenRequest> {
         host_place: None,
         docked: false,
         anchor_space: None,
+        fit: false,
         origin: None,
     }]
 }
@@ -146,7 +147,11 @@ fn painted(
     session.step(&mut plugin);
     session.draw = Some(plugin::draw(&mut session.connection, 0, 0, true).op());
     session.step(&mut plugin);
-    assert!(session.drawn, "the plugin answered the draw with a frame");
+    session.step(&mut plugin);
+    assert!(
+        session.drawn,
+        "the plugin answered the draw in the step after the one that laid it out"
+    );
     assert!(
         plugin.take_presented().contains(&SURFACE),
         "the plugin presented its surface"

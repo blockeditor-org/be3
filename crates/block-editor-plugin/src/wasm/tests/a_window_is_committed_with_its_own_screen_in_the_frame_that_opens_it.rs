@@ -17,7 +17,7 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
             height: 100.0,
         },
     });
-    let commit = rig.draw();
+    let (commit, presented) = rig.draw_and_present();
 
     let open = commit
         .window_requests
@@ -53,7 +53,7 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
             .any(|report| report.screen == open.screen),
         "the window is reported in the commit that opens it"
     );
-    let damage = commit.presented.expect("the frame presented").damage;
+    let damage = presented.presented.expect("the frame presented").damage;
     assert!(
         damage.iter().any(|damage| damage.screen == open.screen),
         "and painted in it: {damage:?}"

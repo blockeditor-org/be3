@@ -33,6 +33,7 @@ fn placement(rect: Rect, clip: Rect) -> ViewPlace {
         placement: None,
         origin: None,
         anchor_bounds: None,
+        fit: None,
     }
 }
 

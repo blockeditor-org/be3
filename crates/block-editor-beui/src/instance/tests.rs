@@ -78,6 +78,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             origin: None,
             docked: false,
             anchor_space: None,
+            fit: false,
         }],
     );
 }
@@ -116,6 +117,7 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         origin: None,
         docked: docked && shown.is_main(),
         anchor_space: None,
+        fit: false,
     };
     (placement, request)
 }
@@ -132,15 +134,12 @@ fn show_docked(session: &mut EditorSession, screens: &[(View, u64)], docked: boo
 }
 
 fn dock_messages(session: &mut EditorSession) -> Vec<block_plugin_api::DockMessage> {
-    let mut commit = block_plugin_api::FrameCommit {
+    let mut commit = block_plugin_api::LayoutCommit {
         serial: 0,
         sizes: Vec::new(),
         reports: Vec::new(),
         windows: Vec::new(),
         children: Vec::new(),
-        repaint_after_micros: None,
-        animating: false,
-        presented: None,
         window_requests: Vec::new(),
         docks: Vec::new(),
     };

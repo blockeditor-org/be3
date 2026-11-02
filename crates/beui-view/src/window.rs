@@ -99,6 +99,7 @@ pub fn Window(
     #[prop(default = None)] title: Prop<Option<String>>,
     #[prop(default = None)] notice: Prop<Option<String>>,
     #[prop(default = WindowRole::Normal)] role: Prop<WindowRole>,
+    #[prop(default = None)] fit: Prop<Option<Vec2>>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] keep_alive: bool,
@@ -134,8 +135,16 @@ pub fn Window(
         }
         on_report.call(report);
     });
-    let width = create_memo(move || shown.get().x);
-    let height = create_memo(move || shown.get().y);
+    let fitting = fit.clone();
+    let width = create_memo(move || match fitting.get() {
+        Some(_) => crate::types::Extent::fraction(1.0),
+        None => crate::types::Extent::px(shown.get().x),
+    });
+    let fitting = fit.clone();
+    let height = create_memo(move || match fitting.get() {
+        Some(_) => crate::types::Extent::fraction(1.0),
+        None => crate::types::Extent::px(shown.get().y),
+    });
     let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
     let spec = create_memo(move || {
         Some(WindowSpec {
@@ -145,6 +154,7 @@ pub fn Window(
             title: title.get(),
             notice: notice.get(),
             role: role.get(),
+            fit: fit.get(),
             on_report: heard,
         })
     });

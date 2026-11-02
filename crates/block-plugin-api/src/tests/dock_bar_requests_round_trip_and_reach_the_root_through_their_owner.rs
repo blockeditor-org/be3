@@ -33,7 +33,7 @@ fn dock_bar_requests_round_trip_and_reach_the_root_through_their_owner() {
             hidden: true,
         }),
     ];
-    let message = FrameCommit {
+    let message = LayoutCommit {
         docks: requests
             .iter()
             .map(|request| {

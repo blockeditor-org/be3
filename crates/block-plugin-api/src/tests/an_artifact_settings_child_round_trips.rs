@@ -16,6 +16,7 @@ fn an_artifact_settings_child_round_trips() {
             layer: ChildLayer::Below,
             mode: ChildMode::Live,
             intrinsic: None,
+            fit: None,
             rotation: 0.0,
             opacity: 1.0,
             follows_view: false,

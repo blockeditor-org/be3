@@ -32,6 +32,7 @@ fn a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint() 
                 child_view,
                 anchors: create_memo(|| None),
                 encloses: create_memo(|| None),
+                placer: Placer::new("test.placer", EditorInstanceId(1), ViewId::MAIN),
             };
             let outer = ChildNodes::joining(None, joined(1, main));
             let inner = ChildNodes::joining(Some(outer), joined(2, window));

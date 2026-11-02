@@ -74,6 +74,27 @@ pub(crate) type ChildView =
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
+pub(crate) struct ChildFit(pub(crate) Memo<Option<Vec2>>);
+
+#[derive(Clone, Copy)]
+pub(crate) struct Placer {
+    plugin: Stored<String>,
+    instance: EditorInstanceId,
+    view: ViewId,
+}
+
+#[cfg(test)]
+impl Placer {
+    pub(crate) fn new(plugin: &str, instance: EditorInstanceId, view: ViewId) -> Self {
+        Self {
+            plugin: store(plugin.to_owned()),
+            instance,
+            view,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 struct Enclosing(Memo<Option<NodeRef>>);
 
 #[derive(Clone, Copy)]
@@ -263,8 +284,26 @@ pub(crate) fn PluginView(
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
     })));
+    let fit = use_context::<ChildFit>()
+        .filter(|_| region.id == ViewId::MAIN)
+        .map(|ChildFit(fit)| fit);
+    provide_context(ChildFit(create_memo(|| None)));
+    let placer = use_context::<Placer>().map(|placer| {
+        (
+            placer.plugin.value().to_string(),
+            placer.instance,
+            placer.view,
+        )
+    });
     block_app_plugin_host::mount_view(ViewSlot {
         plugin: &editor.plugin,
+        placer: placer.as_ref().map(
+            |(plugin, instance, view)| block_app_plugin_host::ViewPlacer {
+                plugin,
+                instance: *instance,
+                view: *view,
+            },
+        ),
         block_types: &editor.block_types,
         client_id: editor.client_id,
         role: editor.role,
@@ -320,6 +359,7 @@ pub(crate) fn PluginView(
                 origin: origin.get_untracked(),
                 anchor_bounds: (!offscreen && !region.is_preview())
                     .then(|| anchor_bounds.get_untracked()),
+                fit: fit.and_then(|fit| fit.get_untracked()),
             },
             frame.get_untracked(),
             view.get_untracked(),
@@ -428,6 +468,11 @@ pub(crate) fn PluginView(
             child_view,
             anchors,
             encloses,
+            placer: Placer {
+                plugin: plugin_id,
+                instance,
+                view: region.id,
+            },
         },
     );
     let (reports, tick) = super::editors::reports();
@@ -597,7 +642,7 @@ pub(crate) fn PluginView(
             && (hosts_windows
                 || (region.is_main() && block.is_some() && shell.get_untracked() == block))
     });
-    take_keyboard(state, given, &catcher, primary);
+    take_keyboard(state, given, &catcher, primary, mount);
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, plugin_id, instance, region, &catcher, primary);
@@ -1418,30 +1463,64 @@ fn toggle_keyboard_when_asked(state: Memo<PlacedView>, primary: Memo<bool>) {
     });
 }
 
+thread_local! {
+    static WANTING_KEYBOARD: RefCell<Vec<(u64, NodeId)>> = const { RefCell::new(Vec::new()) };
+}
+
 fn take_keyboard(
     state: Memo<PlacedView>,
     given: Option<Memo<bool>>,
     catcher: &NodeRef,
     primary: Memo<bool>,
+    mount: u64,
 ) {
     let wants = create_memo(move || {
         (state.with(|view| view.wants_keyboard) || given.is_some_and(|given| given.get()))
             && primary.get()
     });
     let catcher = *catcher;
+    let wanting = StoredCell::new(None::<NodeId>);
+    on_cleanup(move || {
+        if let Some(region) = wanting.get() {
+            WANTING_KEYBOARD.with_borrow_mut(|views| views.retain(|(_, view)| *view != region));
+        }
+    });
     create_effect(move || {
         let wanted = wants.get();
         untrack(|| {
             let Some(region) = catcher.try_get() else {
                 return;
             };
-            try_with_document(|document| match wanted {
-                true if document.focused_node() != Some(region) => {
-                    document.push_focus_scope(region);
-                    document.focus_focusable(region);
+            let (latest, last) = WANTING_KEYBOARD.with_borrow_mut(|views| {
+                views.retain(|(_, view)| *view != region);
+                if wanted {
+                    views.push((mount, region));
                 }
-                true => {}
-                false => document.pop_focus_scope(region),
+                let last = views
+                    .iter()
+                    .max_by_key(|(mount, _)| *mount)
+                    .map(|(_, view)| *view);
+                (last == Some(region), last)
+            });
+            wanting.set(wanted.then_some(region));
+            try_with_document(|document| {
+                let take = |document: &mut beui::native::Document, region: NodeId| {
+                    if document.focused_node() != Some(region) {
+                        document.push_focus_scope(region);
+                        document.focus_focusable(region);
+                    }
+                };
+                match wanted {
+                    true if latest => take(document, region),
+                    true => {}
+                    false => {
+                        let held = document.focused_node() == Some(region);
+                        document.pop_focus_scope(region);
+                        if let Some(last) = last.filter(|_| held) {
+                            take(document, last);
+                        }
+                    }
+                }
             });
         });
     });
@@ -1551,6 +1630,7 @@ pub(crate) struct Joined {
     pub(crate) child_view: ChildView,
     pub(crate) anchors: Memo<Option<super::anchored::AnchorHost>>,
     pub(crate) encloses: Memo<Option<NodeRef>>,
+    pub(crate) placer: Placer,
 }
 
 impl Joined {
@@ -1579,12 +1659,14 @@ pub(crate) struct ChildNodes {
     shared: Stored<BuiltChildren>,
     mount: u64,
     child_view: ChildView,
+    placer: Placer,
 }
 
 impl ChildNodes {
     pub(crate) fn joining(shares: Option<ChildNodes>, joined: Joined) -> Self {
         let mount = joined.mount;
         let child_view = joined.child_view;
+        let placer = joined.placer;
         let shared = match shares.filter(|shares| shares.shared.is_alive()) {
             Some(shares) => {
                 let views = shares.shared.with(|held| held.views);
@@ -1602,6 +1684,7 @@ impl ChildNodes {
             shared,
             mount,
             child_view,
+            placer,
         }
     }
 
@@ -1649,7 +1732,9 @@ impl ChildNodes {
         let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));
         let child_view = self.child_view;
         let mount = self.mount;
+        let placer = self.placer;
         let build = move || {
+            provide_context(placer);
             let holder = create_signal(mount);
             let holding = create_memo(move || {
                 let mount = holder.get();

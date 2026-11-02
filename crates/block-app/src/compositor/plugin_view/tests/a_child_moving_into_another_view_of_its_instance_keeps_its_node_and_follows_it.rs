@@ -21,6 +21,7 @@ fn a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_i
         child_view,
         anchors: create_memo(|| None),
         encloses: create_memo(|| None),
+        placer: Placer::new("test.placer", EditorInstanceId(1), ViewId::MAIN),
     };
     let view = reactive::Scope::new();
     let outer = view.run(|| ChildNodes::joining(None, joined(1, main)));

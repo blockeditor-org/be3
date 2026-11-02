@@ -41,7 +41,7 @@ use std::rc::Rc;
 
 use block_plugin_api::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
-    FrameCommit, HelloAccepted, HostTransform, OpenBlock, Opening, ParentView, ScreenId,
+    HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, ParentView, ScreenId,
     ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics,
 };
@@ -129,6 +129,7 @@ impl ViewHandler for AnchoringViews {
                             0.0,
                             1.0,
                             0.0,
+                            None,
                             None,
                             false,
                             None,
@@ -266,6 +267,7 @@ impl Rig {
             origin: None,
             docked: false,
             anchor_space: layers,
+            fit: false,
         }];
         screens.deliver(Delivery::Open(Opening::Block(OpenBlock {
             instance: INSTANCE,
@@ -291,15 +293,24 @@ impl Rig {
         *self.shared.open.borrow_mut() = layers;
     }
 
-    fn draw(&mut self) -> FrameCommit {
+    fn draw(&mut self) -> LayoutCommit {
+        self.draw_and_present().0
+    }
+
+    fn draw_and_present(&mut self) -> (LayoutCommit, block_plugin_api::PresentCommit) {
         self.screens
             .deliver(Delivery::Screens(self.requests.clone()));
         self.screens.deliver(Delivery::Configure(1));
         self.surfaces.place(self.screens.layout().clone());
-        self.surfaces
-            .render(&mut self.screens)
-            .expect("the frame runs")
-            .expect("the plugin drew a frame")
+        let (commit, ran) = self
+            .surfaces
+            .lay_out(&mut self.screens)
+            .expect("the plugin lays out a frame");
+        let presented = self
+            .surfaces
+            .paint(&mut self.screens, commit.serial, ran)
+            .expect("the frame runs");
+        (commit, presented)
     }
 
     fn screen_surface(&self) -> u32 {
@@ -314,7 +325,7 @@ impl Rig {
             .expect("the screen is laid out")
     }
 
-    fn anchored(commit: &FrameCommit) -> Vec<(ScreenId, AnchoredPlacement)> {
+    fn anchored(commit: &LayoutCommit) -> Vec<(ScreenId, AnchoredPlacement)> {
         commit
             .reports
             .iter()

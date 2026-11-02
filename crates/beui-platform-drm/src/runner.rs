@@ -855,9 +855,13 @@ impl Session {
             })
             .collect();
         let native = outputs.outputs.first().map(|first| first.screen.scale);
+        let refresh = outputs.outputs.iter().map(|output| output.refresh()).min();
         drop(guard);
         if let Some(native) = native {
             self.runner.reports().scaled(native);
+        }
+        if let Some(refresh) = refresh {
+            self.runner.reports().refreshes_every(refresh);
         }
         self.displays.set(shown);
         self.report_sizes();

@@ -86,7 +86,9 @@ pub use host::{
 };
 pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
-pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
+pub use plugin::{
+    Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler, fitted_pixels,
+};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

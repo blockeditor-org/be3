@@ -218,6 +218,7 @@ impl ModuleRunner {
                     ratio,
                     spec: region.spec,
                     docked: region.docked,
+                    fit: region.fit,
                 })
                 .collect(),
         );
@@ -595,6 +596,13 @@ impl ModuleRunner {
         let anchored = escaped::report(held, region.view.id, ratio);
         let report = self.views.take_report(id);
         let to_region = |rect: Rect| rect.scaled(ratio.recip());
+        let fitted = report
+            .fitted
+            .filter(|_| region.fit)
+            .map(|fitted| fitted / ratio);
+        if let Some(fitted) = fitted {
+            surfaces.of(id).size = block_editor_plugin::fitted_pixels(fitted, region.raster);
+        }
         Frame {
             content: report.content.map(to_region),
             painted: report.painted.into_iter().map(to_region).collect(),
@@ -624,6 +632,7 @@ impl ModuleRunner {
             window: self.requests(id, keyboard, ratio),
             description: region.describe.map(|_| self.describe(id, region, ratio)),
             anchored,
+            fitted,
             ..Frame::default()
         }
     }

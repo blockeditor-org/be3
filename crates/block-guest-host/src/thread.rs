@@ -151,6 +151,7 @@ pub fn spawn<R: Runnable + 'static>(
                 let _ = failed.send(Event::Failed(format!(
                     "The app failed while running it: {panic}"
                 )));
+                crate::bell::ring();
                 failing();
             }
         })
@@ -175,6 +176,7 @@ fn run<R: Runnable>(
     let report = |event: Event<R::Presented>, woken: bool| {
         let quiet = event.quiet(woken);
         let sent = reports.send(event).is_ok();
+        crate::bell::ring();
         if wakes(quiet, &waiting) {
             wake();
         }

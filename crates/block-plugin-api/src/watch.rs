@@ -38,6 +38,10 @@ impl<T> Watch<T> {
         self.waiting.is_some()
     }
 
+    pub fn holding(&self) -> bool {
+        self.open.is_some() && self.held.is_some()
+    }
+
     pub fn withdraw(&mut self, connection: &mut Connection, next: OpId) -> bool {
         if self.waiting != Some(next) {
             return false;
