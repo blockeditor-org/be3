@@ -2,13 +2,14 @@ mod entry;
 mod exec;
 mod icons;
 mod mime;
+mod xpm;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub use entry::{DesktopEntry, locales};
 pub use exec::{ExecError, arguments, command};
-pub use icons::{IconThemes, load_icon};
+pub use icons::{IconThemes, NamedIcons, load_icon};
 pub use mime::MimeGlobs;
 
 const TERMINALS: [(&str, &[&str]); 8] = [
@@ -147,6 +148,43 @@ impl Environment {
                 DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales)
             })
         })
+    }
+
+    pub fn entry_of_window(&self, program_id: &str) -> Option<DesktopEntry> {
+        if program_id.is_empty() {
+            return None;
+        }
+        self.entry(program_id)
+            .or_else(|| self.entry(&program_id.to_lowercase()))
+            .or_else(|| self.entry_of_class(program_id))
+    }
+
+    fn entry_of_class(&self, class: &str) -> Option<DesktopEntry> {
+        let mut seen = HashSet::new();
+        for dir in &self.data_dirs {
+            let applications = dir.join("applications");
+            let mut found = Vec::new();
+            collect(&applications, &applications, &mut found);
+            found.sort();
+            for (id, path) in found {
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let entry = DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales);
+                if let Some(entry) = entry
+                    && entry
+                        .startup_wm_class
+                        .as_deref()
+                        .is_some_and(|wm_class| wm_class.eq_ignore_ascii_case(class))
+                {
+                    return Some(entry);
+                }
+            }
+        }
+        None
     }
 
     fn runs(&self, entry: &DesktopEntry) -> bool {

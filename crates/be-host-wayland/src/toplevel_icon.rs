@@ -13,7 +13,7 @@ use smithay::wayland::xdg_toplevel_icon::{
     ToplevelIconCachedState, XdgToplevelIconHandler, XdgToplevelIconManager,
 };
 
-use crate::programs::{Environment, IconThemes, load_icon};
+use crate::programs::NamedIcons;
 use crate::state::{State, WindowId};
 
 pub const ICON_PIXELS: u32 = 64;
@@ -28,8 +28,7 @@ struct Key {
 
 pub(crate) struct ToplevelIcons {
     shown: HashMap<WindowId, (Key, Option<Image>)>,
-    themes: Option<IconThemes>,
-    named: HashMap<String, Option<Image>>,
+    named: NamedIcons,
 }
 
 impl ToplevelIcons {
@@ -40,23 +39,8 @@ impl ToplevelIcons {
         }
         Self {
             shown: HashMap::new(),
-            themes: None,
-            named: HashMap::new(),
+            named: NamedIcons::default(),
         }
-    }
-
-    fn named(&mut self, name: &str) -> Option<Image> {
-        if let Some(found) = self.named.get(name) {
-            return found.clone();
-        }
-        let themes = self
-            .themes
-            .get_or_insert_with(|| IconThemes::new(&Environment::from_env()));
-        let found = themes
-            .find(name, ICON_PIXELS)
-            .and_then(|path| load_icon(&path, ICON_PIXELS));
-        self.named.insert(name.to_owned(), found.clone());
-        found
     }
 }
 
@@ -88,7 +72,9 @@ impl State {
         if known == Some(&key) || (known.is_none() && key == Key::default()) {
             return;
         }
-        let named = name.as_deref().and_then(|name| self.icons.named(name));
+        let named = name
+            .as_deref()
+            .and_then(|name| self.icons.named.get(name, ICON_PIXELS));
         let image = named.or_else(|| pixels(&buffers));
         self.icons.shown.insert(id, (key, image));
         self.changed(id);
