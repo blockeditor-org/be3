@@ -32,7 +32,7 @@ be_wasm_ops_bindgen::generate!({
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
-        "host-contact", "host-image", "window-origin", "remap-state",
+        "host-contact", "host-image", "window-origin", "remap-state", "input-reach",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",

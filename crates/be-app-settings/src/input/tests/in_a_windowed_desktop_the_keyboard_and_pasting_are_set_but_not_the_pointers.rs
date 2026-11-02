@@ -66,5 +66,5 @@ fn in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers()
     ] {
         reset(&mut editor, row);
     }
-    assert_eq!(content(&editor).root(), &Default::default());
+    assert_eq!(content(&editor).root(), Default::default());
 }
