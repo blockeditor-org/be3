@@ -352,7 +352,11 @@ impl Element for ListNode {
             let size = item.size;
             let length = match size.size {
                 ItemSize::Fixed(fixed) if self.direction == Direction::Horizontal => {
-                    grid.snap(fixed.max(0.0))
+                    let fixed = grid.snap(fixed.max(0.0));
+                    match size.shrink > 0.0 {
+                        true => crate::layout::min_width(doc, painter, item.child).min(fixed),
+                        false => fixed,
+                    }
                 }
                 _ => crate::layout::min_width(doc, painter, item.child),
             };
@@ -394,6 +398,11 @@ impl Element for ListNode {
                 continue;
             }
             let length = match size.size {
+                ItemSize::Fixed(fixed) if size.shrink > 0.0 => {
+                    let least =
+                        crate::layout::least_length(doc, painter, item.child, direction, cross);
+                    size.clamp(least.min(grid.snap(fixed.max(0.0))))
+                }
                 ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
                 _ if size.yields() => {
                     let least =
