@@ -3,7 +3,7 @@ use std::time::Duration;
 use futures_util::future::{Either, select};
 use futures_util::pin_mut;
 
-use crate::dbus::test_bus::Bus;
+use crate::dbus::test_bus::{PrivateBus, within};
 
 struct Echo;
 
@@ -16,7 +16,7 @@ impl Echo {
 
 #[test]
 fn an_object_served_after_connecting_answers_the_first_call() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     zbus::block_on(async {
         let server = crate::dbus::build(bus.builder().internal_executor(false))
             .await
@@ -45,7 +45,8 @@ fn an_object_served_after_connecting_answers_the_first_call() {
             }
         };
         pin_mut!(call, serving);
-        let Either::Left((reply, _)) = select(call, serving).await;
+        let Either::Left((reply, _)) =
+            within("the object answers its first call", select(call, serving)).await;
         let reply = reply.expect("the object answers its first call");
         assert_eq!(
             reply.body().deserialize::<String>().expect("a string"),

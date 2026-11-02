@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 
 use futures_util::future::{Either, select};
 use futures_util::{FutureExt, Stream, StreamExt, pin_mut};
@@ -10,6 +11,7 @@ use zbus::{Connection, MatchRule, Message, MessageStream};
 use be_sdk_api::{WifiLink, WifiRequest, WifiStatus};
 
 use super::Backend;
+use crate::dbus::Bus;
 use super::model::{self, AccessPoint, Attempts, Outcome, Plan};
 use be_host_base::host::Post;
 
@@ -38,10 +40,10 @@ impl NetworkManager {
     pub fn start(reports: Post<WifiStatus>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(async move {
-            let Some(connection) = crate::dbus::system().await else {
-                return;
-            };
-            run_on(connection, requested, move |status| reports.send(status)).await;
+            serve(&crate::dbus::SYSTEM, requested, move |status| {
+                reports.send(status);
+            })
+            .await;
         });
         Self { requests }
     }
@@ -166,11 +168,36 @@ struct Watcher {
     unreadable: bool,
 }
 
-pub async fn run_on(
-    connection: Connection,
+pub async fn serve(
+    bus: &Bus,
     mut requested: UnboundedReceiver<WifiRequest>,
     mut report: impl FnMut(WifiStatus) + Send + 'static,
 ) {
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(connection.clone(), &mut requested, &mut report);
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
+    }
+}
+
+struct Unreachable<'a, R: FnMut(WifiStatus)>(&'a mut R);
+
+impl<R: FnMut(WifiStatus)> Drop for Unreachable<'_, R> {
+    fn drop(&mut self) {
+        (self.0)(WifiStatus::default());
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    requested: &mut UnboundedReceiver<WifiRequest>,
+    report: &mut (impl FnMut(WifiStatus) + Send),
+) -> ControlFlow<()> {
     let mut signals = match watch(&connection).await {
         Ok(signals) => Some(signals),
         Err(error) => {
@@ -191,7 +218,8 @@ pub async fn run_on(
         reported: None,
         unreadable: false,
     };
-    watcher.refresh(&mut report).await;
+    let mut report = Unreachable(report);
+    watcher.refresh(&mut report.0).await;
     loop {
         let next = {
             let request = requested.recv();
@@ -209,7 +237,7 @@ pub async fn run_on(
         };
         match next {
             Either::Left(Some(request)) => watcher.request(request).await,
-            Either::Left(None) => return,
+            Either::Left(None) => return ControlFlow::Break(()),
             Either::Right(Some(Ok(message))) => {
                 watcher.observe(&message).await;
                 if let Some(signals) = &mut signals {
@@ -223,7 +251,7 @@ pub async fn run_on(
             }
             Either::Right(None) => signals = None,
         }
-        watcher.refresh(&mut report).await;
+        watcher.refresh(&mut report.0).await;
     }
 }
 

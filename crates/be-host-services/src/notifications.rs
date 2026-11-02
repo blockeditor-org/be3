@@ -1,6 +1,8 @@
 mod hints;
 mod inbox;
 mod server;
+#[cfg(test)]
+mod tests;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -36,7 +38,10 @@ impl Notifications {
         let (requests, post) = host::mailbox(move |request: NotificationRequest| {
             receiving.borrow_mut().step(vec![request], Vec::new());
         });
-        crate::dbus::spawn(server::run(post, heard, ids));
+        let shown: server::Requests = Arc::new(move |request| post.send(request));
+        crate::dbus::spawn(async move {
+            server::serve(&crate::dbus::SESSION, shown, heard, ids).await;
+        });
         Self {
             held,
             _requests: requests,

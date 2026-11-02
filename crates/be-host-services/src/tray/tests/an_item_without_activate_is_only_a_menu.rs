@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc::unbounded_channel;
 use zbus::{Connection, MatchRule, MessageStream};
 
-use super::super::client::{Event, run_on};
-use crate::dbus::test_bus::Bus;
+use super::super::client::{Event, serve};
+use crate::dbus::test_bus::{PrivateBus, next, within};
 
 struct Indicator;
 
@@ -79,9 +79,7 @@ fn until(
     done: impl Fn(&[HostTrayItem]) -> bool,
 ) -> Vec<HostTrayItem> {
     loop {
-        let items = published
-            .recv()
-            .unwrap_or_else(|_| panic!("the tray shows {what}"));
+        let items = next(published, &format!("the tray shows {what}"));
         if done(&items) {
             return items;
         }
@@ -97,12 +95,11 @@ fn is_menu(items: &[HostTrayItem], key: &str) -> Option<bool> {
 
 #[test]
 fn an_item_without_activate_is_only_a_menu() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     let (published_sender, published) = std::sync::mpsc::channel();
     let (heard_sender, heard) = sync_channel(16);
     let (events, events_heard) = unbounded_channel();
     zbus::block_on(async {
-        let host = bus.connect().await;
         let indicator = bus.connect().await;
         let bare = bus.connect().await;
         let watcher_rule = MatchRule::builder()
@@ -115,10 +112,15 @@ fn an_item_without_activate_is_only_a_menu() {
         let mut watcher_up = MessageStream::for_match_rule(watcher_rule, &indicator, None)
             .await
             .expect("the item can watch for the watcher");
-        crate::dbus::spawn(run_on(host, events.clone(), events_heard, move |items| {
-            let _ = published_sender.send(items);
-        }));
-        watcher_up.next().await;
+        let shared = bus.shared();
+        let sender = events.clone();
+        crate::dbus::spawn(async move {
+            serve(&shared, sender, events_heard, move |items| {
+                let _ = published_sender.send(items);
+            })
+            .await;
+        });
+        within("the watcher comes up", watcher_up.next()).await;
 
         indicator
             .object_server()
@@ -160,7 +162,7 @@ fn an_item_without_activate_is_only_a_menu() {
         });
         let _ = events.send(Event::Request(TrayRequest::MenuOpened(click)));
         assert_eq!(
-            heard.recv().expect("the item hears ContextMenu"),
+            next(&heard, "the item hears ContextMenu"),
             "ContextMenu 1700 1050",
             "an item without a menu of its own is asked to show one where the click was"
         );

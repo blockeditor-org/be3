@@ -6,9 +6,9 @@ use tokio::sync::mpsc::unbounded_channel;
 use zbus::object_server::{InterfaceRef, SignalEmitter};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
-use super::super::network_manager::{PATH, SERVICE, SETTINGS_PATH, run_on};
+use super::super::network_manager::{PATH, SERVICE, SETTINGS_PATH, serve};
 use super::*;
-use crate::dbus::test_bus::Bus;
+use crate::dbus::test_bus::{PrivateBus, next};
 
 const DEVICE_PATH: &str = "/org/freedesktop/NetworkManager/Devices/1";
 const ACTIVE_PATH: &str = "/org/freedesktop/NetworkManager/ActiveConnection/1";
@@ -287,9 +287,7 @@ async fn moved(device: &InterfaceRef<FakeDevice>, new: u32, old: u32) {
 
 fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus) -> bool) {
     loop {
-        let status = published
-            .recv()
-            .unwrap_or_else(|_| panic!("the status shows {what}"));
+        let status = next(published, &format!("the status shows {what}"));
         if done(&status) {
             return;
         }
@@ -297,15 +295,13 @@ fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus
 }
 
 fn heard(heard: &Receiver<String>, what: &str) {
-    let got = heard
-        .recv()
-        .unwrap_or_else(|_| panic!("NetworkManager hears {what}"));
+    let got = next(heard, &format!("NetworkManager hears {what}"));
     assert_eq!(got, what);
 }
 
 #[test]
 fn wifi_on_a_private_bus_lists_networks_and_connects() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     let (published_sender, published) = std::sync::mpsc::channel();
     let (heard_sender, heard_by_manager) = sync_channel(16);
     let (requests, requested) = unbounded_channel();
@@ -315,7 +311,6 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
         ssids: HashMap::from([(1, b"Home".to_vec())]),
     }));
     zbus::block_on(async {
-        let host = bus.connect().await;
         let manager = bus.connect().await;
         let server = manager.object_server();
         server
@@ -396,9 +391,13 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
             .await
             .expect("the fake owns NetworkManager's name");
 
-        crate::dbus::spawn(run_on(host, requested, move |status| {
-            let _ = published_sender.send(status);
-        }));
+        let shared = bus.shared();
+        crate::dbus::spawn(async move {
+            serve(&shared, requested, move |status| {
+                let _ = published_sender.send(status);
+            })
+            .await;
+        });
         until(&published, "the networks in range", |status| {
             status.available
                 && status.enabled

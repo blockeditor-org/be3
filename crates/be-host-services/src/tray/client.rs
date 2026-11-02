@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::sync::{Arc, PoisonError};
 
 use be_sdk_api::{HostImage, HostTrayItem, TrayClick, TrayMenuItem, TrayRequest};
@@ -11,6 +12,7 @@ use zbus::zvariant::{OwnedValue, Value};
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
 use super::icons::Icons;
+use crate::dbus::Bus;
 use super::model::{
     Address, Items, Properties, introspected_activates, menu, properties, raw_entry,
 };
@@ -68,28 +70,46 @@ struct Client {
     serving: Option<Registered>,
 }
 
-pub async fn run(
-    sender: UnboundedSender<Event>,
-    events: UnboundedReceiver<Event>,
-    publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
-) {
-    let Some(connection) = crate::dbus::session().await else {
-        return;
-    };
-    run_on(connection, sender, events, publish).await;
-}
-
-pub async fn run_on(
-    connection: Connection,
+pub async fn serve(
+    bus: &Bus,
     sender: UnboundedSender<Event>,
     mut events: UnboundedReceiver<Event>,
-    mut publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
+    publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
 ) {
-    if let Err(error) = listen(&connection, &sender).await {
-        eprintln!("be-host: tray items cannot be watched: {error}");
-        return;
+    let mut published = Published(Box::new(publish));
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(connection.clone(), &sender, &mut events, &mut published);
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
     }
-    let serving = serve(&connection, &sender).await;
+}
+
+struct Published(Box<dyn FnMut(Vec<HostTrayItem>) + Send>);
+
+struct Shown<'a>(&'a mut Published);
+
+impl Drop for Shown<'_> {
+    fn drop(&mut self) {
+        (self.0.0)(Vec::new());
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    sender: &UnboundedSender<Event>,
+    events: &mut UnboundedReceiver<Event>,
+    published: &mut Published,
+) -> ControlFlow<()> {
+    if let Err(error) = listen(&connection, sender).await {
+        eprintln!("be-host: tray items cannot be watched: {error}");
+        return ControlFlow::Continue(());
+    }
+    let serving = serve_watcher(&connection, sender).await;
     let host = format!("org.kde.StatusNotifierHost-{}", std::process::id());
     if let Err(error) = connection
         .request_name_with_flags(host.as_str(), RequestNameFlags::DoNotQueue.into())
@@ -104,26 +124,28 @@ pub async fn run_on(
             }
         }
         None => {
-            if let Err(error) = join_watcher(&connection, &sender, &host).await {
+            if let Err(error) = join_watcher(&connection, sender, &host).await {
                 eprintln!("be-host: the running tray watcher cannot be used: {error}");
             }
         }
     }
     let mut client = Client {
         connection,
-        events: sender,
+        events: sender.clone(),
         icons: Arc::new(Icons::new()),
         items: Items::default(),
         serving,
     };
+    let shown = Shown(published);
     while let Some(event) = events.recv().await {
         if client.handle(event).await {
-            publish(client.items.published());
+            (shown.0.0)(client.items.published());
         }
     }
+    ControlFlow::Break(())
 }
 
-async fn serve(connection: &Connection, events: &UnboundedSender<Event>) -> Option<Registered> {
+async fn serve_watcher(connection: &Connection, events: &UnboundedSender<Event>) -> Option<Registered> {
     let registered = Registered::default();
     let watcher = Watcher {
         events: events.clone(),
