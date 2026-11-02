@@ -68,6 +68,7 @@ pub struct Textures {
     gpu: Option<Rc<Gpu>>,
     surfaces: HashMap<WlSurface, Current>,
     dmabufs: HashMap<WeakDmabuf, Rc<SurfaceTexture>>,
+    written: bool,
 }
 
 impl Textures {
@@ -83,6 +84,15 @@ impl Textures {
 
     pub fn get(&self, surface: &WlSurface) -> Option<Current> {
         self.surfaces.get(surface).cloned()
+    }
+
+    pub fn submit(&mut self) {
+        if !std::mem::take(&mut self.written) {
+            return;
+        }
+        if let Some(gpu) = &self.gpu {
+            gpu.queue.submit([]);
+        }
     }
 
     pub fn prune(&mut self) {
@@ -176,6 +186,7 @@ impl Textures {
                 },
                 size,
             );
+            self.written = true;
             self.surfaces.insert(
                 surface.clone(),
                 Current {
@@ -236,6 +247,7 @@ impl Textures {
             );
             Some(texture)
         });
+        self.written = true;
         match uploaded.ok().flatten() {
             Some(texture) => {
                 self.surfaces.insert(
