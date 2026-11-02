@@ -1603,7 +1603,12 @@ impl Session {
                 let target = match target {
                     [] => None,
                     [target] => Some(target.clone()),
-                    _ => return Err("usage: paint FILE.paint|FILE.png [TARGET] [in WINDOW|platform]".to_owned()),
+                    _ => {
+                        return Err(
+                            "usage: paint FILE.paint|FILE.png [TARGET] [in WINDOW|platform]"
+                                .to_owned(),
+                        );
+                    }
                 };
                 if let Some(target) = &target {
                     reveal_first(target, rendered.lines())?;
