@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use reactive::{Get, Set};
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
+use beui_reactive::{Get, Set};
 
 use crate::base::overlay::OverlayNode;
 use crate::context::{Context, Moved};
@@ -20,8 +20,8 @@ pub(crate) type Painting = Vec<(Rc<Display>, Vec2)>;
 
 pub(crate) struct Windows {
     nodes: Vec<(WindowId, NodeOf<OverlayNode>)>,
-    opens: ::reactive::OwnedSignal<bool>,
-    placed: ::reactive::OwnedSignal<bool>,
+    opens: ::beui_reactive::OwnedSignal<bool>,
+    placed: ::beui_reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
     hung: HashMap<WindowId, beui_types::WindowPlacement>,
@@ -41,8 +41,8 @@ impl Default for Windows {
     fn default() -> Self {
         Self {
             nodes: Vec::new(),
-            opens: ::reactive::OwnedSignal::new(false),
-            placed: ::reactive::OwnedSignal::new(false),
+            opens: ::beui_reactive::OwnedSignal::new(false),
+            placed: ::beui_reactive::OwnedSignal::new(false),
             asked: Vec::new(),
             wanted: HashMap::default(),
             hung: HashMap::default(),
@@ -73,11 +73,11 @@ impl Document {
         self.windows.opens.get_untracked() || self.windows.placed.get_untracked()
     }
 
-    pub fn watch_opens_windows(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_opens_windows(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.windows.opens.read_only()
     }
 
-    pub fn watch_placed_windows(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_placed_windows(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.windows.placed.read_only()
     }
 

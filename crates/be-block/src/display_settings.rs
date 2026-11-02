@@ -1,13 +1,15 @@
 use std::time::Duration;
 
-use be_model::{Document, Edit, Map, Model, ObjectId};
+use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::{Layered, union};
-pub use ui_preferences::{CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
+pub use be_lib_ui_preferences::{
+    CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind,
+};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ScreenOff {

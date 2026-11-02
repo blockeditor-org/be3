@@ -1,0 +1,12 @@
+[package]
+name = "be-wasm-gpu-guest"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi", features = ["wgpu"] }
+wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
+
+[lints]
+workspace = true

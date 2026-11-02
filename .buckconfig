@@ -44,7 +44,7 @@ sqlite_materializer_state = true
 # Where the remote execution cluster is: not here. Namespace shuts it down when
 # it has been idle, so ./scripts/buck asks the waker for its hosts and writes
 # them, with the header that authenticates to them, into .buckconfig.local
-# (crates/bootstrap/src/server.rs). The address is a bare
+# (crates/be-tool-bootstrap/src/server.rs). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
 # and there is no instance name.
 #

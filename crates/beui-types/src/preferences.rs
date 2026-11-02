@@ -1,4 +1,4 @@
-use ui_types::{PreferenceLayer, Preferences};
+use be_lib_ui_types::{PreferenceLayer, Preferences};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PreferenceSource {

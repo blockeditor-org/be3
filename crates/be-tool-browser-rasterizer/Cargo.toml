@@ -1,0 +1,18 @@
+[package]
+name = "be-tool-browser-rasterizer"
+description = "On-demand Playwright rendering of browser paint snapshots"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "browser-rasterizer"
+path = "src/main.rs"
+
+[dependencies]
+beui-fonts = { path = "../beui-fonts" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+serde_json = "1"
+
+[lints]
+workspace = true

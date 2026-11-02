@@ -1,5 +1,5 @@
 use super::{DockKey, DockState, DockingLayout};
-use reactive::Get;
+use beui_reactive::Get;
 
 impl<K: DockKey> DockingLayout<K> {
     pub fn switching(&self) -> bool {

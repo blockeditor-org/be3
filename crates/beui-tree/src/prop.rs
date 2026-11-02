@@ -1,4 +1,4 @@
-use reactive::{
+use beui_reactive::{
     Get, Memo, ReadSignal, Ready, Signal, Stored, check_tracked_read, hold, store, untrack,
 };
 

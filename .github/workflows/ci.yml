@@ -43,7 +43,7 @@ env:
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
 # comments with the summary, publish-bootstrap uploads a new release of
-# crates/bootstrap. Everything builds on the
+# crates/be-tool-bootstrap. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
 jobs:
@@ -118,10 +118,12 @@ jobs:
       # so which Chrome it is does not change what the previews compare. An
       # image without Chrome falls back to the download.
       - name: Install the browser preview runtime
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/browser-rasterizer/requirements.txt') != '' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/be-tool-browser-rasterizer/requirements.txt', 'crates/browser-rasterizer/requirements.txt') != '' }}
         run: |
+          requirements=crates/be-tool-browser-rasterizer/requirements.txt
+          [ -f "$requirements" ] || requirements=crates/browser-rasterizer/requirements.txt
           python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
-          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install --quiet -r crates/browser-rasterizer/requirements.txt
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install --quiet -r "$requirements"
           echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
           if chrome="$(command -v google-chrome)"; then
             echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
@@ -260,7 +262,7 @@ jobs:
   # This is not part of the gate. Whether the pull request passes was decided
   # by ci; this only decides whether its author has to push the fix themselves.
   #
-  # A fix that pins a new release of crates/bootstrap waits for
+  # A fix that pins a new release of crates/be-tool-bootstrap waits for
   # publish-bootstrap, since the run its push starts downloads that release,
   # and is not pushed if the upload failed.
   autofix:
@@ -349,7 +351,7 @@ jobs:
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
-  # Every script runs crates/bootstrap's release that scripts/internal/pins
+  # Every script runs crates/be-tool-bootstrap's release that scripts/internal/pins
   # names (guides/bootstrap.md). When a pull request changes the crate, ci
   # builds it for every platform and pins it, and this uploads each binary to
   # the be3-ci Bunny storage zone as bootstrap/<sha256>, which the pin's
@@ -399,7 +401,7 @@ jobs:
   # at, so an upload never has to replace anything a comment already links,
   # and an image two runs both drew is stored once. The same goes for the
   # review page's data, paint-previews/<hash>.json, and for the review page
-  # itself (crates/paint-review-web), paint-previews/site/<hash>/, named by
+  # itself (crates/be-tool-paint-review-web), paint-previews/site/<hash>/, named by
   # the hash of all of its files; a site already there is not uploaded again.
   # The page uses shared wasm memory, so the zone must send
   # Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy:

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use be_commit::{CommitId, now_milliseconds};
-use be_protocol::{ClientId, SessionState};
-use be_session::{Claim, Lease};
+use be_block_commit::{CommitId, now_milliseconds};
+use be_block_protocol::{ClientId, SessionState};
+use be_block_session::{Claim, Lease};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 

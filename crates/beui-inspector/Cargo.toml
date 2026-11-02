@@ -12,9 +12,9 @@ beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-dock = { path = "../beui-dock" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
-reactive = { path = "../reactive" }
-stable-hash = { path = "../stable-hash" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [lints]
 workspace = true

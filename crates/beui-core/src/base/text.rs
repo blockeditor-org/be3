@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::ops::Range;

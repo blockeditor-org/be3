@@ -7,17 +7,17 @@ load("//buck/dev/workspace.bxl", "rust_targets")
 # (fix.sh), every test and plugin test, rustc's check pass over every
 # first-party Rust target on Linux and the plugins' wasm (workspace.bxl), so
 # that a target no test builds still compiles, beui checked for Windows
-# (_CROSS_CHECKS), for ./scripts/ci which of crates/bootstrap's binaries
+# (_CROSS_CHECKS), for ./scripts/ci which of crates/be-tool-bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
-# crates/verify, for the machine that asked (--host, a platform in
-# buck/platforms), which reads the rest afterwards, running crates/local-tools
+# crates/be-tool-verify, for the machine that asked (--host, a platform in
+# buck/platforms), which reads the rest afterwards, running crates/be-tool-local
 # for the previews. It prints what that reads,
 # "kind<TAB>path" a line, or for a test's paintings
 # "paintings<TAB>package<TAB>path", the package holding the snapshots/ they
 # belong in; with --keep-going it prints them all even when some
-# fail to build, and crates/verify reads what was built. A path whose action
-# failed can still hold an earlier run's output, so crates/verify writes a fix
+# fail to build, and crates/be-tool-verify reads what was built. A path whose action
+# failed can still hold an earlier run's output, so crates/be-tool-verify writes a fix
 # or a painting only where the checkout still holds what it was made from.
 #
 #   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --lint true --tests true
@@ -52,11 +52,11 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
 # compiling there: Windows, where the first headset is. And over block-app for
 # the web, whose wasi code nothing else compiles before a deploy.
 _CROSS_CHECKS = {
-    "root//crates/be-win32-capture:be-win32-capture": ["windows_x86_64"],
-    "root//crates/be-win32-input:be-win32-input": ["windows_x86_64"],
-    "root//crates/be-win32:be-win32": ["windows_x86_64"],
+    "root//crates/be-host-win32-capture:be-host-win32-capture": ["windows_x86_64"],
+    "root//crates/be-host-win32-input:be-host-win32-input": ["windows_x86_64"],
+    "root//crates/be-host-win32:be-host-win32": ["windows_x86_64"],
+    "root//crates/be-host:be-host": ["wasi", "windows_x86_64"],
     "root//crates/beui-host:beui-host": ["windows_x86_64"],
-    "root//crates/block-app:block-app": ["wasi", "windows_x86_64"],
 }
 
 # And over every library planned for beui's HTML core on its platforms
@@ -98,7 +98,7 @@ def _rust_fixes(ctx, actions) -> list[Artifact]:
     for path in files:
         if path.endswith(".rs"):
             sources.setdefault(_owner(path, crate_dirs), []).append(path)
-    fix_rust_source = _output(ctx, "root//crates/fix-rust-source:bin")
+    fix_rust_source = _output(ctx, "root//crates/be-tool-fix-rust-source:bin")
     rustfmt = _output(ctx, "root//buck/tools:rustfmt-sysroot")
     script = ctx.fs.source("buck/dev/fix.sh")
     fixes = []
@@ -139,7 +139,7 @@ def _starlark_fix(ctx, actions) -> Artifact:
     )
     return out
 
-# The binaries of crates/bootstrap's release, compared on a worker with the ones
+# The binaries of crates/be-tool-bootstrap's release, compared on a worker with the ones
 # scripts/internal/pins names, so that nothing is downloaded while they match.
 # unpinned lists "<pin>=<sha256>" for each that does not, and with publish each
 # such binary is beside it, named by its SHA-256, for CI to upload and pin.
@@ -166,7 +166,7 @@ def _bootstrap_unpinned(ctx, actions, publish: bool) -> Artifact:
             """,
             "sh",
             out.as_output(),
-            _output(ctx, "root//crates/bootstrap:dist"),
+            _output(ctx, "root//crates/be-tool-bootstrap:dist"),
             ctx.fs.source("scripts/internal/pins"),
             "true" if publish else "false",
         ),
@@ -178,7 +178,7 @@ def _impl(ctx: bxl.Context):
     args = ctx.cli_args
     actions = ctx.bxl_actions().actions
     printed = [
-        ("verify", _host_output(ctx, "root//crates/verify:release", args.host)),
+        ("verify", _host_output(ctx, "root//crates/be-tool-verify:release", args.host)),
         ("buckify", buckify(ctx, actions)),
         ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
     ]
@@ -196,9 +196,9 @@ def _impl(ctx: bxl.Context):
         targets = ctx.cquery().kind("^(plugin_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
         printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])
     if args.previews:
-        printed.append(("local-tools", _host_output(ctx, "root//crates/local-tools:release", args.host)))
-        printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:release", args.host)))
-        printed.append(("paint-review-site", _output(ctx, "root//crates/paint-review-web:web-release")))
+        printed.append(("local-tools", _host_output(ctx, "root//crates/be-tool-local:release", args.host)))
+        printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/be-tool-browser-rasterizer:release", args.host)))
+        printed.append(("paint-review-site", _output(ctx, "root//crates/be-tool-paint-review-web:web-release")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):
@@ -214,7 +214,7 @@ main = bxl_main(
         "lint": cli_args.bool(False),
         "plugin_tests": cli_args.bool(False),
         "previews": cli_args.bool(False),
-        # crates/bootstrap's release for six platforms, which ./scripts/ci builds
+        # crates/be-tool-bootstrap's release for six platforms, which ./scripts/ci builds
         # and ./scripts/verify leaves to it. True for a bootstrap older than this
         # argument, which passes neither.
         "release_bootstrap": cli_args.bool(True),

@@ -36,7 +36,7 @@ impl Drop for ActiveDocumentGuard {
 }
 
 pub enum DocumentGuard<'a> {
-    Installed(&'a mut Document, Option<::reactive::ZoneGuard>),
+    Installed(&'a mut Document, Option<::beui_reactive::ZoneGuard>),
     Reentrant,
 }
 
@@ -68,7 +68,7 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
     });
     let mut guard = DocumentGuard::Installed(document, None);
     if let DocumentGuard::Installed(_, slot) = &mut guard {
-        *slot = Some(::reactive::enter_zone(zone));
+        *slot = Some(::beui_reactive::enter_zone(zone));
     }
     guard
 }

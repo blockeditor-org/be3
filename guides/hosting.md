@@ -71,7 +71,7 @@ cannot issue an app session from an unclaimed approval.
 ## Deploying
 
 `./scripts/deploy` builds be-server, `be` and the app for every platform in release in one buck2 command
-(local-tools deploy, in crates/local-tools) and then, from that build:
+(be-tool-local deploy, in crates/be-tool-local) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `data/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
@@ -80,7 +80,7 @@ cannot issue an app session from an unclaimed approval.
 - uploads the app's downloads to `data/BUILD/app/` in the same zone, each read
   back the same way: `:native` with its plugins for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
-  `buck-tools archive` into a folder of its own name, and `:android-release`,
+  `be-tool-buck archive` into a folder of its own name, and `:android-release`,
   signed locally with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
@@ -213,15 +213,15 @@ stays enabled, but submitted passwords are never echoed into HTML after errors.
 Keep the portal’s Referrer-Policy at `strict-origin`: `no-referrer` makes browser
 form navigations send a null Origin, which the same-origin check rejects.
 
-be-server decides what each request shows as a `be_portal::Page` (crates/be-portal) and
+be-server decides what each request shows as a `be_server_portal::Page` (crates/be-server-portal) and
 renders it through the `Portal` in `ServerConfig::portal`. The executable, crates/be-server-bin,
-passes crates/be-portal-ui: beui styled components rendered with `render_to_string` on beui's
+passes crates/be-server-portal-ui: beui styled components rendered with `render_to_string` on beui's
 HTML core. Only the executable depends on it, so the be-server library and its tests
 (which run with no portal) build on the native core and never wait on beui;
 `//crates/be-server-bin:bin` builds for `linux_x86_64_html` (`:bin` transitions there from
 any configuration, so `:dist`, deploy and block-app's web scripts get it unchanged).
-be-portal-ui's own tests check what each page renders. Each page embeds its `Page` as JSON
-and loads be-portal-ui's hydration bundle, which adds live checks such as mismatched
+be-server-portal-ui's own tests check what each page renders. Each page embeds its `Page` as JSON
+and loads be-server-portal-ui's hydration bundle, which adds live checks such as mismatched
 passwords; every form and link works before and without it. The executable embeds that
 bundle (the wasm module, its JS, the WASI shims and the fonts), so deployment still copies
 only `be-server` and `build-info.json`; it serves them under `/auth/assets/HASH/`, HASH
@@ -230,7 +230,7 @@ from their contents, with `Cache-Control: public, max-age=31536000, immutable`. 
 since the module's memory is shared, and a Content-Security-Policy that allows only the
 server's own scripts, `'wasm-unsafe-eval'` and the import map's hash. A server with no
 `Portal`, as every server embedded in a native program is (block-app's local server, and
-the servers be-frozen's and block-app's tests and app-bench drive the portal of), answers each `/auth` page with its
+the servers be-block-frozen's and block-app's tests and be-host-bench drive the portal of), answers each `/auth` page with its
 `Page` as JSON instead, with the same routes, redirects, cookies and form checks.
 To look at the portal locally: `./scripts/buck build //crates/be-server-bin:dist --show-output`,
 then run the staged `be-server --allow-login --allow-registration` and open

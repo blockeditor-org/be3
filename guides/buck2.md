@@ -5,7 +5,7 @@ remote execution server, Namespace's unless `BE3_BUILD_SERVER` picks another
 (guides/build_server.md). Every command is a buck2 target started through
 `./scripts/buck`, except `./scripts/verify` and `./scripts/ci`, which are
 commands of their own so that each is one buck2 command. Every script is
-`crates/bootstrap` (guides/bootstrap.md). cargo builds nothing; `Cargo.toml` is still the one place a
+`crates/be-tool-bootstrap` (guides/bootstrap.md). cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
 Every command and target is in guides/common_commands.md.
@@ -22,7 +22,7 @@ crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
 `//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
-(`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
+(`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-tool-cli's
 `:native`, be-server-bin's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
@@ -104,15 +104,15 @@ It also lets `test` put tests on the workers (below).
   `./scripts/verify` builds the same action and copies it too, and under
   `--check` fails if either is out of date; its build uses the checked-in
   copies, so a stale one is fixed by the run after. The action is keyed on the manifests, `Cargo.lock`, the
-  paths cargo discovers targets at and `crates/buck-tools`, so it is shared
+  paths cargo discovers targets at and `crates/be-tool-buck`, so it is shared
   through the cache.
-- `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
+- `crates/be-tool-buck`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer and `//:rust-project`).
-- `crates/bootstrap`: what every script runs, a prebuilt release
+- `crates/be-tool-bootstrap`: what every script runs, a prebuilt release
   (guides/bootstrap.md).
-- `crates/verify`, `crates/local-tools`: what runs on this machine after a
-  buck2 command, built for it in that command: `verify` for `./scripts/verify`,
-  and local-tools' `ci`, `deploy` and `fuzz`.
+- `crates/be-tool-verify`, `crates/be-tool-local`: what runs on this machine after a
+  buck2 command, built for it in that command: `be-tool-verify` for `./scripts/verify`,
+  and be-tool-local' `ci`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
@@ -164,7 +164,7 @@ library, binary, example and test rules also carry the manifest at
 `CARGO_MANIFEST_DIR/Cargo.toml`, so procedural macros can discover dependency
 names during remote compilation. Other sources sit at their path in the package,
 not under `CARGO_MANIFEST_DIR`, so a file a procedural macro reads from there is
-passed as `resources` to `cargo_library` and `cargo_test`, as block-type-api's
+passed as `resources` to `cargo_library` and `cargo_test`, as be-sdk-type-api's
 WIT is (`resources = glob(["wit/*.wit"])`). Libraries
 use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
 `main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
@@ -176,7 +176,7 @@ Roots come from `crates.bzl`, including block-app's `src/main.rs` library and
 `src/desktop.rs` binary. The plugin libraries and editors use the same library rules,
 and plugin tests use the test rules; editors also include `manifest.json`.
 
-**An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
+**An editor**: `crates/be-app-<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
 libraries `DEFAULT_LIBRARIES` names (base and beui) unless `libraries` says
 otherwise (guides/plugin_libraries.md), its `:module`, its `:manifest` and its wasm `:test`. A
@@ -186,7 +186,7 @@ library under it. The app picks up every editor by itself.
 **A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
 which is a `#![no_main]` crate defining `LLVMFuzzerTestOneInput` over the
-library (`crates/sequence/fuzz`). It becomes `:fuzz-<name>`, and `//:fuzz`
+library (`crates/be-lib-sequence/fuzz`). It becomes `:fuzz-<name>`, and `//:fuzz`
 finds it by itself (`buck/dev/fuzz.bxl`). It is built with rustc's sancov
 instrumentation and linked with LLVM's libFuzzer, on the stable compiler and
 without a sanitizer, for Linux x86_64 only, and `:fuzz-<name>-test` fuzzes for
@@ -201,7 +201,7 @@ sysroot.
 
 ## Tests
 
-Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
+Most tests run on the workers, including beui-renderer-wgpu's, be-host-dmabuf's, be-host-wayland's and
 beui-platform-drm's, which draw
 through lavapipe from `buck/sysroot:amd64-test` (beui-layer-xr's from
 `buck/sysroot:amd64-xr`, the same set with Monado's OpenXR runtime and
@@ -222,7 +222,7 @@ hundreds of megabytes for block-app's. A test's `ExternalRunnerTestInfo` is
 the command, unless it has a `RemoteTestInfo` (`buck/cargo/defs.bzl`), as the
 tests that paint do, naming the accepted paintings and the worker's lavapipe.
 
-**Plugin tests** read and write the accepted paintings in their crate's `snapshots/`, and only those, so a painting one crate accepts leaves every other crate's tests cached. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
+**Plugin tests** read and write the accepted paintings in their crate's `snapshots/`, and only those, so a painting one crate accepts leaves every other crate's tests cached. Each is the crate's tests compiled to wasm and run by `be-sdk-test-runner`,
 the host `block-app` runs a plugin in, so they paint with the FreeType and
 HarfBuzz the plugin ships. `./scripts/test --update` copies what a crate's
 `:test` accepted on a worker into the crate's `snapshots/`. `./scripts/verify` builds each
@@ -234,18 +234,18 @@ deletes the paintings no test named.
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
 treated the same way: `:test` is what `./scripts/test` runs and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
-runs with, kept out of its compile. crates/app-tests runs block-app headless, so it runs on Linux x86_64 only.
+runs with, kept out of its compile. crates/be-host-tests runs block-app headless, so it runs on Linux x86_64 only.
 It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
 `src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
 then loses only its own paintings, not every one the crate accepts. `apart_env` adds to
-`run_env` per file: crates/app-tests gives each test the app with only the editors it names
+`run_env` per file: crates/be-host-tests gives each test the app with only the editors it names
 (guides/testing_a_gui.md, 6), one `:app-<editors>` per distinct set, and `./scripts/test`
 (buck/dev/test.bxl) runs each file of such a test as an action of its own with its own
 environment.
-crates/be-portal-ui captures its SSR portal as text browser paintings without a browser.
+crates/be-server-portal-ui captures its SSR portal as text browser paintings without a browser.
 
 **Browser tests** (`web_drive_test` in `buck/app/drive.bzl`, and `page_test` there for a page that
-checks itself, such as crates/tls-diamond's) are the one kind that runs on this
+checks itself, such as crates/be-tool-tls-diamond-app's) are the one kind that runs on this
 machine rather than a worker, since the workers have no browser: their `:<name>-run` is a
 local-only action in ./scripts/verify, and ./scripts/test runs a test labelled `local` here
 (buck/dev/test.bxl). They need Node, its `playwright` package and a Chrome or Chromium
@@ -280,7 +280,7 @@ turns.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
 | `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
-| `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their libraries; C with `-fPIC`) |
+| `wasi_guest` | the WASI sysroot | rust-lld through crates/be-wasm-link (the plugins and their libraries; C with `-fPIC`) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 | `wasi_html` | the WASI sysroot | rust-lld (crates on beui's HTML core, in the browser) |
 | `linux_x86_64_html` | `buck/sysroot:amd64` | lld (crates on beui's HTML core, on the host: server rendering, string tests) |
@@ -315,7 +315,7 @@ platform as `default_target_platform`, as beui-view's `:html-test` does, and a
 browser module transitions its library to `wasi_html` with `wasi_html_module`
 (`buck/wasm/defs.bzl`). Code chooses a core with
 `if CORE == Core::Html` (`beui::CORE`); `#[cfg(beui_html)]` belongs only in
-beui-view, beui and beui-core-html, which fix-rust-source enforces.
+beui-view, beui and beui-core-html, which be-tool-fix-rust-source enforces.
 
 A native target depends on a wasm one through a transition in
 `buck/wasm/defs.bzl`: a game's test says
@@ -328,7 +328,7 @@ A native target depends on a wasm one through a transition in
   every library in the editors' closures as `lib-<SHA-256>.wasm` with its `.cwasm`
   (each module's `WasmLibrariesInfo`), precompiled in an action
   per module for the platform the app is built for, by
-  `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
+  `//crates/be-sdk-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run. Those actions are `:precompiled`'s
   (`precompiled_plugins`), which an `app()` given it as `precompiled` takes each
   `.cwasm` from, so the app tests' apps share them rather than precompiling
@@ -337,24 +337,24 @@ A native target depends on a wasm one through a transition in
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
 - Every `app()` also has `[archive]`, its directory as one zstd-compressed file
-  (`crates/app-archive`, packed on a worker): a quarter of the release app and a
+  (`crates/be-host-archive`, packed on a worker): a quarter of the release app and a
   seventh of a debug one, since zstd's long matching finds the code the plugins
   share. `buck2 run` and `:dev` download only that, unpack it into
   `target/apps/<name>-<hash>/` when it changed, and run the program there.
 - `:native-dist` is a platform's release, `:plugins` the plugins once for
   all, and `//crates/be-server-bin:dist` the server with its build id.
-- `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
+- `:web` is block-app for `wasi` and `be-wasm-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
-  version), with the page and shims from `crates/block-app/web`. `buck2 run` on it runs Caddy
+  version), with the page and shims from `crates/be-host/web`. `buck2 run` on it runs Caddy
   (`buck/tools:caddy`) with `web/Caddyfile` and be-server behind it, and `-- --domain DOMAIN` serves
   that domain over HTTPS. Production deployment uses Bunny (guides/hosting.md).
-- The APK is assembled on a worker without Gradle (`buck-tools apk`):
+- The APK is assembled on a worker without Gradle (`be-tool-buck apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
   the app's own and beui's (`//crates/beui-platform-android:android-java`), against the
   platform alone: the APK carries no libraries. Every Android target builds
   an aligned unsigned template without build metadata. `buck2 run` appends
-  metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
+  metadata and signs on the requesting machine with `be-tool-local apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
   `:android-dist` has its own identity (`com.be3.block.ci`, `Block (CI)`), and
   the build helper finalizes both APKs with CI's key. Deploy finalizes `:android-release` locally before upload.
   Only signed, finalized APKs can be installed; `buck build --out` returns a
@@ -362,7 +362,7 @@ A native target depends on a wasm one through a transition in
   signing uses v2 alone. Keys never enter action inputs (guides/running/android.md).
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
-- `crates/be-launcher` lists the pull requests and runs any of them, or main,
+- `crates/be-tool-launcher` lists the pull requests and runs any of them, or main,
   on Android and the desktop alike: it asks the build helper to build the
   commit (`android`, `launcher-android`, `native-PLATFORM`,
   `beui-demo-PLATFORM`), streams the build's log into its Log pane, downloads
@@ -389,7 +389,7 @@ extension ships: the toolchain's panics on this workspace.
   platform, so what a dev-dependency turns on is on for the library too, as
   under cargo. One plan covers every crate built for its platform, so
   features merge across apps: the `wasi` plan is block-app's, beui-web-demo's
-  and paint-review-web's at once, and a feature one of them turns on is on
+  and be-tool-paint-review-web's at once, and a feature one of them turns on is on
   for all three. What has to differ between builds for one triple needs a
   platform and plan of its own, told apart by a constraint, as `wasi_guest`
   and `wasi_html` are. What cargo builds for the machine running the build - proc
@@ -411,7 +411,7 @@ extension ships: the toolchain's panics on this workspace.
   (`editor()` and `plugin_tests()` in `buck/wasm/defs.bzl`); test modules are
   precompiled with Cranelift's optimizations off (`--quick`). A change under
   beui recompiles all of them, and at 2 that was a third of the CPU a change to
-  `geometry` cost `./scripts/verify`.
+  `be-lib-geometry` cost `./scripts/verify`.
 - **Parallel frontend.** Every workspace rustc runs with `-Zthreads=8`
   (`_rustc_flags` in `buck/cargo/defs.bzl`): the crates under beui are a chain
   each of whose typechecks waits on the one before, which this shortens.
@@ -421,17 +421,17 @@ extension ships: the toolchain's panics on this workspace.
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
   builds everything with `--keep-going` and prints what is read after: the
-  generated files, the paintings, each crate's fixes, and `crates/verify`,
+  generated files, the paintings, each crate's fixes, and `crates/be-tool-verify`,
   built for this machine in the release profile, which the script then runs
   to read the rest and write it into the checkout. It depends on nothing but
   sha2, since every run downloads it; for CI's Android builds and paint
-  previews it runs `crates/local-tools ci`, built only then. Anything else
+  previews it runs `crates/be-tool-local ci`, built only then. Anything else
   that runs on this machine after a buck2 command belongs in
-  `crates/local-tools`, as a subcommand, rather than in shell or a crate of
+  `crates/be-tool-local`, as a subcommand, rather than in shell or a crate of
   its own, so it works the same on Linux, macOS and Windows and builds once
-  (what runs before one is `crates/bootstrap`): `ci`, `deploy`
+  (what runs before one is `crates/be-tool-bootstrap`): `ci`, `deploy`
   (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
-  a crate: fix-rust-source, then rustfmt, on a copy of the
+  a crate: be-tool-fix-rust-source, then rustfmt, on a copy of the
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Lints** are rustc's, and a warning fails the compile that finds it, so

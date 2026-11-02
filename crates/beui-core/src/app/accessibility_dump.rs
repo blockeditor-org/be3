@@ -1,4 +1,4 @@
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 

@@ -4,8 +4,8 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only() {
@@ -13,7 +13,7 @@ fn a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(b"kept as it is")) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(b"kept as it is")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

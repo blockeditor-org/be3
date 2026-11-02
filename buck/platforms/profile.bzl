@@ -27,7 +27,7 @@ def dev_only(flags):
     })
 
 # A target in cargo's release profile whatever the command asked for, for what
-# a command downloads: crates/verify, which it runs here, and the paint review
+# a command downloads: crates/be-tool-verify, which it runs here, and the paint review
 # page, a quarter the size of its dev build.
 def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     release = refs.release[ConstraintValueInfo]

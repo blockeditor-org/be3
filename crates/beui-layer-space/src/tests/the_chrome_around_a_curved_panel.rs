@@ -136,5 +136,5 @@ fn the_chrome_around_a_curved_panel() {
     let frame = space.scene(&windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    paint_snapshot::assert_painting("the_chrome_around_a_curved_panel", painting);
+    beui_paint_snapshot::assert_painting("the_chrome_around_a_curved_panel", painting);
 }

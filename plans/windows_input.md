@@ -12,9 +12,9 @@ and what is left for later.
   bounds, or to its monitor for a display entry (`ClipCursor`, applied again on
   foreground and location changes). The physical mouse and keyboard then drive
   it natively; block-app sees none of that input. A `RegisterHotKey` hotkey
-  returns focus to block-app and releases the clip (be-win32). Elevated windows
+  returns focus to block-app and releases the clip (be-host-win32). Elevated windows
   work in this mode: UIPI blocks only injected input.
-- **Injection is for XR controller clicks.** `crates/be-win32-input` turns an
+- **Injection is for XR controller clicks.** `crates/be-host-win32-input` turns an
   event at a point in an entry's panel into `SendInput` entries (absolute
   virtual-desktop coordinates, keys by scan code, text by `KEYEVENTF_UNICODE`,
   each tagged `INJECTED` in `dwExtraInfo`), raises and foregrounds the target

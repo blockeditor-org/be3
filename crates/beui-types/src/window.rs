@@ -1,9 +1,9 @@
-use beui_tree::reactive::Callback;
-use geometry::Vec2;
-pub use ui_types::window::{
+use be_lib_geometry::Vec2;
+pub use be_lib_ui_types::window::{
     HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
     WindowRequests, WindowRole,
 };
+use beui_tree::reactive::Callback;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum SystemBars {

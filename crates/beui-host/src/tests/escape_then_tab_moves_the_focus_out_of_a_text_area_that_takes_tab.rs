@@ -4,15 +4,16 @@ use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{TextAreaApi, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab() {
     let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"line")) as Arc<dyn text_editor_core::Document>;
+        let document =
+            Arc::new(TextBuffer::new(b"line")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <List spacing=8.0>

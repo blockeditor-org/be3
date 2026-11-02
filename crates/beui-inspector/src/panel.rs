@@ -1,5 +1,5 @@
+use be_lib_stable_hash::HashMap;
 use beui_types::Overflow;
-use stable_hash::HashMap;
 use std::time::Duration;
 
 use crate::screen_reader::Command;

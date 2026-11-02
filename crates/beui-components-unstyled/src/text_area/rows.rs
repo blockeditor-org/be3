@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use text_editor_core::{
+use beui_text_editor_core::{
     LineLook, ListMarker, MarkSet, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
     TableRow, TextLanguage, TextRun, VOID,
 };

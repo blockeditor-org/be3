@@ -1,10 +1,11 @@
+use be_lib_stable_hash::HashMap;
 use beui_view::types::LayerPolicy;
 use beui_view::types::Overflow;
-use stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
+use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -15,7 +16,6 @@ use beui_view::types::{Align, ItemSize};
 use beui_view::types::{FontFamily, FontId, TextAlign, TextLayout};
 use beui_view::types::{Rect, Vec2};
 use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
-use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;

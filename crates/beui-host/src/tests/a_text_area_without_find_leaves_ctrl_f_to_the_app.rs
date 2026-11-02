@@ -2,8 +2,8 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn a_text_area_without_find_leaves_ctrl_f_to_the_app() {
@@ -17,7 +17,7 @@ fn a_text_area_without_find_leaves_ctrl_f_to_the_app() {
         .shortcut(Chord::ctrl(Key::F))
         .register();
         let document =
-            Arc::new(TextBuffer::new(b"one two one")) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(b"one two one")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

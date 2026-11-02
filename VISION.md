@@ -47,7 +47,7 @@ through a layer gets that layer's guarantees, and nothing else does.
    provide block types, a plugin should be able to bring its own instead: a
    CRDT that needs no true order, OT, or a game's own netcode that has no
    operations at all, while still using the layers below.
-5. **The built-in model.** `be_model` documents get merging, undo and
+5. **The built-in model.** `be_block_model` documents get merging, undo and
    addressing of their parts without writing them. Most first-party editors use
    it.
 

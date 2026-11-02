@@ -2,8 +2,8 @@ use super::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
 use beui::ImeEvent;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn an_ime_composition_pushes_the_text_after_the_caret_along() {
@@ -11,7 +11,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

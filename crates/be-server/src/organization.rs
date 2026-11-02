@@ -4,13 +4,13 @@ use be_block::{
     BlockContent, OrganizationPolicies, OrganizationPoliciesContent, Root, SettingsContent,
     WORKSPACE_TYPE, WhoMay,
 };
-use be_commit::{CommitId, CommitStore};
-use be_graph::{BlockGraph, BlockParent, SETTINGS_TYPE};
-use be_keys::{Party, RecoveryPublic, RecoverySecret};
-use be_protocol::{
+use be_block_commit::{CommitId, CommitStore};
+use be_block_graph::{BlockGraph, BlockParent, SETTINGS_TYPE};
+use be_block_keys::{Party, RecoveryPublic, RecoverySecret};
+use be_block_protocol::{
     ErrorCode, KeyKind, OrganizationKind, OrganizationRole, ServerAccount, WrappedBy,
 };
-use be_store::{ContentKey, FileStore, Hash, Keyring, Vault};
+use be_block_store::{ContentKey, FileStore, Hash, Keyring, Vault};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 

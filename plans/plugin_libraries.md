@@ -2,7 +2,7 @@
 
 Before this plan every plugin was linked against exactly one shared module, the
 plugin SDK (`crates/block-plugin-sdk`), and that SDK held beui. A
-plugin that did not use beui, such as `crates/editors/triangle`, still loaded
+plugin that did not use beui, such as `crates/be-app-example-triangle`, still loaded
 all of it, a plugin could not share a library of its own with other plugins, and
 a plugin written in another language still had to take Rust's conventions.
 This plan has three parts:
@@ -11,7 +11,7 @@ This plan has three parts:
    plugin names the libraries it needs (for Rust plugins, base and beui), or
    none and is one module written against the raw plugin interface.
 2. A written policy for the plugin GPU API, and filling the gaps in
-   `block-gpu-guest` that it implies.
+   `be-wasm-gpu-guest` that it implies.
 3. Moving the framework-neutral parts of the beui editor stack below beui, so a
    plugin written with another framework would need only its own views and a
    thin adapter.
@@ -26,8 +26,8 @@ to build against. That comes after the plugin APIs stabilize, the interface is
 hardened and permission prompts exist.
 
 Implemented (October 2026); guides/plugin_libraries.md describes the result.
-Base is `//crates/plugin-library-base:module` (the crate that was
-block-plugin-sdk) and beui `//crates/plugin-library-beui:module`. Left for
+Base is `//crates/be-sdk-library-base:module` (the crate that was
+block-plugin-sdk) and beui `//crates/be-sdk-library-beui:module`. Left for
 later, as above: the egui adapter, moving docks and overlays (see "Wait for
 docking and overlays"), third-party libraries, and external textures, which
 wait on the **(ask)** in part 2.
@@ -43,80 +43,80 @@ What changed from the plan:
   plugin] (a standalone plugin is a list of one). Removing the root needs
   `-Zbuild-std` and a threaded wasi-libc built with `-fPIC`.
 - **Thread-locals** take the second route: LLVM forces local-exec on wasm, so
-  `wasm-link` rewrites each TLS relocation against a symbol nothing in the link
+  `be-wasm-link` rewrites each TLS relocation against a symbol nothing in the link
   defines into a read of an imported mutable global `GOT.tls.<symbol>`. Only the
   constant is swapped and the code still adds its own `__tls_base`, so the slot
   holds the symbol's address on that thread minus the importing module's
   `__tls_base`, set per thread after `__wasm_init_tls`.
 - **`libraries` lists the whole closure**, not just the direct needs, in any
-  order; `wasm-link` fails on a needed library the link does not name.
+  order; `be-wasm-link` fails on a needed library the link does not name.
 - **C code is compiled `-fPIC` for every guest**, since FreeType and HarfBuzz now
   sit above the root. Base carries libc++, libc++abi and setjmp whole for the
   C++ above it, and a C library above base that calls a libc function base does
-  not force in fails the link until it is added to `LIBC` in wasm-link.
+  not force in fails the link until it is added to `LIBC` in be-wasm-link.
 - **The GPU**: buffer mapping and read-back were a gap too, and were filled with
   the rest; wgpu is overlaid for custom render bundles and the browser's
   occlusion query sets. Render bundle encoders have no debug markers, since
   wgpu 29 has no API for them.
 - **Part 3** landed as modules, not crates: the editor state in
-  block-editor-plugin's `editor_state`, the region driver as
-  `block_editor_plugin::driver`. `related_content.rs` and the memo-based walks
-  in `editor/settings.rs` and `editor/tags.rs` stayed in block-editor-beui, and
-  anchored views, floated windows and scrims stay in beui-platform-plugin with
+  be-sdk's `editor_state`, the region driver as
+  `be_sdk::driver`. `related_content.rs` and the memo-based walks
+  in `editor/settings.rs` and `editor/tags.rs` stayed in be-sdk-beui, and
+  anchored views, floated windows and scrims stay in be-sdk-beui-platform with
   the overlays.
-- **Performance**: app-bench measured base and beui within noise of the one
+- **Performance**: be-host-bench measured base and beui within noise of the one
   SDK. Its one regression, saves sometimes 60 ms slower, was a race in the
   block store, not the split: a revision listing ran inline in the worker and
   held a seal behind two round trips. Listings now run beside the worker.
 
 ## What existed before
 
-- **One SDK per plugin.** `--be3-sdk` (`crates/wasm-link`) links the SDK whole
+- **One SDK per plugin.** `--be3-sdk` (`crates/be-wasm-link`) links the SDK whole
   with `--export-all` and writes a `be3.sdk` custom section listing the archives
   it linked and its thread-locals. `--be3-plugin=SDK` links a plugin `-shared`,
   leaves out those archives, checks that the SDK exports every import, and
   exports `__be3_sdk_<sha256>` and `__be3_dylink_<memory>_<table>`. The rule is
   `plugin_sdk()` and `editor()` in `buck/wasm/defs.bzl`, which hard-codes
   `PLUGIN_SDK = "root//crates/block-plugin-sdk:module"`.
-- **The loaders.** `crates/wasm-dylink` plans the link as plain data: memory from
+- **The loaders.** `crates/be-wasm-dylink` plans the link as plain data: memory from
   the SDK's `malloc`, table slots after the SDK's, `env` imports from the SDK's
-  exports, `GOT.mem` and `GOT.func`, data relocations. `block-wasm-host/src/dylink.rs`
-  (wasmtime) and `block-app/web/dylink.js` (the browser, through
-  block-gpu-shim) carry it out for exactly two modules. A spawned thread
+  exports, `GOT.mem` and `GOT.func`, data relocations. `be-wasm-host/src/dylink.rs`
+  (wasmtime) and `be-host/web/dylink.js` (the browser, through
+  be-wasm-gpu-shim) carry it out for exactly two modules. A spawned thread
   instantiates both again from the same plan. Natively one compiled SDK is kept
   per identity.
 - **Thread-locals.** LLVM compiles a thread-local access on wasm as a
   local-exec offset from the module's own `__tls_base`. A plugin reaches the
   SDK's thread-locals through generics it instantiates, so the SDK's block ends
-  in a 16 KiB reserve (`PLUGIN_TLS`, `PLUGIN_TLS_SIZE` in `wasm-dylink`), the
+  in a 16 KiB reserve (`PLUGIN_TLS`, `PLUGIN_TLS_SIZE` in `be-wasm-dylink`), the
   plugin's link starts with a generated object placing each SDK thread-local at
   the SDK's offset, and the host points the plugin's `__tls_base` at the SDK's
   block. This works only because there is one module above the SDK.
 - **C libraries.** libc++ and libc++abi are linked whole (`WHOLE_LIBRARIES` in
-  `wasm-link`); the C math library and `LIBC` functions are forced in. A plugin's
+  `be-wasm-link`); the C math library and `LIBC` functions are forced in. A plugin's
   own C library (third-party/pdfium) stays in the plugin.
-- **The gpu.** `block-gpu-guest` is wgpu's custom backend over the `be3:gpu`
+- **The gpu.** `be-wasm-gpu-guest` is wgpu's custom backend over the `be3:gpu`
   world. `objects.rs` has 30 `unimplemented!`s; some say "not available to
   plugins" with no reason behind them, others "not yet". The device reports
   `Features::empty()`, and limits that forward a few of the host's (buffer
   sizes, vertex attributes, offset alignments) over
   `Limits::downlevel_defaults()` (`objects.rs` around line 160).
 - **The editor stack.**
-  - `block-plugin-api` (wire types) and `block-editor-plugin` (`Plugin`,
+  - `be-sdk-api` (wire types) and `be-sdk` (`Plugin`,
     `Instance`, `ViewHandler`, `Frame`, `EditorHost`) know nothing of beui, but
-    block-editor-plugin is built on `reactive`, the signal graph under beui,
+    be-sdk is built on `beui-reactive`, the signal graph under beui,
     and re-exports it. Its content API (`ContentProjection` in `content.rs`:
     `project`, `field`, `object`, `objects`, `project_keyed`) hands out
     `ReadSignal`s and `KeyedStore`s, `ready`, `read` and the block queries
-    return `reactive::Ready`, and the block graph (`graph.rs`) and one host
+    return `beui_reactive::Ready`, and the block graph (`graph.rs`) and one host
     read in `host.rs` call `revision.get()` on an `OwnedSignal` so a reactive
-    scope re-runs when they change. About 49 files in `crates/editors` use the
+    scope re-runs when they change. About 49 files in the `crates/be-app-*` editors use the
     content projections.
-  - `beui-platform-plugin` (about 1.4k lines) runs beui's `Runner` behind
+  - `be-sdk-beui-platform` (about 1.4k lines) runs beui's `Runner` behind
     `ViewHandler`: input, per-view surfaces, the `Frame` accounting (windows,
     floats, scrims, claims, descriptions), and host services in `platform.rs`
     (clipboard, paste, file pick and save).
-  - `block-editor-beui` (about 7.5k lines) is the `BeuiApp` trait, `Editor`
+  - `be-sdk-beui` (about 7.5k lines) is the `BeuiApp` trait, `Editor`
     and its signals over `EditorHost` (`editor.rs`), docks (`docked.rs`, on
     `beui::dock::unstyled`), dialogs, chrome, child blocks, picking, the file
     chooser, layered settings, version history.
@@ -132,15 +132,15 @@ What changed from the plan:
   plugin links the Rust libraries because it chose to, not because the host
   needs them.
 - **A plugin may link no library at all.** The raw plugin interface is enough:
-  block-guest-abi's exports (`plugin_start`, `plugin_step`,
+  be-wasm-guest-abi's exports (`plugin_start`, `plugin_step`,
   `plugin_shutdown`) and `be3_host` imports, the plugin's WIT world
-  (`crates/block-plugin-api/wit`, postcard frames as in guides/type_modules.md)
+  (`crates/be-sdk-api/wit`, postcard frames as in guides/type_modules.md)
   and the `be3:gpu` imports. A triangle written in Zig, C or WAT loads as one
   module, without Rust, without wasi-libc's conventions, and without threads or
   WASI unless it uses them.
 - Today an editor guest has to export `plugin_initialize_tls`, which
-  block-editor-plugin's `platform_entry!` defines for Rust's thread-locals, and
-  import a shared `env.memory` (`block-wasm-host/src/lib.rs` around lines 473
+  be-sdk's `platform_entry!` defines for Rust's thread-locals, and
+  import a shared `env.memory` (`be-wasm-host/src/lib.rs` around lines 473
   and 602). Both become part of the linked-module convention below, not of the
   plugin interface. A standalone plugin imports or exports whichever memory it
   likes, and shared memory is needed only by a plugin that spawns threads.
@@ -195,15 +195,15 @@ and an instantiation per thread:
 
 | Library | Holds |
 |---|---|
-| base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin, geometry, serde, postcard, serde_json, uuid |
-| beui | reactive, beui and everything under it, beui-platform-plugin, block-editor-beui, FreeType, HarfBuzz |
+| base | std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi (whole), the forced C math and libc functions, wgpu with the custom backend (be-wasm-gpu-guest), be-wasm-ops, be-sdk-api, be-sdk, geometry, serde, postcard, serde_json, uuid |
+| beui | reactive, beui and everything under it, be-sdk-beui-platform, be-sdk-beui, FreeType, HarfBuzz |
 
-serde, postcard and uuid go in base: block-plugin-api and be-ops encode every
-frame with postcard over serde, and block ids are uuids. `reactive` does not:
+serde, postcard and uuid go in base: be-sdk-api and be-wasm-ops encode every
+frame with postcard over serde, and block ids are uuids. `beui-reactive` does not:
 only a retained, fine-grained framework needs signals, and an immediate-mode
 one rereads its state every frame and only needs to know when to run one.
 A framework with signals of its own (SolidJS-style, say) would want its own,
-not `reactive`'s, so `reactive` is beui's and goes with it. Taking it out of
+not `beui-reactive`'s, so `beui-reactive` is beui's and goes with it. Taking it out of
 base needs the refactor in "Reactivity out of base" below. Triangle links base;
 every beui editor links base and beui. Split base further only when a module
 needs part of it, for example a type module that wants std without wgpu.
@@ -211,9 +211,9 @@ needs part of it, for example a type module that wants std without wgpu.
 ### Rules the linker enforces
 
 - **Each crate and each C library lives in exactly one module of a plugin's
-  closure.** Two copies of `reactive` would give two reactive runtimes, which
+  closure.** Two copies of `beui-reactive` would give two reactive runtimes, which
   fails silently. Buck computes a library's crates as its dependency closure
-  minus the closures of the libraries it needs; `wasm-link` refuses a closure
+  minus the closures of the libraries it needs; `be-wasm-link` refuses a closure
   in which two modules share a crate or an archive, naming it.
 - **Every import resolves to exactly one export in the module's closure**, or
   to the host. A missing symbol fails the link with its name, as today; a
@@ -240,7 +240,7 @@ loader per thread the way `GOT.mem` is set now.
 The open question is how to make the code use that slot:
 - a rustc/LLVM TLS model for wasm that goes through the GOT for symbols another
   module defines, if one exists or can be enabled; or
-- `wasm-link` rewriting, in the objects before rust-lld, each TLS relocation
+- `be-wasm-link` rewriting, in the objects before rust-lld, each TLS relocation
   (`R_WASM_MEMORY_ADDR_TLS_SLEB` and friends) against an undefined symbol into
   a `GOT.tls` global read.
 
@@ -252,7 +252,7 @@ larger reserve, and refuse diamonds at link time.
 
 ### Loading
 
-`wasm-dylink`'s plan becomes a list of modules in dependency order, each with
+`be-wasm-dylink`'s plan becomes a list of modules in dependency order, each with
 its static image address, table slots, imports (resolved against its closure),
 GOT entries, data relocations and thread-local layout; a standalone plugin is a
 list of one with nothing to relocate. `dylink.rs` and `dylink.js` loop over it.
@@ -262,9 +262,9 @@ across workers if the platform allows it.
 
 ### Reactivity out of base
 
-block-editor-plugin keeps its state and drops `reactive`:
+be-sdk keeps its state and drops `beui-reactive`:
 - Reads return plain values: the content as `read(&C)`, a loading state as a
-  plain enum in place of `reactive::Ready`, the graph's query results and
+  plain enum in place of `beui_reactive::Ready`, the graph's query results and
   known blocks as values.
 - Changes are announced, not tracked: each piece of state keeps its revision
   counter (the graph's `revision`, the content's revision) and a list of
@@ -283,10 +283,10 @@ signals turns them into its signals. So make them easy to adapt:
 - returning a handle that unsubscribes when dropped, so a signal that is
   cleaned up stops listening.
 
-beui's adapter, in block-editor-beui, puts `reactive` signals back on top:
+beui's adapter, in be-sdk-beui, puts `beui-reactive` signals back on top:
 `ContentProjection`'s `project`, `field`, `object`, `objects`,
 `project_keyed` and `ready` become signals fed by those callbacks, and a graph
-or host read tracks a signal its callback bumps. block-editor-beui exports
+or host read tracks a signal its callback bumps. be-sdk-beui exports
 them under the names editors use now, so the editors' imports change in one
 place and their code does not. A second framework writes its own adapter over
 the same callbacks.
@@ -309,13 +309,13 @@ the split needs it.
 
 Every library is now a position-independent shared module, including the code
 that today sits in the SDK's own link, and reaches its globals through the GOT.
-Measure base and beui against today's SDK with `app-bench`
+Measure base and beui against today's SDK with `be-host-bench`
 (guides/performance.md) before landing the split, and record the result in the
 PR.
 
 ### Tests
 
-- A standalone guest in WAT, in block-wasm-host's tests, that exports no
+- A standalone guest in WAT, in be-wasm-host's tests, that exports no
   `plugin_initialize_tls`, has its own non-shared memory, and paints through
   `be3:gpu`, on both hosts.
 - Triangle built standalone (`libraries = []`) and against base, both loading
@@ -324,7 +324,7 @@ PR.
 - A link that puts one crate in two modules fails, naming the crate.
 - A missing symbol fails the link, naming it and the module that imports it.
 - A library whose `.wasm` does not hash to its name is refused by both hosts.
-- `//crates/app-tests:test` passes with base and beui.
+- `//crates/be-host-tests:test` passes with base and beui.
 
 ### Guides
 
@@ -362,9 +362,9 @@ Each of these is core WebGPU:
 - `clear_buffer`;
 - `draw_indirect` and `draw_indexed_indirect`.
 
-Each one needs a func in the `be3:gpu` WIT (`crates/block-gpu-abi/wit`), the
-guest call in `block-gpu-guest`, the host side in `block-gpu-host`, and the
-browser side in `block-gpu-shim`. Add a test plugin per group that draws or
+Each one needs a func in the `be3:gpu` WIT (`crates/be-wasm-gpu-abi/wit`), the
+guest call in `be-wasm-gpu-guest`, the host side in `be-wasm-gpu-host`, and the
+browser side in `be-wasm-gpu-shim`. Add a test plugin per group that draws or
 reads back a result, so each works on both hosts.
 
 ### Features and limits
@@ -395,25 +395,25 @@ beui, so a second framework would add views and a thin adapter only.
 
 ### Editor state
 
-Take the parts of `block-editor-beui` that are state over `EditorHost` rather
+Take the parts of `be-sdk-beui` that are state over `EditorHost` rather
 than views, and split each in two: the logic (the calls to the host, the
-bookkeeping) moves into block-editor-plugin as plain state with change
-callbacks, and the signals over it stay in block-editor-beui as part of its
+bookkeeping) moves into be-sdk as plain state with change
+callbacks, and the signals over it stay in be-sdk-beui as part of its
 adapter. The candidates:
 - `Editor`, `OwnedEditor`, `Artifacts`, `Creation` and `ChildState` from
   `editor.rs`, which has no `view!`. It still uses `beui::native::Document`,
   `EmbedSlot` and `CanvasView`; split those uses off into what stays in
-  block-editor-beui.
+  be-sdk-beui.
 - `fitting.rs` and `related_content.rs`, which use only `beui::reactive` and
   geometry.
 - The data halves of `version_control.rs` and `layered_settings.rs`.
 
-Every framework then uses block-editor-plugin for the logic and adapts its
+Every framework then uses be-sdk for the logic and adapts its
 change callbacks to its own way of updating.
 
 ### The region driver
 
-Split `beui-platform-plugin` into a framework-neutral driver and a beui layer.
+Split `be-sdk-beui-platform` into a framework-neutral driver and a beui layer.
 The driver keeps per-region surface lifetime, the `Frame` accounting and the
 host services from `platform.rs`, behind a small trait a framework implements
 (roughly: take input for a region, run a frame for it, paint it into a
@@ -435,8 +435,8 @@ the same change that would let a second framework use them.
 3. Standalone plugins: the loader owns memory, table, stack and thread-local
    blocks, `plugin_initialize_tls` and shared memory become optional, and the
    WAT guest and standalone triangle tests pass.
-4. `be3.lib`, the closure checks and the N-module plan in `wasm-link` and
-   `wasm-dylink`; both loaders; the build rules. Today's SDK becomes one
+4. `be3.lib`, the closure checks and the N-module plan in `be-wasm-link` and
+   `be-wasm-dylink`; both loaders; the build rules. Today's SDK becomes one
    library, to land the machinery without moving code.
 5. Reactivity out of base (part 1). Then split the SDK into base and beui.
    Measure. Move triangle onto base alone.

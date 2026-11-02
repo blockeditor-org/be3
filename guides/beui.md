@@ -15,8 +15,8 @@ The quickest introduction is the component catalog in
 `crates/beui-demo`: a dock whose Components pane opens a page for
 each group of styled components, for the unstyled components painted by
 hand, and for the base nodes (frames, text, lists, grids, control flow,
-interaction, layers and overlays). Inside block-app it is a block type, beui demo, whose editor (`crates/editors/beui-gallery`) shows the same catalog and stores nothing. Every sample on a page shows the code it was written with: a
-function marked `#[beui_macros::sample]` (above its `#[component]`) also
+interaction, layers and overlays). Inside block-app it is a block type, beui demo, whose editor (`crates/be-app-example-beui-gallery`) shows the same catalog and stores nothing. Every sample on a page shows the code it was written with: a
+function marked `#[beui-macros::sample]` (above its `#[component]`) also
 gets a `Name::SOURCE` holding its text exactly as written, so a new sample
 cannot drift from its listing. The
 [reactive guide](reactive.md) is the reference for signals, attribute syntax,
@@ -35,7 +35,7 @@ attribute is what makes the function usable as a tag, gives it `@test_id`,
 `@node_ref` and `@sizing`, makes `ComponentRef::fill`, `component_accessibility`
 and `component_placed` available inside it (they panic anywhere else), and
 gives it a scope of its own, so the contexts it provides reach only what it
-builds rather than its siblings. `./scripts/verify`'s fix-rust-source
+builds rather than its siblings. `./scripts/verify`'s be-tool-fix-rust-source
 rejects a function that writes a `view!` without it (see below), since such a
 function would build into its caller's scope.
 
@@ -176,7 +176,7 @@ A trait or impl block marked `#[component]` turns the methods in it that are
 also marked `#[component]` into components, used as tags through the type:
 `<A::View editor />` for a type parameter `A: BeuiApp`, `<Shelf::Row />` for a
 method of `impl Shelf`. Without the mark on the block a method's `#[component]`
-fails to compile, and fix-rust-source names the block.
+fails to compile, and be-tool-fix-rust-source names the block.
 
 ```rust
 #[component]
@@ -308,17 +308,17 @@ runners (`run`, `run_with` and `run_web`). Its features pick the
 runner: `window` (the default: winit, Android, space and headsets) or `web`. A
 host still depends on beui too, since `view!` names it, and imports only the
 engine through beui-host. An editor's tests reach the engine through
-block-ui-test, or take beui-host as a dev-dependency; a plugin's document gets
+be-sdk-test, or take beui-host as a dev-dependency; a plugin's document gets
 the inspector and keyboard from the plugin runtime
-(`beui_platform_plugin_api::runtime().build`). The rest depend on each other in
+(`be_sdk_beui_platform_api::runtime().build`). The rest depend on each other in
 one direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-keys` | the keys, which depend on nothing but serde (no `geometry`), so the terminal's types share them: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyPress` and `KeyChord`, generated from the WIT package `be3:keys`; `ui-types` re-exports them |
-| `ui-preferences` | the preferences (`ThemeKind`, `Motion`, `CanvasTouch`, `Preferences`, `PreferenceLayer`) and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`, `PointerSpeed`), with nothing but serde under them (no `geometry`), so be-block and the data stack below beui depend on them alone; generated from the WIT package `be3:preferences`, and re-exported by `ui-types` |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde, `geometry`, `ui-keys` and `ui-preferences`: the keys and preferences of those two, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports) |
-| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, the `drive` protocol both cores answer (`drive`: the tree-line formatter `describe`, which each core fills a `Description` for, `render`, `ids`, `waited`, and `parse`, the commands both answer; `target`: finding a TARGET among those lines), with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. each has one path: crates below the facade (beui-core, the hosts, renderers and platforms) import it from `beui-types` by the name `beui` gives it (`beui_types::Pos2`, `beui_types::layout::Track` where the root does not export it), unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `be-lib-ui-keys` | the keys, which depend on nothing but serde (no `be-lib-geometry`), so the terminal's types share them: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyPress` and `KeyChord`, generated from the WIT package `be3:keys`; `be-lib-ui-types` re-exports them |
+| `be-lib-ui-preferences` | the preferences (`ThemeKind`, `Motion`, `CanvasTouch`, `Preferences`, `PreferenceLayer`) and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`, `PointerSpeed`), with nothing but serde under them (no `be-lib-geometry`), so be-block and the data stack below beui depend on them alone; generated from the WIT package `be3:preferences`, and re-exported by `be-lib-ui-types` |
+| `be-lib-ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde, `be-lib-geometry`, `be-lib-ui-keys` and `be-lib-ui-preferences`: the keys and preferences of those two, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports) |
+| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`, and `Color`, `ColorVar` and `color_var!`, which both cores resolve), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`, `CanvasView`, and `Measured`, what `measure` answers), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), raw pointer and wheel input (`PointerId`, `PointerInput`, `PointerStage`, `WheelInput`), the declarative hit areas (`Area`, `HitRegion`, `Claim`) and the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, the `drive` protocol both cores answer (`drive`: the tree-line formatter `describe`, which each core fills a `Description` for, `render`, `ids`, `waited`, and `parse`, the commands both answer; `target`: finding a TARGET among those lines), with `be-lib-geometry`, `be-lib-ui-types`' input values and lucide's `icons` re-exported. each has one path: crates below the facade (beui-core, the hosts, renderers and platforms) import it from `beui-types` by the name `beui` gives it (`beui_types::Pos2`, `beui_types::layout::Track` where the root does not export it), unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints and the `App` contract |
 | `beui-runner` | the `Runner` every platform drives a document through, the `Platform`, `PlatformServices` and `Layer` contracts, `RunOptions`, `Incoming` input, the `BEUI_*` environment (`environment`) and the `Renderer` trait (`beui_runner::renderer`); only the engine and hosts depend on it, so an edit here rebuilds no editor, and beui-host re-exports its host-facing items in `beui_host::native` |
@@ -341,7 +341,7 @@ one direction:
 | `beui-layer-drive` | `beui_host::native::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
 | `beui-platform-headless` | `beui_host::native::Headless`, the platform that draws offscreen with no window or display server; `beui_host::native::Simulation`, the headless window and its stand-in services; and `beui_host::native::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-host` | `beui_host::native`'s engine items over beui: the inspector and on-screen keyboard every `build` installs, the font and context makers, and the runners (`runner.rs`, which picks the platform and layers from `BEUI_*`, `web.rs`, and the saved preferences of `RunOptions::saving_preferences`); beui's document tests live here, since they run documents |
-| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/beui-platform-plugin-api, which block-editor-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `ViewHandler` handler, whose batched calls then drive its frames; every view the host shows is a window of that app, which the app opens from the `Views` handle (in beui-platform-plugin-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
+| `be-sdk-beui-platform` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: its `PluginRuntime` (crates/be-sdk-beui-platform-api, which be-sdk-beui reaches it through without depending on it) launches the module's one app and registers its runner with the plugin framework as the module's `ViewHandler` handler, whose batched calls then drive its frames; every view the host shows is a window of that app, which the app opens from the `Views` handle (in be-sdk-beui-platform-api) the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so beui-host does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -374,7 +374,7 @@ hooks the higher crates fill in:
   app, publishes accessibility, and tells the platform's `PlatformServices` (another
   trait object) what the app asked of the window. Everything the window
   shows for the app is one `beui_core::window::WindowState`: its `requests`
-  (`ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
+  (`be_lib_ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
   the keyboard, intercepted keys, the paste kinds the focus takes, the IME
   area and keyboard toggles, the same type a plugin sends its host), `typed`
   and `appearance`, which the
@@ -387,7 +387,7 @@ hooks the higher crates fill in:
   draw their own cursor (the mouse simulation, space), by
   `beui_core::drawn_cursor::paint`: an icon-font glyph with its hotspot on the
   point, or an I-beam for text. A plugin region passes it to its host
-  unchanged (the protocol's `CursorIcon` is beui's, from `ui-types`), and a platform with no custom cursors
+  unchanged (the protocol's `CursorIcon` is beui's, from `be-lib-ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so a platform compares just the
   fields it uses; a new field is one more field there and in the platforms
@@ -422,11 +422,11 @@ hooks the higher crates fill in:
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
   platform is always fullscreen; Android and plugins say nothing.
   The clipboard is the platform's: `Context::copy_text` writes it, and
-  `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
+  `Context::copy_image` (`beui_reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
   a plugin through the shell interface's `copy-image`, the headless
   `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
-  it). `Context::watch_copies` hears every text copy (which is how be-wayland hands the
+  it). `Context::watch_copies` hears every text copy (which is how be-host-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
@@ -459,12 +459,12 @@ hooks the higher crates fill in:
   A new platform implements those two traits and hands its window or element
   to the renderer loader beui-host gives it.
 - A platform only translates: it hands `Runner::push` an `Incoming`, which is
-  a `ui_types::Input` with its positions and deltas in physical pixels
+  a `be_lib_ui_types::Input` with its positions and deltas in physical pixels
   (`Incoming::from`), in the window's logical pixels (`Incoming::logical`) or
   in points (`Incoming::points`), an `Incoming::FileDrag` (files hovered over
   the window, the hover cancelled, or a `DroppedFile` dropped: its name and
   its host path or its bytes), or `Incoming::Time`, below. `FileDrag` and
-  `DroppedFile` live in beui-core rather than ui-types because they never
+  `DroppedFile` live in beui-core rather than be-lib-ui-types because they never
   cross the plugin protocol: a plugin's host turns them into its own
   `drag-over` messages. An `Input` is
   what any platform reports: pointer moves and buttons, a `Keystroke` (the
@@ -498,7 +498,7 @@ hooks the higher crates fill in:
   reports neither, so a web wheel scroll never stretches or flings. Every pointer sample is an event of its
   own: the web platform pushes each of a `pointermove`'s
   `getCoalescedEvents()` rather than only the last. The runner queues a
-  frame's input with `ui_types::input::enqueue`, the one set of rules a
+  frame's input with `be_lib_ui_types::input::enqueue`, the one set of rules a
   plugin's host merges its input batches by too: scrolls and zooms fold into
   the last of a run, a repeated modifiers report is dropped, and each pointer
   (the mouse, a finger, the pen) is heard once per frame, at its latest move,
@@ -602,7 +602,7 @@ hooks the higher crates fill in:
   `beui_renderer_wgpu::Renderer` (`Renderer::new(&resources)`) is one target's:
   its uniform, instance and space buffers, its cache of encoded display lists,
   its filters and its scratch texture. Give every window or panel drawn on one
-  device a renderer over the same `Resources`: beui-platform-plugin keeps one
+  device a renderer over the same `Resources`: be-sdk-beui-platform keeps one
   per plugin module for all its views, beui-layer-space one for all its panels
   and beui-platform-drm one for all its displays. A full atlas is replaced by a
   new texture rather than cleared, and a renderer draws with the atlas and
@@ -621,7 +621,7 @@ keeps children `SlotHost` (appending, and filling a slot a `Show` or `ForEach`
 holds) and `IntoSlotHost`, so a component
 can `children.mount(...)` into it. The macros need `::beui::reactive` to
 resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
-it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
+it does the same or re-exports `beui_tree::reactive` as a `beui-reactive` module of
 a crate it calls `beui`. Modifiers are ordinary functions: `@name=value`
 expands to `name(built, value)` after the component is built. Paths such as
 `@my_module::decorate=value` work too. Multiple modifiers run in source order,
@@ -679,12 +679,12 @@ beui on one core type-checks on the other; only the bodies differ. So:
   `SelectableState`. A method only one core can give is not on the type.
 - What exists on one core only lives in one of a few public modules, each
   listed with its reason in `ONE_CORE_MODULES` in
-  crates/fix-rust-source/src/core_api.rs: `beui::native` (apps, platforms,
+  crates/be-tool-fix-rust-source/src/core_api.rs: `beui::native` (apps, platforms,
   runners, `Document`, renderers, fonts, GPU `Drawing`s and `draw_gpu`, and
   `core_painter` for the native painter behind a `Painter`, named
   `NativePainter` there), `beui::html`
   (`run`, `hydrate`, `render_to_string`, ...) and the beui-view modules they
-  re-export (`native_api`, `running`). fix-rust-source rejects a `pub` item in
+  re-export (`native_api`, `running`). be-tool-fix-rust-source rejects a `pub` item in
   `src/native/` or `src/html/`, and a `pub` item under a `cfg(beui_html)`
   choice anywhere else in beui-view or beui; to add a one-core item, put it in
   one of those modules, or add a module to that list with its reason.
@@ -784,7 +784,7 @@ the browser. To serve a page that shows before any script runs, render it on
 the host with `beui::html::render_to_string(build)` (a program built for
 `linux_x86_64_html`, run at build time by the `prerendered_page` rule in
 buck/app/defs.bzl, or at request time, as be-server's account portal does
-with crates/be-portal-ui), put `beui::html::stylesheet(font_base)` in a
+with crates/be-server-portal-ui), put `beui::html::stylesheet(font_base)` in a
 `<style id=STYLES_ID>` in its head, with `font_base` the URL its `@font-face`
 rules find the bundled fonts under, and call `beui::html::hydrate(element_id, build)`
 with the same view in the browser: it claims the server's elements instead of
@@ -793,13 +793,13 @@ hydration](#live-dom-and-hydration)), and `run` and `hydrate` read the
 browser's preferences before they build so the first frame matches the page.
 `beui::html::choose_theme` sets a scheme the app picked over the browser's.
 crates/beui-html-spike is the worked example: block-app's account picker
-(crates/block-accounts-ui) prerendered by `:ssr` and hydrated by `:web`
+(crates/be-host-accounts-ui) prerendered by `:ssr` and hydrated by `:web`
 (guides/running/web.md). crates/beui-demo-html runs beui-demo's pages on this
 core.
 
 To test on both cores:
 
-- Behaviour that must match goes in a shared script in crates/beui-shared-tests:
+- Behaviour that must match goes in a shared script in crates/beui-tests:
   a screen and a `drive` script, run natively (once with late measurement) and
   in Chromium (guides/testing_a_gui.md, 7).
 - What the HTML core draws is checked with browser paintings rendered from
@@ -813,7 +813,7 @@ To test on both cores:
   text, not what needs the browser's layout (marks, carets).
 - The spike's dark painting
   (`crates/beui-html-spike/snapshots/prerendered_accounts_page_dark.browser.paint`)
-  and block-accounts-ui's
+  and be-host-accounts-ui's
   `an_account_in_a_company_says_its_administrators_can_read_it.paint` show the
   same screen on the two cores; rasterize both and compare them after a change
   to the HTML core or styled. They differ only in text rendering: glyph
@@ -1208,7 +1208,7 @@ says where a node is and what of it is visible, and `drive(..)`, which hands the
 board to the native core so it follows the pointer across windows, notices it
 leave every window, and drops or cancels on the release whichever node pressed;
 the HTML core ignores `drive` and leaves the dragging to the `Draggable`. `TextArea` is the multiline one: it owns a
-`text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
+`beui_text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
 handle owned by the scope that made it; `with_core` and `with_core_mut` reach
 the `Core`), lays the
 document out with a gutter (line numbers and a border line, no fill: the area paints no
@@ -1276,7 +1276,7 @@ from its own layout, not from where it lands on screen, so one inside a scaled
 `CanvasItem` is not laid out again when the view pans or zooms; a
 `VirtualList` reads the clip only while some of its rows lie outside it. A document whose language is
 `TextLanguage::RichText` is rich text, structured the way Slate structures one: the document
-knows nothing of bold or headings, a `Schema` (text-editor-core `schema.rs`) gives keys their
+knows nothing of bold or headings, a `Schema` (beui-text-editor-core `schema.rs`) gives keys their
 meaning, and the page renders the result. The bytes are the text alone, and every line is a
 block. Formatting is a set of `Marks` beside the bytes, each setting one key to a `Value` or
 clearing it, either over a stretch of text (`Scope::Inline`) or over whole lines
@@ -2010,7 +2010,7 @@ motion are independent preferences, even for the e-paper theme.
 ### Preferences
 
 `Preferences` (a `ThemeKind`, a `Motion` and a `CanvasTouch`) is what every document follows. Their types live
-in `crates/ui-preferences`, which the plugin protocol and settings blocks share, so a plugin's preferences are the
+in `crates/be-lib-ui-preferences`, which the plugin protocol and settings blocks share, so a plugin's preferences are the
 host's without conversion. A `Context` holds three `PreferenceLayer`s, each an `Option` per
 preference, and resolves them top down, falling back to `Preferences::default()`:
 
@@ -2176,7 +2176,7 @@ dismissed. There is one request for each reason, sent to one layer:
   click rather than reopening it. Every component whose button opens an
   overlay does it this way: the overlay names the button as its `trigger`, and
   the button's click toggles the overlay. A host of escaped
-  layers does the same (`block_app_plugin_host::dismissed_by_press`), except
+  layers does the same (`be_host_runtime::dismissed_by_press`), except
   that a layer blocking its view (`blocks_owner`) whose trigger is in that
   blocked view is closed by the press, which the view never hears. Which layers the pointer can reach is one
   rule (`Layers::reachable`) that the hit test and the forwarding of input to
@@ -2304,7 +2304,7 @@ a lost control in a frame with no anchor), the card opens under a zero-height re
 centre of its frame, with no beak. Anchored presentations escape a window that has a layer space;
 centred ones stay.
 `provide_frame_anchor(memo)` / `use_frame_anchor() -> Memo<Option<Rect>>` (unstyled) is where a
-window's frame shows to the user, in the window's points: block-editor-beui provides the editor's
+window's frame shows to the user, in the window's points: be-sdk-beui provides the editor's
 tab (the handle in the dock's strip that shows it, or the rect a parent placed it at when it has
 no tab, or the anchor of the last menu pick), and `None` when nothing of it is visible, such as a
 fullscreen tab. Which to pass: a small form about one object, opened from a control, passes
@@ -2315,7 +2315,7 @@ since a `MenuItem` is no node (file-tree's Inspect). Opened from a point on a ca
 slot). Opened from an action, which the frame menu on the tab, the palette or a shortcut runs, it
 passes `Rect` of `use_frame_anchor()` (text settings, canvas Export), so it points at its tab. A
 large form or embedded editor passes `size=DialogSize::Large`, with `Rect` of `use_frame_anchor()`
-when it belongs to a frame (block-shell's Share and artifact settings); a host-drawn one with no
+when it belongs to a frame (be-sdk-shell's Share and artifact settings); a host-drawn one with no
 frame (block-app's Members, Contacts, Agents, Unsent edits, the conflict compare) passes no anchor
 and stays centred. Alerts and
 app-level modals pass neither. It builds its content once, when it first
@@ -2329,7 +2329,7 @@ pinned footer; it reads `narrow` and `bottom_inset` (how much of its bottom is c
 which its padding keeps the footer above) from the `DialogLayout` it is in. Code that places
 its own body uses the parts: block-app's keep-changes prompt is a `DialogCard` with a
 `DialogBody` in a centred `Modal`, and a
-plugin opened as a dialog draws a `DialogBody` that block-editor-beui hands a
+plugin opened as a dialog draws a `DialogBody` that be-sdk-beui hands a
 `DialogLayout` from its frame's `dialog`. A sheet is fitted to the screen beui's on-screen
 keyboard leaves, so its footer stays above it.
 
@@ -2337,7 +2337,7 @@ keyboard leaves, so its footer stays above it.
 press on the scrim reach whoever owns the outer part. An outer part that is not in
 the same document provides a `DialogDismissal`, which the `DialogBody` inside
 claims while it lives: `handled()` says whether one did and `dismiss()` runs its
-`on_dismiss`, so a form with unsaved changes can ask before closing. block-editor-beui
+`on_dismiss`, so a form with unsaved changes can ask before closing. be-sdk-beui
 provides one in a plugin dialog and forwards the host's dismissal, Escape and back
 to it.
 
@@ -2501,7 +2501,7 @@ points to the host's (`host = origin + point * scale`) and `bounds` is where lay
 coordinates. Without one nothing changes: native block-app, tests and standalone apps never set it.
 "Layer" and "layer space" are beui's words: in the plugin protocol an escaped layer is an
 anchored view and a window's layer space is its view's anchor space (`screen-request.anchor-space`;
-beui-platform-plugin's `escaped.rs` maps one onto the other, guides/adding_a_plugin_editor.md).
+be-sdk-beui-platform's `escaped.rs` maps one onto the other, guides/adding_a_plugin_editor.md).
 
 One rule decides what escapes, `Placement::escapes()`: anchored placements (`BelowStart`,
 `RightStart`, `Above`, `Over`, `Around`, `CenterOn`, `Popover`) and `Edge(LayerEdge)`,
@@ -2599,7 +2599,7 @@ keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A `see_through` tab shows something drawn under the dock, as the inspector's App tab shows the
 app: neither its pane nor a stacked dock fills behind it, so the pane's chrome learns it from
 `DockChromeHandle::see_through`, and it stays on the main surface, where nothing of the dock is
-under it (`DockState::admits` refuses it a window). `provide_dock_shows_through(memo)` makes every dock built below show through the same way while it is true, except in floating windows: an editor keeping to its card on its parent's stage while it holds the parent's frame provides it (block-editor-beui's frame chrome, from `Editor::placed_content`), so the parent's stage shows around the card. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+under it (`DockState::admits` refuses it a window). `provide_dock_shows_through(memo)` makes every dock built below show through the same way while it is true, except in floating windows: an editor keeping to its card on its parent's stage while it holds the parent's frame provides it (be-sdk-beui's frame chrome, from `Editor::placed_content`), so the parent's stage shows around the card. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry (`dock.tab.<tab>.close`; a group's close button
 carries its hosting tab's). Every container has an `id`, saved with the
@@ -2630,7 +2630,7 @@ it builds) and derefs to it.
 
 `DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
 one back. A snapshot has no serialized form of its own: to save one keyed by
-`TabId`, save block-editor-beui's `SavedDockLayout::of(snapshot)`: the plugin
+`TabId`, save be-sdk-beui's `SavedDockLayout::of(snapshot)`: the plugin
 protocol's `DockLayout`, the form plugin docks are saved in, with the order the
 tabs were shown and the visits going back retraces. `SavedDockLayout::snapshot`
 turns it back. Restore it before the effects of the write that declares its tabs run (any
@@ -2931,7 +2931,7 @@ as its hosting tab (`focused`, `shown`), `show` of the hosting tab shows its
 group, and `contains` holds it while the group stands. Each layer saves its own layout: the outer
 `snapshot` keeps only the hosting tab, leaving out every inner tab and bar,
 in the group or moved out, so the inner dock's owner saves the inner
-`snapshot` (block-editor-beui does this itself for a dock that joins another
+`snapshot` (be-sdk-beui does this itself for a dock that joins another
 plugin's, guides/adding_a_plugin_editor.md) and restores it before or after it joins (a restore made before it
 joins is grafted in once the group stands). An outer `restore` while an inner
 dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
@@ -2947,7 +2947,7 @@ layout, but declares itself to the link, places only its bar bodies through
 `DockBodies`, and while the link's `hosted` is `Some` draws none of its bars
 (the dock's `bars_away`), keeps its tab bodies clear of that hosted state's
 covers, and reads and places bars there (`DockingLayout::bar_placement`,
-`place_bar`). block-editor-beui provides a slot in every editor's frame: a
+`place_bar`). be-sdk-beui provides a slot in every editor's frame: a
 joining one where the editor's dock joins another plugin's, a bars one
 otherwise (guides/adding_a_plugin_editor.md), and its `ChildBlock` in a
 tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
@@ -2960,9 +2960,9 @@ claims the `DockKeeper` context if one is provided above it (one per keeper; a
 dock nested in it joins it and claims none) and hands it a `DockKept`: its own
 layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
 a restore that puts a state in place keeping the tab ids, so the keeper can
-save and restore a standalone dock as it would a joined one (block-editor-beui
+save and restore a standalone dock as it would a joined one (be-sdk-beui
 provides one in every editor's frame). An owner that saves its dock itself
-provides `DockKeeper::none()` above it, as block-shell's `Workspace::new` does. Such a platform builds the tab bodies
+provides `DockKeeper::none()` above it, as be-sdk-shell's `Workspace::new` does. Such a platform builds the tab bodies
 itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
 request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
 as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
@@ -3060,7 +3060,7 @@ anchored view of its owner) and finds its tab through `use_frame_anchor()`,
 which the dock provides in every tab body (`DockTabControl::anchor()`: the tab's
 entry in its strip, none while the tab is fullscreen; `DockTabControl::handle()`
 is that entry's node). Both are drawn alike; a dock dialog is for content the
-dock must hold (a program's dialog, `block-shell`'s `WindowDialog`). A dialog's
+dock must hold (a program's dialog, `be-sdk-shell`'s `WindowDialog`). A dialog's
 body is built once when it is declared and kept while its tab is hidden.
 
 A `DockBar`, declared beside the dock's other children like a `DockDialog`, is a
@@ -3201,12 +3201,12 @@ joins another declares its own dock bars up with no owner (`DockDeclaredBar::own
 (`subtree`/`graft` map the host to none). A dock that only declares its bars up
 (`DockHostSlot::bars`) keeps its dock bars and draws them itself, so a plugin whose dock is
 the root (the desktop's) draws its own. Across the plugin protocol a docked plugin's dock bars
-cross with no `owner` too (block-plugin-api PROTOCOL.md, "Docks cross plugins").
+cross with no `owner` too (be-sdk-api PROTOCOL.md, "Docks cross plugins").
 
 A dock that joins none (the root, or a standalone dock) places bars by key: a
 bar's key is its own `DockBar` id's `key()`, and for a joined bar the `kind` it
 was declared with (`DockDeclaredBar::kind`: in-process, the declaring dock's own
-`key()`; across plugins, block-editor-beui declares `{block type}/{key}`, as
+`key()`; across plugins, be-sdk-beui declares `{block type}/{key}`, as
 saved layouts are keyed `{block type}/frame`). So every canvas's `tools` bar
 shares one, whichever plugin instance declared it, while another editor's
 `tools` bar does not. Placing, dragging, popping out or docking back
@@ -3580,7 +3580,7 @@ same thing keeps the one it had, which is what leaves an idle editor idle. The
 gpu resources belong to the `Draw` rather than to the drawing: keep them in an
 `Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
 from the format `DrawAt` names, and a headless test - which never builds a
-`Renderer` - never opens a device at all. The `scene_3d` editor is the worked
+`Renderer` - never opens a device at all. The `be_app_scene_3d` editor is the worked
 example. `Draw`, `DrawAt`, `drawing` and `painted_drawing` live in
 beui-draw, which holds nothing but them over beui-core and wgpu, so code that
 draws with the gpu never builds against the renderer; apps reach them as
@@ -3671,7 +3671,7 @@ colours the page's body to match; Android follows `system_bars`; DRM, headless
 and plugins ignore the title. A plugin pane has no title of its own and the
 plugin protocol carries none: `BeuiApp::View` returns the editor's own `Root`,
 whose `clear_color` the plugin's surface is cleared to (the theme's background
-unless the editor names another role), and block-editor-beui puts the frame's
+unless the editor names another role), and be-sdk-beui puts the frame's
 chrome around that root's child. A preview, drawn over something of the
 host's, is rooted in a transparent one; a plugin dialog (a creation dialog,
 artifact settings) is rooted in `SurfaceRaised`, the card it fills. Holes are cut from that colour, never left by it: a child editor's `Embed`
@@ -3887,13 +3887,13 @@ area inside its dock-level bands, and the plugin platform reports it to the host
 the main one instead), `Any` (a layer opens every window, as space does) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
 a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
-as beui-platform-plugin-api's `Views` and its `views.placement(id)` do; every other
+as be-sdk-beui-platform-api's `Views` and its `views.placement(id)` do; every other
 `Window` is an overlay inside the window it was opened in, so a plugin's
 docked windows stay inside its region). A platform may move between them: the
 plugin platform hosts every window while its host shows the windows of one of
 its views (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
 as a real window or an overlay from the frame the hosting changes. `Context::opens_windows` is true only
-for `Any`. A platform with no main window of its own (beui-platform-plugin,
+for `Any`. A platform with no main window of its own (be-sdk-beui-platform,
 beui-platform-drm) sets `Context::set_shows_main(false)`: the document then paints neither the
 root nor anything opened in the main window, so the root just holds the app's
 `Window`s.
@@ -3931,7 +3931,7 @@ again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
 same either way (a `Popup` one too: closing it on a press outside is left to
-the app, as be-wayland's popups need). `WindowHandle` (also `use_window()` inside the content)
+the app, as be-host-wayland's popups need). `WindowHandle` (also `use_window()` inside the content)
 carries the `id`, the shown `size` and `is_window()`, which says which of the
 two it is (`real_window()` is the hosted window it is drawn in: its own, or the
 one around the overlay it is). `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
@@ -4024,7 +4024,7 @@ the one this window last had, and focuses nothing else; `focused: false`
 leaves the focus where it is. A `Resized` report for the window holding the
 focus reveals a focused text field the way a resized main window does.
 
-Tests host windows with `testing::Stepped::hosting_windows` (block-ui-test's
+Tests host windows with `testing::Stepped::hosting_windows` (be-sdk-test's
 `DocumentTest::hosting_windows`), whose host opens every window asked for at
 its size and reports `Resized` and `Placed` back the next frame.
 `frame_in(window, inputs)` sends input to a window, `take_window_requests`
@@ -4035,7 +4035,7 @@ lists the open windows and each one's latest `WindowOutput`, and
 window-hosting layer instead, such as `beui_layer_space::Space`, stacked over
 its drive layer, with the `Setup` it is given (space wants `GpuSetup` and the
 `Context`), so a test can paint the scene that reaches the platform
-(`Stepped::painting`, `drive paint in platform`), as be-wayland's space test does.
+(`Stepped::painting`, `drive paint in platform`), as be-host-wayland's space test does.
 
 Pointer input names its window: `Incoming::Input` carries a `window`
 (`Incoming::in_window`; every constructor starts with the main window), in
@@ -4071,7 +4071,7 @@ the target the pointer left hears `over(None)` and the drop calls the
 out, so a drag that leaves on its first move still has one), which
 `Draggable` passes on as `on_drop_outside`. Unless a host opens every window
 (`Context::opens_windows`, `WindowHosting::Any`) the flag is ignored, so dragging out of a platform window still drops at the last
-point inside. `ui_types::Input` has no window: it is the
+point inside. `be_lib_ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
 ### Layers
@@ -4364,8 +4364,8 @@ it, and all its 3D (`glam`) stays in the crate.
   The runtime picks the GPU, so the `Link` is an `OpenGpu`
   (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
   gpu }` says how a renderer opens its device, the Vulkan device extensions
-  it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
-  block-app passes on Linux, and be-win32-capture's on Windows, enabled through
+  it wants where the adapter has them (be-host-dmabuf's `DEVICE_EXTENSIONS`, which
+  block-app passes on Linux, and be-host-win32-capture's on Windows, enabled through
   `open_vulkan_device`) and, when set, the
   `OpenGpu` that makes the instance and may make the adapter and device
   itself (`None` leaves them to wgpu). `Xr` makes
@@ -4530,7 +4530,7 @@ it, and all its 3D (`glam`) stays in the crate.
   softer. A new window takes its scale at once. An `Embed` in the window
   hears the new raster (`EmbedPlacement::raster`), which is how block-app
   sends a plugin region in it its raster beside its scale (the protocol's
-  `raster`, `ViewPlace::raster`), and beui-platform-plugin reports it
+  `raster`, `ViewPlace::raster`), and be-sdk-beui-platform reports it
   to the region's window as its `WindowReport::Rastered`, so plugin content
   in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
@@ -5326,7 +5326,7 @@ eight times: when the reports after the seventh still change something, the
 eighth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
 changing. Tests fail there instead: beui-core's own, and every test run through
-`block-ui-test`'s `DocumentTest` or `BeuiTest`, which turn on
+`be-sdk-test`'s `DocumentTest` or `BeuiTest`, which turn on
 `beui::native::fail_unsettled_layout`. An open overlay whose anchor moved is placed
 again after the walk, but only one the walk placed: an overlay under a culled
 ancestor is not placed at all, so its anchor moving is nothing to report. Each of those extra layouts is a cost the frame pays, so keep what a
@@ -5397,20 +5397,20 @@ scope; a signal write never needs it.
 ## Use beui in a block editor plugin
 
 A beui editor is a component. It implements
-`block_editor_beui::BeuiApp`, whose `View` and the other views the host asks for
+`be_sdk_beui::BeuiApp`, whose `View` and the other views the host asks for
 are trait components (see Components in traits and impls), and uses
-`block_editor_beui::beui_plugin!`.
+`be_sdk_beui::beui_plugin!`.
 The type it names holds no state: the
 framework builds the view once and keeps it. A plugin module is one beui app,
 with one `Document` and one `Context`: every region the host shows of every
 instance (a frame, a preview, artifact settings) is one of its windows, a
-`Window` block-editor-beui opens from beui-platform-plugin-api's `Views` handle
+`Window` be-sdk-beui opens from be-sdk-beui-platform-api's `Views` handle
 with `views.placement(id)` and the region's size, and its content is the
 region's view, so an editor only ever writes `View(editor)`.
 
 ```rust
 #[component]
-pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
+pub fn Counter(editor: be_sdk_beui::Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
     let increment = move || counter.operate(CounterModel::add(1));
@@ -5420,9 +5420,9 @@ pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
 pub struct CounterApp;
 
 #[component]
-impl block_editor_beui::BeuiApp for CounterApp {
+impl be_sdk_beui::BeuiApp for CounterApp {
     #[component]
-    fn View(editor: block_editor_beui::Editor) -> Root {
+    fn View(editor: be_sdk_beui::Editor) -> Root {
         view! {
             <Root>
                 <Counter editor={editor} />
@@ -5430,12 +5430,12 @@ impl block_editor_beui::BeuiApp for CounterApp {
         }
     }
 
-    fn create_block(creation: &block_editor_beui::Creation) -> Result<Uuid, String> {
+    fn create_block(creation: &be_sdk_beui::Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CounterContent::default()))
     }
 }
 
-block_editor_beui::beui_plugin!(CounterApp, "../manifest.json");
+be_sdk_beui::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
 `Editor` is everything the instance was given: the host, the block, the
@@ -5481,11 +5481,11 @@ its own holding a `PluginView` of the window region (`PanelWindows` in
 `compositor/plugin_view.rs`), opened where the plugin asked with its role, moved
 and resized by space on `BeginMove`/`BeginResize`, and its `Placed` answered as
 the window region's `placement`; closing the panel ends the region, which
-closes the app's window. block-editor-beui places the children laid out in a
+closes the app's window. be-sdk-beui places the children laid out in a
 window on that window's region (`Editor::end_frame` places only the children
 in the window it is given).
 
-The counter editor under `crates/editors/counter` is the reference integration.
+The counter editor under `crates/be-app-example-counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
@@ -5543,7 +5543,7 @@ on one catcher, asking each in turn until one takes the input. So a vertical
 wheel over a horizontal strip passes through to whatever is around it, and a
 drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
 `scroll_wheel`, `chaining_scroll_drag` (`scroll_drag` with a test that turns a
-settled drag down) and `autoscroll`; `PanZoom` is `pan_zoom`.
+settled drag down) and `autoscroll`; `PanZoom` is `be_app_example_pan_zoom`.
 
 Scrolling chains as in a browser. A `Scroll` turns down a wheel gesture or a
 settled finger drag that starts with it already at its edge in that direction
@@ -5673,7 +5673,7 @@ another component's state up by its node from inside the tree; take its
 
 The styled and unstyled crates never name `Document`, `with_document` or
 `NodeOf` outside their tests, so their components can be built on another
-backend; `fix-rust-source` reports it when they do. They reach the tree they
+backend; `be-tool-fix-rust-source` reports it when they do. They reach the tree they
 were built into through `beui::reactive` (`beui-view/src/nodes.rs`). What
 concerns one node is a method of the `TreeNode` trait on `NodeId`
 (`panel.focus_is_within()`, `overlay.raise_overlay()`, `offset.drive_offset(..)`,
@@ -5831,15 +5831,15 @@ when it is placed in a box bigger than itself.
 
 The icons are Lucide's, drawn from its font
 (`beui-fonts/src/assets/icons/lucide.ttf`, committed unmodified from
-the `lucide-static` npm package). They live in `crates/lucide`, which
+the `lucide-static` npm package). They live in `crates/beui-lucide`, which
 `beui_core::icons` re-exports and which knows nothing of beui, so the block
-catalog (`block-ui`) holds them too. An icon is a `Glyph`, its codepoint in the
+catalog (`be-sdk-ui`) holds them too. An icon is a `Glyph`, its codepoint in the
 font; only the list can make one, so a `glyph` or `icon` prop, which takes a
 `Prop<Option<Glyph>>` (`glyph=ICON_SAVE`, or `None` for no icon), cannot be
 handed text by mistake. The plugin protocol, which knows nothing of the font,
 carries codepoints as text; `Glyph::from_codepoint` reads one back, and
 `Glyph::as_str` is the text a painter lays out. The list,
-`crates/lucide/src/list.rs`, is one line per icon: its `ICON_*` constant, its
+`crates/beui-lucide/src/list.rs`, is one line per icon: its `ICON_*` constant, its
 Lucide name, its codepoint, and its tags from `tags.json` followed by the older
 names (aliases) it shares a codepoint with. The `icons!` macro in that crate
 turns it into the constants, `from_codepoint` and `ALL`, a `NamedIcon` per icon
@@ -5849,7 +5849,7 @@ and searches it (the workspace's appearance card). Search the list's tags for
 what an icon is for ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing
 from names. Don't edit the list by hand: to update Lucide, unpack the package
 (`npm pack lucide-static@VERSION`, then `tar xzf`) and run
-`./scripts/buck run //crates/local-tools:bin -- icons PACKAGE` from inside the
+`./scripts/buck run //crates/be-tool-local:bin -- icons PACKAGE` from inside the
 repository, which rewrites the list from `icon-nodes.json`,
 `font/codepoints.json` and `tags.json` and copies in the font. The list's
 `@yeskeepfile` comment stops `./scripts/verify` deleting its header; a comment
@@ -5927,7 +5927,7 @@ dialog, `scrim_soft` under the command palette and launcher, which leave the app
 readable, and `scrim_strong` under `Fullscreen`.
 
 Colours of a caller's own with a value for each built-in theme (the choice colours
-in block-editor-beui, for example) follow the theme the same way:
+in be-sdk-beui, for example) follow the theme the same way:
 `define_themed_colors(definitions)` takes a `fn(light: ThemeKind, dark: ThemeKind) ->
 ColorDefinitions` and defines it once per tree for the kinds the scheme would pick,
 and `theme.themed(var, |kind| literal)` (on the `ThemeStore` from `use_theme()`)
@@ -5956,7 +5956,7 @@ whose `#[component]` calls `crate::core::<name>(..)`; each core has a body:
 `src/html/<name>.rs` over `beui-core-html`, which builds one element per
 primitive and turns props into inline CSS. Hooks follow the same pattern:
 `src/reactive.rs` names what both cores provide, from each core's
-`reactive` module. On the HTML core a container's own behaviour lives in a
+`beui-reactive` module. On the HTML core a container's own behaviour lives in a
 `beui-core-html` module its body hands the elements to: `scroll` (`Offset`:
 an `overflow: hidden` element moved through `scrollTop`/`scrollLeft`, never a
 transform, so the browser's own scrolls - find in page, `scrollIntoView`,
@@ -6111,7 +6111,7 @@ marks the node as depending on its place, so it is laid out, or painted, again
 when that changes - an `Embed` reports its rectangle this way, and a
 `VirtualList` realises the rows its clip shows. A `Drawing` callback that paints
 in document coordinates rather than relative to the rectangle it is handed, as
-`infinite_canvas` does through its camera, paints through
+`be_app_infinite_canvas` does through its camera, paints through
 `painter.in_document()`.
 
 Painting is retained per node. A node's `paint` runs again when the node
@@ -6153,7 +6153,7 @@ the area they cover, so a large change spread over nearby spots is drawn once. A
 `draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
-`block-ui-test` (which turns on `beui::native::verify_paint`), paint every frame again
+`be-sdk-test` (which turns on `beui::native::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage. The second check (`paint/verify.rs`) sets the frame before
 against this one node by node, matched by id: a node's own shapes, the fades
@@ -6236,14 +6236,14 @@ A `Stepped` showing a document compares paintings (guides/testing_a_gui.md, 4) o
 painting one first only if none has been: `snapshot(name)` the main window, which also fails on
 what it shows out of bounds; `snapshot_layers(name)` the main window composited with the layers
 that escaped it; and `snapshot_window(name, id)` a window it hosts. Any other painting goes through
-`paint_snapshot::assert_painting(name, painting)`.
+`beui_paint_snapshot::assert_painting(name, painting)`.
 
 beui's own tests use `Harness::new(document)` or `Harness::sized(document, size)` from
 `crates/beui-host/src/tests.rs`: a `Stepped` with settling turned off, plus what those tests
 share: finding and measuring nodes, and driving the inspector and the dock.
 Tests of the `Runner` itself take `testing::Screen` rather than a renderer of their own.
 
-For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
+For a beui block editor, use `be_sdk_test::BeuiTest`, built from an `Editor`
 (or a `Creation`, for a dialog) so the test holds the same handle the component
 was handed. Give every interacted node an `@test_id`, call `run` after queued
 gestures, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
@@ -6316,7 +6316,7 @@ of `view!`; they group children without a backend node. Empty fragments
 flow work inside fragments.
 
 The compiler grammar lives in `beui-macros/src/lib.rs`; the source formatter has
-its own grammar in `fix-rust-source/src/views.rs`, using lossless source tokens.
+its own grammar in `be-tool-fix-rust-source/src/views.rs`, using lossless source tokens.
 Changes to view syntax must cover both grammars and their tests.
 
 `render` builds in a fresh reactive scope, flushes bindings, writes the doctype
@@ -6389,14 +6389,14 @@ has `key`, `holds` (a modifier key), `composing`, `target_value`, `target_checke
 `stop_propagation` and, on wasm, `raw`, so a handler compiles for both
 backends. The string backend ignores listeners. The live backend flushes after
 each handler; for signals set anywhere else, the host installs a flush with
-`reactive::wake_with`.
+`beui_reactive::wake_with`.
 
 `web-sys` and `dom` exist only for `target_arch = "wasm32"`, so native builds
 never compile them. beui's HTML core builds its elements with beui-html
 ([Cores](#cores)), so `./scripts/verify`'s check of the HTML core's libraries
-on `wasi_html` compiles the live backend, and crates/beui-shared-tests' `checks()` exercise
+on `wasi_html` compiles the live backend, and crates/beui-tests' `checks()` exercise
 mounting, hydration and listeners in Chromium (guides/testing_a_gui.md, 7).
 
-The web entry points are generated by `local-tools web-page` through its
+The web entry points are generated by `be-tool-local web-page` through its
 `:block-index` and `:demo-index` Buck targets. Their scripts, import maps and
-styles live under `crates/local-tools/src/web_page/`.
+styles live under `crates/be-tool-local/src/web_page/`.

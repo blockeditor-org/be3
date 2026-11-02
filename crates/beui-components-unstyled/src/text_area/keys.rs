@@ -1,4 +1,4 @@
-use text_editor_core::{
+use beui_text_editor_core::{
     CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, LRDirection,
     MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
 };

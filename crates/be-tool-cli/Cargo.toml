@@ -1,0 +1,45 @@
+[package]
+name = "be-tool-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "be"
+path = "src/main.rs"
+
+[dependencies]
+be-wasm-threads = { path = "../be-wasm-threads" }
+be-block = { path = "../be-block" }
+be-block-client = { path = "../be-block-client" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-keys = { path = "../be-block-keys" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store" }
+be-block-sync = { path = "../be-block-sync" }
+be-block-type-host = { path = "../be-block-type-host" }
+beui-components-unstyled = { path = "../beui-components-unstyled" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-sdk-type-api = { path = "../be-sdk-type-api" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+be-sdk-ui-database = { path = "../be-sdk-ui-database" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+be-type-database = { path = "../be-type-database" }
+futures-util = "0.3"
+portable-pty = "0.9"
+be-lib-terminal-emulator = { path = "../be-lib-terminal-emulator" }
+serde_json = "1"
+be-type-terminal = { path = "../be-type-terminal" }
+be-type-text = { path = "../be-type-text" }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+uuid = { version = "1", features = ["v4", "v7"] }
+
+[dev-dependencies]
+be-type-bundle = { path = "../be-type-bundle" }
+be-server = { path = "../be-server" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+be-type-workspace = { path = "../be-type-workspace" }
+
+[lints]
+workspace = true

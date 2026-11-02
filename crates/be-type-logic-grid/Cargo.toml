@@ -1,0 +1,23 @@
+[package]
+name = "be-type-logic-grid"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-model = { path = "../be-block-model" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+logicgame = { path = "../logicgame" }
+serde = { version = "1", features = ["derive"] }
+uuid = "1"
+
+[features]
+module = []
+
+[lints]
+workspace = true

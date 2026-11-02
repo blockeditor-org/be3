@@ -4,7 +4,7 @@ The project's issues are meant to live in block-app, as databases: an Issues
 database whose rows are issues, with Relation columns to a Projects database and
 a Milestones database, kept in a workspace and
 shared with the agents that work on them. Agents read and change them with `be`, the command line tool in
-`crates/be-cli`, and GitHub moves them as pull requests open and merge.
+`crates/be-tool-cli`, and GitHub moves them as pull requests open and merge.
 
 ## Using it from an agent
 
@@ -32,7 +32,7 @@ without the account token. Configure the proxy to inject the shown
 `Authorization: Bearer ...` value on every request to the server; the bundle’s
 `authentication: "proxy"` selects header authentication in `be`. Treat the whole
 bundle as secret. A `be` built from the
-checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
+checkout (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://api.be3.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
@@ -112,7 +112,7 @@ A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
 does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
 title is the first text column. `--body` replaces the row's page and `--append`
 adds a paragraph to it; `-` reads either from standard input. `--json` prints
-JSON. `download` writes a block file (`crates/be-client/src/transfer.rs`): each
+JSON. `download` writes a block file (`crates/be-block-client/src/transfer.rs`): each
 block's type, metadata, references and decrypted content bytes, the outermost
 block first and every block after its parent, into a new file only its owner
 may read; a database inside a view is downloaded from the view. The app writes and reads the same file: the files
@@ -130,7 +130,7 @@ them in the handoff.
 
 ## How it fits together
 
-- **Rows.** `Database` rows are `be-model` objects, so a row's id is stable and
+- **Rows.** `Database` rows are `be-block-model` objects, so a row's id is stable and
   edits to different cells merge. `DatabaseRow::page` links the row's page, a
   text block created under the database the first time someone asks for one.
   `DatabaseValue::Relation(RowRef)` links a row of another database; the
@@ -202,7 +202,7 @@ them in the handoff.
   before configuring the new secret. The workflow never executes PR-head code.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/pins`.
-- **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
+- **Proxies.** `be-block-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
   trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
   is what a cloud environment's proxy needs. That proxy may add the gateway's
   `Be3-Gateway-Authorization` header itself, so `BE3_AUTHORIZATION` can stay unset there.

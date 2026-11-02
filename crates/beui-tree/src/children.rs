@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use reactive::{
+use beui_reactive::{
     Get, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
 };
 

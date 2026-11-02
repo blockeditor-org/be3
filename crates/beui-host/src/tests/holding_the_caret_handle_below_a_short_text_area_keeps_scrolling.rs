@@ -3,8 +3,8 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{TextAreaApi, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
@@ -17,7 +17,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
             .collect::<Vec<_>>()
             .join("\n");
         let document =
-            Arc::new(TextBuffer::new(lines.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(lines.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

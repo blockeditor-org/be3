@@ -37,7 +37,7 @@ Keep the protocol free of any GUI framework: the phases are "apply input and lay
 
 ## Steps
 
-1. Protocol: add `layout-commit` and `render` to `crates/block-plugin-api/wit/types.wit`, move the geometry out of `frame-commit` into `layout-commit`, and tag presents with the pass they render. Update guides/adding_a_plugin_editor.md.
-2. Plugin SDK (`crates/block-editor-plugin`, `crates/beui-platform-plugin`): run beui's input and layout on interact, paint on render. Test that a parent's layout commit arrives before it paints.
-3. Host (`crates/block-app-plugin-host/src/runtime.rs`): run the two phases in `poll`/`settle`, parents before children, and update child requests from a parent's layout commit in the same pass. Test with two fake plugins that a child resized by its parent's commit is asked to render at the new size in that pass.
+1. Protocol: add `layout-commit` and `render` to `crates/be-sdk-api/wit/types.wit`, move the geometry out of `frame-commit` into `layout-commit`, and tag presents with the pass they render. Update guides/adding_a_plugin_editor.md.
+2. Plugin SDK (`crates/be-sdk`, `crates/be-sdk-beui-platform`): run beui's input and layout on interact, paint on render. Test that a parent's layout commit arrives before it paints.
+3. Host (`crates/be-host-runtime/src/runtime.rs`): run the two phases in `poll`/`settle`, parents before children, and update child requests from a parent's layout commit in the same pass. Test with two fake plugins that a child resized by its parent's commit is asked to render at the new size in that pass.
 4. Compositor: present a pass's frames together; keep the unstretched fallback for regions that missed it. An app test drags workspace-ui's splitter with the clock stopped and checks every frame shows the Files content laid out at the size of the frame around it.

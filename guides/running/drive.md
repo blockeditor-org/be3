@@ -4,13 +4,13 @@ Every beui program can run headless and be driven from the shell: read what is o
 text, click and type by name, wait until it settles, and take screenshots. This is the way to
 see a change working in the real app. Start it with its `:dev` target:
 
-    ./scripts/buck run //crates/block-app:dev
+    ./scripts/buck run //crates/be-host:dev
     source ~/.cache/be3/dev/env
     drive tree
 
 `:dev` exists for block-app (signed in, with the personal organization open on My files), beui-demo
 (`//crates/beui-demo:dev`, `~/.cache/be3/beui-demo/env`) and be-launcher
-(`//crates/be-launcher:dev`). Each builds the program, starts it with no window and returns
+(`//crates/be-tool-launcher:dev`). Each builds the program, starts it with no window and returns
 once it has settled; running it again restarts it, which is how to pick up a rebuild. The
 `env` file puts `drive` on `PATH`, pointed at that program; `drive help` lists the commands.
 
@@ -96,10 +96,10 @@ own to be driven:
   apart pinch it. A laser turned by less than 0.15 rad is smoothed and settles over frames, which
   with the clock stopped needs `drive pause`.
 
-`be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket, and
+`be-drive launch` (crates/be-tool-drive) sets the headless platform, its sizes and the socket, and
 adds drive to the `BEUI_LAYERS` it finds: `drive` alone when it names none, a tap under each
 layer it names and one on top when it names no drive (so `BEUI_LAYERS=space ./scripts/buck run
-//crates/block-app:dev` runs `drive,space,drive`, the VR simulator), and the list as it is
+//crates/be-host:dev` runs `drive,space,drive`, the VR simulator), and the list as it is
 when it names drive itself. It waits
 for the program to settle and writes the `env` file. It listens on the drive socket itself
 and hands the program the listener (`BEUI_DRIVE_LISTENER`, its file descriptor), so it can
@@ -112,7 +112,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
 - `--size=WIDTHxHEIGHT[@SCALE]` (1100x720 by default) and `--screen=WIDTHxHEIGHT` (1440x900).
 - `--latency=MS` adds MS milliseconds to every round trip between the program and its server,
   half each way, to see what a distant server does to a change; `:dev`'s server is in-process
-  and otherwise answers at once. It sets `BE_LATENCY`, which be-client's native transport
+  and otherwise answers at once. It sets `BE_LATENCY`, which be-block-client's native transport
   reads, so a program started any other way can set it too. `settle` waits only until nothing
   is left to draw, not for the server, so wait for what should appear with `wait`, or poll
   `tree` after an input sent with `--no-settle`.
@@ -133,7 +133,7 @@ block-app keeps a crash report from its last run in its data (`last-panic.txt`) 
 on its error screen at the next start, which is where `:dev` then settles; `drive tree` reads
 it, and the next `:dev` starts normally, since the report is shown once.
 
-An app that hosts programs (block-app under `--desktop`, whose compositor is be-wayland)
+An app that hosts programs (block-app under `--desktop`, whose compositor is be-host-wayland)
 tells drive the variables a program needs to open its windows inside it (`App::environment`):
 `drive exec PROGRAM [ARGUMENTS]` runs one with them, in the foreground with its output on the
 terminal (end the line with `&` to go on driving), and `eval "$(drive env)"` sets them in the
@@ -142,8 +142,8 @@ shell.
 `be-drive run` takes the same options and is for tests: it starts the program with fresh data,
 its clock pinned as `--pin-clock` pins it, and its output on its own, runs the commands on its standard input as `drive -` does, then
 waits for the program to exit, and fails unless every command succeeded and the program exited
-cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data and
-its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/app-tests drives
+cleanly. From Rust, `be_tool_drive::Driven` does the same: it starts a program with fresh data and
+its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/be-host-tests drives
 block-app (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
 `BEUI_RENDERER=none`: frames are painted but no GPU draws them, so `paint` works and `screenshot`
 does not, and neither do the 3D view of `space` or the previews of blocks, which are textures.
@@ -165,7 +165,7 @@ Coordinates are pixels from the window's corner. `offscreen` marks a node scroll
 out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls. A plugin's menu,
-tooltip or popover that reaches past its frame (an anchored view, crates/block-plugin-api/PROTOCOL.md,
+tooltip or popover that reaches past its frame (an anchored view, crates/be-sdk-api/PROTOCOL.md,
 Anchored views) is described on its own, as an untitled container beside the plugin's `Pane`s at the
 place it is drawn, so `find` and `click` reach its rows like any other.
 
@@ -220,11 +220,11 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
   so it compares exactly where a PNG would not; `drive paint FILE.png` draws it into a PNG
   instead, which is how to see the app's own window flat when a layer such as space is
-  between it and the platform. `./scripts/buck run //crates/local-tools:bin -- rasterize
+  between it and the platform. `./scripts/buck run //crates/be-tool-local:bin -- rasterize
   SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and `example-dump`
   lists its shapes. It reveals TARGET as `shot` does, waits until the app settles and crops to
   the part of TARGET that shows in the frame it paints, then asks every running
-  plugin for what it last painted, through the plugin's `paintings` export (paint-format's
+  plugin for what it last painted, through the plugin's `paintings` export (beui-paint-format's
   `ScreenPaintings`). What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
   snapshot.
@@ -355,7 +355,7 @@ such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
 before its answer and stops at the first that fails. A line whose first character other than
 a space is `#` is a comment, skipped before its quotes are read, so an apostrophe in it is
-fine; `be_drive::commands` is that reading, and buck/app/drive-words.mjs reads scripts the
+fine; `be_tool_drive::commands` is that reading, and buck/app/drive-words.mjs reads scripts the
 same way for the browser:
 
     drive - <<'EOF'

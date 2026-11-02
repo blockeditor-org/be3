@@ -1,7 +1,7 @@
 # One command palette for the whole app
 
 Today every editor frame has a command palette of its own (Ctrl+Shift+P in
-`block-editor-beui`'s `BeuiFrame`). It lists the actions that are live in that
+`be-sdk-beui`'s `BeuiFrame`). It lists the actions that are live in that
 plugin's document: the frame's own (undo, redo, rename, share, file details,
 close) and whatever the editor registered. It cannot see past the plugin it is
 in. A text block shown as a direct editor inside a canvas has its palette, and
@@ -19,7 +19,7 @@ marked **(ask)** need a decision from the user during the work.
   innermost first, deduplicated by id. `styled::CommandPalette` takes its rows
   from that list when it opens, unless it is handed `PaletteItems::list(..)`.
 - **One focused instance in the app.** block-app keeps a single
-  `host.focus: Option<Target>` (`block-app/src/host.rs`). Key, text and IME
+  `host.focus: Option<Target>` (`be-host/src/host.rs`). Key, text and IME
   events go only to that instance (`plugin_host/input.rs`). The app also knows
   every child instance's parent, which is how `report_child_bars`
   (`plugin_host/runtime.rs`) sends a child's `BarAction` to the plugin that
@@ -28,10 +28,10 @@ marked **(ask)** need a decision from the user during the work.
   guest `EditorHost::bar_action` → `editor_session.rs` → `instances.rs` →
   `editors/plugin.rs`. From there it reaches either the parent plugin as
   `EditorMessage::ChildBar`, or the app. A new message follows the same path
-  and touches the same files: `block-plugin-api` (`lib.rs` variant,
-  `instance()`, `direction()`, and `block_ids.rs`), `block-editor-plugin`
+  and touches the same files: `be-sdk-api` (`lib.rs` variant,
+  `instance()`, `direction()`, and `block_ids.rs`), `be-sdk`
   (`host.rs`, `editor_session.rs`, `screens.rs`), `block-app` (`instances.rs`,
-  `runtime.rs`, `editors/plugin.rs`, `editors.rs`) and the `block-ui-test`
+  `runtime.rs`, `editors/plugin.rs`, `editors.rs`) and the `be-sdk-test`
   harness.
 - **App-level keys.** block-app takes F6/Shift+F6 and Escape before plugins
   (`host::consume_key`), so it can take Ctrl+Shift+P the same way.
@@ -64,7 +64,7 @@ framework: a plugin written without beui can publish actions the same way.
   Ctrl+Shift+P, so a frame still has a palette in plugin tests and in hosts
   that do not draw one.
 
-### Guest (`block-editor-beui`)
+### Guest (`be-sdk-beui`)
 
 - An effect over a memo of the live actions sends `Actions`. The memo builds
   one `ActionInfo` per action by reading its label, enabled and checked props,
@@ -125,9 +125,9 @@ Recommend 1, limited to keys with Ctrl or Alt (**ask**).
 
 ## Tests
 
-- `block-plugin-api`: `Actions` and `RunAction` round-trip, as
+- `be-sdk-api`: `Actions` and `RunAction` round-trip, as
   `bar_actions_round_trip` does.
-- `block-ui-test`: a `BeuiTest` reports a plugin's published actions, follows
+- `be-sdk-test`: a `BeuiTest` reports a plugin's published actions, follows
   a change in an action's enabled state, and runs an action from a
   `RunAction`.
 - block-app: with a text child focused inside a canvas inside the workspace,

@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "map",
-    types = "//crates/editors/map/types:module",
-)

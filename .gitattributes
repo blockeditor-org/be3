@@ -18,7 +18,7 @@ buck/sysroot/packages.bzl linguist-generated=true
 *.paint binary
 
 # A frozen server's snapshot is kept byte for byte.
-crates/be-frozen/src/snapshots/*.zip binary
+crates/be-block-frozen/src/snapshots/*.zip binary
 
 # Browser paintings keep readable DOM and embedded resources.
 *.browser.paint text diff merge=binary

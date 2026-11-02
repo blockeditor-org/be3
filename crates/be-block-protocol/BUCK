@@ -1,0 +1,10 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+WIT = {
+    "foreign_resources": {"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"},
+    "resources": glob(["wit/*.wit"]),
+}
+
+cargo_library(**WIT)
+
+cargo_test(**WIT)

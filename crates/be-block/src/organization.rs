@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use be_commit::RetentionPolicy;
-use be_commit::retention::DAY;
-use be_model::{Document, Edit, Map, Model, ObjectId};
+use be_block_commit::RetentionPolicy;
+use be_block_commit::retention::DAY;
+use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

@@ -1,4 +1,4 @@
-use be_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
+use be_block_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -6,7 +6,7 @@ use crate::metadata::MetaKey;
 use crate::settings::{Follows, KindVisibility, Layered, union};
 use crate::{ChildChange, Root};
 
-pub use be_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
+pub use be_block_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
 
 pub const fn edit_kind_key(kind: Uuid) -> MetaKey<BlockRef> {
     MetaKey::defined(kind.as_u128(), "edit_kind")

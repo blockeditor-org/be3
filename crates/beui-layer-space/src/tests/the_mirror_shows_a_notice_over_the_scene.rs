@@ -34,7 +34,7 @@ fn the_mirror_shows_a_notice_over_the_scene() {
     );
     let painting = beui_core::painting::painting(&shown, PLATFORM, 1.0, SKY, Punches::Shown)
         .expect("the mirror paints");
-    paint_snapshot::assert_painting("the_mirror_shows_a_notice_over_the_scene", painting);
+    beui_paint_snapshot::assert_painting("the_mirror_shows_a_notice_over_the_scene", painting);
 
     space.set_notice(None);
     assert_eq!(

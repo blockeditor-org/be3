@@ -3,13 +3,13 @@ load("@root//buck/cargo:defs.bzl", "test_run")
 # A beui program started headless for an agent to drive with `drive`
 # (guides/running/drive.md): `./scripts/buck run //crates/<crate>:dev`. Arguments
 # after `--` go to `be-drive launch`, which passes on the ones it does not know.
-# With archive, program is a path in that app archive (crates/app-archive), which
+# With archive, program is a path in that app archive (crates/be-host-archive), which
 # be-drive unpacks, so only the archive is downloaded.
 def headless(name, program, app_name, args = [], data = False, archive = None):
     native.command_alias(
         name = name,
         args = [
-            "$(location //crates/be-drive:bin)",
+            "$(location //crates/be-tool-drive:bin)",
             "launch",
             "--name=" + app_name,
             "--libraries=$(location //buck/sysroot:amd64-libraries)",

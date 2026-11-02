@@ -42,7 +42,10 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
     assert_eq!(

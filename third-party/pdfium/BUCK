@@ -4,7 +4,7 @@ load(":sources.bzl", "libraries", "repositories")
 # plugins' platform like the rest of their C and C++, so it is position-
 # independent and the plugin links against the plugin SDK. sources.bzl is
 # PDFium's GN build read into data, from `./scripts/buck run //:pdfium --
-# REVISION` (crates/buck-tools/src/pdfium.rs): the repositories PDFium's DEPS
+# REVISION` (crates/be-tool-buck/src/pdfium.rs): the repositories PDFium's DEPS
 # pins, and one library per GN target under //:pdfium that compiles anything,
 # with its sources, defines and include directories. Everything else about how
 # they compile is the plugins' toolchain's.

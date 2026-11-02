@@ -2,9 +2,9 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 use std::ops::Range;
 use std::sync::Arc;
-use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 const TEXT: &str = "first line here\nsecond line here\nthird line here";
 const NEAR: f32 = 0.5;
@@ -104,7 +104,7 @@ fn clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
         held.update(|held| *held = Some(state));

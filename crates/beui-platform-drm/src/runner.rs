@@ -50,7 +50,7 @@ use smithay::reexports::input::{Device as Libdevice, DeviceCapability, Libinput}
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
-use be_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
+use be_host_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{Display, Displays};
@@ -124,9 +124,9 @@ pub struct Session {
 #[derive(Default)]
 struct Windows {
     hosted: bool,
-    shown: stable_hash::HashMap<String, WindowId>,
-    sized: stable_hash::HashMap<WindowId, beui::Rect>,
-    scaled: stable_hash::HashMap<WindowId, f32>,
+    shown: be_lib_stable_hash::HashMap<String, WindowId>,
+    sized: be_lib_stable_hash::HashMap<WindowId, beui::Rect>,
+    scaled: be_lib_stable_hash::HashMap<WindowId, f32>,
     focused: Option<WindowId>,
 }
 

@@ -45,11 +45,11 @@ positional.
 
 - **Sealed objects.**
   - Add a one-byte format/algorithm prefix before `nonce || ciphertext`
-    (`be-store/src/vault.rs:38-62`).
+    (`be-block-store/src/vault.rs:38-62`).
   - A future cipher, nonce scheme or key epoch can then be told apart from
     corruption.
   - The prefix also carries the key epoch (phase 3).
-- **`Commit`, `Manifest`, `be_vcs::Tree`.**
+- **`Commit`, `Manifest`, `be_block_vcs::Tree`.**
   - `CommitId` is the hash of their exact bytes, so they must never be
     re-encoded.
   - Wrap each in a versioned enum (`enum CommitV { V1(Commit) }`), so a new
@@ -59,12 +59,12 @@ positional.
   - Put a version before the postcard header.
   - Text stays raw UTF-8 after the header. That part is already the right
     long-term format.
-- **be-model documents** (folder, settings, profile and the rest).
+- **be-block-model documents** (folder, settings, profile and the rest).
   - Prefix `Tree::encode` with a magic and a version.
   - Freeze the order of the `Value` and `Change` variants: append only, and
     say so in a test.
   - `Tree::upgrade` replaces a field whose kind changed with a blank, and
-    that blank is written out on the next seal (`be-model/src/tree.rs:47-60`).
+    that blank is written out on the next seal (`be-block-model/src/tree.rs:47-60`).
     Make a kind mismatch keep the stored value and refuse writes to it.
   - `merge_fields` drops trailing fields that only the other side has
     (`merge.rs:149-182`). Keep them.
@@ -72,7 +72,7 @@ positional.
   - When a frame does not decode, reply with its request id.
 - **SQLite.**
   - The server (`be-server/src/schema.rs`) and the client
-    (`block-app/src/app_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
+    (`be-host/src/app_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
     with no migrations.
   - Done: `PRAGMA user_version`, ordered migrations, and a test that opens
     every older schema.
@@ -124,7 +124,7 @@ is left is marked below.
 ### Local-first client
 
 - **A local refs database** beside `be-objects` (SQLite on native) holds
-  (done: `be_client::refs`, `Peer::cached`/`attach`, the outbox and
+  (done: `be_block_client::refs`, `Peer::cached`/`attach`, the outbox and
   `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, on
   web in the origin private file system):
   - each block's local head and last-known remote head;
@@ -217,7 +217,7 @@ is left is marked below.
 ### Testing
 
 - Done: a test transport that drops, stalls and half-opens connections on
-  demand (`crates/fault-relay`), with tests that a half-open connection is
+  demand (`crates/be-block-fault-relay`), with tests that a half-open connection is
   noticed and reconnected, and that a request and a connect time out.
 - Done: tests that an edit made offline survives a restart and reaches the
   server, that two devices' offline edits merge (cleanly and with a
@@ -280,7 +280,7 @@ Outside the plugin, per key:
   GPU won't have.
 
 1. **Anchors (done).** Anchors exist only for positions in use
-   (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
+   (`beui_text_editor_core::AnchorTable`), so finding one no longer scans the text.
    The bytes are still a flat `Vec<u8>`, spliced in O(n) at several layers. A
    rope or piece table is worth it once items 3-5 stop the whole-document
    copies, and measuring says the splice matters.
@@ -322,7 +322,7 @@ Outside the plugin, per key:
      resynchronises after the edit.
 7. **Scrolling in plugins.** It repaints the whole viewport, because the
    plugin path unions the moved region into its damage
-   (`block-editor-beui/src/instance.rs:83-96`). Carry the native presenter's
+   (`be-sdk-beui/src/instance.rs:83-96`). Carry the native presenter's
    GPU move copy across the plugin surface.
 8. **Idle.**
    - Stop the caret blink after a few seconds without input, as most editors

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use beui_core::font::{GlyphId, GlyphImage};
 use beui_types::{Image, ImageId};

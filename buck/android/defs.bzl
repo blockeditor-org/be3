@@ -69,7 +69,7 @@ android_template = rule(
         "target_sdk": attrs.int(),
         "version_code": attrs.int(),
         "version_name": attrs.string(),
-        "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
+        "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
         "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),

@@ -7,12 +7,12 @@ define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the app hosts content";
 "Hosts" below): each plugin that brings types names its module in its manifest's
 `block_types` (guides/adding_a_block.md), and the types the app applies itself
-(`crates/host-types`) run in process.
+(`crates/be-sdk-type-host`) run in process.
 
-- `crates/block-type-api`: the protocol between a host and a type module, as the WIT
+- `crates/be-sdk-type-api`: the protocol between a host and a type module, as the WIT
   world `be3:block-type/type-module` (`wit/*.wit`) and the Rust generated from it.
   No GUI types.
-- `crates/block-type-guest`: the replica library a be-model-based type module links.
+- `crates/be-sdk-type-guest`: the replica library a be-model-based type module links.
   It holds a block's live session (owner sequencing, follower rebase, takeover, seal
   timing, `seal`/`rekey`) and its undo stack (`be_block::history::History`) as one
   deterministic state machine, and every `Document<R>` and `Blob<K>` works with it
@@ -26,10 +26,10 @@ pure-guest ABI (guides/plugin_libraries.md, "The raw plugin interface"). The WIT
 each function travels. A plain `func` is answered synchronously, on the caller's
 thread, which only a `local` interface (below) can do, so the generator refuses one in
 any other interface, import or export. Everything else is an `async func`, a
-`stream<T>` or a resource's lifetime: an operation ("op") of the be-ops kernel, which can
+`stream<T>` or a resource's lifetime: an operation ("op") of the be-wasm-ops kernel, which can
 be awaited and canceled.
 
-- `crates/be-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
+- `crates/be-wasm-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
   `Side::Guest`) has five frames: `Start { op, parent, method, args }`,
   `Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit { op, items, bytes }`. Either side
   starts ops, and an op id carries the starting side in its top bit. Every op ends
@@ -61,7 +61,7 @@ be awaited and canceled.
   calls `Connection::credit` itself. The other way, an import whose items the guest
   produces is an `async func` per item that the host answers once it has taken the
   item in, and the guest keeps no more than a `Window` of them unanswered.
-  `be_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
+  `be_wasm_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
   host's items, runs every task they wake until none is ready, and returns the items
   to send, so a step is deterministic and handles one item completely before the next.
   A guest calls an import inside `guest::with_parent(op, ...)` to make the call about
@@ -73,12 +73,12 @@ be awaited and canceled.
   forgets the call without a `Cancel` (`net::Pending::detach` does the same through
   `Caller::forget`). An export whose future is ready when first polled answers in the
   step that read its `Start`, before the next item, as if it were a plain call.
-- `crates/be-ops-bindgen`: the generator, a proc macro over `wit-parser`
+- `crates/be-wasm-ops-bindgen`: the generator, a proc macro over `wit-parser`
   (`generate!({ path, world, ... })`, expanded at the crate root). Its
   `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
   `resources` (guides/buck2.md), and WIT of another crate's package as
-  `foreign_resources` (`{"//crates/ui-types:wit": "crates/ui-types"}`) named in
-  `deps: ["../ui-types/wit"]`, each package after the ones it uses (block-plugin-api
+  `foreign_resources` (`{"//crates/be-lib-ui-types:wit": "crates/be-lib-ui-types"}`) named in
+  `deps: ["../ui-types/wit"]`, each package after the ones it uses (be-sdk-api
   lists `../ui-keys/wit` and `../ui-preferences/wit` before `../ui-types/wit`). A
   type another interface `use`s resolves to the interface that defines it, so a crate
   needs a `uses` entry for that interface too even when its WIT reaches the type
@@ -90,28 +90,28 @@ be awaited and canceled.
   type in place of a WIT type whose serde data model is the same, which the
   interface's module still names as an alias: a byte array for a tuple of as many
   `u8` (uuids, commit ids, colours), a newtype id for an alias of `u64`. Nothing
-  checks that the two agree (one known exception: block-type-api maps `uuid` onto
+  checks that the two agree (one known exception: be-sdk-type-api maps `uuid` onto
   `uuid::Uuid`, whose serde writes its 16 bytes with a length in front, which works
-  because both ends of a type module's link are block-type-api), so `with` is never for
+  because both ends of a type module's link are be-sdk-type-api), so `with` is never for
   a type with fields or cases of its own: generate it, and convert explicitly where Rust code wants another shape (a
   menu's tree, AccessKit's tree update). The one exception is a network world, whose
-  client and server are both the crate that generates it: be-protocol maps
-  `access-level`, `block-parent` and `escrow-key` onto `be_graph::Access`,
-  `be_graph::BlockParent` and its own frozen `EscrowKey`, so the wire uses the very
-  Rust types the graph and the sealed escrow bytes use, and a test of be-protocol
+  client and server are both the crate that generates it: be-block-protocol maps
+  `access-level`, `block-parent` and `escrow-key` onto `be_block_graph::Access`,
+  `be_block_graph::BlockParent` and its own frozen `EscrowKey`, so the wire uses the very
+  Rust types the graph and the sealed escrow bytes use, and a test of be-block-protocol
   holds the escrow key's bytes; `uses` (a map) takes a whole interface of another package from the crate
-  generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
+  generated from it (`{"be3:ui/types@0.1.0": ::be_lib_ui_types::types}`); `copy` names the
   mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
   or enum's first case is the default); `inline` records that are a variant case's
   fields, so `case(record)` becomes a struct variant; `lenient` records that take
   `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
   `Copy`; `own_debug` types whose crate writes `Debug` itself; `encodings` (a map) gives a
-  `with` type that holds bytes the `be_ops::wire` encoding to send it with (block-type-api's
+  `with` type that holds bytes the `be_wasm_ops::wire` encoding to send it with (be-sdk-type-api's
   `entries`, a `BTreeMap<Uuid, Vec<u8>>`, is `Map<Plain, Bytes>`); `local` (see below).
   Every `list<u8>`, wherever it sits (a field, a case, an argument, a result, a stream
   item, inside a list, option, result or tuple), goes over the wire as one run of bytes
   and never byte by byte through serde: the generator gives each position a
-  `be_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
+  `be_wasm_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
   `Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
   `deserialize_with` on fields and cases and as the second type parameter of
   `Pending`, `Stream`, `Ticket`, `Reply` and `Producer`, which defaults to
@@ -122,7 +122,7 @@ be awaited and canceled.
   answer to send later. With postcard a byte sequence and bytes encode alike, so this
   changes no byte on the wire. A watched value is a record or variant, never bytes
   directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
-  on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_ops::wire::serialize`/`deserialize`
+  on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_wasm_ops::wire::serialize`/`deserialize`
   on deeper nesting.
   WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
   for a case named `type`, generated as `Type`), and a function may not share its name
@@ -133,8 +133,8 @@ be awaited and canceled.
   its package, in the types, `guest` and `embed` alike (`shared::ids`,
   `desktop::power`, `guest::desktop::power`), so two packages may name an
   interface alike. Ids and
-  access levels have one shape in every package: `be3:shared` (crates/be-ops/wit, its
-  buck `foreign_resources` `//crates/be-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
+  access levels have one shape in every package: `be3:shared` (crates/be-wasm-ops/wit, its
+  buck `foreign_resources` `//crates/be-wasm-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
   and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
   an id is always a named alias, and a number one side hands out is an alias of an
   unsigned integer named `<thing>-id` in the package that hands it out. For the guest:
@@ -149,7 +149,7 @@ be awaited and canceled.
   outcome to send. `embed::Call` is the world's: one case per imported interface (named
   after it, or after its package and it where two share a name) holding that
   interface's `Call`, with the same `accept` and `refuse`, so a host that serves every
-  import matches once (be-server's `serve`, block-app-plugin-host's `heard`);
+  import matches once (be-server's `serve`, be-host-runtime's `heard`);
   `Call::accepts(&started)` asks one interface alone, and `embed::method_name(method)`
   names a method from the world's `embed::METHODS`. A `Reply` must be answered:
   `send` or `fail` on the connection, or `answer` for its op and outcome, which a host
@@ -162,10 +162,10 @@ be awaited and canceled.
   with. A resource's constructor is a long-lived op whose id is the handle; its async
   methods are ops with it as parent, and `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
   `constructor()` and `next: async func() -> T` is a latest-value watch: the guest's
-  handle implements `be_ops::Watched` (its `Value`, its interface, the two method ids,
+  handle implements `be_wasm_ops::Watched` (its `Value`, its interface, the two method ids,
   `open()` and `next()`), and `embed::WATCHES` lists every watch the world imports as a
-  `be_ops::Watching`, so a host can serve a watch by its method ids and an editor follow
-  any of them with one accessor (block-editor-beui's `editor.watch::<W>()`). The shapes follow wit-bindgen's, so moving to it later
+  `be_wasm_ops::Watching`, so a host can serve a watch by its method ids and an editor follow
+  any of them with one accessor (be-sdk-beui's `editor.watch::<W>()`). The shapes follow wit-bindgen's, so moving to it later
   changes little: the guest traits take `&self` of a guest instance instead of
   statics, since tests run many modules on one thread, and the constructor lives on
   `Guest` as `new_<resource>`, handed its op id.
@@ -176,10 +176,10 @@ from the guest's worker on the web, so every call but a `local` one is an `async
 An import that only tells the host something returns nothing: the guest makes it and
 calls `.detach()`, and the host answers `()` in the arm that applies it, or once it took
 effect for a guest that awaits it. The guest's whole wasm interface is then
-block-guest-abi's (`be3_host` and the `plugin_*` exports) plus its local imports.
+be-wasm-guest-abi's (`be3_host` and the `plugin_*` exports) plus its local imports.
 
 The one exception is an interface whose host runs inside the guest's own worker or
-thread on every platform, as the GPU device does (block-gpu-shim on the web, wasmtime
+thread on every platform, as the GPU device does (be-wasm-gpu-shim on the web, wasmtime
 host functions natively). `local: ["be3:gpu/device@0.1.0"]` names such imports: they
 are no ops, have no async funcs, and each func, resource method, constructor and
 `[resource-drop]` is a wasm import of its own that returns its result. Scalars, enums,
@@ -197,19 +197,19 @@ world with other imports of its own takes a local interface from its crate with
 `uses` and also names it in `local`, and generates nothing for it.
 
 `network: true` generates a world for a client and a server that talk over a
-socket instead of a guest and its host: `crates/be-protocol`'s network protocol. Such
+socket instead of a guest and its host: `crates/be-block-protocol`'s network protocol. Such
 a world only imports and has no local interfaces, so it has no sync funcs: only `async func`s,
 `stream<T>`-returning funcs and resources (a constructor, async methods and streams).
 It generates the types, `embed::<import>::Call` and `embed::Call` for the server as above, and
 `client::<import>` for the client instead of `guest` and the exports: a function per
-func that takes `caller: &(impl be_ops::net::Caller + Clone)` and returns a
-`be_ops::net::Pending<T>` (an `async func`; a `Send` future of `Result<T, OpError>`)
-or a `be_ops::net::Stream<T>` (`recv()`, and `futures_core::Stream`; it grants credit
+func that takes `caller: &(impl be_wasm_ops::net::Caller + Clone)` and returns a
+`be_wasm_ops::net::Pending<T>` (an `async func`; a `Send` future of `Result<T, OpError>`)
+or a `be_wasm_ops::net::Stream<T>` (`recv()`, and `futures_core::Stream`; it grants credit
 as it is read like the guest's), and a struct per resource whose `new(caller, ...)`
 opens it, whose methods start ops under it, whose `closed()` awaits its end and whose
 drop cancels it. Dropping a `Pending` or `Stream` asks to cancel it too, so nothing in user
 code names an op. `Caller` is the stubs' seam (start an op, poll what arrives for it,
-grant credit, cancel), and `be_ops::net::Peer` implements it: one side's `Connection`
+grant credit, cancel), and `be_wasm_ops::net::Peer` implements it: one side's `Connection`
 behind a mutex, made with a sink it hands each outbound frame to (under its lock, so
 in order; the sink must not call back into the peer), fed each inbound frame with
 `receive`, which keeps what belongs to calls started through `Caller` and returns the
@@ -224,7 +224,7 @@ canceled), and `peer.canceled(op).await` to stop work, or end a resource, that t
 client dropped. Never hold the guard across an await. A `Canceled` event may name an op
 already answered (a parent's end cancels its children when the server completes it,
 and the event comes out of the next `receive`), so a server ignores one it does not
-know. crates/be-ops's `network` tests run both halves over an in-memory pipe.
+know. crates/be-wasm-ops's `network` tests run both halves over an in-memory pipe.
 
 So one generator, one set of types and one op protocol, with two ways a call travels,
 chosen by who answers it. An `async func` or stream is an op: postcard arguments in a
@@ -238,14 +238,14 @@ copy.
 ## The protocol
 
 The world: the module imports `host` and exports `replicas`
-(`crates/block-type-api/wit`).
+(`crates/be-sdk-type-api/wit`).
 
 A pure guest has no entropy of its own, and a type module needs ids for the
 items its child edits add. The host calls `replicas.start(entropy)` first, which
 answers the module's types (content type, frozen, schema fingerprint, undo, plain
 form), and on wasm32-unknown-unknown the library is getrandom's custom backend, a
 generator seeded from it (`entropy.rs`; buck sets the `getrandom_backend` cfg for
-that plan). be-store's sealing (`vault`), be-commit's `CommitStore` and be-session's
+that plan). be-block-store's sealing (`vault`), be-block-commit's `CommitStore` and be-block-session's
 `resume` are default features a guest's dependencies leave off, so a module imports
 only `be3_host`'s functions.
 
@@ -272,14 +272,14 @@ that replica as its parent, which is how the host knows the block.
 What the host owes a replica:
 
 - **Time.** The module starts `host.clock` once, a `stream<u64>` of the host's
-  `be_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
+  `be_block_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
   stamped with the frame clock's instant, which `Clock::at` places on that clock), and
   the host yields the time on it whenever the clock moved, ahead of any other frame.
   The stream waits for the module's credit, so a tick can reach the module after a
   message sent later: each `message` therefore carries `at`, the clock when the host
   sent it (an editor's message at its frame's instant), and the module moves its clock
   there before applying it. The host's own clock reading follows the frame clock in
-  order with its commands (`block_app_stack::hold_clock`), so it never runs ahead of
+  order with its commands (`be_host_stack::hold_clock`), so it never runs ahead of
   a message it has yet to relay.
   `host.sleep-until(at)` asks to be woken: the host yields a time at or after `at` and
   then completes it; the module cancels it when it wants another time. The replica
@@ -295,7 +295,7 @@ What the host owes a replica:
   `content` or `seal` was still unanswered, handing the new answer to the old caller.
 - **IO answers.** `read`, `publish` (`published` or `rejected` with the current head;
   an unchanged save is `published` with the same head), `stash` and `resume-session`
-  (the host fetches both histories and runs `be_session::resume`; the replica cannot
+  (the host fetches both histories and runs `be_block_session::resume`; the replica cannot
   see history) are async imports, answered by completing them. A replica waits on one
   answer at a time and queues every other call behind it.
 - **Publishing.** `publish(expected, merging, content)` is a compare-and-swap on
@@ -321,7 +321,7 @@ What the host owes a replica:
 
 ## Peers
 
-Peers exchange `wire::Wire`: be-session's `SessionMessage`, `Tag` and
+Peers exchange `wire::Wire`: be-block-session's `SessionMessage`, `Tag` and
 `Incompatible`. A follower sends `Tag` (its `SessionTag`) ahead of each `Catchup`;
 an owner answers another tag with `Incompatible` and then ignores that peer's
 submits and catch-ups, and the follower marks itself incompatible and diverged, so
@@ -408,10 +408,10 @@ gesture is an editor message because it groups that editor's own edits.
 ```rust
 be_block_types![ChecklistContent { undo }, TextContent { undo, file }, FolderContent];
 // expands to: pub fn registrations() -> Vec<Registration>,
-//             pub fn block_types() -> block_type_guest::Module,
+//             pub fn block_types() -> be_sdk_type_guest::Module,
 //             pub struct BlockTypes (the guest)
 #[cfg(feature = "module")]
-block_type_guest::type_module!(BlockTypes);
+be_sdk_type_guest::type_module!(BlockTypes);
 ```
 
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
@@ -441,18 +441,18 @@ is the `GuestReplica`: the boundary turns each call into an input of the replica
 state machine and each of the machine's effects (`effect.rs`) into an import call
 parented to the replica, feeding the answer back in as an input, so the state
 machine itself never sees the protocol. `register` adds or replaces a type and
-`knows` asks for one, as block-ui-test does for a test's own types; `types()` is what
-`start` answers. `Module::executor()` is its `be_ops::guest::Executor`, and
+`knows` asks for one, as be-sdk-test does for a test's own types; `types()` is what
+`start` answers. `Module::executor()` is its `be_wasm_ops::guest::Executor`, and
 `Serving` holds both, for a guest. The macro also defines `BlockTypes`, a
-`block_guest_abi::Guest` over a `Serving` (`step` steps the executor). It does not export it: a types crate is a plain library
+`be_wasm_guest_abi::Guest` over a `Serving` (`step` steps the executor). It does not export it: a types crate is a plain library
 that editors, tests and other crates depend on, and only its `:wasm` build, with
-the crate's `module` feature, calls `type_module!` (`block_guest_abi::guest!`), since a
+the crate's `module` feature, calls `type_module!` (`be_wasm_guest_abi::guest!`), since a
 second set of guest exports in one wasm (an
 editor's own, or another types crate's) would clash. So a type module crate is
 that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
-(`crates/editors/checklist/types`).
+(`crates/be-type-checklist`).
 `Registration::without_undo` drops a registration's undo stack, which is how
-block-ui-test hosts every type (`ContentStore::register` takes a types crate's
+be-sdk-test hosts every type (`ContentStore::register` takes a types crate's
 `registrations()` for a test that needs a plugin's types it never names). The
 waker is unused: the replica asks for time with `sleep-until` and the host yields
 it on the clock.
@@ -462,10 +462,10 @@ over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), 
 
 ## Tests
 
-`crates/block-type-guest/src/tests.rs` is a simulated host: `Sim<C>` runs several
+`crates/be-sdk-type-guest/src/tests.rs` is a simulated host: `Sim<C>` runs several
 devices, each with its own `Module`, executor and host `Connection`, delivers every
 frame in one queue in the order it was sent, keeps commits and the head with
-compare-and-swap, answers `resume-session` from the commit graph, runs a be-session
+compare-and-swap, answers `resume-session` from the commit graph, runs a be-block-session
 `Lease`, follows each attached editor with an `EditorMirror`, and moves time only
 through `advance`, which yields it on each device's clock. `Lone` is one module
 and a host connection for a test that looks at the calls a module makes. `quiet` holds back `Moved` so a seal is rejected;
@@ -474,7 +474,7 @@ outside the session, as be sync makes.
 
 ## Hosts
 
-`crates/be-types-host` is the host half every host shares, natively under
+`crates/be-block-type-host` is the host half every host shares, natively under
 wasmtime and in process in tests:
 
 - `modules`: the registry (`kind_of`, `is_known`, `plain_of`: each type's
@@ -509,7 +509,7 @@ wasmtime and in process in tests:
 Where the modules come from: block-app stages each plugin's type module (and its
 `.cwasm` and `.sha256`) beside the plugin; `be` (and so `be sync`) carries every
 plugin's manifest and type module in its executable as one bundle
-(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_cli::plugins`), so its
+(`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_tool_cli::plugins`), so its
 release stays the one file guides/bootstrap.md pins, compiles them once into
 `BE3_CACHE/modules` through wasmtime's cache, and runs one module per plugin
 that has one, as the app does; the manifests also name the
@@ -519,5 +519,5 @@ registers only those of the types that module lists, and no module takes a type
 another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
 and an app built from one tree share sessions. Tests and examples of a host run
-every first-party types crate in process with `first_party_types::sources()`
-(`crates/first-party-types`), named by plugin id and declaring each module's types.
+every first-party types crate in process with `be_type_bundle::sources()`
+(`crates/be-type-bundle`), named by plugin id and declaring each module's types.

@@ -3,7 +3,7 @@ use crate::reactive::{Loading, Pending, Ready};
 
 #[test]
 fn a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let name = create_signal::<Ready<String>>(Err(Pending::Loading));

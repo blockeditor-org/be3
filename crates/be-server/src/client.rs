@@ -3,14 +3,14 @@ use std::{
     sync::Arc,
 };
 
-use be_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
-use be_protocol::{
+use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected, Contents,
     CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
     SessionEvent, SessionState, embed,
 };
-use be_session::Claim;
-use be_store::Hash;
+use be_block_session::Claim;
+use be_block_store::Hash;
+use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -54,9 +54,9 @@ struct Streams {
 }
 
 impl Streams {
-    fn send<T: be_ops::Serialize>(
+    fn send<T: be_wasm_ops::Serialize>(
         &mut self,
-        connection: &mut be_ops::Connection,
+        connection: &mut be_wasm_ops::Connection,
         item: T,
         to: impl FnMut(&Route) -> bool,
     ) -> Result<(), ServerError> {
@@ -65,7 +65,7 @@ impl Streams {
             .map_err(|_| ServerError::Socket("the client is not reading what it is sent".into()))
     }
 
-    fn open(&mut self, stream: be_ops::Producer<impl Sized>, route: Route) {
+    fn open(&mut self, stream: be_wasm_ops::Producer<impl Sized>, route: Route) {
         self.outlets
             .insert(stream, route, Backlog::Queue(STREAM_BUFFER));
     }
@@ -126,7 +126,7 @@ impl Client {
                 identity: None,
                 config: services.config.clone(),
             },
-            peer: Peer::new(be_ops::Side::Host, sink),
+            peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
             late,
             lates,
@@ -205,7 +205,7 @@ impl Client {
         hub.remove(client).await;
     }
 
-    fn reply<T, E: be_ops::wire::Encode<Result<T, Error>>>(
+    fn reply<T, E: be_wasm_ops::wire::Encode<Result<T, Error>>>(
         &self,
         reply: Reply<Result<T, Error>, E>,
         result: Result<T, ServerError>,
@@ -1075,10 +1075,10 @@ impl Client {
                                     },
                                 )
                                 .await;
-                            be_protocol::PublishOutcome::Published(head)
+                            be_block_protocol::PublishOutcome::Published(head)
                         }
                         PublishOutcome::Rejected(head) => {
-                            be_protocol::PublishOutcome::Rejected(head)
+                            be_block_protocol::PublishOutcome::Rejected(head)
                         }
                     })
                 }

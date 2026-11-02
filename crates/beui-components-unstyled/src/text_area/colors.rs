@@ -1,4 +1,4 @@
-use text_editor_core::SynHlColorScope;
+use beui_text_editor_core::SynHlColorScope;
 
 use beui_view::types::Color;
 

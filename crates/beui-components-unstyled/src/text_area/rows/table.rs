@@ -1,10 +1,10 @@
 use std::ops::Range;
 
+use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 use beui_view::types::Color;
 use beui_view::types::FontId;
 use beui_view::types::SpanStyle;
 use beui_view::types::TextLayout;
-use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
 use beui_view::measure::lay_out_text;
 

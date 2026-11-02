@@ -442,7 +442,7 @@ struct Session {
     frames: FrameTimes,
     other_frames: BTreeMap<String, FrameTimes>,
     shown: Vec<Option<WindowOutput>>,
-    windows: Vec<(WindowId, Rc<stable_hash::HashSet<accesskit::NodeId>>)>,
+    windows: Vec<(WindowId, Rc<be_lib_stable_hash::HashSet<accesskit::NodeId>>)>,
 }
 
 impl Session {

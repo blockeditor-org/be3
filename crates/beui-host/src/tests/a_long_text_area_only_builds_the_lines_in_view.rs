@@ -3,8 +3,8 @@ use crate::native::Document;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::{EditorCommand, TextBuffer};
 use std::sync::Arc;
-use text_editor_core::{EditorCommand, TextBuffer};
 
 const LINES: usize = 20_000;
 const SHOWN: usize = 64;
@@ -30,7 +30,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
             .collect::<Vec<_>>()
             .join("\n");
         let document =
-            Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

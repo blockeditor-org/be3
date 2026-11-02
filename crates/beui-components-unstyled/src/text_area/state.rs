@@ -3,7 +3,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use text_editor_core::{
+use beui_text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
     Formats, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
     TextIndentation, TextLanguage, TextRun,
@@ -162,12 +162,12 @@ struct Inner {
 pub struct TextAreaState(Stored<Inner>);
 
 impl TextAreaState {
-    pub fn new(document: Arc<dyn text_editor_core::Document>) -> Self {
+    pub fn new(document: Arc<dyn beui_text_editor_core::Document>) -> Self {
         Self::from_core(Core::new(document))
     }
 
     pub fn with_schema(
-        document: Arc<dyn text_editor_core::Document>,
+        document: Arc<dyn beui_text_editor_core::Document>,
         schema: Arc<dyn Schema>,
     ) -> Self {
         let mut core = Core::new(document);

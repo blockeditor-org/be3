@@ -1,0 +1,164 @@
+pub(crate) mod anchored;
+pub(crate) mod desktop;
+mod editors;
+mod intercept;
+pub(crate) mod plugin_view;
+
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+};
+
+use beui::reactive::*;
+
+use be_host_runtime::EditorAction;
+
+pub(crate) use anchored::AnchoredViews;
+pub(crate) use desktop::DesktopPlace;
+pub(crate) use editors::{
+    ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
+};
+pub(crate) use plugin_view::{ChildView, PluginView, ViewEditor};
+
+type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
+
+thread_local! {
+    static LISTENERS: RefCell<Listeners> = RefCell::new(HashMap::new());
+    static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
+    static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
+    static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static STALE: Cell<u64> = const { Cell::new(0) };
+    static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+    static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
+    static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn install() {
+    desktop::install();
+    anchored::install();
+    let signal = create_signal(0u64);
+    ANY.with(|any| *any.borrow_mut() = Some(signal));
+    let shell = create_signal(None);
+    SHELL.with(|held| *held.borrow_mut() = Some(shell));
+}
+
+pub(crate) fn shell() -> ReadSignal<Option<uuid::Uuid>> {
+    SHELL.with(|shell| {
+        shell
+            .borrow()
+            .as_ref()
+            .map(|shell| shell.read_only())
+            .expect("the compositor is installed while the document is built")
+    })
+}
+
+pub(crate) fn set_shell(block: Option<uuid::Uuid>) {
+    PENDING_SHELL.with(|pending| pending.set(Some(block)));
+}
+
+fn apply_shell() {
+    let Some(block) = PENDING_SHELL.with(Cell::take) else {
+        return;
+    };
+    let held = SHELL.with(|shell| *shell.borrow());
+    if let Some(shell) = held
+        && shell.get_untracked() != block
+    {
+        shell.set(block);
+    }
+}
+
+pub(crate) fn any() -> ReadSignal<u64> {
+    ANY.with(|any| {
+        any.borrow()
+            .as_ref()
+            .map(|any| any.read_only())
+            .expect("the compositor is installed while the document is built")
+    })
+}
+
+pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
+    let revision = create_signal(0u64);
+    let id = NEXT_LISTENER.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    });
+    LISTENERS.with(|listeners| {
+        listeners
+            .borrow_mut()
+            .entry(plugin_id.to_owned())
+            .or_default()
+            .push((id, revision));
+    });
+    let plugin_id = plugin_id.to_owned();
+    on_cleanup(move || {
+        LISTENERS.with(|listeners| {
+            if let Some(held) = listeners.borrow_mut().get_mut(&plugin_id) {
+                held.retain(|(listener, _)| *listener != id);
+            }
+        });
+    });
+    revision.read_only()
+}
+
+pub(crate) fn notify() {
+    be_host_stack::revisions::collect_released(editors::release_revisions);
+    OWED.with(|owed| owed.borrow_mut().take());
+    apply_shell();
+    desktop::apply();
+    crate::surfaces::apply();
+    notify_plugins();
+}
+
+pub(crate) fn notify_after_layout() {
+    if let Some(changed) = notify_plugins() {
+        OWED.with(|owed| *owed.borrow_mut() = Some(changed));
+        be_host_base::host::request_repaint();
+    }
+}
+
+pub(crate) fn owes_frame() -> Option<String> {
+    let changed = OWED.with(|owed| owed.borrow().clone())?;
+    Some(match changed.is_empty() {
+        true => "the compositor owes a frame for a change after layout".to_owned(),
+        false => format!(
+            "the compositor owes a frame for a change after layout from {}",
+            changed.join(", ")
+        ),
+    })
+}
+
+fn notify_plugins() -> Option<Vec<String>> {
+    let stale = be_host_stack::stale_revision();
+    if STALE.with(|seen| seen.replace(stale)) != stale {
+        be_host_base::host::changed();
+    }
+    let mut changed = be_host_runtime::take_changed();
+    changed.sort();
+    let notified = !changed.is_empty() || be_host_base::host::take_changed();
+    if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
+        any.update(|revision| *revision += 1);
+    }
+    for plugin_id in &changed {
+        let writers: Vec<Signal<u64>> = LISTENERS.with(|listeners| {
+            listeners
+                .borrow()
+                .get(plugin_id)
+                .map(|held| held.iter().map(|(_, listener)| *listener).collect())
+                .unwrap_or_default()
+        });
+        for write in writers {
+            write.update(|revision| *revision += 1);
+        }
+    }
+    notified.then_some(changed)
+}
+
+pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {
+    ACTIONS.with(|actions| actions.borrow_mut().push((from, action)));
+    be_host_base::host::request_repaint();
+}
+
+pub(crate) fn take_actions() -> Vec<(Option<uuid::Uuid>, EditorAction)> {
+    ACTIONS.with(|actions| std::mem::take(&mut *actions.borrow_mut()))
+}

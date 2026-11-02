@@ -2,10 +2,10 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_lib_stable_hash::HashMap;
 use beui_view::drag::{DragPoint, Driver, Order, Outside, Over, Pending, Space, Target};
 use beui_view::reactive::tree_local;
 use beui_view::types::{Pos2, Rect, WindowId};
-use stable_hash::HashMap;
 
 pub fn drag_board() -> Rc<Board> {
     tree_local(|| {

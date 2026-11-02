@@ -58,7 +58,7 @@ anyone else can sign in:
 - Native and Android are what the daily driver uses.
 - Done: the web build keeps the same files as native, in the origin private
   file system: `app.sqlite3`, the refs database and the `FileStore` objects,
-  through WASI file calls that `crates/block-app/web/files.js` answers. One
+  through WASI file calls that `crates/be-host/web/files.js` answers. One
   tab owns them (a Web Lock), the page asks for persistent storage, and a
   service worker keeps the app so it opens offline.
 - Done: the be stack runs in a worker of its own (`web/be-worker.js`), as it

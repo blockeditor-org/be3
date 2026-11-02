@@ -38,7 +38,7 @@ async fn objects_a_block_holds_outlive_its_commits_until_it_is_collected() {
     let response = client
         .call(|peer| client::blocks::collect_detached(peer))
         .await;
-    let Ok(be_protocol::Collected { objects: freed, .. }) = response else {
+    let Ok(be_block_protocol::Collected { objects: freed, .. }) = response else {
         panic!("collection failed: {response:?}");
     };
     assert_eq!(

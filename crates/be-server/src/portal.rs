@@ -4,7 +4,7 @@ use crate::{
     store::{AccountSession, MailLink, Profile},
 };
 use base64::Engine;
-use be_portal::{Account, Asset, Page, Portal, Problem, Screen, Session, SessionKind};
+use be_server_portal::{Account, Asset, Page, Portal, Problem, Screen, Session, SessionKind};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
@@ -16,12 +16,12 @@ pub(crate) struct Response {
 }
 
 fn invalid(message: &str) -> ServerError {
-    ServerError::Refused(be_protocol::ErrorCode::InvalidRequest, message.into())
+    ServerError::Refused(be_block_protocol::ErrorCode::InvalidRequest, message.into())
 }
 
-pub(crate) use be_portal::encode;
+pub(crate) use be_server_portal::encode;
 
-use be_portal::with_code as link;
+use be_server_portal::with_code as link;
 
 fn deliver(services: &Services, origin: &str, mail: MailLink) {
     let page = if mail.purpose == "reset" {

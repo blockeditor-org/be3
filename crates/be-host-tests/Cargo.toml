@@ -1,0 +1,13 @@
+[package]
+name = "be-host-tests"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-tool-drive = { path = "../be-tool-drive" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+
+[lints]
+workspace = true

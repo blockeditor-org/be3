@@ -30,7 +30,7 @@ select the Android package or storage directory.
 
 ## Starting it
 
-    ./scripts/buck run //crates/block-app:android
+    ./scripts/buck run //crates/be-host:android
     ./scripts/android-emulator
 
 The first command builds the APK into `target/android/block-app.apk`. The second boots the
@@ -97,7 +97,7 @@ adds `assets/build-info.json` and signs locally, writing
 `target/android/block-app.apk` or `target/android/be-launcher.apk`.
 `buck build --out` copies an unsigned template, not an installable APK.
 
-The finalizer is `local-tools apk-sign` (`crates/local-tools/src/apk_sign.rs`),
+The finalizer is `be-tool-local apk-sign` (`crates/be-tool-local/src/apk_sign.rs`),
 shared by local runs, the build helper (guides/build_server.md), and
 `./scripts/deploy` before hashing and uploading the release APK. It writes the
 v2 signing block itself, with RSA keys read through `p12-keystore` and `jks`.
@@ -116,7 +116,7 @@ set), asking at a terminal to generate or import a key when missing. Existing
 keys and certificates must be retained so installed apps accept updates.
 No key is a Buck attribute or action input.
 
-`./scripts/buck run //crates/local-tools:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
+`./scripts/buck run //crates/be-tool-local:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
 finalizes a template directly. `--build-info FILE` appends metadata before
 signing and requires an APK without `assets/build-info.json`. Appending
 preserves existing entries' offsets, including 16 KB native library

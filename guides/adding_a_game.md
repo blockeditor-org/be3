@@ -3,43 +3,43 @@
 A deterministic game is a crate of its own that compiles to a single
 WebAssembly module. The app never links a game: a module is imported into a
 game module block, and the game block that references it runs the module
-through the `wasmi` interpreter in `crates/tabletop-games/host`, asking it what
+through the `wasmi` interpreter in `crates/tabletop-host`, asking it what
 a player currently sees. That is the same on desktop, Android and the browser,
 so a game is written and built once.
 
-Everything about games lives under `crates/tabletop-games`, split by which
+Everything about games lives in the `crates/tabletop-*` crates, split by which
 side of the WebAssembly boundary it runs on:
 
-- `api` (`game-api`) is the contract, and is compiled into every game
+- `tabletop-api` is the contract, and is compiled into every game
   module. It holds the types the two sides exchange, the `GameHelper` a game
   is written against, the `game!` macro that declares a module's exports,
   and the build script helper each game calls. It has to build for
   wasm32-unknown-unknown, so it depends on nothing that needs a host.
-- `host` (`game-host`) is the other side: it embeds `wasmi`, loads a module,
-  and calls it. Only the app depends on it. It re-exports the `game-api`
+- `tabletop-host` is the other side: it embeds `wasmi`, loads a module,
+  and calls it. Only the app depends on it. It re-exports the `tabletop-api`
   types it passes across, so a caller needs the one crate.
-- `rules/<game>` is one game each - the only place a game's actual rules
+- `tabletop-rules-<game>` is one game each - the only place a game's actual rules
   live.
 
 ## 1. Write the crate
 
-- `crates/tabletop-games/rules/foo/Cargo.toml` — copy `tic_tac_toe`'s. The
-  package name is the module's file name and the game's id, so it is written
-  with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `game-api`
-  as a dependency, and `game-host` as a dev dependency so the tests can run
+- `crates/tabletop-rules-foo/Cargo.toml` — copy tic-tac-toe's. The package
+  is `tabletop-rules-foo`; the app stages its module as `games/foo.wasm`, the
+  folder's name after `tabletop-rules-` with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `tabletop-api`
+  as a dependency, and `tabletop-host` as a dev dependency so the tests can run
   the module.
-- `crates/tabletop-games/rules/foo/BUCK` — copy `tic_tac_toe`'s as it is. It
+- `crates/tabletop-rules-foo/BUCK` — copy tic-tac-toe's as it is. It
   builds the crate natively for the tests, a second time for wasm32 as the `module` target, and points the tests'
   `GAME_WASM` at that module.
-- `crates/tabletop-games/rules/foo/src/lib.rs` — the game, ending in
-  `game_api::game!("Foo", foo);`. The first argument is the name the module
+- `crates/tabletop-rules-foo/src/lib.rs` — the game, ending in
+  `tabletop_api::game!("Foo", foo);`. The first argument is the name the module
   gives itself, which is what the game module block's editor shows; the second
   is the game function.
-- `crates/tabletop-games/rules/foo/rulebook.md` — the rules in English,
+- `crates/tabletop-rules-foo/rulebook.md` — the rules in English,
   written the way a rulebook explains a game: who plays, what the pieces or
   cards are, how a turn goes, how it ends. Write this one first, because the
   code is meant to read like it.
-- Root `Cargo.toml` — add `crates/tabletop-games/rules/foo` to the members,
+- Root `Cargo.toml` — add `crates/tabletop-rules-foo` to the members,
   which is how the generated buck rules find the crate and its dependencies.
 
 Anything a game depends on has to build for wasm32-unknown-unknown with no
@@ -80,7 +80,7 @@ waits in `action`, the host can also ask it for any player's screen, which
 ### What the player sees
 
 A game never draws anything. The screen it returns is a `Scene`: a sentence
-for the viewer and a `Board` (`game_api::board`) that says what is on the
+for the viewer and a `Board` (`tabletop_api::board`) that says what is on the
 table and where, and the Game block's editor decides what each thing looks
 like - which is what lets a player pick their own skin for the pieces.
 
@@ -183,14 +183,14 @@ Some of what a rulebook says in one sentence is a paragraph of Rust, so
 - `helper.game_over(|player| ...)` ends the game: every viewer is told how
   it ended and nobody is offered anything.
 
-`game_api::cards` and `game_api::table` are the same idea for card games:
+`tabletop_api::cards` and `tabletop_api::table` are the same idea for card games:
 a deck of the usual 52, and a `Table` that deals it, holds each player's
 hand, the draw pile and the discard pile, draws (reshuffling the discard
 pile back under the face-up card when the draw pile runs out), counts
 passes and passes the turn to the left. Its shuffle is seeded from the ids
 of the players it deals to, so it needs no randomness of its own.
 
-These all live in `game-api` rather than in a game, so put anything new of
+These all live in `tabletop-api` rather than in a game, so put anything new of
 the same sort there too: whenever a rulebook sentence is plain and the Rust
 for it is not, the sentence belongs in the shared crate and the game keeps
 only its own rules. `crazy_8s` is written that way - one `lib.rs` that
@@ -198,11 +198,11 @@ follows its `rulebook.md` section by section - so what is left in it is
 what makes Crazy 8s that game: eights are wild, a played eight calls a
 suit, and drawing gets you one card you may play.
 
-The game runs once, as one long call the host pauses. `game_api::game!`
+The game runs once, as one long call the host pauses. `tabletop_api::game!`
 exports `play`, which runs the game function against the host: whenever
 `action` needs the next move it calls the host's `next` import, and the host
 pauses the whole instance there (a wasmi resumable call) until a move arrives
-or a screen is asked for, then resumes it. `game-host`'s `Session` is that
+or a screen is asked for, then resumes it. `tabletop-host`'s `Session` is that
 paused instance: `play(action)` feeds it one move, `show(player)` asks it for a
 screen, and each of those gets a fuel budget of its own, so a move that never
 finishes is cut off as that move's failure however long the game has run.
@@ -213,7 +213,7 @@ is that in one call.
 
 ### Games with pieces on a board
 
-`crates/tabletop-games/pieces` (`game-pieces`) is the same idea for games
+`crates/tabletop-pieces` (`tabletop-pieces`) is the same idea for games
 like chess and checkers, where the rules are mostly how each piece moves. A
 piece is an implementation of `Piece`: its name (which is also its sprite
 kind), its letter for notation, whether it is royal - a side may never leave
@@ -250,16 +250,16 @@ reaches the test as a trap rather than a message.
 
 ## 4. Getting the module into the app
 
-Every crate under `crates/tabletop-games/rules` is staged beside the app as
+Every `crates/tabletop-rules-*` crate is staged beside the app as
 the Games plugin's data (`games/<game>.wasm`, see
-crates/editors/deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
+crates/be-app-deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
 those games by the name each module gives itself; choosing one copies that
 exact module into the workspace as a Game Module block under the new game, so
 the game keeps playing the bytes it started with whatever the app is later
 rebuilt with. The same dialog can instead play a Game Module block the
 workspace already holds, or one imported there and then from a `.wasm` file,
 which is how a game the app was not built with gets played:
-`./scripts/buck build //crates/tabletop-games/rules/<game>:module --out <game>.wasm`
+`./scripts/buck build //crates/tabletop-rules-<game>:module --out <game>.wasm`
 writes one.
 
 To try a game without a second client, the Game block's "Playing as" menu

@@ -1,0 +1,36 @@
+[package]
+name = "be-block-type-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-threads = { path = "../be-wasm-threads" }
+be-block-client = { path = "../be-block-client" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-session = { path = "../be-block-session" }
+be-block-store = { path = "../be-block-store" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-sdk-type-api = { path = "../be-sdk-type-api" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+futures-util = "0.3"
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["v4"] }
+
+# Natively a type module runs on a thread of its own under wasmtime.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+
+[dev-dependencies]
+be-block = { path = "../be-block" }
+be-type-checklist = { path = "../be-type-checklist" }
+be-type-example-counter = { path = "../be-type-example-counter" }
+pollster = "0.4"
+tokio = { version = "1", features = ["rt", "sync"] }
+
+[lints]
+workspace = true

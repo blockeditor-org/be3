@@ -11,17 +11,17 @@ one file and one compiled module.
 ## What is in it
 
 A Rust plugin is linked against two libraries, or one (`buck/wasm/defs.bzl`):
-- **base**, `crates/plugin-library-base`, the root: std, alloc, the allocator and the panic
+- **base**, `crates/be-sdk-library-base`, the root: std, alloc, the allocator and the panic
   runtime, wasi-libc, libc++ and libc++abi, setjmp, wgpu with its custom backend
-  (block-gpu-guest), be-ops, block-plugin-api, block-editor-plugin (with the framework-neutral
-  region driver, `block_editor_plugin::driver`, and editor state), geometry, serde, postcard,
-  serde_json and uuid, and what they depend on. Nothing in it depends on `reactive` or beui:
-  block-editor-plugin's state (content, the graph, host values, and the editor, artifact and
+  (be-wasm-gpu-guest), be-wasm-ops, be-sdk-api, be-sdk (with the framework-neutral
+  region driver, `be_sdk::driver`, and editor state), geometry, serde, postcard,
+  serde_json and uuid, and what they depend on. Nothing in it depends on `beui-reactive` or beui:
+  be-sdk's state (content, the graph, host values, and the editor, artifact and
   creation state) is read as plain values and announces changes through callbacks
   (guides/the_new_block_stack.md, "State and change callbacks"), which any ui framework adapts.
-- **beui**, `crates/plugin-library-beui`, above base: `reactive`, beui and everything under it,
-  block-editor-beui, which turns those callbacks into beui's signals, and beui-platform-plugin
-  (the runtime block-editor-beui reaches through a symbol rather than a dependency, which brings
+- **beui**, `crates/be-sdk-library-beui`, above base: `beui-reactive`, beui and everything under it,
+  be-sdk-beui, which turns those callbacks into beui's signals, and be-sdk-beui-platform
+  (the runtime be-sdk-beui reaches through a symbol rather than a dependency, which brings
   beui-host: the renderer, fonts and inspector; it is beui's half of the region driver), with
   FreeType and HarfBuzz.
 
@@ -34,7 +34,7 @@ seen will use. A crate only one or two plugins use stays in those plugins. To mo
 library, add it to the library crate's `Cargo.toml` (and its `lib.rs`) and run
 `./scripts/buck run //:buckify`.
 
-libc++ and libc++abi are linked whole into the root too (`WHOLE_LIBRARIES` in `crates/wasm-link/src/lib.rs`).
+libc++ and libc++abi are linked whole into the root too (`WHOLE_LIBRARIES` in `crates/be-wasm-link/src/lib.rs`).
 wasi-libc is linked for what the root uses, and the C math library and the libc functions in
 `LIBC` are forced in (`MATH` and `LIBC` there), among them what FreeType and PDFium call. A
 module that calls a C function no library has fails to link, with the function named; add it
@@ -47,14 +47,14 @@ the plugins' toolchain compiles is (`_wasi_flags` in `buck/toolchains/BUCK` give
 `-fPIC`, which cc-rs leaves out on wasm, so a build script's C is too): a shared module cannot
 take any other code. Build it from source on that toolchain, as third-party/pdfium builds PDFium,
 rather than linking an archive built elsewhere. The C++ runtime and setjmp are base's even though
-nothing in base uses them, so every C++ library above it shares one copy (`crates/plugin-library-base/BUCK`).
+nothing in base uses them, so every C++ library above it shares one copy (`crates/be-sdk-library-base/BUCK`).
 
 ## Identity
 
 A library is one exact build: Rust has no stable ABI, so a module works only with the libraries it
 was linked against. A library's identity is the SHA-256 of its module. A linked module names every
 library in its closure, in dependency order, with exported globals `__be3_lib_<position>_<identity>`
-(`wasm_dylink::libraries` reads them, which survive precompiling), so one plugin's module pins its
+(`be_wasm_dylink::libraries` reads them, which survive precompiling), so one plugin's module pins its
 whole closure. A library is staged beside the plugins as `lib-<identity>.wasm` (and `.cwasm` where
 plugins are precompiled; `buck/app/stage.sh`), every library in the closure of every staged module:
 each module's rule gives its closure as `WasmLibrariesInfo` (`buck/wasm/libraries.bzl`), which the
@@ -68,7 +68,7 @@ order), `link` (each Rust archive and C library it holds) and `tls` (each of its
 
 ## How the links are made
 
-Every wasm link runs through `crates/wasm-link` (the toolchain's linker in `buck/tools`), which
+Every wasm link runs through `crates/be-wasm-link` (the toolchain's linker in `buck/tools`), which
 otherwise passes the link to rust-lld unchanged. The rules are in `buck/wasm/defs.bzl`.
 
 - **The root** (`wasm_library(module)` with no `libraries`, `--be3-library=NAME`): every Rust
@@ -86,7 +86,7 @@ link that needs libraries reads their `be3.lib` sections and:
 - refuses a library that needs one the link does not name, and orders the rest so each comes
   after the ones it needs (`closure`);
 - refuses a closure in which two libraries hold the same crate or C library, naming it (two copies
-  of `reactive` would be two reactive runtimes, which fails silently);
+  of `beui-reactive` would be two reactive runtimes, which fails silently);
 - leaves out of the link every archive and C library the closure holds, so what the module uses of
   them becomes imports;
 - reaches the thread-locals they define through `GOT.tls` (below);
@@ -94,7 +94,7 @@ link that needs libraries reads their `be3.lib` sections and:
   exports fails, naming it and the importing module, and so does one more than one library defines,
   apart from what lld defines in every module (`SYNTHESIZED`);
 - renames every mangled symbol it imports or exports (`_R`, `_Z` and LLVM's `anon.`) to `#` and
-  sixteen characters of its SHA-256 (`wasm_dylink::short_symbol`), as the root's link does its
+  sixteen characters of its SHA-256 (`be_wasm_dylink::short_symbol`), as the root's link does its
   exports: a library exports every symbol it has, and their names were a third of its module.
   The loaders only ever match names, so nothing else changes; the `name` section keeps the readable
   names for backtraces, and `unresolved` and the `be3.lib` listing name symbols as they were;
@@ -102,7 +102,7 @@ link that needs libraries reads their `be3.lib` sections and:
   align>_<tls size>_<tls align>`, which a host reads from the compiled module before
   instantiating it.
 
-A package whose crate other crates depend on, such as `crates/tls-diamond`'s, has a `library.rs`
+A package whose crate other crates depend on, such as `crates/be-tool-tls-diamond-base`, has a `library.rs`
 beside its `Cargo.toml` that only names the crate, and `wasm_library` links that, so the module
 holds the very rlib its dependents compile against: Buck's separate cdylib compile of the crate
 would have another crate hash, and its symbols would not match.
@@ -114,7 +114,7 @@ so nothing else changes about how they build.
 `buck/wasm/defs.bzl`, which also builds a second module of one editor, such as triangle's
 `:standalone`): every crate it uses linked into one plain module, no `--be3-*` flag, a WASI reactor
 as the root is. lld places the main thread's thread-locals itself in a module that is not
-position-independent. block-app-plugin-host's
+position-independent. be-host-runtime's
 `a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints` loads triangle
 both ways on a real device and compares the pixels.
 
@@ -150,7 +150,7 @@ thread-locals through a global the loader fills, as ELF's dynamic TLS model does
   code, is refused; LLVM makes neither for position-independent code.
 - **The value.** The code still adds its own `__tls_base`, so `GOT.tls.<symbol>` holds the
   symbol's address on this thread less the importing module's `__tls_base` on this thread:
-  `thread_local_slot` in `crates/wasm-dylink`. A module exports its thread-locals' offsets in its
+  `thread_local_slot` in `crates/be-wasm-dylink`. A module exports its thread-locals' offsets in its
   block as globals (rust-lld does, with `--export-all`), so the address is the defining module's
   `__tls_base` on this thread plus that offset. The root's block on a spawned thread is wasi-libc's,
   read from the thread's start argument, since the root sets its `__tls_base` only once
@@ -161,26 +161,26 @@ thread-locals through a global the loader fills, as ELF's dynamic TLS model does
   from pages it grows the memory by, takes one for the main thread and one for each thread a
   plugin spawns, in `wasi.thread-spawn` on the spawning thread before the thread runs, and gives it
   back when the thread's `wasi_thread_start` returns. Natively the free runs are a list in the
-  spawner (`Linked` in `block-wasm-host/src/dylink.rs`); in a browser they are a list in the memory
+  spawner (`Linked` in `be-wasm-host/src/dylink.rs`); in a browser they are a list in the memory
   itself, under a lock at the plan's `region`, since any worker may spawn a thread or end one
-  (`takeBlocks` and `freeBlocks` in `block-app/web/dylink.js`).
+  (`takeBlocks` and `freeBlocks` in `be-host/web/dylink.js`).
 
-`crates/tls-diamond` holds the test of it: base as the root, left and right as libraries above it,
+`crates/be-tool-tls-diamond-{base,left,right,app}` hold the test of it: base as the root, left and right as libraries above it,
 and a plugin needing all three (`linked_plugin`) whose generics reach a thread-local in each, on
 the main thread and on a spawned one, which wakes it to send `[1]` once all of them were right.
-block-wasm-host's `the_thread_local_diamond_runs_on_every_thread` loads it through `Host` on
-wasmtime, and `//crates/tls-diamond:web-test` runs it through `guest.js` and `plugin.js` in Chromium, where a
+be-wasm-host's `the_thread_local_diamond_runs_on_every_thread` loads it through `Host` on
+wasmtime, and `//crates/be-tool-tls-diamond-app:web-test` runs it through `guest.js` and `plugin.js` in Chromium, where a
 second worker checks that a library which no longer hashes to its name is refused.
 
 ## Loading
 
-`crates/wasm-dylink` holds the names the link and the loaders agree on, and plans the link as
+`crates/be-wasm-dylink` holds the names the link and the loaders agree on, and plans the link as
 plain data (`plan`, a `Plan`): for each module in the list, root first and plugin last, where its
 static data goes, its table slots, what answers each of its imports (a function or tag of a module
 below it, an address in a module at or below it, a table slot, a thread-local of a module below
 it, or the host), and where its thread-local block lies in a thread's run. A standalone plugin is
-a list of one, with nothing to plan. `crates/block-wasm-host/src/dylink.rs` (wasmtime) and
-`crates/block-app/web/dylink.js` (the browser, which reaches the planner through block-gpu-shim)
+a list of one, with nothing to plan. `crates/be-wasm-host/src/dylink.rs` (wasmtime) and
+`crates/be-host/web/dylink.js` (the browser, which reaches the planner through be-wasm-gpu-shim)
 only carry it out:
 1. Instantiate the root against the memory its import asks for, shared, and run `_initialize`.
 2. Plan: grow the memory by the pages the other modules' static data needs (`pages`) and place it
@@ -199,10 +199,10 @@ thread exists, since a table cannot be shared between threads: there is no loadi
 module later.
 
 Natively the host keeps one compiled module per library identity per engine (`Host` in
-block-wasm-host; one wasmtime engine per cache directory), so every plugin after the first only
+be-wasm-host; one wasmtime engine per cache directory), so every plugin after the first only
 compiles itself. `Host::load_from` takes a reader that hands back each
 module as a `Stored`: a file (`Stored::file`), whose `.cwasm` wasmtime maps rather than copies,
-or bytes already in memory, as Android's assets are. block-app-stack's `discovery::open` is the
+or bytes already in memory, as Android's assets are. be-host-stack's `discovery::open` is the
 app's reader: a file beside the executable on desktop, an asset's bytes on Android. In a browser each plugin's worker fetches each library and compiles it with
 `WebAssembly.compileStreaming`, which lets the browser cache the compiled code for the next worker
 that fetches the same file; the server has to give `.wasm` the `application/wasm` type for that,
@@ -212,13 +212,13 @@ and `fetchLibrary` compiles the bytes it hashed otherwise.
 
 A plugin needs no Rust and no library: a standalone plugin is one plain wasm module, with
 no `dylink.0` section and no `__be3_lib_*` export, which the host instantiates as it is, on
-wasmtime (`Program::Whole` in block-wasm-host) and in the browser (`boot` in
-`block-app/web/plugin.js`, under block-guest-host's worker runtime). `crates/block-wasm-host/src/tests/standalone.wat` is one, in
-WebAssembly text, that paints through the gpu; block-wasm-host's tests run it on wasmtime and
-`//crates/block-wasm-host:standalone-web-test` in Chromium.
+wasmtime (`Program::Whole` in be-wasm-host) and in the browser (`boot` in
+`be-host/web/plugin.js`, under be-wasm-guest-host's worker runtime). `crates/be-wasm-host/src/tests/standalone.wat` is one, in
+WebAssembly text, that paints through the gpu; be-wasm-host's tests run it on wasmtime and
+`//crates/be-wasm-host:standalone-web-test` in Chromium.
 
 Every guest, an editor plugin or a module with no GPU, speaks the same small ABI, in
-`crates/block-guest-abi`. What a standalone plugin exports:
+`crates/be-wasm-guest-abi`. What a standalone plugin exports:
 - `plugin_start`, `plugin_step` and `plugin_shutdown`, with no parameters or results. Required.
   The host calls `plugin_start` once, `plugin_step` whenever frames wait or the plugin woke, and
   `plugin_shutdown` as it stops it.
@@ -237,7 +237,7 @@ fails when called):
   asks to be stepped again, and `host_panic(pointer, length)`, which stops it with that message.
 - The `be3:gpu/device@0.1.0` imports (below): one per func, resources as `i32` handles that start
   at 1 for each kind, a record of plain values flattened into parameters, and anything else as
-  the pointer and length of its postcard encoding; `gpu_local_imports!` in block-gpu-abi lists
+  the pointer and length of its postcard encoding; `gpu_local_imports!` in be-wasm-gpu-abi lists
   every import and its parameters.
 - One memory, under any name, shared or not, in place of exporting one.
 - `wasi_snapshot_preview1`, for a plugin built for WASI.
@@ -245,9 +245,9 @@ fails when called):
   shared memory: each thread instantiates the module again against it and calls
   `wasi_thread_start`. A thread may only call `host_wake` and `host_panic`.
 
-A guest written in Rust implements `block_guest_abi::Guest` (`start` and `step`, with the frames
-in and out as plain bytes) and `block_guest_abi::guest!(Type)` exports it; the panic hook, the
-receive buffer and the wake flag are the crate's. block-editor-plugin's `plugin!` is one such
+A guest written in Rust implements `be_wasm_guest_abi::Guest` (`start` and `step`, with the frames
+in and out as plain bytes) and `be_wasm_guest_abi::guest!(Type)` exports it; the panic hook, the
+receive buffer and the wake flag are the crate's. be-sdk's `plugin!` is one such
 guest, plus the gpu, WASI and threads an editor has.
 
 A linked plugin follows the linked-module convention on top of this, which belongs to the link,
@@ -256,25 +256,25 @@ its limits), and the exports and imports under "How the links are made" and "Loa
 
 ### The gpu
 
-An editor's wgpu calls are the `be3:gpu` world (`crates/block-gpu-abi/wit`, shaped after
-wasi:webgpu), which be-ops-bindgen generates with `local` (guides/type_modules.md,
+An editor's wgpu calls are the `be3:gpu` world (`crates/be-wasm-gpu-abi/wit`, shaped after
+wasi:webgpu), which be-wasm-ops-bindgen generates with `local` (guides/type_modules.md,
 "Operations and WIT"): its imports, module `be3:gpu/device@0.1.0`, are answered on the
 plugin's own thread, so they return their results, and a call made per draw takes only
-wasm values. block-gpu-guest is wgpu's custom backend over the guest bindings (a
-surface is the host's surface id; `release_surface` drops it), block-gpu-host's `Gpu`
+wasm values. be-wasm-gpu-guest is wgpu's custom backend over the guest bindings (a
+surface is the host's surface id; `release_surface` drops it), be-wasm-gpu-host's `Gpu`
 implements `Host` over a real wgpu device (both convert between the generated types and wgpu's
-through the `From` and `TryFrom` impls behind block-gpu-abi's `wgpu` feature; the guest panics on
-what the abi cannot carry), block-wasm-host's `Guest` (`State` with a
-view of the plugin's memory, shared or its own) is the `Caller` and links the glue, and block-gpu-shim is the `Caller` in a browser worker and exports
+through the `From` and `TryFrom` impls behind be-wasm-gpu-abi's `wgpu` feature; the guest panics on
+what the abi cannot carry), be-wasm-host's `Guest` (`State` with a
+view of the plugin's memory, shared or its own) is the `Caller` and links the glue, and be-wasm-gpu-shim is the `Caller` in a browser worker and exports
 each import as `module#name`, which `plugin.js` binds every import the worker runtime
-(block-guest-host's `src/guest.js`) does not answer itself to. A call whose arguments cannot be read is refused into the device's error,
+(be-wasm-guest-host's `src/guest.js`) does not answer itself to. A call whose arguments cannot be read is refused into the device's error,
 which `take-error` and the step both report; natively a plugin that reaches for a gpu
-no device could be opened for stops with why. `example-gpu-calls` in block-wasm-host
+no device could be opened for stops with why. `example-gpu-calls` in be-wasm-host
 times the per-draw calls (guides/performance.md).
 
 The plugin GPU API is all of wgpu that browser WebGPU exposes, core and optional
 features, with the optional features and limits the host's device has. Anything missing
-from that set is a gap, and its `unimplemented!` in `block-gpu-guest/src/objects.rs`
+from that set is a gap, and its `unimplemented!` in `be-wasm-gpu-guest/src/objects.rs`
 says "not yet". Plugins are untrusted, so whatever wgpu marks `unsafe` is refused for
 good: passthrough shaders and pipeline caches. Native-only extensions (mesh shaders, ray
 tracing, multi-draw-indirect with counts) are added only behind a feature the plugin
@@ -282,12 +282,12 @@ checks, since the same plugin runs in a browser; until then their messages, and 
 of immediate data and `clear_texture`, say they are not in browser WebGPU.
 
 `features` and `limits` in the WIT are the host device's: its optional features that
-browser WebGPU has (`convert::FEATURES` in block-gpu-host, which leaves out immediate
+browser WebGPU has (`convert::FEATURES` in be-wasm-gpu-host, which leaves out immediate
 data), and its WebGPU limits. The app's device asks its adapter for those features
 (`browser_features` in beui-renderer-wgpu), as the shim's device does in a browser.
-`block_gpu_guest::features()` and `limits()` read them, and a plugin gets its device
-from `block_gpu_guest::request_device`, which refuses features and limits beyond them
-as wgpu's `request_device` does; block-editor-plugin requests every offered limit and no
+`be_wasm_gpu_guest::features()` and `limits()` read them, and a plugin gets its device
+from `be_wasm_gpu_guest::request_device`, which refuses features and limits beyond them
+as wgpu's `request_device` does; be-sdk requests every offered limit and no
 feature. The device then has only what it requested, and `features.rs` in the guest
 refuses, as a validation error, a texture format, storage format, blend or
 `unclipped_depth` that needs a feature it did not request, and a shader whose `enable`
@@ -300,11 +300,11 @@ host's device does with a nonzero one (honoured wherever the device has the feat
 Buffer mapping is asynchronous on both hosts, as in a browser. `map_async` asks the host
 (`buffer.map-async`), which maps the buffer and wakes the plugin once the map settles:
 natively a thread of the `Gpu`'s own polls the device while a map is pending, and the
-waker is the guest's `Wake` (block-wasm-host's `State::gpu`); in a browser the map settles
+waker is the guest's `Wake` (be-wasm-host's `State::gpu`); in a browser the map settles
 on the worker's event loop and the shim calls the wake `plugin.js` binds with `bind_wake`.
 The guest answers the map's callback only when it polls: `device.poll` (which waits for
-the gpu natively and cannot in a browser) or `block_gpu_guest::poll`, which
-block-editor-plugin calls at the start of every step. It asks `buffer.map-state`, WebGPU's
+the gpu natively and cannot in a browser) or `be_wasm_gpu_guest::poll`, which
+be-sdk calls at the start of every step. It asks `buffer.map-state`, WebGPU's
 `mapState`, of each pending map. `get_mapped_range` copies a range once out of a map
 (`buffer.read-mapped`, whose bytes come back raw), except for a buffer mapped at
 creation, which starts zeroed; a range written through `get_mapped_range_mut` goes back
@@ -336,7 +336,7 @@ answers its refusal. Device loss is per plugin: `Device::destroy` destroys only 
 view (`destroy-device`), never the host's shared device: the host destroys the buffers and
 textures the plugin made, fails its pending maps, and from then on drops creates (answering
 handles to nothing), writes, submits and maps, and reports no errors, until the plugin
-requests a device again (`request-device`, which `block_gpu_guest::request_device` calls).
+requests a device again (`request-device`, which `be_wasm_gpu_guest::request_device` calls).
 `device-lost` answers why the device was lost, and the guest's poll calls the lost callback
 with it. A device lost by the host reaches the plugin only where the plugin is the device's
 only user: the shim's `Gpu::owning_device` takes the device's lost callback. Natively the app
@@ -354,7 +354,7 @@ Occlusion and timestamp query sets, `resolve_query_set`, a render pass's
 A resolved timestamp is in nanoseconds, coarsened to 100 microseconds as Chrome does, on
 both hosts: the host gives a buffer made with `QUERY_RESOLVE` the `STORAGE` usage too
 (when its device has `timestamp-query`), and after resolving timestamps into it runs a
-compute pass (`queries.rs` in block-gpu-host) that converts the device's ticks
+compute pass (`queries.rs` in be-wasm-gpu-host) that converts the device's ticks
 (`get_timestamp_period`) to nanoseconds and rounds them down, so the guest's period is
 1. The host records a render bundle's commands itself and replays them into wgpu's
 encoder at `finish` (`bundles.rs`), since wgpu's encoder borrows what it is given. Two
@@ -367,12 +367,12 @@ drop it when wgpu is upgraded. On WebGL, indirect draws are refused (wgpu's
 
 A *pure guest* has only those imports: no gpu, no library, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
-own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A
-type module is a pure guest whose every call is a be-ops frame through `be3_host`
+own memory. `crates/be-wasm-guest-echo` is the smallest one, which the tests start every way. A
+type module is a pure guest whose every call is a be-wasm-ops frame through `be3_host`
 (guides/type_modules.md, "Operations and WIT"), so its ABI is the same as every other
 pure guest's, and the host refuses any import but `be3_host`'s.
 
-The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
+The host half is `crates/be-wasm-guest-host`, which the editor host and anything else that runs a
 guest share:
 - `Worker<C: Channel>` queues frames, steps the guest once it is ready, carries what it sent and
   finds a step that runs past `STEP_TIMEOUT`. It steps only when frames are waiting or the guest
@@ -381,8 +381,8 @@ guest share:
 - `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
   it hands the guest a `Wake` (`Runnable::on_wake`) that marks the guest woken before it
   reaches the host. Dropping it interrupts the guest. Every wasmtime guest reaches it through
-  block-wasm-host's `Host::spawn`, which loads a `Runnable` from the host (a `Plugin` for a pure
-  guest, block-app-plugin-host's `Editor` around one for an editor) and takes how to contain a
+  be-wasm-host's `Host::spawn`, which loads a `Runnable` from the host (a `Plugin` for a pure
+  guest, be-host-runtime's `Editor` around one for an editor) and takes how to contain a
   panic on the thread.
 - `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
 - `web::WebGuest<P>` runs any guest in a web worker of its own: `src/guest.js`, which the crate
@@ -390,12 +390,12 @@ guest share:
   the step, report and wake messages with frames moved as transferable
   buffers, and refuses any other import, which is all a pure guest needs. An editor's start
   names an extension, block-app's `plugin.js`, served beside the app, which instantiates the
-  plugin with its libraries, WASI, threads and block-gpu-shim, answers the rest of its imports,
+  plugin with its libraries, WASI, threads and be-wasm-gpu-shim, answers the rest of its imports,
   takes the page's canvas and picture messages (`WebGuest::post`; held until the guest is
   running) and adds `painted`, `pictures`, `gpu` and `submit` to each report, which `P`
-  (`web::Pictures`, block-app-plugin-host's `PresentedBitmap`) reads.
+  (`web::Pictures`, be-host-runtime's `PresentedBitmap`) reads.
 
-Natively a pure guest is a `Plugin` of a `Host::pure` in block-wasm-host: the same loading,
+Natively a pure guest is a `Plugin` of a `Host::pure` in be-wasm-host: the same loading,
 calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
 and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` imports
 linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports

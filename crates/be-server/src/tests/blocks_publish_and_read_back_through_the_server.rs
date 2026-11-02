@@ -33,7 +33,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(head)) if head == first),
+        matches!(response, Ok(be_block_protocol::PublishOutcome::Published(head)) if head == first),
         "{response:?}"
     );
     assert_eq!(client.read_block(block).await.head, Some(first));
@@ -69,7 +69,10 @@ async fn blocks_publish_and_read_back_through_the_server() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
 

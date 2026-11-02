@@ -2,7 +2,7 @@ use std::any::Any;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 
 use crate::child_list::{ChildHost, NodeChildren};
 use crate::current::with_document;
@@ -25,7 +25,7 @@ impl ChildHost for CanvasNode {
 
     fn children_changed(&mut self) {
         self.index.stale = true;
-        let items: stable_hash::HashSet<NodeId> = self.items.nodes().into_iter().collect();
+        let items: be_lib_stable_hash::HashSet<NodeId> = self.items.nodes().into_iter().collect();
         self.laid.retain(|(item, _)| items.contains(item));
     }
 }

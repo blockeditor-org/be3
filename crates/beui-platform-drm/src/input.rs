@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use beui::native::Waker;
 
-pub use ui_types::{InputDevice, PointerSettings, PointerSpeed};
+pub use be_lib_ui_types::{InputDevice, PointerSettings, PointerSpeed};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PointerDevice {

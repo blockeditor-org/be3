@@ -4,7 +4,7 @@ For a change that only shows in the browser, serve the web build and open it in 
 Chromium, then drive the page from the shell (anything else is checked natively, which is
 quicker: guides/running/drive.md):
 
-    ./scripts/buck run //crates/block-app:web-dev
+    ./scripts/buck run //crates/be-host:web-dev
     source ~/.cache/be3/web-dev/env
 
 The command builds the web bundle with every plugin and starts be-server and Caddy in front
@@ -63,11 +63,11 @@ than drawing them. Its bundle answers the reading commands of `drive` through
 app's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
 has revealed it, or as it is), `wait`, `gone`, `settle`, `pause` and `clock stop|run`, parsed and
 formatted by the same `beui_types::drive` the native drive layer uses. Input does
-not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
+not go through it: the browser gives it, from Playwright. crates/beui-tests' `:web-test`
 does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.mjs, which
 shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/app/drive-words.mjs).
 
-crates/beui-html-spike is block-app's account picker (crates/block-accounts-ui) on that core,
+crates/beui-html-spike is block-app's account picker (crates/be-host-accounts-ui) on that core,
 rendered on the host and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
 serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
@@ -85,9 +85,9 @@ the on-screen keyboard and the floating window there (crates/beui-demo-html/src/
 ## Plugins on the page
 
 Each plugin runs in a Web Worker of its own with its own GPU device
-(crates/block-app-plugin-host/src/web; block-guest-host's worker runtime,
-src/guest.js, which runs type modules too; crates/block-app/web/plugin.js,
-which it loads for a plugin; and crates/block-gpu-shim, which answers the
+(crates/be-host-runtime/src/web; be-wasm-guest-host's worker runtime,
+src/guest.js, which runs type modules too; crates/be-host/web/plugin.js,
+which it loads for a plugin; and crates/be-wasm-gpu-shim, which answers the
 plugin's gpu abi there). Nothing a
 plugin draws leaves its worker; the page hands the worker canvases instead:
 - Screens: each shown screen is a `<canvas>` in `#plugins`, behind the app's
@@ -131,35 +131,35 @@ files.js answers from memory and nothing survives a reload.
 
 - SQLite's WASI build has no WAL and by default locks a database with a
   `NAME.lock` directory, which a reload mid-transaction leaves behind, so
-  every later open would be busy. `sqlite_schema::open`, which opens both
+  every later open would be busy. `be_block_sqlite_schema::open`, which opens both
   databases, uses the `unix-none` VFS on WASI instead: the Web Lock below
   keeps one owner, and each database has one connection. A refs database
   that does not open is an error the worker shows and retries, never a
   silent in-memory one.
-- Every context counts the WASI monotonic clock (and `be_client::Clock::real`)
+- Every context counts the WASI monotonic clock (and `be_block_client::Clock::real`)
   from `performance.timeOrigin`, so an `Instant` the page makes means the
   same time in the be worker.
 - An unload cannot wait for the be worker, so durability does not depend on
   it: a replica seals within `SEAL_INTERVAL` of an edit, and until then
-  `block_app_stack::status().unsaved` counts it, from the command the page sends to the
+  `be_host_stack::status().unsaved` counts it, from the command the page sends to the
   module's next report (`Replicas::counts`). `beforeunload` asks first while
   anything is unsaved, and the worker seals while the browser asks;
-  `block_app_stack::flush` returns what was unsaved when it cannot wait (web) and what is
+  `be_host_stack::flush` returns what was unsaved when it cannot wait (web) and what is
   left after waiting (native).
 
-- The block stack (`block_app_stack::start`) runs in a worker of its own, `web/be-worker.js`, as it
+- The block stack (`be_host_stack::start`) runs in a worker of its own, `web/be-worker.js`, as it
   runs on a thread natively: a second instance of the module on the page's
   shared memory, started through the wasm-bindgen glue (with its bare imports
   rewritten, since a worker has no import map) so that its sockets, timers,
   fetches and type-module workers are its own. It lives as long as the page.
-  Its channels, `Shared` and `Condvar` are the native ones. `block_app_stack::stop`
+  Its channels, `Shared` and `Condvar` are the native ones. `be_host_stack::stop`
   cannot wait for it, so a stack started after another (switching
   organization and back) waits in its own worker until the earlier one's
-  `serve` has returned (`block-app-stack/src/web.rs`). The page's thread
+  `serve` has returned (`be-host-stack/src/web.rs`). The page's thread
   may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
-  lock the page shares with that worker is `wasi_threads::Mutex`, which spins
+  lock the page shares with that worker is `be_wasm_threads::Mutex`, which spins
   on wasm, and the beui waker takes no lock. A server connection's `Peer` locks a
-  `std::sync::Mutex`, so no connection crosses between them: `block_app_stack::link`
+  `std::sync::Mutex`, so no connection crosses between them: `be_host_stack::link`
   keeps the connections it hands out per thread on wasm, and the page's account calls
   and the stack each open their own.
 - One tab owns the files: the page takes the `block-files` Web Lock before it

@@ -7,7 +7,7 @@ async fn a_server_without_a_portal_answers_its_pages_as_json() {
     assert_eq!(status, 200);
     assert!(response.contains("Content-Type: application/json"));
     let page = page_of(&response);
-    assert_eq!(page.screen, be_portal::Screen::SignIn);
+    assert_eq!(page.screen, be_server_portal::Screen::SignIn);
     let mut browser = Browser::default();
     let (status, response) = browser
         .submit(

@@ -1,10 +1,10 @@
 # The desktop
 
-block-app is also a desktop: its shell is the desktop plugin (`crates/editors/desktop`, plugin
+block-app is also a desktop: its shell is the desktop plugin (`crates/be-app-desktop`, plugin
 id `be3.desktop`) instead of workspace-ui, on a session of its own, and the host shows other
 programs' windows inside it. This guide is what every host shares; each host has its own:
 
-- guides/desktop/linux.md: the Linux host, a Wayland compositor (be-wayland) that also runs
+- guides/desktop/linux.md: the Linux host, a Wayland compositor (be-host-wayland) that also runs
   on the displays themselves as a login session (`BEUI_PLATFORM=drm`) and installs as one.
 - guides/desktop/windows.md: the Windows host, which shows Windows' monitors and windows.
 
@@ -13,12 +13,12 @@ programs open as windows inside it (guides/desktop/linux.md); on Windows it show
 monitors and windows, launches Start Menu programs and offers power (guides/desktop/windows.md);
 on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
 windows, notification server, tray, media, power, lock screen or programs to launch.
-The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless
+The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
 and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
 
 Everything the desktop gets from the host comes through `be3:desktop`, a WIT package
 beside the core plugin protocol rather than in it
-(`crates/block-plugin-api/wit/deps/desktop`): one interface per part of the session
+(`crates/be-sdk-api/wit/deps/desktop`): one interface per part of the session
 (`windows`, `input`, `displays`, `power`, `media`, `wifi`, `epaper`, `notifications`,
 `screen-lock`, `programs`, `tray`, sharing `types`' `host-image`), each a latest-value watch
 (`WindowsWatch`, `PowerWatch`, ...) and, where the desktop asks something of the host, a
@@ -43,7 +43,7 @@ The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.doc
 - Status (`desktop.bar.status`, `StatusBar`): the tray, the device tools, the status button and
   the clock.
 
-Every display has its own three (`bar::Bars::of(display)`: block-shell's `SHELL_BARS + 3 * display`
+Every display has its own three (`bar::Bars::of(display)`: be-sdk-shell's `SHELL_BARS + 3 * display`
 and the two after it), which it places and hides by itself. By default all three sit beside the
 bottom edge in one band (`dock.bar.band.bottom`): Apps at its start, Windows centred, Status at its
 end. A grip moves its bar like any dock bar: beside any edge at its start, centre or end, floated over
@@ -87,8 +87,8 @@ corner nearest its Status bar.
 Each display's work area is that display less its own bars' bands: the dock's area
 (`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the plugin reports it on the view's frame report
-(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`) and block-ui-test's
-desk, through window-stack's `keep_in_work_areas` and `walled`, keep each of the plugin's windows on a
+(`frame-report.work-area`, insets), and block-app (`compositor/desktop.rs`) and be-sdk-test's
+desk, through be-sdk-window-stack's `keep_in_work_areas` and `walled`, keep each of the plugin's windows on a
 display wholly inside that display's work area on every edge where a band insets it, as the dock's
 `reachable_origin` walls do for windows it draws itself; other edges, and so other displays, stay
 open. A window being moved or resized is let go first, and kept once released.
@@ -107,16 +107,16 @@ restarting, powering off or logging out. The clock carries the count of listed n
 (`desktop.clock.unread`) and opens the desktop's calendar beside the notification history
 (`app/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. block-app publishes each as soon as the
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
-`windows`, `programs` and `power` (`block-app-plugin-host/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
+`windows`, `programs` and `power` (`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
 sees as nothing offered. block-app reaches the host through
-`block_app_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
+`be_host_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
 functions (start, list and act on windows, launch) whose defaults do nothing, so a platform with
 no host (`impl DesktopHost for Host { type Source = (); }`) writes none of them. Its `Source` is
 the `ProgramSource` that lists the installed programs, their icons and openers and runs one;
 `programs/installed.rs` is the one `Programs<S>` over it that scans on a thread, holds launches
 until the list is in and publishes `ProgramsWatch`. The scan's results reach the UI thread through
-`block_app_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
+`be_host_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
 them.
 
 That mailbox is the one way any work in block-app hands a result back to the UI thread: a worker
@@ -130,7 +130,7 @@ audio changes and service answers on its own, and so do `Programs` and `ScreenLo
 Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
 
-`./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
+`./scripts/buck run //crates/be-host:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
 
 ## Program windows
@@ -139,11 +139,11 @@ Where the host opens windows (`opens_windows()`, true only in space), every topl
 window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
 window (`FloatingWindow`) instead of a tab, as the desktop plugin always does. A program's dialog
 (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned
-window) is never a window of its own in either shell: block-shell's `WindowDialog` declares it as a
+window) is never a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
 `DockDialog` of its parent's tab, which the dock draws as the same anchored card as block-app's
 own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
 the parent dialog's header), escaping its pane as a layer, in space and outside it alike. Its
-header, like a program window's tab and its chip, is `block_shell::window_name`, the one way to name
+header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, the one way to name
 a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
 app id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
 then " — " and the window's title when it says more (not the name or app id, a trailing
@@ -194,7 +194,7 @@ bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It 
 ## Notes
 
 `HostWindow::note` is what the host wants said about a window right now, framework-neutral text.
-block-shell's `WindowPanel` hands it to its dock tab (`DockTabControl::show_notice`), so the
+be-sdk-shell's `WindowPanel` hands it to its dock tab (`DockTabControl::show_notice`), so the
 window's tab or dialog header shows it in place of the title while it is set; nothing is drawn
 over the window's content for it. The Windows host sets it for focus mode, hovering and refused
 input (guides/desktop/windows.md); the Linux host sets none.
@@ -204,7 +204,7 @@ input (guides/desktop/windows.md); the Linux host sets none.
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a
 host that captures them (Windows), whole displays (`kind: display`, `size` the display's, `title`
 its name). Each has `shown`, which the host keeps, so a shell started again shows what was shown.
-The shells draw only shown entries: block-shell's `Workspace` keeps the whole list
+The shells draw only shown entries: be-sdk-shell's `Workspace` keeps the whole list
 (`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
 floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
 The desktop plugin's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
@@ -232,7 +232,7 @@ display still list every window. Moving a window to another display is not offer
 has no request for it. On Linux it is a window
 switcher too. block-app's Wayland host opens every window shown and lists no displays; `hide`
 only stops the shells drawing it (the client keeps running and connected), and the shown state
-lives in `block-app-desktop/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
+lives in `be-host-desktop/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
 A hidden window shown again opens at its default place, not where it was.
 
 ## Displays
@@ -248,10 +248,10 @@ opens from them (`windows` in the screen request, set for the shell's frame and 
 and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
 opens, each of the desktop plugin's dock windows, becomes a window view (`HostView::Window`) that block-app keeps
 in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
-stacking order. The window manager itself, without signals, is the `window-stack` crate: the
+stacking order. The window manager itself, without signals, is the `be-sdk-window-stack` crate: the
 plugin's window requests in (`ask`), stacking (`raise`), moves and resizes (`move_in`, `drag`,
 `resized`), work areas and the `desktop X Y` placement; block-app wraps it in signals and
-block-ui-test's desk (`show_on_displays`) runs it directly, so the plugin tests drive the same one. A press on one raises it, and so does the plugin's `raise` window request,
+be-sdk-test's desk (`show_on_displays`) runs it directly, so the plugin tests drive the same one. A press on one raises it, and so does the plugin's `raise` window request,
 which the dock sends when a window takes the focus (a press on a program's content focuses the
 program, which focuses its tab); raising a window brings the windows opened over it, its dialogs
 and popups, along in front of it, and moving one (a drag or a `place` request) moves them with it. The dock's windows clear to transparent, so the margin their
@@ -264,7 +264,7 @@ point of the view it opened from (`Over`, measured from that view's corner on th
 at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
 placement on the window's screen request, which the dock keeps. Every screen request of the shell's
 frame, display and window views also carries the view's `origin`, its top-left corner in desktop
-points, asked again whenever it changes; beui-platform-plugin reports it as each window's
+points, asked again whenever it changes; be-sdk-beui-platform reports it as each window's
 `WindowReport::Moved`, and the dock keeps a window's rect (`DockingLayout::window_rect`, in its
 own window's points) from it, so it stays true after the host moves a window, and when a dock bar
 beside its top or left edge moves the dock's own area. A dock window whose
@@ -290,7 +290,7 @@ out of one window and over another, on any display, lands on that window's bar.
 
 `--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
 fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
-tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the views
+tests do the same through be-sdk-test's `BeuiTest::show_on_displays`, which shows the views
 and hosts the windows as block-app does, gives each display and window an anchor space so
 popovers and dialogs escape above the windows, takes input in desktop points (`desk_press`,
 `desk_move`, `desk_release`, `desk_drag`, and `desk_moves`, which advances the clock by a given
@@ -326,7 +326,7 @@ panel from the Apps panel's Menu and press Crash beside `be3.desktop`.
 ## A layout that cannot be read
 
 When the saved layout (the `layout` view state) does not decode, the desktop starts nothing from it
-and saves nothing over it: block-shell's notice (`workspace.layout`, see guides/the_new_block_stack.md,
+and saves nothing over it: be-sdk-shell's notice (`workspace.layout`, see guides/the_new_block_stack.md,
 View state) offers Reset layout, Exit and Copy report, and every window and placeholder it named stays
 in the saved bytes until the person resets. Exit asks the host to close the shell itself; in a login
 session that is Log out (programs are asked to close, then block-app exits and the session ends),

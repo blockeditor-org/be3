@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
 beui-demo = { path = "../beui-demo" }
-wasi-threads = { path = "../wasi-threads" }
+be-wasm-threads = { path = "../be-wasm-threads" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 

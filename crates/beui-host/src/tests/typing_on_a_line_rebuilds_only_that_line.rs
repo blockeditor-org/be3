@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::{EditorCommand, TextBuffer};
 use std::sync::Arc;
-use text_editor_core::{EditorCommand, TextBuffer};
 
 #[test]
 fn typing_on_a_line_rebuilds_only_that_line() {
@@ -15,7 +15,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
             .collect::<Vec<_>>()
             .join("\n");
         let document =
-            Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

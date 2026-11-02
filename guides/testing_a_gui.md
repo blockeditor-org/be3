@@ -27,7 +27,7 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 
 @test_id names the node the component builds. The node's accessibility node carries the id,
 so the frame reports the rectangle of every named node the accessibility tree shows, which is
-what block-ui-test clicks. Name them
+what be-sdk-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
 the same id the edit names), never by the order they happen to be drawn in. An id names one node in the tree:
@@ -38,12 +38,12 @@ places (a toolbar and a dock, say) gives each copy its own id.
 3. Write the test
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
-test in the repository. block-ui-test's BeuiTest is built from an OwnedEditor, which owns the
+test in the repository. be-sdk-test's BeuiTest is built from an OwnedEditor, which owns the
 state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
 keeps a handle after the BeuiTest takes the owner; `BeuiTest::editing(block)` makes both, with a default
-EditorHost that may edit, and `test.host()` reaches the host), and runs it headless through the plugin's own session (block_editor_plugin::headless):
+EditorHost that may edit, and `test.host()` reaches the host), and runs it headless through the plugin's own session (be_sdk::headless):
 the Screens and EditorSession the shipped plugin runs, fed the calls the app's host would
-make: the world's exports and the answers to the plugin's imports over a be-ops connection, as
+make: the world's exports and the answers to the plugin's imports over a be-wasm-ops connection, as
 on the wire, and what the host pushes (acceptance, preferences, input, the draw) encoded and
 decoded as the wire would. Gestures are turned into the protocol's input events the way
 block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
@@ -80,7 +80,7 @@ host has taken an edit.
 
 Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
 take_requests(), take_opens(), take_block_commands() (blocks.act), take_shell_commands() (shell.act: share, leave, rename, close, the app menu) and the other take_ methods drain one
-kind, take_host_calls(reader) the calls of the account and extension interfaces it made (block_ui_test::requested has a reader per function), and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
+kind, take_host_calls(reader) the calls of the account and extension interfaces it made (be_sdk_test::requested has a reader per function), and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
 app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
 set_peers, report_children, resize and presence_visible each queue the call the app
 would make. Setting the same state on the EditorHost directly skips the protocol, and the
@@ -143,7 +143,7 @@ Wait for the work rather than for a number of frames: a few more run() calls is 
 race with a wider margin, which is how one of these hid.
 
 The date and the time of day come from the harness too: an editor reads them from
-`block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
+`be_sdk_beui::wall_clock()` (and `utc_offset()` for local time), never
 `SystemTime::now()`. That clock is the host's: each draw carries the host's wall clock beside
 its frame time (`wall-micros`), and the harness hands one fixed moment plus its frame clock, so
 a clock or a calendar paints the same on every run. beui's own date and time components (a
@@ -151,7 +151,7 @@ calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the
 pins to that clock each frame; a beui test without a plugin pins it with
 `beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`. The fixed moment is
 `beui_core::timer::TEST_WALL_CLOCK` (2026-03-02 09:41 UTC). The app tests and every other test
-that starts a program through `be_drive::Driven` or `be-drive run` start it with its clock
+that starts a program through `be_tool_drive::Driven` or `be-drive run` start it with its clock
 pinned (`be-drive launch --pin-clock`, guides/running/drive.md): the headless platform pins
 beui's wall clock to that moment as it starts and runs the app in UTC, so block-app hands every
 plugin that moment too. An agent's `:dev` runs on the real time unless started with
@@ -207,8 +207,8 @@ way for the test to fail.
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it on the pull
-  request: its summary comment links to a page (crates/paint-review, served on the web by
-  crates/paint-review-web) that lists every painting the pull request added, removed or
+  request: its summary comment links to a page (crates/be-tool-paint-review, served on the web by
+  crates/be-tool-paint-review-web) that lists every painting the pull request added, removed or
   changed, and flips each frame between before and after. The comment also shows up to 30
   frames inline, with before, after and highlighted changes, inside one collapsed disclosure.
   The review page uses tiled
@@ -230,11 +230,11 @@ way for the test to fail.
   inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
   beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
   catalog page and fails on any such ring, since a painting rarely has the focus showing.
-- ./scripts/buck run //crates/local-tools:bin -- rasterize <crate directory>/snapshots/<name>.paint out.png
+- ./scripts/buck run //crates/be-tool-local:bin -- rasterize <crate directory>/snapshots/<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
-- A painting is paint-format's types as CBOR (`paint_format::encode`), deflated behind a
-  version number (`VERSION` in paint-snapshot's format.rs). Accepting compares the CBOR before
+- A painting is beui-paint-format's types as CBOR (`beui_paint_format::encode`), deflated behind a
+  version number (`VERSION` in beui-paint-snapshot's format.rs). Accepting compares the CBOR before
   deflating it, so a painting passes or fails on what it holds. Grow the format the way
   guides/frozen_formats.md grows CBOR values - a new enum variant, or a new field with
   `#[serde(default, skip_serializing_if = ...)]` that skips its default - so the paintings that
@@ -245,7 +245,7 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/local-tools:bin -- changed says, for every native painting in a
+  ./scripts/buck run //crates/be-tool-local:bin -- changed says, for every native painting in a
   crate's snapshots/ that differs from HEAD (untracked ones too), what moved and which frames
   changed, and writes those frames into target/changed-paintings as the pull request's
   painting comment does: a before, an after and a changes PNG for each, where magenta marks
@@ -253,7 +253,7 @@ way for the test to fail.
   against another revision, and --images writes to another folder.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
-block_ui_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
+be_sdk_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
 are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
 verify changes), which takes the snapshots: the document runs through the real `Runner`, frame(inputs)
@@ -279,7 +279,7 @@ beui shapes and rasterizes its glyphs through the HarfBuzz and FreeType it carri
 the fonts it carries, once it is compiled to wasm, which is how its tests run, so what an
 editor paints is comparable like anything else.
 
-Browser pages use `paint_snapshot::BrowserSnapshot` instead of native drawing commands:
+Browser pages use `beui_paint_snapshot::BrowserSnapshot` instead of native drawing commands:
 
     BrowserSnapshot::new([390, 844], &html)
         .file("/style.css", "text/css", css.as_bytes())
@@ -299,25 +299,25 @@ that path, so a page on beui's HTML core whose `<style>` is `beui::html::stylesh
 draws its text and icons without copying the fonts into every painting.
 Keep dynamic ids, form tokens and displayed times fixed in fixtures.
 Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
-BUCK. The portal's tests in `crates/be-portal-ui/src/tests/` demonstrate this.
+BUCK. The portal's tests in `crates/be-server-portal-ui/src/tests/` demonstrate this.
 
 Tests compare the encoded bytes without starting a browser. Browser paintings share the
 native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
-merging. GitHub's painting comment and `local-tools rasterize` render them on demand through
-`crates/browser-rasterizer`, a separate binary.
+merging. GitHub's painting comment and `be-tool-local rasterize` render them on demand through
+`crates/be-tool-browser-rasterizer`, a separate binary.
 
 For local browser rasterization, install the optional runtime once:
 
     python3 -m venv ~/.cache/be3/browser-rasterizer
-    ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
+    ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/be-tool-browser-rasterizer/requirements.txt
     ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
     export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
-    ./scripts/buck run //crates/local-tools:bin -- rasterize crates/be-portal-ui/snapshots/portal_login_phone.browser.paint out.png
+    ./scripts/buck run //crates/be-tool-local:bin -- rasterize crates/be-server-portal-ui/snapshots/portal_login_phone.browser.paint out.png
 
 Setting `BE3_CHROME` to a Chrome or Chromium executable uses that browser instead of
 Playwright's download, which is what CI does with the runner's Google Chrome.
 
-`local-tools` builds the browser rasterizer only for browser inputs. During CI previews,
+`be-tool-local` builds the browser rasterizer only for browser inputs. During CI previews,
 that binary is built by the same buck2 invocation as the other verification tools.
 The runtime blocks all uncaptured network requests, waits for fonts and images, disables
 animations and reports missing resources or failed scripts instead of silently producing
@@ -328,7 +328,7 @@ an incomplete preview. Browser rendering is not part of snapshot equality.
 ./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
-and runs the module through crates/plugin-test-runner, which is wasmtime with the
+and runs the module through crates/be-sdk-test-runner, which is wasmtime with the
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
 spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
 which reads the accepted paintings as its inputs and outputs the ones that changed;
@@ -344,12 +344,12 @@ editor package for the host by itself.
 
 While working on one editor, run its tests alone:
 
-  ./scripts/test //crates/editors/checklist:test
-  ./scripts/test //crates/editors/checklist:test --update
+  ./scripts/test //crates/be-app-checklist:test
+  ./scripts/test //crates/be-app-checklist:test --update
 
 The first compares, the second accepts. Both print everything the tests wrote, println! and
 eprintln! alike, the guest's stdout and stderr each under its own heading after the target's
-"✓ Pass" or "✗ Fail" line. ./scripts/buck test //crates/editors/checklist:test runs the same,
+"✓ Pass" or "✗ Fail" line. ./scripts/buck test //crates/be-app-checklist:test runs the same,
 but shows a passing test's output only when BE3_VERBOSE=1 is set. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
 reports every one that failed, each with its panic message and the functions it panicked in,
@@ -361,9 +361,9 @@ crate keeps per thread (the frame clock, the pinned wall clock) carries from one
 next, and anything that starts afresh with each harness must be reset when it does
 (HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
 alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter:
-./scripts/test //crates/editors/checklist:test. A single test is a filter handed through to the
+./scripts/test //crates/be-app-checklist:test. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
-./scripts/test //crates/editors/checklist:test some_test_name names the crate itself. A run
+./scripts/test //crates/be-app-checklist:test some_test_name names the crate itself. A run
 that passed comes from the cache when nothing it reads changed; one that failed runs again.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
@@ -379,7 +379,7 @@ An editor test hosts one editor and fakes the host around it: the children it pl
 recorded, and a child's statuses are whatever the test reports. What happens between editors
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
 press, a tab closing its editor) lives in block-app's compositor and plugin host, so it is
-tested in crates/app-tests instead, against the app itself. Each test there starts the native
+tested in crates/be-host-tests instead, against the app itself. Each test there starts the native
 app headless with the dev organization open, exactly as `:dev` does, in a data
 directory of its own, with the editors it names (below); drives it with the commands `drive` has (guides/running/drive.md); paints
 the whole window, every plugin included; and fails unless the app exits cleanly when it closes,
@@ -412,9 +412,9 @@ which close() checks, so a test that ends without calling it fails too.
   differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
-  crates/app-tests/snapshots/<name>.paint and accepted the same way. The painting is `drive paint`: the
+  crates/be-host-tests/snapshots/<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface,
-  and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
+  and each preview a plugin shows, which its painting marks with `beui_paint_format::preview_key`,
   replaced by the painting of the preview it shows. A preview waits out its cooldown before it
   paints a second change (guides/adding_a_plugin_editor.md, Drawing the block itself), and the
   clock is stopped, so a test that changes a block and then looks at a preview of it pauses for
@@ -430,11 +430,11 @@ which close() checks, so a test that ends without calling it fails too.
   `AppTest::start_drawing_previews()` start it with the renderer, drawing through lavapipe.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
-- Each test names the editors it uses in `EDITORS` in crates/app-tests/BUCK, by their
-  directory under crates/editors: the editor of every block type it creates or opens, the
-  canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text-block`
+- Each test names the editors it uses in `EDITORS` in crates/be-host-tests/BUCK, by their
+  directory's name after crates/be-app-: the editor of every block type it creates or opens, the
+  canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text`
   for a deck's slides. Its app stages those beside the ones every app needs to show the Files
-  (`BASE` in crates/app-tests/apps.bzl), each only as its precompiled module, so the test builds
+  (`BASE` in crates/be-host-tests/apps.bzl), each only as its precompiled module, so the test builds
   only those editors, and a change to an editor reruns only the tests that name it. A test not
   in `EDITORS` stages every editor: leave a test out whose paintings show what every editor
   adds, such as the add menu's types or the type search, since fewer editors would paint fewer
@@ -444,31 +444,31 @@ which close() checks, so a test that ends without calling it fails too.
   text-block and block-debug), and a test named `foo` runs against its own app with
   `./scripts/test foo`, as verify runs it.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
-  `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
+  `./scripts/buck run //crates/be-host:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log, after every panic the app logged before it, each whole with its message and backtrace. A step
   that times out while the tree shows nothing pending means the app never settled: something
   asks for a frame every frame.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running
   the harness on this machine, all the tests at once and as often as needed. Build it with what
-  its `run_env` in crates/app-tests/BUCK names (`./scripts/buck build
-  //crates/app-tests:test-harness //crates/app-tests:app-all //buck/sysroot:amd64-test
+  its `run_env` in crates/be-host-tests/BUCK names (`./scripts/buck build
+  //crates/be-host-tests:test-harness //crates/be-host-tests:app-all //buck/sysroot:amd64-test
   //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:app-all` the app every
   test can run against), then run
-  `buck-out/v2/art/root/*/crates/app-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
+  `buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and
-  `CARGO_MANIFEST_DIR` to crates/app-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
+  `CARGO_MANIFEST_DIR` to crates/be-host-tests. While a test hangs, `gdb -p PID -batch -ex 'thread
   apply all bt'` on its block-app shows what every thread waits on. If every thread is parked and the
   window waits on data, something changed without `host::wake()`: a lost wake, not a deadlock.
 - Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 
-  ./scripts/test //crates/app-tests:test
-  ./scripts/test //crates/app-tests:test --update
+  ./scripts/test //crates/be-host-tests:test
+  ./scripts/test //crates/be-host-tests:test --update
 
 7. Testing both of beui's cores
 
 beui has two cores (plans/html_core.md): the native one, which lays out and paints itself, and
-the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-shared-tests
+the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-tests
 holds what must behave the same on both: screens, each a `#[component]` in src/lib.rs that
 `Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
 src/drive/NAME.drive, `drive -` input that drives the screen of its file name. A script uses
@@ -482,11 +482,11 @@ text metrics differ: to check a layout, `measure` the nodes and print the sizes 
 from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Stop the clock
 (`clock stop`) and move it with `pause` to cross a timeout, such as a toast's expiry.
 
-- Natively, `./scripts/test //crates/beui-shared-tests:test` runs each script against the
-  crate's `:bin` under `be_drive::Driven` with no GPU, once as it is and once with every
+- Natively, `./scripts/test //crates/beui-tests:test` runs each script against the
+  crate's `:bin` under `be_tool_drive::Driven` with no GPU, once as it is and once with every
   measurement a frame late (`--delay-measurement`, as `BEUI_DELAY_MEASUREMENT=1`), so a screen
   that only works when measurement is synchronous fails. A test per script is in src/tests/.
-- In a browser, `./scripts/test //crates/beui-shared-tests:web-test [NAME]` serves `:web`, the
+- In a browser, `./scripts/test //crates/beui-tests:web-test [NAME]` serves `:web`, the
   screens built for `wasi_html`, and runs every script in Chromium through Playwright
   (buck/app/web-test.mjs, `web_drive_test` in buck/app/drive.bzl). The page answers the reading
   commands through beui-core-html's `automate` (its tree is in native's line format, from the
@@ -511,7 +511,7 @@ from its top left, as in `drag '#fields.seats+10,10' '#fields.seats+16,10'`. Sto
   package (installed globally, or from buck/app/browser-tests' lockfile with `npm ci` and
   `NODE_PATH` pointing at its node_modules, as CI does); without them it fails rather than skipping.
   ./scripts/verify runs it too, as `:web-test-run`.
-- To see a screen: `./scripts/buck run //crates/beui-shared-tests:dev -- NAME` and `drive`
+- To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`
   natively; in a browser, serve the `:web` bundle with any server that sends
   Cross-Origin-Opener-Policy `same-origin` and Cross-Origin-Embedder-Policy `require-corp` and
   open `index.html?fixture=NAME`.

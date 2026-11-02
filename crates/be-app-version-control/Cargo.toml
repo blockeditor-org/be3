@@ -1,0 +1,19 @@
+[package]
+name = "be-app-version-control"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+uuid = "1"
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

@@ -3,7 +3,7 @@ use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::current::{try_with_document, with_document};
-use ::reactive::{Stored, on_cleanup, store};
+use ::beui_reactive::{Stored, on_cleanup, store};
 
 pub struct TimerState {
     due: Cell<Option<Instant>>,

@@ -7,11 +7,11 @@ license.workspace = true
 
 [dependencies]
 beui-tree = { path = "../beui-tree" }
-geometry = { path = "../geometry" }
-lucide = { path = "../lucide" }
-stable-hash = { path = "../stable-hash" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+beui-lucide = { path = "../beui-lucide" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 thumbhash = "0.1"
-ui-types = { path = "../ui-types" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
 
 [lints]
 workspace = true

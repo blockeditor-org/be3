@@ -13,7 +13,7 @@ One pull request, built by parallel agents (guides/parallel_agents.md). Done: th
 
 ### Camera follows its region (workstream A)
 
-- `BlockFrameView` (`crates/block-app/src/compositor/editors.rs`) no longer adds the opposite of a region's move to `pan` (the `state.center` correction). The content rect is centred on the content area's centre plus `pan`, so a moved region carries its world and a resize keeps the centre. Before the camera is `moved`, `keep-fitted` keeps fitting as today.
+- `BlockFrameView` (`crates/be-host/src/compositor/editors.rs`) no longer adds the opposite of a region's move to `pan` (the `state.center` correction). The content rect is centred on the content area's centre plus `pan`, so a moved region carries its world and a resize keeps the centre. Before the camera is `moved`, `keep-fitted` keeps fitting as today.
 - The frame report gives the content area as insets from the region's edges instead of a rectangle, so the host computes the new content area during the resize itself and sends the new view with the screen request in the same frame. Only a frame where the plugin changes its own insets (a sidebar moving into a sheet below `NARROW_WIDTH`) lags one frame.
 - No editor declares an anchor: every pan-and-zoom editor keeps the centre.
 
@@ -65,7 +65,7 @@ Each plugin worker gets one overlay canvas covering the app viewport, above the 
 ### Dock layouts saved layer by layer (workstream E)
 
 - A layer's snapshot includes where its moved-out entries are (a bar's edge or popped-out rect relative to the owner's frame); the root's snapshot stops saving joined subtrees and keeps only the hosting tab.
-- block-editor-beui saves the layout of every editor whose dock joins another plugin's in `DisplaySettings.docks` through `LayeredSettings` (this device), keyed by block type, restores it once the settings are ready and the dock has declared, writes on change, and every open instance follows (no per-editor code). The workspace keeps saving its own layout in its `EditorView`.
+- be-sdk-beui saves the layout of every editor whose dock joins another plugin's in `DisplaySettings.docks` through `LayeredSettings` (this device), keyed by block type, restores it once the settings are ready and the dock has declared, writes on change, and every open instance follows (no per-editor code). The workspace keeps saving its own layout in its `EditorView`.
 
 ### Views (workstream V)
 
@@ -88,7 +88,7 @@ Today an editor shows things through region kinds that each carry their own feat
 - **Whether chrome joins depends only on where an editor is placed:** placed in a dock tab, its dock joins and the root draws its chrome; placed anywhere else (a card, a confined plugin), its dock draws itself inside its own view; a child taking over its parent's frame keeps its stage a frame child drawn over the parent's content (so the parent stays visible and pressable), while its bars join the parent's pane in place of the parent's bars, which hide until the child lets the frame go: while the child is focused you see the parent and the child's chrome, never the parent's chrome (the presentation is the exception: its own chrome stays, and the slide's editor joins through the stage tab).
 - **Presentation as a docked editor:** the stage is a bare tab in a locked area whose body places the slide's child in that tab (so the slide's editor joins through it), the filmstrip a tab in its own locked area, the toolbar a bar on the stage's pane. Presenting, a card or a preview declares no dock, only the stage.
 - **Several bars on one edge** stack in a fixed order, the outer editor's nearer the edge; dropping a bar on an occupied edge slots it in.
-- **Docks that never join keep their layout too,** saved by the editor's own plugin (block-editor-beui, per device, keyed by block type) exactly as joined ones are; the root never saves another plugin's layout.
+- **Docks that never join keep their layout too,** saved by the editor's own plugin (be-sdk-beui, per device, keyed by block type) exactly as joined ones are; the root never saves another plugin's layout.
 
 V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (generalizing the frame to the tab that holds the content) is part of V.
 
@@ -96,7 +96,7 @@ V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (g
 
 Every workstream landed (A, B0-B4, C, D1-D4, E1-E2, F, G, H, I, K, P, R, T, V0-V4, CL1-CL3, BG and the final pass). The design above is what the code does, with these differences:
 
-- **Names.** "Layer" became the *anchored view* and "layer space" the *anchor space* (`screen-request.anchor-space`): an anchored view is a screen the plugin numbers itself (`ScreenId::opened`) and reports like any other, so `frame-commit.layers`, `layer-id`, `child-placement.in-layer` and `timed-input.layer` went with V4. beui keeps its own words: an overlay that escapes its window is an escaped layer, its window's space a layer space; beui-platform-plugin (`escaped.rs`) maps each escaped layer to one anchored view. The host and compositor say view too (`PlacedView`, `PluginView`, `HostAnchored`, `AnchoredViews`), and block-editor-plugin's `Regions`/`Region` are `ViewHandler`/`ShownView`.
+- **Names.** "Layer" became the *anchored view* and "layer space" the *anchor space* (`screen-request.anchor-space`): an anchored view is a screen the plugin numbers itself (`ScreenId::opened`) and reports like any other, so `frame-commit.layers`, `layer-id`, `child-placement.in-layer` and `timed-input.layer` went with V4. beui keeps its own words: an overlay that escapes its window is an escaped layer, its window's space a layer space; be-sdk-beui-platform (`escaped.rs`) maps each escaped layer to one anchored view. The host and compositor say view too (`PlacedView`, `PluginView`, `HostAnchored`, `AnchoredViews`), and be-sdk's `Regions`/`Region` are `ViewHandler`/`ShownView`.
 - **Sheets.** On touch or a phone every embedded popup (picker, rename, app menu) is a bare view the asker attaches to the bottom edge; the host tells a child placed in a view attached to an edge that it is a sheet (`open-picker.sheet`, `open-rename.sheet`, `PanelReport::sheet`) and the child draws the sheet.
 - **Popping out** a dock tab keeps the root as its placer (V4): the root draws the dock window's chrome in a window view it creates with no frame of delay and places the tab's body in it. No "change of placer" request exists.
 - **Stacked or tiled** is still decided from the dock's measured width, inside the layout loop (one frame late on native, within the frame on HTML); panes and splitters are arranged in the same layout (K1).

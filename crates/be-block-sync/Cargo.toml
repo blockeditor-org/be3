@@ -1,0 +1,37 @@
+[package]
+name = "be-block-sync"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-client = { path = "../be-block-client" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store" }
+be-block-type-host = { path = "../be-block-type-host" }
+be-sdk-type-api = { path = "../be-sdk-type-api" }
+be-block-vcs = { path = "../be-block-vcs" }
+futures-util = "0.3"
+ignore = "0.4"
+notify = "8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+
+[dev-dependencies]
+be-type-bundle = { path = "../be-type-bundle" }
+be-block-keys = { path = "../be-block-keys" }
+be-server = { path = "../be-server" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+be-type-image = { path = "../be-type-image" }
+be-type-infinite-canvas = { path = "../be-type-infinite-canvas" }
+be-type-text = { path = "../be-type-text" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+be-type-workspace = { path = "../be-type-workspace" }
+
+[lints]
+workspace = true

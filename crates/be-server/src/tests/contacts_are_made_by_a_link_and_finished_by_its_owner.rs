@@ -1,5 +1,5 @@
 use super::*;
-use be_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
+use be_block_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
 
 #[tokio::test]
 async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
@@ -15,7 +15,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         RecoveryPhrase::generate().secret(),
         RecoveryPhrase::generate().secret(),
     );
-    let card = |account: Uuid, secret: &be_keys::RecoverySecret, email: &str| ContactCard {
+    let card = |account: Uuid, secret: &be_block_keys::RecoverySecret, email: &str| ContactCard {
         account: account.into_bytes(),
         public: secret.public(),
         display_name: email.into(),

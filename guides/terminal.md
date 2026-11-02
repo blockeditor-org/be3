@@ -8,20 +8,20 @@ from inside block-app.
 
 ## The pieces
 
-- `terminal_types` (`crates/editors/terminal/types`, the terminal plugin's
+- `terminal_types` (`crates/be-type-terminal`, the terminal plugin's
   type module): the block's document (`Terminal`, below), the `TerminalHost`
   presence a host shows (its machine and user), and `TerminalMessage`, what
   viewers send the host. Its line helpers (`TerminalLine::spans`, `push`,
   `join`, `truncate`, `logical_lines`) are what both sides use to read and build
   lines.
-- `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-cli`,
+- `be TARGET terminal-host [-- PROGRAM ARGUMENTS...]` (`crates/be-tool-cli`,
   `terminal_host.rs` and `terminal_host/`): the host. It signs in as an agent,
   opens the block's replica in the type module (`replica::Session`, below),
   shows `TerminalHost`, runs the shell (the user's default one, or PROGRAM) in a
   PTY, keeps an emulator of it, and writes what the emulator shows into the
   document.
-- `be_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
-  same `be_types_host::Replicas` the app's peer runs, attached as the host's own
+- `be_tool_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
+  same `be_block_type_host::Replicas` the app's peer runs, attached as the host's own
   editor (`HOST_EDITOR`) through an `EditorMirror<C>`. `content` is the mirror's
   content and `edit` operates on it; `show` and `send` are
   `FromEditor::ShowPresence` and `SendToPeers`, `presence` and `take_messages`
@@ -30,18 +30,18 @@ from inside block-app.
   replica to claim the lease (`Event::Claim`). `next` waits for the server, the
   module or a deadline without losing anything when dropped, and `handle` acts
   on it. It needs a tokio `LocalSet`, where the replica's IO runs.
-- `crates/terminal-emulator`: that emulator (`Emulator`): ghostty-vt fed the
+- `crates/be-lib-terminal-emulator`: that emulator (`Emulator`): be-lib-ghostty-vt fed the
   PTY's bytes, read back as `TerminalLine`s (the rows that scrolled off and the
   shown rows, `Shown`), and the key, paste and wheel encoders. The host and
   be-launcher's build output use it; viewers never do.
-- `crates/editors/terminal`: the editor. It renders the document, and draws the
+- `crates/be-app-terminal`: the editor. It renders the document, and draws the
   setup page while the block is empty and no host is connected.
-- `crates/terminal-view`: the beui view (`TerminalView`, below), which draws
+- `crates/beui-terminal-view`: the beui view (`TerminalView`, below), which draws
   lines and knows nothing of where they come from, and the mapping from beui key
   presses and text to `TerminalKey` (`key_event`, `text_event`, reported as
   `TerminalInput`). be-launcher's build output feeds it from its own local
   `Emulator`, keeping the rows that scroll off in memory.
-- `crates/ghostty-vt`: the bindings. Besides the render state (`Renderer`) it
+- `crates/be-lib-ghostty-vt`: the bindings. Besides the render state (`Renderer`) it
   reads rows anywhere on the screen through grid references
   (`Terminal::active_row`, `history_row`, each with its soft-wrap flag), follows
   the top of the screen with a tracked reference (`Anchor`), and encodes keys
@@ -186,7 +186,7 @@ come before a public release.
 
 ## Tests
 
-- `be-cli`, each a real host running `sh` for an agent and a viewer (a
+- `be-tool-cli`, each a real host running `sh` for an agent and a viewer (a
   `Session` of its own) reading the document on a real server:
   `a_terminal_host_writes_its_shell_into_the_document_for_its_viewers`,
   `a_restarted_terminal_host_keeps_the_history_and_marks_the_restore`,
@@ -194,11 +194,11 @@ come before a public release.
   `a_terminal_host_encodes_keys_for_the_mode_its_program_set`.
 - `block-app`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
   a real host against the app's own stack, read from the block's content.
-- ghostty-vt's tests cover rows, history, the encoders and paste; terminal-types'
+- be-lib-ghostty-vt's tests cover rows, history, the encoders and paste; be-type-terminal'
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages
-  through block-ui-test (`hold`, `set_peers`, `take_sent_to_peers`): input
+  through be-sdk-test (`hold`, `set_peers`, `take_sent_to_peers`): input
   routing, copying across a wrap and select-all over unbuilt history, the
   alternate screen's wheel and peek, and paintings of each state, the setup
   page included.
-- terminal-emulator's test reads rows that scrolled off the screen.
+- be-lib-terminal-emulator's test reads rows that scrolled off the screen.

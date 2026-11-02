@@ -1,8 +1,0 @@
-use block_plugin_api::{EditorInstanceId, ViewId};
-
-use super::*;
-mod a_frame_published_after_its_damage_was_read_is_redrawn_next;
-mod a_painting_drawn_at_another_size_is_cropped_rather_than_stretched;
-mod a_plugins_textures_are_let_go_once_its_layout_no_longer_holds_them;
-mod a_view_laid_out_at_a_size_its_frame_was_not_drawn_at_shows_that_frame_unscaled;
-mod surface_damage_reaches_the_pieces_of_the_screen_it_falls_on;

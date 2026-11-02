@@ -3,8 +3,8 @@ use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
 use accesskit::{Role, Toggled};
+use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 use std::sync::Arc;
-use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 const TEXT: &str = "- [ ] buy milk\nplain line";
 const HALF_CHECKBOX: f32 = 9.0;
@@ -38,7 +38,7 @@ fn clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_car
     let held = create_signal::<Option<TextAreaState>>(None);
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
         held.update(|held| *held = Some(state));

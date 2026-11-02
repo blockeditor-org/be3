@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 #[tokio::test]
 async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {

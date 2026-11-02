@@ -1,8 +1,8 @@
+use be_sdk_test::DocumentTest;
 use beui::datetime::Date;
 use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use beui_host::native::build;
-use block_ui_test::DocumentTest;
 
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};

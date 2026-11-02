@@ -1,0 +1,15 @@
+[package]
+name = "be-wasm-link"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "wasm-link"
+path = "src/main.rs"
+
+[dependencies]
+be-wasm-dylink = { path = "../be-wasm-dylink" }
+
+[lints]
+workspace = true

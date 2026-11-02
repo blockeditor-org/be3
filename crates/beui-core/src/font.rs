@@ -1,8 +1,8 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
+use be_lib_graphemes::is_grapheme_boundary;
 use foldhash::fast::FixedState;
-use grapheme_segmentation::is_grapheme_boundary;
 use std::cell::OnceCell;
 use std::ops::Range;
 use std::rc::{Rc, Weak};

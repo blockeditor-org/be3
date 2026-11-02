@@ -3,9 +3,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_commit::CommitId;
-use be_graph::BlockParent;
-use be_protocol::{
+use be_block_commit::CommitId;
+use be_block_graph::BlockParent;
+use be_block_protocol::{
     BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
 };
 use tokio::sync::{

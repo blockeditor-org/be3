@@ -7,7 +7,7 @@ pub mod responsive;
 pub mod screen_reader;
 pub mod tree;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -404,7 +404,7 @@ pub struct Inspector {
     overlay_bounds: Cell<Rect>,
     embeds_app: bool,
     over: Option<(WindowId, Rect)>,
-    _panel_scope: ::reactive::Scope,
+    _panel_scope: ::beui_reactive::Scope,
     state: OwnedStored<State>,
 }
 

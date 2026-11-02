@@ -1,8 +1,8 @@
 use super::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
@@ -10,7 +10,8 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let submitted = create_signal(0);
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"one")) as Arc<dyn text_editor_core::Document>;
+        let document =
+            Arc::new(TextBuffer::new(b"one")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

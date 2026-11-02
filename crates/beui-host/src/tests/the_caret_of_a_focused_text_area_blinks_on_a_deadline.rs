@@ -1,13 +1,14 @@
 use super::*;
 use crate::primitives::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn the_caret_of_a_focused_text_area_blinks_on_a_deadline() {
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"one")) as Arc<dyn text_editor_core::Document>;
+        let document =
+            Arc::new(TextBuffer::new(b"one")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <List spacing=0.0>

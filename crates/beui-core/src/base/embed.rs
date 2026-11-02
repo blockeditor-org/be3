@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use reactive::{Stored, on_cleanup, store};
+use beui_reactive::{Stored, on_cleanup, store};
 
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects};

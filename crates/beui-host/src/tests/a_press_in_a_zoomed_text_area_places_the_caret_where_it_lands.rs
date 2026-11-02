@@ -2,9 +2,9 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::ops::Range;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 struct Zoomed {
     harness: Harness,
@@ -21,7 +21,7 @@ impl Zoomed {
             let held = Rc::clone(&held);
             move || {
                 let text = Arc::new(TextBuffer::new(b"Hello wide world"))
-                    as Arc<dyn text_editor_core::Document>;
+                    as Arc<dyn beui_text_editor_core::Document>;
                 let state = TextAreaState::new(text);
                 *held.borrow_mut() = Some(state);
                 view! {

@@ -2,13 +2,14 @@ use super::*;
 use crate::primitives::Frame;
 use crate::primitives::List;
 use crate::styled::*;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_area() {
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"line")) as Arc<dyn text_editor_core::Document>;
+        let document =
+            Arc::new(TextBuffer::new(b"line")) as Arc<dyn beui_text_editor_core::Document>;
         let state = crate::unstyled::TextAreaState::new(document);
         view! {
             <List spacing=8.0>

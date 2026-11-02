@@ -136,10 +136,10 @@ wasi_app_flags = plugin_exports + [
 
 # The libraries every editor is linked against unless it names its own
 # (guides/plugin_libraries.md): base, the root that holds std, wasi-libc, wgpu and
-# block-editor-plugin, and beui above it.
-BASE_LIBRARY = "root//crates/plugin-library-base:module"
+# be-sdk, and beui above it.
+BASE_LIBRARY = "root//crates/be-sdk-library-base:module"
 
-DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/plugin-library-beui:module"]
+DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/be-sdk-library-beui:module"]
 
 # What makes a module the root of every closure: wasi-libc's crt1-reactor.o,
 # whose _initialize sets up libc's main thread and runs the constructors. The
@@ -160,7 +160,7 @@ def _needs(libraries):
 # at fixed addresses with std and wasi-libc, and with some it is
 # position-independent, leaves out everything they link and reaches their
 # thread-locals through GOT.tls. A package whose crate other crates depend on,
-# such as crates/tls-diamond's, has a library.rs beside its Cargo.toml that only
+# such as crates/be-tool-tls-diamond-base, has a library.rs beside its Cargo.toml that only
 # names the crate, and that is what is linked, so the module holds the very rlib
 # its dependents compile against.
 def wasm_library(module, libraries = [], rustc_flags = []):
@@ -207,7 +207,7 @@ def wasm_library(module, libraries = [], rustc_flags = []):
 
 # A package's crate linked against libraries, every one in its closure, and
 # exporting only what a plugin does: a plugin that is not an editor, such as
-# crates/tls-diamond's.
+# crates/be-tool-tls-diamond-app.
 def linked_plugin(module, libraries, rustc_flags = []):
     facts = cargo_wasm_facts()
     native.rust_library(
@@ -277,7 +277,7 @@ def editor_module(name, module, libraries = None, extra_deps = [], visibility = 
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
 # A plugin is linked against DEFAULT_LIBRARIES, or as libraries says
 # (editor_module above). types is the plugin's type module
-# (a wasm32_module, such as checklist's //crates/editors/checklist/types:module),
+# (a wasm32_module, such as checklist's //crates/be-type-checklist:module),
 # which :types names for the app to stage beside :module.
 #
 # Outside a release build the plugin crate itself is compiled at opt-level 0,
@@ -293,7 +293,7 @@ def editor_module(name, module, libraries = None, extra_deps = [], visibility = 
 # An editor with examples/ is built for the host too (buck/cargo/buckify.sh
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
-# drives the editor through block-ui-test.
+# drives the editor through be-sdk-test.
 def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
     editor_module(
         name = "module",
@@ -329,8 +329,8 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
             cargo_example(root.removeprefix("examples/").removesuffix(".rs"))
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
-# the module a plugin's imports; an editor's, block-editor-plugin's and
-# block-editor-beui's.
+# the module a plugin's imports; an editor's, be-sdk's and
+# be-sdk-beui's.
 #
 # The test crate itself is compiled at opt-level 0 while its dependencies are
 # compiled as the plugin's are. Every module instantiates beui's generics anew, so a
@@ -358,14 +358,14 @@ def plugin_tests(exports = [], env = {}, extra_deps = []):
         module = ":test-module",
         paintings = native.glob(["snapshots/*.paint"]),
         precompile = per_cross_platform(True, lambda _: False),
-        runner = "//crates/plugin-test-runner:bin",
+        runner = "//crates/be-sdk-test-runner:bin",
     )
     plugin_test_run(
         name = "test-run",
         manifest = "Cargo.toml",
         module = ":test-module",
         paintings = native.glob(["snapshots/*.paint"]),
-        runner = "//crates/plugin-test-runner:bin",
+        runner = "//crates/be-sdk-test-runner:bin",
     )
 
 # Compiled to wasm, a plugin's tests paint with the FreeType and HarfBuzz it

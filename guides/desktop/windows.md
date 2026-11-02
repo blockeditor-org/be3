@@ -6,14 +6,14 @@ windows are where `opens_windows()` is true. A windowed `--desktop` is a develop
 is no virtual display, so a focused window comes up on the real monitor above block-app.
 `BEUI_PLATFORM=drm` and `--install-login-session` are refused (`src/arguments.rs`).
 
-All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-win32,
-be-win32-capture, be-win32-input, beui and block-app for `windows_x86_64`, and the logic behind
+All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-host-win32,
+be-host-win32-capture, be-host-win32-input, beui and block-app for `windows_x86_64`, and the logic behind
 the Win32 calls is plain Rust tested on Linux with fakes. Running it needs a real Windows
 machine; Wine has no Windows.Graphics.Capture.
 
 ## The crates
 
-- `crates/be-win32`: the windows and the session. `Watcher::spawn(wake)` runs a thread of its own
+- `crates/be-host-win32`: the windows and the session. `Watcher::spawn(wake)` runs a thread of its own
   (per-monitor DPI aware, with COM) with `SetWinEventHook` (out of context, no low-level hooks),
   a hidden window for display changes and a 1 s tick for "not responding". `Model` folds what it
   reads into a `Snapshot`: entries with stable `EntryId`s, the displays first (one per monitor,
@@ -35,22 +35,22 @@ machine; Wine has no Windows.Graphics.Capture.
   requests are queued, and answers (`set_hotkey`'s `FocusEvent::HotkeySet`/`HotkeyRefused`) come
   back as focus events with the wake. `Watcher::spawn` and `Capture::start` wait only for their
   threads to set up, which needs nothing of the UI thread.
-- `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
+- `crates/be-host-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
   imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
   device extensions are `DEVICE_EXTENSIONS`, which block-app's `RunOptions::device_extensions`
   names on Windows). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
   is captured only while `set_cursor(true)`.
-- `crates/be-win32-input`: `inject` puts pointer, key and text events into an entry at a point
+- `crates/be-host-win32-input`: `inject` puts pointer, key and text events into an entry at a point
   of its panel (`SendInput` in absolute virtual-desktop coordinates), after
-  `be_win32::bring_forward`. It refuses an elevated window and the secure desktop from
-  be-win32's snapshot (`target`), the one place either is decided.
+  `be_host_win32::bring_forward`. It refuses an elevated window and the secure desktop from
+  be-host-win32's snapshot (`target`), the one place either is decided.
 
 ## In block-app
 
-`crates/block-app-desktop/src/desktop_host.rs` is the host facade (the `DesktopHost` trait); on Windows it is `Win32` in `desktop_host/win32.rs`, whose `WindowsPrograms` lists the Start menu, with
+`crates/be-host-desktop/src/desktop_host.rs` is the host facade (the `DesktopHost` trait); on Windows it is `Win32` in `desktop_host/win32.rs`, whose `WindowsPrograms` lists the Start menu, with
 the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on Linux).
-`block-app-plugin-host/src/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
+`be-host-runtime/src/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
 `displays` among them (it describes the displays the shell is drawn on, and on Windows that is
 block-app's one window), stay unsupported, so the shell hides what they back.
 
@@ -64,7 +64,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
   whose shortcut's AppUserModelID or target is its app id or first command word, ignoring case and
   slash direction), known once the programs have been listed (the Apps panel asks for them);
-  `show` and `hide` set `shown` in be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
+  `show` and `hide` set `shown` in be-host-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`beui::native::texture_quad::TextureDraw::keeping` draws it and keeps the `Frame` alive
@@ -72,7 +72,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
   `Lost::Closed` just ends it. A popup whose capture cannot start (Windows refuses some, such as
   the system menu) is only logged, never a toast.
-- Popups: be-win32 gives each entry its live popups (menus, tooltips: owned or same-thread
+- Popups: be-host-win32 gives each entry its live popups (menus, tooltips: owned or same-thread
   `WS_POPUP` windows), bottom first, with their frames. `WindowSurface` captures each popup's
   HWND and draws it as a `Window` of role `WindowRole::Popup` placed `Over` the window the panel
   is in, at its offset from the toplevel's frame in the panel's scale (`win32_map::popup_rect`),
@@ -88,14 +88,14 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   frame bounds in its monitor's points), not one it took because block-app asked, so a window
   shown at its own size keeps following its own size. When a panel's placed size differs from
   where the window is heading (by more than 2 px), because the person resized the panel or docked
-  it, the host asks for it: `be_win32::resize_window` (frame size in physical pixels, the panel's
+  it, the host asks for it: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
   points times the monitor's scale; it adds the invisible borders, the window rect less the DWM
   frame bounds, and calls `SetWindowPos` with `SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE |
   SWP_ASYNCWINDOWPOS` on a per-monitor-aware thread context). The last few sizes asked are kept,
   and a frame matching one is that answer; any other frame is the window's own choice and clears
   them. Displays, minimized, maximized, fullscreen and elevated windows are never resized.
 - Fullscreen: Windows has no request for another program's window to go fullscreen, so the
-  `fullscreen` action maximizes it (`be_win32::set_maximized`, `ShowWindowAsync`, which also
+  `fullscreen` action maximizes it (`be_host_win32::set_maximized`, `ShowWindowAsync`, which also
   activates it) and leaving restores it. `HostWindow::fullscreen` is the area the shell is shown
   in (the `rect` `before` is given, block-app's window, as Linux reports in a window) for a window
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window

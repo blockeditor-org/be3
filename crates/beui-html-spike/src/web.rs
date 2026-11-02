@@ -6,7 +6,7 @@ use crate::Spike;
 
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
-    wasi_threads::initialize_main_thread();
+    be_wasm_threads::initialize_main_thread();
     beui::html::hydrate("app", || {
         view! {
             <Spike />

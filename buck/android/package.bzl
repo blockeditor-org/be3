@@ -22,7 +22,7 @@ android_apk = rule(
         "application_id": attrs.string(),
         "signing": attrs.enum(["dev", "ci", "release"], default = "dev"),
         "template": attrs.dep(),
-        "_local": attrs.default_only(attrs.dep(default = "root//crates/local-tools:bin", providers = [RunInfo])),
+        "_local": attrs.default_only(attrs.dep(default = "root//crates/be-tool-local:bin", providers = [RunInfo])),
         "_metadata": attrs.default_only(attrs.source(default = "root//buck/app:build-info.json")),
     },
     impl = _android_apk_impl,

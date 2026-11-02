@@ -7,19 +7,19 @@ load("//buck/cargo:defs.bzl", "RemoteTestInfo")
 # changed comes from the cache. Each prints "<target><TAB><directory>", which
 # holds status, the test's exit status, log, its output, and changed/, the
 # paintings it accepted under --update with each one's .why
-# (crates/paint-snapshot), for crates/bootstrap to print and copy into the
+# (crates/beui-paint-snapshot), for crates/be-tool-bootstrap to print and copy into the
 # crate's snapshots/. The action succeeds when the test fails, so that its output is
 # kept, and so a failure is cached like a pass: --nonce, which goes into every
-# test's environment, is how crates/bootstrap runs again tests whose last run
+# test's environment, is how crates/be-tool-bootstrap runs again tests whose last run
 # failed.
 #
-#   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/geometry:test --name rotates
+#   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/be-lib-geometry:test --name rotates
 #
 # The command is the test's own, from its ExternalRunnerTestInfo, unless it
 # has a RemoteTestInfo: a painting test, which also reads the crate's snapshots/, and a
 # plugin test, which draws through the sysroot's lavapipe on a worker. A test
 # labelled "local", such as a web_drive_test, which needs a browser, runs here.
-# A run_apart test (crates/app-tests) runs each file under src/tests/ whose test,
+# A run_apart test (crates/be-host-tests) runs each file under src/tests/ whose test,
 # tests::<file>::<file>, contains the name, or every file without one, as an
 # action of its own with that file's environment, which names its own app.
 

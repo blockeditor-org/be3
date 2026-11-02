@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -616,7 +616,7 @@ mod web {
                 break;
             }
         }
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn shown_modal(layer: &Layer) -> bool {
@@ -653,7 +653,7 @@ mod web {
         };
         event.prevent_default();
         layer.dismiss(Dismiss::Escape);
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn focused(event: web_sys::Event) {
@@ -730,7 +730,7 @@ mod web {
                 if let Some(layer) = super::find(host) {
                     layer.dismiss(Dismiss::Escape);
                 }
-                reactive::flush();
+                beui_reactive::flush();
             },
         );
         let close =

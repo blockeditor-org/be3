@@ -1368,7 +1368,7 @@ fn PlainNote() -> NodeId {
     let theme = use_theme();
     let document = Arc::new(TextBuffer::new(
         b"Right-click for Copy and Paste, or type :tada",
-    )) as Arc<dyn text_editor_core::Document>;
+    )) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     view! {
         <Frame

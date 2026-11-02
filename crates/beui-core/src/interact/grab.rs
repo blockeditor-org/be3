@@ -1,4 +1,4 @@
-use ::reactive::Get;
+use ::beui_reactive::Get;
 
 use crate::base::interactive::InteractiveNode;
 use crate::context::Context;

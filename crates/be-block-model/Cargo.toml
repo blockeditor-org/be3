@@ -1,0 +1,22 @@
+[package]
+name = "be-block-model"
+description = "Block content built from primitives that merge, rebase and undo themselves"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-model-derive = { path = "../be-block-model-derive" }
+be-block-store = { path = "../be-block-store", default-features = false }
+ciborium = "0.2"
+postcard = { version = "1", features = ["use-std"] }
+be-lib-sequence = { path = "../be-lib-sequence" }
+serde = { version = "1", features = ["derive", "rc"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[features]
+fuzzing = []
+
+[lints]
+workspace = true

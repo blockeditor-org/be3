@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 #[tokio::test]
 async fn a_move_never_takes_a_workspace_or_more_access_without_manage() {

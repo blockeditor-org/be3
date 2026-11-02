@@ -11,10 +11,10 @@ gpu = ["dep:beui-core", "dep:beui-draw", "dep:bytemuck", "dep:wgpu"]
 accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
-reactive = { path = "../reactive" }
-stable-hash = { path = "../stable-hash" }
-text-editor-core = { path = "../text-editor-core" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
 
 [target.'cfg(not(beui_html))'.dependencies]
 beui-core = { path = "../beui-core", optional = true }

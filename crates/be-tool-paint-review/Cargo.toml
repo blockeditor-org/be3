@@ -1,0 +1,17 @@
+[package]
+name = "be-tool-paint-review"
+description = "A page for reviewing the paintings a pull request changed, flipping each between before and after"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
+be-tool-paint-review-manifest = { path = "../be-tool-paint-review-manifest" }
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

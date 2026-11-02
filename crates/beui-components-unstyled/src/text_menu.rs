@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use text_editor_core::{CopyMode, EditorCommand};
+use beui_text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;

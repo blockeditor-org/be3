@@ -40,7 +40,10 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
     let key = Uuid::new_v4();

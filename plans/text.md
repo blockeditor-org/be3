@@ -190,12 +190,12 @@ line. Fixes, if it matters:
   The commuting fast path avoids it; chunks behind `Arc` (copy on write) would
   make the clone proportional to the number of chunks.
 
-## text-editor-core
+## beui-text-editor-core
 
-Decided: text-editor-core depends on the `sequence` crate and works on
+Decided: beui-text-editor-core depends on the `be-lib-sequence` crate and works on
 `Sequence<u8>` directly, instead of staying generic and having the text block
 translate its anchors. `Sequence` lives in its own crate (serde only) so the
-editor and beui's text inputs can use it without the block stack; `be-model`
+editor and beui's text inputs can use it without the block stack; `be-block-model`
 wraps it as the `Text` field. Done, as follows:
 
 - `DocumentRead::anchor` and `anchor_index` take and return `Pos`; a cursor or
@@ -206,14 +206,14 @@ wraps it as the `Text` field. Done, as follows:
   goes.
 - `TextBuffer`, the editor's standalone document, becomes a `Sequence<u8>` with
   one local client, so beui's inputs work like the text block without a session.
-- Undo: the text block uses `be-model`'s `Step`. Beui's inputs have no
-  `be-model`, so a small undo stack over `Sequence::inverse` lives beside the
+- Undo: the text block uses `be-block-model`'s `Step`. Beui's inputs have no
+  `be-block-model`, so a small undo stack over `Sequence::inverse` lives beside the
   sequence; both follow the same rules and the editor still works outside this
   project.
 
 ## Fuzzing
 
-`sequence::fuzz::sequence(data: &[u8])` (behind the `sequence` crate's
+`be_lib_sequence::fuzz::sequence(data: &[u8])` (behind the `be-lib-sequence` crate's
 `fuzzing` feature, and in tests) reads any byte string as a script: three clients edit their own views
 (including undo, inserts after tombstones and garbage operations), a sequencer
 orders what they send, and clients catch up the way `Live` does, rebuilding from
@@ -227,27 +227,27 @@ operation is checked against its parts applied one by one (positions, items and
 next offsets). It panics on any violation. Test and fuzzing builds use two fragments per chunk so
 the multi-chunk paths run constantly.
 
-A test feeds it seeded random bytes, and `crates/sequence/fuzz/sequence.rs` is
+A test feeds it seeded random bytes, and `crates/be-lib-sequence/fuzz/sequence.rs` is
 a coverage-guided libFuzzer target over it, which `./scripts/buck run //:fuzz`
 runs in turn with the others until it is stopped, keeping its corpus and crashes in
 `target/fuzz/sequence/sequence`. A crash it finds becomes a test in
-`crates/sequence/src/tests`.
+`crates/be-lib-sequence/src/tests`.
 
 ## Status
 
 Done:
 
-- `Sequence<T>` in the `sequence` crate: positions, fragments, chunks, the six
+- `Sequence<T>` in the `be-lib-sequence` crate: positions, fragments, chunks, the six
   operations, splices, inverses for undo, an optional mirror of the visible
   items for editors, and session state that carries positions but no content.
   Content is kept as runs of the bytes this peer has seen; the visible bytes
   come from the receiver's own document when it adopts state, and an undelete
   or swap carries the bytes it shows, so a deleted run never has to be shipped.
-- A `Text` field for model documents (`be-model`): saved as bytes, edited with
+- A `Text` field for model documents (`be-block-model`): saved as bytes, edited with
   `Change::Text`, undone through `Step` (bursts absorb), merged with line diff3,
   and carried in `Document::session_state`.
 - The text block is `Document<TextBlock { language, indentation, body: Text }>`,
-  registered with history, so undo is the worker's. text-editor-core anchors
+  registered with history, so undo is the worker's. beui-text-editor-core anchors
   cursors to positions (`AnchorTable` is gone) and its `TextBuffer` is a
   mirrored sequence with an undo stack of inverses. The text block keeps a
   mirrored copy of the body, applies foreign edits to it from the projection's
@@ -261,7 +261,7 @@ Done:
 - Lists: `Value::List` holds `Items`, a `Sequence<ObjectId>` with a map from
   each id to its slot. Changes keep addressing objects and anchoring to
   siblings by id, so editors are unchanged; an insert and a move carry the
-  client that made them (`be_model::local_client`, one per thread), and a new
+  client that made them (`be_block_model::local_client`, one per thread), and a new
   slot takes that client's next offset in the list when the change applies,
   which is the same on every replica because only that client allocates in its
   run and its changes arrive in order. A loaded list sits on the loaded run, as
@@ -270,8 +270,8 @@ Done:
   anchor, a move within a list keeps the slot, and a move to another list leaves
   a tombstone behind. The session state carries a list's positions and the ids
   of its tombstones only once it has moved or lost something; the removal
-  records (`gone`) and `MoveIf` are gone. `be_model::fuzz::lists` (a seeded
-  test and the coverage-guided `//crates/be-model:fuzz-lists`) runs three
+  records (`gone`) and `MoveIf` are gone. `be_block_model::fuzz::lists` (a seeded
+  test and the coverage-guided `//crates/be-block-model:fuzz-lists`) runs three
   clients inserting, removing, moving, undoing and reloading a board of columns
   and cards through a sequencer, and checks the tree's structure after every
   operation and that every replica, tombstones included, ends the same.

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use be_protocol::ErrorCode;
+use be_block_protocol::ErrorCode;
 use tokio::time::Instant;
 use uuid::Uuid;
 

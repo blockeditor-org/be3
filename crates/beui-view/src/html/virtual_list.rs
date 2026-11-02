@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
@@ -23,7 +23,7 @@ use crate::types::rows::RowMetrics;
 use beui_core_html::css;
 use beui_core_html::document::{create, set_style};
 use beui_core_html::rows::{Watch, main_length, spacer, visible_span};
-use reactive::numbered;
+use beui_reactive::numbered;
 
 const ROW_LIMIT: usize = 4096;
 const FIRST_REACH: f32 = 1024.0;

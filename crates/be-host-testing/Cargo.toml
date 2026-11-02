@@ -1,0 +1,18 @@
+[package]
+name = "be-host-testing"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-block-client = { path = "../be-block-client" }
+be-block-keys = { path = "../be-block-keys" }
+be-server = { path = "../be-server" }
+be-host-stack = { path = "../be-host-stack", features = ["testing"] }
+be-lib-build-id = { path = "../be-lib-build-id" }
+be-type-bundle = { path = "../be-type-bundle" }
+tokio = { version = "1", features = ["rt"] }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

@@ -1,5 +1,5 @@
 use super::*;
-use be_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
+use be_block_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
 
 #[tokio::test]
 async fn a_contact_card_the_server_swaps_does_not_open() {

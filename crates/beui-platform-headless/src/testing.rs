@@ -809,7 +809,7 @@ impl Stepped<Showing> {
             latest.pixels_per_point,
             latest.main.window.appearance.clear_color,
         );
-        paint_snapshot::assert_painting(name, painting);
+        beui_paint_snapshot::assert_painting(name, painting);
         let found = self
             .document()
             .overflows()
@@ -837,7 +837,7 @@ impl Stepped<Showing> {
             latest.pixels_per_point,
             LAYER_HOST,
         );
-        paint_snapshot::assert_painting(name, painting);
+        beui_paint_snapshot::assert_painting(name, painting);
     }
 
     pub fn snapshot_window(&mut self, name: &str, window: WindowId) {
@@ -852,7 +852,7 @@ impl Stepped<Showing> {
             output.pixels_per_point,
             output.window.appearance.clear_color,
         );
-        paint_snapshot::assert_painting(name, painting);
+        beui_paint_snapshot::assert_painting(name, painting);
     }
 
     fn latest(&mut self) -> &Latest {

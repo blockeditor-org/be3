@@ -9,17 +9,17 @@ beui-types = { path = "../beui-types" }
 accesskit = "0.24.1"
 beui-tree = { path = "../beui-tree" }
 foldhash = "0.2"
-geometry = { path = "../geometry" }
-grapheme-segmentation = { path = "../grapheme-segmentation" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-graphemes = { path = "../be-lib-graphemes" }
 kurbo = "0.13"
 lyon_tessellation = "1"
-paint-format = { path = "../paint-format" }
+beui-paint-format = { path = "../beui-paint-format" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }
-reactive = { path = "../reactive" }
-stable-hash = { path = "../stable-hash" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 thumbhash = "0.1"
-ui-types = { path = "../ui-types" }
-lucide = { path = "../lucide" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+beui-lucide = { path = "../beui-lucide" }
 
 [lints]
 workspace = true

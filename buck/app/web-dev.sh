@@ -4,10 +4,10 @@
 # and returns once the page is up. guides/running/web.md says how to
 # drive it.
 #
-#   ./scripts/buck run //crates/block-app:web-dev              start, or restart
-#   ./scripts/buck run //crates/block-app:web-dev -- --fresh   start with no data
-#   ./scripts/buck run //crates/block-app:web-dev -- --webgl   start without WebGPU
-#   ./scripts/buck run //crates/block-app:web-dev -- --stop    stop it
+#   ./scripts/buck run //crates/be-host:web-dev              start, or restart
+#   ./scripts/buck run //crates/be-host:web-dev -- --fresh   start with no data
+#   ./scripts/buck run //crates/be-host:web-dev -- --webgl   start without WebGPU
+#   ./scripts/buck run //crates/be-host:web-dev -- --stop    stop it
 set -u
 caddy="$1" caddyfile="$2" bundle="$3" server="$4" drive="$5"
 shift 5

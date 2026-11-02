@@ -69,7 +69,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     let response = client
         .call(|peer| client::blocks::collect_detached(peer))
         .await;
-    let Ok(be_protocol::Collected {
+    let Ok(be_block_protocol::Collected {
         blocks, objects, ..
     }) = response
     else {

@@ -1,14 +1,14 @@
 use super::*;
 use crate::primitives::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn a_new_line_typed_into_an_empty_text_area_paints_one_caret() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
+        let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <Frame width=500.0 height=300.0>

@@ -1,0 +1,47 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "page_test")
+load("@root//buck/wasm:defs.bzl", "linked_plugin")
+
+# The plugin at the top of the thread-local diamond (guides/plugin_libraries.md,
+# "Thread-locals"): its generics reach the thread-locals of base, left and
+# right, which be-wasm-host's tests and :web-test below check on wasmtime and
+# in Chromium.
+linked_plugin(
+    libraries = [
+        "//crates/be-tool-tls-diamond-base:module",
+        "//crates/be-tool-tls-diamond-left:module",
+        "//crates/be-tool-tls-diamond-right:module",
+    ],
+    module = "plugin",
+    rustc_flags = ["-Copt-level=2"],
+)
+
+# The thread-local diamond in Chromium: the plugin run by be-wasm-guest-host's
+# guest.js with block-app's plugin.js against be-wasm-gpu-shim, as a plugin's
+# worker runs one, with base, left and right staged beside it as libraries.
+app(
+    name = "web-bundle",
+    bindgen = ["//crates/be-wasm-gpu-shim:module"],
+    files = [
+        "//crates/be-host:dylink.js",
+        "//crates/be-wasm-guest-host:guest.js",
+        "//crates/be-host:env.js",
+        "//crates/be-host:plugin.js",
+        "//crates/be-host:thread.js",
+        "//crates/be-host:threads.js",
+        "//crates/be-host:wasi.js",
+    ],
+    linked = [":module"],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+page_test(
+    name = "web-test",
+    files = {
+        "bundle": ":web-bundle",
+        "diamond.js": "web/diamond.js",
+        "index.html": "web/index.html",
+    },
+)

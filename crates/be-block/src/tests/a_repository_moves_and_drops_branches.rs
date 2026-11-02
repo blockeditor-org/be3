@@ -3,7 +3,7 @@ use crate::version_control::{MAIN_BRANCH, Repository, RepositoryContent};
 
 #[test]
 fn a_repository_moves_and_drops_branches() {
-    let first = be_commit::CommitId::from_hash(be_store::Hash::of(b"first"));
+    let first = be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"first"));
     let upstream = Uuid::from_u128(7);
     let repository = Repository {
         upstream: Some(upstream),

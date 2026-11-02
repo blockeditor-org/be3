@@ -1,11 +1,11 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use beui_html::Node;
+use beui_reactive::ScopeContext;
 use beui_types::Direction;
-use reactive::ScopeContext;
 
 use beui_types::node::NodeCell;
 
@@ -41,7 +41,7 @@ struct Arena {
 #[derive(Default)]
 struct Removals(RefCell<Vec<NodeId>>);
 
-impl reactive::Release for Removals {
+impl beui_reactive::Release for Removals {
     fn release(&self, key: u64) {
         self.0.borrow_mut().push(NodeId::from_key(key));
     }
@@ -49,7 +49,7 @@ impl reactive::Release for Removals {
 
 thread_local! {
     static SCOPE: ScopeContext = {
-        let scope = reactive::Scope::root();
+        let scope = beui_reactive::Scope::root();
         let context = scope.context();
         std::mem::forget(scope);
         context
@@ -111,7 +111,7 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         kind,
         shared,
         wraps,
-        owner: reactive::current_scope(),
+        owner: beui_reactive::current_scope(),
         direction: Direction::Vertical,
         states: Vec::new(),
         refs: Vec::new(),
@@ -131,9 +131,9 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
             }
         }
     });
-    if reactive::current_scope().is_some() {
-        let removals: Rc<dyn reactive::Release> = REMOVALS.with(|removals| removals.clone());
-        reactive::on_release(removals, node.key());
+    if beui_reactive::current_scope().is_some() {
+        let removals: Rc<dyn beui_reactive::Release> = REMOVALS.with(|removals| removals.clone());
+        beui_reactive::on_release(removals, node.key());
     }
     node
 }

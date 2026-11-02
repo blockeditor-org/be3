@@ -18,7 +18,7 @@ thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
     static CURRENT: Cell<Option<Registry>> = const { Cell::new(None) };
     static CHOSEN: Signal<u64> = {
-        let owned = ::reactive::OwnedSignal::new(0);
+        let owned = ::beui_reactive::OwnedSignal::new(0);
         let handle = owned.handle();
         std::mem::forget(owned);
         handle

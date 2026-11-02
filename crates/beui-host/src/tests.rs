@@ -1359,7 +1359,7 @@ impl Harness {
     }
 
     pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.document()
             .accessibility_view()
             .map(|view| view.nodes().cloned().collect())
@@ -1367,14 +1367,14 @@ impl Harness {
     }
 
     pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.document()
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
     pub(crate) fn find(&self, test_id: &str) -> NodeId {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.document()
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
@@ -1385,14 +1385,14 @@ impl Harness {
     }
 
     pub(crate) fn inspector_open(&self) -> bool {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.document()
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
     pub(crate) fn inspector(&self) -> &Inspector {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.document()
             .tools::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref())
@@ -2921,7 +2921,7 @@ impl InSpace {
         }
         self.runner
             .frame(&mut Nowhere, beui_core::app::SafeArea::default());
-        ::reactive::flush();
+        ::beui_reactive::flush();
     }
 
     pub(crate) fn output(&self) -> &beui_core::context::FrameOutput {
@@ -2937,7 +2937,7 @@ impl InSpace {
         }
         self.runner
             .frame(&mut Nowhere, beui_core::app::SafeArea::default());
-        ::reactive::flush();
+        ::beui_reactive::flush();
     }
 
     pub(crate) fn settle(&mut self) {

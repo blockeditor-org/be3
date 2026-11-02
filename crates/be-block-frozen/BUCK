@@ -1,0 +1,12 @@
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# Saves a new snapshot of a server's data:
+# `./scripts/buck run //crates/be-block-frozen:example-freeze -- $PWD/crates/be-block-frozen/src/snapshots NAME`.
+cargo_example("freeze")
+
+# Writes the `.block` fixture: `./scripts/buck run //crates/be-block-frozen:example-block-file -- $PWD/crates/be-block-frozen/src/fixtures/tracker.block`.
+cargo_example("block-file")

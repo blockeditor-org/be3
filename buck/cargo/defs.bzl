@@ -246,11 +246,11 @@ library_path_test = rule(
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/app-tests is one: block-app with its plugins, driven headless. With
+# crates/be-host-tests is one: block-app with its plugins, driven headless. With
 # run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
 # test that fails costs only its own paintings rather than every one the crate
 # accepts, since a failed action keeps no outputs; apart_env adds to run_env
-# for the files it names, as crates/app-tests names each test's own app, and
+# for the files it names, as crates/be-host-tests names each test's own app, and
 # ./scripts/test runs each file apart with its own environment too.
 def _painting_command(ctx, env):
     command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
@@ -450,16 +450,15 @@ def cargo_wasm_facts():
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
 
-# Every editor's package, which is every workspace crate directly under
-# crates/editors: what the app stages as its plugins. A crate further down,
-# such as a plugin's types, belongs to the plugin above it.
+# Every editor's package, which is every workspace crate named be-app-*: what
+# the app stages as its plugins.
 def editor_packages():
-    return sorted([package for package in crates if package.startswith("crates/editors/") and package.count("/") == 2])
+    return sorted([package for package in crates if package.startswith("crates/be-app-")])
 
-# Every game's package, which is every workspace crate under
-# crates/tabletop-games/rules: what the games plugin stages as its data.
+# Every game's package, which is every workspace crate named tabletop-rules-*:
+# what the games plugin stages as its data.
 def game_packages():
-    return sorted([package for package in crates if package.startswith("crates/tabletop-games/rules/")])
+    return sorted([package for package in crates if package.startswith("crates/tabletop-rules-")])
 
 # rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
 # an optimised build that still checks for overflow and debug assertions, as
@@ -540,7 +539,7 @@ fuzz_target = rule(
     attrs = {
         "binary": attrs.dep(providers = [RunInfo]),
         "id": attrs.string(),
-        "_runner": attrs.default_only(attrs.dep(default = "root//crates/local-tools:bin", providers = [RunInfo])),
+        "_runner": attrs.default_only(attrs.dep(default = "root//crates/be-tool-local:bin", providers = [RunInfo])),
     },
     impl = _fuzz_target_impl,
 )

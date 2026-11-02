@@ -1,5 +1,5 @@
 use super::*;
-use stable_hash::HashSet;
+use be_lib_stable_hash::HashSet;
 
 use beui::NodeId;
 use beui_core::display::{Display, Layer, Part};

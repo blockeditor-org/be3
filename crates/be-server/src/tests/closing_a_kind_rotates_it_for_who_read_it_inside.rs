@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::{ANYONE_INSIDE, Access, SETTINGS_TYPE};
+use be_block_graph::{ANYONE_INSIDE, Access, SETTINGS_TYPE};
 
 async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid) -> Uuid {
     let block = Uuid::new_v4();

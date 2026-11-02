@@ -54,7 +54,7 @@ FIXUPS = {
     },
     # The arm64 backend beside the host's own. The plugins beside an arm64 app
     # (Android's APK, the Macs, Windows and Linux on arm64) are compiled for its
-    # wasmtime ahead of time, on the workers - crates/block-app's app and
+    # wasmtime ahead of time, on the workers - crates/be-host's app and
     # android-assets - with the one wasmtime built for them, so it is this one
     # that has to know arm64.
     "cranelift-codegen": {"features": {"linux-x86_64": ["arm64"]}},
@@ -74,7 +74,7 @@ FIXUPS = {
     "gdkx11-sys": _PKG_CONFIG,
     # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
     # type-module library seeds a generator from its host and is getrandom's
-    # custom backend (crates/block-type-guest/src/entropy.rs).
+    # custom backend (crates/be-sdk-type-guest/src/entropy.rs).
     "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
     "gio-sys": _PKG_CONFIG,
     "glib-sys": _PKG_CONFIG,
@@ -134,7 +134,7 @@ FIXUPS = {
     # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
     # encoder cannot be called with, and the custom arm is `unimplemented!()`.
     # The overlay adds `finish_custom(&mut self)` to the encoder's interface,
-    # which a plugin's backend (crates/block-gpu-guest) implements. And wgpu-core's
+    # which a plugin's backend (crates/be-wasm-gpu-guest) implements. And wgpu-core's
     # backend panics on a bundle that fails validation, where the host must
     # report a plugin's mistake as WebGPU does: the overlay sends it to the
     # device's error sink. And wgpu's WebGPU backend leaves a render pass's

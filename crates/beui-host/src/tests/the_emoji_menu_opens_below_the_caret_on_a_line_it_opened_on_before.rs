@@ -3,8 +3,8 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
@@ -12,7 +12,7 @@ fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
     let area = NodeRef::new();
     let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"first line\nsecond line\n"))
-            as Arc<dyn text_editor_core::Document>;
+            as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <Frame padding={Sides::symmetric(200.0, 150.0)}>

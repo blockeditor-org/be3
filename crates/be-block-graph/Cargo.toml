@@ -1,0 +1,20 @@
+[package]
+name = "be-block-graph"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-store = { path = "../be-block-store", default-features = false }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+be-tool-bench = { path = "../be-tool-bench" }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "access-bench"

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let title = create_signal("Groceries".to_string());

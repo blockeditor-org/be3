@@ -79,7 +79,7 @@ too, with KOReader's own settings.
 Build the app with its plugins for arm64 here, copy the directory to the PineNote, and install
 it there as a session:
 
-    ./scripts/buck build -m release //crates/block-app:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
+    ./scripts/buck build -m release //crates/be-host:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
     DIR/block-app --install-login-session
 
 `--install-login-session` also lists the login session in `/etc/greetd/environments`, which gtkgreet offers

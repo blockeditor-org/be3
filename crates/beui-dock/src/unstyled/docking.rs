@@ -2,7 +2,7 @@ use beui_view::types::icons::Glyph;
 mod host;
 mod switch;
 
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::RefCell;
 use std::hash::Hash;

@@ -1,5 +1,5 @@
 use accesskit::{Affine, Node, NodeId as AccessNodeId, Rect as AccessRect, Role, TreeUpdate};
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 
 use super::{DOCUMENT_SHIFT, Fragment};
 use beui_types::{Rect, Vec2};

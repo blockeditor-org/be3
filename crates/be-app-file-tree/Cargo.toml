@@ -1,0 +1,22 @@
+[package]
+name = "be-app-file-tree"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-sdk-database = { path = "../be-sdk-database" }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+be-type-workspace = { path = "../be-type-workspace" }
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

@@ -2,16 +2,16 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{TextAreaApi, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
     let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
     let document = build_node(move || {
-        let document =
-            Arc::new(TextBuffer::new("sécret".as_bytes())) as Arc<dyn text_editor_core::Document>;
+        let document = Arc::new(TextBuffer::new("sécret".as_bytes()))
+            as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <TextArea @node_ref=&area state={state} password=true />

@@ -5,7 +5,7 @@ use beui::native::Waker;
 
 use crate::rotation::Rotation;
 
-pub use ui_types::DisplayMode;
+pub use be_lib_ui_types::DisplayMode;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Monitor {

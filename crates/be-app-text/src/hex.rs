@@ -1,0 +1,524 @@
+use std::ops::Range;
+
+use beui::reactive::*;
+use beui::styled::*;
+use beui::{
+    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextLayout, Vec2,
+};
+use beui_text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
+use std::rc::Rc;
+
+use crate::app::state::State;
+
+const BYTES_PER_ROW: usize = 16;
+const GROUP_SIZE: usize = 8;
+const TEXT_SIZE: f32 = 13.0;
+const ROW_HEIGHT: f32 = TEXT_SIZE * 1.6;
+const PADDING: Vec2 = Vec2::new(12.0, 8.0);
+const PAGE_ROWS: usize = 16;
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct HexGeometry {
+    char_width: f32,
+    hex_x: [f32; BYTES_PER_ROW],
+    ascii_x: [f32; BYTES_PER_ROW],
+    total_width: f32,
+}
+
+impl HexGeometry {
+    fn new(char_width: f32) -> Self {
+        let offset_end = char_width * 8.0;
+        let hex_start = offset_end + char_width * 2.0;
+        let mut hex_x = [0.0; BYTES_PER_ROW];
+        for (col, x) in hex_x.iter_mut().enumerate() {
+            let group_gap = if col >= GROUP_SIZE { char_width } else { 0.0 };
+            *x = hex_start + col as f32 * char_width * 3.0 + group_gap;
+        }
+        let hex_end = hex_x[BYTES_PER_ROW - 1] + char_width * 2.0;
+        let ascii_start = hex_end + char_width * 2.0;
+        let mut ascii_x = [0.0; BYTES_PER_ROW];
+        for (col, x) in ascii_x.iter_mut().enumerate() {
+            *x = ascii_start + col as f32 * char_width;
+        }
+        let total_width = ascii_x[BYTES_PER_ROW - 1] + char_width;
+        Self {
+            char_width,
+            hex_x,
+            ascii_x,
+            total_width,
+        }
+    }
+
+    fn region_split(&self) -> f32 {
+        let hex_end = self.hex_x[BYTES_PER_ROW - 1] + self.char_width * 2.0;
+        (hex_end + self.ascii_x[0]) / 2.0
+    }
+
+    fn byte_at(&self, local: Vec2, rows: usize) -> usize {
+        let row = ((local.y / ROW_HEIGHT).floor().max(0.0) as usize).min(rows.saturating_sub(1));
+        let ascii_region = local.x >= self.region_split();
+        let col = if ascii_region {
+            nearest_column(&self.ascii_x, self.char_width * 0.5, local.x)
+        } else {
+            nearest_column(&self.hex_x, self.char_width, local.x)
+        };
+        row * BYTES_PER_ROW + col
+    }
+}
+
+fn nearest_column(centers: &[f32; BYTES_PER_ROW], center_offset: f32, x: f32) -> usize {
+    let mut best = 0;
+    let mut best_distance = f32::MAX;
+    for (col, left) in centers.iter().enumerate() {
+        let distance = (x - (left + center_offset)).abs();
+        if distance < best_distance {
+            best_distance = distance;
+            best = col;
+        }
+    }
+    best
+}
+
+fn document_len(state: State) -> usize {
+    state.text.bytes().len()
+}
+
+fn cursor_range(state: State) -> Range<usize> {
+    state.text.with_core(|core| {
+        core.cursor_positions()
+            .first()
+            .copied()
+            .and_then(|cursor| core.selection_range(&cursor))
+            .unwrap_or(0..0)
+    })
+}
+
+fn select_byte(state: State, index: usize) {
+    let len = document_len(state);
+    let index = index.min(len);
+    let insert = state.hex_insert_mode.get_untracked();
+    let focus_index = match !insert && index < len {
+        true => index + 1,
+        false => index,
+    };
+    let (anchor, focus) = state
+        .text
+        .with_core(|core| (core.position(index), core.position(focus_index)));
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
+}
+
+fn set_range(state: State, anchor_byte: usize, target_byte: usize) {
+    let len = document_len(state);
+    let anchor_byte = anchor_byte.min(len);
+    let target_byte = target_byte.min(len);
+    let (anchor, focus) = state
+        .text
+        .with_core(|core| match target_byte >= anchor_byte {
+            true => (
+                core.position(anchor_byte),
+                core.position((target_byte + 1).min(len)),
+            ),
+            false => (
+                core.position((anchor_byte + 1).min(len)),
+                core.position(target_byte),
+            ),
+        });
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
+}
+
+fn commit_byte(state: State, byte_index: usize, byte: u8) {
+    let len = document_len(state);
+    let insert = state.hex_insert_mode.get_untracked();
+    let overwrite_end = match !insert && byte_index < len {
+        true => byte_index + 1,
+        false => byte_index.min(len),
+    };
+    let (anchor, focus) = state.text.with_core(|core| {
+        (
+            core.position(byte_index.min(len)),
+            core.position(overwrite_end),
+        )
+    });
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
+    state.text.execute(EditorCommand::InsertText(&[byte]));
+    let next = byte_index + 1;
+    state.inner().hex_selection_anchor.set(Some(next));
+    if !insert {
+        select_byte(state, next);
+    }
+}
+
+fn type_nibble(state: State, digit: u8) {
+    let byte_index = cursor_range(state).start;
+    match state.inner().hex_pending_nibble.take() {
+        None => state.inner().hex_pending_nibble.set(Some(digit)),
+        Some(high) => commit_byte(state, byte_index, (high << 4) | digit),
+    }
+}
+
+pub(crate) fn type_text(state: State, text: &str) {
+    for character in text.chars() {
+        if let Some(digit) = character.to_digit(16) {
+            type_nibble(state, digit as u8);
+        }
+    }
+}
+
+fn delete(state: State, direction: LRDirection) {
+    state.inner().hex_pending_nibble.set(None);
+    state.text.execute(EditorCommand::Delete {
+        direction,
+        stop: CursorLeftRightStop::Byte,
+    });
+    let index = cursor_range(state).start;
+    state.inner().hex_selection_anchor.set(Some(index));
+    if !state.hex_insert_mode.get_untracked() {
+        select_byte(state, index);
+    }
+}
+
+fn copy(state: State, cut: bool) {
+    let range = cursor_range(state);
+    if range.is_empty() {
+        return;
+    }
+    let bytes = state
+        .text
+        .bytes()
+        .get(range.clone())
+        .map(<[u8]>::to_vec)
+        .unwrap_or_default();
+    if bytes.is_empty() {
+        return;
+    }
+    let hex = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    copy_text(hex);
+    if cut {
+        delete(state, LRDirection::Left);
+    }
+}
+
+fn navigate(state: State, press: KeyPress) -> bool {
+    let len = document_len(state);
+    let current = cursor_range(state).start;
+    let modifiers = press.modifiers;
+    let target = match press.key {
+        Key::ArrowLeft => current.saturating_sub(1),
+        Key::ArrowRight => (current + 1).min(len),
+        Key::ArrowUp => current.saturating_sub(BYTES_PER_ROW),
+        Key::ArrowDown => (current + BYTES_PER_ROW).min(len),
+        Key::Home if modifiers.ctrl => 0,
+        Key::Home => current - current % BYTES_PER_ROW,
+        Key::End if modifiers.ctrl => len,
+        Key::End => (current - current % BYTES_PER_ROW + BYTES_PER_ROW - 1).min(len),
+        Key::PageUp => current.saturating_sub(BYTES_PER_ROW * PAGE_ROWS),
+        Key::PageDown => (current + BYTES_PER_ROW * PAGE_ROWS).min(len),
+        _ => return false,
+    };
+    state.inner().hex_pending_nibble.set(None);
+    if modifiers.shift {
+        let anchor = state.inner().hex_selection_anchor.get().unwrap_or(current);
+        state.inner().hex_selection_anchor.set(Some(anchor));
+        set_range(state, anchor, target);
+    } else {
+        state.inner().hex_selection_anchor.set(Some(target));
+        select_byte(state, target);
+    }
+    true
+}
+
+fn key(state: State, press: KeyPress) -> bool {
+    if !press.pressed {
+        return false;
+    }
+    let modifiers = press.modifiers;
+    match press.key {
+        Key::C if modifiers.ctrl => copy(state, false),
+        Key::X if modifiers.ctrl => copy(state, true),
+        Key::Backspace => delete(state, LRDirection::Left),
+        Key::Delete => delete(state, LRDirection::Right),
+        Key::A if modifiers.ctrl => {
+            state.inner().hex_pending_nibble.set(None);
+            state.text.execute(EditorCommand::SelectAll);
+        }
+        Key::Z if modifiers.ctrl => {
+            state.inner().hex_pending_nibble.set(None);
+            state.text.execute(match modifiers.shift {
+                true => EditorCommand::Redo,
+                false => EditorCommand::Undo,
+            });
+        }
+        Key::Y if modifiers.ctrl => {
+            state.inner().hex_pending_nibble.set(None);
+            state.text.execute(EditorCommand::Redo);
+        }
+        _ => return navigate(state, press),
+    }
+    true
+}
+
+fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page {
+    let bytes = state.text.bytes();
+    let len = bytes.len();
+    let rows = len.div_ceil(BYTES_PER_ROW).max(1);
+    let selected = cursor_range(state);
+    let focus = state.text.with_core(|core| {
+        core.cursor_positions()
+            .first()
+            .copied()
+            .and_then(|cursor| core.position_index(cursor.pos.focus))
+    });
+    let font = FontId::monospace(TEXT_SIZE);
+    let mut shapes = vec![PageShape::Rect {
+        rect: Rect::from_min_size(Pos2::ZERO, size),
+        color: theme.background,
+    }];
+    let push_text = |origin: Pos2, string: &str, color: Color32| {
+        lay_out_text(string, font, TextLayout::DEFAULT).map(|block| PageShape::Text {
+            origin,
+            block,
+            color,
+        })
+    };
+    for row in 0..rows {
+        let y = PADDING.y + row as f32 * ROW_HEIGHT;
+        let row_start = row * BYTES_PER_ROW;
+        let row_end = (row_start + BYTES_PER_ROW).min(len);
+        shapes.extend(push_text(
+            Pos2::new(PADDING.x, y),
+            &format!("{row_start:08x}"),
+            theme.text_muted,
+        ));
+        for (col, byte) in bytes[row_start..row_end].iter().enumerate() {
+            let index = row_start + col;
+            let hex_pos = Pos2::new(PADDING.x + geometry.hex_x[col], y);
+            let ascii_pos = Pos2::new(PADDING.x + geometry.ascii_x[col], y);
+            if selected.contains(&index) {
+                shapes.push(PageShape::Rect {
+                    rect: Rect::from_min_size(
+                        hex_pos,
+                        Vec2::new(geometry.char_width * 2.0, ROW_HEIGHT),
+                    ),
+                    color: theme.accent_soft,
+                });
+                shapes.push(PageShape::Rect {
+                    rect: Rect::from_min_size(
+                        ascii_pos,
+                        Vec2::new(geometry.char_width, ROW_HEIGHT),
+                    ),
+                    color: theme.accent_soft,
+                });
+            }
+            shapes.extend(push_text(hex_pos, &format!("{byte:02x}"), theme.text));
+            let character = match byte.is_ascii_graphic() || *byte == b' ' {
+                true => *byte as char,
+                false => '.',
+            };
+            shapes.extend(push_text(ascii_pos, &character.to_string(), theme.text));
+        }
+    }
+    if selected.is_empty()
+        && let Some(focus) = focus
+        && focus / BYTES_PER_ROW < rows
+    {
+        let row = focus / BYTES_PER_ROW;
+        let col = focus % BYTES_PER_ROW;
+        shapes.push(PageShape::Rect {
+            rect: Rect::from_min_size(
+                Pos2::new(
+                    PADDING.x + geometry.hex_x[col] - 1.0,
+                    PADDING.y + row as f32 * ROW_HEIGHT,
+                ),
+                Vec2::new(2.0, ROW_HEIGHT),
+            ),
+            color: theme.accent,
+        });
+    }
+    Page::new(shapes)
+}
+
+#[derive(Clone)]
+enum PageShape {
+    Rect {
+        rect: Rect,
+        color: Color32,
+    },
+    Text {
+        origin: Pos2,
+        block: TextBlock,
+        color: Color32,
+    },
+}
+
+impl PageShape {
+    fn bounds(&self) -> Rect {
+        match self {
+            Self::Rect { rect, .. } => *rect,
+            Self::Text { origin, block, .. } => Rect::from_min_size(*origin, block.size()),
+        }
+    }
+
+    fn paint(&self, painter: &Painter, offset: Vec2) {
+        match self {
+            Self::Rect { rect, color } => painter.rect_filled(rect.translate(offset), 0.0, *color),
+            Self::Text {
+                origin,
+                block,
+                color,
+            } => painter.draw_text(*origin + offset, block, *color),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Page(Rc<Vec<PageShape>>);
+
+impl Page {
+    fn new(shapes: Vec<PageShape>) -> Self {
+        Self(Rc::new(shapes))
+    }
+
+    fn draw(&self) -> Draw {
+        let page = self.clone();
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            let offset = rect.min.to_vec2();
+            let clip = painter.clip_rect();
+            for shape in page.0.iter() {
+                if shape.bounds().translate(offset).intersects(clip) {
+                    shape.paint(painter, offset);
+                }
+            }
+        })
+    }
+}
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[component]
+pub(crate) fn HexView(state: State) -> NodeId {
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let scale = pixels_per_point();
+    let theme = use_theme();
+    let geometry = create_memo(move || {
+        scale.get();
+        let char_width = lay_out_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
+            .map_or(TEXT_SIZE * 0.6, |block| block.size().x)
+            .max(1.0);
+        HexGeometry::new(char_width)
+    });
+    let content = state.text.content();
+    let rows = create_memo(move || {
+        content.get();
+        state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
+    });
+    let content_size = create_memo(move || {
+        let available = size.get();
+        Vec2::new(
+            (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
+            (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
+        )
+    });
+    let width = create_memo(move || Size::Custom(content_size.get().x));
+    let height = create_memo(move || Size::Custom(content_size.get().y));
+    let drawn = create_memo(move || {
+        content.get();
+        state.text.cursors().get();
+        page(
+            state,
+            &theme.get().resolve(),
+            &geometry.get(),
+            content_size.get(),
+        )
+    });
+    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+
+    let cx = HexSurface {
+        state,
+        geometry,
+        rows,
+    };
+    let built = view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll>
+                <Interactive
+                    focusable=true
+                    on_key={move |press: KeyPress| key(state, press)}
+                    on_text={move |typed: String| type_text(state, &typed)}
+                    cursor=CursorIcon::Text
+                    on_press={move |event: PointerPress| hex_press(cx, event)}
+                    on_drag={move |event: PointerPress| hex_drag(cx, event)}
+                    on_active_change={move |active: bool| {
+                        if !active {
+                            state.inner().hex_selection_anchor.set(None);
+                        }
+                    }}
+                >
+                    <Frame width=width height=height>
+                        <Drawing draw={draw} />
+                    </Frame>
+                </Interactive>
+            </Scroll>
+        </Frame>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(measured) = size_measured.get() {
+            size_held.set(measured.size);
+        }
+    });
+    built
+}
+
+#[derive(Clone, Copy)]
+struct HexSurface {
+    state: State,
+    geometry: Memo<HexGeometry>,
+    rows: Memo<usize>,
+}
+
+impl HexSurface {
+    fn target(&self, local: Pos2) -> Option<usize> {
+        let local = Vec2::new(local.x - PADDING.x, local.y - PADDING.y);
+        let len = document_len(self.state);
+        Some(
+            self.geometry
+                .get_untracked()
+                .byte_at(local, self.rows.get_untracked())
+                .min(len),
+        )
+    }
+}
+
+fn hex_press(cx: HexSurface, press: PointerPress) {
+    let Some(target) = cx.target(press.local) else {
+        return;
+    };
+    cx.state.inner().hex_pending_nibble.set(None);
+    cx.state.inner().hex_selection_anchor.set(Some(target));
+    select_byte(cx.state, target);
+}
+
+fn hex_drag(cx: HexSurface, press: PointerPress) {
+    let Some(anchor) = cx.state.inner().hex_selection_anchor.get() else {
+        return;
+    };
+    let Some(target) = cx.target(press.local) else {
+        return;
+    };
+    set_range(cx.state, anchor, target);
+}

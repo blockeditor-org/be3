@@ -4050,7 +4050,8 @@ pub(crate) fn EditorPage() -> NodeId {
 #[sample]
 #[component]
 fn MarkdownEditor() -> NodeId {
-    let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let document =
+        Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
     view! {
@@ -4077,7 +4078,7 @@ fn MarkdownEditor() -> NodeId {
 #[sample]
 #[component]
 fn ReadOnlyNote() -> NodeId {
-    let document = Arc::new(TextBuffer::new(NOTE_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let document = Arc::new(TextBuffer::new(NOTE_TEXT)) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     view! {
         <List spacing=Space::None>

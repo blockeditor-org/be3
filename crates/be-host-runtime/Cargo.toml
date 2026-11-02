@@ -1,0 +1,83 @@
+[package]
+name = "be-host-runtime"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-client = { path = "../be-block-client" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
+be-host-base = { path = "../be-host-base" }
+be-host-stack = { path = "../be-host-stack" }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-sdk-type-api = { path = "../be-sdk-type-api" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+wgpu = { version = "29", default-features = false }
+
+# The wasmtime plugin host, which runs every plugin on every platform but the
+# browser. The browser runs the same wasm in a worker of its own.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+# rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
+# Android. The web build talks to the Web Audio API through web-sys directly
+# instead: cpal's own Web Audio backend only targets wasm32-unknown-unknown,
+# not this project's wasm32-wasip1.
+rodio = "0.20"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "AbortController",
+    "AbortSignal",
+    "Blob",
+    "BlobPropertyBag",
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "EventTarget",
+    "File",
+    "FileList",
+    "Headers",
+    "HtmlAudioElement",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlMediaElement",
+    "ImageBitmap",
+    "Location",
+    "Node",
+    "OffscreenCanvas",
+    "Performance",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Url",
+    "UrlSearchParams",
+    "Window",
+    "WorkerGlobalScope",
+    "console",
+] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+be-host-testing = { path = "../be-host-testing" }
+be-type-browser-tab = { path = "../be-type-browser-tab" }
+be-type-checklist = { path = "../be-type-checklist" }
+be-type-example-counter = { path = "../be-type-example-counter" }
+be-type-database = { path = "../be-type-database" }
+pollster = "0.4"
+be-type-text = { path = "../be-type-text" }
+
+[lints]
+workspace = true

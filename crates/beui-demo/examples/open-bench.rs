@@ -291,7 +291,7 @@ mod bench {
             if std::env::var_os("UNPLACED").is_some() {
                 let document = self.app();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
-                let mut found = stable_hash::HashMap::<String, (usize, usize)>::default();
+                let mut found = be_lib_stable_hash::HashMap::<String, (usize, usize)>::default();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
                     1 + document
                         .children(node)
@@ -446,10 +446,10 @@ mod bench {
                 *log += ms(duration).max(1e-3).ln();
             }
             let page = title.to_lowercase().replace(' ', "-");
-            ::bench::time(&format!("{page}.cold"), cold);
-            ::bench::time(&format!("{page}.warm-fastest"), min);
-            ::bench::time(&format!("{page}.warm-median"), median);
-            ::bench::count(&format!("{page}.allocations"), allocations);
+            ::be_tool_bench::time(&format!("{page}.cold"), cold);
+            ::be_tool_bench::time(&format!("{page}.warm-fastest"), min);
+            ::be_tool_bench::time(&format!("{page}.warm-median"), median);
+            ::be_tool_bench::count(&format!("{page}.allocations"), allocations);
             println!(
                 "{title:<16} {:>9.2} {:>9.2} {:>9.2} {:>9.2} {allocations:>12}",
                 ms(cold),
@@ -459,9 +459,9 @@ mod bench {
             );
         }
         let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
-        ::bench::record("mean.cold", cold, "ms");
-        ::bench::record("mean.warm-fastest", min, "ms");
-        ::bench::record("mean.warm-median", median, "ms");
+        ::be_tool_bench::record("mean.cold", cold, "ms");
+        ::be_tool_bench::record("mean.warm-fastest", min, "ms");
+        ::be_tool_bench::record("mean.warm-median", median, "ms");
         println!(
             "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
             "geomean"

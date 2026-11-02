@@ -50,7 +50,7 @@ pub use web::{automate, lines};
 
 #[cfg(target_arch = "wasm32")]
 mod web {
-    use stable_hash::HashMap;
+    use be_lib_stable_hash::HashMap;
     use std::time::Duration;
 
     use beui_types::{Rect, pos2, vec2};

@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 #[tokio::test]
 async fn removing_a_contact_revokes_what_the_two_shared() {

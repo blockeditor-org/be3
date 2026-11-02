@@ -293,10 +293,10 @@ mod bench {
         println!(
             "{label:<28} median {total:>9.2?} worst {worst:>9.2?} (frame {frame:>9.2?} present {present:>9.2?} layout {layout:>8.2?} paint {paint:>8.2?}) most placed {placed:>5} painted {painted:>5} windows changed {changed}"
         );
-        ::bench::time(&format!("{metric}.median"), total);
-        ::bench::time(&format!("{metric}.worst"), worst);
-        ::bench::time(&format!("{metric}.frame-median"), frame);
-        ::bench::time(&format!("{metric}.present-median"), present);
+        ::be_tool_bench::time(&format!("{metric}.median"), total);
+        ::be_tool_bench::time(&format!("{metric}.worst"), worst);
+        ::be_tool_bench::time(&format!("{metric}.frame-median"), frame);
+        ::be_tool_bench::time(&format!("{metric}.present-median"), present);
     }
 
     fn cursor(bench: &mut Bench) {

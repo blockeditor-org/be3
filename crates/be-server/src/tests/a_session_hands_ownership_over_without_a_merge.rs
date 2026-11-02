@@ -60,7 +60,10 @@ async fn a_session_hands_ownership_over_without_a_merge() {
         .publish(&author, block, second.0, second.1, Some(first.0), 2_000)
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "the new owner could not continue from the head: {response:?}"
     );
 

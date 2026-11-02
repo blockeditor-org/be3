@@ -1,5 +1,5 @@
+use beui_reactive::{Get, ReadSignal, Set, Signal};
 use beui_types::{Color, Color32, ColorDefinitions, ColorScheme};
-use reactive::{Get, ReadSignal, Set, Signal};
 
 use crate::css::literal_color;
 

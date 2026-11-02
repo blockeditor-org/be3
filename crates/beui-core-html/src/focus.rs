@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
+use beui_reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 
 use crate::node::{NodeId, NodeRef};
 
@@ -111,7 +111,7 @@ pub fn focus_ancestry() -> Vec<NodeId> {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Listener> {
-    use reactive::Set;
+    use beui_reactive::Set;
     use wasm_bindgen::JsCast;
 
     let update = |target: Option<web_sys::EventTarget>| {
@@ -127,7 +127,7 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
         if signals.visible.get_untracked() != visible {
             signals.visible.set(visible);
         }
-        reactive::flush();
+        beui_reactive::flush();
     };
     vec![
         crate::dom::listen(

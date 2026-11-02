@@ -7,7 +7,7 @@ fn filled(color: Color32) -> Draw {
 
 #[test]
 fn a_drawing_redraws_its_svg_when_its_callback_changes() {
-    let scope = ::reactive::Scope::detached();
+    let scope = ::beui_reactive::Scope::detached();
     let (color, sized, roomless) = scope.run(|| {
         let color = create_signal(BLUE);
         let draw = Prop::dynamic(move || filled(color.get()));
@@ -19,7 +19,7 @@ fn a_drawing_redraws_its_svg_when_its_callback_changes() {
         };
         (color, sized, roomless)
     });
-    ::reactive::flush();
+    ::beui_reactive::flush();
     let markup = |node: NodeId| beui_core_html::document::element(node).unwrap().to_html();
 
     let before = markup(sized);
@@ -31,7 +31,7 @@ fn a_drawing_redraws_its_svg_when_its_callback_changes() {
     );
 
     color.set(GREEN);
-    ::reactive::flush();
+    ::beui_reactive::flush();
     let after = markup(sized);
     assert!(after.contains("fill: #3caa6e;"), "{after}");
     assert!(!after.contains("#466edc"), "{after}");

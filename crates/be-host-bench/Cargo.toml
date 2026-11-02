@@ -1,0 +1,25 @@
+[package]
+name = "be-host-bench"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "app-bench"
+path = "src/main.rs"
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-client = { path = "../be-block-client" }
+be-tool-drive = { path = "../be-tool-drive" }
+be-server = { path = "../be-server" }
+be-tool-bench = { path = "../be-tool-bench" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+be-type-infinite-canvas = { path = "../be-type-infinite-canvas" }
+libc = "0.2"
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+tokio = { version = "1", features = ["net", "rt-multi-thread", "sync"] }
+
+[lints]
+workspace = true

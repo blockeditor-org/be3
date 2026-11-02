@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui::{CursorIcon, Vec2, vec2};

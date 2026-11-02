@@ -1,0 +1,12 @@
+[package]
+name = "be-lib-build-id"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

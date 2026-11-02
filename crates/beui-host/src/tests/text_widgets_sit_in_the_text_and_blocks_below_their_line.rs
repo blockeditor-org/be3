@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState, TextWidget};
+use beui_text_editor_core::{EditorCommand, TextBuffer};
 use std::sync::Arc;
-use text_editor_core::{EditorCommand, TextBuffer};
 
 const TEXT: &str = "see [a] here\n[big]\nafter";
 const BLOCK: Vec2 = Vec2::new(120.0, 60.0);
@@ -16,7 +16,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     let popup = NodeRef::new();
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         let widgets = vec![

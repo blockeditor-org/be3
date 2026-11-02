@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use reactive::{Set, Signal, Stored, store, untrack};
+use beui_reactive::{Set, Signal, Stored, store, untrack};
 
 type Handler<V, R> = Box<dyn FnMut(V) -> R>;
 type ClickHandler = Box<dyn FnMut()>;

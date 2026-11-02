@@ -1,4 +1,4 @@
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::collections::VecDeque;
 use std::hash::Hash;
@@ -8,7 +8,7 @@ use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::node::{Element, FocusChild, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
+use ::beui_reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 use beui_types::Direction;
 use beui_types::NodeId;
 use beui_types::rows::RowMetrics;

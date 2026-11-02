@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use crate::base::overlay::OverlayNode;
 use crate::context::{Context, EscapedOutput, WindowOutput};

@@ -389,7 +389,7 @@ mod web {
                 time: crate::frame::now(),
                 ..press
             });
-            reactive::flush();
+            beui_reactive::flush();
             Some(REPEAT)
         }
 
@@ -526,7 +526,7 @@ mod web {
             event.prevent_default();
             event.stop_propagation();
         }
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn attach(state: &Rc<State>, element: &web_sys::Element) -> Vec<Listener> {
@@ -577,7 +577,7 @@ mod web {
                     crate::ime::begin(held.node, Rc::new(move |events| sink.ime_events(events)));
                     crate::ime::keyboard(held.node, held.switches.keyboard.get());
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -596,7 +596,7 @@ mod web {
                 }
                 crate::ime::end(held.node);
                 held.handlers.on_focus_change.call(false);
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -648,7 +648,7 @@ mod web {
                 let types = event.key().chars().count() == 1 && !modifiers.command();
                 if done && types && held.takes_text() {
                     event.stop_propagation();
-                    reactive::flush();
+                    beui_reactive::flush();
                     return;
                 }
                 handled(event, done);
@@ -699,7 +699,7 @@ mod web {
                 if held.down(&element, event) {
                     event.stop_propagation();
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -718,7 +718,7 @@ mod web {
                 }
                 held.down(&element, pointer);
                 event.stop_propagation();
-                reactive::flush();
+                beui_reactive::flush();
             },
         ));
         if !state.handlers.on_press_outside.is_empty()
@@ -749,7 +749,7 @@ mod web {
                             pointer.client_y().into(),
                         );
                         held.handlers.on_press_outside.call(at.pos);
-                        reactive::flush();
+                        beui_reactive::flush();
                     }
                 },
             ));
@@ -827,7 +827,7 @@ mod web {
                     if !hovered && held.pointed.replace(false) {
                         held.handlers.on_pointed_change.call(false);
                     }
-                    reactive::flush();
+                    beui_reactive::flush();
                 }),
             ));
         }
@@ -852,7 +852,7 @@ mod web {
                 if clicks {
                     event.stop_propagation();
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -886,7 +886,7 @@ mod web {
                         .call(press(&element, event));
                 }
                 event.prevent_default();
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();

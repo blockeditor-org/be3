@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use accesskit::{Node, Role};
 
-use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
+use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_view::types::Color;
 use beui_view::types::ItemSize;
@@ -482,7 +482,7 @@ fn edits(key: &str, command: bool) -> bool {
 
 fn plain_text(value: &str) -> TextAreaState {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
-    let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
+    let state = TextAreaState::new(buffer as Arc<dyn beui_text_editor_core::Document>);
     state.execute(EditorCommand::SetLanguage(TextLanguage::PlainText));
     let end = state.with_core(|core| core.position(value.len()));
     state.execute(EditorCommand::SetSelection {

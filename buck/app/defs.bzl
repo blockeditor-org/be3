@@ -75,7 +75,7 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
     return artifact
 
 # Every plugin's modules, libraries and type modules precompiled once, for
-# apps that stage some or all of them (crates/app-tests stages a few editors
+# apps that stage some or all of them (crates/be-host-tests stages a few editors
 # per test): an app given it as `precompiled` takes each .cwasm from here
 # rather than precompiling its own, so apps that share a module share its
 # action, which only runs once an app asks for its output.
@@ -121,7 +121,7 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
 # is the plugins alone. `index` writes the plugins.json the app finds the
 # plugins through. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module. `[archive]` is the whole directory as one
-# compressed file (crates/app-archive), a quarter of its size or less, made on a
+# compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/apps
 # once for each new archive, so a run downloads only the archive; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
@@ -232,9 +232,9 @@ app = rule(
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
-        "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/app-archive:bin")),
+        "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-host-archive:bin")),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
-        "_unpacker": attrs.default_only(attrs.dep(default = "root//crates/app-archive:bin")),
+        "_unpacker": attrs.default_only(attrs.dep(default = "root//crates/be-host-archive:bin")),
     },
     impl = _app_impl,
 )

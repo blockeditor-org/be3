@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use be_graph::BlockGraph;
-use be_protocol::{
+use be_block_graph::BlockGraph;
+use be_block_protocol::{
     ErrorCode, EscrowKey, KeyChange, KeyKind, KeyRow, KeySet, KeyWork, OrganizationKind, OwnKind,
     OwnSealed, SealedKey, Unsealed, WrappedBy, WrappedKey,
 };
@@ -188,7 +188,7 @@ pub(crate) fn served_keys(
 fn passes_on(graph: &BlockGraph, seen: &Visibility, kind: Uuid) -> bool {
     graph
         .get(kind)
-        .is_some_and(be_graph::BlockNode::is_open_inside)
+        .is_some_and(be_block_graph::BlockNode::is_open_inside)
         && seen.can_view(graph, kind)
 }
 
@@ -205,7 +205,7 @@ fn passed_on(
     };
     let open = graph
         .get(row.block)
-        .is_some_and(be_graph::BlockNode::is_open_inside);
+        .is_some_and(be_block_graph::BlockNode::is_open_inside);
     Ok(row.kind == KeyKind::Scope
         && open
         && account != caller
@@ -222,7 +222,7 @@ pub(crate) fn store_keys(
     allowed: impl Fn(&BlockGraph, Uuid) -> bool,
 ) -> Result<(), ServerError> {
     let administrator = crate::contacts::role_in(connection, caller, organization)?
-        .is_some_and(|role| role == be_protocol::OrganizationRole::Administrator);
+        .is_some_and(|role| role == be_block_protocol::OrganizationRole::Administrator);
     let allowed = |graph: &BlockGraph, row: &KeyRow| match row.kind {
         KeyKind::Escrow => administrator && row.block == organization,
         KeyKind::Data | KeyKind::Scope => graph.contains(row.block) && allowed(graph, row.block),
@@ -295,7 +295,7 @@ pub(crate) fn store_keys(
                 }
                 if row.kind == KeyKind::Escrow
                     && crate::contacts::role_in(connection, account, organization)?
-                        != Some(be_protocol::OrganizationRole::Administrator)
+                        != Some(be_block_protocol::OrganizationRole::Administrator)
                 {
                     return Err(ServerError::Refused(
                         ErrorCode::PermissionDenied,
@@ -496,8 +496,8 @@ pub(crate) fn is_viewer(
     Ok(
         match crate::contacts::role_in(connection, account, organization)? {
             None => false,
-            Some(be_protocol::OrganizationRole::Administrator) => graph.contains(block),
-            Some(be_protocol::OrganizationRole::Editor) => {
+            Some(be_block_protocol::OrganizationRole::Administrator) => graph.contains(block),
+            Some(be_block_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
                     || crate::organization::in_settings(graph, organization, block)
             }
@@ -520,7 +520,7 @@ pub(crate) fn sealed_to(
         .filter(|(_, level)| level.can_view())
         .map(|(account, _)| *account)
         .collect();
-    if !matches!(node.parent, be_graph::BlockParent::Block(_)) {
+    if !matches!(node.parent, be_block_graph::BlockParent::Block(_)) {
         accounts.insert(node.author);
     }
     if node.is_open_inside()
@@ -590,7 +590,7 @@ pub(crate) fn open_kinds_viewed(
         for kind in graph.kinds_of(owner) {
             if graph
                 .get(kind)
-                .is_some_and(be_graph::BlockNode::is_open_inside)
+                .is_some_and(be_block_graph::BlockNode::is_open_inside)
                 && is_viewer(connection, graph, organization, account, kind)?
             {
                 viewed.insert(kind);
@@ -639,7 +639,7 @@ pub(crate) fn viewing_below(
                 .map(|(account, _)| *account),
         );
     }
-    candidates.remove(&be_graph::ANYONE_INSIDE);
+    candidates.remove(&be_block_graph::ANYONE_INSIDE);
     let mut accounts = Vec::new();
     for account in candidates {
         let viewed = is_viewer(connection, graph, organization, account, block)?;

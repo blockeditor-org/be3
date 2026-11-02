@@ -1,4 +1,4 @@
-use be_model::{Bytes, Document, Edit, Model, ObjectId};
+use be_block_model::{Bytes, Document, Edit, Model, ObjectId};
 use uuid::Uuid;
 
 use crate::Root;

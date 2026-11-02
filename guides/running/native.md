@@ -12,11 +12,11 @@ guide is for what that does not cover.
 - `--desktop` (every native platform): the desktop shell in a window; with `BEUI_PLATFORM=drm`
   (Linux), a login session on the displays themselves (guides/desktop/linux.md). `BEUI_PLATFORM=drm`
   without `--desktop` runs the workspace shell on the displays instead.
-  `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
+  `./scripts/buck run //crates/be-host:dev -- --desktop` drives the desktop shell headless.
 - `--install-login-session [PREFIX]` (Linux): install the app as a login session
   (guides/desktop/linux.md).
 
-`./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
+`./scripts/buck run //crates/be-host:native` runs it in a window, with every plugin beside it.
 The bundle’s `build-info.json` selects the app identity: local builds use
 `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
 They keep separate accounts, workspaces and caches, including for local release builds.
@@ -31,7 +31,7 @@ display driven with xdotool. Install them first (`sudo apt-get install xvfb xdot
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
     export DISPLAY=:99
     BEUI_LAYERS=drive BEUI_DRIVE_SOCKET=/tmp/block.sock XDG_DATA_HOME=/tmp/block-data \
-        ./scripts/buck run //crates/block-app:native -- --dev-workspace > /tmp/block.log 2>&1 &
+        ./scripts/buck run //crates/be-host:native -- --dev-workspace > /tmp/block.log 2>&1 &
     WINDOW=$(xdotool search --sync --onlyvisible --name '^Block$' | head -n 1)
     xdotool windowfocus --sync $WINDOW
 

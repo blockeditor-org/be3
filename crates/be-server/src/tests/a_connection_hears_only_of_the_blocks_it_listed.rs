@@ -1,5 +1,5 @@
 use super::*;
-use be_protocol::Listing;
+use be_block_protocol::Listing;
 
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client

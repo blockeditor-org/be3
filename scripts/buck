@@ -5,7 +5,7 @@
 # Usage:
 #   ./scripts/buck build //crates/...
 #   ./scripts/buck test //crates/...
-#   ./scripts/buck run //crates/block-app:native
+#   ./scripts/buck run //crates/be-host:native
 #
 # guides/bootstrap.md says what runs it.
 

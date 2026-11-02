@@ -55,7 +55,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         .call(|peer| client::blocks::collect_detached(peer))
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::Collected { .. })),
+        matches!(response, Ok(be_block_protocol::Collected { .. })),
         "{response:?}"
     );
     let removed = other.graph_change().await;

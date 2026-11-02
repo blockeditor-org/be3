@@ -34,6 +34,9 @@ use beui::{
     PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
+use beui_text_editor_core::{
+    EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
+};
 use collaboration::CollaborationPage;
 use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
@@ -44,9 +47,6 @@ use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
     InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
     RowsPage, TextPage, ThemesPage, TreePage,
-};
-use text_editor_core::{
-    EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
 };
 use unstyled_pages::{
     DraggingPage, PopupsPage, PressingPage, ScrollingPage, SelectingPage, ValuesPage,

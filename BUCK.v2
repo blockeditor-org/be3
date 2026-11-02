@@ -19,10 +19,10 @@ export_file(
 #   ./scripts/buck run //:pdfium -- REVISION
 #   ./scripts/buck run //:rust-project
 
-# Every fuzz target, taking turns, until it is stopped (crates/local-tools).
+# Every fuzz target, taking turns, until it is stopped (crates/be-tool-local).
 command_alias(
     name = "fuzz",
-    args = ["$(location //crates/local-tools:bin)", "fuzz", "--all"],
+    args = ["$(location //crates/be-tool-local:bin)", "fuzz", "--all"],
 )
 
 command_alias(
@@ -42,11 +42,11 @@ command_alias(
 )
 
 # third-party/pdfium/sources.bzl, from PDFium's GN build at REVISION
-# (crates/buck-tools/src/pdfium.rs).
+# (crates/be-tool-buck/src/pdfium.rs).
 command_alias(
     name = "pdfium",
     args = [
-        "$(exe //crates/buck-tools:bin)",
+        "$(exe //crates/be-tool-buck:bin)",
         "pdfium",
     ],
 )
@@ -54,7 +54,7 @@ command_alias(
 command_alias(
     name = "rust-project",
     args = [
-        "$(exe //crates/buck-tools:bin)",
+        "$(exe //crates/be-tool-buck:bin)",
         "rust-project",
         "$(location //buck/cargo:rust-project)",
         "$(location //buck/cargo:analyzer-sysroot)",

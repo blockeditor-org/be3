@@ -1,0 +1,20 @@
+[package]
+name = "be-app-pdf"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-type-pdf = { path = "../be-type-pdf" }
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

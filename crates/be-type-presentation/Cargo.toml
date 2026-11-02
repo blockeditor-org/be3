@@ -1,0 +1,24 @@
+[package]
+name = "be-type-presentation"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-model = { path = "../be-block-model" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+uuid = "1"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+be-block-commit = { path = "../be-block-commit", default-features = false }
+
+[features]
+module = []
+
+[lints]
+workspace = true

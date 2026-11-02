@@ -491,5 +491,5 @@ fn assert_scene(
     let frame = space.scene(windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    paint_snapshot::assert_painting(name, painting);
+    beui_paint_snapshot::assert_painting(name, painting);
 }

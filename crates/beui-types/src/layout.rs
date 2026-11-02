@@ -1,6 +1,6 @@
+use be_lib_geometry::{Rect, Vec2, vec2};
 use beui_tree::reactive::into_prop_via;
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
-use geometry::{Rect, Vec2, vec2};
 
 use crate::color::Color;
 
@@ -545,7 +545,7 @@ impl std::fmt::Debug for CanvasArrangement {
     }
 }
 
-pub use geometry::CanvasView;
+pub use be_lib_geometry::CanvasView;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Measured {

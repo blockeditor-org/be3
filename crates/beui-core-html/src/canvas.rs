@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -228,7 +228,7 @@ pub fn item(node: NodeId) {
             }),
         )
     });
-    reactive::on_cleanup(move || {
+    beui_reactive::on_cleanup(move || {
         ITEMS.with(|held| held.borrow_mut().remove(&node));
     });
 }
@@ -270,7 +270,7 @@ pub(crate) fn place(view_node: NodeId, node: NodeId) {
     }
     canvas.items.borrow_mut().push(node);
     canvas.rearrange();
-    reactive::on_cleanup(move || {
+    beui_reactive::on_cleanup(move || {
         if let Some(held) = item.canvas.borrow().upgrade() {
             held.items.borrow_mut().retain(|other| *other != node);
         }
