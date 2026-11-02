@@ -39,11 +39,9 @@ const TEXT_TYPES: [&str; 5] = [
 const MAX_TEXT: usize = 64 << 20;
 const CHUNK: usize = 64 << 10;
 
-pub(crate) type HostText = Arc<str>;
-
 #[derive(Clone)]
 pub enum Owner {
-    Host(HostText),
+    Host,
     X11,
 }
 
@@ -57,6 +55,9 @@ pub(crate) struct Selection {
     reading: Option<Reading>,
     read: Option<String>,
     dragging: bool,
+    program_copied: bool,
+    asked: Vec<OwnedFd>,
+    files: files::FileDrag,
 }
 
 struct Reading {
@@ -85,6 +86,9 @@ impl Selection {
             reading: None,
             read: None,
             dragging: false,
+            program_copied: false,
+            asked: Vec::new(),
+            files: files::FileDrag::default(),
         }
     }
 
@@ -96,6 +100,7 @@ impl Selection {
         self.reading = None;
         self.read = None;
         self.offered = mime_types;
+        self.program_copied = true;
     }
 
     pub(crate) fn take_read(&mut self) -> Option<String> {
@@ -115,16 +120,11 @@ impl Selection {
         }
     }
 
-    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>, text: String) {
+    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>) {
         self.offered = None;
         self.reading = None;
         self.read = None;
-        set_data_device_selection(
-            handle,
-            seat,
-            text_types(),
-            Owner::Host(HostText::from(text)),
-        );
+        set_data_device_selection(handle, seat, text_types(), Owner::Host);
     }
 }
 
@@ -178,7 +178,7 @@ impl Reading {
     }
 }
 
-fn send_text(fd: OwnedFd, text: HostText) {
+pub(crate) fn send_text(fd: OwnedFd, text: Arc<str>) {
     if let Ok(flags) = rustix::fs::fcntl_getfl(&fd) {
         let _ = rustix::fs::fcntl_setfl(&fd, flags - OFlags::NONBLOCK);
     }
@@ -273,9 +273,9 @@ impl State {
             }
         };
         match owner {
-            Some(Owner::Host(text)) => {
+            Some(Owner::Host) => {
                 if TEXT_TYPES.contains(&mime_type.as_str()) {
-                    send_text(fd, text);
+                    self.selection.asked.push(fd);
                 }
             }
             Some(Owner::X11) => {}
@@ -300,10 +300,18 @@ impl State {
         self.selection.take_read()
     }
 
-    pub fn offer_selection_text(&mut self, text: String) {
+    pub fn take_program_copied(&mut self) -> bool {
+        std::mem::take(&mut self.selection.program_copied)
+    }
+
+    pub fn offer_host_clipboard(&mut self) {
         let handle = self.display_handle();
-        self.selection.offer(&handle, &self.seat, text);
+        self.selection.offer(&handle, &self.seat);
         self.announce_x11_selection(SelectionTarget::Clipboard, Some(text_types()));
+    }
+
+    pub fn take_asked_for_host_clipboard(&mut self) -> Vec<OwnedFd> {
+        std::mem::take(&mut self.selection.asked)
     }
 }
 
@@ -332,9 +340,9 @@ impl SelectionHandler for State {
         owner: &Owner,
     ) {
         match owner {
-            Owner::Host(text) => {
+            Owner::Host => {
                 if TEXT_TYPES.contains(&mime_type.as_str()) {
-                    send_text(fd, text.clone());
+                    self.selection.asked.push(fd);
                 }
             }
             Owner::X11 => {
@@ -383,6 +391,7 @@ impl WlrDataControlHandler for State {
     }
 }
 
+mod files;
 mod primary;
 
 #[cfg(test)]

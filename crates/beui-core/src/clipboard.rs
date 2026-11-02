@@ -21,12 +21,23 @@ impl PasteAnswer {
     }
 
     pub fn send(self, pasted: Option<Pasted>) {
-        let Some(pasted) = pasted else {
-            return;
-        };
-        let _ = self.sender.send(pasted);
+        if let Some(pasted) = pasted {
+            let _ = self.sender.send(pasted);
+        }
         if let Some(waker) = &self.waker {
             waker.wake();
         }
+    }
+}
+
+pub struct ClipboardRead(Box<dyn FnOnce(Option<String>)>);
+
+impl ClipboardRead {
+    pub fn new(answer: impl FnOnce(Option<String>) + 'static) -> Self {
+        Self(Box::new(answer))
+    }
+
+    pub fn answer(self, text: Option<String>) {
+        (self.0)(text);
     }
 }

@@ -443,7 +443,11 @@ hooks the higher crates fill in:
   an app through the shell interface's `copy-image`, the headless
   `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
   it). `Context::watch_copies` hears every text copy (which is how be-host-wayland hands the
-  program's copies to Wayland programs), and a paste is the only way to read it.
+  program's copies to Wayland programs). A paste is how the focus reads it;
+  `Context::read_clipboard` reads its text for the program itself, outside any focus (the
+  runner asks `Platform::paste` for text and calls the answer at the start of a later frame,
+  with `None` when there is no text), which is how be-host-wayland serves the platform's
+  clipboard to Wayland programs.
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the

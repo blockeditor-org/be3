@@ -63,7 +63,6 @@ use smithay::wayland::compositor::{
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
 use smithay::wayland::seat::WaylandFocus;
-use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
@@ -170,6 +169,7 @@ pub struct State {
     pub(crate) cursor: CursorImageStatus,
     fullscreen_on: Vec<(WindowId, Rectangle<i32, Logical>)>,
     pub(crate) pointer_window: Option<WindowId>,
+    pub(crate) pointer_target: Option<(WindowId, Point<f64, Logical>)>,
     buttons: Vec<u32>,
     pub(crate) keyboard_window: Option<WindowId>,
     pings: Vec<Ping>,
@@ -266,6 +266,7 @@ impl State {
             cursor: CursorImageStatus::default_named(),
             fullscreen_on: Vec::new(),
             pointer_window: None,
+            pointer_target: None,
             buttons: Vec::new(),
             keyboard_window: None,
             pings: Vec::new(),
@@ -880,7 +881,7 @@ impl State {
         self.start.elapsed().as_millis() as u32
     }
 
-    fn pointer(&self) -> PointerHandle<Self> {
+    pub(crate) fn pointer(&self) -> PointerHandle<Self> {
         self.seat.get_pointer().expect("the seat has a pointer")
     }
 
@@ -913,6 +914,7 @@ impl State {
     }
 
     pub fn pointer_motion(&mut self, target: Option<(WindowId, Point<f64, Logical>)>) {
+        self.pointer_target = target;
         let focus = self.under(target);
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
@@ -1580,8 +1582,6 @@ impl State {
         self.handle.clone()
     }
 }
-
-impl ServerDndGrabHandler for State {}
 
 impl OutputHandler for State {}
 
