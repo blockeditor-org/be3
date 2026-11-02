@@ -53,7 +53,10 @@ Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
 - To stop a process, kill its PID, or use `pkill -x NAME` to match the process name. Never `pkill -f PATTERN` or `kill $(pgrep -f PATTERN)`: each command runs as `bash -c '<the command text>'`, so the pattern also matches the shell the command runs in, and pkill kills that shell and the rest of the command with it.
-- When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
+- When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied. It is fine for these to fail until the PR is updated, but not OK for them to leak secrets.
+
+Notes:
+- Remember that buck2 runs a daemon in the background, waiting for all buck2 processes to exit will never finish because the daemon is still running after the build finishes.
 
 Design principles:
 - Do not edit this list.
