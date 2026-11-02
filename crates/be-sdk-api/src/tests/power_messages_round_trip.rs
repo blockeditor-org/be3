@@ -8,6 +8,7 @@ fn power_messages_round_trip() {
         restart: true,
         power_off: false,
         log_out: true,
+        session: true,
         ending: false,
     };
     watched_round_trips::<PowerWatch>(available);

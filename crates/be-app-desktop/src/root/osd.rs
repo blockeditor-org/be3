@@ -19,7 +19,6 @@ const PADDING_VERTICAL: Space = Space::Xl;
 const SPACING: Space = Space::Xl;
 const BAR_WIDTH: Size = Size::Menu;
 const BAR_HEIGHT: Size = Size::Track;
-const LOUDER_SCALE: f32 = 1.5;
 const SLIVER: f32 = 0.001;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,7 +32,7 @@ pub(crate) struct OsdLevel {
 pub(crate) fn spans(level: f32) -> (f32, f32, f32) {
     let level = level.max(0.0);
     let scale = match level > 1.0 {
-        true => level.max(LOUDER_SCALE),
+        true => level.max(be_sdk_beui::MediaLevel::LOUDEST),
         false => 1.0,
     };
     let full = level.min(1.0) / scale;

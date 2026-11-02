@@ -363,6 +363,7 @@ pub fn power_availability(
         restart: available.restart,
         power_off: available.power_off,
         log_out: available.log_out,
+        session: true,
         ending: false,
     }
 }

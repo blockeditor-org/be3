@@ -15,6 +15,7 @@ fn logging_out_waits_for_programs_to_close_then_exits() {
     assert_eq!(
         power.availability(),
         PowerAvailability {
+            session: true,
             ending: true,
             ..PowerAvailability::default()
         },

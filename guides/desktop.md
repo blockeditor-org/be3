@@ -122,8 +122,11 @@ one status button (`desktop.status`, `root/status.rs`) and the clock (`desktop.c
 (`desktop.status.{wifi,volume,power}`), and it opens Quick settings (`desktop.quick`): tiles
 for Wi-Fi (`desktop.quick.wifi`, which turns the panel to its network list, `root/wifi.rs`), the
 on-screen keyboard, rotate where the display is reported and refresh on e-paper; the volume
-slider, mute and output (`root/volume.rs`); and the power row (`root/power.rs`), which asks before
-restarting, powering off or logging out. The clock carries the count of listed notifications
+slider (to `MediaLevel::LOUDEST`, 150%, with full marked; the volume keys stop at full), mute
+and output (`root/volume.rs`); and the power row (`root/power.rs`), which asks before
+restarting, powering off or logging out, and gives each action `PowerAvailability` does not
+allow its reason as the button's description (the session is ending, the host does not run the
+login session, which `session` says, or the computer does not allow it). The clock carries the count of listed notifications
 (`desktop.clock.unread`) and opens the desktop's calendar beside the notification history
 (`root/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. be-host publishes each as soon as the
 service behind it runs, even empty. be-host publishes the package on Linux, and on Windows its

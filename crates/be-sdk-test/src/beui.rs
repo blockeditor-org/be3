@@ -1863,6 +1863,18 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .map(str::to_owned)
     }
 
+    pub fn accessible_description(&self, test_id: &str) -> Option<String> {
+        let document = self.document();
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document
+            .accessibility
+            .get(&node)?
+            .description()
+            .map(str::to_owned)
+    }
+
     pub fn rect_of(&self, test_id: &str) -> Rect {
         self.output
             .as_ref()

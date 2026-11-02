@@ -249,6 +249,7 @@ impl Size {
 pub enum Length {
     Extent(Extent),
     Size(Size),
+    AtLeast(Size),
 }
 
 impl Length {
@@ -259,6 +260,7 @@ impl Length {
         match self {
             Length::Extent(extent) => extent,
             Length::Size(size) => Extent::px(size.resolve(density)),
+            Length::AtLeast(size) => Extent::at_least(size.resolve(density)),
         }
     }
 }

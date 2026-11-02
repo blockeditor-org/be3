@@ -91,6 +91,7 @@ mod floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar;
 mod new_windows_cascade_inside_the_work_area_and_a_tall_one_shrinks_to_it;
 mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
 mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
+mod power_actions_the_host_cannot_take_say_why;
 mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
@@ -116,6 +117,7 @@ mod the_status_button_shows_the_volume_and_opens_its_controls;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
+mod the_volume_slider_reaches_past_full;
 mod the_wifi_list_asks_the_host_to_connect;
 mod the_wifi_tile_lists_the_networks_the_host_reports;
 mod the_windows_bar_shares_its_length_between_many_chips;
@@ -133,6 +135,7 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
     restart: true,
     power_off: true,
     log_out: true,
+    session: true,
     ending: false,
 };
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);

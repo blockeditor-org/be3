@@ -1,5 +1,5 @@
 use crate::{
-    DecodeError, HostImage, HostTrayItem, NotificationCloseReason, NotificationUrgency,
+    DecodeError, HostImage, HostTrayItem, MediaLevel, NotificationCloseReason, NotificationUrgency,
     PlayerCommand, PowerAction, PowerAvailability, ProgramAction, TrayMenuItem, TrayStatus,
 };
 
@@ -29,6 +29,10 @@ impl PowerAvailability {
             PowerAction::LogOut => self.log_out,
         }
     }
+}
+
+impl MediaLevel {
+    pub const LOUDEST: f32 = 1.5;
 }
 
 impl PlayerCommand {

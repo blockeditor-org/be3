@@ -36,6 +36,7 @@ pub fn Button(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
     #[prop(children)] content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = Role::Button)] role: Role,
     action: Option<Action>,
@@ -71,18 +72,31 @@ pub fn Button(
     let glyph = create_memo(move || glyph.get());
     let icon_only = create_memo(move || icon_only.get());
     let expanded = expanded.map(|expanded| create_memo(move || expanded.get()));
+    let description = create_memo(move || description.get());
     let tooltip = create_memo(move || {
         let quiet = !icon_only.get() || expanded.is_some_and(|expanded| expanded.get());
-        match quiet {
+        let named = match quiet {
             true => String::new(),
             false => tooltip.get(),
-        }
+        };
+        description.with(|description| match (named.is_empty(), description.is_empty()) {
+            (_, true) => named,
+            (true, false) => description.clone(),
+            (false, false) => format!("{named}\n{description}"),
+        })
     });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
+        }
+        if node.description().is_none() {
+            description.with(|description| {
+                if !description.is_empty() {
+                    node.set_description(description.clone());
+                }
+            });
         }
         if let Some(expanded) = expanded {
             node.set_expanded(expanded.get());

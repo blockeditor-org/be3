@@ -30,15 +30,12 @@ pub fn TileButton(
         if radio {
             node.set_toggled(Toggled::from(selected.get()));
         }
-        let description = description.get();
-        if !description.is_empty() {
-            node.set_description(description);
-        }
         node
     });
     view! {
         <unstyled::Button
             label
+            description
             icon_only=true
             disabled
             accessibility={accessibility}
