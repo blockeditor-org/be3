@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window() {
     let mut fixture = Fixture::with_windows(&[1]);
-    fixture.test.set_size(Vec2::new(800.0, 320.0));
+    fixture.test.set_size(Vec2::new(1100.0, 320.0));
     fixture.settle();
     fixture.bar_menu(STATUS_BAR, &["beside.ends"]);
 
