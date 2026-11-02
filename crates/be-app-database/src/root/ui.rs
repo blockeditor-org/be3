@@ -76,33 +76,29 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
             <DockSplit id="database" size={SplitSize::Second(SCHEMA_WIDTH)}>
                 <DockPane id="views" locked=true bare=true>
                     <DockTab id=VIEWS title="Views">
-                            <Frame
-                                @sizing=ItemSize::Percent(100.0)
-                                @node_ref={&content}
-                                padding=PADDING
-                            >
-                                <List spacing=SECTION_SPACING>
-                                    <Text style=TextStyle::HEADING>"Views"</Text>
-                                    <Show condition={none_yet}>
-                                        <Text style=TextStyle::CAPTION>
-                                            "This database has no views yet."
-                                        </Text>
-                                    </Show>
-                                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                                        <ViewLinks editor={editor} rows={rows} />
-                                    </Scroll>
-                                    <List direction=Direction::Horizontal spacing=Space::None>
-                                        <Button
-                                            label="New view"
-                                            variant=ButtonVariant::Primary
-                                            disabled={read_only}
-                                            @test_id={"database.new-view"}
-                                            on_click={new_view}
-                                        />
-                                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                                    </List>
+                        <Frame @node_ref={&content} padding=PADDING>
+                            <List spacing=SECTION_SPACING>
+                                <Text style=TextStyle::HEADING>"Views"</Text>
+                                <Show condition={none_yet}>
+                                    <Text style=TextStyle::CAPTION>
+                                        "This database has no views yet."
+                                    </Text>
+                                </Show>
+                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <ViewLinks editor={editor} rows={rows} />
+                                </Scroll>
+                                <List direction=Direction::Horizontal spacing=Space::None>
+                                    <Button
+                                        label="New view"
+                                        variant=ButtonVariant::Primary
+                                        disabled={read_only}
+                                        @test_id={"database.new-view"}
+                                        on_click={new_view}
+                                    />
+                                    <Spacer @sizing=ItemSize::Percent(100.0) />
                                 </List>
-                            </Frame>
+                            </List>
+                        </Frame>
                     </DockTab>
                 </DockPane>
                 <Show condition={chrome}>

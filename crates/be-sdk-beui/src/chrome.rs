@@ -101,4 +101,3 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
         </ShowKeepAlive>
     }
 }
-

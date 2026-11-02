@@ -1,9 +1,9 @@
 use be_sdk_beui::beui::Color32;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::ICON_DROPLET_OFF;
+use be_sdk_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use be_sdk_beui::{ResizeMode, narrow_chrome};
 use be_type_infinite_canvas::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasProfile,

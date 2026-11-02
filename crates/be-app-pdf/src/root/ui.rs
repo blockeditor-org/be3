@@ -171,16 +171,16 @@ fn PdfDock(
                     </DockTab>
                 </DockPane>
                 <DockPane id="sidebar" locked=true>
-                        <DockTab id=SIDEBAR title="PDF">
-                            <Frame fill=ColorRole::Surface>
-                                <Scroll @test_id={"pdf.sidebar"}>
-                                    <Frame padding=PANEL_PADDING>
-                                        <DetailsPanel details />
-                                    </Frame>
-                                </Scroll>
-                            </Frame>
-                        </DockTab>
-                    </DockPane>
+                    <DockTab id=SIDEBAR title="PDF">
+                        <Frame fill=ColorRole::Surface>
+                            <Scroll @test_id={"pdf.sidebar"}>
+                                <Frame padding=PANEL_PADDING>
+                                    <DetailsPanel details />
+                                </Frame>
+                            </Scroll>
+                        </Frame>
+                    </DockTab>
+                </DockPane>
             </DockSplit>
             <DockBar
                 id=TOOLBAR

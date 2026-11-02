@@ -16,8 +16,8 @@ use super::panels::{Panels, StorageDialog};
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
-use beui::native::draw_gpu;
 use beui::ItemSize;
+use beui::native::draw_gpu;
 
 const ZOOM_STEP: f32 = 1.25;
 const STAGE: &str = "stage";
