@@ -17,12 +17,21 @@ pub(crate) struct Placed {
     pub unlocks: u32,
 }
 
-pub(crate) fn find(keymap: &xkb::Keymap, layout: u32, wanted: char, shifts: bool) -> Option<Placed> {
+pub(crate) fn find(
+    keymap: &xkb::Keymap,
+    layout: u32,
+    wanted: char,
+    shifts: bool,
+) -> Option<Placed> {
     let index = |name: &str| match keymap.mod_get_index(name) {
         xkb::MOD_INVALID => 0,
         index => 1 << index,
     };
-    let shift = if shifts { index(xkb::MOD_NAME_SHIFT) } else { 0 };
+    let shift = if shifts {
+        index(xkb::MOD_NAME_SHIFT)
+    } else {
+        0
+    };
     let level3 = index(xkb::MOD_NAME_ISO_LEVEL3_SHIFT);
     let level5 = index(xkb::MOD_NAME_MOD3);
     let levers = shift | level3 | level5;
