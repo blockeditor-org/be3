@@ -15,6 +15,7 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                     bars: Vec::new(),
                     outside: Vec::new(),
                     unlocked: Vec::new(),
+                    compact: Vec::new(),
                 },
                 tabs: Vec::new(),
                 focused: None,

@@ -48,11 +48,11 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
     for tab in [1, 2, 3] {
         state.show(TabId::new(tab));
         assert!(
-            state.is_bar_shown(TabId::new(20), false),
+            state.is_bar_shown(TabId::new(20), DockMode::Tiled),
             "the dock's bar shows while tab {tab} is shown"
         );
     }
-    assert!(!state.is_bar_shown(TabId::new(21), false));
+    assert!(!state.is_bar_shown(TabId::new(21), DockMode::Tiled));
 
     state.place_bar_at(TabId::new(22), BOTTOM, 0);
     assert_eq!(

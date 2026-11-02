@@ -44,10 +44,10 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
         DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center),
     );
     state.show(TabId::new(1));
-    assert!(state.is_bar_shown(TabId::new(20), false));
+    assert!(state.is_bar_shown(TabId::new(20), DockMode::Tiled));
     state.show(TabId::new(2));
     assert!(
-        !state.is_bar_shown(TabId::new(20), false),
+        !state.is_bar_shown(TabId::new(20), DockMode::Tiled),
         "a bar shows only while its tab does"
     );
 
@@ -59,7 +59,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
         Some(DockBarPlacement::Beside(DockEdge::Right, DockAlign::Center)),
         "the bar keeps the placement it was moved to when its tab moves and the code declares it again"
     );
-    assert!(state.is_bar_shown(TabId::new(20), false));
+    assert!(state.is_bar_shown(TabId::new(20), DockMode::Tiled));
 
     let restored = DockState::from_spec(&state.spec());
     assert_eq!(

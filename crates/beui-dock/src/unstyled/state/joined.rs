@@ -3,7 +3,7 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use beui_view::types::Rect;
 
 use super::{
-    Bar, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
+    Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home, LeafId, Node,
     Split, SplitId, TabId, Tree,
 };
 
@@ -328,6 +328,17 @@ impl DockState {
                 DockHome::Group(group) => copied.groups.get(group).copied().map(DockHome::Group),
             })
             .collect();
+        out.compact = self
+            .compact
+            .iter()
+            .filter_map(|held| {
+                Some(DockCompact {
+                    stage: (map.tab)(held.stage)?,
+                    shown: held.shown.and_then(|tab| (map.tab)(tab)),
+                    ..*held
+                })
+            })
+            .collect();
         out.seeded = true;
         out
     }
@@ -394,6 +405,17 @@ impl DockState {
                 .retain(|candidate| candidate.id != orphan && !inner.contains(&candidate.id));
         }
         let tabs: Vec<TabId> = arriving.iter().map(|(_, tab)| *tab).collect();
+        self.compact.retain(|held| !tabs.contains(&held.stage));
+        for held in &from.compact {
+            let Some(stage) = (map.tab)(held.stage) else {
+                continue;
+            };
+            self.compact.push(DockCompact {
+                stage,
+                shown: held.shown.and_then(|tab| (map.tab)(tab)),
+                ..*held
+            });
+        }
         self.homes.retain(|home| !tabs.contains(&home.tab));
         for (inner, tab) in arriving {
             if !self.contains(tab) {

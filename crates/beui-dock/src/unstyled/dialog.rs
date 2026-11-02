@@ -93,8 +93,8 @@ impl super::State {
         let Some(root) = self.dialog_root(tab) else {
             return false;
         };
-        let stacked = self.mode.get() == super::DockMode::Stacked;
-        self.state.with(|state| state.is_shown(root, stacked))
+        let mode = self.mode.get();
+        self.state.with(|state| state.is_shown(root, mode))
     }
 
     fn modal_child(&self, holder: TabId) -> Option<TabId> {

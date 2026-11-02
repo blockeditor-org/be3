@@ -81,9 +81,10 @@ pub use types::{
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
     DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
-    DockBarWindow, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCover,
+    DockBarWindow, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCompact, DockCover,
     DockDeclaration, DockDeclare, DockDialog, DockDirection, DockDragStage, DockEdge,
     DockFullscreen, DockGroup, DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
+    DockMode,
     DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane, DockPlace,
     DockPlacedBar, DockRequest, DockSplit, DockSplitSize, DockTab, DockTabPath, DockTree,
     DockViewRequest, DockWindow,

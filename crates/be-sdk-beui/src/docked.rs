@@ -12,7 +12,7 @@ use beui::dock::unstyled::{
     DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
     DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside, DockOutsidePlace,
     DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
-    DockSpecPlace, DockSpecWindow, DockState, DockVisit, DockingSnapshot, TabId,
+    DockCompact, DockSpecPlace, DockSpecWindow, DockState, DockVisit, DockingSnapshot, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
@@ -1378,6 +1378,19 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
             })
             .collect(),
         unlocked: spec.unlocked.iter().map(api_place).collect(),
+        compact: spec
+            .compact
+            .iter()
+            .filter_map(|compact| {
+                Some(api::DockCompact {
+                    stage: path(compact.stage)?,
+                    shown: compact.shown.and_then(path),
+                    portrait: compact.portrait,
+                    landscape: compact.landscape,
+                    folded: compact.folded,
+                })
+            })
+            .collect(),
     }
 }
 
@@ -1446,6 +1459,19 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
             })
             .collect(),
         unlocked: layout.unlocked.iter().map(spec_place).collect(),
+        compact: layout
+            .compact
+            .iter()
+            .filter_map(|compact| {
+                Some(DockCompact {
+                    stage: tab(&compact.stage)?,
+                    shown: compact.shown.as_ref().and_then(&mut *tab),
+                    portrait: compact.portrait,
+                    landscape: compact.landscape,
+                    folded: compact.folded,
+                })
+            })
+            .collect(),
         ..spec
     }
 }
@@ -1468,9 +1494,10 @@ fn hosted_from_api(hosted: &api::DockHosted, tab: TabOf<'_>) -> DockHosted {
         shown: hosted.shown.as_ref().and_then(&mut *tab),
         visible,
         fullscreen: hosted.fullscreen.as_ref().and_then(&mut *tab),
-        mode: match hosted.stacked {
-            true => DockMode::Stacked,
-            false => DockMode::Tiled,
+        mode: match hosted.mode {
+            api::DockMode::Tiled => DockMode::Tiled,
+            api::DockMode::Compact => DockMode::Compact,
+            api::DockMode::Stacked => DockMode::Stacked,
         },
         covers,
     }
@@ -1485,7 +1512,11 @@ fn hosted_to_api(hosted: &DockHosted, path: PathOf<'_>) -> api::DockHosted {
         shown: hosted.shown.and_then(path),
         visible: list(&hosted.visible),
         fullscreen: hosted.fullscreen.and_then(path),
-        stacked: hosted.mode == DockMode::Stacked,
+        mode: match hosted.mode {
+            DockMode::Tiled => api::DockMode::Tiled,
+            DockMode::Compact => api::DockMode::Compact,
+            DockMode::Stacked => api::DockMode::Stacked,
+        },
         covers: hosted
             .covers
             .iter()

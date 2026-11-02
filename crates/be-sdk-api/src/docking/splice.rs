@@ -1,6 +1,6 @@
 use super::{DockEntry, DockFloating, DockNode, DockNodes};
 use crate::{
-    ChildId, DecodeError, DockBar, DockCover, DockDeclaration, DockGroup, DockHome, DockHosted,
+    ChildId, DecodeError, DockBar, DockCompact, DockCover, DockDeclaration, DockGroup, DockHome, DockHosted,
     DockLayout, DockOutside, DockPane, DockPlace, DockPlacedBar, DockRequest, DockTab, DockTabPath,
     DockTree,
 };
@@ -182,6 +182,17 @@ impl Mapping<'_> {
                 .map(|place| self.place(place))
                 .filter(|place| match place {
                     DockPlace::Area(key) | DockPlace::Group(key) => !key.is_empty(),
+                })
+                .collect(),
+            compact: layout
+                .compact
+                .iter()
+                .filter_map(|compact| {
+                    Some(DockCompact {
+                        stage: (self.tab)(&compact.stage)?,
+                        shown: compact.shown.as_ref().and_then(|tab| (self.tab)(tab)),
+                        ..compact.clone()
+                    })
                 })
                 .collect(),
         }
@@ -470,7 +481,7 @@ impl DockHosted {
                 .cloned()
                 .collect(),
             fullscreen: self.fullscreen.as_ref().filter(|tab| tab.is_own()).cloned(),
-            stacked: self.stacked,
+            mode: self.mode,
             covers: self
                 .covers
                 .iter()
@@ -525,13 +536,14 @@ impl DockHosted {
                 bars,
                 outside: Vec::new(),
                 unlocked: Vec::new(),
+                compact: Vec::new(),
             },
             tabs: Vec::new(),
             focused: None,
             shown: None,
             visible: Vec::new(),
             fullscreen: None,
-            stacked: self.stacked,
+            mode: self.mode,
             covers,
         }
     }
@@ -577,7 +589,7 @@ impl DockHosted {
             shown: self.shown.as_ref().and_then(within),
             visible: self.visible.iter().filter_map(within).collect(),
             fullscreen: self.fullscreen.as_ref().and_then(within),
-            stacked: self.stacked,
+            mode: self.mode,
             covers: self
                 .covers
                 .iter()
