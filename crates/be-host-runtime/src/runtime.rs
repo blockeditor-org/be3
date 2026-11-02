@@ -354,6 +354,7 @@ pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
     pub(super) zoom: f32,
+    pub(super) inert: bool,
     shown: Rect,
 }
 
@@ -2474,6 +2475,7 @@ pub struct ViewPlace {
     pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
     pub fit: Option<Vec2>,
+    pub inert: bool,
 }
 
 pub(super) struct Offer {
@@ -2545,6 +2547,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .placement
         .fit
         .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
+    let inert = offers.iter().all(|offer| offer.placement.inert);
     let frame = chosen.frame;
     let view = chosen.view;
     let ViewPlace {
@@ -2561,6 +2564,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
             rect,
             clip,
             zoom,
+            inert,
             shown: shown.unwrap_or(Rect::ZERO),
         },
     );

@@ -34,6 +34,7 @@ fn placement(rect: Rect, clip: Rect) -> ViewPlace {
         origin: None,
         anchor_bounds: None,
         fit: None,
+        inert: false,
     }
 }
 

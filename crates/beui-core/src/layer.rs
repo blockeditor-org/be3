@@ -702,6 +702,16 @@ impl Document {
         })
     }
 
+    pub fn inert(&self, node: NodeId) -> bool {
+        let reachable = self
+            .window_layers(self.window_of(node))
+            .is_some_and(|layers| {
+                self.layer_of(&layers, node)
+                    .is_some_and(|layer| layers.reachable(layer))
+            });
+        !reachable || self.focus_blocked(&self.layers(), node)
+    }
+
     pub(crate) fn focus_blocked(&self, layers: &Layers, node: NodeId) -> bool {
         self.focus_blocker(layers, node).is_some()
     }
