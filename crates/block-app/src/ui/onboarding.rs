@@ -8,7 +8,7 @@ use beui::{NodeId, TextAlign};
 use block_accounts_ui::{AccountDetails, Column, ErrorText};
 use uuid::Uuid;
 
-use super::{AccountForm, HostUiStore, ErrorAction, OrganizationsState, UiCommand, send};
+use super::{AccountForm, ErrorAction, HostUiStore, OrganizationsState, UiCommand, send};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use beui::{Align, Direction, ItemSize};
 use block_app_base::platform;

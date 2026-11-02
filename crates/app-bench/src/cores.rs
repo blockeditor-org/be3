@@ -33,9 +33,8 @@ impl Cores {
 
     pub fn keep_to_app(&self) -> Result<(), String> {
         match self.server {
-            Some(_) => {
-                pin(&self.host).map_err(|error| format!("could not pin to {:?}: {error}", self.host))
-            }
+            Some(_) => pin(&self.host)
+                .map_err(|error| format!("could not pin to {:?}: {error}", self.host)),
             None => Ok(()),
         }
     }

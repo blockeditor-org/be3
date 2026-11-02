@@ -18,7 +18,11 @@ fn a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones() {
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     host.run(&["click", &inside]);
     host.run(&["settle"]);
-    assert_eq!(host.count(GRIP), 1, "only the inner canvas's tool bar shows");
+    assert_eq!(
+        host.count(GRIP),
+        1,
+        "only the inner canvas's tool bar shows"
+    );
     let inner = host.place(BAR);
     assert!(
         (inner.0 - outer.0).abs() < 2.0 && inner.3 > inner.2,

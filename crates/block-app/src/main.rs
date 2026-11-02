@@ -29,12 +29,11 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
-use host_state::{HostStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::native::Document;
-use block_app_base::{host_state, host, notices, panic_guard, performance, platform};
+use block_app_base::{host, host_state, notices, panic_guard, performance, platform};
 use block_app_desktop::desktop_host::{DesktopHost, Host};
 use block_app_plugin_host::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
@@ -50,11 +49,12 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::InstanceSource,
 };
+use host_state::{HostStateStore, SavedAccount, ServerLocation};
 use invite_link::InviteLink;
 use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
-use ui::{AccountForm, HostUi, HostUiStore, ErrorAction, UiCommand};
+use ui::{AccountForm, ErrorAction, HostUi, HostUiStore, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
