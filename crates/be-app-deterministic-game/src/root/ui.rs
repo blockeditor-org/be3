@@ -3,7 +3,7 @@ use std::rc::Rc;
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
     use_dock_bar,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
@@ -31,7 +31,7 @@ use play::Play;
 const STAGE: &str = "stage";
 const SIDEBAR: &str = "sidebar";
 const ACTIONS: &str = "actions";
-const SIDEBAR_SHARE: f32 = 0.22;
+const SIDEBAR_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const SECTION_SPACING: Space = Space::Lg;
 const BANNER_MARGIN: Space = Space::Lg;
@@ -379,7 +379,7 @@ fn GameDock(
     let dock = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout={dock} focus={Some(STAGE)}>
-            <DockSplit id="game" fraction={1.0 - SIDEBAR_SHARE}>
+            <DockSplit id="game" size={SplitSize::Second(SIDEBAR_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Board">
                         <Stage content={stage} editor play drawn layout hand steps />

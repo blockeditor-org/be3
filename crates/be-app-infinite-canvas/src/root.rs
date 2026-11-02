@@ -5,7 +5,7 @@ use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
@@ -49,7 +49,7 @@ use crate::geometry::MIN_SIZE;
 use beui::ItemSize;
 
 const INSPECTOR: &str = "inspector";
-const INSPECTOR_SHARE: f32 = 0.3;
+const INSPECTOR_WIDTH: f32 = 280.0;
 
 pub struct CanvasRoot;
 
@@ -122,7 +122,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="canvas" fraction={1.0 - INSPECTOR_SHARE}>
+            <DockSplit id="canvas" size={SplitSize::Second(INSPECTOR_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Canvas">
                         <List @node_ref=&scope spacing=Space::None>
