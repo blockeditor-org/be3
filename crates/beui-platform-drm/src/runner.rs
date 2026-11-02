@@ -1148,8 +1148,11 @@ impl Session {
                     config.layout.clone_from(&self.input.layout);
                     config.variant.clone_from(&self.input.variant);
                     config.options.clone_from(&self.input.options);
+                    config.active_layout = self.input.active_layout;
                 }
             }
+        } else if config.active_layout != self.input.active_layout {
+            self.keyboard.set_layout(config.active_layout);
         }
         self.stop_repeat();
         self.input = config;

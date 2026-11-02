@@ -335,6 +335,27 @@ strongest), how a network is joined, and when an attempt has connected or failed
 
 The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows.
 
+## Keyboard layouts
+
+Settings > Input > Layout takes several layouts at once ("us,de", with variants as "dvorak,"),
+which compile into one xkb keymap, one group per layout, for the programs (be-host-wayland's
+`State::set_keyboard`) and under DRM for the seat's keyboards and so be3's own text
+(beui-platform-drm's `Keyboard`). be-host's `input/linux.rs` keeps which group is active and
+publishes `KeyboardLayoutsWatch` (be-host-wayland's `named_layouts`: each group's name from the keymap,
+its label the `shortDescription` of its layout, or of its variant, in xkb's `rules/evdev.xml`,
+upper case and numbered where two share one) wherever the keymap takes effect. The desktop's
+`switch-layout` call makes another group active: the compositor locks it on its xkb state
+(`Compositor::set_layout`), which reaches every program as `wl_keyboard.modifiers`' `group`, X11
+programs through Xwayland too, and so the on-screen keyboard's keys are found in it; under DRM the seat's
+`InputConfig::active_layout` sets it on the keyboard be3's own text comes from. Settings applied
+again keep the active group while it is still there. A keymap that does not compile keeps the last
+one and says so in a toast, once per change (under DRM the seat's own report is that toast).
+In a window be3's own text comes from the outer desktop's keyboard, so only the programs switch.
+The Status bar shows the active layout's label (`desktop.layout`, `root/layouts.rs`) while there is
+more than one; it opens a menu of their names that switches, and Super+Space (`desktop.layout.next`,
+captured from programs too) moves to the next. A group an xkb option switches (`grp:alt_shift_toggle`)
+is not followed by the indicator.
+
 ## The on-screen keyboard
 
 beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. In a login session it opens by itself when a field is tapped and no libinput device with letter keys is

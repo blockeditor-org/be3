@@ -21,6 +21,7 @@ use be_sdk_beui::{
 use be_sdk_shell::{SHELL_BARS, Workspace};
 
 use super::clock::ClockButton;
+use super::layouts::{LayoutButton, Layouts};
 use super::notifications::DesktopNotifications;
 use super::programs_panel::{ProgramsPanel, ProgramsPanelButton};
 use super::rotate::RotateButton;
@@ -194,6 +195,7 @@ pub(crate) struct Shell {
     pub(crate) programs_panel: ProgramsPanel,
     pub(crate) windows: DeskWindows,
     pub(crate) clock: ReadSignal<String>,
+    pub(crate) layouts: Layouts,
 }
 
 impl Shell {
@@ -202,6 +204,7 @@ impl Shell {
         notifications: DesktopNotifications,
         programs_panel: ProgramsPanel,
         windows: DeskWindows,
+        layouts: Layouts,
     ) -> Self {
         Self {
             workspace,
@@ -209,6 +212,7 @@ impl Shell {
             programs_panel,
             windows,
             clock: wall_clock(),
+            layouts,
         }
     }
 }
@@ -285,6 +289,9 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
     view! {
         <List direction align=Align::Center spacing=STATUS_SPACING>
             <TrayItems editor={editor} direction />
+            <Show condition={shell.layouts.several}>
+                <LayoutButton layouts={shell.layouts} />
+            </Show>
             <Show condition={keyboard}>
                 <Button
                     icon_only=true

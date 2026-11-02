@@ -33,7 +33,8 @@ from any other. The desktop app shows a control only while the host offers what 
 search and grid, the Super tap and placeholders' Open need `ProgramsWatch`, the clock's notification count and
 history `NotificationsWatch`, the power row `PowerWatch`, the media keys `MediaWatch` (the
 volume icon and controls, its `output`), the Wi-Fi icon and tile `WifiWatch` (its `available`),
-and the tray its items.
+the keyboard layout indicator and Super+Space `KeyboardLayoutsWatch` (more than one layout), and the
+tray its items.
 Settings shows each input and display setting where it takes effect, not wherever one
 coarse watch is answered: the keymap and key repeat while `InputReachWatch`'s `keyboard`
 is (the keyboards the seat reads, under DRM, or the programs any desktop hosts), middle-click
@@ -113,7 +114,8 @@ dock's area, at its origin, when the least does not fit. Only the opening size h
 person may resize the window past them, and the window does not follow a size its program commits
 that is only those limits applied to the size it was given (`followed_size`).
 
-The Status bar holds the tray, the device tools (the on-screen keyboard, `desktop.keyboard`,
+The Status bar holds the tray, the keyboard layout indicator (`desktop.layout`, guides/desktop/linux.md),
+the device tools (the on-screen keyboard, `desktop.keyboard`,
 while the display settings' `keyboard_in_bar` is on, which does not take the focus from the
 field being typed in; rotate while `rotate_in_bar` is on and the host reports a screen; refresh
 while the display is e-paper), then

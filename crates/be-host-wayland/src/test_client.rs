@@ -69,6 +69,7 @@ pub(crate) struct Received {
     pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
     pub(crate) depressed: u32,
+    pub(crate) group: u32,
     pub(crate) leveled: Vec<(u32, u32)>,
     pub(crate) keymaps: usize,
     pub(crate) repeat: Option<(i32, i32)>,
@@ -725,8 +726,13 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
                     }
                 }
             }
-            wl_keyboard::Event::Modifiers { mods_depressed, .. } => {
+            wl_keyboard::Event::Modifiers {
+                mods_depressed,
+                group,
+                ..
+            } => {
                 state.depressed = mods_depressed;
+                state.group = group;
             }
             wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
             wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),

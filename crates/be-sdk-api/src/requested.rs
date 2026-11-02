@@ -1,7 +1,7 @@
 use crate::__args::{
-    DESKTOP_EPAPER_REFRESH, DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT,
+    DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT, DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT,
     DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
-    DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs, DesktopMediaRequestArgs,
+    DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs,
     DesktopNotificationsReportArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
     DesktopTrayRequestArgs, DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
 };
@@ -35,6 +35,10 @@ pub fn wifi(started: &Started) -> Option<WifiRequest> {
 
 pub fn epaper_refresh(started: &Started) -> Option<()> {
     args::<DesktopEpaperRefreshArgs>(started, DESKTOP_EPAPER_REFRESH).map(|_| ())
+}
+
+pub fn switch_layout(started: &Started) -> Option<u32> {
+    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT).map(|args| args.index)
 }
 
 pub fn notification_report(started: &Started) -> Option<NotificationReport> {

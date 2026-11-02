@@ -6,6 +6,7 @@ mod a_shifted_letter_types_its_capital;
 mod an_unknown_layout_does_not_compile;
 mod control_alt_and_a_function_key_switch_terminals;
 mod super_is_its_own_modifier;
+mod the_active_layout_types_its_letters_and_a_switch_keeps_held_modifiers;
 
 const SHIFT: u32 = 42;
 const CONTROL: u32 = 29;
