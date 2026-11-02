@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, SplitSize, DockTab, DockingLayout,
 };
 
 #[component]
@@ -22,7 +22,7 @@ fn a_dock_bar_whose_content_writes_a_signal_while_it_builds_is_shown() {
         let layout = DockingLayout::new();
         view! {
             <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" fraction=0.6>
+                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
                     <DockPane id="stage" locked=true bare=true>
                         <DockTab id=1u64 title="Stage">
                             <Frame @test_id="content.1" />

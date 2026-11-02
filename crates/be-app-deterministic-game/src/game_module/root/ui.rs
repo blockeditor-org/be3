@@ -1,4 +1,4 @@
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
@@ -55,7 +55,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="module" fraction={1.0 - PANEL_SHARE}>
+            <DockSplit id="module" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Module">
                         <Frame @node_ref={&content} padding=PADDING>

@@ -1,5 +1,5 @@
 use be_sdk_beui::Fit;
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
@@ -54,7 +54,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="image" fraction={1.0 - PANEL_SHARE}>
+            <DockSplit id="image" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Picture">
                         <Frame @node_ref={&content}>

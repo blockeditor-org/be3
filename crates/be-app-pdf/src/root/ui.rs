@@ -1,7 +1,7 @@
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::CanvasView;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
@@ -167,7 +167,7 @@ fn PdfDock(
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pdf" fraction={1.0 - SIDEBAR_SHARE}>
+            <DockSplit id="pdf" size={SplitSize::Fraction(1.0 - SIDEBAR_SHARE)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Page">
                         <List spacing=Space::None>

@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::{Editor, LoadingPane, Side, Sidebar, narrow_chrome};
@@ -57,7 +57,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="grid" fraction=HOTBAR_SHARE>
+            <DockSplit id="grid" size={SplitSize::Fraction(HOTBAR_SHARE)}>
                 <Show condition={docked}>
                     <DockPane id="hotbar" locked=true>
                         <DockTab id=HOTBAR title="Components">
@@ -65,7 +65,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                         </DockTab>
                     </DockPane>
                 </Show>
-                <DockSplit id="workspace" fraction={1.0 - PANELS_SHARE}>
+                <DockSplit id="workspace" size={SplitSize::Fraction(1.0 - PANELS_SHARE)}>
                     <DockPane id="stage" locked=true bare=true>
                         <DockTab id=STAGE title="Grid">
                             <List direction=Direction::Horizontal spacing=Space::None>

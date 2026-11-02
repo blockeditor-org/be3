@@ -2,7 +2,7 @@ use be_type_video::VideoContent;
 
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
     use_dock_bar,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
@@ -90,8 +90,8 @@ fn VideoEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(PLAYER)}>
-            <DockSplit id="video" direction=Direction::Vertical fraction={1.0 - TIMELINE_SHARE}>
-                <DockSplit id="upper" fraction=EFFECTS_SHARE>
+            <DockSplit id="video" direction=Direction::Vertical size={SplitSize::Fraction(1.0 - TIMELINE_SHARE)}>
+                <DockSplit id="upper" size={SplitSize::Fraction(EFFECTS_SHARE)}>
                     <DockPane id="effects" locked=true>
                         <DockTab id=EFFECTS title="Effects">
                             <EffectsColumn state={state} />

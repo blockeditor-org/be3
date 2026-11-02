@@ -1,6 +1,6 @@
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{ICON_PANEL_LEFT_OPEN, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
@@ -113,7 +113,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
 
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pan_zoom" fraction=SIDEBAR_SHARE>
+            <DockSplit id="pan_zoom" size={SplitSize::Fraction(SIDEBAR_SHARE)}>
                 <Show condition={panel_shown}>
                     <DockPane id="sidebar" locked=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>

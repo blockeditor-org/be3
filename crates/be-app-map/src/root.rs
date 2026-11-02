@@ -3,7 +3,7 @@ use be_type_map::MapContent;
 
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
@@ -83,7 +83,7 @@ fn MapEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="map" fraction={1.0 - INSPECTOR_SHARE}>
+            <DockSplit id="map" size={SplitSize::Fraction(1.0 - INSPECTOR_SHARE)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Map">
                         <List spacing=Space::None>

@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
@@ -39,7 +39,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="audio" fraction={1.0 - PANEL_SHARE}>
+            <DockSplit id="audio" size={SplitSize::Fraction(1.0 - PANEL_SHARE)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Track">
                         <Track @node_ref={&content} editor={editor} />
