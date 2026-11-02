@@ -12,11 +12,11 @@ use zbus::zvariant::{OwnedValue, Value};
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
 use super::icons::Icons;
-use crate::dbus::Bus;
 use super::model::{
     Address, Items, Properties, introspected_activates, menu, properties, raw_entry,
 };
 use super::watcher::{self, Registered, Watcher};
+use crate::dbus::Bus;
 
 const ITEM: &str = "org.kde.StatusNotifierItem";
 const MENU: &str = "com.canonical.dbusmenu";
@@ -145,7 +145,10 @@ async fn run_on(
     ControlFlow::Break(())
 }
 
-async fn serve_watcher(connection: &Connection, events: &UnboundedSender<Event>) -> Option<Registered> {
+async fn serve_watcher(
+    connection: &Connection,
+    events: &UnboundedSender<Event>,
+) -> Option<Registered> {
     let registered = Registered::default();
     let watcher = Watcher {
         events: events.clone(),

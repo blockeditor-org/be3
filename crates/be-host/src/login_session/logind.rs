@@ -4,9 +4,9 @@ use std::ops::ControlFlow;
 use futures_util::future::{Either, select};
 use futures_util::{StreamExt, pin_mut};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use zbus::{Connection, Proxy};
 use zbus::proxy::SignalStream;
 use zbus::zvariant::{OwnedFd, OwnedObjectPath};
+use zbus::{Connection, Proxy};
 
 use super::power::{LogindAbilities, LogindCall};
 use be_host_base::host::Post;

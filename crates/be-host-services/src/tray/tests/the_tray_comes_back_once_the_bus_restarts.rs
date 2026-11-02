@@ -55,7 +55,11 @@ async fn item(bus: &PrivateBus, title: &'static str) -> Connection {
     item
 }
 
-fn until(published: &Receiver<Vec<HostTrayItem>>, what: &str, done: impl Fn(&[HostTrayItem]) -> bool) {
+fn until(
+    published: &Receiver<Vec<HostTrayItem>>,
+    what: &str,
+    done: impl Fn(&[HostTrayItem]) -> bool,
+) {
     while !done(&next(published, &format!("the tray shows {what}"))) {}
 }
 
@@ -81,7 +85,11 @@ fn the_tray_comes_back_once_the_bus_restarts() {
     });
 
     bus.kill();
-    until(&published, "nothing once the bus is gone", <[HostTrayItem]>::is_empty);
+    until(
+        &published,
+        "nothing once the bus is gone",
+        <[HostTrayItem]>::is_empty,
+    );
     bus.start_again();
 
     zbus::block_on(async {

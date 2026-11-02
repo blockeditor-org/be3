@@ -11,8 +11,8 @@ use zbus::{Connection, MatchRule, Message, MessageStream};
 use be_sdk_api::{WifiLink, WifiRequest, WifiStatus};
 
 use super::Backend;
-use crate::dbus::Bus;
 use super::model::{self, AccessPoint, Attempts, Key, Outcome, Plan};
+use crate::dbus::Bus;
 use be_host_base::host::Post;
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";

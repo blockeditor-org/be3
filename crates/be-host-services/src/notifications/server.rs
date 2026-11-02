@@ -12,10 +12,10 @@ use be_sdk_api::{
 use beui_types::Image;
 use image::imageops::FilterType;
 use tokio::sync::mpsc::UnboundedReceiver;
+use zbus::Connection;
 use zbus::fdo::{self, RequestNameFlags, RequestNameReply};
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedValue;
-use zbus::Connection;
 
 use super::hints;
 use super::inbox::Ids;

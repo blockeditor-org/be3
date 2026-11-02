@@ -12,8 +12,8 @@ mod an_item_without_activate_is_only_a_menu;
 mod introspection_says_whether_an_item_has_activate;
 mod items_are_published_once_read_and_go_with_their_owner;
 mod items_on_a_private_bus_show_and_answer_the_desktop;
-mod the_tray_comes_back_once_the_bus_restarts;
 mod the_pixmap_nearest_above_the_size_is_turned_to_rgba;
+mod the_tray_comes_back_once_the_bus_restarts;
 
 fn owned(value: Value<'_>) -> OwnedValue {
     value
