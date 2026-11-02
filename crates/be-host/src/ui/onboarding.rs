@@ -477,7 +477,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     arrow=false
                     on_select={|_path: Vec<usize>| send(UiCommand::LogOutCurrent)}
                     items={view! {
-                        <MenuItem label="Log out" />
+                        <MenuItem label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())} />
                     }}
                 />
                 <Button
@@ -865,3 +865,27 @@ pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
+
+#[component]
+pub(super) fn RemoveAccountDialog(view: HostUiStore) -> NodeId {
+    let removing = view.removing_account;
+    let open = create_memo(move || removing.get().is_some());
+    let title = create_memo(move || format!("Remove {}?", removing.get().unwrap_or_default()));
+    view! {
+        <Dialog
+            open={open}
+            kind=DialogKind::Alert
+            title={title}
+            id="host.remove-account"
+            actions={vec![
+                DialogAction::destructive("Remove", || send(UiCommand::ConfirmRemoveAccount)).named("remove"),
+                DialogAction::cancel("Keep"),
+            ]}
+            on_dismiss={|| send(UiCommand::CancelRemoveAccount)}
+        >
+            <Text style=TextStyle::PARAGRAPH>
+                "This account lives only on this device and has no password, so once it is removed nobody can open it again. Its blocks and settings are lost, except what it shared with other accounts."
+            </Text>
+        </Dialog>
+    }
+}
