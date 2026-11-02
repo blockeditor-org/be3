@@ -66,6 +66,7 @@ mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again
 mod a_session_opened_over_program_windows_opens_in_front_of_them;
 mod a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
+mod a_toast_names_its_app_and_lines_its_text_up_with_the_others;
 mod a_tray_item_without_activate_shows_its_menu_on_a_click;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_volume_louder_than_full_shows_how_much_louder;
@@ -101,6 +102,7 @@ mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
 mod the_apps_button_is_named_apps;
 mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod the_clock_counts_only_notifications_not_yet_seen_in_its_list;
 mod the_clock_lists_the_days_events_and_opens_the_full_calendar;
 mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
@@ -618,6 +620,22 @@ fn notification(id: u32, app_name: &str, summary: &str, body: &str) -> IncomingN
         expire_timeout: -1,
         received: NOON + u64::from(id) * 60,
         ..IncomingNotification::default()
+    }
+}
+
+const PICTURE: u32 = 16;
+
+fn picture() -> HostImage {
+    let rgba = (0..PICTURE * PICTURE)
+        .flat_map(|at| match (at / PICTURE + at % PICTURE) % 2 {
+            0 => [64, 120, 220, 255],
+            _ => [240, 240, 255, 255],
+        })
+        .collect();
+    HostImage {
+        width: PICTURE,
+        height: PICTURE,
+        rgba,
     }
 }
 

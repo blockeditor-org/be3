@@ -28,6 +28,7 @@ const SPACING: Space = Space::Md;
 const PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
 const PICTURE_SIZE: Size = Size::Lg;
 const TEXT_SPACING: Space = Space::Xs2;
+const SOURCE_LINES: u32 = 1;
 const TITLE_LINES: u32 = 2;
 const MESSAGE_LINES: u32 = 4;
 
@@ -47,6 +48,7 @@ pub fn Toasts(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
+    on_more: ClickCallback,
 ) -> NodeId {
     view! {
         <unstyled::Toasts
@@ -61,8 +63,8 @@ pub fn Toasts(
             on_dismiss
             on_action
             on_activate
-            more={|hidden: Memo<usize>| view! {
-                <ToastsHidden hidden />
+            more={move |hidden: Memo<usize>| view! {
+                <ToastsHidden hidden on_more />
             }}
         >|handle: ToastHandle|
             <ToastCard handle />
@@ -71,9 +73,9 @@ pub fn Toasts(
 }
 
 #[component]
-fn ToastsHidden(hidden: Memo<usize>) -> NodeId {
+fn ToastsHidden(hidden: Memo<usize>, on_more: ClickCallback) -> NodeId {
     let label = create_memo(move || format!("{} more", hidden.get()));
-    view! {
+    let card = view! {
         <Frame
             @test_id="toasts.more"
             fill=ColorRole::SurfaceRaised
@@ -83,6 +85,12 @@ fn ToastsHidden(hidden: Memo<usize>) -> NodeId {
         >
             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>{label}</Text>
         </Frame>
+    };
+    match on_more.is_empty() {
+        true => card,
+        false => view! {
+            <Pressable @test_id="toasts.more.open" on_click={on_more}>{card}</Pressable>
+        },
     }
 }
 
@@ -96,6 +104,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     } = handle;
     let Toast {
         id,
+        source,
         title,
         message,
         danger,
@@ -109,6 +118,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         false => (ICON_INFO, TextColor::Accent),
     };
     let pictured = image.is_some();
+    let sourced = !source.is_empty();
     let titled = !title.is_empty();
     let said = !message.is_empty();
     let acted = !actions.is_empty();
@@ -123,11 +133,24 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
                 <ToastPicture image={image.clone()} />
             </Show>
             <Show condition={!pictured}>
-                <Text color={tint} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
+                <Frame width=PICTURE_SIZE>
+                    <Text color={tint} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
+                </Frame>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
+                <Show condition={sourced}>|| {
+                    let source = source.clone(); view! {
+                        <Text
+                            size=TextSize::Xs
+                            color=TextColor::Muted
+                            overflow={clamped(SOURCE_LINES)}
+                        >
+                            {source}
+                        </Text>
+                    }
+                }</Show>
                 <Show condition={titled}>|| {
                     let title = title.clone(); view! {
                         <Text
@@ -215,6 +238,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, act: Callback<String>) -> No
                         @test_id={format!("toast.{id}.action.{}", action.key)}
                         label={action.label}
                         variant=ButtonVariant::Secondary
+                        press_focus=false
                         on_click={move || act.call(key.clone())}
                     />
                 }

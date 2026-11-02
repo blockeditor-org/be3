@@ -1,25 +1,9 @@
 use std::time::Duration;
 
+use be_sdk_beui::NotificationUrgency;
 use be_sdk_beui::beui::{pos2, vec2};
-use be_sdk_beui::{HostImage, NotificationUrgency};
 
 use super::*;
-
-const PICTURE: u32 = 16;
-
-fn picture() -> HostImage {
-    let rgba = (0..PICTURE * PICTURE)
-        .flat_map(|at| match (at / PICTURE + at % PICTURE) % 2 {
-            0 => [64, 120, 220, 255],
-            _ => [240, 240, 255, 255],
-        })
-        .collect();
-    HostImage {
-        width: PICTURE,
-        height: PICTURE,
-        rgba,
-    }
-}
 
 #[test]
 fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
