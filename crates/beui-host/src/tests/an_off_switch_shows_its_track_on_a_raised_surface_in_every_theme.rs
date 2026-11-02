@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
-use crate::styled::*;
 use crate::styled::Frame;
+use crate::styled::*;
 
 #[test]
 fn an_off_switch_shows_its_track_on_a_raised_surface_in_every_theme() {

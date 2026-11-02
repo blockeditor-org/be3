@@ -79,11 +79,13 @@ pub fn Button(
             true => String::new(),
             false => tooltip.get(),
         };
-        description.with(|description| match (named.is_empty(), description.is_empty()) {
-            (_, true) => named,
-            (true, false) => description.clone(),
-            (false, false) => format!("{named}\n{description}"),
-        })
+        description.with(
+            |description| match (named.is_empty(), description.is_empty()) {
+                (_, true) => named,
+                (true, false) => description.clone(),
+                (false, false) => format!("{named}\n{description}"),
+            },
+        )
     });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
