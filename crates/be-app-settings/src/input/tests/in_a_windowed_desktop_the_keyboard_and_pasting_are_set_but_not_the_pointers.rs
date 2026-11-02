@@ -51,8 +51,14 @@ fn in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers()
     assert_eq!(set.keyboard_layout.as_deref(), Some("us,de"));
     assert_eq!(set.keyboard_variant.as_deref(), Some("dvorak"));
     assert_eq!(set.keyboard_options.as_deref(), Some("caps:escape"));
-    assert_eq!(set.repeat_delay(), be_sdk_beui::be_block::input_settings::MAX_REPEAT_DELAY);
-    assert_eq!(set.repeat_rate(), be_sdk_beui::be_block::input_settings::MIN_REPEAT_RATE);
+    assert_eq!(
+        set.repeat_delay(),
+        be_sdk_beui::be_block::input_settings::MAX_REPEAT_DELAY
+    );
+    assert_eq!(
+        set.repeat_rate(),
+        be_sdk_beui::be_block::input_settings::MIN_REPEAT_RATE
+    );
     assert_eq!(set.middle_click_paste, Some(true));
     editor.snapshot("in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers");
 

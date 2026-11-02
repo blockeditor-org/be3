@@ -47,24 +47,24 @@ pub use be_sdk_api::{
     AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
     BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildOperations, ChildPlacement, ChildPreview, ChildStatus, ConflictSide, ContactsWatch,
-    CreationProgress, CursorIcon, DescribedAction, Description, DialogAnswer, DialogFrame,
-    DesktopBarWatch, DialogStatus, DisplayMode, DisplaysWatch, EditorCapabilities, EditorDescriptor,
+    CreationProgress, CursorIcon, DescribedAction, Description, DesktopBarWatch, DialogAnswer,
+    DialogFrame, DialogStatus, DisplayMode, DisplaysWatch, EditorCapabilities, EditorDescriptor,
     EditorInstanceId, Edits, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec, HostContact,
     HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input,
-    InputDevicesWatch, InputReach, InputReachWatch, InteractionMode, Key, KeyChord, LinkBaseWatch, MediaLevel, MediaLevels,
-    MediaRequest, MediaWatch, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers,
-    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder, PenPhase, PickedBlock,
-    PlayerCommand, PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage,
-    ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision,
-    Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta, ShellCommand, ShellDialog, Size,
-    Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
-    TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
-    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
-    VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WifiLink,
-    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
-    WindowMenu, WindowOrigin, WindowRequests, WindowsWatch,
+    InputDevicesWatch, InputReach, InputReachWatch, InteractionMode, Key, KeyChord, LinkBaseWatch,
+    MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuCheck, MenuCommand, MenuEntry, MenuPin,
+    MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
+    NotificationRequest, NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder,
+    PenPhase, PickedBlock, PlayerCommand, PointerButton, PowerAction, PowerAvailability,
+    PowerWatch, Press, PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, RemapState,
+    RemapsWatch, ResizeMode, Revision, Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta,
+    ShellCommand, ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor,
+    TimedInput, TopBar, TouchPhase, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus,
+    TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand,
+    WebViewEvent, WebViewId, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WifiWatch, WindowAction, WindowKind, WindowMenu, WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
@@ -90,7 +90,8 @@ pub use host::{
     Waker,
 };
 pub use layered_settings::{
-    KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
+    KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget,
+};
 pub use module::Module;
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]

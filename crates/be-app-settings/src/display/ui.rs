@@ -3,7 +3,8 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow, PowerWatch,
+    ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow,
+    PowerWatch,
 };
 
 use super::appearance::AppearanceSection;
@@ -54,40 +55,40 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
                     <Show condition={rotate_shown}>
-                    <LayeredSettingsRow
-                        setting={in_bar_row}
-                        label="Rotate button in the bar"
-                        description="A button in the desktop's bar that turns the screen."
-                        separated={none}
-                        compact=true
-                        locked={read_only}
-                        id={"display.rotate-in-bar".to_owned()}
-                    >
-                        <Switch
-                            on={Binding::new(in_bar, move |on: bool| show_in_bar.call(Some(on)))}
+                        <LayeredSettingsRow
+                            setting={in_bar_row}
                             label="Rotate button in the bar"
-                            disabled={read_only}
-                            @test_id={"display.rotate-in-bar"}
-                        />
-                    </LayeredSettingsRow>
+                            description="A button in the desktop's bar that turns the screen."
+                            separated={none}
+                            compact=true
+                            locked={read_only}
+                            id={"display.rotate-in-bar".to_owned()}
+                        >
+                            <Switch
+                                on={Binding::new(in_bar, move |on: bool| show_in_bar.call(Some(on)))}
+                                label="Rotate button in the bar"
+                                disabled={read_only}
+                                @test_id={"display.rotate-in-bar"}
+                            />
+                        </LayeredSettingsRow>
                     </Show>
                     <Show condition={bar}>
-                    <LayeredSettingsRow
-                        setting={keyboard_row}
-                        label="Keyboard button in the bar"
-                        description="A button in the desktop's bar that opens the on-screen keyboard."
-                        separated={after_rotate}
-                        compact=true
-                        locked={read_only}
-                        id={"display.keyboard-in-bar".to_owned()}
-                    >
-                        <Switch
-                            on={Binding::new(keyboard_shown, move |on: bool| show_keyboard.call(Some(on)))}
+                        <LayeredSettingsRow
+                            setting={keyboard_row}
                             label="Keyboard button in the bar"
-                            disabled={read_only}
-                            @test_id={"display.keyboard-in-bar"}
-                        />
-                    </LayeredSettingsRow>
+                            description="A button in the desktop's bar that opens the on-screen keyboard."
+                            separated={after_rotate}
+                            compact=true
+                            locked={read_only}
+                            id={"display.keyboard-in-bar".to_owned()}
+                        >
+                            <Switch
+                                on={Binding::new(keyboard_shown, move |on: bool| show_keyboard.call(Some(on)))}
+                                label="Keyboard button in the bar"
+                                disabled={read_only}
+                                @test_id={"display.keyboard-in-bar"}
+                            />
+                        </LayeredSettingsRow>
                     </Show>
                 </SettingsSection>
             </Show>

@@ -7,8 +7,8 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::{
-    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings, LayeredSettingsRow,
-    SettingHandle,
+    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings,
+    LayeredSettingsRow, SettingHandle,
 };
 
 use super::remapper::RemapperSetting;
@@ -45,8 +45,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let reach = editor.watch::<InputReachWatch>();
     let keyboard = create_memo(move || reach.get().keyboard);
     let pasting = create_memo(move || reach.get().middle_click_paste);
-    let elsewhere =
-        create_memo(move || !keyboard.get() && !pasting.get() && !pointers.get());
+    let elsewhere = create_memo(move || !keyboard.get() && !pasting.get() && !pointers.get());
     let keyboard_reach = create_memo(move || match pointers.get() {
         true => String::new(),
         false => "For the programs this desktop runs.".to_owned(),
