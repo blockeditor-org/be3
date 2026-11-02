@@ -58,6 +58,8 @@ pub(crate) struct Received {
     pub(crate) removed: Vec<u32>,
     pub(crate) output_names: Vec<(u32, String)>,
     pub(crate) outputs: Vec<(u32, wl_output::WlOutput)>,
+    pub(crate) output_modes: Vec<(u32, i32, i32, bool)>,
+    pub(crate) output_scales: Vec<(u32, i32)>,
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
@@ -819,9 +821,28 @@ impl Dispatch<wl_output::WlOutput, u32> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_output::Event::Name { name } = event {
-            state.output_names.retain(|(held, _)| held != global);
-            state.output_names.push((*global, name));
+        match event {
+            wl_output::Event::Name { name } => {
+                state.output_names.retain(|(held, _)| held != global);
+                state.output_names.push((*global, name));
+            }
+            wl_output::Event::Mode {
+                flags,
+                width,
+                height,
+                ..
+            } => {
+                let current = matches!(
+                    flags,
+                    WEnum::Value(flags) if flags.contains(wl_output::Mode::Current)
+                );
+                state.output_modes.push((*global, width, height, current));
+            }
+            wl_output::Event::Scale { factor } => {
+                state.output_scales.retain(|(held, _)| held != global);
+                state.output_scales.push((*global, factor));
+            }
+            _ => {}
         }
     }
 }

@@ -1058,7 +1058,7 @@ impl Compositor {
                     )
                         .into(),
                 ),
-                scale: monitor.scale.ceil().max(1.0) as i32,
+                scale: crate::heads::wire_scale(f64::from(monitor.scale)),
             })
             .collect();
         self.server.state.set_heads(heads);

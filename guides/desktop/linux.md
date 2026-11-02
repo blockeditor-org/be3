@@ -66,9 +66,16 @@ nodes. Every display has its own scale: `BEUI_SCALE`, or what
 there are no displays and the UI is the main window's, as it always was.
 
 be-host-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
-handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window
-entered into the output of the display it mostly covers (`wl_surface.enter`/`leave` and the
-preferred buffer scale follow it as it moves), sends its frame callbacks and presentation feedback
+handle; `heads.rs`), at its desktop position, with one mode, its size in pixels at its scale
+(a changed display drops the old mode), and its scale rounded up for programs that know only
+integer scales. It keeps every window entered into the output of the display it mostly covers
+(`wl_surface.enter`/`leave`, the preferred buffer scale and the `wp_fractional_scale_v1`
+preferred scale follow it as it moves, and a display's new scale reaches the windows on it at
+once), so a program with fractional scaling and viewporter draws a buffer of exactly the pixels
+it is shown at; `render.rs` puts each surface on whole pixels. The shell sizes a program's pane
+from its content (`WINDOW_CHROME`), and when the pane's chrome snaps to the pixel grid and takes
+a fraction of a point from the content, grows the pane by that much (`snapped_short` in
+be-sdk-shell's `window.rs`), so the window is shown, and configured, at its own size. It sends its frame callbacks and presentation feedback
 through that output, and honours the output named in `xdg_toplevel.set_fullscreen` by making the
 window fullscreen on that display. Xwayland binds the same outputs, so X11 programs see the same
 monitors. A `WindowView` reports its rect in desktop coordinates (its window's origin added). In a
