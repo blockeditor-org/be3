@@ -12,7 +12,8 @@ use beui_runner::environment;
 
 use crate::{Unanswered, request};
 
-const USAGE: &str = "usage: be-drive launch --program=PATH [--archive=ARCHIVE] [--name=NAME] [--data]
+const USAGE: &str =
+    "usage: be-drive launch --program=PATH [--archive=ARCHIVE] [--name=NAME] [--data]
        [--libraries=DIR] [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS]
        [--pin-clock] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes

@@ -5692,7 +5692,7 @@ crates = {
         "binaries": [
             {
                 "crate_root": "src/main.rs",
-                "name": "app-archive",
+                "name": "program-archive",
             },
         ],
         "edition": "2024",
@@ -5706,7 +5706,7 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5722,7 +5722,7 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5738,7 +5738,7 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5754,7 +5754,7 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5770,7 +5770,7 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5786,7 +5786,7 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -5802,7 +5802,7 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {
-                    "app-archive": [
+                    "program-archive": [
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
@@ -6016,7 +6016,7 @@ crates = {
         "binaries": [
             {
                 "crate_root": "src/main.rs",
-                "name": "app-bench",
+                "name": "host-bench",
             },
         ],
         "edition": "2024",
@@ -6026,7 +6026,7 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6048,7 +6048,7 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6070,7 +6070,7 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6092,7 +6092,7 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6114,7 +6114,7 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6136,7 +6136,7 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
@@ -6158,7 +6158,7 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {
-                    "app-bench": [
+                    "host-bench": [
                         "//crates/be-block-client:be-block-client",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-const MAGIC: &[u8; 8] = b"be3prog\\x01";
+const MAGIC: &[u8; 8] = b"be3prog\x01";
 const LEVEL: i32 = 3;
 const WINDOW_LOG: u32 = 27;
 
