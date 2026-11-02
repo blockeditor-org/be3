@@ -2,7 +2,7 @@ use super::*;
 use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 const WINDOW: Rect = Rect::from_min_max(pos2(40.0, 40.0), pos2(940.0, 560.0));
-const SMALLER: Vec2 = Vec2::new(800.0, 420.0);
+const SMALLER: Vec2 = Vec2::new(800.0, 510.0);
 
 #[test]
 fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {

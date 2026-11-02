@@ -356,7 +356,6 @@ impl Registry {
                         .collect(),
                 });
             }
-            let stacked = mode == DockMode::Stacked;
             let held = state.all_tabs();
             Some(DockHosted {
                 state: subtree,
@@ -366,7 +365,7 @@ impl Registry {
                 visible: held
                     .iter()
                     .copied()
-                    .filter(|tab| state.is_shown(*tab, stacked))
+                    .filter(|tab| state.is_shown(*tab, mode))
                     .filter_map(inner)
                     .collect(),
                 fullscreen: state.fullscreen().and_then(|shown| inner(shown.tab)),

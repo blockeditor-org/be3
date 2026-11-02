@@ -1043,6 +1043,30 @@ interface types {
         bars: list<dock-placed-bar>,
         outside: list<dock-outside>,
         unlocked: list<dock-place>,
+        compact: list<dock-compact>,
+    }
+
+    /// How a compact dock arranges a tree with a bare stage pane, by the
+    /// stage's tab: the gathered pane of the tree's other tabs shows
+    /// `shown`, takes `portrait` points below the stage or `landscape`
+    /// points beside it once the user drags its splitter, and is `folded`
+    /// to its tab strip.
+    record dock-compact {
+        stage: dock-tab-path,
+        shown: option<dock-tab-path>,
+        portrait: option<f32>,
+        landscape: option<f32>,
+        folded: bool,
+    }
+
+    /// How the root lays out its dock: `compact` and `stacked` are a
+    /// narrow or short dock, which gathers the panes of a tree with a bare
+    /// stage beside the stage (`dock-compact`); `stacked` shows one tab or
+    /// gathered tree at a time.
+    enum dock-mode {
+        tiled,
+        compact,
+        stacked,
     }
 
     /// What the root shows of a docked dock, in the declaring instance's own
@@ -1059,7 +1083,7 @@ interface types {
         shown: option<dock-tab-path>,
         visible: list<dock-tab-path>,
         fullscreen: option<dock-tab-path>,
-        stacked: bool,
+        mode: dock-mode,
         /// What the root draws over each tab's body, such as a bar floating
         /// over an edge, in the points of the view that shows the body, so
         /// the editor keeps what it reveals clear of it.

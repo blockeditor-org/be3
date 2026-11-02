@@ -69,6 +69,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             tree: spliced.tree.clone(),
             homes: Vec::new(),
             unlocked: Vec::new(),
+            compact: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
                 owner: Some(DockTabPath::own(2)),
@@ -85,7 +86,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
         shown: None,
         visible: vec![DockTabPath::own(2)],
         fullscreen: None,
-        stacked: false,
+        mode: crate::DockMode::Tiled,
         covers: vec![
             DockCover {
                 tab: DockTabPath::own(2),

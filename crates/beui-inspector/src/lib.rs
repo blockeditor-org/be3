@@ -885,14 +885,14 @@ impl Inspector {
 
     fn tab_shown(&self, tab: InspectorTab) -> bool {
         let tools = self.tools;
-        let stacked = tools.mode().get_untracked() == DockMode::Stacked;
+        let mode = tools.mode().get_untracked();
         tools
             .state()
             .with_untracked(|state| match state.is_empty() {
                 true => tab == InspectorTab::default(),
                 false => tools
                     .tab_of(&tab)
-                    .is_some_and(|id| state.is_shown(id, stacked)),
+                    .is_some_and(|id| state.is_shown(id, mode)),
             })
     }
 

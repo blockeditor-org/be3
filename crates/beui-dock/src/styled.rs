@@ -23,7 +23,7 @@ use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
-use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
+use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, SHORT_HEIGHT, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::{BAND_FILL, ToolPill};
 use beui_components_styled::tooltip::Tooltip;
@@ -98,12 +98,13 @@ where
     let through = dock::dock_shows_through();
     let fill = create_memo(move || match mode.get() {
         DockMode::Stacked if !through.get() => ColorRole::Background,
-        DockMode::Tiled | DockMode::Stacked => ColorRole::None,
+        DockMode::Tiled | DockMode::Compact | DockMode::Stacked => ColorRole::None,
     });
     view! {
         <dock::Docking
             layout
             stack_below=NARROW_WIDTH
+            short_below=SHORT_HEIGHT
             focus
             drag_modifier
             splitter_thickness=SPLITTER_LINE

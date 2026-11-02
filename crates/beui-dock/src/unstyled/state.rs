@@ -7,6 +7,7 @@ use beui_view::types::Direction;
 use beui_view::types::{Pos2, Rect, Vec2};
 
 mod bars;
+mod compact;
 mod history;
 mod joined;
 mod snapshot;
@@ -15,6 +16,7 @@ mod switch;
 
 use bars::Bar;
 pub use bars::{DockAlign, DockBarPlacement, DockEdge};
+pub use compact::{COMPACT_SHARE, COMPACT_SIDE, DockCompact, compact_length};
 pub use history::DockVisit;
 pub use joined::{
     DockMapping, DockOutside, DockOutsidePlace, joined_host, joined_key, joined_prefix,
@@ -612,6 +614,7 @@ pub struct DockState {
     lookup: Lookup,
     shows: u64,
     see_through: Vec<TabId>,
+    compact: Vec<DockCompact>,
 }
 
 impl Default for DockState {
@@ -640,6 +643,7 @@ impl DockState {
             lookup: Lookup::default(),
             shows: 0,
             see_through: Vec::new(),
+            compact: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -975,12 +979,23 @@ impl DockState {
         self.find(tab).is_some()
     }
 
-    pub fn is_shown(&self, tab: TabId, stacked: bool) -> bool {
+    pub fn is_shown(&self, tab: TabId, mode: crate::unstyled::DockMode) -> bool {
+        use crate::unstyled::DockMode;
         if self.fullscreen().is_some_and(|shown| shown.tab == tab) {
             return true;
         }
-        if stacked {
-            return self.stacked_tab() == Some(tab);
+        match mode {
+            DockMode::Stacked => {
+                let Some(shown) = self.stacked_tab() else {
+                    return false;
+                };
+                return match self.compact_tree_of(shown) {
+                    Some(tree) => self.compact_shows(tab, Some(tree)),
+                    None => shown == tab,
+                };
+            }
+            DockMode::Compact => return self.compact_shows(tab, None),
+            DockMode::Tiled => {}
         }
         let Some(position) = self.find(tab) else {
             return false;
@@ -1148,6 +1163,7 @@ impl DockState {
         self.set_active_index(position.leaf, position.index);
         self.focus(position.leaf);
         self.shows += 1;
+        self.reveal_gathered(tab);
     }
 
     pub fn shows(&self) -> u64 {

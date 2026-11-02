@@ -67,7 +67,7 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
     );
     assert_eq!(state.bar_tab(TabId::new(20)), Some(TabId::new(10)));
     assert!(
-        state.is_bar_shown(TabId::new(20), false),
+        state.is_bar_shown(TabId::new(20), DockMode::Tiled),
         "the hosting tab's bar shows on the pane its dock shows in"
     );
 
@@ -109,5 +109,5 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         Some(TabId::new(11)),
         "the hosting tab's bars stay on the first pane of its dock, whichever tab it shows"
     );
-    assert!(state.is_bar_shown(TabId::new(20), false));
+    assert!(state.is_bar_shown(TabId::new(20), DockMode::Tiled));
 }
