@@ -84,7 +84,10 @@ pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
     entries
         .iter()
         .filter(|window| top_shown(window))
-        .cloned()
+        .map(|window| HostWindow {
+            parent: window.parent.filter(|parent| by_id.contains_key(parent)),
+            ..window.clone()
+        })
         .collect()
 }
 
