@@ -23,7 +23,7 @@ fn a_submenu_holding_the_chosen_radio_reads_as_chosen() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal(1usize);
     let document = build_node(move || {
-        let choice = move |at: usize, label: &str| {
+        let choice = move |at: usize, label: &'static str| {
             let action = Action::new(format!("choice.{at}"), label, move || chosen.set(at))
                 .radio(create_memo(move || chosen.get() == at))
                 .detached();
