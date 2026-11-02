@@ -203,12 +203,37 @@ pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
         return;
     };
     let alive = |doc: &Document, id: Option<NodeId>| {
-        id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
+        id.filter(|id| {
+            doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)) && reachable(doc, *id)
+        })
     };
-    let sink = alive(doc, doc.pointers.sink_of(PointerId::Mouse))
-        .or_else(|| alive(doc, doc.forward.hovered))
-        .filter(|sink| reachable(doc, *sink));
-    let Some(sink) = sink else {
+    let modifiers = ctx.input(|input| input.modifiers);
+    let captured = alive(doc, doc.pointers.sink_of(PointerId::Mouse));
+    if captured.is_none() {
+        let under = sink_at(doc, rects, window, pos);
+        let under = alive(doc, under);
+        if under != doc.forward.hovered {
+            let mut deliveries = Vec::new();
+            if let Some(left) = alive(doc, doc.forward.hovered)
+                && doc.forward.entered.contains(&left)
+            {
+                deliveries.push((left, vec![Forwarded::Left]));
+            }
+            let hovered = doc.forward.hovered;
+            doc.forward.entered.retain(|sink| Some(*sink) != hovered);
+            doc.forward.hovered = under;
+            if let Some(under) = under {
+                if !doc.forward.entered.contains(&under) {
+                    doc.forward.entered.push(under);
+                }
+                let moved = resting_move(doc, ctx, rects, window, pos);
+                deliveries.push((under, vec![moved]));
+            }
+            deliver_all(doc, rects, deliveries, Some(pos), modifiers);
+            return;
+        }
+    }
+    let Some(sink) = captured.or_else(|| alive(doc, doc.forward.hovered)) else {
         return;
     };
     let Some(placed) = doc
@@ -220,9 +245,20 @@ pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
     else {
         return;
     };
-    let Some(rect) = rects.get(&sink).filter(|rect| rect.min != placed) else {
+    if rects.get(&sink).is_none_or(|rect| rect.min == placed) {
         return;
-    };
+    }
+    let moved = resting_move(doc, ctx, rects, window, pos);
+    deliver_all(doc, rects, vec![(sink, vec![moved])], Some(pos), modifiers);
+}
+
+fn resting_move(
+    doc: &mut Document,
+    ctx: &Context,
+    rects: &Rects,
+    window: WindowId,
+    pos: Pos2,
+) -> Forwarded {
     let event = beui_types::PointerEvent {
         pointer: PointerId::Mouse,
         window,
@@ -238,11 +274,9 @@ pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
     };
     let over = sink_at(doc, rects, window, pos).map(|node| Over {
         node,
-        local: Pos2::ZERO + (pos - rects.get(&node).map_or(rect.min, |rect| rect.min)),
+        local: Pos2::ZERO + (pos - rects.get(&node).map_or(pos, |rect| rect.min)),
     });
-    let modifiers = ctx.input(|input| input.modifiers);
-    let deliveries = vec![(sink, vec![Forwarded::Pointer { event, over }])];
-    deliver_all(doc, rects, deliveries, Some(pos), modifiers);
+    Forwarded::Pointer { event, over }
 }
 
 fn deliver_all(

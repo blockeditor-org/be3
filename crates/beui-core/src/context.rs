@@ -1810,10 +1810,17 @@ impl Context {
     }
 
     fn apply_pixels_per_point(&self) {
+        let window = self.inner.input.borrow().pointer.window;
+        let before = self.window_pixels_per_point(window);
         let pixels_per_point = self
             .simulated_pixels_per_point()
             .unwrap_or_else(|| self.native_pixels_per_point() * self.zoom_factor());
         self.inner.pixels_per_point.set(pixels_per_point);
+        let after = self.window_pixels_per_point(window);
+        if before != after {
+            let rescaled = self.inner.input.borrow().scaled(before / after);
+            *self.inner.input.borrow_mut() = rescaled;
+        }
     }
 
     pub fn with_input<R>(

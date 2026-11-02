@@ -692,7 +692,12 @@ arriving as the child's `child-status.dialog`) and shows the app's menu
 (`host-panel.app-menu`, which the host draws and reports done the same way,
 its size as the child's intrinsic size). The instance marks the view
 `keyboard`, so the child takes the keyboard when it opens and gives it back
-when it closes. A press outside the view closes it and removes the child,
+when it closes. A screen may also ask for the keyboard in its window requests,
+as a plugin does while a layer of its own traps the focus, and asks on the
+screen that layer is in. When several views want the keyboard - screens that
+ask and children given it - the host gives it to the view opened last, and
+when that one lets go, to the latest of the rest, so which one holds it never
+depends on the order their requests arrive in. A press outside the view closes it and removes the child,
 which closes the editor in it. On touch or a phone the instance instead
 attaches a bare view to the bottom edge of its bounds and has the child fill
 it; the host tells a child placed in a view attached to an edge that it is a

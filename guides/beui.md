@@ -5636,7 +5636,11 @@ the path, so one that only scrolled or was laid out under a resting pointer is
 hovered but not pointed until the pointer moves. A forwarding catcher that a
 layout moves under a resting mouse is handed a pointer move at the mouse's
 position in the same frame (`forward::reforward`), so what it shows hovered
-follows its new place rather than where it was when the mouse last moved. A list whose highlight follows the
+follows its new place rather than where it was when the mouse last moved; one
+that appears or a layout moves under the resting mouse in place of another is
+handed that move too, and the one it replaces `Left`. A resting mouse keeps
+its pixel when the zoom changes: its position is rescaled into the new points
+before the frame runs. A list whose highlight follows the
 pointer (`SearchList`, and menus, whose `MenuRowHandle` carries `pointed`)
 follows `ButtonHandle::pointed`, so keys walking it under a resting pointer keep
 the highlight; other hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the

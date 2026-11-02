@@ -642,7 +642,7 @@ pub(crate) fn PluginView(
             && (hosts_windows
                 || (region.is_main() && block.is_some() && shell.get_untracked() == block))
     });
-    take_keyboard(state, given, &catcher, primary);
+    take_keyboard(state, given, &catcher, primary, mount);
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, plugin_id, instance, region, &catcher, primary);
@@ -1463,30 +1463,64 @@ fn toggle_keyboard_when_asked(state: Memo<PlacedView>, primary: Memo<bool>) {
     });
 }
 
+thread_local! {
+    static WANTING_KEYBOARD: RefCell<Vec<(u64, NodeId)>> = const { RefCell::new(Vec::new()) };
+}
+
 fn take_keyboard(
     state: Memo<PlacedView>,
     given: Option<Memo<bool>>,
     catcher: &NodeRef,
     primary: Memo<bool>,
+    mount: u64,
 ) {
     let wants = create_memo(move || {
         (state.with(|view| view.wants_keyboard) || given.is_some_and(|given| given.get()))
             && primary.get()
     });
     let catcher = *catcher;
+    let wanting = StoredCell::new(None::<NodeId>);
+    on_cleanup(move || {
+        if let Some(region) = wanting.get() {
+            WANTING_KEYBOARD.with_borrow_mut(|views| views.retain(|(_, view)| *view != region));
+        }
+    });
     create_effect(move || {
         let wanted = wants.get();
         untrack(|| {
             let Some(region) = catcher.try_get() else {
                 return;
             };
-            try_with_document(|document| match wanted {
-                true if document.focused_node() != Some(region) => {
-                    document.push_focus_scope(region);
-                    document.focus_focusable(region);
+            let (latest, last) = WANTING_KEYBOARD.with_borrow_mut(|views| {
+                views.retain(|(_, view)| *view != region);
+                if wanted {
+                    views.push((mount, region));
                 }
-                true => {}
-                false => document.pop_focus_scope(region),
+                let last = views
+                    .iter()
+                    .max_by_key(|(mount, _)| *mount)
+                    .map(|(_, view)| *view);
+                (last == Some(region), last)
+            });
+            wanting.set(wanted.then_some(region));
+            try_with_document(|document| {
+                let take = |document: &mut beui::native::Document, region: NodeId| {
+                    if document.focused_node() != Some(region) {
+                        document.push_focus_scope(region);
+                        document.focus_focusable(region);
+                    }
+                };
+                match wanted {
+                    true if latest => take(document, region),
+                    true => {}
+                    false => {
+                        let held = document.focused_node() == Some(region);
+                        document.pop_focus_scope(region);
+                        if let Some(last) = last.filter(|_| held) {
+                            take(document, last);
+                        }
+                    }
+                }
             });
         });
     });

@@ -1469,10 +1469,13 @@ impl Document {
             });
         self.sync_escapes();
         self.ask_for_windows(ctx);
-        ctx.set_keyboard_window(
-            self.focused
-                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
-        );
+        let layers = self.layers();
+        let keyboard_window = match self.focused {
+            Some(focused) => self.window_of(focused),
+            None if layers.takes_keyboard() => layers[layers.keyboard()].window,
+            None => WindowId::MAIN,
+        };
+        ctx.set_keyboard_window(keyboard_window);
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
