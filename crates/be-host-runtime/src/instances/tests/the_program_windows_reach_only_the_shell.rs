@@ -1,8 +1,7 @@
 use super::*;
 
 use be_sdk_api::{
-    HostWindow, HostWindowId, WindowAction, WindowKind, WindowOrigin, WindowsWatch,
-    requested,
+    HostWindow, HostWindowId, WindowAction, WindowKind, WindowOrigin, WindowsWatch, requested,
 };
 
 #[test]
@@ -46,7 +45,11 @@ fn the_program_windows_reach_only_the_shell() {
         vec![windows],
         "the shell sees them"
     );
-    assert!(host_call::<WindowsWatch, _>(&mut instances, "request", &close));
+    assert!(host_call::<WindowsWatch, _>(
+        &mut instances,
+        "request",
+        &close
+    ));
     let mut taken = Vec::new();
     instances.take_calls(&mut |called| match requested::window(called) {
         Some(action) => {

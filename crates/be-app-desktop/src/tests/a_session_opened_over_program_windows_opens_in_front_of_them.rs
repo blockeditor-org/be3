@@ -29,9 +29,14 @@ fn a_session_opened_over_program_windows_opens_in_front_of_them() {
     };
     assert_eq!(block, sessions[0]);
     for window in [1, 2] {
-        let program = fixture.window_rect(window).expect("the program's window shows");
+        let program = fixture
+            .window_rect(window)
+            .expect("the program's window shows");
         let overlap = session.intersect(program);
-        assert!(overlap.is_positive(), "the windows overlap: {session:?} {program:?}");
+        assert!(
+            overlap.is_positive(),
+            "the windows overlap: {session:?} {program:?}"
+        );
         assert!(
             matches!(
                 front_at(&fixture, overlap.center()),
@@ -41,8 +46,14 @@ fn a_session_opened_over_program_windows_opens_in_front_of_them() {
         );
     }
     assert!(
-        fixture.test.document().find_test_id("desktop.apps.panel").is_none(),
+        fixture
+            .test
+            .document()
+            .find_test_id("desktop.apps.panel")
+            .is_none(),
         "choosing the session closes the panel"
     );
-    fixture.test.snapshot("a_session_opened_over_program_windows");
+    fixture
+        .test
+        .snapshot("a_session_opened_over_program_windows");
 }
