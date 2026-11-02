@@ -12,15 +12,25 @@ fn a_file_dropped_from_outside_reaches_the_window_under_the_pointer() {
     let over = format!("{},{}", end.x, end.y - 10.0);
     let at = format!("{},{}", end.x, end.y);
 
-    harness.stepped.ask(&["move", "2,2"]).expect("the pointer moves");
+    harness
+        .stepped
+        .ask(&["move", "2,2"])
+        .expect("the pointer moves");
     harness
         .stepped
         .ask(&["grab", "/home/me/a note.txt", "/home/me/b.txt"])
         .expect("the files are grabbed");
     harness.settle();
-    assert_eq!(client::drop_target(), None, "no window is under the pointer");
+    assert_eq!(
+        client::drop_target(),
+        None,
+        "no window is under the pointer"
+    );
 
-    harness.stepped.ask(&["move", &over]).expect("the files are carried");
+    harness
+        .stepped
+        .ask(&["move", &over])
+        .expect("the files are carried");
     harness.settle();
     assert_eq!(
         client::drop_target().as_ref(),
@@ -30,7 +40,10 @@ fn a_file_dropped_from_outside_reaches_the_window_under_the_pointer() {
     let offer = client::dragged().expect("the drag offers its files");
     assert!(client::mime_types(&offer).contains(&"text/uri-list".to_owned()));
 
-    harness.stepped.ask(&["drop", &at]).expect("the files are dropped");
+    harness
+        .stepped
+        .ask(&["drop", &at])
+        .expect("the files are dropped");
     harness.settle();
     assert_eq!(client::dropped_on().as_ref(), Some(&onto.surface));
     let uris = client::ask_as(&offer, "text/uri-list");
