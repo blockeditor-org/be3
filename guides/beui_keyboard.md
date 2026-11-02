@@ -296,7 +296,11 @@ Programs panel uses). Its overlay is an `unstyled::Modal`. `styled::SearchList` 
 and rows inline, with no overlay, for a panel that holds more than the search (the desktop's
 Programs panel); its rows are `{id}.item.{key}` and its field `{id}.search`. It, `CommandPalette` and
 `Select` are stylings of `unstyled::SearchList`, which owns the query, the highlight, the arrow,
-Page, Home and End keys, scrolling to the highlighted row, Enter and hover. With `columns` above
+Page, Home and End keys, scrolling to the highlighted row, Enter and hover. Each change of the
+query highlights its best match again (unless `highlight_first` is off), and a caller that resets
+the query to what it already was resets the `highlighted` it passes too. `fill_height` keeps the
+results at `list_height` whatever they hold, so a panel around them keeps its size while the query
+narrows them. With `columns` above
 one it lays the rows out as a grid of tiles (`styled::SearchList` draws each as an icon over its
 title), Up and Down move a row of tiles and Left and Right one tile, so a caller that wants the
 caret keys back in the field while a query is typed passes one column then, as the Programs panel
