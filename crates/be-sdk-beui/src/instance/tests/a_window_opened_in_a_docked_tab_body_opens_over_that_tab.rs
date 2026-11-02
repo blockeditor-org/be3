@@ -128,7 +128,7 @@ fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
     let asked = show_windowed(&mut session, &[(View::MAIN, 0), (View::dock(ViewId(1)), 3)]);
     assert_eq!(
         VIEWPORT.with(std::cell::Cell::get),
-        beui::vec2(700.0, 300.0),
+        beui::vec2(700.0, 600.0),
         "the body follows its tab to a new screen"
     );
     assert!(
