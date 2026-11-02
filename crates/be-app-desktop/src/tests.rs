@@ -75,6 +75,7 @@ mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod arrow_keys_walk_the_status_bar_item_by_item;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod a_new_window_opens_within_its_programs_least_and_greatest_size;
 mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
 mod each_display_has_its_own_three_bars_along_its_foot;
 mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
@@ -607,6 +608,8 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),
+        min_size: Vec2::ZERO,
+        max_size: Vec2::ZERO,
         fullscreen: None,
         responding: true,
         focused,

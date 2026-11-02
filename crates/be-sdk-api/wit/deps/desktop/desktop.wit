@@ -62,6 +62,12 @@ interface windows {
         parent: option<host-window-id>,
         modal: bool,
         size: vec2,
+        /// The smallest and largest size the program asks for its window,
+        /// each axis 0 where it asks for no limit. The shell opens the window
+        /// within them where the room allows; the person may resize it past
+        /// them afterwards.
+        min-size: vec2,
+        max-size: vec2,
         /// The output a fullscreen window covers.
         fullscreen: option<rect>,
         responding: bool,

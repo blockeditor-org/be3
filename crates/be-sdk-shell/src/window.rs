@@ -33,7 +33,16 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
 }
 
 pub(crate) fn floating_window(window: &HostWindow, area: Rect) -> Rect {
-    cascaded(window.id, shown_size(window.size) + WINDOW_CHROME, area)
+    let size = within_limits(shown_size(window.size), window.min_size, window.max_size);
+    cascaded(window.id, size + WINDOW_CHROME, area)
+}
+
+pub(crate) fn within_limits(size: Vec2, min: Vec2, max: Vec2) -> Vec2 {
+    let axis = |size: f32, min: f32, max: f32| match max > 0.0 {
+        true => size.min(max).max(min),
+        false => size.max(min),
+    };
+    vec2(axis(size.x, min.x, max.x), axis(size.y, min.y, max.y))
 }
 
 pub(crate) fn kept_window(key: HostWindowId, area: Rect) -> Rect {
@@ -54,6 +63,22 @@ pub(crate) fn cascaded(key: HostWindowId, size: Vec2, area: Rect) -> Rect {
     };
     let step = WINDOW_ORIGIN + (key.0 % cascades) as f32 * WINDOW_CASCADE;
     Rect::from_min_size(area.min + vec2(step.min(free.x), step.min(free.y)), size)
+}
+
+pub(crate) fn followed_size(size: Vec2, asked: Option<Vec2>, min: Vec2, max: Vec2) -> Vec2 {
+    let size = within_limits(size, min, max);
+    let Some(asked) = asked else {
+        return size;
+    };
+    let held = within_limits(asked, min, max);
+    let axis = |size: f32, asked: f32, held: f32| match (size - held).abs() < 0.5 {
+        true => asked,
+        false => size,
+    };
+    vec2(
+        axis(size.x, asked.x, held.x),
+        axis(size.y, asked.y, held.y),
+    )
 }
 
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
@@ -185,6 +210,7 @@ pub(crate) fn WindowPanel(
     responding: Memo<bool>,
     focused: Memo<bool>,
     size: Memo<Option<Vec2>>,
+    limits: Memo<(Vec2, Vec2)>,
     note: Memo<Option<String>>,
     menu: Memo<Option<WindowMenu>>,
 ) -> NodeId {
@@ -195,7 +221,11 @@ pub(crate) fn WindowPanel(
         }
         create_effect(move || {
             if let Some(size) = size.get().and_then(own_size) {
-                untrack(|| tab.resize_window(size + WINDOW_CHROME));
+                let (min, max) = limits.get();
+                untrack(|| {
+                    let asked = tab.window_size().map(|shown| shown - WINDOW_CHROME);
+                    tab.resize_window(followed_size(size, asked, min, max) + WINDOW_CHROME)
+                });
             }
         });
         create_effect(move || {

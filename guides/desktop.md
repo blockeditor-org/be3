@@ -97,7 +97,11 @@ window being moved or resized is let go first, and kept once released. Under DRM
 `display::shown()`; in a window or headless they are one, be-host's window, which the shell's main
 view holds (`desktop::hold_window_display`). The shell opens a program's window, and a restored
 placeholder, on a cascade inside its dock's area (`cascaded` in be-sdk-shell's `window.rs`), with
-fewer steps when the window leaves little room.
+fewer steps when the window leaves little room. A window opens within the least and greatest size
+its program asks for (`min-size` and `max-size` on `host-window`, `within_limits`), shrunk to the
+dock's area, at its origin, when the least does not fit. Only the opening size honours them: the
+person may resize the window past them, and the window does not follow a size its program commits
+that is only those limits applied to the size it was given (`followed_size`).
 
 The Status bar holds the tray, the device tools (the on-screen keyboard, `desktop.keyboard`,
 while the display settings' `keyboard_in_bar` is on, which does not take the focus from the

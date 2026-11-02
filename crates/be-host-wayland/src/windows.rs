@@ -15,6 +15,8 @@ pub struct WindowInfo {
     pub parent: Option<WindowId>,
     pub modal: bool,
     pub size: Vec2,
+    pub min_size: Vec2,
+    pub max_size: Vec2,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub icon: Option<Image>,

@@ -30,7 +30,9 @@ the desktop shell) and every dialog own their size: a new one is configured 0×0
 `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
 size the compositor asked for), a floating window follows that size through
 `DockTabControl::resize_window` and a dialog's card through its `DockDialog` size, and a window
-shown at its own size is never told a size, so it stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
+shown at its own size is never told a size, so it stays free to resize itself. `WindowInfo`
+carries the least and greatest size the program asks for: `xdg_toplevel.set_min_size` and
+`set_max_size`, or an X11 window's `WM_NORMAL_HINTS` (`State::size_limits`). Only when the person resizes it, or it is docked, is it configured
 with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 

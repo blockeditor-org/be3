@@ -67,8 +67,8 @@ use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
-    PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
-    XdgToplevelSurfaceData,
+    PopupSurface, PositionerState, SurfaceCachedState, ToplevelSurface, XdgShellHandler,
+    XdgShellState, XdgToplevelSurfaceData,
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
@@ -717,6 +717,25 @@ impl State {
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
         (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+    }
+
+    pub fn size_limits(&self, id: WindowId) -> (beui::Vec2, beui::Vec2) {
+        let points = |size: Option<Size<i32, Logical>>| {
+            size.map_or(beui::Vec2::ZERO, |size| {
+                beui::vec2(size.w.max(0) as f32, size.h.max(0) as f32)
+            })
+        };
+        if let Some(surface) = self.find(id).and_then(|window| window.window.x11_surface()) {
+            return (points(surface.min_size()), points(surface.max_size()));
+        }
+        let Some(toplevel) = self.toplevel(id) else {
+            return (beui::Vec2::ZERO, beui::Vec2::ZERO);
+        };
+        with_states(toplevel.wl_surface(), |states| {
+            let mut cached = states.cached_state.get::<SurfaceCachedState>();
+            let current = cached.current();
+            (points(Some(current.min_size)), points(Some(current.max_size)))
+        })
     }
 
     pub fn close(&self, id: WindowId) {

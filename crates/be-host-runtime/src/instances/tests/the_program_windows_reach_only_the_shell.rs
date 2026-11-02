@@ -17,6 +17,8 @@ fn the_program_windows_reach_only_the_shell() {
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),
+        min_size: Vec2::ZERO,
+        max_size: Vec2::ZERO,
         fullscreen: None,
         responding: true,
         focused: true,

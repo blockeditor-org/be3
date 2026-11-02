@@ -1264,6 +1264,10 @@ pub fn WindowTab(
     let fullscreen = create_memo(move || info.get()?.fullscreen);
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || info.get().map(|info| info.size));
+    let limits = create_memo(move || {
+        info.get()
+            .map_or((Vec2::ZERO, Vec2::ZERO), |info| (info.min_size, info.max_size))
+    });
     let note = create_memo(move || info.get()?.note);
     let menu = create_memo(move || info.get()?.menu);
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
@@ -1290,6 +1294,7 @@ pub fn WindowTab(
                                 responding={responding}
                                 focused={focused}
                                 size={size}
+                                limits={limits}
                                 note={note}
                                 menu
                             />
@@ -1385,6 +1390,7 @@ pub fn WindowDialog(
                 responding={responding}
                 focused={focused}
                 size={followed}
+                limits={create_memo(|| (Vec2::ZERO, Vec2::ZERO))}
                 note={note}
                 menu
             />

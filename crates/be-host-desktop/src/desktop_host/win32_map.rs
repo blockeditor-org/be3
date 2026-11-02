@@ -309,6 +309,8 @@ pub fn host_window(
         parent: entry.parent.map(window_id),
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
+        min_size: Vec2::ZERO,
+        max_size: Vec2::ZERO,
         fullscreen,
         responding: entry.responding,
         focused: entry.focused,

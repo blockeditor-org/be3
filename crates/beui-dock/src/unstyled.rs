@@ -437,6 +437,16 @@ impl DockTabControl {
         });
     }
 
+    pub fn window_size(&self) -> Option<Vec2> {
+        let tab = self.tab;
+        let dock = self.dock()?;
+        dock.state.with_untracked(|state| {
+            let surface = state.find(tab)?.surface;
+            (state.surface_tabs(surface) == [tab]).then_some(())?;
+            state.window_rect(surface).map(|rect| rect.size())
+        })
+    }
+
     pub fn resize_window(&self, size: Vec2) {
         let tab = self.tab;
         let Some(dock) = self.dock() else {

@@ -491,9 +491,12 @@ impl Compositor {
             .filter_map(|id| {
                 let size = state.mapped_size(id)?;
                 let origin = self.origin(id);
+                let (min_size, max_size) = state.size_limits(id);
                 Some(WindowInfo {
                     id,
                     size,
+                    min_size,
+                    max_size,
                     title: state.title(id).unwrap_or_default(),
                     program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),

@@ -326,6 +326,8 @@ impl DesktopHost for Linux {
                         .map(|parent| HostWindowId(parent.0)),
                     modal: info.modal,
                     size: info.size,
+                    min_size: info.min_size,
+                    max_size: info.max_size,
                     fullscreen: info.fullscreen,
                     responding: info.responding,
                     focused: windows.focused() == Some(info.id),

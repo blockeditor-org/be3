@@ -582,7 +582,9 @@ impl XwmHandler for State {
                 }
                 self.events.push(ServerEvent::Titled(id, title));
             }
-            WmWindowProperty::Class | WmWindowProperty::TransientFor => {
+            WmWindowProperty::Class
+            | WmWindowProperty::TransientFor
+            | WmWindowProperty::NormalHints => {
                 self.events.push(ServerEvent::Changed(id));
             }
             _ => {}
