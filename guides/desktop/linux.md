@@ -604,7 +604,10 @@ the dock has no way yet to mark a tab as wanting attention.
 A desktop session keeps its program windows: the next time it is opened with none of them
 running, as after the computer restarts, each one's tab is where the window was and shows a
 placeholder instead, with the program's icon and name, the window's old title, Open and
-Dismiss, and the Windows bar's Restore chip opens them all. be-sdk-shell's `Workspace` (with `keeps_windows`,
+Dismiss, stacked as the windows were with the one that had the focus on top. Each placeholder
+has a chip in the Windows bar after the running windows' (outlined, with a muted label, as
+`ButtonFace`'s `placeholder`) whose click brings it in front and whose menu offers Open and
+Dismiss, and the Restore chip leading the bar opens them all. be-sdk-shell's `Workspace` (with `keeps_windows`,
 which only the desktop app sets) saves a `KeptWindow` per top-level window beside the dock layout
 in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
 (`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound

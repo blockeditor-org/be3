@@ -1,6 +1,7 @@
 use be_sdk_beui::beui::dock::styled::TabId;
 use be_sdk_beui::beui::icons::{
-    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EYE, ICON_EYE_OFF, ICON_MONITOR, ICON_X,
+    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF, ICON_MONITOR,
+    ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::button::ButtonFace;
@@ -9,7 +10,7 @@ use be_sdk_beui::beui::unstyled;
 use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2};
 use be_sdk_beui::desktop;
 use be_sdk_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use be_sdk_shell::{Workspace, window_name, window_picture};
+use be_sdk_shell::{Workspace, window_name, window_picture, window_tab};
 
 use super::bar::bar_bounds;
 use super::placeholders::Placeholders;
@@ -21,6 +22,7 @@ const CHIP_LEAST: Size = Size::Custom(2.0 * Size::Xl2.px());
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ChipKey {
     Window(HostWindowId),
+    Placeholder(HostWindowId),
     Block(TabId),
 }
 
@@ -28,6 +30,7 @@ impl ChipKey {
     fn test_id(self) -> String {
         match self {
             ChipKey::Window(id) => format!("desktop.windows.{}", id.0),
+            ChipKey::Placeholder(key) => format!("desktop.windows.placeholder.{}", key.0),
             ChipKey::Block(tab) => format!("desktop.windows.block.{}", tab.value()),
         }
     }
@@ -92,11 +95,13 @@ impl DeskWindows {
     pub(crate) fn new(workspace: Workspace, placeholders: Placeholders) -> Self {
         let entries = workspace.entries();
         let tabs = workspace.block_tabs();
+        let kept = placeholders.keys;
         let all = create_memo(move || {
             let windows = entries.with(|entries| picked(entries));
             windows
                 .into_iter()
                 .map(ChipKey::Window)
+                .chain(kept.get().into_iter().map(ChipKey::Placeholder))
                 .chain(tabs.get().into_iter().map(ChipKey::Block))
                 .collect()
         });
@@ -177,6 +182,7 @@ impl DeskWindows {
     fn tab(&self, chip: ChipKey) -> TabId {
         match chip {
             ChipKey::Window(id) => self.workspace.window_tab_of(id),
+            ChipKey::Placeholder(key) => window_tab(key),
             ChipKey::Block(tab) => tab,
         }
     }
@@ -187,6 +193,7 @@ impl DeskWindows {
                 .workspace
                 .entries()
                 .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
+            ChipKey::Placeholder(_) => true,
             ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
         }
     }
@@ -196,6 +203,10 @@ impl DeskWindows {
     }
 
     fn choose(&self, chip: ChipKey) {
+        if let ChipKey::Placeholder(key) = chip {
+            self.workspace.layout().show(&window_tab(key));
+            return;
+        }
         match untrack(|| self.focused(chip)) {
             true => self.hide(chip),
             false => self.show(chip),
@@ -211,6 +222,7 @@ impl DeskWindows {
                 }
                 desktop::windows::request(WindowAction::Focus(id)).detach();
             }),
+            ChipKey::Placeholder(key) => self.workspace.layout().show(&window_tab(key)),
             ChipKey::Block(tab) => self.workspace.show(tab),
         }
     }
@@ -227,6 +239,7 @@ impl DeskWindows {
                     layout.show(&next);
                 }
             }
+            ChipKey::Placeholder(_) => {}
             ChipKey::Block(tab) => {
                 if let Some(next) = next {
                     layout.show(&next);
@@ -258,6 +271,7 @@ impl DeskWindows {
                 .workspace
                 .editor()
                 .act(move || desktop::windows::request(WindowAction::Close(id)).detach()),
+            ChipKey::Placeholder(key) => self.placeholders.dismiss(key),
             ChipKey::Block(tab) => self.workspace.close(tab),
         }
     }
@@ -366,15 +380,24 @@ fn WindowChip(
         ChipKey::Window(id) => {
             entries.with(|entries| entries.iter().find(|entry| entry.id == id).cloned())
         }
-        ChipKey::Block(_) => None,
+        ChipKey::Placeholder(_) | ChipKey::Block(_) => None,
     });
     let block = match chip {
         ChipKey::Block(tab) => Some((workspace.tab_title(tab), workspace.tab_glyph(tab))),
-        ChipKey::Window(_) => None,
+        ChipKey::Window(_) | ChipKey::Placeholder(_) => None,
     };
-    let title = create_memo(move || match block {
-        Some((title, _)) => title.get(),
-        None => entry
+    let kept = match chip {
+        ChipKey::Placeholder(key) => Some((key, windows.placeholders.shown(key))),
+        ChipKey::Window(_) | ChipKey::Block(_) => None,
+    };
+    let waiting = kept.is_some();
+    let title = create_memo(move || match (block, kept) {
+        (Some((title, _)), _) => title.get(),
+        (None, Some((key, _))) => workspace
+            .placeholder(key)
+            .map(|kept| kept.window_name())
+            .unwrap_or_default(),
+        (None, None) => entry
             .with(|entry| {
                 let entry = entry.as_ref()?;
                 let parent = entry.parent.and_then(|parent| {
@@ -397,13 +420,16 @@ fn WindowChip(
         (None, true) => Some(ICON_MONITOR),
         (None, false) => Some(ICON_APP_WINDOW),
     });
-    let image = create_memo(move || {
-        entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture))
+    let image = create_memo(move || match kept {
+        Some((_, shown)) => shown.picture.get(),
+        None => entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture)),
     });
     let shown = create_memo(move || windows.shown(chip));
     let focused = create_memo(move || windows.focused(chip));
-    let hollow = create_memo(move || !shown.get());
-    let closable = create_memo(move || !display.get());
+    let hollow = create_memo(move || waiting || !shown.get());
+    let running = create_memo(move || !waiting);
+    let closable = create_memo(move || !waiting && !display.get());
+    let unopenable = create_memo(move || kept.is_some_and(|(_, shown)| !shown.openable.get()));
     let variant = create_memo(move || match shown.get() {
         true => ButtonVariant::Secondary,
         false => ButtonVariant::Ghost,
@@ -426,21 +452,45 @@ fn WindowChip(
     });
     let prefix = chip.test_id();
     let close_id = format!("{prefix}.close");
+    let visibility_id = format!("{prefix}.visibility");
+    let open_id = format!("{prefix}.open");
+    let dismiss_id = format!("{prefix}.dismiss");
     let targets = windows.targets(chip);
     let display_prefix = prefix.clone();
     view! {
         <ContextMenu
             bounds={bar_bounds()}
             items={view! {
-                <MenuItem
-                    label={visibility}
-                    glyph={visibility_glyph}
-                    row_test_id={format!("{prefix}.visibility")}
-                    on_click={move || match shown.get_untracked() {
-                        true => windows.hide(chip),
-                        false => windows.show(chip),
-                    }}
-                />
+                <Show condition={running}>
+                    <MenuItem
+                        label={visibility}
+                        glyph={visibility_glyph}
+                        row_test_id={visibility_id.clone()}
+                        on_click={move || match shown.get_untracked() {
+                            true => windows.hide(chip),
+                            false => windows.show(chip),
+                        }}
+                    />
+                </Show>
+                <Show condition=waiting>
+                    <MenuItem
+                        label="Open"
+                        glyph=ICON_EXTERNAL_LINK
+                        disabled={unopenable}
+                        row_test_id={open_id.clone()}
+                        on_click={move || {
+                            if let Some((key, _)) = kept {
+                                windows.placeholders.open(key);
+                            }
+                        }}
+                    />
+                    <MenuItem
+                        label="Dismiss"
+                        glyph=ICON_X
+                        row_test_id={dismiss_id.clone()}
+                        on_click={move || windows.close(chip)}
+                    />
+                </Show>
                 <ForEach keys={targets}>|target: u32|
                     <MenuItem
                         label={format!("Move to display {}", target + 1)}

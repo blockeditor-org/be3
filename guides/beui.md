@@ -2810,11 +2810,15 @@ another's bar or pane lands there. A tab or pane dropped where no window is (a
 `Draggable`'s `on_drop_outside`, below) floats into a new window opened
 `AtPointer`; without a host that drop keeps its old meaning.
 
-How the windows stack is the document's layer order alone (`Document::layers()`),
-not anything in `DockState`: a press on a window, the focus moving into one and
+`DockState` keeps its windows bottom to top (`DockState::windows`), and a saved layout
+keeps that order: a window opens on top, and the focus moving into one puts it on top,
+so the focused window is always the topmost. The document's layer order
+(`Document::layers()`) follows it: a window raises its layer and those of the windows
+above it when it is created (so a restored layout stacks as it was saved, whatever order
+its windows are built in), and a press on a window, the focus moving into one and
 showing a tab of the window that has the focus (`DockState::show`, so a host can bring
 back a window something else covered) raise its layer (over a fullscreen tab too, unless
-the focus is in that tab), and a drop
+the focus is in that tab). A drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
