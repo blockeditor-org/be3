@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn identity_secrets_belong_to_their_account_and_leave_with_it() {
-    let store = AppStateStore::open(":memory:").unwrap();
+    let store = HostStateStore::open(":memory:").unwrap();
     let mine = account(ServerLocation::Local, "mine@example.com");
     let theirs = account(
         ServerLocation::Remote("https://notes.example.com".into()),

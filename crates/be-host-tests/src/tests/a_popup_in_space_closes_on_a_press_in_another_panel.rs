@@ -2,18 +2,18 @@ use super::*;
 
 #[test]
 fn a_popup_in_space_closes_on_a_press_in_another_panel() {
-    let mut app = AppTest::start_in_space();
-    app.wait(NEW);
-    app.run(&["--into=space", "click", NEW]);
-    app.run(&["--into=space", "click", NEW_IN_MY_FILES]);
-    app.wait("#picker.more");
-    app.snapshot("a_popup_in_space_closes_on_a_press_in_another_panel");
+    let mut host = HostTest::start_in_space();
+    host.wait(NEW);
+    host.run(&["--into=space", "click", NEW]);
+    host.run(&["--into=space", "click", NEW_IN_MY_FILES]);
+    host.wait("#picker.more");
+    host.snapshot("a_popup_in_space_closes_on_a_press_in_another_panel");
 
-    app.run(&["--into=space", "click", "Tab \"Settings\""]);
-    app.gone("#picker.more");
+    host.run(&["--into=space", "click", "Tab \"Settings\""]);
+    host.gone("#picker.more");
     assert!(
-        app.shown("Tab \"Settings\" selected"),
+        host.shown("Tab \"Settings\" selected"),
         "the press that closes the add menu goes on to the tab it landed on"
     );
-    app.close();
+    host.close();
 }

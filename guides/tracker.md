@@ -12,7 +12,7 @@ Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
 script runs the `be` release pinned in `scripts/internal/pins`, with a
 `build-info.json` file beside it naming the server's build, so the server refuses it
 once it is deployed from another build and the pin has to move with it. Set
-`BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
+`BE3_AGENT_CREDENTIALS` to the JSON copied from the host's Agents dialog, or save
 that JSON in `external/.tracker-credentials`. The file is ignored by git and
 `./scripts/be` fetches it on first use from
 `https://api.be3.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
@@ -33,7 +33,7 @@ without the account token. Configure the proxy to inject the shown
 `authentication: "proxy"` selects header authentication in `be`. Treat the whole
 bundle as secret. A `be` built from the
 checkout (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) carries that
-checkout's build id, so it talks to the dev app built from the same tree, and
+checkout's build id, so it talks to a dev server built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://api.be3.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
 environment's proxy refuses websockets; requests made together share one post.
@@ -74,7 +74,7 @@ be Code sync ~/code [--watch]           a folder or workspace and a directory, k
 
 `be ls` lists the top: the organization's roots the account can see
 (`list-blocks` of the root's children) and each block shared with it whose parent it
-cannot see (`list-blocks` of what is shared, the app's Shared with me), never a settings block.
+cannot see (`list-blocks` of what is shared, the host's Shared with me), never a settings block.
 `be` never lists the whole organization: it lists the top, then a block's
 children when it needs them, one request per block, and keeps what it has
 listed for the rest of the command. `new-database` and `upload` without `--in`
@@ -98,7 +98,7 @@ fails, and one that names more than one database says which, so name the databas
 instead. `new-database`, `upload`, and the database editor (when its prefix changes or
 it is opened somewhere it is not yet listed) write the database into the nearest
 registry above it, making the workspace's if there is none. Moving a block
-(`Peer::set_parent`, which `be TARGET move`, `be sync` and the app's moves all go
+(`Peer::set_parent`, which `be TARGET move`, `be sync` and the host's moves all go
 through) moves the databases inside it from the registry above its old place to
 the one above its new place. The editor's Display
 menu says when another database there shares the prefix. Field values are matched by name, case
@@ -115,7 +115,7 @@ adds a paragraph to it; `-` reads either from standard input. `--json` prints
 JSON. `download` writes a block file (`crates/be-block-client/src/transfer.rs`): each
 block's type, metadata, references and decrypted content bytes, the outermost
 block first and every block after its parent, into a new file only its owner
-may read; a database inside a view is downloaded from the view. The app writes and reads the same file: the files
+may read; a database inside a view is downloaded from the view. The host writes and reads the same file: the files
 pane's Export as, Block file, and the block picker's Import tab. `upload` gives every block a new id and swaps the old
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of
@@ -159,11 +159,11 @@ them in the handoff.
   (`Root::FROZEN`): be-block's tests hold the format the first tracker build
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
-- **Agents.** Any member adds one from the app menu (Agents, in either a
+- **Agents.** Any member adds one from the host menu (Agents, in either a
   personal or company organization). Listing and removal are scoped to the
-  creator; other members cannot list or remove the agent. The app makes a recovery phrase for it, the server
+  creator; other members cannot list or remove the agent. The host makes a recovery phrase for it, the server
   makes an editor account with no password and a token (`CreateAgent`) and
-  records the agent and its creator as contacts, and the app writes the agent's
+  records the agent and its creator as contacts, and the host writes the agent's
   public key into its contact row, so every device of the creator can share
   with it; the dialog shows the JSON credentials once in a selectable text box, with a
   Copy credentials button. Share a workspace with

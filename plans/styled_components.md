@@ -186,7 +186,7 @@ the colour picker on it.
 sheet)`, `AnchoredSheetHandle`, `AnchoredHandle { sheet, shown }` and
 `SheetWhen`. It samples `touched_by_finger()` (§1's `use_touch` narrowed to fingers,
 so a pen's barrel button still drops a menu down) when it opens, so `MenuButton`,
-`PopupTrigger` (its `on_press` is gone), `ContextMenu` and block-app's app menu
+`PopupTrigger` (its `on_press` is gone), `ContextMenu` and the host menu
 no longer track touch. `Popover` (and so `DateTimePicker` and `ColorInput`) and
 `Select` take a required `surface: AnchoredStyle` in place of wrapping their
 own panel; `styled::popover_surface(max_width)` is the popover's, and
@@ -998,10 +998,10 @@ Problems earlier steps found in the beui crates, fixed at their source:
   as beui-terminal-view does); the dock's drop marker is a `Stroke`; painted
   corner radii are fitted to their rect, so `Radius::Full` paints as half the
   side.
-- **Done.** **App test races.** A driven block-app's type modules used the
+- **Done.** **Host test races.** A driven block-app's type modules used the
   wall clock, so whether two typed words were one undo step depended on how
   long the machine took, and `drive pause` was invisible to them;
-  `be_block_type_host::hold_clock` now holds their clock while the app's is
+  `be_block_type_host::hold_clock` now holds their clock while block-app's is
   stopped (`Modules::now` reads the held instant through the module host's
   `be_block_client::Clock`, which main's offline work passes in). The checklist test measured `#checklist.add` before the plugin
   had drawn it; it waits for it first.

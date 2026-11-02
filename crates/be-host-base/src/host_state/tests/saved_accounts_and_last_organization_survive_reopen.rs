@@ -10,7 +10,7 @@ fn saved_accounts_and_last_organization_survive_reopen() {
     );
     let organization_id = Uuid::new_v4();
     {
-        let store = AppStateStore::open(&path).unwrap();
+        let store = HostStateStore::open(&path).unwrap();
         store.save_account(&local).unwrap();
         store.save_account(&remote).unwrap();
         store
@@ -18,7 +18,7 @@ fn saved_accounts_and_last_organization_survive_reopen() {
             .unwrap();
     }
     local.last_organization_id = Some(organization_id);
-    let store = AppStateStore::open(&path).unwrap();
+    let store = HostStateStore::open(&path).unwrap();
     let accounts = store.accounts().unwrap();
     assert!(accounts.contains(&local));
     assert!(accounts.contains(&remote));

@@ -1,4 +1,4 @@
-use crate::AppTest;
+use crate::HostTest;
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
@@ -46,7 +46,7 @@ mod a_tooltip_from_the_files_reaches_past_them;
 mod adding_an_account_chooses_a_local_or_custom_server;
 mod an_active_child_pans_in_the_frame_its_canvas_pans;
 mod an_invitation_shows_the_link_to_send_the_invited_person;
-mod choosing_a_scale_draws_the_app_larger;
+mod choosing_a_scale_draws_the_host_larger;
 mod choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there;
 mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
 mod closing_a_tab_shuts_its_editor_down;
@@ -59,9 +59,9 @@ mod moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_plugin
 mod my_files_offers_no_delete;
 mod on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet;
 mod on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace;
-mod on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_app;
+mod on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host;
 mod on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet;
-mod on_a_phone_the_app_menu_rises_as_a_sheet_it_draws_itself;
+mod on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself;
 mod presenting_a_deck_again_and_again_adds_no_blocks;
 mod presenting_a_deck_fills_the_screen_until_escape;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
@@ -70,8 +70,8 @@ mod revision_history_previews_and_restores_a_text_file;
 mod the_add_menu_fits_a_short_window_and_scrolls_inside_itself;
 mod the_add_menu_opens_at_the_files_button_that_asked;
 mod the_add_menu_reaches_past_narrow_files_and_closes_on_a_press_outside;
-mod the_app_menu_opens_under_its_button;
-mod the_app_opens_its_files_and_closes_cleanly;
+mod the_host_menu_opens_under_its_button;
+mod the_host_opens_its_files_and_closes_cleanly;
 mod the_canvas_dock_opens_the_add_menu_at_its_block_button;
 mod the_canvas_menu_ticks_its_grid_and_profile_in_submenus;
 mod the_canvas_zoom_bar_floats_at_any_corner_and_stays_there;
@@ -91,60 +91,60 @@ mod two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown;
 mod typing_after_a_pause_undoes_as_its_own_step;
 mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
 
-fn add_to_my_files(app: &mut AppTest, label: &str) {
-    start_adding_to_my_files(app, label);
-    app.key("Enter");
-    app.gone(&format!("TextInput \"Name\" value=\"{label}\""));
-    app.wait(&format!("TreeItem \"{label}\""));
+fn add_to_my_files(host: &mut HostTest, label: &str) {
+    start_adding_to_my_files(host, label);
+    host.key("Enter");
+    host.gone(&format!("TextInput \"Name\" value=\"{label}\""));
+    host.wait(&format!("TreeItem \"{label}\""));
 }
 
-fn start_adding_to_my_files(app: &mut AppTest, label: &str) {
-    open_add_to_my_files(app);
-    choose_type(app, label);
-    app.wait(&format!("Pane \"{label}\""));
-    app.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
+fn start_adding_to_my_files(host: &mut HostTest, label: &str) {
+    open_add_to_my_files(host);
+    choose_type(host, label);
+    host.wait(&format!("Pane \"{label}\""));
+    host.wait(&format!("TextInput \"Name\" value=\"{label}\" focused"));
 }
 
-fn drag_bar(app: &mut AppTest, grip: &str, to: (f32, f32)) {
-    let from = app.place(grip);
+fn drag_bar(host: &mut HostTest, grip: &str, to: (f32, f32)) {
+    let from = host.place(grip);
     let start = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
-    app.run(&["down", grip]);
+    host.run(&["down", grip]);
     for step in 1..=4 {
         let share = step as f32 / 4.0;
         let x = start.0 + (to.0 - start.0) * share;
         let y = start.1 + (to.1 - start.1) * share;
-        app.run(&["move", &format!("{x},{y}")]);
+        host.run(&["move", &format!("{x},{y}")]);
     }
-    app.run(&["pause", "200"]);
-    app.run(&["up"]);
-    app.run(&["pause", "1000"]);
+    host.run(&["pause", "200"]);
+    host.run(&["up"]);
+    host.run(&["pause", "1000"]);
 }
 
-fn add_to_canvas(app: &mut AppTest, label: &str) {
-    app.click("#infinite-canvas.dock.block");
-    choose_type(app, label);
-    app.wait("GenericContainer #infinite-canvas.entity.");
-    app.gone("#editor.loading");
-    app.run(&["settle"]);
+fn add_to_canvas(host: &mut HostTest, label: &str) {
+    host.click("#infinite-canvas.dock.block");
+    choose_type(host, label);
+    host.wait("GenericContainer #infinite-canvas.entity.");
+    host.gone("#editor.loading");
+    host.run(&["settle"]);
 }
 
-fn choose_type(app: &mut AppTest, label: &str) {
-    app.wait("#picker.more");
+fn choose_type(host: &mut HostTest, label: &str) {
+    host.wait("#picker.more");
     let common = format!("MenuItem \"{label}\"");
-    if app.shown(&common) {
-        app.click(&common);
-        app.gone("#picker.more");
+    if host.shown(&common) {
+        host.click(&common);
+        host.gone("#picker.more");
         return;
     }
-    app.click("#picker.more");
-    app.wait("#picker.search");
-    app.type_text(label);
-    app.click(&format!("Button \"{label}\""));
-    app.gone("#picker.search");
+    host.click("#picker.more");
+    host.wait("#picker.search");
+    host.type_text(label);
+    host.click(&format!("Button \"{label}\""));
+    host.gone("#picker.search");
 }
 
-fn row_menu(app: &mut AppTest, title: &str) -> String {
-    let tree = app.tree();
+fn row_menu(host: &mut HostTest, title: &str) -> String {
+    let tree = host.tree();
     let row = format!("TreeItem \"{title}\"");
     tree.lines()
         .skip_while(|line| !line.contains(&row))
@@ -156,25 +156,25 @@ fn row_menu(app: &mut AppTest, title: &str) -> String {
         .to_owned()
 }
 
-fn open_beui_demo(app: &mut AppTest) {
-    add_to_my_files(app, "beui demo");
-    app.wait("Tab \"Components\"");
-    app.wait("Tab \"Docking\"");
-    app.gone("#editor.loading");
-    app.run(&["settle"]);
+fn open_beui_demo(host: &mut HostTest) {
+    add_to_my_files(host, "beui demo");
+    host.wait("Tab \"Components\"");
+    host.wait("Tab \"Docking\"");
+    host.gone("#editor.loading");
+    host.run(&["settle"]);
 }
 
-fn open_add_to_my_files(app: &mut AppTest) {
-    app.click(NEW);
-    app.click(NEW_IN_MY_FILES);
+fn open_add_to_my_files(host: &mut HostTest) {
+    host.click(NEW);
+    host.click(NEW_IN_MY_FILES);
 }
 
 const NEW: &str = "#file-tree.new";
 const NEW_IN_MY_FILES: &str = "MenuItem \"New in My files…\"";
 
-fn pan_zoom_world(app: &mut AppTest) -> (f32, f32, f32, f32) {
-    let origin = app.place("#pan_zoom.card.0");
-    let right = app.place("#pan_zoom.card.5");
+fn pan_zoom_world(host: &mut HostTest) -> (f32, f32, f32, f32) {
+    let origin = host.place("#pan_zoom.card.0");
+    let right = host.place("#pan_zoom.card.5");
     let scale = (right.0 + right.2 - origin.0) / 820.0;
     (origin.0, origin.1, 880.0 * scale, 580.0 * scale)
 }

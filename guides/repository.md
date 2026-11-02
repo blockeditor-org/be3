@@ -25,12 +25,12 @@ differs from the package's (`block-app` is built from `be-host`, `be` from
 - `be-host-*`: block-app, the program apps run in. `be-host` is the binary on
   top of its parts, each a crate of its own so they build in parallel:
   `be-host-base` (the frame host, notices, the panic guard, platform requests,
-  app state and the watches the host publishes; no beui), `be-host-services`
+  the host's state and the watches the host publishes; no beui), `be-host-services`
   (Linux's D-Bus services; no beui), `be-host-stack` (the block stack peer,
   accounts, links, keys and plugin discovery; no beui), `be-host-runtime` (the
   runtime every plugin runs in) and `be-host-desktop` (the Linux and Windows
   desktop hosts, input remaps and programs). `be-host-testing` is the stack
-  harness they test with, and `be-host-tests` the app tests.
+  harness they test with, and `be-host-tests` the host tests.
 - `be-block-*`: the block stack (guides/the_new_block_stack.md).
 - `be-server-*`: the server and its account portal.
 - `be-wasm-*`: running wasm guests, apps and type modules alike.

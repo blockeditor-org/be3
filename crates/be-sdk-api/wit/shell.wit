@@ -18,7 +18,7 @@ interface shell-types {
         data: list<u8>,
     }
 
-    /// What is dragged over the editor: a block from the app, or files from
+    /// What is dragged over the editor: a block from the host, or files from
     /// outside it, whose data comes only with the drop.
     variant dragged {
         block(dragged-block),
@@ -189,10 +189,10 @@ interface shell-types {
         failed(string),
     }
 
-    /// What an editor asks of the app around it for a block it draws: to share
+    /// What an editor asks of the host around it for a block it draws: to share
     /// it, leave it, or close the editor. An editor renames a block or shows
-    /// the app's menu by placing a `child-content.rename` or
-    /// `host(app-menu)` child in a view it anchored.
+    /// the host's menu by placing a `child-content.rename` or
+    /// `host(menu)` child in a view it anchored.
     variant shell-command {
         share,
         leave,
@@ -230,7 +230,7 @@ interface shell {
         constructor(instance: editor-instance-id, id: web-view-id, url: string);
         load: async func(url: string);
         reload: async func();
-        focus-app: async func();
+        focus-host: async func();
         /// The events since the last answer, in order. A title, address or
         /// failure right after one of its own kind replaces it, and at most
         /// 256 events wait: past that the oldest goes.
@@ -287,7 +287,7 @@ interface shell {
     /// The size the editor's content wants, when it has one.
     intrinsic-size: async func(instance: editor-instance-id, size: option<size>);
 
-    /// Asks the app around the editor to act for a block the editor draws.
+    /// Asks the host around the editor to act for a block the editor draws.
     act: async func(instance: editor-instance-id, block: block-id, command: shell-command);
 
     /// The editor asks to leave the frame it is shown in.

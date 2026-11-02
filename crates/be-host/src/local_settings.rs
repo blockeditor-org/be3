@@ -2,12 +2,12 @@ use be_block::be_block_model::{Document, Edit};
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
 
-use be_host_base::app_state::{AppStateError, AppStateStore};
+use be_host_base::host_state::{HostStateError, HostStateStore};
 
 pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
-    fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError>;
+    fn load(store: &HostStateStore) -> Result<Option<Vec<u8>>, HostStateError>;
 
-    fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError>;
+    fn save(store: &HostStateStore, content: &[u8]) -> Result<(), HostStateError>;
 
     fn apply(&self) -> bool;
 }
@@ -153,7 +153,7 @@ impl<R> Default for SettingsSync<R> {
 }
 
 impl<R: LocalSettings + Layered> SettingsSync<R> {
-    pub(crate) fn boot(&mut self, store: &AppStateStore) {
+    pub(crate) fn boot(&mut self, store: &HostStateStore) {
         let name = <R as Layered>::NAME;
         match R::load(store) {
             Ok(Some(content)) => match Document::<R>::decode(&content) {
@@ -193,7 +193,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.contents.clone().unwrap_or_default()
     }
 
-    pub(crate) fn sync(&mut self, store: &AppStateStore) {
+    pub(crate) fn sync(&mut self, store: &HostStateStore) {
         let blocks = self.blocks;
         if blocks.top().is_none() {
             return;
@@ -235,7 +235,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.receive(store, settings);
     }
 
-    fn receive(&mut self, store: &AppStateStore, settings: R) {
+    fn receive(&mut self, store: &HostStateStore, settings: R) {
         if self.applied.as_ref() == Some(&settings) {
             return;
         }
@@ -245,7 +245,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.applied = Some(settings);
     }
 
-    pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<(SettingsLayer, Edit)>) {
+    pub(crate) fn commit(&mut self, store: &HostStateStore, edits: Vec<(SettingsLayer, Edit)>) {
         let mut contents = self.contents.clone().unwrap_or_default();
         let mut applied = self.applied.clone().unwrap_or_default();
         let mut written = false;
@@ -287,7 +287,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         }
     }
 
-    fn save(&self, store: &AppStateStore, settings: &R) {
+    fn save(&self, store: &HostStateStore, settings: &R) {
         if let Err(error) = R::save(store, &Document::new(settings).encode()) {
             eprintln!(
                 "block-app: the {} settings were not saved on this device: {error}",

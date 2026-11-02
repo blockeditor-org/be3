@@ -20,7 +20,7 @@ fn manifest(id: &str, name: &str, block_type: &str) -> PluginManifest {
 }
 
 #[test]
-fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
+fn a_panic_while_the_host_runs_a_plugin_stops_only_that_plugin() {
     let crashing = manifest(
         "test.crashing",
         "Crashing",
@@ -48,7 +48,7 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
     let error = with("test.crashing", |runtime| runtime.error.clone()).flatten();
     assert_eq!(
         error.as_deref(),
-        Some("The app failed while running it: the host lost track of a screen")
+        Some("block-app failed while running it: the host lost track of a screen")
     );
     assert_eq!(
         with("test.steady", |runtime| runtime.error.clone()),
@@ -59,7 +59,7 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
         .into_iter()
         .find(|notice| {
             notice.message
-                == "Crashing stopped: The app failed while running it: the host lost track of a screen"
+                == "Crashing stopped: block-app failed while running it: the host lost track of a screen"
         })
         .expect("the crash is reported as a notice");
     assert!(
@@ -68,14 +68,14 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
     );
     assert_eq!(
         be_host_base::notices::report_of(notice.id).as_deref(),
-        Some("The app failed while running it: the host lost track of a screen"),
+        Some("block-app failed while running it: the host lost track of a screen"),
         "the report is the plugin's whole error"
     );
     let view = placed_view(&crashing, EditorInstanceId(1), ViewId::MAIN, None, None);
     assert_eq!(
         view.error,
         Some((
-            "The app failed while running it: the host lost track of a screen".to_owned(),
+            "block-app failed while running it: the host lost track of a screen".to_owned(),
             true
         )),
         "its editors show it stopped, with a way to reload it"

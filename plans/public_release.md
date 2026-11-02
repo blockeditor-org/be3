@@ -1,7 +1,7 @@
 # Public release
 
 What the daily driver plan (`plans/daily_driver.md`) leaves out because one
-person using the app on their own devices does not need it, but other people
+person using the host on their own devices does not need it, but other people
 using it would. Each item says what "done" looks like.
 
 ## Keys and accounts
@@ -9,14 +9,14 @@ using it would. Each item says what "done" looks like.
 - **Warn when a workspace has no sealed copy.** A device seals its workspace
   key to the recovery phrase the first time it connects. If that fails, the
   error only reaches the debug window, and the device's own copy is the only
-  one. Done: the app shows when the server holds no sealed copy for you, and
+  one. Done: the host shows when the server holds no sealed copy for you, and
   retries.
 - **Password reset.** The sealed copy is only handed to a signed-in account,
   so a lost password with a kept phrase still locks you out. Done: a reset
   path (email, or at least a `be-server` command for the operator), which
   leaves the sealed keys as they are.
 - **Keys in the OS keystore.** Workspace keys and the session token sit in
-  plaintext app state (`app.sqlite3`). Done: Keychain,
+  plaintext host state (`app.sqlite3`). Done: Keychain,
   Android Keystore, libsecret or DPAPI, and non-extractable WebCrypto keys in
   IndexedDB on web.
 - **Key rotation.** A workspace has one key for its whole life, and sealed
@@ -60,10 +60,10 @@ anyone else can sign in:
   file system: `app.sqlite3`, the refs database and the `FileStore` objects,
   through WASI file calls that `crates/be-host/web/files.js` answers. One
   tab owns them (a Web Lock), the page asks for persistent storage, and a
-  service worker keeps the app so it opens offline.
+  service worker keeps the host so it opens offline.
 - Done: the be stack runs in a worker of its own (`web/be-worker.js`), as it
   runs on a thread natively, sharing memory with the page.
-- Done: an edit made offline in the web app survives a reload (SQLite opens
+- Done: an edit made offline in the host on the web survives a reload (SQLite opens
   without lock files on WASI; a reload within the seal interval asks first).
 - A service worker keeps every build's files it ever served; nothing prunes
   the old ones.

@@ -1,12 +1,12 @@
 # Type modules
 
-A block type is moving out of the app into a plugin's *type module*: a pure wasm
+A block type is moving out of block-app into a plugin's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through typed operations. Two crates
 define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
-block through them (guides/the_new_block_stack.md, "How the app hosts content";
+block through them (guides/the_new_block_stack.md, "How the host holds content";
 "Hosts" below): each plugin that brings types names its module in its manifest's
-`block_types` (guides/adding_a_block.md), and the types the app applies itself
+`block_types` (guides/adding_a_block.md), and the types block-app applies itself
 (`crates/be-sdk-type-host`) run in process.
 
 - `crates/be-sdk-type-api`: the protocol between a host and a type module, as the WIT
@@ -490,7 +490,7 @@ wasmtime and in process in tests:
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
   A source that declares its types starts lazily: `Modules::new` routes and marks
   known (`is_known`) what it declares and starts only sources that declare nothing,
-  and the first `call` to a module starts it, so the app runs only the modules of
+  and the first `call` to a module starts it, so a host runs only the modules of
   types its blocks use. What a module's `start` answers (`kind_of`: frozen, schema,
   plain form, blank, description) is there only once it ran: `load(module)` starts it
   and awaits that, `Replicas::kind` does so for a content type, and a `Hello` heard
@@ -512,12 +512,12 @@ plugin's manifest and type module in its executable as one bundle
 (`PLUGIN_TYPES`, buck/app's `type_bundle`, read by `be_tool_cli::plugins`), so its
 release stays the one file guides/bootstrap.md pins, compiles them once into
 `BE3_CACHE/modules` through wasmtime's cache, and runs one module per plugin
-that has one, as the app does; the manifests also name the
+that has one, as block-app does; the manifests also name the
 types its own short names (`blocks::type_name`) do not cover. A host gives each
 plugin's `Source` the types its manifest declares (`Source::declaring`): `Modules`
 registers only those of the types that module lists, and no module takes a type
 another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
-and an app built from one tree share sessions. Tests and examples of a host run
+and a block-app built from one tree share sessions. Tests and examples of a host run
 every first-party types crate in process with `be_type_bundle::sources()`
 (`crates/be-type-bundle`), named by plugin id and declaring each module's types.

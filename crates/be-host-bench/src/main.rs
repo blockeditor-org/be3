@@ -114,72 +114,72 @@ fn first_device(
     url: &str,
 ) -> Result<(Device, Stroke), String> {
     let started = Instant::now();
-    let mut app = App::start(settings)?;
+    let mut host = Host::start(settings)?;
     be_tool_bench::time("first.start", started.elapsed());
-    app.add_account(server, url)?;
-    let phrase = app.save_phrase()?;
-    app.click("Button \"Personal\"")?;
-    app.wait("Pane \"Files\"")?;
-    app.run(&["settle"])?;
-    app.click("#file-tree.new")?;
-    app.click("MenuItem \"New in My files…\"")?;
-    app.click("MenuItem \"Folder\"")?;
-    app.wait("TextInput \"Name\" value=\"Folder\" focused")?;
-    app.run(&["key", "Enter"])?;
-    app.run(&["gone", "TextInput \"Name\""])?;
-    let folder = app.row_button("TreeItem \"Folder\"", ".more")?;
-    app.click(&folder)?;
-    app.click("#file-tree.zoom-in")?;
-    app.wait("#file-tree.back")?;
-    app.click("Button \"Close tab\"")?;
-    app.run(&["gone", "Tab \"Folder\""])?;
-    app.run(&["hurry", "off"])?;
+    host.add_account(server, url)?;
+    let phrase = host.save_phrase()?;
+    host.click("Button \"Personal\"")?;
+    host.wait("Pane \"Files\"")?;
+    host.run(&["settle"])?;
+    host.click("#file-tree.new")?;
+    host.click("MenuItem \"New in My files…\"")?;
+    host.click("MenuItem \"Folder\"")?;
+    host.wait("TextInput \"Name\" value=\"Folder\" focused")?;
+    host.run(&["key", "Enter"])?;
+    host.run(&["gone", "TextInput \"Name\""])?;
+    let folder = host.row_button("TreeItem \"Folder\"", ".more")?;
+    host.click(&folder)?;
+    host.click("#file-tree.zoom-in")?;
+    host.wait("#file-tree.back")?;
+    host.click("Button \"Close tab\"")?;
+    host.run(&["gone", "Tab \"Folder\""])?;
+    host.run(&["hurry", "off"])?;
 
-    app.add("Canvas", "canvas")?;
-    let canvas = app.place("#infinite-canvas.canvas")?;
+    host.add("Canvas", "canvas")?;
+    let canvas = host.place("#infinite-canvas.canvas")?;
     let at = |x: f32, y: f32| (canvas.0 + canvas.2 * x, canvas.1 + canvas.3 * y);
-    app.click("#infinite-canvas.dock.tool.Rectangle")?;
-    app.run(&[
+    host.click("#infinite-canvas.dock.tool.Rectangle")?;
+    host.run(&[
         "--no-settle",
         "drag",
         &target(at(0.2, 0.2)),
         &target(at(0.4, 0.4)),
     ])?;
-    app.wait(SHAPE)?;
-    app.save("canvas.rectangle-save")?;
-    app.click("#infinite-canvas.dock.tool.Pen")?;
-    let stroke = draw_stroke(&mut app, settings.points, at(0.1, 0.6), at(0.9, 0.7))?;
-    app.run(&["pen", "leave"])?;
-    app.click("#infinite-canvas.dock.tool.Select")?;
-    app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
-    app.close_tab("Canvas", "canvas.close")?;
+    host.wait(SHAPE)?;
+    host.save("canvas.rectangle-save")?;
+    host.click("#infinite-canvas.dock.tool.Pen")?;
+    let stroke = draw_stroke(&mut host, settings.points, at(0.1, 0.6), at(0.9, 0.7))?;
+    host.run(&["pen", "leave"])?;
+    host.click("#infinite-canvas.dock.tool.Select")?;
+    host.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
+    host.close_tab("Canvas", "canvas.close")?;
 
-    app.add("Text", "text")?;
-    app.click("#text.surface")?;
-    app.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
+    host.add("Text", "text")?;
+    host.click("#text.surface")?;
+    host.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
     let pasting = Instant::now();
-    app.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
-    app.within(LONG, &["wait", "The quick brown fox"])?;
+    host.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
+    host.within(LONG, &["wait", "The quick brown fox"])?;
     be_tool_bench::time("text.paste", pasting.elapsed());
-    app.save("text.paste-save")?;
-    app.paint("text.paint", &settings.out.join("first-text.paint"))?;
-    app.close_tab("Text", "text.close")?;
+    host.save("text.paste-save")?;
+    host.paint("text.paint", &settings.out.join("first-text.paint"))?;
+    host.close_tab("Text", "text.close")?;
 
-    let export = app.export("first.export", &settings.out.join("first.block"))?;
-    let canvas = app.reopen(
+    let export = host.export("first.export", &settings.out.join("first.block"))?;
+    let canvas = host.reopen(
         "TreeItem \"Canvas\"",
         "Canvas",
         "first.reopened.canvas",
         &settings.out.join("first-reopened-canvas.paint"),
     )?;
-    let text = app.reopen(
+    let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
         "first.reopened.text",
         &settings.out.join("first-reopened-text.paint"),
     )?;
     let closing = Instant::now();
-    app.close()?;
+    host.close()?;
     be_tool_bench::time("first.close", closing.elapsed());
     Ok((
         Device {
@@ -193,7 +193,7 @@ fn first_device(
 }
 
 fn draw_stroke(
-    app: &mut App,
+    host: &mut Host,
     points: usize,
     from: (f32, f32),
     to: (f32, f32),
@@ -229,16 +229,16 @@ fn draw_stroke(
         &stretches
             .each_ref()
             .map(|(_, to, steps, _)| (to.as_str(), *steps)),
-        app.scale()?,
+        host.scale()?,
     )?;
-    app.run(&["--no-settle", "pen", "down", &from])?;
+    host.run(&["--no-settle", "pen", "down", &from])?;
     for (metric, to, steps, per_frame) in &stretches {
-        app.stretch(*metric, to, *steps, *per_frame)?;
+        host.stretch(*metric, to, *steps, *per_frame)?;
     }
-    app.run(&["frames"])?;
-    app.run(&["--no-settle", "pen", "up"])?;
-    app.save("canvas.stroke-save")?;
-    let frames = app.run(&["frames"])?;
+    host.run(&["frames"])?;
+    host.run(&["--no-settle", "pen", "up"])?;
+    host.save("canvas.stroke-save")?;
+    let frames = host.run(&["frames"])?;
     be_tool_bench::time(
         "canvas.stroke-lift-longest-plugin-frame",
         longest(&frames, CANVAS_PLUGIN)?,
@@ -257,41 +257,41 @@ fn second_device(
     phrase: &[String],
 ) -> Result<Device, String> {
     let started = Instant::now();
-    let mut app = App::start(settings)?;
+    let mut host = Host::start(settings)?;
     be_tool_bench::time("second.start", started.elapsed());
     let signing_in = Instant::now();
-    app.add_account(server, url)?;
+    host.add_account(server, url)?;
     be_tool_bench::time("second.sign-in", signing_in.elapsed());
     let recovering = Instant::now();
-    app.recover(phrase)?;
+    host.recover(phrase)?;
     be_tool_bench::time("second.recover", recovering.elapsed());
     let opening = Instant::now();
-    app.click("Button \"Personal\"")?;
-    app.within(LONG, &["wait", "Pane \"Files\""])?;
-    app.run(&["settle"])?;
+    host.click("Button \"Personal\"")?;
+    host.within(LONG, &["wait", "Pane \"Files\""])?;
+    host.run(&["settle"])?;
     be_tool_bench::time("second.open-organization", opening.elapsed());
     be_tool_bench::time("second.total", started.elapsed());
-    app.run(&["hurry", "off"])?;
-    if !app.shown("#file-tree.back")? {
-        let folder = app.row_button("TreeItem \"Folder\"", ".more")?;
-        app.click(&folder)?;
-        app.click("#file-tree.zoom-in")?;
-        app.wait("#file-tree.back")?;
+    host.run(&["hurry", "off"])?;
+    if !host.shown("#file-tree.back")? {
+        let folder = host.row_button("TreeItem \"Folder\"", ".more")?;
+        host.click(&folder)?;
+        host.click("#file-tree.zoom-in")?;
+        host.wait("#file-tree.back")?;
     }
-    let canvas = app.reopen(
+    let canvas = host.reopen(
         "TreeItem \"Canvas\"",
         "Canvas",
         "second.reopened.canvas",
         &settings.out.join("second-reopened-canvas.paint"),
     )?;
-    let text = app.reopen(
+    let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
         "second.reopened.text",
         &settings.out.join("second-reopened-text.paint"),
     )?;
-    let export = app.export("second.export", &settings.out.join("second.block"))?;
-    app.close()?;
+    let export = host.export("second.export", &settings.out.join("second.block"))?;
+    host.close()?;
     Ok(Device {
         phrase: phrase.to_vec(),
         export,
@@ -325,11 +325,11 @@ fn text(bytes: usize) -> String {
     line.repeat(bytes / line.len() + 1)[..bytes].to_owned()
 }
 
-struct App {
+struct Host {
     driven: Option<Driven>,
 }
 
-impl App {
+impl Host {
     fn start(settings: &Settings) -> Result<Self, String> {
         let driven = Driven::start(
             &settings.program,
@@ -345,7 +345,7 @@ impl App {
     }
 
     fn driven(&mut self) -> &mut Driven {
-        self.driven.as_mut().expect("the app is still open")
+        self.driven.as_mut().expect("the host is still open")
     }
 
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<String, String> {
@@ -372,10 +372,10 @@ impl App {
         let driven = self.driven();
         let tree = match driven.request(&["tree"]) {
             Ok(Reply::Text(tree)) => tree,
-            _ => "(the app did not answer)".to_owned(),
+            _ => "(the host did not answer)".to_owned(),
         };
         format!(
-            "{} failed: {error}\n\nWhat the app shows:\n{tree}\n\n{}",
+            "{} failed: {error}\n\nWhat the host shows:\n{tree}\n\n{}",
             words.join(" "),
             driven.log_report()
         )
@@ -614,7 +614,7 @@ impl App {
     }
 
     fn close(&mut self) -> Result<(), String> {
-        let driven = self.driven.take().expect("the app is still open");
+        let driven = self.driven.take().expect("the host is still open");
         driven.close()
     }
 }

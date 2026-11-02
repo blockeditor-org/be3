@@ -76,14 +76,14 @@ too, with KOReader's own settings.
 
 ## Building and installing
 
-Build the app with its plugins for arm64 here, copy the directory to the PineNote, and install
+Build block-app with its plugins for arm64 here, copy the directory to the PineNote, and install
 it there as a session:
 
     ./scripts/buck build -m release //crates/be-host:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
     DIR/block-app --install-login-session
 
 `--install-login-session` also lists the login session in `/etc/greetd/environments`, which gtkgreet offers
-on its session menu. The first time the app signs in on the PineNote it finds the e-paper panel, so
+on its session menu. The first time block-app signs in on the PineNote it finds the e-paper panel, so
 the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
 the Status bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 

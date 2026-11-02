@@ -11,7 +11,7 @@ fn a_window_the_host_focuses_leads_the_window_switcher() {
         "a window that already has the keyboard is not given it again"
     );
 
-    assert!(fixture.test.app_key(Modifiers::ALT, Key::Tab));
+    assert!(fixture.test.host_key(Modifiers::ALT, Key::Tab));
     fixture.settle();
     fixture.test.hold_modifiers(Modifiers::NONE);
     fixture.settle();

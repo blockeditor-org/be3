@@ -4,7 +4,7 @@ A block's type is its content type, and a plugin brings it: the content is a `be
 
 ## 1. Make the types crate
 
-A plugin `crates/be-app-my-block` keeps its types in `crates/be-type-my-block`, a crate of its own (added to the root `Cargo.toml`'s members; run `./scripts/buck run //:buckify` after). It is a plain library that the editor, its tests and any other crate depend on for the typed content, and its `:module` build is the type module the app runs:
+A plugin `crates/be-app-my-block` keeps its types in `crates/be-type-my-block`, a crate of its own (added to the root `Cargo.toml`'s members; run `./scripts/buck run //:buckify` after). It is a plain library that the editor, its tests and any other crate depend on for the typed content, and its `:module` build is the type module the host runs:
 
 ```toml
 [lib]
@@ -84,7 +84,7 @@ impl Root for MyBlock {
 pub type MyBlockContent = Document<MyBlock>;
 ```
 
-`CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the app's registry is keyed by, the `id` the manifest declares the type under, and what an editor's manifest says it `edits`. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
+`CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the host's registry is keyed by, the `id` the manifest declares the type under, and what an editor's manifest says it `edits`. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
 
 Give each `Model` struct a kind, `#[model(kind = "my_block.item")]`: it is saved with every object, and the stack guide's "The stored form" says how fields are saved and how to add, rename and retire them without a migration. A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole; give its structs `#[serde(default)]`), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
 
@@ -154,7 +154,7 @@ fn name(&self) -> Option<String> {
 }
 ```
 
-Every save records this as the block's `INTRINSIC_NAME` metadata, and the app shows it while an editor has the block open (`be_host_stack::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
+Every save records this as the block's `INTRINSIC_NAME` metadata, and the host shows it while an editor has the block open (`be_host_stack::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
 
 ## 6. Children
 
@@ -170,7 +170,7 @@ fn child_edit(&self, change: ChildChange) -> Option<Edit> {
 }
 ```
 
-The app calls it through `be_host_stack::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/be-type-presentation/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
+The host calls it through `be_host_stack::change_child`, which the block's replica turns into an edit (`Change::Child`), so the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `crates/be-type-presentation/src/presentation.rs` and be-block's `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The type's manifest entry says which of these edits it accepts (`children`, below).
 
 ## 7. Undo
 
@@ -236,7 +236,7 @@ fn a_my_block_clears_only_the_done_items() {
 
 Test what the helpers mean: an edit made against content that has since changed, references, `child_edit`, a merge of two sides (`Merge::merge3`), and an undo (`Undo::step` then `revert`) when the type has one. The model itself is tested in `crates/be-block-model`; do not re-test lists or registers here. An editor test (block_ui_test) hosts blocks in an in-process type module that already has the host's types (`crates/be-sdk-type-host`), and registers a type, without undo, the first time the test holds or reads one by its Rust type; a test that undoes, or that has blocks of a plugin's type it never names (an embedded child), registers them first with `test.store().register(my_block_types::registrations())`.
 
-The unit tests of block-app, be-tool-cli, be-block-sync and be-block-frozen run every plugin's module in process from `be_type_bundle::sources()` (`crates/be-type-bundle`): add the new types crate to its `sources()` and `knows()`, named by the plugin's manifest id. An in-process module's session tag is a hash of its name, so another peer in the same test (a terminal host) joins the app's session only under the same name; give such a peer the same sources, in the same order. Do not put tests in the production file and do not use `#[path]`.
+The unit tests of block-app, be-tool-cli, be-block-sync and be-block-frozen run every plugin's module in process from `be_type_bundle::sources()` (`crates/be-type-bundle`): add the new types crate to its `sources()` and `knows()`, named by the plugin's manifest id. An in-process module's session tag is a hash of its name, so another peer in the same test (a terminal host) joins block-app's session only under the same name; give such a peer the same sources, in the same order. Do not put tests in the production file and do not use `#[path]`.
 
 ## Moving a type out of be-block
 

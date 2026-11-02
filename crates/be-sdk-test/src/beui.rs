@@ -1363,8 +1363,8 @@ impl<A: BeuiApp> BeuiTest<A> {
                 ShellCall::WebViewReload { this, .. } => {
                     shown(this).map(|id| (id, WebViewCommand::Reload))
                 }
-                ShellCall::WebViewFocusApp { this, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::FocusApp))
+                ShellCall::WebViewFocusHost { this, .. } => {
+                    shown(this).map(|id| (id, WebViewCommand::FocusHost))
                 }
                 _ => None,
             };
@@ -1793,11 +1793,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.window.intercepted_keys.clone()
     }
 
-    pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
-        self.hold_app_key(modifiers, key, 0)
+    pub fn host_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
+        self.hold_host_key(modifiers, key, 0)
     }
 
-    pub fn hold_app_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
+    pub fn hold_host_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
         if !self
             .intercepted_keys()
             .contains(&KeyChord::new(key, modifiers))
@@ -1818,7 +1818,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         true
     }
 
-    pub fn app_tap(&mut self, key: Key) -> bool {
+    pub fn host_tap(&mut self, key: Key) -> bool {
         if let Some(tapped) = self.desk_tap(key) {
             return tapped;
         }

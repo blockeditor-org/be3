@@ -12,9 +12,9 @@ fn alt_tab_switches_to_the_window_two_back_once_alt_is_let_go() {
         "the desktop asks the host for Alt+Tab, even from the program that has the keyboard"
     );
 
-    assert!(fixture.test.app_key(alt, Key::Tab));
+    assert!(fixture.test.host_key(alt, Key::Tab));
     fixture.settle();
-    assert!(fixture.test.app_key(alt, Key::Tab));
+    assert!(fixture.test.host_key(alt, Key::Tab));
     fixture.settle();
     assert!(
         fixture

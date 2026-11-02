@@ -165,7 +165,7 @@ mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
 mod rejects_unordered_occluders;
-mod rename_and_app_menu_children_round_trip;
+mod rename_and_host_menu_children_round_trip;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;
 mod view_sizes_round_trip;

@@ -21,7 +21,7 @@ fn with_instant_motion_the_level_keeps_its_time_and_goes_without_fading() {
         brightness: None,
         ..MediaLevels::default()
     });
-    assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
+    assert!(fixture.test.host_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
     fixture
         .test

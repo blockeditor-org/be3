@@ -2,10 +2,10 @@ use super::*;
 
 #[test]
 fn typing_in_the_add_menu_from_the_files_reaches_it_straight_away() {
-    let mut app = AppTest::start();
-    open_add_to_my_files(&mut app);
-    app.wait("#picker.more");
-    let tree = app.tree();
+    let mut host = HostTest::start();
+    open_add_to_my_files(&mut host);
+    host.wait("#picker.more");
+    let tree = host.tree();
     let rows: Vec<&str> = tree
         .lines()
         .filter(|line| line.contains("MenuItem \""))
@@ -15,14 +15,14 @@ fn typing_in_the_add_menu_from_the_files_reaches_it_straight_away() {
         .position(|row| row.contains("MenuItem \"More blocks…\""))
         .unwrap_or_else(|| panic!("the menu offers more blocks:\n{tree}"));
     for _ in more..rows.len() {
-        app.key("Up");
+        host.key("Up");
     }
-    app.wait("MenuItem \"More blocks…\" focused");
-    app.key("Enter");
-    app.wait("#picker.search");
-    app.type_text("check");
-    app.wait("Button \"Checklist\"");
-    app.key("Escape");
-    app.gone("#picker.search");
-    app.close();
+    host.wait("MenuItem \"More blocks…\" focused");
+    host.key("Enter");
+    host.wait("#picker.search");
+    host.type_text("check");
+    host.wait("Button \"Checklist\"");
+    host.key("Escape");
+    host.gone("#picker.search");
+    host.close();
 }

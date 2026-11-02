@@ -8,12 +8,12 @@ fn unsent_edits_can_be_restored_or_discarded() {
     shown
         .stepped
         .click(beui_host::native::testing::Target::id(format!(
-            "app.unsent.restore.{first}"
+            "host.unsent.restore.{first}"
         )));
     shown
         .stepped
         .click(beui_host::native::testing::Target::id(format!(
-            "app.unsent.discard.{first}"
+            "host.unsent.discard.{first}"
         )));
     let commands = crate::ui::take_commands();
     assert!(
@@ -31,7 +31,7 @@ fn unsent_edits_can_be_restored_or_discarded() {
     shown
         .stepped
         .click(beui_host::native::testing::Target::id(format!(
-            "app.unsent.restore.{second}"
+            "host.unsent.restore.{second}"
         )));
     assert!(
         crate::ui::take_commands()

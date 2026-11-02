@@ -2,15 +2,15 @@ use super::*;
 
 #[test]
 fn revision_history_previews_and_restores_a_text_file() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Text");
-    app.click("#text.surface");
-    app.type_text("Original revision");
-    app.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
-    app.click("Tab \"History\"");
-    app.wait("UTC\" #workspace.revision.");
-    app.wait("UTC · Current");
-    let original = app
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Text");
+    host.click("#text.surface");
+    host.type_text("Original revision");
+    host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
+    host.click("Tab \"History\"");
+    host.wait("UTC\" #workspace.revision.");
+    host.wait("UTC · Current");
+    let original = host
         .tree()
         .lines()
         .find(|line| line.contains("Current") && line.contains("#workspace.revision."))
@@ -18,23 +18,23 @@ fn revision_history_previews_and_restores_a_text_file() {
         .and_then(|tail| tail.split_whitespace().next())
         .map(|id| format!("#{id}"))
         .expect("the original content has a saved revision");
-    app.click("#text.surface");
-    app.key("ctrl+a");
-    app.type_text("Latest revision");
-    app.wait("Latest revision");
-    app.wait(&format!("UTC\" {original}"));
-    app.click(&original);
-    app.wait("#workspace.revision.current");
-    app.wait("Original revision");
-    app.crop("#workspace.revision.preview");
-    app.snapshot("revision_history_previews_a_saved_text_file");
-    app.click("#text.surface");
-    app.key("ctrl+a");
-    app.type_text("This must not change the revision");
-    assert!(!app.tree().contains("This must not change the revision"));
-    app.click("#workspace.revision.restore");
-    app.click("#workspace.revision.confirm");
-    app.gone("#workspace.revision.current");
-    app.wait("Original revision");
-    app.close();
+    host.click("#text.surface");
+    host.key("ctrl+a");
+    host.type_text("Latest revision");
+    host.wait("Latest revision");
+    host.wait(&format!("UTC\" {original}"));
+    host.click(&original);
+    host.wait("#workspace.revision.current");
+    host.wait("Original revision");
+    host.crop("#workspace.revision.preview");
+    host.snapshot("revision_history_previews_a_saved_text_file");
+    host.click("#text.surface");
+    host.key("ctrl+a");
+    host.type_text("This must not change the revision");
+    assert!(!host.tree().contains("This must not change the revision"));
+    host.click("#workspace.revision.restore");
+    host.click("#workspace.revision.confirm");
+    host.gone("#workspace.revision.current");
+    host.wait("Original revision");
+    host.close();
 }

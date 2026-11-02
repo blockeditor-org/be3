@@ -25,7 +25,7 @@ fn painting_sized(
     size: beui::Vec2,
 ) {
     let document = build(move || {
-        let view = AppViewStore::new(crate::ui::AppView {
+        let view = HostUiStore::new(crate::ui::HostUi {
             add_account: crate::ui::AddAccountView {
                 open: true,
                 pending: browser.is_some(),

@@ -16,16 +16,16 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
 - `//crates/be-host-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
   driven as `drive` drives it (crates/be-tool-drive's `Driven`, guides/running/drive.md), against
   a be-server in its own process, with `BE_LATENCY=30` (guides/running/drive.md), so every
-  round trip takes 30 ms more, and `BEUI_RENDERER=none`, so it measures the app's own work and
+  round trip takes 30 ms more, and `BEUI_RENDERER=none`, so it measures the host's own work and
   not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
   browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
   canvas and a text block from the files' New menu, draws a rectangle and a pen line of
   `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
-  and closes each, exports the folder as a .block file and closes the app. A second device,
+  and closes each, exports the folder as a .block file and closes the host. A second device,
   with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
   paints them and exports the folder again. It fails unless both exports are identical and
   each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
-  after the edit shows: the seal the app would wait 750 ms for, published to the server.
+  after the edit shows: the seal the host would wait 750 ms for, published to the server.
 - The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
   `canvas.line-draw`, from its first sample until the whole line shows, is the work the
   samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
@@ -39,7 +39,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
   so dropping one it would have kept moves the points after it.
   It takes about three minutes; set the two sizes lower while working on it. It needs
-  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
+  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the host loads, which the suite sets.
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -98,9 +98,9 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   metric's fastest and median from both.
 - The suite's `app-canvas-and-text` (crates/be-host-bench) drives block-app headless with no GPU
   (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
-  through `BE_LATENCY`; the server is pinned to one core and the app to the others.
+  through `BE_LATENCY`; the server is pinned to one core and the host to the others.
   It times what a person waits for: signing in, making, saving, closing, exporting and
-  reopening blocks, and a second device recovering the account. Every wait is one the app
+  reopening blocks, and a second device recovering the account. Every wait is one the host
   answers (`drive wait`, `gone`, `settle`), never a poll, and every command passes
   `--changes=0`. Its pen stroke sends 400 samples at the start and 400 at the end at 4 a
   frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
@@ -130,12 +130,12 @@ screen, not the world rectangle it shows.
 Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
 or a pen move is an edit the host applies and the editor reads back. None of that walks the
 document: a be-block-model `Document` keeps its block references up to date from what each edit
-touched once they have been asked for (the test host asks after every edit, the app's
-worker on every publish), the app's worker publishes a block's operations and encodes a
+touched once they have been asked for (the test host asks after every edit, the host's
+worker on every publish), the host's worker publishes a block's operations and encodes a
 snapshot only every few hundred of them (`Content` folds the operations since its snapshot
 when something reads it), and an editor holding edits the host has not acknowledged, or a
 follower holding edits the owner has not accepted, rebases them under a peer's edit by what
-either touched (`Document::rebase`) instead of rebuilding; the follower's app tells its
+either touched (`Document::rebase`) instead of rebuilding; the follower's host tells its
 editors with a `Beneath` operation rather than a snapshot (guides/the_new_block_stack.md).
 
 Accessibility follows the camera the way placement does. Each space a node lays children
@@ -224,37 +224,37 @@ or dump stacks to fold them yourself:
   `-e probe_libc:malloc -g`, and `perf probe -d 'probe_libc:*'` afterwards.
 - To profile block-app itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
   -m release //crates/be-host:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
-  plugins' compiled wasm has names, and record the running app with `perf record -g -p PID`
+  plugins' compiled wasm has names, and record the running host with `perf record -g -p PID`
   around the `drive` commands being measured. Each plugin runs on a thread named
   `plugin <id>` (cut to 15 characters, such as `plugin be3.data`), so `perf report --sort comm`
   splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
   Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
-  scroll's or resize's samples; leave them out when judging the app's own work.
+  scroll's or resize's samples; leave them out when judging the host's own work.
   The block store's worker is the thread `block-app-be`, and `:dev`'s embedded server runs on
   `tokio-rt-worker` threads.
 - Time block-app's waits as well as its work: an import or a create that uses little CPU but
   takes long is waiting on round trips to the server, one after another. Run `drive hurry off`
-  first (guides/running/drive.md): otherwise the app seals edits at once, and anything shown
+  first (guides/running/drive.md): otherwise the host seals edits at once, and anything shown
   only once an edit is sealed looks faster under `drive` than in a window.
-- To fill an organization with data, create a company organization on the dev app's
-  Organizations screen (the personal one has no agents), add an agent from its app menu
+- To fill an organization with data, create a company organization on the dev host's
+  Organizations screen (the personal one has no agents), add an agent from the host's menu
   (Agents), share a workspace with it, and point a `be` built from the checkout at it with
   the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
   and `import` a generated CSV make a tracker of any size.
 
 4. Starting block-app
 
-Reopening the app should go straight from the page or window to the workspace the last
+Reopening the host should go straight from the page or window to the workspace the last
 session left, with every step that can overlap running at once. What keeps it that way:
 
-- The last organization opened is kept with its account in app state, so a restart opens
+- The last organization opened is kept with its account in the host's state, so a restart opens
   it without waiting for the server's organization list and keys, which are fetched in
   the background (`resume_organization` in crates/be-host/src/main.rs). If the list
-  no longer has it, the app falls back to the organization list.
-- The plugins whose editors were open are kept in app state too, and are started with
+  no longer has it, the host falls back to the organization list.
+- The plugins whose editors were open are kept in the host's state too, and are started with
   the shell's plugin and the plugins of the editors the shell's manifest `opens`
   (`warm_plugins` in crates/be-host/src/main.rs, `be_host_runtime::warm`), before the
-  shell asks for them. The app warms them as soon as it knows it will open a workspace (an
+  shell asks for them. The host warms them as soon as it knows it will open a workspace (an
   account signed in or signing in), before its window and GPU are set up: a plugin warmed
   before `install` loads, links and instantiates on its own thread at once, waits for the
   host's device only when it first reaches the GPU, and becomes the runtime that `install`
@@ -267,7 +267,7 @@ session left, with every step that can overlap running at once. What keeps it th
   be-host-runtime/src/runtime.rs, run from `poll`); a warmed plugin nothing opens is stopped
   the same way. Opening one of its editors again starts it afresh.
 - On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
-  `Module::deserialize_file`) rather than read into memory and copied: the app's
+  `Module::deserialize_file`) rather than read into memory and copied: the host's
   plugins, libraries and type modules come to about 400 MB, and mapping them took about a
   third of a second off the time to the workspace's Files pane (October 2026).
 - The host prefetches the content of an editor's references (up to four) as soon as its
@@ -282,7 +282,7 @@ session left, with every step that can overlap running at once. What keeps it th
 5. Size
 
 What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`:
-the app, every plugin and type module, the two libraries (guides/plugin_libraries.md), and a
+block-app, every plugin and type module, the two libraries (guides/plugin_libraries.md), and a
 `.cwasm` of each. In October 2026 on Linux x86_64 that was 896 MB, 297 MB gzipped:
 
 - `.cwasm`, 595 MB (198 MB gzipped): Cranelift's machine code is about two and a half times
@@ -294,7 +294,7 @@ the app, every plugin and type module, the two libraries (guides/plugin_librarie
   standalone, 1.8 MB each, mostly `be-block-model`, `be-lib-sequence` and `be-sdk-type-guest` again.
 - block-app, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
 
-To see where it goes: `size -A` and `nm -S --size-sort -C` for the app, twiggy
+To see where it goes: `size -A` and `nm -S --size-sort -C` for block-app, twiggy
 (`cargo install twiggy`, `twiggy top -n 100000 --format csv`) for a module, and
 `size -A` on a `.cwasm`, which is an ELF file. Attribute a generic instance to the
 innermost first-party type in its name, not to `core` or `alloc`: that is what put
@@ -303,9 +303,9 @@ functions (`probe_erased`, `Computation::new`'s `parts`), since every closure ty
 
 What is already in place: fat LTO with one codegen unit for the deploy only (`be3.lto`, a ten
 minute link), legacy symbol mangling in release (buck/platforms/profile.bzl) and the hashed
-export names of linked modules (guides/plugin_libraries.md). Thin LTO left the app as it was,
+export names of linked modules (guides/plugin_libraries.md). Thin LTO left block-app as it was,
 and `opt-level=s` for wasm took a twentieth off the plugins while growing both libraries and
-beui-gallery by four fifths. Stripping the app's symbols or the modules' name sections
+beui-gallery by four fifths. Stripping block-app's symbols or the modules' name sections
 would take 24 MB and 27 MB more, but the panic guard's reports and a guest's backtrace read them.
 
 6. Ideas tried and set aside

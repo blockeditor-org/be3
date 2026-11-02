@@ -1,4 +1,4 @@
-# Running the app on Android
+# Running block-app on Android
 
 The Android emulator needs KVM. Check before anything else:
 
@@ -34,16 +34,16 @@ select the Android package or storage directory.
     ./scripts/android-emulator
 
 The first command builds the APK into `target/android/block-app.apk`. The second boots the
-emulator if it is not running, installs the APK if it changed, launches the app, waits
-`--wait` seconds (20 by default) and prints the app's log and whether it is still running.
-It exits non-zero if the app died. It writes `logcat.txt`, `app.log` and `screen.png` to
+emulator if it is not running, installs the APK if it changed, launches block-app, waits
+`--wait` seconds (20 by default) and prints its log and whether it is still running.
+It exits non-zero if block-app died. It writes `logcat.txt`, `app.log` and `screen.png` to
 `/tmp/be3-android`. `--apk PATH` installs a different APK, which is how to compare a
 branch against main. The runner defaults to the dev package; for a CI or
 deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`. `./scripts/android-emulator stop` shuts the emulator down.
 
-The APK only carries arm64 code, and the emulator is x86_64, so the app runs under
+The APK only carries arm64 code, and the emulator is x86_64, so block-app runs under
 Android's arm64 translation. A native crash's backtrace stops at the translation layer
-and does not show the app's frames. The app's stdout and stderr, where Rust's panic
+and does not show block-app's frames. Its stdout and stderr, where Rust's panic
 messages go, are in logcat under the tag `RustStdoutStderr`, and are the way to find out
 why it aborted.
 
@@ -58,11 +58,11 @@ every coordinate below is in them.
     adb shell input keyevent 67        # backspace; 4 is back, 3 is home
 
 `adb shell uiautomator dump /sdcard/ui.xml && adb shell cat /sdcard/ui.xml` is the
-accessibility tree the app gives Android, with each node's class, text and bounds on
+accessibility tree block-app gives Android, with each node's class, text and bounds on
 screen, which is how to find what to tap.
 
 Tap a text field before typing into it. The keyboard takes the bottom of the screen, and
-the app's area shrinks to what is left.
+block-app's area shrinks to what is left.
 
 ## TalkBack
 
@@ -70,7 +70,7 @@ the app's area shrinks to what is left.
     adb shell settings put secure enabled_accessibility_services '""'    # off
 
 The first time it is turned on, TalkBack opens its own tutorial and permission prompts
-over the app; relaunch the app with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
+over block-app; relaunch it with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
 
 `input tap` is injected past TalkBack's touch exploration, so under TalkBack it still
 clicks. To touch the screen the way a finger does, write to the touchscreen's device with

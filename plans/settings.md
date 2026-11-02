@@ -195,7 +195,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
    prefix stays a label. It is the only way a prefix resolves: there is no
    fallback search. Creating a database, changing its prefix, or moving it
    into another workspace updates the registries. An ambiguous prefix says so
-   instead of picking one. `be` and the app both read it; naming a database by
+   instead of picking one. `be` and the host both read it; naming a database by
    its name (`be Issues row ...`) is unchanged. Update `guides/tracker.md`.
    Done: `be_block::PrefixRegistry` (database -> prefix, read as prefix ->
    databases), visible to anyone inside by default. `be ROW-ID` resolves
@@ -207,7 +207,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
    be-tool-cli `a_row_id_resolves_through_the_workspaces_prefixes`, database
    `a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so`.
    A move (`Peer::set_parent`, used by `be TARGET move`, `be sync` and the
-   app) takes the databases inside the moved block out of the registry above
+   host) takes the databases inside the moved block out of the registry above
    its old place and into the one above its new place (be-tool-cli
    `a_database_moved_to_another_workspace_takes_its_prefix_along`).
 10. **Tags.** Definitions (name, color) in the workspace's settings. Applying a
@@ -303,7 +303,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
     but their My files, by creating one or by moving a block to the top
     (`may_add_workspace`, for any type but the settings ones, `be_block::is_workspace_type`; be-block-client
     `moving_a_block_to_the_top_follows_who_may_make_workspaces`). My files is
-    kept because every account needs it: the app makes it on opening an
+    kept because every account needs it: the host makes it on opening an
     organization and puts there what is made or restored outside any
     workspace. Its id is derived from the organization and the account
     (`be_block::my_files`), so the server knows it, and nobody else may take

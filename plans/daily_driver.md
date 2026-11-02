@@ -1,6 +1,6 @@
 # Daily driver
 
-A plan to get the app to the point where the user keeps their own notes in it.
+A plan to get the host to the point where the user keeps their own notes in it.
 Each phase lists what "done" looks like.
 
 Real notes live in one remote workspace on a server running on a single VPS.
@@ -9,7 +9,7 @@ signs in keeps their work in one. Offline support on web waits until before a
 public release.
 
 From the freeze on (phase 8):
-- Data written by the app must keep working in later versions.
+- Data written by the host must keep working in later versions.
   - That holds for the text and folder blocks and everything they sit on:
     objects, commits, metadata, keys and the server's database.
   - Other block types may keep breaking.
@@ -72,7 +72,7 @@ positional.
   - When a frame does not decode, reply with its request id.
 - **SQLite.**
   - The server (`be-server/src/schema.rs`) and the client
-    (`be-host/src/app_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
+    (`be-host/src/host_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
     with no migrations.
   - Done: `PRAGMA user_version`, ordered migrations, and a test that opens
     every older schema.
@@ -109,7 +109,7 @@ Landed:
   zone, with the database sealed by a backup key and old snapshots thinned.
 - Deployment and hosting are described in `guides/hosting.md`.
 
-Garbage collection stays off: the app never sends `CollectDetached` or
+Garbage collection stays off: the host never sends `CollectDetached` or
 `PruneHistory`, and unpublished objects are never collected, until trash and
 history (phase 7) define what may be reclaimed. Token expiry, changing a
 password, per-IP limits, storage quotas, a health endpoint and a config file
@@ -117,7 +117,7 @@ wait for a public release (`plans/public_release.md`).
 
 ## Phase 5: Offline and flaky connections
 
-Done so far: the app is offline-first natively (refs database, cached peer,
+Done so far: the host is offline-first natively (refs database, cached peer,
 local sealing, outbox drain and merge on reconnect, timeouts and pings). What
 is left is marked below.
 
@@ -125,7 +125,7 @@ is left is marked below.
 
 - **A local refs database** beside `be-objects` (SQLite on native) holds
   (done: `be_block_client::refs`, `Peer::cached`/`attach`, the outbox and
-  `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, on
+  `Peer::drain`; the host keeps `be-refs.sqlite3` in its data directory, on
   web in the origin private file system):
   - each block's local head and last-known remote head;
   - the graph, with its metadata;
@@ -198,7 +198,7 @@ is left is marked below.
 
 ### Status UI
 
-- Done: the app menu's status (`app.menu.status`, `ui::SyncState`) shows one
+- Done: the host menu's status (`host.menu.status`, `ui::SyncState`) shows one
   of connecting (until the first attempt resolves), offline (n changes kept on
   this device), syncing, saved, or error, from
   `be::Status { connected, waiting, syncing, error }`. `Status.waiting`
@@ -208,8 +208,8 @@ is left is marked below.
   and "See both versions" opens both sides as revision previews side by side
   (`be::conflicts`, `compositor::ConflictSurface`) to keep the merge or go
   back to either side; either clears the block's conflicts.
-- Done: unsent edits (settings step 16) are listed from the app menu
-  ("Unsent edits", `app.unsent`) with Restore, when offerable, and Discard
+- Done: unsent edits (settings step 16) are listed from the host menu
+  ("Unsent edits", `host.unsent`) with Restore, when offerable, and Discard
   after a confirmation (`be::unsent`, `restore_unsent`, `discard_unsent`).
   The worker must refresh `Shared.unsent` from `Peer::unsent()` after a
   drain.
@@ -237,9 +237,9 @@ each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
 
 **Profile before guessing.** The list below comes from reading the code. Before
-working through items 3-8, profile the real app with a document of 10,000
+working through items 3-8, profile the real block-app with a document of 10,000
 lines of 200 words each (about 12 MB):
-- Generate it as a text block, open it in the native app, and also measure on
+- Generate it as a text block, open it in native block-app, and also measure on
   Android.
 - Record a CPU profile (`perf` with frame pointers on Linux, or the
   `performance` module's frame timings) for each of: typing a character,
@@ -360,12 +360,12 @@ Needed before daily use:
   - Export a folder or the whole workspace to a directory of `.md` files,
     with links between notes rewritten as relative paths.
   - Import a directory of `.md` files.
-  - Being able to leave is part of trusting the app with notes, and this is
+  - Being able to leave is part of trusting the host with notes, and this is
     also a second, plaintext backup.
   - `be sync` (guides/sync.md) already writes a folder as a directory and
     reads it back on native, with `be_block::plain` as the one mapping between
     a block and a file. Build export and import on those; what is left is the
-    app's side (a directory picker, the web's download as a zip) and rewriting
+    host's side (a directory picker, the web's download as a zip) and rewriting
     links between notes as relative paths.
 - **Created and modified times** on `BlockInfo`, for sorting and recents.
 - **Linking.** `[[` autocomplete to link a note while typing.
@@ -384,8 +384,8 @@ and deleting a database stops being a fix.
 
 - **Golden fixtures.**
   - Check in bytes that the current code writes: a sealed text block, a
-    folder, metadata, a commit, a snapshot tree, a server database, and an
-    app-state database.
+    folder, metadata, a commit, a snapshot tree, a server database, and the
+    host's state database.
   - The fixtures live under `snapshots/formats/`, and `./scripts/verify` decodes
     them.
   - A test fails if a frozen type's encoding of a known value changes.

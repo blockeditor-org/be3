@@ -21,7 +21,7 @@ from inside block-app.
   PTY, keeps an emulator of it, and writes what the emulator shows into the
   document.
 - `be_tool_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
-  same `be_block_type_host::Replicas` the app's peer runs, attached as the host's own
+  same `be_block_type_host::Replicas` block-app's peer runs, attached as the host's own
   editor (`HOST_EDITOR`) through an `EditorMirror<C>`. `content` is the mirror's
   content and `edit` operates on it; `show` and `send` are
   `FromEditor::ShowPresence` and `SendToPeers`, `presence` and `take_messages`
@@ -153,8 +153,8 @@ top bar says no machine is running it, with a popover of the setup steps.
 
 Viewers send the client in `host`, while it shows `TerminalHost`, peer messages
 on the block's live session (guides/the_new_block_stack.md, Peer messages), so
-the server relays them sealed and cannot read the terminal. Host and app are
-replicas of one session, so both must run the same build of the module that
+the server relays them sealed and cannot read the terminal. The terminal host and block-app
+are replicas of one session, so both must run the same build of the module that
 holds `TerminalContent` (the session's tag, guides/type_modules.md): `be`
 carries that build in its executable.
 
@@ -193,7 +193,7 @@ come before a public release.
   `two_terminal_hosts_take_turns_and_the_second_stands_by` and
   `a_terminal_host_encodes_keys_for_the_mode_its_program_set`.
 - `block-app`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
-  a real host against the app's own stack, read from the block's content.
+  a real host against block-app's own stack, read from the block's content.
 - be-lib-ghostty-vt's tests cover rows, history, the encoders and paste; be-type-terminal'
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages

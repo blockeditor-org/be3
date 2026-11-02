@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_crash_report_does_not_leave_a_dev_run_busy() {
-    let state = AppStateStore::open(":memory:").expect("the app state opens");
+    let state = HostStateStore::open(":memory:").expect("the host state opens");
     let mut app = BlockApp::with_state(state, String::new()).expect("the app starts");
     app.dev_workspace = true;
     assert_eq!(

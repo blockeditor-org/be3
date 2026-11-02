@@ -12,14 +12,14 @@ fn the_last_organization_belongs_to_its_account_and_leaves_with_it() {
         role: be_block_protocol::OrganizationRole::Administrator,
     };
     {
-        let store = AppStateStore::open(&path).unwrap();
+        let store = HostStateStore::open(&path).unwrap();
         store.save_account(&first).unwrap();
         store.save_account(&second).unwrap();
         store
             .set_last_organization_details(&first, &organization)
             .unwrap();
     }
-    let store = AppStateStore::open(&path).unwrap();
+    let store = HostStateStore::open(&path).unwrap();
     assert_eq!(store.last_organization(&first).unwrap(), Some(organization));
     assert_eq!(store.last_organization(&second).unwrap(), None);
     store.remove_account(&first).unwrap();

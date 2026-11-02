@@ -25,7 +25,7 @@ pub(crate) fn panel_icon(panel: HostPanel) -> Glyph {
         HostPanel::BlockStack => ICON_LAYERS,
         HostPanel::Performance => ICON_GAUGE,
         HostPanel::Plugins => ICON_PUZZLE,
-        HostPanel::AppMenu => ICON_MENU,
+        HostPanel::Menu => ICON_MENU,
     }
 }
 
@@ -34,7 +34,7 @@ pub(crate) fn panel_window(panel: HostPanel) -> Rect {
         HostPanel::BlockStack => (pos2(60.0, 60.0), vec2(760.0, 600.0)),
         HostPanel::Performance => (pos2(120.0, 100.0), vec2(520.0, 420.0)),
         HostPanel::Plugins => (pos2(150.0, 90.0), vec2(560.0, 440.0)),
-        HostPanel::AppMenu => (pos2(60.0, 60.0), vec2(280.0, 360.0)),
+        HostPanel::Menu => (pos2(60.0, 60.0), vec2(280.0, 360.0)),
     };
     Rect::from_min_size(position, size)
 }

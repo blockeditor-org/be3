@@ -1,4 +1,4 @@
-// The Worker the app's block stack runs in (crates/be-host/src/be/web.rs).
+// The Worker the host's block stack runs in (crates/be-host/src/be/web.rs).
 //
 // Unlike a thread (thread.js), this worker has the module's JavaScript glue
 // beside it: it instantiates the module again against the page's shared memory

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_window_shown_in_the_app_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener() {
+fn a_window_shown_in_the_host_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener() {
     let viewport = vec2(800.0, 600.0);
     let fits = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
     assert_eq!(
@@ -35,6 +35,6 @@ fn a_window_shown_in_the_app_is_kept_inside_it_and_shrinks_rather_than_covering_
     assert_eq!(
         clamped(huge, viewport),
         Rect::from_min_size(Pos2::ZERO, viewport),
-        "one larger than the app fills it"
+        "one larger than the host fills it"
     );
 }

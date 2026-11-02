@@ -60,7 +60,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
     );
     fixture.test.clear_calls();
 
-    assert!(fixture.test.app_key(Modifiers::ALT, Key::Tab));
+    assert!(fixture.test.host_key(Modifiers::ALT, Key::Tab));
     fixture.settle();
     fixture.test.hold_modifiers(Modifiers::NONE);
     fixture.settle();

@@ -79,7 +79,7 @@ impl Plugins {
             .find(|block_type| self.types.contains_key(block_type))
         {
             self.errors.push(format!(
-                "{source}: {block_type} is a block type the app or a plugin found first already provides"
+                "{source}: {block_type} is a block type the host or a plugin found first already provides"
             ));
             return;
         }
@@ -127,7 +127,7 @@ impl Plugins {
                 .find(|block_type| !self.types.contains_key(block_type))
                 .unwrap_or_default();
             self.errors.push(format!(
-                "{}: {missing} is not a block type the app or any plugin provides",
+                "{}: {missing} is not a block type the host or any plugin provides",
                 manifest.identity.id
             ));
             self.types = block_types(&self.manifests);
@@ -272,7 +272,7 @@ fn staged(
             .iter()
             .any(|manifest| manifest.identity.id == plugin_id)
     {
-        return deliver(Err(format!("{plugin_id} is not a plugin this app found")));
+        return deliver(Err(format!("{plugin_id} is not a plugin this host found")));
     }
     let relative = format!("{DATA}/{plugin_id}/{path}");
     fetch(relative.clone(), move |read| {

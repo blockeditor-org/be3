@@ -44,7 +44,7 @@ whose methods are what the host says to that instance and whose drop closes it;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,
-move, place, restore), and `shell.act` with a `shell-command` asks the app
+move, place, restore), and `shell.act` with a `shell-command` asks the host
 around it (share, leave, close the editor). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
@@ -71,10 +71,10 @@ a `read-plain-file` or `fetch` the plugin made after it. Only what a frame
 itself carries (its layout, `frame-needed`, paintings) is taken at once.
 
 The accepted handshake carries the theme the host is drawn in, which is what
-a plugin's own interface follows, so an editor looks the same as the app it is
+a plugin's own interface follows, so an editor looks the same as the host it is
 embedded in wherever it runs.
 
-The protocol has no version and the handshake checks none: the app and its
+The protocol has no version and the handshake checks none: the host and its
 plugins are built together, so a change to a function needs no bookkeeping. A
 call the other side does not know is answered `unsupported`. The plugin checks
 the order of what the host asks of it (no screens before the handshake, input
@@ -117,7 +117,7 @@ into the frame that delivered the input rather than the one after it. A screen
 the host did not draw last frame is sent nothing.
 
 Opening an instance carries the account and organization its block client speaks
-for, and the id of the app client the host itself is: a per-installation
+for, and the id of the client the host itself is: a per-installation
 identity a block that stores one setting per client - the settings block -
 resolves against, which the instance's own tunnelled client cannot supply
 because the host opens a fresh one for every runtime.
@@ -243,7 +243,7 @@ and stop publishing a cursor; an instance that wants no cursor of its own
 ignores it. The framework also draws the people viewing the block from the same
 client, and asks the instance to reveal one of their cursors when the user picks
 that person out, which only the instance can do because only it knows where in
-its own content that cursor is - an in-process call on the app, not a message.
+its own content that cursor is - an in-process call on the host, not a message.
 
 An editor instance may be asked to replace one of the blocks it references with
 another - a copy the host made of a block being edited in two places at once -
@@ -331,7 +331,7 @@ to see it, and lists it again when the account's contacts, a value the host
 publishes to that instance, change.
 
 An editor instance may ask the host to choose a file for it, which only the
-host can do on every platform the app runs on. The request carries the filter
+host can do on every platform the host runs on. The request carries the filter
 the picker offers and is answered exactly once, with the file the host read,
 the picker the user closed, or why the file could not be read. Requests are
 identified per instance and may be outstanding together.
@@ -373,7 +373,7 @@ name is not one the plugin's manifest names, and reports the refusal as an
 ordinary failure rather than as a protocol error.
 
 An editor instance may read the files its plugin was staged with, which are
-read-only data the build lays out beside the app rather than anything an
+read-only data the build lays out beside the host rather than anything an
 organization holds: a plugin has no file system of its own on any platform. It
 may ask for the list of those files, answered with every path relative to its
 data, and for one file by that path, answered with its bytes or with why they
@@ -381,10 +381,10 @@ could not be read. A plugin reaches only its own data; a path that is not a
 plain relative path is refused as an ordinary failure.
 
 An editor instance may ask the host for web views, each a window of the
-operating system's own laid over the app rather than anything a plugin could
+operating system's own laid over the host rather than anything a plugin could
 draw. The instance names each view it opens with an identifier of its own,
 opens it at a URL, asks it to navigate, reload or hand the keyboard back to
-the app, and shows it by placing it as a child, like a block; a view no child
+the host, and shows it by placing it as a child, like a block; a view no child
 places is hidden. The host maps the child's rectangle through the placement it
 last drew the instance's screen at, hides the view while the instance is not
 being drawn, and closes it with the instance. It reports back
@@ -625,9 +625,9 @@ submenus, popovers, tooltips, the selection toolbar, small dialogs opened from
 a control) and sheets attached to an edge out of the view that opened them,
 with no round trip; the host draws each above every view. A screen
 request may carry an anchor space (`screen-request.anchor-space`): `to-host`, which
-maps the view's points to host coordinates (the app window's logical points)
+maps the view's points to host coordinates (the host window's logical points)
 at the camera the request lays it out against, and `bounds`, the rectangle in
-host coordinates where views anchored to it may go: the app window for a
+host coordinates where views anchored to it may go: the host window for a
 trusted plugin, the plugin's own box for a confined one. A child's bounds
 never exceed its parent's, and a screen requested without an anchor space
 anchors no views. An anchored view is a screen like any other, which the
@@ -652,7 +652,7 @@ occluder; a child's own frame appears one frame after the view that holds it.
 The plugin lays an anchored view out and draws it at full size in host
 points, so a menu opened in a view shown at half size is as large as any
 other menu, at the screen's raster divided by `to-host`'s scale, in pixels per
-host point: the app window's own density, whatever the view's zoom, since the
+host point: the host window's own density, whatever the view's zoom, since the
 screen's raster already counts it. The host draws anchored views after every
 view, in the order they opened across every view of the window: each one's
 scrims, then its `painted` rectangles from its surface; it draws nothing of
@@ -688,18 +688,18 @@ in it, whose own pixels appear one frame after the view. That is how an
 instance asks for a block (the picker, below), renames one
 (`child-content.rename`, run in the editor whose manifest accepts `rename`,
 opened as `opening.rename`, which says it is done with `close-dialog`,
-arriving as the child's `child-status.dialog`) and shows the app's menu
-(`host-panel.app-menu`, which the host draws and reports done the same way,
+arriving as the child's `child-status.dialog`) and shows the host's menu
+(`host-panel.menu`, which the host draws and reports done the same way,
 its size as the child's intrinsic size). The instance marks the view
 `keyboard`, so the child takes the keyboard when it opens and gives it back
 when it closes. A press outside the view closes it and removes the child,
 which closes the editor in it. On touch or a phone the instance instead
 attaches a bare view to the bottom edge of its bounds and has the child fill
 it; the host tells a child placed in a view attached to an edge that it is a
-sheet (`open-picker.sheet`, `open-rename.sheet`, and the app menu it draws
+sheet (`open-picker.sheet`, `open-rename.sheet`, and the host menu it draws
 itself), and the child draws the sheet.
 In the browser, where a plugin draws in a worker of its own, the page gives
-that worker one canvas over the whole app on its first anchored view and keeps
+that worker one canvas over the whole host on its first anchored view and keeps
 it; the worker draws each anchored view's `painted` rectangles into it where
 the page says, the page clips the canvas to the plugin's bounds, and the
 canvas of the plugin that opened the newest one is on top.
@@ -912,7 +912,7 @@ it failed - and the picker asks the host to make it, under a parent and with a
 name, by committing the child.
 
 An editor instance may ask the host to present it: to give it the whole window
-and show nothing else of the app, which is what a slideshow or a video played
+and show nothing else of the host, which is what a slideshow or a video played
 back full screen wants. The host owns the answer and reports the state it
 settled on, since it may refuse, and takes presenting away again when the
 instance is no longer the one on screen. A presenting instance is a frame owner

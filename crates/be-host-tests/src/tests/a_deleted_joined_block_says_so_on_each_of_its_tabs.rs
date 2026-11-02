@@ -4,18 +4,18 @@ const DELETED_BAR: &str = "GenericContainer #workspace.deleted at";
 
 #[test]
 fn a_deleted_joined_block_says_so_on_each_of_its_tabs() {
-    let mut app = AppTest::start();
-    open_beui_demo(&mut app);
-    let more = row_menu(&mut app, "beui demo");
-    app.click(&more);
-    app.click("MenuItem \"Delete\"");
-    app.wait("#workspace.deleted.restore");
-    app.run(&["settle"]);
+    let mut host = HostTest::start();
+    open_beui_demo(&mut host);
+    let more = row_menu(&mut host, "beui demo");
+    host.click(&more);
+    host.click("MenuItem \"Delete\"");
+    host.wait("#workspace.deleted.restore");
+    host.run(&["settle"]);
     assert_eq!(
-        app.count(DELETED_BAR),
+        host.count(DELETED_BAR),
         2,
         "both of the block's tabs in the workspace dock show that it was deleted"
     );
-    app.snapshot("a_deleted_joined_block_says_so_on_each_of_its_tabs");
-    app.close();
+    host.snapshot("a_deleted_joined_block_says_so_on_each_of_its_tabs");
+    host.close();
 }

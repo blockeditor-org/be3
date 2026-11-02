@@ -4,22 +4,22 @@ const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn an_active_child_pans_in_the_frame_its_canvas_pans() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Canvas");
-    add_to_canvas(&mut app, "Pan and Zoom");
-    let card = app.place("GenericContainer #infinite-canvas.entity.");
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Canvas");
+    add_to_canvas(&mut host, "Pan and Zoom");
+    let card = host.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
-    app.run(&["click", &inside]);
-    app.wait("Pane \"Pan and Zoom\"");
-    app.gone("#infinite-canvas.dock");
-    app.run(&["settle"]);
+    host.run(&["click", &inside]);
+    host.wait("Pane \"Pan and Zoom\"");
+    host.gone("#infinite-canvas.dock");
+    host.run(&["settle"]);
 
     for _ in 0..3 {
-        let before = app.place(ARTWORK);
-        app.run(&["--no-settle", "wheel", &inside, "1"]);
-        let first = app.place(ARTWORK);
-        app.run(&["settle"]);
-        let settled = app.place(ARTWORK);
+        let before = host.place(ARTWORK);
+        host.run(&["--no-settle", "wheel", &inside, "1"]);
+        let first = host.place(ARTWORK);
+        host.run(&["settle"]);
+        let settled = host.place(ARTWORK);
         assert!(
             settled.1 < before.1,
             "the wheel pans the canvas under the editor, from {before:?} to {settled:?}"
@@ -29,5 +29,5 @@ fn an_active_child_pans_in_the_frame_its_canvas_pans() {
             "the editor is where the pan leaves it in the frame that took the wheel"
         );
     }
-    app.close();
+    host.close();
 }

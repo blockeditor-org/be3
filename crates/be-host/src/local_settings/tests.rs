@@ -25,14 +25,14 @@ const FAST: DisplayMode = DisplayMode {
 
 struct Store {
     path: PathBuf,
-    store: AppStateStore,
+    store: HostStateStore,
 }
 
 impl Store {
     fn open() -> Self {
         let path =
             std::env::temp_dir().join(format!("block-app-settings-{}.sqlite3", Uuid::new_v4()));
-        let store = AppStateStore::open(&path).expect("the app state opens");
+        let store = HostStateStore::open(&path).expect("the host state opens");
         Self { path, store }
     }
 

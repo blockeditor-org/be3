@@ -45,7 +45,7 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
     assert!(
         fixture
             .test
-            .placed(|content| *content == ChildContent::Host(HostPanel::AppMenu))
+            .placed(|content| *content == ChildContent::Host(HostPanel::Menu))
             .is_some(),
         "the Apps panel's menu row places the app's menu in a view it anchored"
     );

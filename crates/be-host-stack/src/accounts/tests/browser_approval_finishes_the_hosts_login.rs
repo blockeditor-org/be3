@@ -1,6 +1,6 @@
 use super::*;
 #[tokio::test]
-async fn browser_approval_finishes_the_apps_login() {
+async fn browser_approval_finishes_the_hosts_login() {
     be_lib_build_id::install("test");
     let directory = std::env::temp_dir().join(format!("block-app-browser-auth-{}", Uuid::new_v4()));
     let (_, _) = be_server::ServerStore::open(&directory)

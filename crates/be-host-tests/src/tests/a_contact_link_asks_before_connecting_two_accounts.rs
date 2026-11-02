@@ -2,12 +2,12 @@ use super::*;
 
 #[test]
 fn a_contact_link_asks_before_connecting_two_accounts() {
-    let mut app = AppTest::start();
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.contacts");
-    app.click("#app.contacts.new-link");
-    app.wait("#app.contacts.link");
-    let link = app
+    let mut host = HostTest::start();
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.new-link");
+    host.wait("#host.contacts.link");
+    let link = host
         .tree()
         .lines()
         .find_map(|line| {
@@ -16,38 +16,38 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
             value.contains("#contact/").then(|| value.to_owned())
         })
         .expect("the dialog shows the link it made");
-    app.key("Escape");
-    app.pause(500);
-    app.gone("Dialog \"Contacts\"");
+    host.key("Escape");
+    host.pause(500);
+    host.gone("Dialog \"Contacts\"");
 
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.accounts");
-    app.click("Button \"Add account\"");
-    app.click("#account.local");
-    app.click("#account.name");
-    app.type_text("Ada");
-    app.click("#account.confirm");
-    app.wait("Heading \"Check that you saved them\"");
-    confirm_phrase(&mut app);
-    app.click("Button \"Personal\"");
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.accounts");
+    host.click("Button \"Add account\"");
+    host.click("#account.local");
+    host.click("#account.name");
+    host.type_text("Ada");
+    host.click("#account.confirm");
+    host.wait("Heading \"Check that you saved them\"");
+    confirm_phrase(&mut host);
+    host.click("Button \"Personal\"");
 
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.contacts");
-    app.click("#app.contacts.paste");
-    app.type_text(&link);
-    app.click("#app.contacts.open");
-    app.wait("#app.contacts.offer");
-    app.crop("AlertDialog \"Connect?\"");
-    app.snapshot("a_contact_link_asks_before_connecting_two_accounts");
-    app.click("#app.contacts.offered.accept");
-    app.wait("Label value=\"Dev\"");
-    app.crop("Dialog \"Contacts\"");
-    app.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
-    app.close();
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.paste");
+    host.type_text(&link);
+    host.click("#host.contacts.open");
+    host.wait("#host.contacts.offer");
+    host.crop("AlertDialog \"Connect?\"");
+    host.snapshot("a_contact_link_asks_before_connecting_two_accounts");
+    host.click("#host.contacts.offered.accept");
+    host.wait("Label value=\"Dev\"");
+    host.crop("Dialog \"Contacts\"");
+    host.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
+    host.close();
 }
 
-pub(super) fn confirm_phrase(app: &mut AppTest) {
-    let tree = app.tree();
+pub(super) fn confirm_phrase(host: &mut HostTest) {
+    let tree = host.tree();
     let phrase = tree
         .lines()
         .find_map(|line| {
@@ -70,8 +70,8 @@ pub(super) fn confirm_phrase(app: &mut AppTest) {
         })
         .collect();
     for position in asked {
-        app.click(&format!("TextInput \"Word {position}\""));
-        app.type_text(words[position - 1]);
+        host.click(&format!("TextInput \"Word {position}\""));
+        host.type_text(words[position - 1]);
     }
-    app.click("Button \"I saved them\"");
+    host.click("Button \"I saved them\"");
 }

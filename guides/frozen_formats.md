@@ -61,13 +61,13 @@ the `ANYONE_INSIDE` grant on a kind) land together, and then the one
 server with data is wiped and its content re-imported once from a block file.
 Until then they may change other saved data incompatibly, but not what
 `crates/be-block-frozen`'s snapshots and fixture hold (none of it carries
-`ARTIFACT` metadata, which only the app writes), so those stay read forever
+`ARTIFACT` metadata, which only the host writes), so those stay read forever
 throughout; afterwards the rules below hold again for everything.
 
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
 the local plugin API, live-session state (operations,
-`LiveEdit::session_state`, relayed messages, presence), and the app's own
+`LiveEdit::session_state`, relayed messages, presence), and the host's own
 files on a device (`app.sqlite3`, the refs database, caches).
 
 Remote human session credentials from before the account portal are intentionally invalidated
@@ -116,7 +116,7 @@ Only add:
   enforces) and the personal organization (a
   folder shared with a contact made by link, a pending link carrying a grant,
   and that contact's change of recovery phrase). The test serves each
-  snapshot and reads it the way the app and `be` do: signing in by password,
+  snapshot and reads it the way the host and `be` do: signing in by password,
   token and phrase, opening the keys, names, content and history, writing on
   an old commit, the contacts, the escrow chain, accepting the link and the
   invitation, and restoring the backup.

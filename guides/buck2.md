@@ -25,15 +25,15 @@ Which build a program is lives in a file beside it, never in its code:
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-tool-cli's
 `:native`, be-server-bin's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
-program that finds no id refuses to connect or serve, and the app shows the id
+program that finds no id refuses to connect or serve, and block-app shows the id
 as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
-by default, `Block` for deploy). The app reads `app_id` at startup for its window
+by default, `Block` for deploy). block-app reads `app_id` at startup for its window
 and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
 selects it when generating the file. `./scripts/deploy` also includes an optional
 `default_server` descriptor (public name, API and authentication URLs, and whether
 native clients need a gateway token); ordinary local and CI builds omit it. The id is the hash of the tree, not of a commit, so two commits
 of the same tree (a pull request's head and the merge queue's commit of it)
-share every cached bundle, APK and app test run. Since only the bundles read the
+share every cached bundle, APK and host test run. Since only the bundles read the
 file, a new id rebuilds nothing else.
 
 ## What `./scripts/buck` does
@@ -114,7 +114,7 @@ It also lets `test` put tests on the workers (below).
   buck2 command, built for it in that command: `be-tool-verify` for `./scripts/verify`,
   and be-tool-local' `ci`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
-- `buck/app`, `buck/android`: how the app, the web bundle and the APK are
+- `buck/app`, `buck/android`: how the native bundles, the web bundle and the APK are
   laid out.
 - `third-party/rust`: every third-party crate as `<name>-<version>`, and
   `fixups.bzl`, what cargo's plans cannot say about a crate: environment for
@@ -126,10 +126,10 @@ It also lets `test` put tests on the workers (below).
 **Target names** are kebab-case, and a role has one name in every package:
 `:bin` a crate's binary, `:test` its tests and `:test-run` the action that
 runs them, `:example-<name>` and `:fuzz-<name>` its examples and fuzz targets,
-`:wasm` a guest library and `:module` its module. An app's targets are named by
+`:wasm` a guest library and `:module` its module. A bundled program's targets (`app()` in buck/app/defs.bzl) are named by
 platform, `:native`, `:web` and `:android`, each the bundle that `buck2 run`
 runs, serves or installs here, with `-dist` the build CI publishes, and `:dev`
-the app headless for an agent to drive.
+the program headless for an agent to drive.
 
 **A dependency**: `cargo add` (or edit `Cargo.toml`), then
 `./scripts/buck run //:buckify` to regenerate the rules. That includes a
@@ -181,7 +181,7 @@ from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against 
 libraries `DEFAULT_LIBRARIES` names (base and beui) unless `libraries` says
 otherwise (guides/plugin_libraries.md), its `:module`, its `:manifest` and its wasm `:test`. A
 library is one `wasm_library(module, libraries)` call, which names every
-library under it. The app picks up every editor by itself.
+library under it. block-app picks up every editor by itself.
 
 **A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
@@ -238,8 +238,8 @@ runs with, kept out of its compile. crates/be-host-tests runs block-app headless
 It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
 `src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
 then loses only its own paintings, not every one the crate accepts. `apart_env` adds to
-`run_env` per file: crates/be-host-tests gives each test the app with only the editors it names
-(guides/testing_a_gui.md, 6), one `:app-<editors>` per distinct set, and `./scripts/test`
+`run_env` per file: crates/be-host-tests gives each test block-app with only the editors it names
+(guides/testing_a_gui.md, 6), one `:host-<editors>` per distinct set, and `./scripts/test`
 (buck/dev/test.bxl) runs each file of such a test as an action of its own with its own
 environment.
 crates/be-server-portal-ui captures its SSR portal as text browser paintings without a browser.
@@ -283,7 +283,7 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/be-wasm-link (the plugins and their libraries; C with `-fPIC`) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 | `wasi_html` | the WASI sysroot | rust-lld (crates on beui's HTML core, in the browser) |
-| `linux_x86_64_html` | `buck/sysroot:amd64` | lld (crates on beui's HTML core, on the host: server rendering, string tests) |
+| `linux_x86_64_html` | `buck/sysroot:amd64` | lld (crates on beui's HTML core, natively: server rendering, string tests) |
 
 All of them build on the same Linux workers. `./scripts/verify` also runs
 rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
@@ -291,17 +291,17 @@ rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
 library planned for beui's HTML core on its two platforms, in its one buck2
 command. CI ships nothing built for a
 device: the build helper (guides/build_server.md) builds the Android app and
-launcher (`:android-dist`) and the desktop app for any platform when
+launcher (`:android-dist`) and block-app's native build for any platform when
 be-launcher asks for a commit; releases are built by hand. Apple's SDK licence allows it on Apple hardware only, so release builds
 for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
 Microsoft's Build Tools licence.
 
-`wasi` and `wasi_guest` are the same triple, but the app links a real wgpu
+`wasi` and `wasi_guest` are the same triple, but block-app links a real wgpu
 backend and a plugin only wgpu's `custom` one, and the two cannot be unified.
 A `guest` constraint (`buck/constraints`) tells them apart, and `crates.bzl`
 has a plan for each.
 
-`wasi_html` and `linux_x86_64_html` are `wasi` and the host with the `html`
+`wasi_html` and `linux_x86_64_html` are `wasi` and Linux x86_64 with the `html`
 constraint (`buck/constraints`), which picks beui's HTML core
 (plans/html_core.md). Their plans, `wasi-html` and `linux-x86_64-html`, are
 cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names (beui and the crates under it, and the crates built only on the HTML core; `browser_packages` adds the ones built only for the browser, which only the `wasi-html` plan takes), run
@@ -310,7 +310,7 @@ with `RUSTFLAGS="--cfg beui_html"`; cargo evaluates
 each core links (beui-view takes `beui-core` only under
 `cfg(not(beui_html))`), and `defs.bzl` passes `--cfg beui_html` to every
 first-party rustc on those platforms. `buck/cargo/html.bzl` lists the
-libraries in those plans, and `./scripts/verify` checks each on its platform; a test or program that runs on the host's HTML core names its
+libraries in those plans, and `./scripts/verify` checks each on its platform; a test or program that runs natively on the HTML core names its
 platform as `default_target_platform`, as beui-view's `:html-test` does, and a
 browser module transitions its library to `wasi_html` with `wasi_html_module`
 (`buck/wasm/defs.bzl`). Code chooses a core with
@@ -327,17 +327,17 @@ A native target depends on a wasm one through a transition in
   manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, and
   every library in the editors' closures as `lib-<SHA-256>.wasm` with its `.cwasm`
   (each module's `WasmLibrariesInfo`), precompiled in an action
-  per module for the platform the app is built for, by
+  per module for the platform the bundle is built for, by
   `//crates/be-sdk-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run. Those actions are `:precompiled`'s
   (`precompiled_plugins`), which an `app()` given it as `precompiled` takes each
-  `.cwasm` from, so the app tests' apps share them rather than precompiling
+  `.cwasm` from, so the host tests' bundles share them rather than precompiling
   their own: an action's output path names its target, so the same compile in
   two targets is two cache entries. `plugins.json` lists the manifests: every
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
 - Every `app()` also has `[archive]`, its directory as one zstd-compressed file
-  (`crates/be-host-archive`, packed on a worker): a quarter of the release app and a
+  (`crates/be-host-archive`, packed on a worker): a quarter of the release bundle and a
   seventh of a debug one, since zstd's long matching finds the code the plugins
   share. `buck2 run` and `:dev` download only that, unpack it into
   `target/apps/<name>-<hash>/` when it changed, and run the program there.
@@ -351,7 +351,7 @@ A native target depends on a wasm one through a transition in
 - The APK is assembled on a worker without Gradle (`be-tool-buck apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
-  the app's own and beui's (`//crates/beui-platform-android:android-java`), against the
+  block-app's own and beui's (`//crates/beui-platform-android:android-java`), against the
   platform alone: the APK carries no libraries. Every Android target builds
   an aligned unsigned template without build metadata. `buck2 run` appends
   metadata and signs on the requesting machine with `be-tool-local apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
@@ -360,14 +360,14 @@ A native target depends on a wasm one through a transition in
   Only signed, finalized APKs can be installed; `buck build --out` returns a
   template. The minimum Android API and native toolchain API are 24, and
   signing uses v2 alone. Keys never enter action inputs (guides/running/android.md).
-  The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
+  The build machine's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-tool-launcher` lists the pull requests and runs any of them, or main,
   on Android and the desktop alike: it asks the build helper to build the
   commit (`android`, `launcher-android`, `native-PLATFORM`,
   `beui-demo-PLATFORM`), streams the build's log into its Log pane, downloads
   from be3-ci only the files of the manifest it does not already have, by
-  their SHA-256, then installs the APK or starts the app. It needs the API
+  their SHA-256, then installs the APK or starts the program. It needs the API
   gateway's key, which it asks for and keeps (`~/.config/be3/gateway-authorization`
   on the desktop, its own files on Android); `BE3_AUTHORIZATION` overrides it.
 - The macOS builds are an executable and its libraries; the `.app` bundle
@@ -376,7 +376,7 @@ A native target depends on a wasm one through a transition in
 ## rust-analyzer
 
 `./scripts/buck run //:rust-project` writes `rust-project.json` (git ignores
-it), which rust-analyzer prefers over `Cargo.toml`. It covers the host and, as
+it), which rust-analyzer prefers over `Cargo.toml`. It covers native builds and, as
 `wasm32-wasip1-threads`, the plugins, takes the standard library and proc-macro
 server from the pinned toolchain, and checks on save through buck2. Run it
 again after adding a crate or dependency, and use the rust-analyzer an editor
@@ -385,10 +385,10 @@ extension ships: the toolchain's panics on this workspace.
 ## Things that are not obvious
 
 - **Features.** Every crate has the features cargo's plan for the platform
-  gives it, and the plans are `cargo test` for the host and each cross
+  gives it, and the plans are `cargo test` for the build machine and each cross
   platform, so what a dev-dependency turns on is on for the library too, as
   under cargo. One plan covers every crate built for its platform, so
-  features merge across apps: the `wasi` plan is block-app's, beui-web-demo's
+  features merge across programs: the `wasi` plan is block-app's, beui-web-demo's
   and be-tool-paint-review-web's at once, and a feature one of them turns on is on
   for all three. What has to differ between builds for one triple needs a
   platform and plan of its own, told apart by a constraint, as `wasi_guest`

@@ -1,12 +1,12 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
-load(":apps.bzl", "app_test_apps")
+load(":hosts.bzl", "host_test_hosts")
 
 # block-app headless as `:dev` runs it, driven by the same commands as `drive`
 # and painted with every plugin's own paint (guides/testing_a_gui.md, Testing
-# editors together). The app is built for a worker, so the tests run on Linux
+# editors together). The host is built for a worker, so the tests run on Linux
 # x86_64 only. Each test is an action of its own under ./scripts/verify
-# (run_apart in buck/cargo/defs.bzl), against an app that stages only the
-# editors it names here beside the ones every app needs (apps.bzl), so it
+# (run_apart in buck/cargo/defs.bzl), against a host that stages only the
+# editors it names here beside the ones every host needs (hosts.bzl), so it
 # builds and reruns only for those. A test not named here stages every editor:
 # keep it so for a test whose paintings show every block type, such as the add
 # menu's.
@@ -54,7 +54,7 @@ EDITORS = {
     "adding_an_account_chooses_a_local_or_custom_server": [],
     "an_active_child_pans_in_the_frame_its_canvas_pans": ["infinite-canvas", "example-pan-zoom"],
     "an_invitation_shows_the_link_to_send_the_invited_person": [],
-    "choosing_a_scale_draws_the_app_larger": ["settings"],
+    "choosing_a_scale_draws_the_host_larger": ["settings"],
     "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
     "closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace": ["example-beui-gallery"],
     "closing_a_tab_shuts_its_editor_down": ["text"],
@@ -64,16 +64,16 @@ EDITORS = {
     "moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_plugin": [],
     "my_files_offers_no_delete": [],
     "on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace": ["example-beui-gallery"],
-    "on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_app": [],
+    "on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host": [],
     "on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet": ["text"],
-    "on_a_phone_the_app_menu_rises_as_a_sheet_it_draws_itself": [],
+    "on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself": [],
     "presenting_a_deck_again_and_again_adds_no_blocks": ["infinite-canvas", "presentation", "text"],
     "presenting_a_deck_fills_the_screen_until_escape": ["infinite-canvas", "presentation", "text"],
     "pressing_the_files_after_a_text_block_moves_the_focus_to_them": ["text"],
     "reopening_a_block_keeps_the_view_the_person_moved": ["example-pan-zoom"],
     "revision_history_previews_and_restores_a_text_file": ["text"],
-    "the_app_menu_opens_under_its_button": [],
-    "the_app_opens_its_files_and_closes_cleanly": [],
+    "the_host_menu_opens_under_its_button": [],
+    "the_host_opens_its_files_and_closes_cleanly": [],
     "the_canvas_menu_ticks_its_grid_and_profile_in_submenus": ["infinite-canvas"],
     "the_canvas_zoom_bar_floats_at_any_corner_and_stays_there": ["infinite-canvas"],
     "the_desktop_shell_opens_and_closes_cleanly": ["desktop"],
@@ -95,12 +95,12 @@ EDITORS = {
 cargo_library()
 
 cargo_test(
-    apart_env = app_test_apps(EDITORS),
+    apart_env = host_test_hosts(EDITORS),
     paints = True,
     run_apart = True,
     run_env = {
         "APP_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-        "BLOCK_APP": "$(location :app-all)/block-app",
+        "BLOCK_APP": "$(location :host-all)/block-app",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },

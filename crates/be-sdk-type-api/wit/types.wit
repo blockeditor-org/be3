@@ -45,7 +45,7 @@ interface types {
         merge(resume-merge),
     }
 
-    /// The plain form a type has outside the app.
+    /// The plain form a type has outside the host.
     enum plain {
         none,
         file,

@@ -13,13 +13,13 @@ use beui::styled::*;
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::{AppViewStore, StatusView, SyncState, UiCommand, send};
+use super::{HostUiStore, StatusView, SyncState, UiCommand, send};
 use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
 use beui::ItemSize;
 
 #[component]
-pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {
+pub(super) fn OrganizationScreen(view: HostUiStore) -> NodeId {
     view! {
         <Container>|_|
             <OrganizationBody view />
@@ -28,13 +28,13 @@ pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn OrganizationBody(view: AppViewStore) -> NodeId {
+fn OrganizationBody(view: HostUiStore) -> NodeId {
     let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
     let presenting = view.presenting;
     let normal = create_memo(move || !presenting.get());
     let status = create_memo(move || view.status.get());
-    provide_context(AppStatus(status));
+    provide_context(HostStatus(status));
     view! {
         <List spacing=Space::None>
             <Show condition={normal}>
@@ -78,14 +78,14 @@ fn sync_glyph(sync: &SyncState) -> Glyph {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct AppStatus(pub(crate) Memo<StatusView>);
+pub(crate) struct HostStatus(pub(crate) Memo<StatusView>);
 
 #[component]
-pub(crate) fn AppMenuPanel() -> NodeId {
+pub(crate) fn HostMenuPanel() -> NodeId {
     let report = use_context::<crate::compositor::PanelReport>();
-    let status = use_context::<AppStatus>().map_or_else(
+    let status = use_context::<HostStatus>().map_or_else(
         || create_memo(StatusView::default),
-        |AppStatus(status)| status,
+        |HostStatus(status)| status,
     );
     let pick = move |command: UiCommand| {
         if let Some(report) = report {
@@ -94,12 +94,12 @@ pub(crate) fn AppMenuPanel() -> NodeId {
         send(command);
     };
     view! {
-        <AppMenu status pick={Callback::new(pick)} report />
+        <HostMenu status pick={Callback::new(pick)} report />
     }
 }
 
 #[component]
-fn AppMenu(
+fn HostMenu(
     status: Memo<StatusView>,
     pick: Callback<UiCommand>,
     report: Option<crate::compositor::PanelReport>,
@@ -126,7 +126,7 @@ fn AppMenu(
     let warned = create_memo(move || !escrow_warning.get().is_empty());
     let items = view! {
         <MenuItem
-            row_test_id={"app.menu.status".to_owned()}
+            row_test_id={"host.menu.status".to_owned()}
             label={sync_label}
             glyph={sync_glyph}
             detail={sync_detail}
@@ -134,7 +134,7 @@ fn AppMenu(
         />
         <Show condition={has_unsent}>
             <MenuItem
-                row_test_id={"app.menu.unsent".to_owned()}
+                row_test_id={"host.menu.unsent".to_owned()}
                 label="Unsent edits"
                 glyph=ICON_ARCHIVE_RESTORE
                 detail={unsent_detail}
@@ -143,7 +143,7 @@ fn AppMenu(
         </Show>
         <Show condition={warned}>
             <MenuItem
-                row_test_id={"app.menu.escrow-warning".to_owned()}
+                row_test_id={"host.menu.escrow-warning".to_owned()}
                 label="Escrow key not verified"
                 glyph=ICON_SHIELD_ALERT
                 detail={escrow_warning}
@@ -151,7 +151,7 @@ fn AppMenu(
             />
         </Show>
         <MenuItem
-            row_test_id={"app.menu.contacts".to_owned()}
+            row_test_id={"host.menu.contacts".to_owned()}
             label="Contacts"
             glyph=ICON_CONTACT
             separated=true
@@ -159,7 +159,7 @@ fn AppMenu(
         />
         <Show condition={company}>
             <MenuItem
-                row_test_id={"app.menu.invite".to_owned()}
+                row_test_id={"host.menu.invite".to_owned()}
                 label="Invite member"
                 glyph=ICON_USER_PLUS
                 detail={organization}
@@ -168,26 +168,26 @@ fn AppMenu(
         </Show>
         <Show condition={administrator}>
             <MenuItem
-                row_test_id={"app.menu.members".to_owned()}
+                row_test_id={"host.menu.members".to_owned()}
                 label="Members"
                 glyph=ICON_USERS
                 on_click={move || pick(UiCommand::OpenMembers)}
             />
         </Show>
         <MenuItem
-            row_test_id={"app.menu.agents".to_owned()}
+            row_test_id={"host.menu.agents".to_owned()}
             label="Agents"
             glyph=ICON_BOT
             on_click={move || pick(UiCommand::OpenAgents)}
         />
         <MenuItem
-            row_test_id={"app.menu.switch-session".to_owned()}
+            row_test_id={"host.menu.switch-session".to_owned()}
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
             on_click={move || pick(UiCommand::SwitchSession)}
         />
         <MenuItem
-            row_test_id={"app.menu.switch-organization".to_owned()}
+            row_test_id={"host.menu.switch-organization".to_owned()}
             label="Switch organization"
             glyph=ICON_ARROW_LEFT_RIGHT
             on_click={move || pick(UiCommand::SwitchOrganization)}
@@ -198,7 +198,7 @@ fn AppMenu(
             on_click={move || pick(UiCommand::NewRecoveryPhrase)}
         />
         <MenuItem
-            row_test_id={"app.menu.accounts".to_owned()}
+            row_test_id={"host.menu.accounts".to_owned()}
             label="Manage accounts"
             glyph=ICON_USER_COG
             detail={signed_in_as}
@@ -206,14 +206,14 @@ fn AppMenu(
             on_click={move || pick(UiCommand::ManageAccounts)}
         />
         <MenuItem
-            row_test_id={"app.menu.about".to_owned()}
+            row_test_id={"host.menu.about".to_owned()}
             label="About"
             glyph=ICON_INFO
             on_click={move || pick(UiCommand::About(true))}
         />
         <Show condition={can_close}>
             <MenuItem
-                row_test_id={"app.menu.close".to_owned()}
+                row_test_id={"host.menu.close".to_owned()}
                 label="Close block-app"
                 glyph=ICON_POWER
                 on_click={move || pick(UiCommand::CloseApp)}
@@ -221,7 +221,7 @@ fn AppMenu(
         </Show>
         <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
-                row_test_id={format!("app.menu.panel.{shown:?}")}
+                row_test_id={format!("host.menu.panel.{shown:?}")}
                 label={shown.title().to_owned()}
                 glyph={panel_icon(shown).to_owned()}
                 separated={shown == HostPanel::ALL[0]}
@@ -289,7 +289,7 @@ fn panel_icon(panel: HostPanel) -> Glyph {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_GAUGE,
         HostPanel::Plugins => beui::icons::ICON_PUZZLE,
-        HostPanel::AppMenu => beui::icons::ICON_MENU,
+        HostPanel::Menu => beui::icons::ICON_MENU,
     }
 }
 

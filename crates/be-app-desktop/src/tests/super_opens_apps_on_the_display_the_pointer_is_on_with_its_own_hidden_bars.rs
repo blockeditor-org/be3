@@ -17,7 +17,7 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
 
     fixture.test.desk_move(right.center());
     assert!(
-        fixture.test.app_tap(Key::Logo),
+        fixture.test.host_tap(Key::Logo),
         "the second display, which holds the keyboard, hears the Super tap"
     );
     fixture.settle();
@@ -39,21 +39,21 @@ fn super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars() 
 
     fixture.display_bar_menu(0, WINDOWS_BAR, left, &["hide"]);
     fixture.test.desk_move(right.center());
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     assert!(
         fixture.shown_on("desktop.apps.panel", right).len() == 1
             && fixture.test.desk_rects_of("desktop.apps.bars").is_empty(),
         "a display offers only its own hidden bars"
     );
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     assert!(
         fixture.test.desk_rects_of("desktop.apps.panel").is_empty(),
         "Super again closes the panel"
     );
     fixture.test.desk_move(left.center());
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     assert!(
         fixture.shown_on("desktop.apps.panel", left).len() == 1

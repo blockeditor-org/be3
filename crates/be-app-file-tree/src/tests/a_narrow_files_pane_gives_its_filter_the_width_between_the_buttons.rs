@@ -31,7 +31,7 @@ fn a_narrow_files_pane_gives_its_filter_the_width_between_the_buttons() {
 
         let filter = fixture.test.rect_of("file-tree.filter");
         let new = fixture.test.rect_of("file-tree.new");
-        let account = fixture.test.rect_of("file-tree.app-menu");
+        let account = fixture.test.rect_of("file-tree.host-menu");
         assert!(
             account.max.x <= width && width - account.max.x < 24.0,
             "at {width} wide (zoomed: {zoomed}) the account button sits at the right edge, not packed left: {account:?}"

@@ -11,7 +11,7 @@ fn the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard() {
         );
     }
     for (key, _) in BINDINGS {
-        assert!(fixture.test.app_key(Modifiers::NONE, key));
+        assert!(fixture.test.host_key(Modifiers::NONE, key));
         fixture.settle();
     }
     let mut expected = vec![

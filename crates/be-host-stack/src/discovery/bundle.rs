@@ -52,6 +52,6 @@ pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + 
 
 #[cfg(target_os = "android")]
 pub fn open(path: &str) -> Result<Stored, String> {
-    let read_asset = ASSETS.get().ok_or("the app's assets were not given")?;
+    let read_asset = ASSETS.get().ok_or("the host's assets were not given")?;
     read_asset(path).map(Stored::Bytes)
 }

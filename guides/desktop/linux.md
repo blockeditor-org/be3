@@ -71,7 +71,7 @@ and takes no file descriptors, the "wayland watch" thread (`Server::watch`) poll
 
     ./scripts/buck run //crates/be-host:install-login-session [-- PREFIX]
 
-installs the app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
+installs block-app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
 sudo when it needs root), links `PREFIX/bin/block-app` to it and writes
 `/usr/share/wayland-sessions/block-app.desktop` (from `src/login_session/block-app.desktop`), which
 runs it as `env BEUI_PLATFORM=drm PREFIX/lib/block-app/block-app --desktop`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
@@ -86,10 +86,10 @@ in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list t
 added to it once, and a line `LINK --session` an install from before `--desktop` left there is removed.
 
 In a login session stdout and stderr, and so every `eprintln!`, every panic with its backtrace
-and the output of every program the app starts, go to `$XDG_STATE_HOME/block/login-session.log`
+and the output of every program block-app starts, go to `$XDG_STATE_HOME/block/login-session.log`
 (`~/.local/state/block/login-session.log`); the previous login session's is kept beside it as
 `login-session.previous.log`. The directory is the app id in lower case (`blockdev` for a build
-without bundle metadata). The error that ends a login session is also written to the stderr the app
+without bundle metadata). The error that ends a login session is also written to the stderr block-app
 started with, so a login session run by systemd or greetd shows it in the journal. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_platform_drm::Problems` carries the display and input ones,
 `be_host_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
@@ -106,7 +106,7 @@ panics by where they happen. Every panic is logged with its backtrace. One insid
 plugin (guides/adding_a_plugin_editor.md), the shell included, while the compositor and its
 clients keep running (guides/desktop.md, A shell that stops); a D-Bus task (`dbus::spawn`) ends alone with a toast; a
 password check that panics fails. Any other panic, on the UI thread or on a thread nothing
-contains (the block stack's, say), is the app's own: in a window the app shows its error
+contains (the block stack's, say), is block-app's own: in a window block-app shows its error
 screen, and in a login session it ends the login session instead, through beui's runner and
 `beui_platform_drm`'s `Session::end`, so the console comes back and the display manager takes
 over rather than a frozen screen.
@@ -143,8 +143,8 @@ plugin watches `PowerWatch` for what it may offer and sends `power::request(Powe
 `src/login_session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
 `src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
-signal. Logging out closes the app the way closing its window does; `beui-platform-drm`'s
-`Session::end` then drops the app, the outputs, the input devices, the DRM device (which
+signal. Logging out closes block-app the way closing its window does; `beui-platform-drm`'s
+`Session::end` then drops block-app, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
@@ -179,7 +179,7 @@ windows' area nearest its Status bar (guides/desktop.md, The bars), with ids fro
 They make way while the clock's panel, with the list of notifications, is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
-prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
+prints its address; `notify-send` is in the `libnotify-bin` package), and run `:dev` and
 every client with `DBUS_SESSION_BUS_ADDRESS` set to it:
 
     DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/be-host:dev -- --desktop
@@ -222,7 +222,7 @@ the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click 
 own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event.
 
 The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAEMON`). To try it
-in the dev app, start a bus as for notifications and run a tray program against it with the
+under `:dev`, start a bus as for notifications and run a tray program against it with the
 compositor's socket, for example a Python script using `gir1.2-ayatanaappindicator3-0.1`:
 
     DBUS_SESSION_BUS_ADDRESS=ADDRESS drive exec python3 indicator.py
@@ -253,10 +253,10 @@ the levels back. The backends run as tasks on the D-Bus thread:
   recently started playing, or the first one listed, on the session bus.
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
-with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
+with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for block-app, and press them with
 `drive key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
 `pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
-and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
+and change them from outside block-app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
 
 ## Wi-Fi
@@ -364,7 +364,7 @@ or Wine game is the Windows path of its `.exe`. Outside a login session nothing 
 
 In the desktop shell (`--desktop`, in a window or as a login session) the screen locks on Super+L, the Status bar's power
 menu's Lock, idling for the display settings' "Lock the screen after" (by default when the screens
-turn off), and, in a login session, logind's `Lock` for the app's own login session (`loginctl
+turn off), and, in a login session, logind's `Lock` for block-app's own login session (`loginctl
 lock-session`) and before every suspend: `LoginSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/login_session/sleep.rs`), taking it
 again on waking. `src/login_session/lock.rs` is the state machine, `src/login_session.rs`'s `ScreenLock` runs
@@ -375,17 +375,17 @@ elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-login-session` writes it unless one is there, as
 `auth include common-auth` where that exists, as on Debian and Ubuntu, and `auth include login`
-elsewhere) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
+elsewhere) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so block-app
 does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
 a minute. Anything that goes wrong - no libpam, a PAM error, a check that panics, an answer to an
 earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the attempt in flight
-unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a password
+unlocks it. Under `:dev` block-app runs as the VM's user, so that user needs a password
 (`passwd`) for the lock to be tried.
 
 While it is locked, two things keep input from everything behind it: the lock is a beui
 `Overlay` at `LayerLevel::Lock`, which nothing dismisses, which stays above every other layer and keeps
 the focus and the pointer, and while it is open the host and window key listeners hear only media keys (no other window action, no plugin's
-intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
+intercepted chord, no Alt+Tab); and block-app's menu is closed. Windows need nothing
 of their own for it: each is a forwarding catcher like a plugin's view, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_host_wayland::Compositor::set_locked` only lets
 go of the buttons and popups a window held. Screens still
@@ -398,7 +398,7 @@ none can be read or acted on behind the lock; they show again once it is unlocke
 
 ## Wayland programs
 
-On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
+On Linux block-app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
 When that is unset, as it is under `:dev`, be-host-wayland (`src/runtime_dir.rs`) makes a private
 one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
 starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
@@ -409,7 +409,7 @@ was typed as a command, with the variables of `Compositor::environment` (`XDG_RU
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). The desktop plugin draws it; block-app only reads the
 `.desktop` files and their icons and starts the programs (`ProgramsWatch` and
 `programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no Apps panel. A
-program can also be started against a driven app directly: the app hands the same variables to
+program can also be started against a driven block-app directly: it hands the same variables to
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
@@ -523,7 +523,7 @@ commits to it; a null cursor hides the pointer. Under a layer that opens windows
 the platform offers no `SoftwareCursor`, since its pointer is not where the layer's is: the layer
 draws its own cursor from the window's `CursorIcon`.
 
-In a login session the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+In a login session block-app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
@@ -601,7 +601,7 @@ child view asks for a block in a listed program (`programs::opens`), `HostedChil
 
 - **Write out.** `be_host_stack::plain_file` asks the block's type module for `to-file`, the same
   file form `be sync` writes, and `programs/files.rs` puts it at a path that stays the same for
-  the block, `DATA/files/<block id>/<file name>` in the app's data directory (not a cache). It
+  the block, `DATA/files/<block id>/<file name>` in block-app's data directory (not a cache). It
   writes only when the bytes differ, so what a program keeps beside the file stays valid:
   KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
   `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
@@ -617,7 +617,7 @@ child view asks for a block in a listed program (`programs::opens`), `HostedChil
 - **Write back.** The file's folder is watched (`programs/watch.rs`, the `notify` crate), and
   when the file's size or time differs from what was recorded, its bytes go back into the block
   as a `from-file` change (`be_host_stack::from_file`), a commit like any other edit. A file changed while
-  nothing watched it (the app ended first) is taken back instead of written over when the block
+  nothing watched it (block-app ended first) is taken back instead of written over when the block
   is next opened.
 - **Close.** Closing the tab closes its editor (`programs::close`, from `close_editor`, which
   also closes the sessions of blocks an editor being closed showed), which asks the window to
@@ -643,7 +643,7 @@ the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which sta
 at once. Programs the compositor launches get `DISPLAY`, and in a login session both it and
 `WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
 (`src/login_session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
-same display, up to three times. To try it under `:dev`, the app's log names the display:
+same display, up to three times. To try it under `:dev`, block-app's log names the display:
 
     DISPLAY=:0 xterm
     DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server
@@ -668,15 +668,15 @@ freezes it to try this, and `kill -CONT` brings it back.
 
 ### Clipboard and drag and drop
 
-The app's clipboard (beui's, through the runner's `PlatformServices`) and the Wayland clipboard are one
+block-app's clipboard (beui's, through the runner's `PlatformServices`) and the Wayland clipboard are one
 (be-host-wayland's `selection.rs` and `compositor/clipboard.rs`). A program that sets the selection,
 through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
 `zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
-text, which the compositor reads without blocking and hands to the app with `Context::copy_text`;
-the program's own selection stays, with all its types. Everything the app copies
+text, which the compositor reads without blocking and hands to block-app with `Context::copy_text`;
+the program's own selection stays, with all its types. Everything block-app copies
 (`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
 through the host's `request_paste`, so both work in a session, where the platform's clipboard is
-the DRM platform's own. A selection that only offers images is not handed to the app.
+the DRM platform's own. A selection that only offers images is not handed to block-app.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
 data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always

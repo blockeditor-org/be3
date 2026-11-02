@@ -4,7 +4,7 @@ use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use crate::ui::{AppView, UnsentRow, UnsentView};
+use crate::ui::{HostUi, UnsentRow, UnsentView};
 use beui_host::native::build;
 
 const SIZE: beui::Vec2 = vec2(720.0, 640.0);
@@ -25,14 +25,14 @@ impl Shown {
         Self::start(move || {
             let status = create_memo(move || status.clone());
             view! {
-                <AppMenu status pick={Callback::new(send)} report={None} />
+                <HostMenu status pick={Callback::new(send)} report={None} />
             }
         })
     }
 
-    fn unsent(view: AppView) -> Self {
+    fn unsent(view: HostUi) -> Self {
         Self::start(move || {
-            let store = AppViewStore::new(view);
+            let store = HostUiStore::new(view);
             view! {
                 <Dialogs view={store} />
             }
@@ -66,8 +66,8 @@ impl Shown {
     }
 }
 
-fn unsent_view() -> AppView {
-    AppView {
+fn unsent_view() -> HostUi {
+    HostUi {
         unsent: Some(UnsentView {
             rows: vec![
                 UnsentRow {

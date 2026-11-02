@@ -3,7 +3,7 @@ use std::time::Duration;
 use beui::reactive::*;
 use beui::styled::*;
 
-use super::AppViewStore;
+use super::HostUiStore;
 
 pub(super) const SLOW_SAVE: Duration = Duration::from_secs(4);
 pub(super) const TOAST_ID: u64 = u64::MAX;
@@ -15,7 +15,7 @@ pub(super) struct SlowSave {
 }
 
 impl SlowSave {
-    pub(super) fn new(view: AppViewStore) -> Self {
+    pub(super) fn new(view: HostUiStore) -> Self {
         let status = view.status;
         let saved = create_memo(move || status.get().sync != super::SyncState::Syncing);
         let saves = create_memo(move || status.get().saves);
@@ -56,7 +56,7 @@ impl SlowSave {
                     id: TOAST_ID,
                     title: "Saving changes…".to_owned(),
                     message:
-                        "This is taking longer than usual. Keep the app open until it finishes."
+                        "This is taking longer than usual. Keep block-app open until it finishes."
                             .to_owned(),
                     sticky: true,
                     ..Toast::default()

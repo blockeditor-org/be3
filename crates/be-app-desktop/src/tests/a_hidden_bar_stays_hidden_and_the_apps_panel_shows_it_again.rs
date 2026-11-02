@@ -16,7 +16,7 @@ fn a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again() {
         !fixture.test.shown("desktop.apps"),
         "the desktop keeps the bar hidden when it starts again"
     );
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     let band = fixture.test.rect_of("dock.bar.band.bottom");
     let panel = fixture.test.rect_of("desktop.apps.panel");

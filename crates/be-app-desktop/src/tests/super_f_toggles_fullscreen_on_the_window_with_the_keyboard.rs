@@ -15,7 +15,7 @@ fn fullscreen_asked(fixture: &Fixture) -> Vec<WindowAction> {
 fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     assert!(
-        fixture.test.app_key(Modifiers::LOGO, Key::F),
+        fixture.test.host_key(Modifiers::LOGO, Key::F),
         "the desktop takes Super+F before the program that has the keyboard"
     );
     fixture.settle();
@@ -40,7 +40,7 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
         .set_watched::<WindowsWatch>(&vec![host_window(1, false), fullscreen]);
     fixture.settle();
     fixture.test.clear_calls();
-    assert!(fixture.test.app_key(Modifiers::LOGO, Key::F));
+    assert!(fixture.test.host_key(Modifiers::LOGO, Key::F));
     fixture.settle();
     assert_eq!(
         fullscreen_asked(&fixture),

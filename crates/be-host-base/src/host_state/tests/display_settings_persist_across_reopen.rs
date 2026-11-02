@@ -5,7 +5,7 @@ fn display_settings_persist_across_reopen() {
     let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
     let content = vec![4, 5, 6, 0, 255];
     {
-        let store = AppStateStore::open(&path).unwrap();
+        let store = HostStateStore::open(&path).unwrap();
         assert_eq!(store.display_settings().unwrap(), None);
         store.set_display_settings(&content).unwrap();
         store.set_display_settings(&content[1..]).unwrap();
@@ -15,7 +15,7 @@ fn display_settings_persist_across_reopen() {
             "display and input settings are kept apart"
         );
     }
-    let store = AppStateStore::open(&path).unwrap();
+    let store = HostStateStore::open(&path).unwrap();
     assert_eq!(
         store.display_settings().unwrap(),
         Some(content[1..].to_vec())

@@ -46,7 +46,7 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   whether SteamVR returns `FORM_FACTOR_UNAVAILABLE` with the Beyond
   unplugged, and quits with an instance loss rather than `EXITING`, is
   untried. Finding one reopens the GPU device as a lost GPU does, so
-  whatever the app keeps on the old device (plugin textures, dmabuf imports)
+  whatever block-app keeps on the old device (plugin textures, dmabuf imports)
   must follow `App::renderer_replaced`.
 - **Layers on hardware.** Composition layers (`Space::layers`) are checked
   only against Monado's null compositor, which accepts them but draws

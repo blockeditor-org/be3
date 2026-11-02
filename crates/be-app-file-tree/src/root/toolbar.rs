@@ -48,8 +48,8 @@ pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<
                         glyph=ICON_CIRCLE_USER_ROUND
                         label="Account and settings"
                         variant=ButtonVariant::Ghost
-                        @test_id={"file-tree.app-menu"}
-                        on_click={move || editor.show_app_menu(account)}
+                        @test_id={"file-tree.host-menu"}
+                        on_click={move || editor.show_host_menu(account)}
                     />
                 </List>
                 <Show condition={zoomed}>

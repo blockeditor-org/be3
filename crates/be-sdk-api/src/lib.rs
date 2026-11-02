@@ -519,7 +519,7 @@ impl HostPanel {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
             Self::Plugins => "Plugins",
-            Self::AppMenu => "Menu",
+            Self::Menu => "Menu",
         }
     }
 }
@@ -596,7 +596,7 @@ pub enum WebViewCommand {
     Open(String),
     Load(String),
     Reload,
-    FocusApp,
+    FocusHost,
     Close,
 }
 

@@ -69,7 +69,7 @@ Some blocks stop early:
 
 The guarantees follow the layers. "The server can't read it" and "every later
 version can open it" hold only for what is stored in layer 3. A link or a game's
-own channel keeps neither, and the app should be honest about that.
+own channel keeps neither, and the host should be honest about that.
 
 ## Extension
 
@@ -81,10 +81,10 @@ will be a third kind, supported on every platform: webtech is possibly the most
 popular way to build a GUI there is. The protocol stays the same for all three,
 and free of any one GUI framework. What differs is how messages travel and how
 images are passed: wasm and native plugins hand over GPU textures, and a web
-plugin passes none, the app just deals with it.
+plugin passes none, the host just deals with it.
 
 **Trust.** Plugins aren't properly sandboxed yet. The baseline to reach is that
-the app can safely and automatically preview what a plugin draws, on your own
+the host can safely and automatically preview what a plugin draws, on your own
 machine, even when a malicious person sent you the plugin. That is the least a
 plugin can be trusted with. Installing one, so that it shows up in the add-block
 menu and elsewhere, is a higher level of trust. Until the baseline holds, the
@@ -92,7 +92,7 @@ first release has to be more careful, and should not run a plugin without the
 user confirming it.
 
 **Licenses.** A core plugin may be GPL or AGPL, since a plugin is a separate
-program, but the app must still build without it.
+program, but the host must still build without it.
 
 **Entry points.** The file tree is the only way into a block today. An editor
 may want an entry point of its own, the way the Google Sheets app on Android
@@ -102,7 +102,7 @@ opens to your sheets and a button to make one. Not designed yet.
 
 - **Linux, Windows, macOS, the web and Android** run today.
 - **iOS** is required before a release. It is deferred because it is hard to
-  build for and there is no iPhone to test on. The app feels more like Android
+  build for and there is no iPhone to test on. The host feels more like Android
   than iOS today, so after the basic port its behaviour needs close attention:
   back navigation, sheets, long press, text selection and scrolling.
 - **The desktop.** If BE3 is the base of a computer, it has to be able to be the
@@ -111,7 +111,7 @@ opens to your sheets and a button to make one. Not designed yet.
   can then open inside a tab; elsewhere it opens in a separate app, and web and
   Android can't open it at all.
 - **The PineNote** (`guides/pinenote.md`) is supported because it is a device we
-  own. It shows the app owning a tablet's whole UI, at the cost of some e-paper
+  own. It shows the host owning a tablet's whole UI, at the cost of some e-paper
   specific work.
 - **Embedded Linux**, maybe. A GUI framework with a DRM backend could compete
   with Slint, Qt Quick, LVGL and flutter-pi there, if its footprint and
@@ -120,16 +120,16 @@ opens to your sheets and a button to make one. Not designed yet.
 ## Stances
 
 - **No reach to strangers.** Every sharing or messaging relationship starts with
-  a contact link given outside the app. That rules out spam, discovery and
+  a contact link given outside the host. That rules out spam, discovery and
   moderation problems, and is a stance on privacy and social features.
-- **Being able to leave.** Export to plain files is part of trusting the app with
+- **Being able to leave.** Export to plain files is part of trusting the host with
   your notes, and doubles as a second backup.
 - **Frozen formats.** Nobody trusts an app with their notes if an update can
   break them (`guides/frozen_formats.md`).
 
 ## Decisions
 
-**Why beui.** The app needs a GUI framework that works without compromises on
+**Why beui.** The host needs a GUI framework that works without compromises on
 desktop, mobile and web, and isn't webtech. No big option does that:
 
 - Flutter is the closest. It draws its own pixels everywhere, but on the web it
@@ -301,7 +301,7 @@ engine.
 
 ### Browser tab
 
-Paused. A system web view never worked well, so the tab only says that the app
+Paused. A system web view never worked well, so the tab only says that the host
 can't show web pages yet. A real browser means embedding Chromium, and would
 make sense once block-app can be your whole desktop. Sharing a tab, so someone
 else sees your browser live, is one possible direction.
@@ -344,6 +344,6 @@ editors are examples, tests and experiments, not apps.
 - How far the version control UI can go for someone who has never used git:
   whether branches need a plainer name, and how the change graph is drawn.
 - Property-based views, as described under Database.
-- How a plugin provides its own live sync, and what the app tells people about
+- How a plugin provides its own live sync, and what the host tells people about
   the guarantees such a block keeps.
 - Entry points other than the file tree.
