@@ -18,8 +18,9 @@ buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487e
 # be, the tracker's command line tool (guides/tracker.md), built from the same
 # tree as the be-server the tracker lives on. The release is that server's
 # build id, written beside be, so the server refuses this be once it is
-# deployed from another build. ./scripts/deploy uploads each platform's be to
-# be_mirror/<release>/be-<triple>/be and rewrites these lines.
+# deployed from another build. ./scripts/deploy uploads each platform's be and
+# build-info.json to be_mirror/<release>/be-<triple>/ and rewrites these lines.
+# be_metadata_file is read only by bootstraps older than be_metadata_sha256_*.
 be_mirror='https://be3.pfg.pw/data'
 be_metadata_file='build-info.json'
 be_release='bb8b6572c10c151a27d428387b3333f8aa419900'
@@ -27,6 +28,10 @@ be_sha256_x86_64_unknown_linux_gnu='4a42b60c37a7b6a8ef44857c7de696cb3e635aa30ef5
 be_sha256_aarch64_unknown_linux_gnu='2cde6e97a6f87dd61397182cc6261f080d264778dfcb02a894aa693777da9d50'
 be_sha256_x86_64_apple_darwin=''
 be_sha256_aarch64_apple_darwin=''
+be_metadata_sha256_x86_64_unknown_linux_gnu='2d6f29800823e396962eacaebb290975b23428253bb1f0e1f696ae08d6aea997'
+be_metadata_sha256_aarch64_unknown_linux_gnu='2d6f29800823e396962eacaebb290975b23428253bb1f0e1f696ae08d6aea997'
+be_metadata_sha256_x86_64_apple_darwin=''
+be_metadata_sha256_aarch64_apple_darwin=''
 
 # nsc, Namespace's command line tool, for the host that runs the waker
 # (sh scripts/internal/bootstrap.sh install-nsc, guides/build_server.md).

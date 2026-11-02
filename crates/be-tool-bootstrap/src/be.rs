@@ -45,26 +45,29 @@ pub fn ensure(pins: &Pins) -> Result<std::path::PathBuf> {
     })?;
     let destination = repository().join(format!("target/tools/be-{release}/be"));
     let directory = destination.parent().unwrap_or(repository()).to_path_buf();
-    let metadata_file = pins.get("be_metadata_file")?;
-    if is_executable(&destination) && directory.join(metadata_file).is_file() {
+    let metadata = directory.join("build-info.json");
+    if is_executable(&destination) && metadata.is_file() {
         return Ok(destination);
     }
     let triple = triple();
     let sha256 = pins.sha256("be", triple)?;
-    let url = format!("{}/{release}/be-{triple}/be", pins.get("be_mirror")?);
-    eprintln!("Downloading be {release} from {url}...");
+    let metadata_sha256 = pins.sha256("be_metadata", triple)?;
+    let base = format!("{}/{release}/be-{triple}", pins.get("be_mirror")?);
+    eprintln!("Downloading be {release} from {base}/be...");
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    let partial_metadata = partial_path(&metadata);
+    download_verified(
+        &format!("{base}/build-info.json"),
+        &partial_metadata,
+        metadata_sha256,
+        &[],
+    )?;
+    std::fs::rename(&partial_metadata, &metadata)
+        .map_err(|error| format!("could not write {}: {error}", metadata.display()))?;
     let partial = partial_path(&destination);
-    download_verified(&url, &partial, sha256, &[])?;
+    download_verified(&format!("{base}/be"), &partial, sha256, &[])?;
     make_executable(&partial)?;
-    let metadata = if metadata_file == "build-id" {
-        format!("{release}\n")
-    } else {
-        format!("{{\"id\":\"{release}\",\"app_id\":\"Block\",\"program_id\":\"Block\"}}\n")
-    };
-    std::fs::write(directory.join(metadata_file), metadata)
-        .map_err(|error| format!("could not write {}: {error}", directory.display()))?;
     std::fs::rename(&partial, &destination)
         .map_err(|error| format!("could not write {}: {error}", destination.display()))?;
     eprintln!("Installed be {release} at {}", destination.display());

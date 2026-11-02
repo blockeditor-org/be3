@@ -262,9 +262,11 @@ fn run(options: &mut Options) -> Result<(), String> {
                     "application/octet-stream",
                     true,
                 )?;
-                if name == "be" {
-                    pins.push((triple.clone(), sha256));
-                }
+                let tool = if name == "be" { "be" } else { "be_metadata" };
+                pins.push((
+                    format!("{tool}_sha256_{}", triple.replace('-', "_")),
+                    sha256,
+                ));
             }
         }
     }
@@ -857,8 +859,8 @@ fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> R
     set("be_release", build)?;
     set("be_metadata_file", "build-info.json")?;
     set("be_mirror", &format!("{mirror}/data"))?;
-    for (triple, sha256) in pins {
-        set(&format!("be_sha256_{}", triple.replace('-', "_")), sha256)?;
+    for (name, sha256) in pins {
+        set(name, sha256)?;
     }
     let mut written = lines.join("\n");
     if text.ends_with('\n') {
