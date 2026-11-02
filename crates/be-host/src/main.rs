@@ -8,6 +8,8 @@ mod display;
 mod editors;
 mod frame;
 mod input;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod instance;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
@@ -111,7 +113,15 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
-    let mut core = HostCore::new(None).map_err(|error| error.to_string())?;
+    let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|error| format!("could not make {}: {error}", data_dir.display()))?;
+    let instance = match instance::claim(&data_dir)? {
+        instance::Claim::First(instance) => instance,
+        instance::Claim::Running(running) => return hand_over(&running, &arguments),
+    };
+    let mut core = HostCore::new(Some(data_dir)).map_err(|error| error.to_string())?;
+    core.hear_handoffs(instance);
     core.login_session_mode = arguments.drm;
     #[cfg(target_os = "linux")]
     if arguments.drm {
@@ -134,6 +144,29 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     }
     core.warm_apps();
     beui_host::native::run_with(options, Shell::new(core))
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn hand_over(
+    running: &instance::Running,
+    arguments: &arguments::Arguments,
+) -> Result<(), Box<dyn Error>> {
+    let data = running.data_dir().display();
+    if arguments.desktop || arguments.drm {
+        return Err(format!(
+            "another be-host is already running on {data}, and a second desktop cannot share its data; quit that one first"
+        )
+        .into());
+    }
+    running
+        .hand_over(instance::Handoff {
+            dev_workspace: arguments.dev_workspace,
+        })
+        .map_err(|error| {
+            format!("another be-host is already running on {data}, but {error}; quit that one first")
+        })?;
+    eprintln!("be-host: already running on {data}; showed its window");
+    Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -557,6 +590,7 @@ struct HostCore {
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<embedded_server::EmbeddedServer>,
+    _handoffs: Option<host::Mailbox>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
@@ -834,6 +868,7 @@ impl HostCore {
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
+            _handoffs: None,
             error: None,
             pending_error_action: None,
             inspector_requested: None,
@@ -921,6 +956,22 @@ impl HostCore {
                 }
             }
         }
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn hear_handoffs(&mut self, instance: instance::Instance) {
+        let (mailbox, post) = desk().mailbox(Self::handed_over);
+        self._handoffs = Some(mailbox);
+        instance.serve(move |handoff| post.send(handoff));
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn handed_over(&mut self, handoff: instance::Handoff) {
+        if handoff.dev_workspace {
+            self.open_dev_workspace(None);
+        }
+        host::raise_window();
+        host::request_repaint();
     }
 
     #[cfg(target_os = "linux")]

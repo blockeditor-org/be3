@@ -244,6 +244,11 @@ impl PlatformServices for WinitPlatform<'_> {
             .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
     }
 
+    fn raise_window(&mut self) {
+        self.surface.window.set_minimized(false);
+        self.surface.window.focus_window();
+    }
+
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
         self.surface.accessibility.update_if_active(tree);
     }

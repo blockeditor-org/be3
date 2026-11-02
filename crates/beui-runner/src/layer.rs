@@ -146,6 +146,10 @@ pub trait Layer {
         below.set_fullscreen(fullscreen);
     }
 
+    fn raise_window(&mut self, below: &mut dyn PlatformServices) {
+        below.raise_window();
+    }
+
     fn publish_accessibility(
         &mut self,
         tree: &mut dyn FnMut() -> TreeUpdate,
@@ -255,6 +259,13 @@ impl PlatformServices for Below<'_> {
         match self.split() {
             Some((top, mut below)) => top.set_fullscreen(fullscreen, &mut below),
             None => self.platform.set_fullscreen(fullscreen),
+        }
+    }
+
+    fn raise_window(&mut self) {
+        match self.split() {
+            Some((top, mut below)) => top.raise_window(&mut below),
+            None => self.platform.raise_window(),
         }
     }
 
@@ -439,6 +450,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
 
     fn set_fullscreen(&mut self, fullscreen: bool, below: &mut dyn PlatformServices) {
         self.borrow_mut().set_fullscreen(fullscreen, below);
+    }
+
+    fn raise_window(&mut self, below: &mut dyn PlatformServices) {
+        self.borrow_mut().raise_window(below);
     }
 
     fn publish_accessibility(
