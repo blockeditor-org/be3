@@ -120,7 +120,7 @@ fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
     );
     assert_eq!(
         VIEWPORT.with(std::cell::Cell::get),
-        beui::vec2(600.0, 300.0),
+        beui::vec2(600.0, 600.0),
         "the viewport of a tab body is its tab's"
     );
 
