@@ -2685,11 +2685,27 @@ answer from it.
 Tiled, the styled `Docking` lays its panes edge to edge, divided by a one-point line
 (`splitter_thickness`) that takes presses a few points either side of it (`splitter_reach`);
 only floating windows and cards keep a border, rounded corners and a focus outline.
-A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
-filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
-the state is kept, so widening it tiles the layout again. The dock picks the mode
-from its own width (the unstyled `Docking` stacks below its `stack_below`, which the styled one sets to `NARROW_WIDTH`), and
-`DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
+A dock narrower than `NARROW_WIDTH` or shorter than `SHORT_HEIGHT` (a phone either way up) is
+compact. A compact dock whose own tree has no bare stage pane stacks (`DockMode::Stacked`): it draws
+the same state as one screen, the focused tab filling the dock, edge to edge, with no tab bars,
+splitters or windows, and everything else in the state is kept, so widening it tiles the layout
+again. A tree with a bare stage pane (`DockState::stage_of`: a bare pane among others, an editor's
+stage) is not stacked but gathered, whether it is the dock's own (`DockMode::Compact`) or a joined
+group a stacked dock shows (the workspace's editor): the stage keeps its pane, and every other
+pane's tabs, in the order they are declared, share one tabbed pane (`dock.compact`) below it when
+the tree is taller than wide, 40% of its height (`COMPACT_SHARE`), or beside it when wider, as wide
+as the tree's fixed split (`SplitSize::First/Second`) or `COMPACT_SIDE`. Its splitter
+(`dock.compact.splitter`) is the only thing that resizes the stage; the stage's tab body, with the
+bars it owns, just takes the new size. Tapping the gathered tab on show folds the pane to its tab
+strip, and tapping a tab or `DockState::show` (so `DockingLayout::show` and `DockRequest::Show`)
+unfolds it to that tab. The dragged sizes, the fold and the gathered tab are a `DockCompact` per
+stage tab (`DockState::compacts`), saved with the layout (`DockSpec::compact`, dock-layout's
+`compact`) apart from the tiled splits, so going back and forth between sizes mixes neither. A
+stacked dock's switcher lists such a tree by its stage alone (`DockState::switchable`). The dock
+picks the mode from its own size (the unstyled `Docking` is compact below its `stack_below` wide
+or `short_below` tall, which the styled one sets to `NARROW_WIDTH` and `SHORT_HEIGHT`), and
+`DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone; a joined
+dock reads the mode of the dock it joined (dock-hosted's `mode`).
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
 square counting the open tabs that can be closed, the one on show included, always shown
 (so it reads 0 while only tabs like Files are open), which opens a sheet to show or close them
@@ -4891,7 +4907,7 @@ the window, and the inspected program is one of its tabs: an Program tab, in a p
 the tools (Beui, Comp, A11y, Perf and Sim) with the tools 340 points wide, whose body is an
 `Embed` the program's document is laid out in. So the tools can be dragged beside the program, under it,
 beside one another or into floating windows, and the splitter sizes the program. A window narrower
-than `NARROW_WIDTH` stacks the dock, so the program and the tools take turns behind the stacked
+than `NARROW_WIDTH` or shorter than `SHORT_HEIGHT` stacks the dock, so the program and the tools take turns behind the stacked
 bar, picking shows the Program tab, and a pick returns to the tool shown last.
 
 The program is drawn under the inspector: `InspectorTools` shows the inspector's document first, so the
