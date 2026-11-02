@@ -24,7 +24,7 @@ fn a_failed_app_session_is_reported_as_a_crash() {
         host.runtimes
             .insert(app.identity.id.clone(), Runtime::new(&app, 0));
     });
-    let _ = take_crashed();
+    let _ = take_stopped();
 
     with("test.failing", |runtime| {
         runtime.session.shut_down();
@@ -32,7 +32,7 @@ fn a_failed_app_session_is_reported_as_a_crash() {
     });
 
     assert_eq!(
-        take_crashed(),
+        take_stopped(),
         ["test.failing"],
         "the host hears that it stopped, as it does of a panic"
     );
@@ -42,11 +42,11 @@ fn a_failed_app_session_is_reported_as_a_crash() {
             .any(|notice| notice.message.starts_with("Failing stopped: ")),
         "and the person is told"
     );
-    assert!(take_crashed().is_empty(), "each stop is heard once");
+    assert!(take_stopped().is_empty(), "each stop is heard once");
 
     crash("test.failing", "Crashed again".to_owned());
     assert!(
-        take_crashed().is_empty(),
+        take_stopped().is_empty(),
         "an app that has already stopped does not stop again"
     );
 }

@@ -309,10 +309,12 @@ and its windows open over it.
 
 ## A shell that stops
 
-When the shell's app stops (a panic, a trap, a hang or its session failing; any stop
-`Runtime::crashed` reports), be-host's `watch_shell` closes it and every editor under it,
-drops its runtime and shows the host's own session and profile picker (`Screen::Sessions`)
-with the error toast and its Copy report. Choosing a session or profile, or keeping the current
+When the shell's app stops (a panic, a trap, a hang, its session failing or ending, its
+presenter failing, or Kill in the Apps panel), be-host's `watch_shell` closes it and every editor under it,
+drops its runtime and shows the host's own session and profile picker (`Screen::Sessions`),
+with the error toast and its Copy report when it crashed. Every stop goes through
+`Runtime::stopped`, which shuts the app down and reports its id once to `take_stopped`; a
+runtime dropped while still running (`Host::shutdown`) reports there too. Choosing a session or profile, or keeping the current
 one, opens a fresh shell. The windows stay. On Linux the compositor keeps every client connected,
 and `Compositor::set_owned(false)`, which be-host sets whenever no shell is on screen, takes
 the keyboard, the pointer, held buttons and popups from them, drops any input meant for them
@@ -322,7 +324,7 @@ windows in `WindowsWatch` and shows them as it shows any window; the desktop app
 names window tabs by `HostWindowId`, which the host keeps, so a restored layout puts
 each window back where it was, fullscreen and dialogs included. To try it, open be-host's
 menu (the Apps panel's Menu row), choose Running Apps, be-host's debug panel of the apps it runs,
-and press Crash beside `be3.desktop`.
+and press Crash or Kill beside `be3.desktop`.
 
 ## A layout that cannot be read
 
