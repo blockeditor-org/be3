@@ -312,7 +312,7 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
             </Show>
             <StatusButton status direction />
             <ClockButton
-                editor={editor}
+                workspace={shell.workspace}
                 notifications={shell.notifications}
                 clock={shell.clock}
                 direction

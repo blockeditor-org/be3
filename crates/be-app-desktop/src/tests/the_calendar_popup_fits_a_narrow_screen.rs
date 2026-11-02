@@ -2,7 +2,7 @@ use be_sdk_beui::beui::Vec2;
 
 use super::*;
 
-const NARROW: Vec2 = Vec2::new(390.0, 700.0);
+const NARROW: Vec2 = Vec2::new(360.0, 640.0);
 
 #[test]
 fn the_calendar_popup_fits_a_narrow_screen() {
@@ -12,21 +12,20 @@ fn the_calendar_popup_fits_a_narrow_screen() {
 
     fixture.test.click("desktop.clock");
     fixture.settle();
-    let placed = fixture.placed_blocks();
-    let [(_, _, rect)] = placed[..] else {
-        panic!("the calendar is placed: {placed:?}");
-    };
+    fixture.calendar().expect("the clock opens the calendar");
+    let ids = fixture.test.test_ids();
+    let rect = ids
+        .rect("desktop.calendar")
+        .expect("the calendar is laid out");
+    let clock = ids.rect("desktop.clock").expect("the clock is laid out");
+    drop(ids);
     assert!(
-        rect.min.x >= 0.0 && rect.max.x <= NARROW.x && rect.min.y >= 0.0 && rect.max.y <= NARROW.y,
+        rect.min.x >= 0.0 && rect.max.x <= NARROW.x && rect.min.y >= 0.0,
         "the calendar stays on a {NARROW:?} screen, at {rect:?}"
     );
-    let document = fixture.test.document();
-    let clock = document
-        .find_test_id("desktop.clock")
-        .and_then(|clock| document.node_rect(clock))
-        .expect("the clock is laid out");
     assert!(
         rect.max.y <= clock.min.y,
         "the calendar leaves the clock that opened it uncovered, at {rect:?}"
     );
+    fixture.test.snapshot("the_calendar_popup_on_a_narrow_screen");
 }
