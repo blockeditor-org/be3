@@ -520,6 +520,8 @@ impl Runtime {
         mark(&self.app.identity.id);
         let app = self.app.clone();
         self.stop();
+        presenter::release(self.surface, &self.status);
+        self.shared.borrow_mut().frames.clear();
         self.session = session();
         self.queued.clear();
         self.held.clear();
