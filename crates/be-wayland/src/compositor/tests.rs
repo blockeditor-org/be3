@@ -455,7 +455,9 @@ impl Painter {
         Self {
             device: device.clone(),
             queue: queue.clone(),
-            renderer: beui_host::native::Renderer::new(device, format),
+            renderer: beui_host::native::Renderer::new(&beui_host::native::Resources::new(
+                device, format,
+            )),
             view: target.create_view(&wgpu::TextureViewDescriptor::default()),
         }
     }

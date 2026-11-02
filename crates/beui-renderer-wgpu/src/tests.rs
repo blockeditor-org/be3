@@ -23,6 +23,8 @@ mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod a_rect_rounds_each_corner_by_its_own_radius;
 mod a_renderer_at_an_origin_paints_the_part_of_the_document_there;
+mod a_renderer_prepared_before_the_atlas_is_renewed_still_paints_its_glyphs;
+mod a_renderers_encoded_rows_survive_another_renderer_painting_between_its_frames;
 mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_replaced_drawing_is_released_once_it_is_repainted;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
@@ -51,6 +53,7 @@ mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 mod two_fills_meeting_on_a_seam_paint_as_one;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
+mod two_renderers_on_one_set_of_resources_share_their_glyphs_and_images;
 mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 
 use std::cell::RefCell;
@@ -145,7 +148,7 @@ impl Target {
     }
 
     pub fn on(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let renderer = Renderer::new(&device, format);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format));
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui test target"),
             size: wgpu::Extent3d {
@@ -173,6 +176,12 @@ impl Target {
             cleared: false,
             bounded: false,
         }
+    }
+
+    pub fn sharing(other: &Self) -> Self {
+        let mut target = Self::on(other.device.clone(), other.queue.clone(), other.format);
+        target.renderer = Renderer::new(other.renderer.resources());
+        target
     }
 
     pub fn bound(&mut self, bounds: [u32; 4]) {

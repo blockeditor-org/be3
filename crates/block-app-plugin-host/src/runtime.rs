@@ -907,6 +907,12 @@ impl Runtime {
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
+        let surfaces: Vec<u32> = layout
+            .screens
+            .iter()
+            .map(|placement| placement.surface)
+            .collect();
+        presenter::keep(self.surface, &surfaces);
         self.layout = layout;
     }
 

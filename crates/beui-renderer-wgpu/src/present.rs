@@ -219,7 +219,7 @@ impl Gpu {
         open_device: OpenDevice,
     ) -> Self {
         Self {
-            renderer: Renderer::new(&opened.device, format),
+            renderer: Renderer::new(&crate::Resources::new(&opened.device, format)),
             instance,
             adapter: opened.adapter,
             device: opened.device,

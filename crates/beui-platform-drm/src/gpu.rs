@@ -50,6 +50,7 @@ pub struct Gpu {
     vulkan: Option<Vulkan>,
     quads: Pipelines,
     format: wgpu::TextureFormat,
+    resources: beui_host::native::Resources,
 }
 
 impl Gpu {
@@ -62,11 +63,16 @@ impl Gpu {
         Self {
             sync: RefCell::new(sync),
             quads: Pipelines::new(&device),
+            resources: beui_host::native::Resources::new(&device, format),
             device,
             queue,
             vulkan,
             format,
         }
+    }
+
+    pub fn resources(&self) -> &beui_host::native::Resources {
+        &self.resources
     }
 
     pub fn device(&self) -> &wgpu::Device {

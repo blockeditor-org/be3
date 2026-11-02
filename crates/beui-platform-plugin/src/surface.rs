@@ -80,9 +80,17 @@ pub(crate) fn paint(
     {
         return None;
     }
+    let resources = resources(gpu);
+    if painter
+        .renderer
+        .as_ref()
+        .is_some_and(|renderer| !renderer.resources().same(&resources))
+    {
+        painter.renderer = None;
+    }
     let renderer = painter
         .renderer
-        .get_or_insert_with(|| beui_renderer_wgpu::Renderer::new(&gpu.device, gpu.format));
+        .get_or_insert_with(|| beui_renderer_wgpu::Renderer::new(&resources));
     let prepared = renderer.prepare(&gpu.device, &gpu.queue, output, screen, scale, repaint);
     if matches!(repaint, Repaint::Region { .. }) && matches!(prepared, Repaint::Everything) {
         renderer.prepare(&gpu.device, &gpu.queue, output, screen, scale, whole);
@@ -110,6 +118,31 @@ pub(crate) fn paint(
             })
             .collect(),
         None => target.whole(),
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static RESOURCES: std::cell::RefCell<Option<(wgpu::Device, beui_renderer_wgpu::Resources)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn resources(gpu: &SurfaceGpu) -> beui_renderer_wgpu::Resources {
+    RESOURCES.with(|held| {
+        let mut held = held.borrow_mut();
+        match &*held {
+            Some((device, resources))
+                if *device == gpu.device && resources.format() == gpu.format =>
+            {
+                resources.clone()
+            }
+            _ => {
+                let resources = beui_renderer_wgpu::Resources::new(&gpu.device, gpu.format);
+                *held = Some((gpu.device.clone(), resources.clone()));
+                resources
+            }
+        }
     })
 }
 

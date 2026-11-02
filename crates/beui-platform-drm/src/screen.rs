@@ -93,7 +93,7 @@ impl Screen {
             rect: Rect::ZERO,
             scale: 1.0,
             zoom: 1.0,
-            renderer: Renderer::new(gpu.device(), FORMAT),
+            renderer: Renderer::new(gpu.resources()),
             retained,
             turned,
             pending: Some(Repaint::Everything),

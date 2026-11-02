@@ -4,6 +4,7 @@ use super::*;
 use crate::{EditorInstanceId, FrameSpec, View};
 
 mod a_framework_that_stops_stops_every_shown_region;
+mod a_region_laid_out_no_longer_lets_its_surface_go_without_a_frame;
 mod a_region_with_damage_has_changed_and_keeps_its_surface_while_shown;
 mod a_window_ask_goes_to_the_region_of_the_instance_that_made_it;
 
