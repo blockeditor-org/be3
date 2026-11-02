@@ -1109,7 +1109,26 @@ impl DockState {
             .or_else(|| self.recent_tabs().first().copied())
     }
 
+    fn lift_focused(&mut self) {
+        let Some(surface) = self.focus.and_then(|leaf| self.surface_of(leaf)) else {
+            return;
+        };
+        let Some(at) = self
+            .surfaces
+            .iter()
+            .position(|held| held.id == surface && held.window.is_some())
+        else {
+            return;
+        };
+        if at + 1 == self.surfaces.len() {
+            return;
+        }
+        let lifted = self.surfaces.remove(at);
+        self.surfaces.push(lifted);
+    }
+
     fn remember_focus(&mut self) {
+        self.lift_focused();
         let Some(tab) = self.focused_tab() else {
             return;
         };
