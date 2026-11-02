@@ -176,6 +176,10 @@ impl Backend {
         Some(platform::frame(presented, presents))
     }
 
+    pub(super) fn holds_input(&self) -> bool {
+        self.wire.holds_input()
+    }
+
     pub(super) fn settled(&self) -> bool {
         self.worker.as_ref().is_none_or(Worker::settled)
     }

@@ -984,6 +984,13 @@ configures the child, and the child shows that size from the next frame.
 `shell.intrinsic-size` stays for children placed at a size their placer
 chooses, such as cards on a canvas, which only take the size as a hint.
 
+Input reaches a plugin through its `input` watch, which the plugin pulls,
+while `draw` is pushed, so a draw could otherwise overtake input the host
+sent before it and the frame would show it a frame late, or not, depending on
+timing. The host therefore asks for a draw only once the plugin has taken all
+the input queued for it: while input waits for the plugin's next
+`input.next`, the draw waits too, and the frame waits for both.
+
 A plugin paints at most once per host frame. A change that reaches it after
 the host asked it to draw in this frame, such as a resize a later round of
 layout gives it, waits for the next frame, and the view shows the frame the

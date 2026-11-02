@@ -244,6 +244,7 @@ pub(super) struct Runtime {
     frames: u64,
     steps: u64,
     relaid: bool,
+    awaiting_input: bool,
     drawn: HashMap<ScreenId, (u32, u32)>,
     placers: HashMap<(EditorInstanceId, ViewId), Placer>,
 }
@@ -472,6 +473,7 @@ impl Runtime {
             frames: 0,
             steps: 0,
             relaid: false,
+            awaiting_input: false,
             drawn: HashMap::default(),
             placers: HashMap::default(),
         }
@@ -642,7 +644,8 @@ impl Runtime {
     }
 
     fn outstanding(&self) -> bool {
-        self.error.is_none() && (!self.backend.settled() || self.pacing.painting)
+        self.error.is_none()
+            && (!self.backend.settled() || self.pacing.painting || self.awaiting_input)
     }
 
     fn take_relaid(&mut self) -> bool {
@@ -791,8 +794,11 @@ impl Runtime {
         let pass = host::pass();
         self.pacing.needed |= seen && self.pacing.unseen;
         let due = drawing && self.pacing.due(self.now(), pass);
+        self.awaiting_input = false;
         if due && (held || self.pacing.asked_in == pass) {
             host::request_repaint();
+        } else if due && self.backend.holds_input() {
+            self.awaiting_input = true;
         } else if due {
             self.pacing.request(self.now(), pass);
             self.pacing.unseen = !seen;

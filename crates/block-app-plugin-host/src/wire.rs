@@ -637,6 +637,10 @@ impl Wire {
         self.connection.take_outbound()
     }
 
+    pub(super) fn holds_input(&self) -> bool {
+        self.input.holding()
+    }
+
     pub(super) fn has_outbound(&self) -> bool {
         self.connection.has_outbound()
     }
