@@ -22,6 +22,8 @@ fn on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_
         world.0 >= stage.0 - 1.0 && world.0 + world.2 <= stage.0 + stage.2 + 1.0,
         "the editor keeps its cards fitted into its stage, {world:?} in {stage:?}"
     );
-    host.snapshot("on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage");
+    host.snapshot(
+        "on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage",
+    );
     host.close();
 }

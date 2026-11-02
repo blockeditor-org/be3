@@ -370,7 +370,9 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
                     <List spacing=Space::None>
                         <Show condition={empty}>
                             <Frame padding=FILMSTRIP_PADDING>
-                                <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
+                                <Text style=TextStyle::CAPTION>
+                                    "Add a slide to start this deck."
+                                </Text>
                             </Frame>
                         </Show>
                         <Scroll

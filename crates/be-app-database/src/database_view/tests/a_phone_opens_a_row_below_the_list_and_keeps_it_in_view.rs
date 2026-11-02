@@ -24,9 +24,18 @@ fn a_phone_opens_a_row_below_the_list_and_keeps_it_in_view() {
 
     tracker.fixture.harness.tap(&line);
     tracker.fixture.settle();
-    assert!(tracker.fixture.harness.label("dock.tab.row").starts_with(&tracker.fixture.database().short_id(tracker.row(5))));
+    assert!(
+        tracker
+            .fixture
+            .harness
+            .label("dock.tab.row")
+            .starts_with(&tracker.fixture.database().short_id(tracker.row(5)))
+    );
     let gathered = tracker.fixture.harness.rect_of("dock.compact");
-    let detail = tracker.fixture.harness.rect_of("database-view.detail.title");
+    let detail = tracker
+        .fixture
+        .harness
+        .rect_of("database-view.detail.title");
     assert!(
         gathered.contains_rect(detail),
         "the row opens in the pane gathered below the list, {detail:?} in {gathered:?}"
@@ -37,7 +46,11 @@ fn a_phone_opens_a_row_below_the_list_and_keeps_it_in_view() {
         .harness
         .snapshot("a_phone_opens_a_row_below_the_list");
 
-    let splitter = tracker.fixture.harness.rect_of("dock.compact.splitter").center();
+    let splitter = tracker
+        .fixture
+        .harness
+        .rect_of("dock.compact.splitter")
+        .center();
     tracker
         .fixture
         .harness
@@ -48,7 +61,10 @@ fn a_phone_opens_a_row_below_the_list_and_keeps_it_in_view() {
     tracker.fixture.harness.set_size(LANDSCAPE_PHONE);
     tracker.fixture.settle();
     let gathered = tracker.fixture.harness.rect_of("dock.compact");
-    let detail = tracker.fixture.harness.rect_of("database-view.detail.title");
+    let detail = tracker
+        .fixture
+        .harness
+        .rect_of("database-view.detail.title");
     assert!(
         gathered.contains_rect(detail),
         "on a phone on its side the row opens right of the list, {detail:?} in {gathered:?}"

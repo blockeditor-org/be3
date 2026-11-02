@@ -77,20 +77,25 @@ pub fn ListView(data: Data) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <Container>|viewport: ReadSignal<Vec2>|
-            <Scroll @test_id={"database-view.list"}>
-                <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
-                    <List spacing=Space::None>
-                        <Show condition={empty}>
-                            <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
-                                <Text style=TextStyle::CAPTION>{blank}</Text>
-                            </Frame>
-                        </Show>
-                        <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
-                            <AnyLine data={data} groups={groups} line={line} viewport={viewport} />
-                        </VirtualList>
-                    </List>
-                </Frame>
-            </Scroll>
+                <Scroll @test_id={"database-view.list"}>
+                    <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
+                        <List spacing=Space::None>
+                            <Show condition={empty}>
+                                <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
+                                    <Text style=TextStyle::CAPTION>{blank}</Text>
+                                </Frame>
+                            </Show>
+                            <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
+                                <AnyLine
+                                    data={data}
+                                    groups={groups}
+                                    line={line}
+                                    viewport={viewport}
+                                />
+                            </VirtualList>
+                        </List>
+                    </Frame>
+                </Scroll>
             </Container>
         </Frame>
     }

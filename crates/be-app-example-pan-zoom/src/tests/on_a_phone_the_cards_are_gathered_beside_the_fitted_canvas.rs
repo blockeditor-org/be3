@@ -32,7 +32,10 @@ fn on_a_phone_the_cards_are_gathered_beside_the_fitted_canvas() {
     test.drag(splitter, splitter - Vec2::new(0.0, 200.0));
     test.settle();
     assert!(
-        test.content_rect().expect("the editor reports its stage").height() < stage.height() - 100.0,
+        test.content_rect()
+            .expect("the editor reports its stage")
+            .height()
+            < stage.height() - 100.0,
         "dragging the splitter up shortens the canvas"
     );
     fitted(&test);

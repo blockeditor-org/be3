@@ -143,25 +143,25 @@ fn Content(data: Data) -> NodeId {
     let kind = data.kind;
     view! {
         <List spacing=Space::None>
-                <Dynamic value={kind}>|kind: DatabaseViewKind| {
-                    match kind {
-                        DatabaseViewKind::Spreadsheet => view! {
-                            <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Kanban => view! {
-                            <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Scatter => view! {
-                            <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::List => view! {
-                            <ListView @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                        DatabaseViewKind::Calendar => view! {
-                            <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
-                        },
-                    }
-                }</Dynamic>
+            <Dynamic value={kind}>|kind: DatabaseViewKind| {
+                match kind {
+                    DatabaseViewKind::Spreadsheet => view! {
+                        <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Kanban => view! {
+                        <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Scatter => view! {
+                        <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::List => view! {
+                        <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                    DatabaseViewKind::Calendar => view! {
+                        <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
+                    },
+                }
+            }</Dynamic>
         </List>
     }
 }

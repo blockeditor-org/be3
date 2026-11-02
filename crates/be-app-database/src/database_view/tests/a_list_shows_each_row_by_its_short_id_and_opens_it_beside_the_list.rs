@@ -29,7 +29,12 @@ fn a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list() {
     fixture.harness.click(&line);
     fixture.settle();
 
-    assert!(fixture.harness.label("dock.tab.row").starts_with(&rows.short_id(second)));
+    assert!(
+        fixture
+            .harness
+            .label("dock.tab.row")
+            .starts_with(&rows.short_id(second))
+    );
     assert!(rows.short_id(second).starts_with("BE-"));
     assert!(
         fixture

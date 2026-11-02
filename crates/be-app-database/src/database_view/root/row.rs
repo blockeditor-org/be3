@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block::{BlockContent, ObjectId};
 use be_sdk_beui::beui::icons::{
-    ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK,
-    ICON_FILE_PLUS, ICON_TRASH, ICON_X,
+    ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK, ICON_FILE_PLUS,
+    ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -124,7 +124,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame padding=PADDING>
                         <List spacing=Space::Xl>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Xs2
+                            >
                                 <TextInput
                                     @sizing={ItemSize::Percent(100.0).shrink(1.0)}
                                     value={Binding::new(title, retitled)}
