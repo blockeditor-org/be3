@@ -67,6 +67,7 @@ pub fn WindowView(
         }
     });
     let cursor = windows.cursor();
+    let cursor_image = windows.cursor_image();
     let asks = signals.typing;
     let typing = create_memo(move || asks.get().is_some());
     let takes = create_memo(move || {
@@ -98,6 +99,7 @@ pub fn WindowView(
         windows.forward(id, input);
     };
     let popup_cursor = windows.cursor();
+    let popup_cursor_image = windows.cursor_image();
     let areas = signals.popups;
     let on_popup = create_memo(move || {
         areas.with(|popups| {
@@ -118,6 +120,7 @@ pub fn WindowView(
                 @test_id={format!("wayland.window.{}", id.0)}
                 on_focus_change={move |focused: bool| windows.focus(id, focused)}
                 cursor
+                cursor_image
                 on_forward={move |input: ForwardedInput| {
                     let input = match &steer {
                         Some(steer) => steer(input),
@@ -166,6 +169,7 @@ pub fn WindowView(
                                 tab_stop=false
                                 @test_id={format!("wayland.popups.{}", id.0)}
                                 cursor={popup_cursor}
+                                cursor_image={popup_cursor_image}
                                 on_forward={into_window}
                                 hit_area={on_popup}
                             >

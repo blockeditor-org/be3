@@ -5,6 +5,7 @@ use crate::reactive::ImeCursor;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::CursorIcon;
+use crate::types::CursorImage;
 use crate::types::ImeEvent;
 use crate::types::ImeText;
 use crate::types::KeyPress;
@@ -43,6 +44,7 @@ pub fn Interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     #[prop(default = None)] cursor: Prop<Option<CursorIcon>>,
+    #[prop(default = None)] cursor_image: Prop<Option<CursorImage>>,
     #[prop(default = false)] pointer_locked: Prop<bool>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = Area::Nowhere)] capture_presses: Prop<Area>,
@@ -96,6 +98,7 @@ pub fn Interactive(
         on_key,
         on_motion,
         cursor,
+        cursor_image,
         pointer_locked,
         key_active,
         capture_presses,

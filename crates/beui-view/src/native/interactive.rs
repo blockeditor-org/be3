@@ -49,6 +49,7 @@ pub(crate) fn interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Prop<Option<CursorIcon>>,
+    cursor_image: Prop<Option<beui_types::CursorImage>>,
     pointer_locked: Prop<bool>,
     key_active: Prop<bool>,
     capture_presses: Prop<Area>,
@@ -187,6 +188,10 @@ pub(crate) fn interactive(
     create_binding(move || {
         let cursor = cursor.get();
         with_document(|document| document.set_interactive_cursor(interactive, cursor))
+    });
+    create_binding(move || {
+        let image = cursor_image.get();
+        with_document(|document| document.set_interactive_cursor_image(interactive, image))
     });
     create_binding(move || {
         let (repeat, touch) = (repeat_drag.get(), touch_drags.get());

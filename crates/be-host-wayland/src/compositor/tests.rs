@@ -3,6 +3,7 @@ use beui::KeyAt;
 
 mod a_button_beyond_the_five_reaches_the_window_with_its_own_code;
 mod a_click_on_beui_dismisses_a_grabbed_popup;
+mod a_client_cursor_surface_reaches_the_platform_as_a_cursor_image;
 mod a_closed_window_leaves_the_list;
 mod a_cursor_shape_a_client_names_is_shown_over_its_window;
 mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;

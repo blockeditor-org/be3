@@ -527,9 +527,13 @@ name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PAT
 icon directories, following `Inherits`), looked up by CSS name and then the old X11 names
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
-the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
-`beui_platform_drm::SoftwareCursor` (be-host-desktop's `desktop_host/linux.rs`), redrawn whenever the client
-commits to it; a null cursor hides the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
+the winit backend shows too), and a `wl_pointer.set_cursor` surface (Xwayland's X11 cursors too)
+reaches the DRM platform through `beui_platform_drm::SoftwareCursor` (be-host-desktop's
+`desktop_host/linux.rs`) as the surface's texture, redrawn whenever the client commits to it.
+Every other platform gets it as the window's `cursor_image` (`Windows::cursor_image`, read on
+each commit from the surface's `wl_shm` buffer by `render::pixels`; a dmabuf cursor shows the
+default arrow there): winit as a custom cursor, headless in `drive state`. A null cursor hides
+the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
 the platform offers no `SoftwareCursor`, since its pointer is not where the layer's is: the layer
 draws its own cursor from the window's `CursorIcon`.
 

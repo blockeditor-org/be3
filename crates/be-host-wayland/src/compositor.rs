@@ -68,6 +68,7 @@ pub struct Compositor {
     gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
+    cursor_pixels: Option<beui::Image>,
     unowned: unowned::Unowned,
 }
 
@@ -109,6 +110,7 @@ impl Compositor {
             gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
+            cursor_pixels: None,
             unowned: unowned::Unowned::default(),
         }
     }
@@ -368,6 +370,7 @@ impl Compositor {
             cursor_changed |= cursor.as_ref() == Some(&surface);
         }
         if cursor_changed {
+            self.cursor_pixels = cursor.as_ref().and_then(crate::render::pixels);
             self.cursor_surface = cursor;
             self.cursor_revision += 1;
         }
@@ -546,6 +549,22 @@ impl Compositor {
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
             revision: self.cursor_revision,
+        })
+    }
+
+    fn client_cursor(&self, surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface) -> Option<beui::CursorImage> {
+        let image = self.cursor_pixels.clone()?;
+        let size = with_renderer_surface_state(surface, |state| state.surface_size()).flatten()?;
+        let hotspot = with_states(surface, |states| {
+            states
+                .data_map
+                .get::<CursorImageSurfaceData>()
+                .map(|data| data.lock().unwrap().hotspot)
+        })?;
+        Some(beui::CursorImage {
+            image,
+            size: beui::vec2(size.w as f32, size.h as f32),
+            hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
         })
     }
 
@@ -858,13 +877,13 @@ impl Compositor {
                 Command::Launch(launch) => self.launch(&launch, now),
             }
         }
-        let cursor = match self.server.state.cursor() {
-            CursorImageStatus::Hidden => CursorIcon::None,
-            CursorImageStatus::Named(icon) => cursor_icon(*icon),
-            CursorImageStatus::Surface(_) => CursorIcon::Default,
+        let (cursor, image) = match self.server.state.cursor() {
+            CursorImageStatus::Hidden => (CursorIcon::None, None),
+            CursorImageStatus::Named(icon) => (cursor_icon(*icon), None),
+            CursorImageStatus::Surface(surface) => (CursorIcon::Default, self.client_cursor(surface)),
         };
         let windows = self.windows;
-        windows.set_cursor(cursor);
+        windows.set_cursor(cursor, image);
         self.reap();
     }
 }
