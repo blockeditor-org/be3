@@ -15,6 +15,7 @@ pub(crate) struct Programs {
     editor: Editor,
     scale: ReadSignal<f32>,
     query: Signal<String>,
+    highlighted: Signal<Option<String>>,
     pub(crate) offered: Memo<bool>,
 }
 
@@ -24,12 +25,14 @@ impl Programs {
             editor,
             scale: pixels_per_point(),
             query: create_signal(String::new()),
+            highlighted: create_signal(None),
             offered: editor.offered::<ProgramsWatch>(),
         }
     }
 
     pub(crate) fn opened(&self) {
         self.query.set(String::new());
+        self.highlighted.set(None);
         if !self.offered.get_untracked() {
             return;
         }
@@ -117,6 +120,7 @@ pub(super) fn ProgramSearch(
     let none = create_memo(move || {
         !searching.get() && catalog.with(|catalog| catalog.listed && catalog.programs.is_empty())
     });
+    let steady = create_memo(move || catalog.with(|catalog| !catalog.programs.is_empty()));
     let columns = create_memo(move || match searching.get() {
         true => 1,
         false => COLUMNS,
@@ -127,9 +131,11 @@ pub(super) fn ProgramSearch(
                 items
                 score
                 query
+                highlighted={programs.highlighted}
                 columns
                 focused
                 list_height=RESULTS_HEIGHT
+                fill_height={steady}
                 placeholder="Search programs, or type a command"
                 label="Search programs"
                 id="desktop.apps"
