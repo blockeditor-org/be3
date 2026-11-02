@@ -1485,6 +1485,7 @@ dependencies = [
  "futures-util",
  "image",
  "pulseaudio",
+ "roxmltree",
  "serde",
  "tokio",
  "uuid",

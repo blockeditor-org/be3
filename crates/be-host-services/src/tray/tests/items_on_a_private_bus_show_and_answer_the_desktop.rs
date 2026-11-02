@@ -217,7 +217,10 @@ fn items_on_a_private_bus_show_and_answer_the_desktop() {
             x: 1890,
             y: 1060,
         };
-        assert!(!items[0].item_is_menu, "an item with Activate is not only a menu");
+        assert!(
+            !items[0].item_is_menu,
+            "an item with Activate is not only a menu"
+        );
         let _ = events.send(Event::Request(TrayRequest::Activate(click.clone())));
         heard(&heard_by_item, "Activate 1890 1060");
         let _ = events.send(Event::Request(TrayRequest::Scroll {
