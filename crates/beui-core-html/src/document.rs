@@ -370,7 +370,9 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
     let mut attributes = crate::aria::attributes(&accessibility, element.tag());
     if let Some(referenced) = accessibility.active_descendant() {
         let name = format!("beui-{}", referenced.0);
-        let target = with_entry(NodeId::from_key(referenced.0), |entry| entry.element.clone());
+        let target = with_entry(NodeId::from_key(referenced.0), |entry| {
+            entry.element.clone()
+        });
         if let Some(target) = target {
             target.set_attribute("id", Some(name.clone()));
             attributes.push(("aria-activedescendant", name));
