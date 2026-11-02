@@ -2,10 +2,18 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{Editor, Subregion, SubregionContent, Toolbar};
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::{Editor, Subregion, SubregionContent};
 
 use super::session::{PAGE, Session};
 use beui::{Align, ItemSize, Justify};
+
+const STAGE: &str = "stage";
+const TOOLBAR: &str = "toolbar";
+const ADDRESS_WIDTH: Size = Size::Custom(360.0);
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
@@ -44,64 +52,162 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let bar = Bar {
+        address,
+        no_back,
+        no_forward,
+        back: Callback::new(move |()| go_back()),
+        forward: Callback::new(move |()| go_forward()),
+        reload: Callback::new(move |()| reload()),
+        typed: Callback::new(typed),
+        submit: Callback::new(submit),
+        navigate: Callback::new(move |()| navigate()),
+        focus: Callback::new(focus_host),
+    };
     view! {
         <List spacing=Space::None>
-            <Toolbar shown={chrome}>
-                <Button
-                    icon_only=true
-                    glyph=ICON_ARROW_LEFT
-                    label="Back"
-                    disabled={no_back}
-                    @test_id={"browser.back"}
-                    on_click={go_back}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_ARROW_RIGHT
-                    label="Forward"
-                    disabled={no_forward}
-                    @test_id={"browser.forward"}
-                    on_click={go_forward}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_REFRESH_CW
-                    label="Reload"
-                    @test_id={"browser.reload"}
-                    on_click={reload}
-                />
+            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
+                match chrome.get_untracked() {
+                    true => view! {
+                        <TabDock @sizing=ItemSize::Percent(100.0) editor content page failed reason bar />
+                    },
+                    false => view! {
+                        <Page @sizing=ItemSize::Percent(100.0) editor content page failed reason />
+                    },
+                }
+            }</Keyed>
+        </List>
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Bar {
+    address: ReadSignal<String>,
+    no_back: Memo<bool>,
+    no_forward: Memo<bool>,
+    back: Callback<()>,
+    forward: Callback<()>,
+    reload: Callback<()>,
+    typed: Callback<String>,
+    submit: Callback<String>,
+    navigate: Callback<()>,
+    focus: Callback<bool>,
+}
+
+#[component]
+fn TabDock(
+    editor: Editor,
+    content: NodeRef,
+    page: Memo<Option<SubregionContent>>,
+    failed: Memo<bool>,
+    reason: Memo<String>,
+    bar: Bar,
+) -> NodeId {
+    let layout = DockingLayout::<&'static str>::new();
+    view! {
+        <Docking layout focus={Some(STAGE)}>
+            <DockPane id="stage" locked=true bare=true>
+                <DockTab id=STAGE title="Page">
+                    <Page editor content page failed reason />
+                </DockTab>
+            </DockPane>
+            <DockBar
+                id=TOOLBAR
+                parent=STAGE
+                placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+            >
+                <AddressBar bar />
+            </DockBar>
+        </Docking>
+    }
+}
+
+#[component]
+fn AddressBar(bar: Bar) -> NodeId {
+    let Bar {
+        address,
+        no_back,
+        no_forward,
+        back,
+        forward,
+        reload,
+        typed,
+        submit,
+        navigate,
+        focus,
+    } = bar;
+    view! {
+        <DockBarSurface spacing=Space::Md @test_id={"browser.toolbar"}>
+            <Frame @test_id={"browser.toolbar.grip"}>
+                <DockBarGrip />
+            </Frame>
+            <Button
+                icon_only=true
+                glyph=ICON_ARROW_LEFT
+                label="Back"
+                disabled={no_back}
+                @test_id={"browser.back"}
+                on_click={move || back.call(())}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_ARROW_RIGHT
+                label="Forward"
+                disabled={no_forward}
+                @test_id={"browser.forward"}
+                on_click={move || forward.call(())}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_REFRESH_CW
+                label="Reload"
+                @test_id={"browser.reload"}
+                on_click={move || reload.call(())}
+            />
+            <Frame width=ADDRESS_WIDTH>
                 <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(address, typed)}
+                    value={Binding::new(address, move |value: String| typed.call(value))}
                     label="Address"
                     placeholder="Search or enter address"
                     @test_id={"browser.address"}
-                    on_submit={submit}
-                    on_focus_change={focus_host}
+                    on_submit={move |value: String| submit.call(value)}
+                    on_focus_change={move |focused: bool| focus.call(focused)}
                 />
-                <Button
-                    label="Go"
-                    variant=ButtonVariant::Primary
-                    @test_id={"browser.go"}
-                    on_click={navigate}
-                />
-            </Toolbar>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <Layers>
-                    <Subregion editor={editor} placed={page} punch=false />
-                    <List align=Align::Center justify=Justify::Center spacing=Space::None>
-                        <Show condition={failed}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                color=TextColor::Danger
-                                @test_id={"browser.error"}
-                            >
-                                {reason}
-                            </Text>
-                        </Show>
-                    </List>
-                </Layers>
             </Frame>
-        </List>
+            <Button
+                label="Go"
+                variant=ButtonVariant::Primary
+                @test_id={"browser.go"}
+                on_click={move || navigate.call(())}
+            />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+fn Page(
+    editor: Editor,
+    content: NodeRef,
+    page: Memo<Option<SubregionContent>>,
+    failed: Memo<bool>,
+    reason: Memo<String>,
+) -> NodeId {
+    view! {
+        <Frame @node_ref={&content}>
+            <Layers>
+                <Subregion editor={editor} placed={page} punch=false />
+                <List align=Align::Center justify=Justify::Center spacing=Space::None>
+                    <Show condition={failed}>
+                        <Text
+                            style=TextStyle::CAPTION
+                            color=TextColor::Danger
+                            @test_id={"browser.error"}
+                        >
+                            {reason}
+                        </Text>
+                    </Show>
+                </List>
+            </Layers>
+        </Frame>
     }
 }
