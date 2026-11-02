@@ -102,6 +102,9 @@ impl DockState {
         self.compact.push(held);
     }
 
+    /// The gathered tab a compact tree shows: the one last picked, else
+    /// the first other bare pane's (content, such as a timeline, before
+    /// chrome), else the first other pane's.
     pub fn gathered_shown(&self, tree: Tree) -> Option<TabId> {
         let tabs = self.gathered_tabs(tree);
         let stage = self.stage_tab(tree)?;
@@ -109,13 +112,17 @@ impl DockState {
         picked
             .or_else(|| {
                 let stage_leaf = self.stage_of(tree)?;
-                let leaf = self
+                let leaves: Vec<LeafId> = self
                     .tree_leaves(tree)
                     .into_iter()
-                    .find(|leaf| *leaf != stage_leaf && !self.entries(*leaf).is_empty())?;
-                self.standing_tabs(self.active_entry(leaf)?)
-                    .first()
-                    .copied()
+                    .filter(|leaf| *leaf != stage_leaf && !self.entries(*leaf).is_empty())
+                    .collect();
+                let leaf = leaves
+                    .iter()
+                    .find(|leaf| self.is_bare(**leaf))
+                    .or(leaves.first())
+                    .copied()?;
+                self.standing_tabs(self.active_entry(leaf)?).first().copied()
             })
             .or_else(|| tabs.first().copied())
     }
