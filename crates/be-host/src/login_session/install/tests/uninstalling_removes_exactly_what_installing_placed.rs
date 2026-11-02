@@ -56,7 +56,10 @@ fn uninstalling_removes_exactly_what_installing_placed() {
     apply_here(&plan_uninstall(&layout).unwrap()).unwrap();
     assert!(!home.exists(), "an install alone leaves nothing behind");
     assert!(
-        layout.pam.join(crate::login_session::pam::SERVICE).is_file(),
+        layout
+            .pam
+            .join(crate::login_session::pam::SERVICE)
+            .is_file(),
         "a PAM service someone changed since stays"
     );
     assert!(

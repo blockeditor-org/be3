@@ -190,9 +190,9 @@ pub(crate) fn apply(
     }
     for (index, change) in changes.iter().enumerate() {
         if !elevated(index) {
-            change.apply(staged[index].take()).map_err(|error| {
-                format!("{}: {error}", change.destinations()[0].display())
-            })?;
+            change
+                .apply(staged[index].take())
+                .map_err(|error| format!("{}: {error}", change.destinations()[0].display()))?;
         }
     }
     Ok(())
@@ -300,7 +300,10 @@ pub(crate) fn decide(
 }
 
 pub(crate) fn list(paths: &[PathBuf]) -> String {
-    let paths: Vec<String> = paths.iter().map(|path| path.display().to_string()).collect();
+    let paths: Vec<String> = paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect();
     match paths.as_slice() {
         [] => String::new(),
         [one] => format!("Writing {one}"),
@@ -362,9 +365,7 @@ pub(crate) fn apply_elevated() -> Result<(), Box<dyn Error>> {
     let changes = from_json(&text).ok_or("the changes to write as root are not readable")?;
     match decide(&changes, &Here, &User::current())? {
         Decision::Here => apply(&changes, &[], |_| Ok(())),
-        Decision::Elevate { blocked, .. } => {
-            Err(format!("{} needs root", list(&blocked)).into())
-        }
+        Decision::Elevate { blocked, .. } => Err(format!("{} needs root", list(&blocked)).into()),
     }
 }
 

@@ -10,7 +10,9 @@ fn installing_replaces_the_line_an_earlier_install_listed_for_greetd() {
     .unwrap();
     assert_eq!(
         listing.updated.as_deref(),
-        Some("sway\n/opt/bin/be-host --session\nenv BEUI_PLATFORM=drm /usr/local/bin/be-host --desktop\n"),
+        Some(
+            "sway\n/opt/bin/be-host --session\nenv BEUI_PLATFORM=drm /usr/local/bin/be-host --desktop\n"
+        ),
         "the line that runs this path with --session goes, and another path's stays"
     );
 
