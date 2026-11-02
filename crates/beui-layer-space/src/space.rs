@@ -1715,6 +1715,7 @@ impl Space {
             true => CursorIcon::None,
             false => icon,
         };
+        state.cursor_image = None;
         state.requests.pointer_locked = grabbed;
         state.requests.ime = None;
         state.appearance.clear_color = SKY;

@@ -1608,17 +1608,23 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
 }
 
 fn cursor(doc: &Document, frame: &Frame) {
-    let grabbed = grab::grabber(doc).and_then(|id| interactive(doc, id)?.cursor);
-    let held = doc
-        .pointers
-        .sessions
-        .iter()
-        .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
-        .flat_map(|session| session.owners.iter())
-        .chain(doc.pointers.hovered.iter())
-        .find_map(|id| interactive(doc, *id).and_then(|node| node.cursor));
-    if let Some(cursor) = grabbed.or(held) {
-        frame.ctx.set_cursor_icon(cursor);
+    let shown = |id: NodeId| {
+        let node = interactive(doc, id)?;
+        (node.cursor.is_some() || node.cursor_image.is_some()).then_some(node)
+    };
+    let grabbed = grab::grabber(doc).and_then(shown);
+    let held = || {
+        doc.pointers
+            .sessions
+            .iter()
+            .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
+            .flat_map(|session| session.owners.iter())
+            .chain(doc.pointers.hovered.iter())
+            .find_map(|id| shown(*id))
+    };
+    if let Some(node) = grabbed.or_else(held) {
+        frame.ctx.set_cursor_icon(node.cursor.unwrap_or_default());
+        frame.ctx.set_cursor_image(node.cursor_image.clone());
     }
 }
 

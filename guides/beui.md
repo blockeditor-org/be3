@@ -376,7 +376,7 @@ hooks the higher crates fill in:
   shows for the program is one `beui_core::window::WindowState`: its `requests`
   (`be_lib_ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
   the keyboard, intercepted keys, the paste kinds the focus takes, the IME
-  area and keyboard toggles, the same type an app sends its host), `typed`
+  area and keyboard toggles, the same type an app sends its host), `cursor_image`, `typed`
   and `appearance`, which the
   `Context` fills during a frame and the main window's `WindowOutput::window` carries. While
   `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
@@ -386,7 +386,12 @@ hooks the higher crates fill in:
   call (the mouse simulation's cursor). Every other icon is drawn, for hosts that
   draw their own cursor (the mouse simulation, space), by
   `beui_core::drawn_cursor::paint`: an icon-font glyph with its hotspot on the
-  point, or an I-beam for text. An app region passes it to its host
+  point, or an I-beam for text. `cursor_image` is a picture shown in place of the icon
+  (`beui_types::CursorImage`: straight-alpha RGBA pixels, their size and hotspot in points),
+  from the hovered `Interactive`'s `cursor_image`, which wins over its `cursor`; the icon
+  stays what platforms that show no pictures (the web, Android, space) and touch emulation
+  show. winit makes it a custom cursor and `drive state` prints its size and hotspot; it is
+  not part of the app protocol. An app region passes its icon to its host
   unchanged (the protocol's `CursorIcon` is beui's, from `be-lib-ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so a platform compares just the

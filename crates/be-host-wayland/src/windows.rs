@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::*;
-use beui::{CursorIcon, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
+use beui::{CursorIcon, CursorImage, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
 
 use crate::state::WindowId;
 
@@ -77,6 +77,7 @@ struct Inner {
     list: Signal<Vec<WindowInfo>>,
     revision: Cell<u64>,
     cursor: Signal<CursorIcon>,
+    cursor_image: Signal<Option<CursorImage>>,
     idle: Signal<bool>,
 }
 
@@ -87,6 +88,7 @@ impl Windows {
     pub fn new() -> Self {
         let list = create_signal(Vec::new());
         let cursor = create_signal(CursorIcon::Default);
+        let cursor_image = create_signal(None);
         let idle = create_signal(false);
         Self(store(Inner {
             windows: RefCell::new(HashMap::new()),
@@ -101,6 +103,7 @@ impl Windows {
             list,
             revision: Cell::new(0),
             cursor,
+            cursor_image,
             idle,
         }))
     }
@@ -123,6 +126,11 @@ impl Windows {
     pub fn cursor(&self) -> ReadSignal<CursorIcon> {
         let inner = self.0.value();
         inner.cursor.read_only()
+    }
+
+    pub fn cursor_image(&self) -> ReadSignal<Option<CursorImage>> {
+        let inner = self.0.value();
+        inner.cursor_image.read_only()
     }
 
     pub fn idle(&self) -> ReadSignal<bool> {
@@ -212,10 +220,13 @@ impl Windows {
         self.push(Command::Launch(launch));
     }
 
-    pub(crate) fn set_cursor(&self, cursor: CursorIcon) {
+    pub(crate) fn set_cursor(&self, cursor: CursorIcon, image: Option<CursorImage>) {
         let inner = self.0.value();
         if inner.cursor.get_untracked() != cursor {
             inner.cursor.set(cursor);
+        }
+        if inner.cursor_image.with_untracked(|shown| *shown != image) {
+            inner.cursor_image.set(image);
         }
     }
 

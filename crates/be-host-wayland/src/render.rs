@@ -490,3 +490,44 @@ impl Drop for WindowDraw {
 
 #[cfg(test)]
 mod tests;
+
+pub fn pixels(surface: &WlSurface) -> Option<beui::Image> {
+    let buffer = with_renderer_surface_state(surface, |state| state.buffer().cloned()).flatten()?;
+    if let Some((rgba, _)) = crate::single_pixel::color(&buffer) {
+        return Some(beui::Image::from_rgba(1, 1, unpremultiplied(rgba).to_vec()));
+    }
+    with_buffer_contents(&buffer, |pointer, length, data| {
+        let order: fn([u8; 4]) -> [u8; 4] = match data.format {
+            wl_shm::Format::Argb8888 => |[b, g, r, a]| [r, g, b, a],
+            wl_shm::Format::Xrgb8888 => |[b, g, r, _]| [r, g, b, 255],
+            wl_shm::Format::Abgr8888 => |rgba| rgba,
+            wl_shm::Format::Xbgr8888 => |[r, g, b, _]| [r, g, b, 255],
+            _ => return None,
+        };
+        let (width, height) = (data.width.max(1) as usize, data.height.max(1) as usize);
+        let (offset, stride) = (data.offset.max(0) as usize, data.stride.max(0) as usize);
+        if stride < width * 4 || offset + stride * (height - 1) + width * 4 > length {
+            return None;
+        }
+        // unsafe(ffi)
+        let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), length - offset) };
+        let mut rgba = Vec::with_capacity(width * height * 4);
+        for row in bytes.chunks(stride).take(height) {
+            for pixel in row[..width * 4].chunks_exact(4) {
+                let pixel = order([pixel[0], pixel[1], pixel[2], pixel[3]]);
+                rgba.extend_from_slice(&unpremultiplied(pixel));
+            }
+        }
+        Some(beui::Image::from_rgba(width as u32, height as u32, rgba))
+    })
+    .ok()
+    .flatten()
+}
+
+fn unpremultiplied([r, g, b, a]: [u8; 4]) -> [u8; 4] {
+    if a == 0 || a == 255 {
+        return [r, g, b, a];
+    }
+    let channel = |value: u8| ((u32::from(value) * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8;
+    [channel(r), channel(g), channel(b), a]
+}

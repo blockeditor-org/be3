@@ -1058,6 +1058,10 @@ impl Context {
         self.inner.window.borrow_mut().requests.cursor = cursor_icon;
     }
 
+    pub fn set_cursor_image(&self, image: Option<beui_types::CursorImage>) {
+        self.inner.window.borrow_mut().cursor_image = image;
+    }
+
     pub fn set_appearance(&self, appearance: &Appearance) {
         let mut window = self.inner.window.borrow_mut();
         if window.appearance != *appearance {
@@ -1301,6 +1305,7 @@ impl Context {
             state.appearance.notice.clone_from(&window.notice);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;
+                state.cursor_image.clone_from(&main.cursor_image);
                 state.requests.pointer_locked = main.requests.pointer_locked;
             }
             if keyboard == window.id {
@@ -1311,6 +1316,7 @@ impl Context {
         }
         if shown.iter().any(|window| window.id == pointer) {
             main.requests.cursor = CursorIcon::default();
+            main.cursor_image = None;
         }
         (main, others)
     }
@@ -1321,6 +1327,7 @@ impl Context {
         window.requests.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
             window.requests.cursor = CursorIcon::Touch;
+            window.cursor_image = None;
         }
         window
     }

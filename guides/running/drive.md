@@ -190,7 +190,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   initially collapses internals of components defined in `beui_*` crates and expands others.
   Like `hit`, this sees the host document, not app documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
-  fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
+  fullscreen, the cursor's shape (or the size and hotspot of a picture shown as the cursor, such as a
+  Wayland program's own), the pointer and the fingers down, held keys, an input
   method's composition or where the program asks for one and whether it shows the on-screen
   keyboard or holds it back, a back gesture under way, files being dragged in, any open file
   dialog, and `settled` or `busy:` followed by why the program is not, as of its last frame, and
