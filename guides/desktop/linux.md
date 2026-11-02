@@ -699,6 +699,19 @@ the program's own selection stays, with all its types. Everything be-host copies
 through the host's `request_paste`, so both work in a session, where the platform's clipboard is
 the DRM platform's own. A selection that only offers images is not handed to be-host.
 
+X11 programs share the same clipboard and, while middle-click paste is on, the same primary
+selection, through smithay's `X11Wm` (the selection callbacks of `XwmHandler` in `xwayland.rs`,
+and `Owner` in `selection.rs`). Whatever a Wayland program or be-host selects is announced to
+Xwayland with its types (`State::announce_x11_selection`), the window manager owns the X11
+selection, and an X11 program reading it is answered by the program that owns it or with be-host's
+text (`State::x11_paste`); smithay names `UTF8_STRING` `text/plain;charset=utf-8` and `TEXT`
+`text/plain`, and passes other targets by their atom's name. An X11 program that takes the
+selection makes the compositor set one of its own (`Owner::X11`, `State::x11_selected`), which is
+read from Xwayland for Wayland programs and for be-host, and dropped when that X11 program gives it
+up or Xwayland stops. Of an X11 selection's targets, Wayland sees the two text ones and those whose names hold a `/`.
+smithay's `X11Wm::new_selection` does not flush its X connection, so an overlay
+(`third-party/rust/overlays/smithay/xwm.rs`) does.
+
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
 data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
 advertised, because a program that finds no primary selection protocol emulates one (Firefox
@@ -707,11 +720,12 @@ just stays empty: `selection/primary.rs` drops every `set_selection` on a primar
 `set_primary_selection` on a data-control device, so no one is offered it. It never cancels the
 source: a program whose source is cancelled has lost its selection, and a terminal then clears
 the text it just highlighted. Switching the setting off clears the current one, so it takes
-effect at once in running programs. X11 programs keep
-their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can still
+effect at once in running programs. While it is off X11 programs keep
+their own `PRIMARY` in Xwayland, which is not bridged to Wayland, so they can still
 middle-click paste among themselves.
 
-To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
+To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package), and `xclip -i` and
+`xclip -o -selection clipboard` with `DISPLAY` from `drive env`, with
 `drive exec`, and copy or paste in the host with `drive key ctrl+c`
 and `ctrl+v`.
 

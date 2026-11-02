@@ -1,3 +1,4 @@
+use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::process::Stdio;
 use std::time::Duration;
@@ -10,6 +11,7 @@ use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{Client, DisplayHandle};
 use smithay::utils::{Logical, Point, Rectangle, Size, Transform};
 use smithay::wayland::compositor::send_surface_state;
+use smithay::wayland::selection::SelectionTarget;
 use smithay::wayland::xwayland_shell::{XWaylandShellHandler, XWaylandShellState};
 use smithay::xwayland::xwm::{Reorder, ResizeEdge, WmWindowProperty, X11Window, XwmId};
 use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler};
@@ -33,6 +35,10 @@ pub(crate) struct XWaylandState {
     stopped: bool,
     restarts: u32,
     overlays: Vec<Overlay>,
+    clipboard: Option<Vec<String>>,
+    primary: Option<Vec<String>>,
+    #[cfg(test)]
+    pub(crate) asked: Vec<(SelectionTarget, String, OwnedFd)>,
 }
 
 impl XWaylandState {
@@ -46,11 +52,35 @@ impl XWaylandState {
             stopped: false,
             restarts: 0,
             overlays: Vec::new(),
+            clipboard: None,
+            primary: None,
+            #[cfg(test)]
+            asked: Vec::new(),
         }
     }
 
     pub(crate) fn display(&self) -> Option<u32> {
         self.display
+    }
+
+    #[cfg(test)]
+    pub(crate) fn offered(&self, target: SelectionTarget) -> Option<&[String]> {
+        match target {
+            SelectionTarget::Clipboard => self.clipboard.as_deref(),
+            SelectionTarget::Primary => self.primary.as_deref(),
+        }
+    }
+
+    fn offer_selection(&mut self, target: SelectionTarget) {
+        let mime_types = match target {
+            SelectionTarget::Clipboard => self.clipboard.clone(),
+            SelectionTarget::Primary => self.primary.clone(),
+        };
+        if let Some(wm) = self.wm.as_mut()
+            && let Err(error) = wm.new_selection(target, mime_types)
+        {
+            eprintln!("be-wayland: Xwayland was not told of the {target:?} selection: {error}");
+        }
     }
 }
 
@@ -88,7 +118,12 @@ impl State {
     fn xwayland_ready(&mut self, connection: UnixStream, client: Client) {
         let handle = self.xwayland.loop_handle.clone();
         match X11Wm::start_wm(handle, connection, client) {
-            Ok(wm) => self.xwayland.wm = Some(wm),
+            Ok(wm) => {
+                self.xwayland.wm = Some(wm);
+                for target in [SelectionTarget::Clipboard, SelectionTarget::Primary] {
+                    self.xwayland.offer_selection(target);
+                }
+            }
             Err(error) => {
                 eprintln!("be-wayland: the X11 window manager did not start: {error}");
                 self.xwayland.stopped = true;
@@ -105,6 +140,8 @@ impl State {
             self.xwayland.loop_handle.remove(source);
         }
         self.xwayland.overlays.clear();
+        self.x11_cleared(SelectionTarget::Clipboard);
+        self.x11_cleared(SelectionTarget::Primary);
         let closed: Vec<WindowId> = self
             .windows
             .iter()
@@ -123,6 +160,42 @@ impl State {
         if let Err(error) = self.start_xwayland() {
             eprintln!("be-wayland: Xwayland did not start again: {error}");
             self.xwayland.display = None;
+        }
+    }
+
+    pub(crate) fn announce_x11_selection(
+        &mut self,
+        target: SelectionTarget,
+        mime_types: Option<Vec<String>>,
+    ) {
+        match target {
+            SelectionTarget::Clipboard => self.xwayland.clipboard = mime_types.clone(),
+            SelectionTarget::Primary => self.xwayland.primary = mime_types.clone(),
+        }
+        self.xwayland.offer_selection(target);
+    }
+
+    pub(crate) fn read_x11_selection(
+        &mut self,
+        target: SelectionTarget,
+        mime_type: String,
+        fd: OwnedFd,
+    ) -> bool {
+        #[cfg(test)]
+        if self.xwayland.wm.is_none() {
+            self.xwayland.asked.push((target, mime_type, fd));
+            return true;
+        }
+        let loop_handle = self.xwayland.loop_handle.clone();
+        let Some(wm) = self.xwayland.wm.as_mut() else {
+            return false;
+        };
+        match wm.send_selection(target, mime_type, fd, loop_handle) {
+            Ok(()) => true,
+            Err(error) => {
+                eprintln!("be-wayland: the X11 {target:?} selection was not read: {error}");
+                false
+            }
         }
     }
 
@@ -544,6 +617,28 @@ impl XwmHandler for State {
         if let Some(id) = self.x11_window_of(&window) {
             self.events.push(ServerEvent::Minimized(id));
         }
+    }
+
+    fn allow_selection_access(&mut self, _xwm: XwmId, _selection: SelectionTarget) -> bool {
+        true
+    }
+
+    fn send_selection(
+        &mut self,
+        _xwm: XwmId,
+        selection: SelectionTarget,
+        mime_type: String,
+        fd: OwnedFd,
+    ) {
+        self.x11_paste(selection, mime_type, fd);
+    }
+
+    fn new_selection(&mut self, _xwm: XwmId, selection: SelectionTarget, mime_types: Vec<String>) {
+        self.x11_selected(selection, mime_types);
+    }
+
+    fn cleared_selection(&mut self, _xwm: XwmId, selection: SelectionTarget) {
+        self.x11_cleared(selection);
     }
 
     fn disconnected(&mut self, _xwm: XwmId) {

@@ -74,6 +74,11 @@ mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod text_a_program_copies_reaches_the_host;
 mod text_the_host_copies_is_offered_to_programs;
+mod text_the_host_copies_is_offered_to_x11_programs;
+mod text_a_program_copies_is_offered_to_x11_programs;
+mod text_an_x11_program_copies_reaches_the_host_and_programs;
+mod with_middle_click_paste_on_x11_and_wayland_programs_share_the_primary_selection;
+mod with_middle_click_paste_off_x11_keeps_its_primary_selection_to_itself;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_menu_key_reaches_a_focused_window_inside_a_context_menu;
@@ -94,6 +99,7 @@ use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
 use beui::{LayerLevel, Placement};
 use beui_host::native::build;
+use smithay::wayland::selection::SelectionTarget;
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -575,4 +581,43 @@ fn monitors(rects: &[Rect]) -> Vec<Monitor> {
             scale: 1.0,
         })
         .collect()
+}
+
+fn copy_in_the_host(harness: &mut Harness, text: &str) {
+    harness.stepped.program_mut().copy = Some(text.to_owned());
+    harness.frame(Vec::new());
+}
+
+fn paste_in_x11(harness: &mut Harness, target: SelectionTarget, mime_type: &str) -> String {
+    let (read, write) = rustix::pipe::pipe().expect("a pipe opens");
+    harness
+        .compositor()
+        .server
+        .state
+        .x11_paste(target, mime_type.to_owned(), write);
+    harness.settle();
+    crate::selection::client::answer(read)
+}
+
+fn copy_in_x11(harness: &mut Harness, target: SelectionTarget, mime_types: &[&str]) {
+    let mime_types = mime_types.iter().map(|mime| (*mime).to_owned()).collect();
+    harness
+        .compositor()
+        .server
+        .state
+        .x11_selected(target, mime_types);
+}
+
+fn answer_x11(harness: &mut Harness, text: &str) -> (SelectionTarget, String) {
+    let (target, mime_type, fd) = harness
+        .compositor()
+        .server
+        .state
+        .xwayland
+        .asked
+        .pop()
+        .expect("X11 is asked for its selection");
+    std::io::Write::write_all(&mut std::fs::File::from(fd), text.as_bytes())
+        .expect("the answer is written");
+    (target, mime_type)
 }
