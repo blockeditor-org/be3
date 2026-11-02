@@ -166,7 +166,11 @@ fn DockTitle(
                     <Icon glyph={icon} />
                 </Text>
             </Show>
-            <Text color={label} overflow=Overflow::Ellipsis @sizing={ItemSize::Intrinsic.shrink(1.0)}>
+            <Text
+                color={label}
+                overflow=Overflow::Ellipsis
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+            >
                 {title}
             </Text>
             <Show condition={opens}>

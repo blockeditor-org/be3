@@ -33,7 +33,9 @@ fn a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar() {
         "the window fills the desktop between the dock bar and the bars' band: {shown:?}"
     );
     assert!(
-        fixture.window_rect(1).is_none_or(|hidden| !hidden.is_positive()),
+        fixture
+            .window_rect(1)
+            .is_none_or(|hidden| !hidden.is_positive()),
         "the other window waits behind it"
     );
 
