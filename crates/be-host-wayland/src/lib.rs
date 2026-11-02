@@ -33,6 +33,7 @@ pub use presentation::Presented;
 pub use server::Server;
 pub use state::{Grab, KeyboardConfig, WindowId};
 pub use view::{Carrier, WindowView, register_restore_shortcuts};
+pub use toplevel_icon::ICON_PIXELS;
 pub use windows::{Launch, Popups, WindowInfo, Windows};
 
 #[cfg(test)]

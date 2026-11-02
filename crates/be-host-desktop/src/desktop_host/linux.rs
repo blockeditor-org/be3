@@ -7,7 +7,9 @@ use std::time::Duration;
 use super::DesktopHost;
 use super::shown::Shown;
 use crate::programs::{Opener, ProgramSource};
-use be_host_wayland::programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, load_icon};
+use be_host_wayland::programs::{
+    DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
+};
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use be_sdk_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowMenu, WindowOrigin,
@@ -32,6 +34,7 @@ struct Running {
 struct Launched {
     program: Option<String>,
     name: String,
+    icon: Option<String>,
     launch: Option<u64>,
     block: Option<uuid::Uuid>,
 }
@@ -41,7 +44,8 @@ thread_local! {
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
     static SHOWN: RefCell<Shown> = RefCell::new(Shown::default());
-    static NAMES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    static KNOWN: RefCell<HashMap<String, Known>> = RefCell::new(HashMap::new());
+    static ICONS: RefCell<NamedIcons> = RefCell::new(NamedIcons::default());
 }
 
 fn tag(
@@ -57,6 +61,7 @@ fn tag(
         launches.push(Launched {
             program: program.map(|entry| entry.id.clone()),
             name: program.map(|entry| entry.name.clone()).unwrap_or_default(),
+            icon: program.and_then(|entry| entry.icon.clone()),
             launch,
             block,
         });
@@ -306,12 +311,20 @@ impl DesktopHost for Linux {
             .filter(|info| !opening.contains(&info.id))
             .map(|info| {
                 let launched = launched(info.launch);
+                let known = match launched.program.is_some() {
+                    true => Known::default(),
+                    false => known(&info.program_id),
+                };
+                let icon = info.icon.or_else(|| {
+                    let name = launched.icon.as_ref().or(known.icon.as_ref())?;
+                    ICONS.with_borrow_mut(|icons| icons.get(name, be_host_wayland::ICON_PIXELS))
+                });
                 HostWindow {
                     id: HostWindowId(info.id.0),
                     kind: WindowKind::Window,
                     shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
                     name: match launched.name.is_empty() {
-                        true => program_name(&info.program_id),
+                        true => known.name,
                         false => launched.name.clone(),
                     },
                     title: info.title,
@@ -327,7 +340,7 @@ impl DesktopHost for Linux {
                     fullscreen: info.fullscreen,
                     responding: info.responding,
                     focused: windows.focused() == Some(info.id),
-                    icon: info.icon.map(|icon| HostImage {
+                    icon: icon.map(|icon| HostImage {
                         width: icon.width(),
                         height: icon.height(),
                         rgba: icon.pixels().to_vec(),
@@ -470,17 +483,23 @@ fn set_shown(window: HostWindowId, shown: bool) {
     }
 }
 
-fn program_name(program_id: &str) -> String {
-    NAMES.with(|names| {
-        names
-            .borrow_mut()
+#[derive(Clone, Default)]
+struct Known {
+    name: String,
+    icon: Option<String>,
+}
+
+fn known(program_id: &str) -> Known {
+    KNOWN.with_borrow_mut(|known| {
+        known
             .entry(program_id.to_owned())
             .or_insert_with(|| {
-                let environment = Environment::from_env();
-                environment
-                    .entry(program_id)
-                    .or_else(|| environment.entry(&program_id.to_lowercase()))
-                    .map(|entry| entry.name)
+                Environment::from_env()
+                    .entry_of_window(program_id)
+                    .map(|entry| Known {
+                        name: entry.name,
+                        icon: entry.icon,
+                    })
                     .unwrap_or_default()
             })
             .clone()
@@ -501,15 +520,20 @@ pub struct LinuxPrograms {
     themes: OnceLock<IconThemes>,
 }
 
-impl ProgramSource for LinuxPrograms {
-    fn list() -> Self {
-        let environment = Environment::from_env();
+impl LinuxPrograms {
+    fn of(environment: Environment) -> Self {
         Self {
             entries: environment.programs(),
             globs: environment.mime_globs(),
             environment,
             themes: OnceLock::new(),
         }
+    }
+}
+
+impl ProgramSource for LinuxPrograms {
+    fn list() -> Self {
+        Self::of(Environment::from_env())
     }
 
     fn programs(&self) -> Vec<HostProgram> {

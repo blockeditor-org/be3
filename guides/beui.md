@@ -1219,6 +1219,9 @@ under the pointer. The unstyled module contains
 `PanZoom`, `PointerLock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 `Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`.
 Code outside beui uses `styled::Picture`, whose `radius` is a `Radius`, and
+can hand it an image larger than it is drawn, such as a 64-pixel icon in a 16-point chip: the wgpu
+renderer uploads each `Image` with its mipmaps and samples the level its drawn size calls for, and
+the painting rasterizer does the same, so it is averaged rather than aliased. It
 reaches the ones that draw nothing of their own (`Draggable`, `DropTarget`,
 `Floating`, `PointerLock`) through `beui::styled`, which re-exports them. `Draggable` and `DropTarget` meet on
 `unstyled::drag_board()`, one `Board` per document that also carries drags no

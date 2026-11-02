@@ -535,8 +535,14 @@ as it does an edit from the Display page.
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-host-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
 name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
-which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
-tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
+which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one, be-host-desktop's
+`linux.rs` gives it the `Icon=` of the desktop entry the window was launched from, else of the one its
+program id names (`Environment::entry_of_window`: the app id or X11 `WM_CLASS` as an entry's name, as
+is or lowercased, then as an entry's `StartupWMClass`), which also names it; with neither the tab
+shows a generic glyph. An X11 window's `_NET_WM_ICON` is not read (smithay does not expose it).
+`programs::load_icon` reads PNG, SVG and XPM; an SVG with text draws it with the system fonts (loaded
+once, the first time one is needed) and beui's bundled Inter and Hack for any generic family the
+system lacks, and an icon that draws nothing counts as none, so the glyph shows instead. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
 exported window, and it is shown as that window's child like any other dialog. The xdg shell offers the
 fullscreen, minimize and window menu capabilities (`wm_capabilities`), but not maximize: a window's size is

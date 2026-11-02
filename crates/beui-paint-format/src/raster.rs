@@ -13,11 +13,10 @@ pub fn rasterize<'a>(
         fade: Fade::NONE,
         rounds: Vec::new(),
     };
-    let sampler = |key: TextureKey| {
-        textures(key)
-            .map(Sampler)
-            .ok_or("the painting is missing a texture it uses")
+    let texture = |key: TextureKey| {
+        textures(key).ok_or("the painting is missing a texture it uses")
     };
+    let mut chains: std::collections::BTreeMap<TextureKey, Vec<Pixels>> = Default::default();
     let scale = frame.pixels_per_point;
     for primitive in &frame.primitives {
         canvas.fade = primitive.fade.scaled(scale);
@@ -30,7 +29,21 @@ pub fn rasterize<'a>(
         match &primitive.content {
             Content::Mesh(triangles) => {
                 for triangle in triangles {
-                    canvas.fill(clip, triangle.corners, scale, &sampler(triangle.texture)?);
+                    let base = texture(triangle.texture)?;
+                    let level = minification(&triangle.corners, scale, base.size);
+                    let smaller = match level > 0.0 {
+                        true => chains
+                            .entry(triangle.texture)
+                            .or_insert_with(|| chain(base))
+                            .as_slice(),
+                        false => &[],
+                    };
+                    let sampler = Sampler {
+                        base,
+                        smaller,
+                        level,
+                    };
+                    canvas.fill(clip, triangle.corners, scale, &sampler);
                 }
             }
             Content::Callback(rect) => {
@@ -49,7 +62,7 @@ pub fn rasterize<'a>(
                     exact(primitive.clip, scale),
                     glyph,
                     scale,
-                    &sampler(glyph.texture)?,
+                    &Sampler::plain(texture(glyph.texture)?),
                 );
             }
         }
@@ -315,43 +328,137 @@ fn rounded_distance(point: [f32; 2], extent: [f32; 2], radius: f32) -> f32 {
     offset[0].max(offset[1]).min(0.0) + offset[0].max(0.0).hypot(offset[1].max(0.0)) - limit
 }
 
-struct Sampler<'a>(&'a Pixels);
+struct Sampler<'a> {
+    base: &'a Pixels,
+    smaller: &'a [Pixels],
+    level: f32,
+}
 
-impl Sampler<'_> {
-    fn sample(&self, uv: [f32; 2]) -> [f32; 4] {
-        let size = self.0.size;
-        let x = uv[0] * size[0] as f32 - 0.5;
-        let y = uv[1] * size[1] as f32 - 0.5;
-        let left = x.floor();
-        let top = y.floor();
-        let fraction_x = x - left;
-        let fraction_y = y - top;
-        let mut total = [0.0; 4];
-        for (offset_y, weight_y) in [(0.0, 1.0 - fraction_y), (1.0, fraction_y)] {
-            for (offset_x, weight_x) in [(0.0, 1.0 - fraction_x), (1.0, fraction_x)] {
-                let weight = weight_x * weight_y;
-                if weight == 0.0 {
-                    continue;
-                }
-                let texel = self.texel(left + offset_x, top + offset_y);
-                for (total, texel) in total.iter_mut().zip(texel) {
-                    *total += texel as f32 * weight;
-                }
-            }
+impl<'a> Sampler<'a> {
+    fn plain(base: &'a Pixels) -> Self {
+        Self {
+            base,
+            smaller: &[],
+            level: 0.0,
         }
-        total
     }
 
-    fn texel(&self, x: f32, y: f32) -> [u8; 4] {
-        let size = self.0.size;
-        let x = (x.max(0.0) as u32).min(size[0].saturating_sub(1));
-        let y = (y.max(0.0) as u32).min(size[1].saturating_sub(1));
-        self.0
-            .rgba
-            .get((y * size[0] + x) as usize)
+    fn level(&self, at: usize) -> &Pixels {
+        match at {
+            0 => self.base,
+            at => &self.smaller[(at - 1).min(self.smaller.len() - 1)],
+        }
+    }
+
+    fn sample(&self, uv: [f32; 2]) -> [f32; 4] {
+        if self.level <= 0.0 || self.smaller.is_empty() {
+            return bilinear(self.base, uv);
+        }
+        let low = self.level.floor() as usize;
+        let fraction = self.level - low as f32;
+        let near = bilinear(self.level(low), uv);
+        if fraction <= 0.0 || low >= self.smaller.len() {
+            return near;
+        }
+        let far = bilinear(self.level(low + 1), uv);
+        std::array::from_fn(|channel| near[channel] + (far[channel] - near[channel]) * fraction)
+    }
+}
+
+fn minification(corners: &[Vertex; 3], scale: f32, size: [u32; 2]) -> f32 {
+    let range = |values: [f32; 3]| {
+        values.iter().copied().fold(f32::MIN, f32::max)
+            - values.iter().copied().fold(f32::MAX, f32::min)
+    };
+    let spread = |axis: usize| {
+        let texels = range(corners.map(|corner| corner.uv[axis])) * size[axis] as f32;
+        texels / (range(corners.map(|corner| corner.pos[axis])) * scale).max(0.001)
+    };
+    spread(0).max(spread(1)).log2().max(0.0)
+}
+
+fn chain(base: &Pixels) -> Vec<Pixels> {
+    let mut levels: Vec<Pixels> = Vec::new();
+    loop {
+        let from = levels.last().unwrap_or(base);
+        let [width, height] = from.size;
+        if width <= 1 && height <= 1 {
+            return levels;
+        }
+        let next = halved(from);
+        levels.push(next);
+    }
+}
+
+fn halved(from: &Pixels) -> Pixels {
+    let [width, height] = from.size;
+    let size = [(width / 2).max(1), (height / 2).max(1)];
+    let texel = |x: u32, y: u32| {
+        from.rgba
+            .get((y.min(height - 1) * width + x.min(width - 1)) as usize)
             .copied()
             .unwrap_or([0, 0, 0, 0])
+    };
+    let mut rgba = Vec::with_capacity((size[0] * size[1]) as usize);
+    for y in 0..size[1] {
+        for x in 0..size[0] {
+            let mut sums = [0u32; 4];
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let texel = texel(x * 2 + dx, y * 2 + dy);
+                let alpha = u32::from(texel[3]);
+                for channel in 0..3 {
+                    sums[channel] += u32::from(texel[channel]) * alpha;
+                }
+                sums[3] += alpha;
+            }
+            let colour = |sum: u32| match sums[3] {
+                0 => 0,
+                alpha => ((sum + alpha / 2) / alpha) as u8,
+            };
+            rgba.push([
+                colour(sums[0]),
+                colour(sums[1]),
+                colour(sums[2]),
+                ((sums[3] + 2) / 4) as u8,
+            ]);
+        }
     }
+    Pixels { size, rgba }
+}
+
+fn bilinear(pixels: &Pixels, uv: [f32; 2]) -> [f32; 4] {
+    let size = pixels.size;
+    let x = uv[0] * size[0] as f32 - 0.5;
+    let y = uv[1] * size[1] as f32 - 0.5;
+    let left = x.floor();
+    let top = y.floor();
+    let fraction_x = x - left;
+    let fraction_y = y - top;
+    let mut total = [0.0; 4];
+    for (offset_y, weight_y) in [(0.0, 1.0 - fraction_y), (1.0, fraction_y)] {
+        for (offset_x, weight_x) in [(0.0, 1.0 - fraction_x), (1.0, fraction_x)] {
+            let weight = weight_x * weight_y;
+            if weight == 0.0 {
+                continue;
+            }
+            let texel = texel(pixels, left + offset_x, top + offset_y);
+            for (total, texel) in total.iter_mut().zip(texel) {
+                *total += texel as f32 * weight;
+            }
+        }
+    }
+    total
+}
+
+fn texel(pixels: &Pixels, x: f32, y: f32) -> [u8; 4] {
+    let size = pixels.size;
+    let x = (x.max(0.0) as u32).min(size[0].saturating_sub(1));
+    let y = (y.max(0.0) as u32).min(size[1].saturating_sub(1));
+    pixels
+        .rgba
+        .get((y * size[0] + x) as usize)
+        .copied()
+        .unwrap_or([0, 0, 0, 0])
 }
 
 fn is_top_left(edge: [[f32; 2]; 2]) -> bool {
