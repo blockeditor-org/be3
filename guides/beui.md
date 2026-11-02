@@ -4239,14 +4239,21 @@ it, and all its 3D (`glam`) stays in the crate.
   panel, the point of the curved surface the ray meets). A press's own
   position is ignored. An absolute position, a `PointerMoved` in pixels or in a
   window's points (a driver's, mapped onto that window's panel), puts the
-  cursor where its ray hits; `PointerMotion` swings its ray about the eye,
-  gravity-aligned whatever the head's pitch and roll (`Head::swing`): motion
-  across turns it about the vertical, keeping its height, and motion up raises
-  it toward the sky along its line to the zenith, short of
-  `head::MOST_ELEVATION`, both at a fixed angle per pixel
+  cursor where its ray hits; `PointerMotion` swings its ray about the eye
+  around an up (`Head::swing`): motion across turns it about that up, keeping
+  its height, and motion up raises it toward that up along its line to it,
+  short of `head::MOST_ELEVATION`, both at a fixed angle per pixel
   (`Head::pixels_per_radian`, so near the middle of an unrolled view a pixel
-  of motion is a pixel on screen), the same in the simulator and under a
-  headset. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  of motion is a pixel on screen). Which up is a temporary setting while the
+  right rule is found (`tuning::Tuning`, one rule for the simulator and one
+  for a headset, both the sky by default): the sky (gravity-aligned whatever
+  the head's pitch and roll, which degenerates looking straight down), the
+  view's up (rolls with the head, works at any pitch), or a blend that turns
+  from the sky to the view's up as the head pitches between two angles
+  (`tuning::Up`). Ctrl+Alt+M cycles the rule for where space is running,
+  Ctrl+Alt+Left/Right moves the blend's start and Ctrl+Alt+Down/Up its end by
+  5°, none reaching the app, and each change shows the rule in a label beside
+  the cursor for `tuning::SHOWN_FOR`. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
   it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
   hit). Turning the head and walking leave it at its point, so it slides
   across the view, and nothing holds it inside the view: motion or a turn can
