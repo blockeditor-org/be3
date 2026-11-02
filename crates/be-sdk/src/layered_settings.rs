@@ -77,7 +77,12 @@ where
         self.write_all(graph, layer, &[edit]);
     }
 
-    pub fn write_all(&self, graph: &dyn SettingsGraph, layer: SettingsLayer, edits: &[KeptEdit<R>]) {
+    pub fn write_all(
+        &self,
+        graph: &dyn SettingsGraph,
+        layer: SettingsLayer,
+        edits: &[KeptEdit<R>],
+    ) {
         let layers = self.layer_blocks(graph);
         if let Some(block) = layers.block(layer) {
             self.edit_block(block, edits);

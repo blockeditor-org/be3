@@ -381,10 +381,18 @@ where
     }
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
-        untrack(|| self.blocks.with(|blocks| blocks.ensure(&self.editor, layer)))
+        untrack(|| {
+            self.blocks
+                .with(|blocks| blocks.ensure(&self.editor, layer))
+        })
     }
 
-    fn write<V: Clone + 'static>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
+    fn write<V: Clone + 'static>(
+        &self,
+        layer: SettingsLayer,
+        setting: &Setting<R, V>,
+        value: Option<V>,
+    ) {
         untrack(|| {
             self.blocks
                 .with(|blocks| blocks.write(&self.editor, layer, setting, value))
