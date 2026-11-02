@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 pub mod sort;
 
 pub mod groups;

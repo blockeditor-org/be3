@@ -6,7 +6,7 @@ const TAP: &str = "input.pointer.tap-to-click";
 fn a_device_follows_its_default_until_it_is_overridden() {
     let mut editor = editor(vec![touchpad()]);
     choose_pointer(&mut editor, 1);
-    let tap = |editor: &BeuiTest<InputSettingsApp>| {
+    let tap = |editor: &BeuiTest<InputSettingsRoot>| {
         content(editor)
             .root()
             .device_pointer(&touchpad_identity())

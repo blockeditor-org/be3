@@ -4,7 +4,7 @@ use be_sdk_beui::be_block::{
 };
 
 use super::*;
-use crate::tags::TagsApp;
+use crate::tags::TagsRoot;
 
 #[test]
 fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
@@ -18,7 +18,7 @@ fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
     host.set_block_type(TagsContent::CONTENT_TYPE);
     host.set_editable(true);
     host.set_client_id(Uuid::from_u128(0x14));
-    let mut editor = BeuiTest::<TagsApp>::new(OwnedEditor::new(host, tags));
+    let mut editor = BeuiTest::<TagsRoot>::new(OwnedEditor::new(host, tags));
     let store = editor.store();
     let mut team = BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root);
     team.set_name("Team");

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_checklist_waits_for_its_content() {
-    let mut editor = BeuiTest::<ChecklistApp>::editing(Uuid::new_v4());
+    let mut editor = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
     editor.run();
 
     assert!(editor.shown("editor.loading"));

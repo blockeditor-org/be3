@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::sketch::Sketch;
+use crate::root::sketch::Sketch;
 
 #[test]
 fn a_hand_drawn_shape_is_the_same_for_the_same_seed() {

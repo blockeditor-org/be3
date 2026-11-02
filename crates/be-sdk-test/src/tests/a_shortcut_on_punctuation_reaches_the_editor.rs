@@ -3,10 +3,10 @@ use beui::styled::Root;
 
 use beui::{Key, KeyPress, Modifiers};
 
-struct ShortcutApp;
+struct ShortcutRoot;
 
 #[component]
-impl BeuiApp for ShortcutApp {
+impl BeuiApp for ShortcutRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         let pressed = create_signal(String::new());
@@ -28,7 +28,7 @@ impl BeuiApp for ShortcutApp {
 
 #[test]
 fn a_shortcut_on_punctuation_reaches_the_editor() {
-    let mut test = BeuiTest::<ShortcutApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<ShortcutRoot>::editing(Uuid::new_v4());
 
     test.key(Key::Slash, Modifiers::CTRL);
     test.run();

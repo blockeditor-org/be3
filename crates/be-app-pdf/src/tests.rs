@@ -1,12 +1,12 @@
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::PdfApp;
+use crate::root::PdfRoot;
 use be_type_pdf::PdfContent;
 
 mod a_page_is_rendered_with_pdfium;
 
-fn editor(content: PdfContent) -> BeuiTest<PdfApp> {
+fn editor(content: PdfContent) -> BeuiTest<PdfRoot> {
     let mut editor = BeuiTest::editing(Uuid::new_v4()).in_viewport();
     editor.hold(None, content);
     editor

@@ -7,7 +7,7 @@ fn host_window_messages_round_trip() {
         kind: WindowKind::Display,
         shown: false,
         title: "Terminal".into(),
-        app_id: "foot".into(),
+        program_id: "foot".into(),
         name: "Foot".into(),
         parent: Some(HostWindowId(3)),
         modal: true,

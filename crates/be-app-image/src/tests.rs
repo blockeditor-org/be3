@@ -4,7 +4,7 @@ use be_sdk_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;
 
-use crate::app::ImageApp;
+use crate::root::ImageRoot;
 use be_type_image::{ImageContent, ImageFile};
 
 mod a_decoded_image_is_painted_at_its_shape;
@@ -14,7 +14,7 @@ mod a_new_images_dialog_is_modal_while_its_host_blocks_everything;
 mod an_image_still_loading_shows_its_thumbhash;
 mod an_image_that_will_not_decode_says_so;
 
-fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {
+fn editor(data: Vec<u8>) -> BeuiTest<ImageRoot> {
     let block = Uuid::new_v4();
     let mut editor = BeuiTest::editing(block);
     editor.hold(None, ImageFile::from_file("picture.png", data));

@@ -9,7 +9,7 @@ thread_local! {
     static SEEN: RefCell<Vec<Memo<Option<usize>>>> = const { RefCell::new(Vec::new()) };
 }
 
-struct CountingApp;
+struct CountingRoot;
 
 fn count(editor: crate::Editor) -> beui::NodeId {
     let content = editor.block_content::<PresentationContent>();
@@ -20,7 +20,7 @@ fn count(editor: crate::Editor) -> beui::NodeId {
 }
 
 #[component]
-impl crate::BeuiApp for CountingApp {
+impl crate::BeuiApp for CountingRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = { count(editor) };
@@ -74,7 +74,7 @@ fn screen(shown: View, screen: u32) -> (ScreenPlacement, ScreenRequest) {
 
 #[test]
 fn the_frame_and_the_preview_of_one_block_both_load_its_content() {
-    let mut session = session::<CountingApp>(Uuid::new_v4());
+    let mut session = session::<CountingRoot>(Uuid::new_v4());
     let (frame, frame_request) = screen(View::MAIN, 0);
     let (preview, preview_request) = screen(View::PREVIEW, 1);
     session.place(&[frame, preview], &[frame_request, preview_request]);

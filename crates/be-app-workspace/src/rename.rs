@@ -3,10 +3,10 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_shell::RenameView;
 
-pub struct RenameApp;
+pub struct RenameRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for RenameApp {
+impl be_sdk_beui::BeuiApp for RenameRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let renaming = editor.host().renaming();

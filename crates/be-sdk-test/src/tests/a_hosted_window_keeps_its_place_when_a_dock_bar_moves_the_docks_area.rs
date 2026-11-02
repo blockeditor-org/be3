@@ -11,10 +11,10 @@ thread_local! {
     static LAYOUT: std::cell::Cell<Option<DockingLayout<u64>>> = const { std::cell::Cell::new(None) };
 }
 
-struct HostedApp;
+struct HostedRoot;
 
 #[component]
-impl BeuiApp for HostedApp {
+impl BeuiApp for HostedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
@@ -54,7 +54,7 @@ impl BeuiApp for HostedApp {
 
 #[test]
 fn a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area() {
-    let mut test = BeuiTest::<HostedApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<HostedRoot>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

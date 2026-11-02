@@ -4,7 +4,7 @@ use be_sdk_beui::{EditorHost, OwnedEditor, RemapState, RemapsWatch};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::input_remaps::InputRemapsApp;
+use crate::input_remaps::InputRemapsRoot;
 
 mod remaps_that_do_not_read_say_why_and_store_nothing;
 mod remaps_written_as_text_name_this_plugins_remapper_once_applied;
@@ -12,7 +12,7 @@ mod the_editor_changes_rules_and_keeps_the_comments;
 
 const SIZE: Vec2 = Vec2::new(800.0, 1400.0);
 
-fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsApp> {
+fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsRoot> {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_watched::<RemapsWatch>(&state);
@@ -30,11 +30,11 @@ fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsApp> {
     editor
 }
 
-fn content(editor: &BeuiTest<InputRemapsApp>) -> InputRemapperContent {
+fn content(editor: &BeuiTest<InputRemapsRoot>) -> InputRemapperContent {
     editor.content(None)
 }
 
-fn stored(editor: &BeuiTest<InputRemapsApp>) -> String {
+fn stored(editor: &BeuiTest<InputRemapsRoot>) -> String {
     content(editor)
         .root()
         .config
@@ -42,13 +42,13 @@ fn stored(editor: &BeuiTest<InputRemapsApp>) -> String {
         .unwrap_or_default()
 }
 
-fn show_toml(editor: &mut BeuiTest<InputRemapsApp>) {
+fn show_toml(editor: &mut BeuiTest<InputRemapsRoot>) {
     let tabs = editor.rect_of("input-remaps.tabs");
     editor.click(pos2(tabs.min.x + tabs.width() * 0.75, tabs.center().y));
     editor.run();
 }
 
-fn apply(editor: &mut BeuiTest<InputRemapsApp>, text: &str) {
+fn apply(editor: &mut BeuiTest<InputRemapsRoot>, text: &str) {
     show_toml(editor);
     editor.click("input-remaps.text");
     editor.run();

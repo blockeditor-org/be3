@@ -8,7 +8,7 @@ fn a_text_tapped_in_starts_at_the_tap() {
     editor.run();
     editor.settle();
     let canvas = editor.rect_of("infinite-canvas.canvas");
-    let tapped = |editor: &mut BeuiTest<CanvasApp>, x: f32| {
+    let tapped = |editor: &mut BeuiTest<CanvasRoot>, x: f32| {
         editor.reveal("infinite-canvas.dock.tool.Text");
         editor.click("infinite-canvas.dock.tool.Text");
         editor.run();

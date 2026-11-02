@@ -174,7 +174,7 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
         let outline = outline.get();
         let named: Vec<String> = [
             ("program", outline.exe),
-            ("app id", outline.app_id),
+            ("program id", outline.program_id),
             ("title", outline.title),
         ]
         .into_iter()
@@ -198,7 +198,7 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
             match field {
                 GroupField::Name => outline.name,
                 GroupField::Exe => outline.exe,
-                GroupField::AppId => outline.app_id,
+                GroupField::ProgramId => outline.program_id,
                 GroupField::Title => outline.title,
             }
         })
@@ -228,13 +228,13 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
                 on_change={set(GroupField::Exe)}
             />
             <TextRow
-                label="App id"
+                label="Program id"
                 description=""
-                value={field(GroupField::AppId)}
+                value={field(GroupField::ProgramId)}
                 placeholder="Any"
                 read_only={edits.read_only}
-                id={format!("input-remaps.group.{group}.app-id")}
-                on_change={set(GroupField::AppId)}
+                id={format!("input-remaps.group.{group}.program-id")}
+                on_change={set(GroupField::ProgramId)}
             />
             <TextRow
                 label="Window title"

@@ -10,9 +10,9 @@ const PROGRAMS: [(&str, &str, &str); 6] = [
 ];
 
 fn realistic(id: u64, focused: Option<u64>) -> HostWindow {
-    let (app_id, name, title) = PROGRAMS[(id as usize - 1) % PROGRAMS.len()];
+    let (program_id, name, title) = PROGRAMS[(id as usize - 1) % PROGRAMS.len()];
     HostWindow {
-        app_id: app_id.to_owned(),
+        program_id: program_id.to_owned(),
         name: name.to_owned(),
         title: title.to_owned(),
         ..host_window(id, focused == Some(id))

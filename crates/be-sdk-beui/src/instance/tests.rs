@@ -235,10 +235,10 @@ fn CountedBody(editor: crate::Editor) -> beui::NodeId {
     }
 }
 
-struct DockedApp;
+struct DockedRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for DockedApp {
+impl crate::BeuiApp for DockedRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -270,7 +270,7 @@ fn docked_session() -> EditorSession {
     DOCK_TABS.with(|tabs| tabs.borrow_mut().clear());
     BODIES.with(|built| built.set(0));
     CLOSED.with(|closed| closed.set(false));
-    session::<DockedApp>(Uuid::new_v4())
+    session::<DockedRoot>(Uuid::new_v4())
 }
 
 #[beui::reactive::component]
@@ -288,10 +288,10 @@ fn BarProbe() -> beui::NodeId {
     }
 }
 
-struct BarredApp;
+struct BarredRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for BarredApp {
+impl crate::BeuiApp for BarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -323,13 +323,13 @@ impl crate::BeuiApp for BarredApp {
 
 fn barred_session() -> EditorSession {
     BAR.with(|held| held.set(None));
-    session::<BarredApp>(Uuid::new_v4())
+    session::<BarredRoot>(Uuid::new_v4())
 }
 
-struct DockBarredApp;
+struct DockBarredRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for DockBarredApp {
+impl crate::BeuiApp for DockBarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -360,5 +360,5 @@ impl crate::BeuiApp for DockBarredApp {
 
 fn dock_barred_session() -> EditorSession {
     BAR.with(|held| held.set(None));
-    session::<DockBarredApp>(Uuid::new_v4())
+    session::<DockBarredRoot>(Uuid::new_v4())
 }

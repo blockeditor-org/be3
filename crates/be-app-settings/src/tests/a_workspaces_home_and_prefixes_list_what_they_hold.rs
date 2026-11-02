@@ -3,8 +3,8 @@ use be_sdk_beui::be_block::{
 };
 
 use super::*;
-use crate::home::HomeApp;
-use crate::prefixes::PrefixesApp;
+use crate::home::HomeRoot;
+use crate::prefixes::PrefixesRoot;
 
 fn named(id: Uuid, name: &str, parent: Uuid) -> BlockInfo {
     let mut info = BlockInfo::new(id, Uuid::from_u128(1), BlockParent::Block(parent));
@@ -23,7 +23,7 @@ fn a_workspaces_home_and_prefixes_list_what_they_hold() {
     let host = EditorHost::default();
     host.set_block_type(PrefixRegistryContent::CONTENT_TYPE);
     host.set_editable(true);
-    let mut prefixes = BeuiTest::<PrefixesApp>::new(OwnedEditor::new(host, kind));
+    let mut prefixes = BeuiTest::<PrefixesRoot>::new(OwnedEditor::new(host, kind));
     let store = prefixes.store();
     store.add_block(BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root));
     for (id, name) in [
@@ -49,7 +49,7 @@ fn a_workspaces_home_and_prefixes_list_what_they_hold() {
     let host = EditorHost::default();
     host.set_block_type(HomeContent::CONTENT_TYPE);
     host.set_editable(true);
-    let mut shown = BeuiTest::<HomeApp>::new(OwnedEditor::new(host, home));
+    let mut shown = BeuiTest::<HomeRoot>::new(OwnedEditor::new(host, home));
     let store = shown.store();
     store.add_block(BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root));
     store.add_block(named(plan, "Plan", workspace));

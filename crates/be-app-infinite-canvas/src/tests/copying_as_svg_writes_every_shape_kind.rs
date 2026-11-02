@@ -30,7 +30,7 @@ fn placed(id: u128, shape: CanvasShape, center: CanvasPoint) -> CanvasEntity {
     entity
 }
 
-pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
+pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasRoot>, typed: &str) {
     let ctrl = Modifiers {
         ctrl: true,
         ..Modifiers::NONE

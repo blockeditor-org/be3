@@ -10,7 +10,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
     let display = display_settings_here(&mut editor);
     let shape = format!("infinite-canvas.entity.{}", rectangle.id);
     let toggle = "infinite-canvas.dock.ignore-touch";
-    let kept = |editor: &BeuiTest<CanvasApp>| {
+    let kept = |editor: &BeuiTest<CanvasRoot>| {
         editor
             .content::<DisplaySettingsContent>(Some(display))
             .root()

@@ -9,10 +9,10 @@ const BLOCK: Uuid = Uuid::from_u128(1);
 const BLOCK_TYPE: Uuid = Uuid::from_u128(2);
 const PANEL: f32 = 120.0;
 
-struct OverlaidApp;
+struct OverlaidRoot;
 
 #[component]
-impl crate::BeuiApp for OverlaidApp {
+impl crate::BeuiApp for OverlaidRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
@@ -44,7 +44,7 @@ impl crate::BeuiApp for OverlaidApp {
 
 #[test]
 fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
-    let mut session = session::<OverlaidApp>(BLOCK_TYPE);
+    let mut session = session::<OverlaidRoot>(BLOCK_TYPE);
     frame(&mut session, None, TopBar::Hidden);
 
     session.run(ViewId::MAIN, 0);

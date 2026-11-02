@@ -9,10 +9,10 @@ use uuid::Uuid;
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 360.0;
 
-pub struct HomeApp;
+pub struct HomeRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for HomeApp {
+impl be_sdk_beui::BeuiApp for HomeRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

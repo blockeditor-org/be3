@@ -21,8 +21,8 @@ use be_sdk_shell::{KeptWindow, SHELL_BARS, saved_windows};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::DesktopApp;
-use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
+use crate::root::DesktopRoot;
+use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
@@ -129,7 +129,7 @@ const SPEAKERS: &str = "alsa_output.pci-0000_00_1f.3.analog-stereo";
 const HEADPHONES: &str = "bluez_output.headphones";
 
 struct Fixture {
-    test: BeuiTest<DesktopApp>,
+    test: BeuiTest<DesktopRoot>,
     host: EditorHost,
     client: Uuid,
     settings: Uuid,
@@ -587,7 +587,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         kind: WindowKind::Window,
         shown: true,
         title: format!("todo-{id}.txt"),
-        app_id: "org.kde.kate".to_owned(),
+        program_id: "org.kde.kate".to_owned(),
         name: "Kate".to_owned(),
         parent: None,
         modal: false,
@@ -602,10 +602,10 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
     }
 }
 
-fn program_window(id: u64, app_id: &str, title: &str, origin: WindowOrigin) -> HostWindow {
+fn program_window(id: u64, program_id: &str, title: &str, origin: WindowOrigin) -> HostWindow {
     HostWindow {
         title: title.to_owned(),
-        app_id: app_id.to_owned(),
+        program_id: program_id.to_owned(),
         name: String::new(),
         origin,
         ..host_window(id, false)

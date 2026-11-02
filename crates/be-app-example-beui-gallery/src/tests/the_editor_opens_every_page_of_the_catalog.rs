@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_editor_opens_every_page_of_the_catalog() {
     let host = EditorHost::default();
-    let mut test = BeuiTest::<BeuiGalleryApp>::new(OwnedEditor::new(host, Uuid::new_v4()))
+    let mut test = BeuiTest::<BeuiGalleryRoot>::new(OwnedEditor::new(host, Uuid::new_v4()))
         .with_size(Vec2::new(1000.0, 1600.0));
     test.run();
     for title in beui_demo::page_titles() {

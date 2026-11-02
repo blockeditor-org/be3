@@ -5,7 +5,7 @@ use be_sdk::{
 };
 use be_type_example_triangle::TriangleContent;
 
-use crate::app::Triangle;
+use crate::root::Triangle;
 
 mod a_triangle_asks_to_be_painted_until_it_has_been;
 mod creating_a_triangle_makes_a_block_with_no_state;

@@ -9,7 +9,7 @@ fn a_slide_template_makes_a_canvas_with_its_placeholders() {
     let host = EditorHost::default();
     let creation = Creation::for_template(host.clone(), "title-slide");
 
-    let id = PresentationApp::create_block(&creation).unwrap();
+    let id = PresentationRoot::create_block(&creation).unwrap();
 
     let (block_type, content) = host
         .take_graph_commands()
@@ -46,5 +46,5 @@ fn a_slide_template_makes_a_canvas_with_its_placeholders() {
     );
 
     let unknown = Creation::for_template(host, "no-such-slide");
-    assert!(PresentationApp::create_block(&unknown).is_err());
+    assert!(PresentationRoot::create_block(&unknown).is_err());
 }

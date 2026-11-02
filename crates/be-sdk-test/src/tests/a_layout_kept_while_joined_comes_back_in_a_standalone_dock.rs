@@ -8,7 +8,7 @@ use beui::dock::styled::{DockAlign as Align, DockBarPlacement as Placement, Dock
 use beui::dock::unstyled::DockOutsidePlace as Outside;
 use std::collections::HashMap;
 
-fn declared(test: &mut BeuiTest<StandaloneApp>) -> HashMap<String, u64> {
+fn declared(test: &mut BeuiTest<StandaloneRoot>) -> HashMap<String, u64> {
     let declaration = test
         .take_dock_messages()
         .into_iter()

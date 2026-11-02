@@ -16,7 +16,7 @@ fn grid(count: usize) -> Vec<CanvasEntity> {
         .collect()
 }
 
-fn pen(editor: &mut BeuiTest<CanvasApp>, phase: PenPhase, pos: Pos2) -> (usize, usize) {
+fn pen(editor: &mut BeuiTest<CanvasRoot>, phase: PenPhase, pos: Pos2) -> (usize, usize) {
     editor.step(vec![Input::Pen {
         phase,
         pos,

@@ -81,8 +81,8 @@ pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
         .collect()
 }
 
-fn readable_id(app_id: &str) -> String {
-    let id = app_id.trim();
+fn readable_id(program_id: &str) -> String {
+    let id = program_id.trim();
     let file = id.rsplit(['/', '\\']).next().unwrap_or(id);
     let file = match file.len().checked_sub(4).and_then(|cut| file.get(cut..)) {
         Some(extension) if extension.eq_ignore_ascii_case(".exe") => &file[..file.len() - 4],
@@ -119,9 +119,9 @@ fn without_name<'a>(title: &'a str, name: &str) -> &'a str {
     title
 }
 
-fn label(name: &str, title: &str, app_id: &str) -> String {
+fn label(name: &str, title: &str, program_id: &str) -> String {
     let title = without_name(title.trim(), name);
-    let titled = !title.is_empty() && !title.eq_ignore_ascii_case(name) && title != app_id.trim();
+    let titled = !title.is_empty() && !title.eq_ignore_ascii_case(name) && title != program_id.trim();
     match (name.is_empty(), titled) {
         (true, false) => "Window".to_owned(),
         (true, true) => title.to_owned(),
@@ -134,7 +134,7 @@ pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String 
     let named =
         |window: &HostWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
     let read =
-        |window: &HostWindow| Some(readable_id(&window.app_id)).filter(|name| !name.is_empty());
+        |window: &HostWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
     named(window)
         .or_else(|| parent.and_then(named))
         .or_else(|| read(window))
@@ -143,19 +143,19 @@ pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String 
 }
 
 pub fn window_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
-    label(&program_name(window, parent), &window.title, &window.app_id)
+    label(&program_name(window, parent), &window.title, &window.program_id)
 }
 
 impl KeptWindow {
     pub fn program_name(&self) -> String {
         match self.name.trim() {
-            "" => readable_id(&self.app_id),
+            "" => readable_id(&self.program_id),
             name => name.to_owned(),
         }
     }
 
     pub fn window_name(&self) -> String {
-        label(&self.program_name(), &self.title, &self.app_id)
+        label(&self.program_name(), &self.title, &self.program_id)
     }
 }
 

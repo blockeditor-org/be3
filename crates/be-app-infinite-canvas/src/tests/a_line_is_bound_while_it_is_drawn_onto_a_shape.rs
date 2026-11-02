@@ -2,10 +2,10 @@ use super::*;
 use be_sdk_beui::beui::{Input, Pos2};
 use be_type_infinite_canvas::BINDING_GAP;
 
-use crate::app::canvas::item_bounds;
+use crate::root::canvas::item_bounds;
 use crate::geometry::path_ends;
 
-fn line_of(editor: &BeuiTest<CanvasApp>) -> CanvasEntity {
+fn line_of(editor: &BeuiTest<CanvasRoot>) -> CanvasEntity {
     entities(editor)
         .into_iter()
         .find(|entity| entity.shape == CanvasShape::Path)

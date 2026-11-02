@@ -8,7 +8,7 @@ use beui::{
 use beui_text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
 use std::rc::Rc;
 
-use crate::app::state::State;
+use crate::root::state::State;
 
 const BYTES_PER_ROW: usize = 16;
 const GROUP_SIZE: usize = 8;

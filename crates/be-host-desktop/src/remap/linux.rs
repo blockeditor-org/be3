@@ -146,7 +146,7 @@ pub fn configure(settings: &InputSettings) {
 pub fn focus(window: Option<be_host_wayland::WindowInfo>) {
     let window = window.map(|window| Window {
         exe: exe_name(&window.command),
-        app_id: window.app_id,
+        program_id: window.program_id,
         title: window.title,
     });
     let changed = STATE.with_borrow_mut(|state| {

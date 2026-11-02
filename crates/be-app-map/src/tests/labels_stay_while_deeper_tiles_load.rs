@@ -6,7 +6,7 @@ fn labels_stay_while_deeper_tiles_load() {
     serve_tiles_with(&mut editor, || {
         labelled_tile(&[("Harbour", "city", 2048, 2048)])
     });
-    let shown = |editor: &BeuiTest<MapApp>| {
+    let shown = |editor: &BeuiTest<MapRoot>| {
         (1..=16)
             .filter(|occurrence| editor.shown(&format!("map.label.Harbour.{occurrence}")))
             .count()

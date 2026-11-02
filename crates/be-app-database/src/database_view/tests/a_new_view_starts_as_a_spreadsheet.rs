@@ -7,7 +7,7 @@ fn a_new_view_starts_as_a_spreadsheet() {
     let host = EditorHost::default();
     let creation = Creation::new(host.clone());
 
-    let id = DatabaseViewApp::create_block(&creation).unwrap();
+    let id = DatabaseViewRoot::create_block(&creation).unwrap();
 
     let created: Vec<(Uuid, Option<Vec<u8>>)> = host
         .take_graph_commands()

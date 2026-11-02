@@ -35,7 +35,7 @@ fn settings_another_block_holds_are_not_taken_as_its_own() {
     host.set_editable(true);
     host.set_client_id(Uuid::from_u128(0xd0_0100));
     host.set_block_type(SettingsContent::CONTENT_TYPE);
-    let mut editor = BeuiTest::<SettingsApp>::new(OwnedEditor::new(host, folder_settings));
+    let mut editor = BeuiTest::<SettingsRoot>::new(OwnedEditor::new(host, folder_settings));
     editor.set_size(Vec2::new(720.0, 420.0));
     editor.block_types(vec![described(HOTBAR, "Hotbar"), described(TAGS, "Tags")]);
     let store = editor.store();

@@ -31,14 +31,14 @@ fn grid(count: usize) -> Vec<CanvasEntity> {
         .collect()
 }
 
-fn work(editor: &mut BeuiTest<CanvasApp>, view: Rect, scale: f32) -> (usize, usize) {
+fn work(editor: &mut BeuiTest<CanvasRoot>, view: Rect, scale: f32) -> (usize, usize) {
     editor.set_view(view, scale);
     editor.step(Vec::new());
     let work = editor.document().performance().latest.work;
     (work.painted_nodes, work.placed)
 }
 
-fn moved(count: usize) -> (BeuiTest<CanvasApp>, [(usize, usize); 2]) {
+fn moved(count: usize) -> (BeuiTest<CanvasRoot>, [(usize, usize); 2]) {
     let mut editor = editor(&grid(count));
     let size = editor.rect().size();
     let view = Rect::from_min_size(pos2(0.0, 0.0), size);

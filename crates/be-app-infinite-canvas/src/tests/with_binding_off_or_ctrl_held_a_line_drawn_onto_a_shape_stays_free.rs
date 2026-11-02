@@ -2,9 +2,9 @@ use super::*;
 use be_sdk_beui::beui::{Modifiers, Pos2};
 use be_type_infinite_canvas::CanvasBinding;
 
-use crate::app::canvas::item_bounds;
+use crate::root::canvas::item_bounds;
 
-fn drawn_lines(editor: &BeuiTest<CanvasApp>, before: &[Uuid]) -> Vec<CanvasEntity> {
+fn drawn_lines(editor: &BeuiTest<CanvasRoot>, before: &[Uuid]) -> Vec<CanvasEntity> {
     entities(editor)
         .into_iter()
         .filter(|entity| entity.shape == CanvasShape::Path && !before.contains(&entity.id))

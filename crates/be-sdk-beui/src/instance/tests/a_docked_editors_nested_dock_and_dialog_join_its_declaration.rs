@@ -1,10 +1,10 @@
 use super::*;
 use be_sdk_api::{DockMessage, DockTabPath};
 
-struct NestingApp;
+struct NestingRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for NestingApp {
+impl crate::BeuiApp for NestingRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockDialog, DockPane, DockTab, Docking, DockingLayout};
@@ -53,7 +53,7 @@ fn declared(session: &mut EditorSession) -> Option<be_sdk_api::DockDeclaration> 
 
 #[test]
 fn a_docked_editors_nested_dock_and_dialog_join_its_declaration() {
-    let mut session = session::<NestingApp>(Uuid::new_v4());
+    let mut session = session::<NestingRoot>(Uuid::new_v4());
     show_docked(&mut session, &[(View::MAIN, 0)], true);
     let first = declared(&mut session).expect("the docked editor declares its dock");
     let dialog = first

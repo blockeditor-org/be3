@@ -5,7 +5,7 @@ use be_sdk_beui::beui::pos2;
 use be_sdk_beui::beui::styled::{TextAreaApi, TextAreaSurfaceApi};
 use be_type_infinite_canvas::Entity;
 
-fn peer_types(editor: &mut BeuiTest<CanvasApp>, entity: Uuid, at: usize, typed: &str) {
+fn peer_types(editor: &mut BeuiTest<CanvasRoot>, entity: Uuid, at: usize, typed: &str) {
     let content = editor.content::<CanvasContent>(None);
     let rich = Canvas::rich_text(&content, entity).expect("the entity has text");
     let op = rich

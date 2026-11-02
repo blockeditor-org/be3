@@ -10,7 +10,7 @@ use tabletop_api::{GameAction, GameActionOption};
 use tabletop_host::Game;
 use uuid::Uuid;
 
-use crate::app::{DeterministicGameApp, module_filter, seats};
+use crate::root::{DeterministicGameRoot, module_filter, seats};
 
 mod a_module_that_is_not_a_game_is_reported;
 mod a_new_player_can_take_the_other_side;
@@ -42,11 +42,11 @@ const TIC_TAC_TOE: &[u8] = include_bytes!(env!("TIC_TAC_TOE_WASM"));
 const CHESS: &[u8] = include_bytes!(env!("CHESS_WASM"));
 const CRAZY_8S: &[u8] = include_bytes!(env!("CRAZY_8S_WASM"));
 
-fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
+fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameRoot> {
     editor_after(module, Vec::new())
 }
 
-fn editor_after(module: Vec<u8>, moves: Vec<GameAction>) -> BeuiTest<DeterministicGameApp> {
+fn editor_after(module: Vec<u8>, moves: Vec<GameAction>) -> BeuiTest<DeterministicGameRoot> {
     placed(module, moves, true)
 }
 
@@ -54,7 +54,7 @@ fn placed(
     module: Vec<u8>,
     moves: Vec<GameAction>,
     in_viewport: bool,
-) -> BeuiTest<DeterministicGameApp> {
+) -> BeuiTest<DeterministicGameRoot> {
     let module_block = Uuid::new_v4();
     let block = Uuid::new_v4();
     let host = EditorHost::default();
@@ -85,12 +85,12 @@ fn placed(
     harness
 }
 
-fn creation_editor() -> BeuiTest<DeterministicGameApp> {
+fn creation_editor() -> BeuiTest<DeterministicGameRoot> {
     let host = EditorHost::default();
     BeuiTest::creation(Creation::new(host))
 }
 
-fn moves(harness: &BeuiTest<DeterministicGameApp>) -> Vec<GameAction> {
+fn moves(harness: &BeuiTest<DeterministicGameRoot>) -> Vec<GameAction> {
     harness
         .content::<DeterministicGameContent>(None)
         .root()
@@ -149,6 +149,6 @@ fn played(module: &[u8], moves: &[(Uuid, &str)]) -> Vec<GameAction> {
     actions
 }
 
-fn on_the_card(harness: &BeuiTest<DeterministicGameApp>, test_id: &str) -> Pos2 {
+fn on_the_card(harness: &BeuiTest<DeterministicGameRoot>, test_id: &str) -> Pos2 {
     harness.rect_of(test_id).min + Vec2::new(8.0, 40.0)
 }

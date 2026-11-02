@@ -7,7 +7,7 @@ fn text_left_empty_leaves_nothing_behind() {
         let mut editor = phone(&[]);
         let canvas = editor.rect_of("infinite-canvas.canvas");
         let spot = |x: f32, y: f32| pos2(canvas.left() + x, canvas.top() + y);
-        let tap = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| match finger {
+        let tap = |editor: &mut BeuiTest<CanvasRoot>, at: Pos2| match finger {
             true => {
                 editor.fingers(TouchPhase::Start, &[(1, at)]);
                 editor.run();
@@ -19,7 +19,7 @@ fn text_left_empty_leaves_nothing_behind() {
                 editor.run();
             }
         };
-        let write = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| {
+        let write = |editor: &mut BeuiTest<CanvasRoot>, at: Pos2| {
             editor.reveal("infinite-canvas.dock.tool.Text");
             match finger {
                 true => editor.tap("infinite-canvas.dock.tool.Text"),

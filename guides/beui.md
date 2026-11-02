@@ -188,7 +188,7 @@ pub trait BeuiApp: 'static {
 }
 
 #[component]
-impl BeuiApp for CounterApp {
+impl BeuiApp for CounterRoot {
     #[component]
     fn View(editor: Editor) -> Root { view! { ... } }
 }
@@ -199,7 +199,7 @@ impl writes the same signature without them. Each method becomes a hidden
 `__View` that holds the body, whichever side writes it, and a provided
 `View()` constructor that returns a builder generated next to the trait;
 an inherent impl gets the same, with the builder next to the impl. A body
-runs as a component named after the type that wrote it (`CounterApp::View`,
+runs as a component named after the type that wrote it (`CounterRoot::View`,
 or `BeuiApp::Preview` for a default), so the inspector tells each
 implementation apart. A component method takes no `self`.
 
@@ -3719,7 +3719,7 @@ focused field into what is left, through every scroll it sits in.
   http://127.0.0.1:8070.
 
 `beui_host::native::run_with` takes `RunOptions` where `beui_host::native::run` takes only the
-app and uses the defaults; both load wgpu. Besides the app id and starting size, `RunOptions`
+app and uses the defaults; both load wgpu. Besides the program id and starting size, `RunOptions`
 carries `device_extensions`, the Vulkan extensions wgpu's device is opened with (block-app's
 import Wayland clients' buffers), and `platforms`, which the native runners offer beside their own, such as
 `beui_platform_drm::Drm`, which drives the displays and input devices itself, for `BEUI_PLATFORM`
@@ -4319,7 +4319,7 @@ it, and all its 3D (`glam`) stays in the crate.
 - Headsets: `BEUI_LAYERS=xr`, in space's place, shows space on
   an OpenXR headset through `crates/beui-layer-xr`, and waits for one when
   there is none; `BEUI_LAYERS=space` is the simulator. `beui::window` makes
-  a `Link` (`Link::new(app name)`: `RunOptions::app_id`, else the program's
+  a `Link` (`Link::new(app name)`: `RunOptions::program_id`, else the program's
   name, for the runtime's dashboard), which tries once at once and then, on
   a thread of its own, every `RETRY` (2 s): load the runtime and make an
   instance (`Runtime::open`), then ask it for a headset (`xrGetSystem`),
@@ -5417,10 +5417,10 @@ pub fn Counter(editor: be_sdk_beui::Editor) -> NodeId {
     view! { ... }
 }
 
-pub struct CounterApp;
+pub struct CounterRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for CounterApp {
+impl be_sdk_beui::BeuiApp for CounterRoot {
     #[component]
     fn View(editor: be_sdk_beui::Editor) -> Root {
         view! {
@@ -5435,7 +5435,7 @@ impl be_sdk_beui::BeuiApp for CounterApp {
     }
 }
 
-be_sdk_beui::beui_plugin!(CounterApp, "../manifest.json");
+be_sdk_beui::beui_plugin!(CounterRoot, "../manifest.json");
 ```
 
 `Editor` is everything the instance was given: the host, the block, the

@@ -112,12 +112,12 @@ impl BinaryAdditionQuiz {
 
     pub(crate) fn write_row(
         &self,
-        block: &crate::logic_game::app::GameBlock,
+        block: &crate::logic_game::root::GameBlock,
         problem: usize,
         row: QuizRow,
         values: Vec<Option<bool>>,
     ) {
-        crate::logic_game::app::operate(
+        crate::logic_game::root::operate(
             block,
             LogicGameOperation::SetQuizRow {
                 problem,

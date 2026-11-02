@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_beui::beui::Pos2;
 
-fn arrow_of(editor: &BeuiTest<CanvasApp>) -> CanvasEntity {
+fn arrow_of(editor: &BeuiTest<CanvasRoot>) -> CanvasEntity {
     entities(editor)
         .into_iter()
         .find(|entity| entity.shape == CanvasShape::Path)

@@ -18,7 +18,7 @@ machine; Wine has no Windows.Graphics.Capture.
   a hidden window for display changes and a 1 s tick for "not responding". `Model` folds what it
   reads into a `Snapshot`: entries with stable `EntryId`s, the displays first (one per monitor,
   sized as the monitor and titled with its name), then the top-level windows Alt+Tab would show
-  (with owner, dialog, icon, title, app id, frame bounds, minimized and maximized, popups,
+  (with owner, dialog, icon, title, program id, frame bounds, minimized and maximized, popups,
   `Control::Elevated` for a process of higher integrity), the monitors, and the input desktop (`secure_desktop()`). It
   keeps each entry's `shown`, so a restarted shell brings back what was shown. It also lists
   the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
@@ -62,7 +62,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   toast or not, since nothing else shows what a first run on a new machine did.
 - `WindowsWatch` is the snapshot's entries (`kind`, `shown`), each window's `name` that of its Start
   menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
-  whose shortcut's AppUserModelID or target is its app id or first command word, ignoring case and
+  whose shortcut's AppUserModelID or target is its program id or first command word, ignoring case and
   slash direction), known once the programs have been listed (the Apps panel asks for them);
   `show` and `hide` set `shown` in be-host-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
   shells do only for shown entries, and stops it when unmounted; a display entry draws its

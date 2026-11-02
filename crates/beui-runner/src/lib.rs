@@ -40,7 +40,7 @@ type Answered = (FilePickId, FilePick);
 type Saved = (FileSaveId, FileSave);
 
 pub struct RunOptions {
-    pub app_id: Option<String>,
+    pub program_id: Option<String>,
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub saved_preferences: Option<std::path::PathBuf>,
@@ -51,7 +51,7 @@ pub struct RunOptions {
 impl Default for RunOptions {
     fn default() -> Self {
         Self {
-            app_id: None,
+            program_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
             saved_preferences: None,

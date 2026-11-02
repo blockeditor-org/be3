@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 mod freehand;
 mod geometry;
 mod images;
@@ -7,7 +7,7 @@ mod raster;
 mod rough;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    canvas => app::CanvasApp,
+    canvas => root::CanvasRoot,
 });
 
 #[cfg(test)]

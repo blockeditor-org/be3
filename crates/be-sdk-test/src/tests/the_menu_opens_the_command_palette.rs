@@ -4,10 +4,10 @@ use beui::styled::Root;
 
 use super::*;
 
-struct PaletteApp;
+struct PaletteRoot;
 
 #[component]
-impl BeuiApp for PaletteApp {
+impl BeuiApp for PaletteRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -30,7 +30,7 @@ fn Tidy(editor: Editor) -> NodeId {
 
 #[test]
 fn the_menu_opens_the_command_palette() {
-    let mut test = BeuiTest::<PaletteApp>::editing(Uuid::new_v4())
+    let mut test = BeuiTest::<PaletteRoot>::editing(Uuid::new_v4())
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
     assert!(!test.shown("command-palette.search"));

@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 pub mod default_editors;
 pub mod display;
 pub mod home;
@@ -8,15 +8,15 @@ pub mod prefixes;
 pub mod tags;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    settings => app::SettingsApp,
-    profile => app::SettingsProfileApp,
-    display => display::DisplaySettingsApp,
-    input => input::InputSettingsApp,
-    remaps => input_remaps::InputRemapsApp,
-    defaults => default_editors::DefaultEditorsApp,
-    tags => tags::TagsApp,
-    prefixes => prefixes::PrefixesApp,
-    home => home::HomeApp,
+    settings => root::SettingsRoot,
+    profile => root::SettingsProfileRoot,
+    display => display::DisplaySettingsRoot,
+    input => input::InputSettingsRoot,
+    remaps => input_remaps::InputRemapsRoot,
+    defaults => default_editors::DefaultEditorsRoot,
+    tags => tags::TagsRoot,
+    prefixes => prefixes::PrefixesRoot,
+    home => home::HomeRoot,
 });
 
 #[cfg(test)]

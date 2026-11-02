@@ -2,10 +2,10 @@ use super::*;
 use beui::reactive::*;
 use beui::styled::*;
 
-struct RecordingApp;
+struct RecordingRoot;
 
 #[component]
-impl crate::BeuiApp for RecordingApp {
+impl crate::BeuiApp for RecordingRoot {
     #[component]
     fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = {
@@ -21,7 +21,7 @@ impl crate::BeuiApp for RecordingApp {
 
 #[test]
 fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
-    let mut session = session::<RecordingApp>(Uuid::new_v4());
+    let mut session = session::<RecordingRoot>(Uuid::new_v4());
     frame(
         &mut session,
         Some(Rect::from_min_size(

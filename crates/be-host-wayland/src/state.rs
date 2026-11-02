@@ -475,7 +475,7 @@ impl State {
         self.find(id).map(|window| window.title.clone())
     }
 
-    pub fn app_id(&self, id: WindowId) -> Option<String> {
+    pub fn program_id(&self, id: WindowId) -> Option<String> {
         if let Some(surface) = self.find(id)?.window.x11_surface() {
             return Some(surface.class());
         }

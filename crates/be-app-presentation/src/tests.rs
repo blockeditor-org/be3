@@ -5,7 +5,7 @@ use be_sdk_test::BeuiTest;
 use be_type_presentation::PresentationContent;
 use uuid::Uuid;
 
-use crate::app::PresentationApp;
+use crate::root::PresentationRoot;
 
 mod a_card_shows_only_the_stage;
 mod a_slide_template_makes_a_canvas_with_its_placeholders;
@@ -20,7 +20,7 @@ mod the_filmstrip_places_a_child_editor_for_every_slide;
 mod the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked;
 mod the_stage_shows_the_slide_the_filmstrip_selected;
 
-type Harness = BeuiTest<PresentationApp>;
+type Harness = BeuiTest<PresentationRoot>;
 
 fn editor(count: usize) -> (Harness, Editor) {
     let block = Uuid::new_v4();

@@ -1,8 +1,8 @@
-pub mod app;
+pub mod root;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    folder => app::WorkspaceIndexApp,
-    workspace => app::WorkspaceIndexApp,
+    folder => root::WorkspaceIndexRoot,
+    workspace => root::WorkspaceIndexRoot,
 });
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use be_sdk_test::BeuiTest;
 use be_type_checklist::{Checklist as ChecklistModel, ChecklistContent};
 use uuid::Uuid;
 
-use crate::app::ChecklistApp;
+use crate::root::ChecklistRoot;
 
 mod a_checklist_drawn_at_a_finer_raster_is_sharper_where_it_was;
 mod adding_an_item_puts_it_on_the_list;
@@ -13,7 +13,7 @@ mod filtering_to_open_hides_the_items_that_are_done;
 mod the_checklist_waits_for_its_content;
 
 struct Harness {
-    editor: BeuiTest<ChecklistApp>,
+    editor: BeuiTest<ChecklistRoot>,
 }
 
 impl Harness {

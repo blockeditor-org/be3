@@ -8,7 +8,7 @@ use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
 use uuid::Uuid;
 
-use crate::compiled_logic::app::CompiledLogicApp;
+use crate::compiled_logic::root::CompiledLogicRoot;
 
 mod the_program_lists_every_instruction;
 mod the_source_link_names_the_grid_it_was_compiled_from;
@@ -61,7 +61,7 @@ fn compiled(source: Uuid) -> CompiledLogic {
     )
 }
 
-fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
+fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicRoot> {
     let block = Uuid::new_v4();
     let mut editor = BeuiTest::editing(block);
     let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
@@ -77,6 +77,6 @@ fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
     editor
 }
 
-fn editor() -> BeuiTest<CompiledLogicApp> {
+fn editor() -> BeuiTest<CompiledLogicRoot> {
     editor_on(Uuid::new_v4(), None)
 }

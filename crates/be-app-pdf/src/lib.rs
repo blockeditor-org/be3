@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 mod pane;
 mod render;
 
@@ -6,5 +6,5 @@ mod render;
 mod tests;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    pdf => app::PdfApp,
+    pdf => root::PdfRoot,
 });

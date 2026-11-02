@@ -278,7 +278,7 @@ impl ProgramNames {
             .as_ref()
             .and_then(|program| self.by_id.get(program));
         let matched = || {
-            [entry.app_id.as_str()]
+            [entry.program_id.as_str()]
                 .into_iter()
                 .chain(entry.origin.command.first().map(String::as_str))
                 .filter(|app| !app.trim().is_empty())
@@ -301,7 +301,7 @@ pub fn host_window(
     HostWindow {
         id: window_id(entry.id),
         title: entry.title.clone(),
-        app_id: entry.app_id.clone(),
+        program_id: entry.program_id.clone(),
         name: match entry.kind {
             EntryKind::Window => names.name(entry),
             EntryKind::Display => String::new(),

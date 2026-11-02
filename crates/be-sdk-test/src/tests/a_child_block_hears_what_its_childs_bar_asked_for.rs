@@ -3,10 +3,10 @@ use be_sdk_beui::{BarAction, TopBar};
 
 use super::*;
 
-struct BarApp;
+struct BarRoot;
 
 #[component]
-impl BeuiApp for BarApp {
+impl BeuiApp for BarRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -40,7 +40,7 @@ fn BarParent(editor: Editor) -> NodeId {
 
 #[test]
 fn a_child_block_hears_what_its_childs_bar_asked_for() {
-    let mut test = BeuiTest::<BarApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<BarRoot>::editing(Uuid::new_v4());
     test.run();
     let placement = test.children()[0].clone();
     assert_eq!(placement.top_bar, TopBar::Phone);

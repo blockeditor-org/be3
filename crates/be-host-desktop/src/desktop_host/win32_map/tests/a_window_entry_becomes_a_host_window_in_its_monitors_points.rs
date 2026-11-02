@@ -27,7 +27,7 @@ fn a_window_entry_becomes_a_host_window_in_its_monitors_points() {
     );
     assert_eq!(host.id, HostWindowId(5));
     assert_eq!(host.title, "window 5");
-    assert_eq!(host.app_id, "C:\\Programs\\paint.exe");
+    assert_eq!(host.program_id, "C:\\Programs\\paint.exe");
     assert_eq!(host.parent, Some(HostWindowId(4)));
     assert!(host.modal && host.focused && host.responding);
     assert_eq!(host.size, Vec2::new(400.0, 300.0));

@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_beui::beui::{Key, Modifiers, Rect, pos2};
 use be_type_infinite_canvas::{CanvasGrid, CanvasGridSpacing};
 
-fn grid(editor: &BeuiTest<CanvasApp>) -> CanvasGrid {
+fn grid(editor: &BeuiTest<CanvasRoot>) -> CanvasGrid {
     editor.content::<CanvasContent>(None).root().grid
 }
 
@@ -13,7 +13,7 @@ fn ctrl() -> Modifiers {
     }
 }
 
-fn run_from_palette(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
+fn run_from_palette(editor: &mut BeuiTest<CanvasRoot>, typed: &str) {
     editor.key(
         Key::P,
         Modifiers {

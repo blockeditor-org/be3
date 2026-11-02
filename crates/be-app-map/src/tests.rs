@@ -3,7 +3,7 @@ use be_type_map::MapRegion;
 use be_type_map::{Map, MapContent};
 use uuid::Uuid;
 
-use crate::app::MapApp;
+use crate::root::MapRoot;
 
 mod a_new_map_shows_the_whole_world;
 mod labels_hold_still_between_frames;
@@ -15,7 +15,7 @@ mod the_whole_world_button_redraws_in_the_run_it_is_clicked;
 mod tiles_from_the_tile_source_are_drawn;
 mod zooming_in_draws_deeper_tiles_over_the_shallower_ones;
 
-fn editor() -> BeuiTest<MapApp> {
+fn editor() -> BeuiTest<MapRoot> {
     let block = Uuid::new_v4();
     let mut editor = BeuiTest::editing(block).in_viewport();
     editor.store().register(be_type_map::registrations());
@@ -24,7 +24,7 @@ fn editor() -> BeuiTest<MapApp> {
     editor
 }
 
-fn map(editor: &BeuiTest<MapApp>) -> Map {
+fn map(editor: &BeuiTest<MapRoot>) -> Map {
     editor.content::<MapContent>(None).root()
 }
 
@@ -123,7 +123,7 @@ fn tile_test_id(url: &str) -> String {
     format!("map.tile.{}.{}.{}", path[2], path[1], path[0])
 }
 
-fn tile_drawn(editor: &BeuiTest<MapApp>, test_id: &str) -> bool {
+fn tile_drawn(editor: &BeuiTest<MapRoot>, test_id: &str) -> bool {
     let document = editor.document();
     document
         .find_test_id(test_id)
@@ -131,14 +131,14 @@ fn tile_drawn(editor: &BeuiTest<MapApp>, test_id: &str) -> bool {
         .is_some()
 }
 
-fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
+fn serve_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
 type Fetched =
     Reply<Result<Vec<u8>, be_sdk_beui::Failure>, wire::Fallible<wire::Bytes, wire::Plain>>;
 
-fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(Fetched, String)> {
+fn requested_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<(Fetched, String)> {
     editor
         .take_requests()
         .into_iter()
@@ -149,7 +149,7 @@ fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(Fetched, String)> {
         .collect()
 }
 
-fn serve_tiles_with(editor: &mut BeuiTest<MapApp>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
+fn serve_tiles_with(editor: &mut BeuiTest<MapRoot>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
     let mut served = Vec::new();
     loop {
         for (request, url) in requested_tiles(editor) {

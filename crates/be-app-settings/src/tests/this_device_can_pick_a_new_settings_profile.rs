@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::SettingsProfileApp;
+use crate::root::SettingsProfileRoot;
 use be_sdk_beui::be_block::SettingsProfileContent;
 use be_sdk_beui::{BlockInfo, BlockParent};
 
@@ -22,7 +22,7 @@ fn this_device_can_pick_a_new_settings_profile() {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(client);
-    let mut chosen = BeuiTest::<SettingsProfileApp>::new(OwnedEditor::new(host, profile));
+    let mut chosen = BeuiTest::<SettingsProfileRoot>::new(OwnedEditor::new(host, profile));
     chosen.hold(None, SettingsProfileContent::default());
     let store = chosen.store();
     store.add_block(BlockInfo::new(

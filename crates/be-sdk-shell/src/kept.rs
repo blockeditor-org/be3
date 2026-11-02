@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct KeptWindow {
     pub key: HostWindowId,
     pub window: Option<HostWindowId>,
-    pub app_id: String,
+    pub program_id: String,
     #[serde(default)]
     pub name: String,
     pub title: String,
@@ -20,7 +20,7 @@ impl KeptWindow {
         Self {
             key,
             window: Some(window.id),
-            app_id: window.app_id.clone(),
+            program_id: window.program_id.clone(),
             name: window.name.clone(),
             title: window.title.clone(),
             origin: window.origin.clone(),
@@ -91,7 +91,7 @@ pub(crate) fn sort_out(kept: &Kept, windows: &[HostWindow]) -> Desk {
             .position(|record| Some(record.key.0) == window.origin.launch);
         let same_program = || {
             free.iter()
-                .position(|record| !record.app_id.is_empty() && record.app_id == window.app_id)
+                .position(|record| !record.program_id.is_empty() && record.program_id == window.program_id)
         };
         if let Some(index) = launched.or_else(same_program) {
             let record = free.remove(index);

@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_beui::beui::{Rect, pos2};
 
-fn framed(hidden: bool) -> BeuiTest<CanvasApp> {
+fn framed(hidden: bool) -> BeuiTest<CanvasRoot> {
     let mut canvas = vector([frame(
         2,
         CanvasPoint::new(0.0, 0.0),

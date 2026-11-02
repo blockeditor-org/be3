@@ -11,7 +11,7 @@ use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::SettingsApp;
+use crate::root::SettingsRoot;
 
 mod a_folders_settings_say_what_is_set_here_and_what_comes_from_above;
 mod a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ;
@@ -27,11 +27,11 @@ mod settings_another_block_holds_are_not_taken_as_its_own;
 mod this_device_can_pick_a_new_settings_profile;
 mod using_my_usual_settings_removes_what_the_kind_kept_here;
 
-fn editor() -> BeuiTest<SettingsApp> {
+fn editor() -> BeuiTest<SettingsRoot> {
     editor_for(Uuid::nil())
 }
 
-fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
+fn editor_for(account: Uuid) -> BeuiTest<SettingsRoot> {
     let block = Uuid::from_u128(0x5e77_0001);
     let host = EditorHost::default();
     host.set_account_id(account);
@@ -50,7 +50,7 @@ fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
     editor
 }
 
-fn entries(editor: &BeuiTest<SettingsApp>, block_type: Uuid) -> Vec<Uuid> {
+fn entries(editor: &BeuiTest<SettingsRoot>, block_type: Uuid) -> Vec<Uuid> {
     let store = editor.store();
     let created: Vec<Uuid> = store
         .created()
@@ -73,7 +73,7 @@ fn entries(editor: &BeuiTest<SettingsApp>, block_type: Uuid) -> Vec<Uuid> {
 }
 
 struct SetUp {
-    editor: BeuiTest<crate::app::SettingsProfileApp>,
+    editor: BeuiTest<crate::root::SettingsProfileRoot>,
 }
 
 impl SetUp {

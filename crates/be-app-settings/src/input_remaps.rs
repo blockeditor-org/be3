@@ -16,10 +16,10 @@ const INTRINSIC_HEIGHT: f32 = 520.0;
 pub const PLUGIN: &str = "be3.settings";
 pub const MODULE: &str = "remapper.wasm";
 
-pub struct InputRemapsApp;
+pub struct InputRemapsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for InputRemapsApp {
+impl be_sdk_beui::BeuiApp for InputRemapsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

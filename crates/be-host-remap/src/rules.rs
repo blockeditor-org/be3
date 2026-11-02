@@ -12,13 +12,13 @@ pub struct Group {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct WindowMatch {
     pub exe: Option<String>,
-    pub app_id: Option<String>,
+    pub program_id: Option<String>,
     pub title: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Window {
-    pub app_id: String,
+    pub program_id: String,
     pub title: String,
     pub exe: String,
 }
@@ -104,7 +104,7 @@ impl WindowMatch {
                 .is_none_or(|pattern| glob(pattern, value))
         };
         field(&self.exe, &window.exe)
-            && field(&self.app_id, &window.app_id)
+            && field(&self.program_id, &window.program_id)
             && field(&self.title, &window.title)
     }
 }

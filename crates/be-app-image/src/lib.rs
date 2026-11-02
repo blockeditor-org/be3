@@ -1,8 +1,8 @@
-pub mod app;
+pub mod root;
 pub mod decode;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    image => app::ImageApp,
+    image => root::ImageRoot,
 });
 
 #[cfg(test)]

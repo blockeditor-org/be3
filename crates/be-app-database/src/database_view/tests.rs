@@ -12,7 +12,7 @@ use be_type_database::database_schema::{
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use uuid::Uuid;
 
-use crate::database_view::app::{DatabaseViewApp, value_block_filter};
+use crate::database_view::root::{DatabaseViewRoot, value_block_filter};
 use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
@@ -46,7 +46,7 @@ mod typing_a_prefix_puts_it_in_front_of_every_row_id;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
-    harness: BeuiTest<DatabaseViewApp>,
+    harness: BeuiTest<DatabaseViewRoot>,
     schema: Uuid,
     database: Uuid,
     fields: Vec<Uuid>,

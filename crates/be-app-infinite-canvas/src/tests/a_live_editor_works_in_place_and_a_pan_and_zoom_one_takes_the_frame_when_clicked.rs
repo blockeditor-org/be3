@@ -22,7 +22,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             BlockParent::Root,
         )],
     );
-    let live = |editor: &mut BeuiTest<CanvasApp>, pan_and_zoom: bool| {
+    let live = |editor: &mut BeuiTest<CanvasRoot>, pan_and_zoom: bool| {
         editor.report_children(|placement| ChildStatus {
             instance: be_sdk_beui::EditorInstanceId(0),
             view: ViewId::MAIN,
@@ -49,7 +49,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
     };
     live(&mut editor, false);
     live(&mut editor, false);
-    let mode = |editor: &BeuiTest<CanvasApp>| {
+    let mode = |editor: &BeuiTest<CanvasRoot>| {
         let children = editor.children();
         assert_eq!(children.len(), 1, "the canvas places its one editor");
         children[0].mode

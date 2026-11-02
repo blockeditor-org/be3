@@ -27,10 +27,10 @@ fn PopoverBody() -> beui::NodeId {
     }
 }
 
-struct PopoverApp;
+struct PopoverRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for PopoverApp {
+impl crate::BeuiApp for PopoverRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -52,7 +52,7 @@ impl crate::BeuiApp for PopoverApp {
 
 #[test]
 fn a_docked_editors_popover_is_an_anchored_view_of_its_tab() {
-    let mut session = session::<PopoverApp>(Uuid::new_v4());
+    let mut session = session::<PopoverRoot>(Uuid::new_v4());
     let space = AnchorSpace {
         to_host: HostTransform {
             origin: be_sdk_api::Pos2::new(100.0, 60.0),

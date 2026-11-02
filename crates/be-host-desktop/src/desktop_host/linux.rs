@@ -308,11 +308,11 @@ impl DesktopHost for Linux {
                     kind: WindowKind::Window,
                     shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
                     name: match launched.name.is_empty() {
-                        true => program_name(&info.app_id),
+                        true => program_name(&info.program_id),
                         false => launched.name.clone(),
                     },
                     title: info.title,
-                    app_id: info.app_id,
+                    program_id: info.program_id,
                     parent: info
                         .parent
                         .filter(|parent| !opening.contains(parent))
@@ -450,16 +450,16 @@ fn set_shown(window: HostWindowId, shown: bool) {
     }
 }
 
-fn program_name(app_id: &str) -> String {
+fn program_name(program_id: &str) -> String {
     NAMES.with(|names| {
         names
             .borrow_mut()
-            .entry(app_id.to_owned())
+            .entry(program_id.to_owned())
             .or_insert_with(|| {
                 let environment = Environment::from_env();
                 environment
-                    .entry(app_id)
-                    .or_else(|| environment.entry(&app_id.to_lowercase()))
+                    .entry(program_id)
+                    .or_else(|| environment.entry(&program_id.to_lowercase()))
                     .map(|entry| entry.name)
                     .unwrap_or_default()
             })

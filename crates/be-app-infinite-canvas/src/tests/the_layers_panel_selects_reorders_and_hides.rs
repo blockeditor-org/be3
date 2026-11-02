@@ -13,7 +13,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
         .collect();
     let [back, middle, front] = [shapes[0].id, shapes[1].id, shapes[2].id];
     let mut editor = open_sized(&vector(shapes), false, &[], Some(Vec2::new(900.0, 1400.0)));
-    let row = |editor: &BeuiTest<CanvasApp>, id: Uuid| {
+    let row = |editor: &BeuiTest<CanvasRoot>, id: Uuid| {
         editor.rect_of(&format!("infinite-canvas.layer.{id}"))
     };
     assert!(
@@ -57,7 +57,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
     editor.snapshot("the_layers_panel_selects_reorders_and_hides");
 }
 
-fn order(editor: &BeuiTest<CanvasApp>) -> Vec<Uuid> {
+fn order(editor: &BeuiTest<CanvasRoot>) -> Vec<Uuid> {
     entities(editor)
         .into_iter()
         .map(|entity| entity.id)

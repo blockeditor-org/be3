@@ -489,7 +489,7 @@ impl Compositor {
                     id,
                     size,
                     title: state.title(id).unwrap_or_default(),
-                    app_id: state.app_id(id).unwrap_or_default(),
+                    program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),
                     modal: state.modal(id),
                     fullscreen: self.fullscreen_area(id),

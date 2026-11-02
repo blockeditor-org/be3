@@ -11,7 +11,7 @@ fn a_workspace_is_shown_with_what_it_holds_already_listed() {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_view_block(Some(tree));
-    let mut test = BeuiTest::<FileTreeApp>::new(OwnedEditor::new(host.clone(), tree));
+    let mut test = BeuiTest::<FileTreeRoot>::new(OwnedEditor::new(host.clone(), tree));
     let note = |parent: Uuid| {
         BlockInfo::new(
             Uuid::new_v4(),

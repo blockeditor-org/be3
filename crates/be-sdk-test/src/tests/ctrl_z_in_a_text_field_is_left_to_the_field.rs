@@ -9,7 +9,7 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut test = BeuiTest::<ChildApp>::with_view(OwnedEditor::new(host, block), || {
+    let mut test = BeuiTest::<ChildRoot>::with_view(OwnedEditor::new(host, block), || {
         view! {
             <Root>
                 <TextInput @test_id={"field"} value=String::new() label="Field" />

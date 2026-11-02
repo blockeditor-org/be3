@@ -12,7 +12,7 @@ fn a_frame_background_is_picked_in_the_sidebar() {
         &[],
         Some(Vec2::new(900.0, 1400.0)),
     );
-    let fill = |editor: &BeuiTest<CanvasApp>| {
+    let fill = |editor: &BeuiTest<CanvasRoot>| {
         entities(editor)
             .into_iter()
             .find(|entity| entity.id == id)

@@ -35,7 +35,7 @@ fn engine(text: &str) -> Engine {
 
 fn window(exe: &str) -> Window {
     Window {
-        app_id: "steam_app_1".to_owned(),
+        program_id: "steam_app_1".to_owned(),
         title: "A game".to_owned(),
         exe: exe.to_owned(),
     }

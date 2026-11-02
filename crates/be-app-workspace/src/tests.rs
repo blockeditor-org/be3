@@ -8,9 +8,9 @@ use be_sdk_beui::{BlockParent, ChildContent, EditorHost, OwnedEditor, WindowActi
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::WorkspaceUiApp;
-use crate::picker::PickerApp;
-use crate::rename::RenameApp;
+use crate::root::WorkspaceUiRoot;
+use crate::picker::PickerRoot;
+use crate::rename::RenameRoot;
 
 mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
@@ -98,7 +98,7 @@ const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_74
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
-struct Fixture<A: be_sdk_beui::BeuiApp = WorkspaceUiApp> {
+struct Fixture<A: be_sdk_beui::BeuiApp = WorkspaceUiRoot> {
     test: BeuiTest<A>,
     host: EditorHost,
 }
@@ -215,7 +215,7 @@ const PROGRAMS: [(&str, &str); 5] = [
 ];
 
 fn window(id: u64, title: &str, parent: Option<u64>) -> be_sdk_beui::HostWindow {
-    let (app_id, name) = match parent {
+    let (program_id, name) = match parent {
         Some(_) => ("", ""),
         None => PROGRAMS
             .into_iter()
@@ -227,7 +227,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> be_sdk_beui::HostWindow 
         kind: be_sdk_beui::WindowKind::Window,
         shown: true,
         title: title.to_owned(),
-        app_id: app_id.to_owned(),
+        program_id: program_id.to_owned(),
         name: name.to_owned(),
         parent: parent.map(be_sdk_beui::HostWindowId),
         modal: false,
@@ -336,7 +336,7 @@ fn picking(
     beside: &Fixture,
     filter: be_sdk_beui::BlockFilter,
     parent: be_sdk_beui::BlockLocation,
-) -> Fixture<PickerApp> {
+) -> Fixture<PickerRoot> {
     picking_with(beside, filter, parent, false)
 }
 
@@ -345,7 +345,7 @@ fn picking_with(
     filter: be_sdk_beui::BlockFilter,
     parent: be_sdk_beui::BlockLocation,
     touch: bool,
-) -> Fixture<PickerApp> {
+) -> Fixture<PickerRoot> {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(Uuid::from_u128(0x3a_0003));
@@ -363,7 +363,7 @@ fn picking_with(
     fixture
 }
 
-fn renaming(beside: &Fixture, block: Uuid) -> Fixture<RenameApp> {
+fn renaming(beside: &Fixture, block: Uuid) -> Fixture<RenameRoot> {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(Uuid::from_u128(0x3a_0004));

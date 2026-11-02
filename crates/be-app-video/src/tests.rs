@@ -8,7 +8,7 @@ use be_type_video::VideoContent;
 use be_type_video::{Video, VideoClip, VideoFrameRate, VideoOperation};
 use uuid::Uuid;
 
-use crate::app::VideoApp;
+use crate::root::VideoRoot;
 use crate::timeline::timecode;
 
 mod a_trim_keeps_following_the_pointer_once_its_first_edit_lands;
@@ -19,7 +19,7 @@ mod dragging_a_trim_handle_lengthens_its_clip_by_how_far_it_moved;
 mod timecode_counts_minutes_seconds_and_frames;
 
 struct Fixture {
-    editor: BeuiTest<VideoApp>,
+    editor: BeuiTest<VideoRoot>,
 }
 
 impl Fixture {

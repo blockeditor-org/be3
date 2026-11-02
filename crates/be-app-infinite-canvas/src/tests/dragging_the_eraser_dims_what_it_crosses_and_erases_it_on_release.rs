@@ -17,12 +17,12 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     let right = filled(3, 160.0);
     let around = frame(4, CanvasPoint::default(), CanvasPoint::new(460.0, 200.0));
     let mut editor = vector_editor(&[around.clone(), left.clone(), middle.clone(), right.clone()]);
-    let center = |editor: &BeuiTest<CanvasApp>, entity: &CanvasEntity| {
+    let center = |editor: &BeuiTest<CanvasRoot>, entity: &CanvasEntity| {
         editor
             .rect_of(&format!("infinite-canvas.entity.{}", entity.id))
             .center()
     };
-    let walk = |editor: &mut BeuiTest<CanvasApp>, from: Pos2, to: Pos2| {
+    let walk = |editor: &mut BeuiTest<CanvasRoot>, from: Pos2, to: Pos2| {
         for step in 1..=6 {
             editor.next_frame();
             editor.hover(from + (to - from) * (step as f32 / 6.0));

@@ -1,11 +1,11 @@
 use super::*;
 use be_sdk_beui::MenuCheck;
 
-fn snaps(editor: &BeuiTest<CanvasApp>) -> bool {
+fn snaps(editor: &BeuiTest<CanvasRoot>) -> bool {
     editor.menu_entry("canvas.snap").check == MenuCheck::Checkbox(true)
 }
 
-fn corner(editor: &BeuiTest<CanvasApp>) -> CanvasPoint {
+fn corner(editor: &BeuiTest<CanvasRoot>) -> CanvasPoint {
     entity_bounds(&entities(editor)[0]).min
 }
 

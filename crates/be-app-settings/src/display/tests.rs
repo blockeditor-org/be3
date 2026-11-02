@@ -12,7 +12,7 @@ use be_sdk_beui::{
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::display::DisplaySettingsApp;
+use crate::display::DisplaySettingsRoot;
 
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_profile_shows_the_theme_it_inherits;
@@ -52,7 +52,7 @@ const SCREEN_OFF: &str = "display.screen-off";
 const LOCK_AFTER: &str = "display.lock-after";
 
 struct Harness {
-    editor: BeuiTest<DisplaySettingsApp>,
+    editor: BeuiTest<DisplaySettingsRoot>,
     block: Uuid,
     client: Uuid,
     profile: Uuid,

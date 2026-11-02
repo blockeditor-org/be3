@@ -49,7 +49,7 @@ decoded as the wire would. Gestures are turned into the protocol's input events 
 block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
 editor here either, and a call the plugin refuses fails the test.
 
-    let mut test = BeuiTest::<ChecklistApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
     test.hold(None, ChecklistContent::default());
     test.run();
 

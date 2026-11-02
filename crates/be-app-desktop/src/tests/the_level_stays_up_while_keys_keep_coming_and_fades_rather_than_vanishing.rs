@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::app::osd::OSD_DURATION;
+use crate::root::osd::OSD_DURATION;
 
 use super::*;
 

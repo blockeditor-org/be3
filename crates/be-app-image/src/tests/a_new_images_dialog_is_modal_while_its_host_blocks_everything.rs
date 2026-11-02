@@ -6,9 +6,9 @@ use super::*;
 
 #[test]
 fn a_new_images_dialog_is_modal_while_its_host_blocks_everything() {
-    let mut dialog = BeuiTest::<ImageApp>::creation(Creation::new(EditorHost::default()));
+    let mut dialog = BeuiTest::<ImageRoot>::creation(Creation::new(EditorHost::default()));
     dialog.set_size(vec2(360.0, 200.0));
-    let modal = |dialog: &BeuiTest<ImageApp>| {
+    let modal = |dialog: &BeuiTest<ImageRoot>| {
         let document = dialog.document();
         let view = document
             .accessibility_view()

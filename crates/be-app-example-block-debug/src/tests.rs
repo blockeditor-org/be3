@@ -4,12 +4,12 @@ use be_sdk_test::BeuiTest;
 use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
 
-use crate::app::BlockDebugApp;
+use crate::root::BlockDebugRoot;
 
 mod an_edit_to_the_block_shows_in_its_debug_view;
 mod the_debug_view_shows_what_the_block_holds;
 
-fn editor() -> BeuiTest<BlockDebugApp> {
+fn editor() -> BeuiTest<BlockDebugRoot> {
     let mut test = BeuiTest::editing(Uuid::from_u128(1));
     test.hold(None, CounterContent::default());
     test.edit::<CounterContent>(None, &Counter::add(3));
@@ -17,7 +17,7 @@ fn editor() -> BeuiTest<BlockDebugApp> {
     test
 }
 
-fn says(test: &BeuiTest<BlockDebugApp>, words: &str) -> bool {
+fn says(test: &BeuiTest<BlockDebugRoot>, words: &str) -> bool {
     let document = test.document();
     document
         .root()

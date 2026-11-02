@@ -3,7 +3,7 @@ use be_sdk_beui::beui::{Rect, native::Quad, native::Shape, native::quads, pos2};
 
 const WRITTEN: &str = "Zooming out shrinks this note";
 
-fn text_width(editor: &BeuiTest<CanvasApp>) -> f32 {
+fn text_width(editor: &BeuiTest<CanvasRoot>) -> f32 {
     let output = editor.drawn().expect("the canvas has drawn");
     let mut shapes = Vec::new();
     for layer in output.layers.iter() {

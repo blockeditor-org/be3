@@ -13,10 +13,10 @@ use ui::DefaultEditorsView;
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 360.0;
 
-pub struct DefaultEditorsApp;
+pub struct DefaultEditorsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for DefaultEditorsApp {
+impl be_sdk_beui::BeuiApp for DefaultEditorsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

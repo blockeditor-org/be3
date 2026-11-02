@@ -167,7 +167,7 @@ took them; the report also
 carries the `NotificationClosed` and `ActionInvoked` signals the host sends and the ids the
 desktop still holds.
 
-Everything else is the desktop plugin's (`src/app/notifications/`): `center.rs` is what happens to
+Everything else is the desktop plugin's (`src/root/notifications/`): `center.rs` is what happens to
 a notification, and is where to test it: replacement in place, the toast's timeout (-1 is
 five seconds, 0 and critical urgency never), actions, `resident` and `transient`, the cap of
 100 kept, and the reason every close carries; `markup.rs` turns the body into plain text. A
@@ -214,7 +214,7 @@ The shell watches `TrayWatch`, the items as `HostTrayItem`s, and answers with `T
 order, each one deeper than the submenu it is in; the host builds that list straight from
 dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
 `HostTrayItem::entries`, the helper the shell's own menus nest with (be-sdk-api's
-`nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. The desktop plugin's `src/app/tray.rs` shows each
+`nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. The desktop plugin's `src/root/tray.rs` shows each
 item that is not `Passive` as a `MenuButton` with a picture face in the Status bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
@@ -230,13 +230,13 @@ compositor's socket, for example a Python script using `gir1.2-ayatanaappindicat
 ## Media and hardware keys
 
 The desktop plugin binds the volume, mute, mic mute, brightness and media transport keys
-(`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
+(`BINDINGS` in its `root/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
-`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
+`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`root/osd.rs`), an icon and
 a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The Status bar's status button shows
-the output's volume icon while the host reports one, and Quick settings (`app/volume.rs`) sets the volume, the mute and
+the output's volume icon while the host reports one, and Quick settings (`root/volume.rs`) sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
 
@@ -263,7 +263,7 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 
 The Status bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi tile, while the host
 reports a Wi-Fi device (`WifiStatus::available` in `WifiWatch`'s value): the icon is the joined
-network's strength, and the tile opens the network list (the desktop plugin's `app/wifi.rs`),
+network's strength, and the tile opens the network list (the desktop plugin's `root/wifi.rs`),
 which turns Wi-Fi on and off, lists the networks in range and joins or leaves one with
 `WifiRequest`s. Opening the list asks for a scan. A saved or open network is joined at
 once; a protected one asks for its password first, and asks again when the host reports that
@@ -323,8 +323,8 @@ editor in a tab, making it first (with the chosen remapper, else the first there
 The remapper that ships is the settings plugin's Input Remaps editor (`be-app-settings`, `input_remaps`): its block's config is TOML text, stored exactly as
 written, comments and layout included, and its module is `crates/be-host-remap-module`, staged as its data
 (`remapper.wasm`). The module is `be-host-remap`'s engine and text reader (`be_host_remap::text`, whose errors
-name the group and rule): rules apply in every window or only while a window whose executable, app id
-or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
+name the group and rule): rules apply in every window or only while a window whose executable, program id (the
+`app_id` key) or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
 milliseconds or play a sequence of taps. Keys are named the way `be_host_remap::names` does (evdev's names,
 AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). Its page has two
 tabs over the same text. Editor shows each group and rule as settings rows and changes the text through
@@ -413,7 +413,7 @@ program can also be started against a driven app directly: the app hands the sam
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its app id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (the desktop plugin's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
@@ -472,7 +472,7 @@ the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `be_sdk_beui::RotationPicker`, which both the Display page
 and the Status bar use. When the display settings' `rotate_in_bar` is on and the host reports a
-screen, the desktop plugin's Status bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
+screen, the desktop plugin's Status bar shows a rotate button (`desktop.rotate`, `root/rotate.rs`) whose
 popover holds the picker for the first display in `Displays`. It reads and writes the setting
 through `be_sdk_beui::LayeredSettings::this_device`, as the Display page does, so the
 rotation of a monitor known by its EDID serial goes to every device and that of a panel known
@@ -558,7 +558,7 @@ in its `layout` view state. Each window tab is keyed by a kept key that outlives
 (`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound
 to its key (a shell started again over the same compositor keeps every window), a window that
 appears after the restore takes the placeholder it was launched from, else the oldest unbound
-one with its app id, and any other window is its own key. The dock never sees a binding change:
+one with its program id, and any other window is its own key. The dock never sees a binding change:
 `WindowTab` shows the bound window's `WindowPanel`, or the placeholder the desktop plugin hands it
 when none is bound. While the host's `PowerAvailability` says the session is `ending`, nothing
 is saved, so the programs closing as it ends stay kept.
@@ -571,7 +571,7 @@ and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; 
 program's executable, the first word of the client's `/proc` command line (an X11 window's
 `_NET_WM_PID`). The arguments are never kept, since saved layouts outlive the process and an
 argument can be a secret. The desktop plugin opens a placeholder with that entry, else one from
-`Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
+`Programs` whose `StartupWMClass` or id matches the program id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
 
 ### Files opened in programs

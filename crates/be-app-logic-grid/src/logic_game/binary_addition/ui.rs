@@ -17,7 +17,7 @@ const LABEL_WIDTH: Size = Size::Custom(46.0);
 const PADDING: Space = Space::Md;
 
 #[component]
-pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::GameBlock) -> NodeId {
+pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::GameBlock) -> NodeId {
     let quiz = store(BinaryAdditionQuiz::default());
     let count = quiz.value().problems().len();
     let page = create_signal(0usize);
@@ -149,7 +149,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
 #[component]
 fn ProblemGrid(
     quiz: Stored<BinaryAdditionQuiz>,
-    block: crate::logic_game::app::GameBlock,
+    block: crate::logic_game::root::GameBlock,
     page: ReadSignal<usize>,
     answers: Memo<Answers>,
     checked: ReadSignal<bool>,

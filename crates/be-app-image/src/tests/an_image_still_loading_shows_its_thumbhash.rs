@@ -14,7 +14,7 @@ fn an_image_still_loading_shows_its_thumbhash() {
     let shown = loaded.rect_of("image.picture");
 
     let block = Uuid::new_v4();
-    let mut loading: BeuiTest<ImageApp> = BeuiTest::editing(block);
+    let mut loading: BeuiTest<ImageRoot> = BeuiTest::editing(block);
     let mut info = BlockInfo::new(block, ImageContent::CONTENT_TYPE, BlockParent::Root);
     info.set_thumbhash(&derived);
     loading.store().add_block(info);

@@ -31,7 +31,7 @@ pub struct Entry {
     pub handle: Handle,
     pub process_id: u32,
     pub title: String,
-    pub app_id: String,
+    pub program_id: String,
     pub parent: Option<EntryId>,
     pub modal: bool,
     pub frame: Rect,
@@ -78,7 +78,7 @@ pub struct Model {
     known: HashMap<Handle, Known>,
     displays: HashMap<String, EntryId>,
     icons: HashMap<Handle, Option<Arc<Image>>>,
-    app_ids: HashMap<Handle, Option<String>>,
+    program_ids: HashMap<Handle, Option<String>>,
     processes: HashMap<u32, Process>,
     shown: HashSet<EntryId>,
     raised: HashMap<EntryId, u64>,
@@ -136,12 +136,12 @@ impl Model {
             match *event {
                 Event::Created(handle) | Event::Shown(handle) => {
                     self.icons.remove(&handle);
-                    self.app_ids.remove(&handle);
+                    self.program_ids.remove(&handle);
                 }
                 Event::Destroyed(handle) => {
                     self.known.remove(&handle);
                     self.icons.remove(&handle);
-                    self.app_ids.remove(&handle);
+                    self.program_ids.remove(&handle);
                 }
                 Event::DisplaysChanged => self.monitors_stale = true,
                 Event::DesktopSwitched => self.input_desktop_stale = true,
@@ -171,7 +171,7 @@ impl Model {
         let processes: HashSet<u32> = raw.iter().map(|window| window.process_id).collect();
         self.known.retain(|handle, _| live.contains(handle));
         self.icons.retain(|handle, _| live.contains(handle));
-        self.app_ids.retain(|handle, _| live.contains(handle));
+        self.program_ids.retain(|handle, _| live.contains(handle));
         self.processes
             .retain(|process, _| processes.contains(process));
 
@@ -292,8 +292,8 @@ impl Model {
                 .entry(window.handle)
                 .or_insert_with(|| desktop.icon(window.handle))
                 .clone();
-            let app_id = self
-                .app_ids
+            let program_id = self
+                .program_ids
                 .entry(window.handle)
                 .or_insert_with(|| desktop.app_user_model_id(window.handle))
                 .clone()
@@ -325,7 +325,7 @@ impl Model {
                 handle: window.handle,
                 process_id: window.process_id,
                 title: desktop.title(window.handle),
-                app_id,
+                program_id,
                 parent,
                 modal: parent.is_some() && owner.is_some_and(|owner| !owner.enabled),
                 frame: window.frame,

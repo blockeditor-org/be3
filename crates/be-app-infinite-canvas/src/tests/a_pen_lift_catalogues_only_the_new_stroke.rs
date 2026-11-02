@@ -6,10 +6,10 @@ use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Input, NodeId, Pen, PenPhase, PointerButton, Pos2};
 
-use crate::app::actions::canvas_actions;
-use crate::app::canvas::CanvasStage;
-use crate::app::entities::Entities;
-use crate::app::state::{CanvasState, Tool};
+use crate::root::actions::canvas_actions;
+use crate::root::canvas::CanvasStage;
+use crate::root::entities::Entities;
+use crate::root::state::{CanvasState, Tool};
 
 thread_local! {
     static ENTITIES: Cell<Option<Entities>> = const { Cell::new(None) };
@@ -27,7 +27,7 @@ fn CataloguedCanvas(editor: be_sdk_beui::Editor) -> NodeId {
     }
 }
 
-fn pen(editor: &mut BeuiTest<CanvasApp>, phase: PenPhase, pos: Pos2) {
+fn pen(editor: &mut BeuiTest<CanvasRoot>, phase: PenPhase, pos: Pos2) {
     editor.step(vec![Input::Pen {
         phase,
         pos,
@@ -60,7 +60,7 @@ fn a_pen_lift_catalogues_only_the_new_stroke() {
     host.set_editable(true);
     let owner = OwnedEditor::new(host, Uuid::new_v4());
     let handle = *owner;
-    let mut editor = BeuiTest::<CanvasApp>::with_view(owner, move || {
+    let mut editor = BeuiTest::<CanvasRoot>::with_view(owner, move || {
         view! {
             <Root>
                 <Loaded>

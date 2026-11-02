@@ -1,8 +1,8 @@
-pub mod app;
+pub mod root;
 
 #[cfg(test)]
 mod tests;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    files => app::FileTreeApp,
+    files => root::FileTreeRoot,
 });

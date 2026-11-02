@@ -21,7 +21,7 @@ fn a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown() {
     let host = EditorHost::default();
     host.set_view_block(Some(tree));
     let files_host = host.clone();
-    let mut reopened = BeuiTest::<FileTreeApp>::new(OwnedEditor::new(host, tree));
+    let mut reopened = BeuiTest::<FileTreeRoot>::new(OwnedEditor::new(host, tree));
     let mut held = BlockInfo::new(folder, Uuid::nil(), BlockParent::Block(MY_FILES));
     held.references = vec![child];
     reopened

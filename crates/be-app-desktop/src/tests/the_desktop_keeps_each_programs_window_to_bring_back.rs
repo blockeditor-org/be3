@@ -26,7 +26,7 @@ fn the_desktop_keeps_each_programs_window_to_bring_back() {
             KeptWindow {
                 key: HostWindowId(1),
                 window: Some(HostWindowId(1)),
-                app_id: "foot".to_owned(),
+                program_id: "foot".to_owned(),
                 name: "Foot".to_owned(),
                 title: "Terminal 1".to_owned(),
                 origin: foot(1).origin,
@@ -35,7 +35,7 @@ fn the_desktop_keeps_each_programs_window_to_bring_back() {
             KeptWindow {
                 key: HostWindowId(2),
                 window: Some(HostWindowId(2)),
-                app_id: "org.example.Notes".to_owned(),
+                program_id: "org.example.Notes".to_owned(),
                 name: String::new(),
                 title: "Shopping list".to_owned(),
                 origin: notes(2).origin,

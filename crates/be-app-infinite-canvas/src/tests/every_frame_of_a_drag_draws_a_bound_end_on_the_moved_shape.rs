@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_beui::beui::{Input, Pos2, Rect};
 use be_type_infinite_canvas::CanvasBinding;
 
-use crate::app::canvas::item_bounds;
+use crate::root::canvas::item_bounds;
 
 struct Placing {
     origin: Pos2,
@@ -25,12 +25,12 @@ impl Placing {
     }
 }
 
-fn shown(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Rect {
+fn shown(editor: &BeuiTest<CanvasRoot>, id: Uuid) -> Rect {
     editor.rect_of(&format!("infinite-canvas.entity.{id}"))
 }
 
 fn assert_follows(
-    editor: &BeuiTest<CanvasApp>,
+    editor: &BeuiTest<CanvasRoot>,
     placing: &Placing,
     target: &CanvasEntity,
     arrow: &CanvasEntity,

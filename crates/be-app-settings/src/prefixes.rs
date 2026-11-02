@@ -8,10 +8,10 @@ use uuid::Uuid;
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 240.0;
 
-pub struct PrefixesApp;
+pub struct PrefixesRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for PrefixesApp {
+impl be_sdk_beui::BeuiApp for PrefixesRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

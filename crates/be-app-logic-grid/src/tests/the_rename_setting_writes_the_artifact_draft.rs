@@ -11,10 +11,10 @@ fn the_rename_setting_writes_the_artifact_draft() {
             source,
         },
     );
-    let data = crate::app::descriptor_data(source);
-    let mut settings = BeuiTest::<LogicGridApp>::settings(artifacts, data);
+    let data = crate::root::descriptor_data(source);
+    let mut settings = BeuiTest::<LogicGridRoot>::settings(artifacts, data);
     assert_eq!(
-        crate::app::artifact_summary(settings.draft()),
+        crate::root::artifact_summary(settings.draft()),
         "Compiled component, named after its grid"
     );
 
@@ -22,7 +22,7 @@ fn the_rename_setting_writes_the_artifact_draft() {
     settings.run();
 
     assert_eq!(
-        crate::app::artifact_summary(settings.draft()),
+        crate::root::artifact_summary(settings.draft()),
         "Compiled component"
     );
 }

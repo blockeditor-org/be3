@@ -1763,7 +1763,7 @@ motion and 150% scale; Desktop and Phone have none, since a phone never shows th
 and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
-(the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and
+(the settings plugin's `SettingsProfileView`, `root/setup.rs`) leads with the name and
 "Kind of device", and lists in "Where this device differs" each default it still keeps
 that differs from every device's value, with "Use my usual settings", which deletes
 those from the profile. Nothing is stored to say a profile was set up: while the
@@ -1776,7 +1776,7 @@ The workspace's Settings tab opens the account's `Settings` block on this device
 settings: Display, Input and Default editors open the every-device blocks (making any
 that is missing), and Devices and profiles (`settings.devices`) lists the settings
 profiles, each of which opens on its own blocks. Above that list, a table (settings plugin
-`app/devices.rs`) puts the display and input settings down the side and All devices and
+`root/devices.rs`) puts the display and input settings down the side and All devices and
 each profile across, with only the rows some profile keeps: a kept cell shows its value,
 "kept since setup" while it still holds its class default (`ClassDefault::holds`) and
 "kept on device" otherwise; any other cell says "same". It reads each profile's own blocks.

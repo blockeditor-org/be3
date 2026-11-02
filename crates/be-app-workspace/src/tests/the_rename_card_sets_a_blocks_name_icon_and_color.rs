@@ -4,7 +4,7 @@ use be_sdk_beui::beui::{Key, Modifiers};
 
 use super::*;
 
-fn saved(fixture: &mut Fixture<RenameApp>, block: Uuid) -> BlockMetadata {
+fn saved(fixture: &mut Fixture<RenameRoot>, block: Uuid) -> BlockMetadata {
     fixture.test.store().block(block).unwrap().metadata
 }
 

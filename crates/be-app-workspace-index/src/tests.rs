@@ -5,14 +5,14 @@ use be_sdk_test::BeuiTest;
 use be_type_workspace::FolderContent;
 use uuid::Uuid;
 
-use crate::app::WorkspaceIndexApp;
+use crate::root::WorkspaceIndexRoot;
 
 mod an_empty_folder_says_so;
 mod dropping_a_block_reports_whether_the_folder_takes_it;
 mod every_entry_in_the_index_gets_a_cell;
 
 struct Fixture {
-    editor: BeuiTest<WorkspaceIndexApp>,
+    editor: BeuiTest<WorkspaceIndexRoot>,
 }
 
 fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {

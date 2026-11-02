@@ -5,13 +5,13 @@ use be_sdk_beui::beui::{Key, Modifiers};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::default_editors::DefaultEditorsApp;
+use crate::default_editors::DefaultEditorsRoot;
 
 #[test]
 fn choosing_a_default_editor_stores_it() {
     let block_type = Uuid::from_u128(1);
     let (built_in, debug) = (Uuid::from_u128(2), Uuid::from_u128(3));
-    let mut editor = BeuiTest::<DefaultEditorsApp>::editing(Uuid::from_u128(4));
+    let mut editor = BeuiTest::<DefaultEditorsRoot>::editing(Uuid::from_u128(4));
     editor.hold(None, EditorSettingsContent::default());
     editor.catalog(Catalog {
         types: vec![BlockTypeDescriptor {
@@ -43,7 +43,7 @@ fn choosing_a_default_editor_stores_it() {
     });
     editor.run();
     let picker = format!("default-editors.{block_type}");
-    let choose = |editor: &mut BeuiTest<DefaultEditorsApp>, index: usize| {
+    let choose = |editor: &mut BeuiTest<DefaultEditorsRoot>, index: usize| {
         editor.click(&picker);
         editor.run();
         editor.key(Key::Home, Modifiers::NONE);
@@ -55,7 +55,7 @@ fn choosing_a_default_editor_stores_it() {
         editor.key(Key::Enter, Modifiers::NONE);
         editor.run();
     };
-    let stored = |editor: &BeuiTest<DefaultEditorsApp>| {
+    let stored = |editor: &BeuiTest<DefaultEditorsRoot>| {
         editor
             .content::<EditorSettingsContent>(None)
             .root()

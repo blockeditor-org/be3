@@ -10,8 +10,8 @@ use be_sdk_beui::{
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::checkout::CheckoutApp;
-use crate::repository::RepositoryApp;
+use crate::checkout::CheckoutRoot;
+use crate::repository::RepositoryRoot;
 
 mod a_change_is_saved_with_its_description;
 mod a_change_with_clashing_edits_can_still_be_saved;
@@ -35,11 +35,11 @@ fn editor<A: BeuiApp, C: LiveEdit + be_sdk_beui::be_block::Merge + Clone + Defau
     editor
 }
 
-fn repository(repository: Repository, status: VersionStatus) -> BeuiTest<RepositoryApp> {
+fn repository(repository: Repository, status: VersionStatus) -> BeuiTest<RepositoryRoot> {
     editor(RepositoryContent::new(&repository), status)
 }
 
-fn checkout(checkout: Checkout, status: VersionStatus) -> BeuiTest<CheckoutApp> {
+fn checkout(checkout: Checkout, status: VersionStatus) -> BeuiTest<CheckoutRoot> {
     editor(CheckoutContent::new(&checkout), status)
 }
 

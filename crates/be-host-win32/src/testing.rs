@@ -25,7 +25,7 @@ pub fn rename(handle: Handle, title: &str) {
 pub enum Read {
     Title(Handle),
     Icon(Handle),
-    AppId(Handle),
+    ProgramId(Handle),
 }
 
 #[derive(Default)]
@@ -33,7 +33,7 @@ pub struct FakeDesktop {
     pub windows: RefCell<Vec<RawWindow>>,
     pub processes: RefCell<HashMap<u32, Process>>,
     pub icons: RefCell<HashMap<Handle, Arc<Image>>>,
-    pub app_ids: RefCell<HashMap<Handle, String>>,
+    pub program_ids: RefCell<HashMap<Handle, String>>,
     pub monitors: RefCell<Vec<Monitor>>,
     pub foreground: Cell<Option<Handle>>,
     pub input_desktop: RefCell<InputDesktop>,
@@ -104,8 +104,8 @@ impl Desktop for FakeDesktop {
     }
 
     fn app_user_model_id(&self, window: Handle) -> Option<String> {
-        self.reads.borrow_mut().push(Read::AppId(window));
-        self.app_ids.borrow().get(&window).cloned()
+        self.reads.borrow_mut().push(Read::ProgramId(window));
+        self.program_ids.borrow().get(&window).cloned()
     }
 
     fn monitors(&self) -> Vec<Monitor> {

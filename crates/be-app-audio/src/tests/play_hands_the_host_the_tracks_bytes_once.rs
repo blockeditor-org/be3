@@ -3,7 +3,7 @@ use super::*;
 use be_sdk_beui::{AudioCommand, AudioSource};
 use be_type_audio::AudioFile;
 
-fn played(test: &mut BeuiTest<AudioApp>) -> Vec<AudioCommand> {
+fn played(test: &mut BeuiTest<AudioRoot>) -> Vec<AudioCommand> {
     test.take_audio_commands()
 }
 

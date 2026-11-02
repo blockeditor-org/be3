@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_beui::beui::{Key, Modifiers, Pos2};
 use std::f32::consts::PI;
 
-fn draw_strokes(editor: &mut BeuiTest<CanvasApp>) {
+fn draw_strokes(editor: &mut BeuiTest<CanvasRoot>) {
     editor.click("infinite-canvas.dock.tool.Pen");
     editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();

@@ -48,7 +48,7 @@ interface windows {
         /// again shows what was shown.
         shown: bool,
         title: string,
-        app-id: string,
+        program-id: string,
         /// The program's name from its desktop entry, empty when the host
         /// knows none.
         name: string,

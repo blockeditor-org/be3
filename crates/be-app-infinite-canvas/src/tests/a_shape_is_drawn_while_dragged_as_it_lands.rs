@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_beui::beui::{PenPhase, PointerButton, Rect};
 
-fn shown_entities(editor: &BeuiTest<CanvasApp>) -> Vec<(Uuid, Rect)> {
+fn shown_entities(editor: &BeuiTest<CanvasRoot>) -> Vec<(Uuid, Rect)> {
     editor
         .test_ids()
         .iter()

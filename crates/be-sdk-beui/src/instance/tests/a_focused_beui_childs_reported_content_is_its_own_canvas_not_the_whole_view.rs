@@ -3,10 +3,10 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Direction, ItemSize};
 
-struct SidebarApp;
+struct SidebarRoot;
 
 #[component]
-impl crate::BeuiApp for SidebarApp {
+impl crate::BeuiApp for SidebarRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
@@ -27,7 +27,7 @@ impl crate::BeuiApp for SidebarApp {
 
 #[test]
 fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view() {
-    let mut session = session::<SidebarApp>(Uuid::new_v4());
+    let mut session = session::<SidebarRoot>(Uuid::new_v4());
     frame(
         &mut session,
         Some(Rect::from_min_size(

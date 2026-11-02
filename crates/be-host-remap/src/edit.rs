@@ -6,7 +6,7 @@ use toml_edit::{
 pub struct GroupOutline {
     pub name: String,
     pub exe: String,
-    pub app_id: String,
+    pub program_id: String,
     pub title: String,
     pub rules: Vec<RuleOutline>,
 }
@@ -41,7 +41,7 @@ pub enum StepOutline {
 pub enum GroupField {
     Name,
     Exe,
-    AppId,
+    ProgramId,
     Title,
 }
 
@@ -84,7 +84,7 @@ impl Editing {
             .map(|group| GroupOutline {
                 name: text(group.get("name")),
                 exe: window(group, "exe"),
-                app_id: window(group, "app_id"),
+                program_id: window(group, "app_id"),
                 title: window(group, "title"),
                 rules: group
                     .get("rules")
@@ -137,7 +137,7 @@ impl Editing {
                 return;
             }
             GroupField::Exe => "exe",
-            GroupField::AppId => "app_id",
+            GroupField::ProgramId => "app_id",
             GroupField::Title => "title",
         };
         if text.is_empty() {

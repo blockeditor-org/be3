@@ -11,7 +11,7 @@ use crate::state::WindowId;
 pub struct WindowInfo {
     pub id: WindowId,
     pub title: String,
-    pub app_id: String,
+    pub program_id: String,
     pub parent: Option<WindowId>,
     pub modal: bool,
     pub size: Vec2,

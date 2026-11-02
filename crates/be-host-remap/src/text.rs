@@ -23,7 +23,8 @@ struct TextGroup {
 #[serde(deny_unknown_fields)]
 struct TextWindow {
     exe: Option<String>,
-    app_id: Option<String>,
+    #[serde(rename = "app_id")]
+    program_id: Option<String>,
     title: Option<String>,
 }
 
@@ -65,7 +66,7 @@ pub fn parse(text: &str) -> Result<Vec<Group>, String> {
                 .unwrap_or_else(|| format!("Group {}", index + 1));
             let window = group.window.map(|window| WindowMatch {
                 exe: window.exe,
-                app_id: window.app_id,
+                program_id: window.program_id,
                 title: window.title,
             });
             let rules = group

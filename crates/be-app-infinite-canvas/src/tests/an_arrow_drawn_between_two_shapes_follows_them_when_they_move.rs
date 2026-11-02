@@ -1,14 +1,14 @@
 use super::*;
 use be_sdk_beui::beui::Vec2;
 
-fn arrow_of(editor: &BeuiTest<CanvasApp>) -> CanvasEntity {
+fn arrow_of(editor: &BeuiTest<CanvasRoot>) -> CanvasEntity {
     entities(editor)
         .into_iter()
         .find(|entity| entity.shape == CanvasShape::Path)
         .expect("the drag drew an arrow")
 }
 
-fn ends(editor: &BeuiTest<CanvasApp>) -> [CanvasPoint; 2] {
+fn ends(editor: &BeuiTest<CanvasRoot>) -> [CanvasPoint; 2] {
     crate::geometry::path_ends(&arrow_of(editor))
 }
 

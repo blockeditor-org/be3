@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use be_type_video::DEFAULT_CLIP_SECONDS;
 
-use crate::app::state::ClipDrag;
+use crate::root::state::ClipDrag;
 
 pub(crate) const MIN_PIXELS_PER_FRAME: f32 = 0.02;
 pub(crate) const MAX_PIXELS_PER_FRAME: f32 = 40.0;

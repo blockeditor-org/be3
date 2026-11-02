@@ -25,7 +25,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
     let [placeholder] = entities(&editor)
         .try_into()
         .expect("the drop added one card");
-    let report = |editor: &mut BeuiTest<CanvasApp>| {
+    let report = |editor: &mut BeuiTest<CanvasRoot>| {
         editor.report_children(|placement| ChildStatus {
             instance: be_sdk_beui::EditorInstanceId(0),
             view: ViewId::MAIN,

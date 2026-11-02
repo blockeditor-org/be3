@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_editor_shows_the_component_catalog() {
     let host = EditorHost::default();
-    let mut test = BeuiTest::<BeuiGalleryApp>::new(OwnedEditor::new(host, Uuid::new_v4()))
+    let mut test = BeuiTest::<BeuiGalleryRoot>::new(OwnedEditor::new(host, Uuid::new_v4()))
         .with_size(Vec2::new(1000.0, 700.0));
     test.run();
 

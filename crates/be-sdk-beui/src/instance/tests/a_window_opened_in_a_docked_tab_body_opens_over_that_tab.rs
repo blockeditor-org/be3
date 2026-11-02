@@ -34,10 +34,10 @@ fn OverOwnWindow() -> beui::NodeId {
     }
 }
 
-struct WindowedApp;
+struct WindowedRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for WindowedApp {
+impl crate::BeuiApp for WindowedRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
@@ -108,7 +108,7 @@ fn opened_over(asked: &[WindowRequest]) -> Vec<(ViewId, ViewId)> {
 #[test]
 fn a_window_opened_in_a_docked_tab_body_opens_over_that_tab() {
     VIEWPORT.with(|held| held.set(beui::Vec2::ZERO));
-    let mut session = session::<WindowedApp>(Uuid::new_v4());
+    let mut session = session::<WindowedRoot>(Uuid::new_v4());
     show_windowed(&mut session, &[(View::MAIN, 0)]);
     session
         .host()

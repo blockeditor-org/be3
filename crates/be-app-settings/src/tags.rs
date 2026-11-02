@@ -15,10 +15,10 @@ const INTRINSIC_HEIGHT: f32 = 360.0;
 const NAME_WIDTH: Size = Size::Custom(110.0);
 const COLOR_WIDTH: Size = Size::Custom(100.0);
 
-pub struct TagsApp;
+pub struct TagsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for TagsApp {
+impl be_sdk_beui::BeuiApp for TagsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

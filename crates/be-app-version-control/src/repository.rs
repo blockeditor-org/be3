@@ -9,10 +9,10 @@ mod ui;
 
 use ui::RepositoryView;
 
-pub struct RepositoryApp;
+pub struct RepositoryRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for RepositoryApp {
+impl be_sdk_beui::BeuiApp for RepositoryRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

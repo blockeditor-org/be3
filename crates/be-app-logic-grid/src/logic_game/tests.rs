@@ -5,17 +5,17 @@ use be_type_logic_grid::LogicGameContent;
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
-use crate::logic_game::app::LogicGameApp;
+use crate::logic_game::root::LogicGameRoot;
 
 mod a_manager_gives_the_world_a_hotbar_that_players_start_from;
 mod expanding_a_level_shows_its_goal;
 mod the_quiz_records_a_bit_on_the_game_block;
 
-fn editor() -> BeuiTest<LogicGameApp> {
+fn editor() -> BeuiTest<LogicGameRoot> {
     editor_sized(None)
 }
 
-fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
+fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameRoot> {
     let block = Uuid::new_v4();
     let mut editor = BeuiTest::editing(block);
     if let Some(size) = size {
@@ -27,6 +27,6 @@ fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
     editor
 }
 
-fn game(editor: &BeuiTest<LogicGameApp>) -> LogicGame {
+fn game(editor: &BeuiTest<LogicGameRoot>) -> LogicGame {
     editor.content::<LogicGameContent>(None).root().game()
 }

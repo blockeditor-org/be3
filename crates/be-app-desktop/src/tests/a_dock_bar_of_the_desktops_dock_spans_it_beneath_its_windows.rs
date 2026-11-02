@@ -15,10 +15,10 @@ thread_local! {
     static LAYOUT: std::cell::Cell<Option<DockingLayout<u64>>> = const { std::cell::Cell::new(None) };
 }
 
-struct BandedApp;
+struct BandedRoot;
 
 #[component]
-impl BeuiApp for BandedApp {
+impl BeuiApp for BandedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
@@ -70,7 +70,7 @@ impl BeuiApp for BandedApp {
 
 #[test]
 fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
-    let mut test = BeuiTest::<BandedApp>::editing(Uuid::new_v4()).with_size(SIZE);
+    let mut test = BeuiTest::<BandedRoot>::editing(Uuid::new_v4()).with_size(SIZE);
     test.run();
     test.run();
 

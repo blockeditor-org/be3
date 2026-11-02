@@ -7,10 +7,10 @@ use beui::{Key, Modifiers, Pos2, Rect, Vec2, pos2, vec2};
 
 const DISPLAY: Vec2 = vec2(900.0, 600.0);
 
-struct PoppedApp;
+struct PoppedRoot;
 
 #[component]
-impl BeuiApp for PoppedApp {
+impl BeuiApp for PoppedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
@@ -43,7 +43,7 @@ impl BeuiApp for PoppedApp {
 
 #[test]
 fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu() {
-    let mut test = BeuiTest::<PoppedApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<PoppedRoot>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

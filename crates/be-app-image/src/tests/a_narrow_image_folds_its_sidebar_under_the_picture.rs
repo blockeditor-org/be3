@@ -5,7 +5,7 @@ use be_type_image::ImageFile;
 #[test]
 fn a_narrow_image_folds_its_sidebar_under_the_picture() {
     let block = Uuid::new_v4();
-    let mut editor = BeuiTest::<ImageApp>::editing(block).with_size(Vec2::new(390.0, 760.0));
+    let mut editor = BeuiTest::<ImageRoot>::editing(block).with_size(Vec2::new(390.0, 760.0));
     editor.hold(None, ImageFile::from_file("picture.png", png(8, 4)));
     editor.run();
 

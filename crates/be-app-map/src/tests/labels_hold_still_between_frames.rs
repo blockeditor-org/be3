@@ -10,7 +10,7 @@ fn labels_hold_still_between_frames() {
             ("Reef", "village", 3072, 3072),
         ])
     });
-    let shown = |editor: &BeuiTest<MapApp>| {
+    let shown = |editor: &BeuiTest<MapRoot>| {
         ["Harbour", "Lighthouse", "Reef"]
             .into_iter()
             .flat_map(|name| {

@@ -37,7 +37,7 @@ fn window(id: u64, frame: Rect) -> Entry {
         id: EntryId(id),
         kind: EntryKind::Window,
         title: format!("window {id}"),
-        app_id: "C:\\Programs\\paint.exe".to_owned(),
+        program_id: "C:\\Programs\\paint.exe".to_owned(),
         frame,
         responding: true,
         ..Entry::default()

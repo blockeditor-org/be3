@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use be_app_infinite_canvas::app::CanvasApp;
+use be_app_infinite_canvas::root::CanvasRoot;
 use be_sdk_beui::beui::{
     self, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2, native::FramePerformance,
 };
@@ -63,8 +63,8 @@ fn shape(index: usize) -> CanvasEntity {
     entity
 }
 
-fn open(count: usize) -> BeuiTest<CanvasApp> {
-    let mut test = BeuiTest::<CanvasApp>::editing(Uuid::new_v4()).in_viewport();
+fn open(count: usize) -> BeuiTest<CanvasRoot> {
+    let mut test = BeuiTest::<CanvasRoot>::editing(Uuid::new_v4()).in_viewport();
     beui::native::verify_paint(false);
     let canvas = Canvas::with_entities((0..count).map(shape));
     test.hold(None, CanvasContent::new(&canvas));
@@ -88,7 +88,7 @@ struct Frame {
     latest: FramePerformance,
 }
 
-fn frame(test: &mut BeuiTest<CanvasApp>, events: Vec<Input>) -> Frame {
+fn frame(test: &mut BeuiTest<CanvasRoot>, events: Vec<Input>) -> Frame {
     let started = Instant::now();
     test.step(events);
     let wall = started.elapsed();
@@ -131,11 +131,11 @@ fn report(name: &str, metric: &str, frames: &[Frame]) {
     );
 }
 
-fn shown(test: &BeuiTest<CanvasApp>) -> Pos2 {
+fn shown(test: &BeuiTest<CanvasRoot>) -> Pos2 {
     test.rect_of("infinite-canvas.canvas").center()
 }
 
-fn camera(test: &mut BeuiTest<CanvasApp>, shown: Pos2, center: Pos2, scale: f32) {
+fn camera(test: &mut BeuiTest<CanvasRoot>, shown: Pos2, center: Pos2, scale: f32) {
     let content = test
         .intrinsic_size()
         .unwrap_or_default()
@@ -201,7 +201,7 @@ fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Input {
     }
 }
 
-fn inked(test: &BeuiTest<CanvasApp>, at: Pos2) -> bool {
+fn inked(test: &BeuiTest<CanvasRoot>, at: Pos2) -> bool {
     test.drawn()
         .and_then(|output| output.damaged())
         .is_some_and(|damage| {
@@ -213,7 +213,7 @@ fn inked(test: &BeuiTest<CanvasApp>, at: Pos2) -> bool {
 }
 
 #[inline(never)]
-fn lift(test: &mut BeuiTest<CanvasApp>, at: Pos2) -> Frame {
+fn lift(test: &mut BeuiTest<CanvasRoot>, at: Pos2) -> Frame {
     frame(
         test,
         vec![pen(PenPhase::Up(PointerButton::Primary), at, 0.0)],
@@ -283,7 +283,7 @@ fn ink(count: usize) -> Ink {
 }
 
 #[inline(never)]
-fn long_move(test: &mut BeuiTest<CanvasApp>, at: Pos2) -> Frame {
+fn long_move(test: &mut BeuiTest<CanvasRoot>, at: Pos2) -> Frame {
     frame(test, vec![pen(PenPhase::Move, at, 0.6)])
 }
 

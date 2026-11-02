@@ -1,9 +1,9 @@
-pub mod app;
+pub mod root;
 mod camera;
 mod renderer;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    scene => app::Scene3DApp,
+    scene => root::Scene3DRoot,
 });
 
 #[cfg(test)]

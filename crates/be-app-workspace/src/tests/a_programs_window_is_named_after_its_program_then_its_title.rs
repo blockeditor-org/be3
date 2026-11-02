@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn a_programs_window_is_named_after_its_program_then_its_title() {
-    let named = |app_id: &str, name: &str, title: &str| be_sdk_beui::HostWindow {
-        app_id: app_id.to_owned(),
+    let named = |program_id: &str, name: &str, title: &str| be_sdk_beui::HostWindow {
+        program_id: program_id.to_owned(),
         name: name.to_owned(),
         ..window(1, title, None)
     };

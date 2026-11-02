@@ -8,9 +8,9 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_type_infinite_canvas::CanvasColor;
 
-use crate::app::actions::canvas_actions;
-use crate::app::canvas::CanvasStage;
-use crate::app::state::CanvasState;
+use crate::root::actions::canvas_actions;
+use crate::root::canvas::CanvasStage;
+use crate::root::state::CanvasState;
 
 thread_local! {
     static WOKEN: RefCell<HashMap<Uuid, usize>> = RefCell::new(HashMap::new());
@@ -60,7 +60,7 @@ fn dragging_one_entity_wakes_only_that_entity() {
     let owner = OwnedEditor::new(host, Uuid::new_v4());
     let handle = *owner;
     let watched = ids.clone();
-    let mut editor = BeuiTest::<CanvasApp>::with_view(owner, move || {
+    let mut editor = BeuiTest::<CanvasRoot>::with_view(owner, move || {
         let ids = watched.clone();
         view! {
             <Root>

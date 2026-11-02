@@ -4,7 +4,7 @@ use super::*;
 fn the_mode_dock_switches_the_profile() {
     let mut editor = editor(&[]).with_top_bar(false);
     let profile =
-        |editor: &BeuiTest<CanvasApp>| editor.content::<CanvasContent>(None).root().profile;
+        |editor: &BeuiTest<CanvasRoot>| editor.content::<CanvasContent>(None).root().profile;
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let mode = editor.rect_of("infinite-canvas.mode");
     assert!(

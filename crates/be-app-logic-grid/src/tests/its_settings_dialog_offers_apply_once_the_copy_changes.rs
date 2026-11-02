@@ -14,8 +14,8 @@ fn its_settings_dialog_offers_apply_once_the_copy_changes() {
             source,
         },
     );
-    let data = crate::app::descriptor_data(source);
-    let mut settings = BeuiTest::<LogicGridApp>::settings(artifacts, data);
+    let data = crate::root::descriptor_data(source);
+    let mut settings = BeuiTest::<LogicGridRoot>::settings(artifacts, data);
     settings.set_size(vec2(360.0, 200.0));
     settings.run();
     assert_eq!(settings.handles_dismiss(), Some(true));

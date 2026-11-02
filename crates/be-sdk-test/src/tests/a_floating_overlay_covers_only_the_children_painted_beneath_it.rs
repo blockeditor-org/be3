@@ -7,10 +7,10 @@ use beui::LayerPolicy;
 const WINDOWED: Uuid = Uuid::from_u128(0x0011);
 const BENEATH: Uuid = Uuid::from_u128(0x0012);
 
-struct WindowApp;
+struct WindowRoot;
 
 #[component]
-impl BeuiApp for WindowApp {
+impl BeuiApp for WindowRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -45,7 +45,7 @@ fn Window(editor: Editor) -> NodeId {
 
 #[test]
 fn a_floating_overlay_covers_only_the_children_painted_beneath_it() {
-    let mut test = BeuiTest::<WindowApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<WindowRoot>::editing(Uuid::new_v4());
     test.run();
     test.run();
 

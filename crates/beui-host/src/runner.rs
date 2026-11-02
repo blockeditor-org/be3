@@ -90,7 +90,7 @@ fn from_environment(_natives: &[&str]) -> Result<Option<Choice>, Box<dyn Error>>
 
 fn application_name(options: &RunOptions) -> String {
     options
-        .app_id
+        .program_id
         .clone()
         .or_else(|| {
             let program = std::env::current_exe().ok()?;

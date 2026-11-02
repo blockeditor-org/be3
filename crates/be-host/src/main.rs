@@ -71,7 +71,7 @@ pub(crate) fn build() -> &'static str {
 fn run_options() -> beui_host::native::RunOptions {
     beui_host::native::RunOptions {
         #[cfg(not(target_arch = "wasm32"))]
-        app_id: Some(app_id().to_owned()),
+        program_id: Some(app_id().to_owned()),
         size: beui::vec2(1100.0, 720.0),
         ..Default::default()
     }

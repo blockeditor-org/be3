@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 
 #[cfg(test)]
 mod tests;

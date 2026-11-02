@@ -14,10 +14,10 @@ use ui::InputSettingsView;
 const INTRINSIC_WIDTH: f32 = 420.0;
 const INTRINSIC_HEIGHT: f32 = 520.0;
 
-pub struct InputSettingsApp;
+pub struct InputSettingsRoot;
 
 #[component]
-impl be_sdk_beui::BeuiApp for InputSettingsApp {
+impl be_sdk_beui::BeuiApp for InputSettingsRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

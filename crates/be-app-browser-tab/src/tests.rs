@@ -4,7 +4,7 @@ use be_sdk_test::BeuiTest;
 use be_type_browser_tab::{BrowserTabContent, HistoryItem};
 use uuid::Uuid;
 
-use crate::app::BrowserTabApp;
+use crate::root::BrowserTabRoot;
 
 mod a_pushed_url_becomes_the_tab_s_history;
 mod a_refused_web_view_shows_why_in_its_place;
@@ -14,7 +14,7 @@ mod typing_an_address_navigates_the_web_view;
 const ACCOUNT: Uuid = Uuid::from_u128(0x7765_622d_7465_7374_2d61_6363_6f75_6e74);
 
 struct Harness {
-    editor: BeuiTest<BrowserTabApp>,
+    editor: BeuiTest<BrowserTabRoot>,
 }
 
 impl Harness {

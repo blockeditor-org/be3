@@ -1,10 +1,10 @@
 use super::*;
 use be_block::presence::{PresenceKind, UserActive};
 
-struct BlockIgnoringApp;
+struct BlockIgnoringRoot;
 
 #[beui::reactive::component]
-impl crate::BeuiApp for BlockIgnoringApp {
+impl crate::BeuiApp for BlockIgnoringRoot {
     #[beui::reactive::component]
     fn View(_editor: crate::Editor) -> beui::styled::Root {
         let node = { beui::styled::Frame().build() };
@@ -16,7 +16,7 @@ impl crate::BeuiApp for BlockIgnoringApp {
 
 #[test]
 fn a_visible_editor_shows_its_user_as_active() {
-    let mut session = session::<BlockIgnoringApp>(Uuid::new_v4());
+    let mut session = session::<BlockIgnoringRoot>(Uuid::new_v4());
 
     session.presence_visible(true);
     let shown = session.host().take_shown_presence();

@@ -7,10 +7,10 @@ use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
 const DISPLAY: Vec2 = vec2(900.0, 600.0);
 
-struct LiftedApp;
+struct LiftedRoot;
 
 #[component]
-impl BeuiApp for LiftedApp {
+impl BeuiApp for LiftedRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
@@ -45,7 +45,7 @@ impl BeuiApp for LiftedApp {
 
 #[test]
 fn a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window() {
-    let mut test = BeuiTest::<LiftedApp>::editing(Uuid::new_v4());
+    let mut test = BeuiTest::<LiftedRoot>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
     test.run();

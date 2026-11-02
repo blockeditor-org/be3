@@ -8,7 +8,7 @@ use be_type_logic_grid::LogicGridContent;
 use logicgame::grid::LogicGrid as Grid;
 use uuid::Uuid;
 
-use crate::app::LogicGridApp;
+use crate::root::LogicGridRoot;
 
 mod a_dragged_hotbar_slot_follows_the_pointer;
 mod a_number_key_picks_a_tool_and_a_click_places_a_gate;
@@ -20,7 +20,7 @@ mod dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside;
 mod its_settings_dialog_offers_apply_once_the_copy_changes;
 mod the_rename_setting_writes_the_artifact_draft;
 
-fn editor() -> BeuiTest<LogicGridApp> {
+fn editor() -> BeuiTest<LogicGridRoot> {
     let block = Uuid::new_v4();
     let mut editor = BeuiTest::editing(block);
     editor.store().register(be_type_logic_grid::registrations());
@@ -29,10 +29,10 @@ fn editor() -> BeuiTest<LogicGridApp> {
     editor
 }
 
-fn grid(editor: &BeuiTest<LogicGridApp>) -> Grid {
+fn grid(editor: &BeuiTest<LogicGridRoot>) -> Grid {
     editor.content::<LogicGridContent>(None).root().grid()
 }
 
-fn canvas_point(editor: &BeuiTest<LogicGridApp>, offset: Vec2) -> Pos2 {
+fn canvas_point(editor: &BeuiTest<LogicGridRoot>, offset: Vec2) -> Pos2 {
     editor.rect_of("logic-grid.canvas").center() + offset
 }

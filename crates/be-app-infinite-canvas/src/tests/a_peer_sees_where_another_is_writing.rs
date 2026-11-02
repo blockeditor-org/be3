@@ -3,7 +3,7 @@ use crate::presence::CanvasCursor;
 use be_sdk_beui::beui::styled::{RemoteTextCursor, TextAreaApi, TextAreaSurfaceApi};
 use be_sdk_beui::beui::{Key, Modifiers, pos2};
 
-fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor> {
+fn shown_carets(editor: &BeuiTest<CanvasRoot>, id: Uuid) -> Vec<RemoteTextCursor> {
     let area = editor
         .document()
         .find_test_id(&format!("infinite-canvas.text.{id}"))
@@ -15,7 +15,7 @@ fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor>
         .remote_cursors()
 }
 
-fn shown_cursor(editor: &mut BeuiTest<CanvasApp>) -> Option<CanvasCursor> {
+fn shown_cursor(editor: &mut BeuiTest<CanvasRoot>) -> Option<CanvasCursor> {
     editor
         .take_shown_presence()
         .into_iter()

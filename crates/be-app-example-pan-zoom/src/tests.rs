@@ -3,7 +3,7 @@ use be_sdk_beui::{Editor, EditorHost, OwnedEditor, ViewChange};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::PanZoomApp;
+use crate::root::PanZoomRoot;
 
 mod a_pinch_in_the_frame_a_resize_lands_in_keeps_the_view_where_the_person_put_it;
 mod a_view_moved_before_the_editor_opened_stays_where_it_was;
@@ -17,7 +17,7 @@ mod the_stage_stays_transparent_so_the_host_canvas_shows_through;
 mod zooming_asks_the_host_instead_of_moving_the_view;
 mod zooming_stops_the_view_following_its_fit_until_fit_is_pressed;
 
-fn editor() -> (BeuiTest<PanZoomApp>, Editor) {
+fn editor() -> (BeuiTest<PanZoomRoot>, Editor) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
@@ -26,7 +26,7 @@ fn editor() -> (BeuiTest<PanZoomApp>, Editor) {
     (BeuiTest::new(owner), editor)
 }
 
-fn shown(test: &mut BeuiTest<PanZoomApp>, test_id: &str) -> String {
+fn shown(test: &mut BeuiTest<PanZoomRoot>, test_id: &str) -> String {
     let node = test
         .document()
         .find_test_id(test_id)

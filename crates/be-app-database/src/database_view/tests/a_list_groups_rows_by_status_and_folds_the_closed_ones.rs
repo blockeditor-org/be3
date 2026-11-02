@@ -1,5 +1,5 @@
 use super::*;
-use crate::database_view::app::list::group_test_key;
+use crate::database_view::root::list::group_test_key;
 use crate::database_view::groups::GroupKey;
 
 #[test]

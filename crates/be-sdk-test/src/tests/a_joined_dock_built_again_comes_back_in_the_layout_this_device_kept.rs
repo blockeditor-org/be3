@@ -9,10 +9,10 @@ use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as E
 
 const REBUILT_TYPE: Uuid = Uuid::from_u128(0x0b44);
 
-struct RebuiltApp;
+struct RebuiltRoot;
 
 #[component]
-impl BeuiApp for RebuiltApp {
+impl BeuiApp for RebuiltRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presenting = editor.presenting();
@@ -127,7 +127,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
     })
 }
 
-fn kept(test: &BeuiTest<RebuiltApp>, display: Uuid) -> String {
+fn kept(test: &BeuiTest<RebuiltRoot>, display: Uuid) -> String {
     let root = test.content::<DisplaySettingsContent>(Some(display)).root();
     root.docks
         .values()
@@ -142,7 +142,7 @@ fn a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept() {
     host.set_editable(true);
     host.set_block_type(REBUILT_TYPE);
     let mut test =
-        BeuiTest::<RebuiltApp>::new(OwnedEditor::new(host.clone(), Uuid::new_v4())).docked();
+        BeuiTest::<RebuiltRoot>::new(OwnedEditor::new(host.clone(), Uuid::new_v4())).docked();
     let display = settings_here(&mut test, DisplaySettingsContent::default());
     let declared = declarations(&test.take_dock_messages());
     let (stage, bar) = declared

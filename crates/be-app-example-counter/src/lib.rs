@@ -1,7 +1,7 @@
-pub mod app;
+pub mod root;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    counter => app::CounterApp,
+    counter => root::CounterRoot,
 });
 
 #[cfg(test)]

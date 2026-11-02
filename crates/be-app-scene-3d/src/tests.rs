@@ -2,13 +2,13 @@ use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::Scene3DApp;
+use crate::root::Scene3DRoot;
 
 mod clicking_the_scene_grabs_the_cursor_and_escape_releases_it;
 
 const ACCOUNT: Uuid = Uuid::from_u128(0x3364_2d74_6573_742d_6163_636f_756e_7401);
 
-fn editor() -> (BeuiTest<Scene3DApp>, EditorHost) {
+fn editor() -> (BeuiTest<Scene3DRoot>, EditorHost) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);

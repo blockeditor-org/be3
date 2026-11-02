@@ -6,10 +6,10 @@ use beui::icons::ICON_WAND_SPARKLES;
 
 use super::*;
 
-struct ActionApp;
+struct ActionRoot;
 
 #[component]
-impl BeuiApp for ActionApp {
+impl BeuiApp for ActionRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -42,7 +42,7 @@ fn Tidy(editor: Editor) -> NodeId {
     }
 }
 
-fn text(test: &BeuiTest<ActionApp>, id: &str) -> String {
+fn text(test: &BeuiTest<ActionRoot>, id: &str) -> String {
     let node = test.document().find_test_id(id).expect("the text is shown");
     test.document()
         .node_detail(node)
@@ -51,7 +51,7 @@ fn text(test: &BeuiTest<ActionApp>, id: &str) -> String {
         .to_owned()
 }
 
-fn ids(test: &BeuiTest<ActionApp>) -> Vec<String> {
+fn ids(test: &BeuiTest<ActionRoot>) -> Vec<String> {
     test.menu_ids()
 }
 
@@ -70,7 +70,7 @@ const MENU: [&str; 9] = [
 #[test]
 fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() {
     let block = Uuid::new_v4();
-    let mut test = BeuiTest::<ActionApp>::editing(block)
+    let mut test = BeuiTest::<ActionRoot>::editing(block)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
     assert_eq!(ids(&test), MENU, "the frame hands its parent its menu");
@@ -108,7 +108,7 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     test.pick_menu("editor.details");
     assert_eq!(test.take_bar_actions(), [BarAction::Details]);
 
-    let desktop = BeuiTest::<ActionApp>::new(OwnedEditor::new(
+    let desktop = BeuiTest::<ActionRoot>::new(OwnedEditor::new(
         {
             let host = EditorHost::default();
             host.set_editable(true);

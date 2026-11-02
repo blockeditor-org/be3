@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 pub mod compiled_logic;
 mod frame;
 pub mod hotbar;
@@ -6,10 +6,10 @@ pub mod logic_game;
 mod renderer;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    grid => app::LogicGridApp,
-    game => logic_game::app::LogicGameApp,
-    hotbar => hotbar::app::HotbarApp,
-    compiled => compiled_logic::app::CompiledLogicApp,
+    grid => root::LogicGridRoot,
+    game => logic_game::root::LogicGameRoot,
+    hotbar => hotbar::root::HotbarRoot,
+    compiled => compiled_logic::root::CompiledLogicRoot,
 });
 
 #[cfg(test)]

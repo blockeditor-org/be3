@@ -3,13 +3,13 @@ use be_sdk_test::BeuiTest;
 use be_type_database::database::{Database, DatabaseContent};
 use uuid::Uuid;
 
-use crate::app::DatabaseApp;
+use crate::root::DatabaseRoot;
 
 mod a_database_without_views_says_so;
 mod a_new_database_starts_with_a_name_field;
 mod the_schema_sidebar_goes_away_with_the_chrome;
 
-fn editor() -> (BeuiTest<DatabaseApp>, Editor) {
+fn editor() -> (BeuiTest<DatabaseRoot>, Editor) {
     let schema = Uuid::new_v4();
     let block = Uuid::new_v4();
     let host = EditorHost::default();

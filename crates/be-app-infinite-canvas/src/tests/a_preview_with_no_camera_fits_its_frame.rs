@@ -19,7 +19,7 @@ fn a_preview_with_no_camera_fits_its_frame() {
     };
     let host = EditorHost::default();
     let editor = OwnedEditor::new(host, Uuid::new_v4());
-    let mut preview = BeuiTest::<CanvasApp>::preview(editor).with_size(Vec2::new(192.0, 108.0));
+    let mut preview = BeuiTest::<CanvasRoot>::preview(editor).with_size(Vec2::new(192.0, 108.0));
     preview.hold(
         None,
         CanvasContent::new(&Canvas::with_entities([slide, corner])),

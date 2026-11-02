@@ -17,8 +17,8 @@ use be_type_infinite_canvas::{
 use be_type_infinite_canvas::{CanvasPixel, CanvasPixelUpdate, CanvasRaster};
 use uuid::Uuid;
 
-use crate::app::CanvasApp;
-use crate::app::state::{attach_component, remove_component, set_component_value};
+use crate::root::CanvasRoot;
+use crate::root::state::{attach_component, remove_component, set_component_value};
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use be_sdk_beui::beui::{PenPhase, PointerButton};
 use be_type_infinite_canvas::CanvasContent;
@@ -293,7 +293,7 @@ fn card() -> CanvasEntity {
     card
 }
 
-fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> BeuiTest<CanvasApp> {
+fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> BeuiTest<CanvasRoot> {
     open_sized(canvas, preview, known, None)
 }
 
@@ -302,7 +302,7 @@ fn open_sized(
     preview: bool,
     known: &[BlockInfo],
     size: Option<Vec2>,
-) -> BeuiTest<CanvasApp> {
+) -> BeuiTest<CanvasRoot> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
@@ -325,11 +325,11 @@ fn open_sized(
     harness
 }
 
-fn editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+fn editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     open(&Canvas::with_entities(entities.to_vec()), false, &[])
 }
 
-fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     open_sized(
         &Canvas::with_entities(entities.to_vec()),
         false,
@@ -338,7 +338,7 @@ fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
     )
 }
 
-fn display_settings_here(editor: &mut BeuiTest<CanvasApp>) -> Uuid {
+fn display_settings_here(editor: &mut BeuiTest<CanvasRoot>) -> Uuid {
     let client = editor.host().client_id();
     let (settings, profile, display) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let store = editor.store();
@@ -375,11 +375,11 @@ fn vector(entities: impl IntoIterator<Item = CanvasEntity>) -> Canvas {
     canvas
 }
 
-fn vector_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+fn vector_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     open(&vector(entities.to_vec()), false, &[])
 }
 
-fn vector_phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+fn vector_phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     open_sized(
         &vector(entities.to_vec()),
         false,
@@ -388,18 +388,18 @@ fn vector_phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
     )
 }
 
-fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
+fn apply(editor: &mut BeuiTest<CanvasRoot>, operation: InfiniteCanvasOperation) {
     let edit = Canvas::edit_in(&editor.content::<CanvasContent>(None), &operation);
     editor.edit::<CanvasContent>(None, &edit);
 }
 
-fn entities(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {
+fn entities(editor: &BeuiTest<CanvasRoot>) -> Vec<CanvasEntity> {
     editor.content::<CanvasContent>(None).root().entities()
 }
 
 fn forward_presence(
-    from: &mut BeuiTest<CanvasApp>,
-    to: &mut BeuiTest<CanvasApp>,
+    from: &mut BeuiTest<CanvasRoot>,
+    to: &mut BeuiTest<CanvasRoot>,
     held: &mut BTreeMap<Uuid, Vec<u8>>,
 ) {
     for shown in from.take_shown_presence() {
@@ -421,13 +421,13 @@ fn forward_presence(
     to.run();
 }
 
-fn undo(editor: &mut BeuiTest<CanvasApp>) {
+fn undo(editor: &mut BeuiTest<CanvasRoot>) {
     let block = editor.block_id().expect("the canvas has a block");
     editor.host().undo(block);
     editor.run();
 }
 
-fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
+fn sync(from: &mut BeuiTest<CanvasRoot>, to: &mut BeuiTest<CanvasRoot>) {
     for operation in from.store().take_written(None) {
         to.store().apply_elsewhere(None, operation);
     }
@@ -454,7 +454,7 @@ fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
     content.root()
 }
 
-fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     let mut editor = open(&raster_canvas(entities), false, &[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.pinch(center, RASTER_ZOOM);
@@ -468,7 +468,7 @@ fn raster_layer(id: u128, center: CanvasPoint, side: u16) -> CanvasEntity {
     layer
 }
 
-fn raster_of(editor: &BeuiTest<CanvasApp>, id: Uuid) -> CanvasRaster {
+fn raster_of(editor: &BeuiTest<CanvasRoot>, id: Uuid) -> CanvasRaster {
     Canvas::raster(&editor.content::<CanvasContent>(None), id).expect("the layer holds pixels")
 }
 
@@ -482,7 +482,7 @@ fn painted(raster: &CanvasRaster) -> usize {
         .count()
 }
 
-fn paint(editor: &mut BeuiTest<CanvasApp>, id: Uuid, pixels: &[(u16, u16)], color: CanvasPixel) {
+fn paint(editor: &mut BeuiTest<CanvasRoot>, id: Uuid, pixels: &[(u16, u16)], color: CanvasPixel) {
     apply(
         editor,
         InfiniteCanvasOperation::Paint {
@@ -496,7 +496,7 @@ fn paint(editor: &mut BeuiTest<CanvasApp>, id: Uuid, pixels: &[(u16, u16)], colo
     editor.run();
 }
 
-fn painted_scaled_layer() -> (BeuiTest<CanvasApp>, Uuid) {
+fn painted_scaled_layer() -> (BeuiTest<CanvasRoot>, Uuid) {
     let layer = raster_layer(1, CanvasPoint::default(), 8);
     let mut editor = raster_editor(std::slice::from_ref(&layer));
     paint(&mut editor, layer.id, &[(1, 1), (6, 2), (3, 6)], RED);
@@ -515,14 +515,14 @@ fn painted_scaled_layer() -> (BeuiTest<CanvasApp>, Uuid) {
     (editor, layer.id)
 }
 
-fn rasters(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {
+fn rasters(editor: &BeuiTest<CanvasRoot>) -> Vec<CanvasEntity> {
     entities(editor)
         .into_iter()
         .filter(|entity| entity.shape == CanvasShape::Raster)
         .collect()
 }
 
-fn pressed(editor: &BeuiTest<CanvasApp>, test_id: &str) -> bool {
+fn pressed(editor: &BeuiTest<CanvasRoot>, test_id: &str) -> bool {
     use be_sdk_beui::beui::reactive::Get;
     use be_sdk_beui::beui::styled::ToggleApi;
     let node = editor

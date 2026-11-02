@@ -2,7 +2,7 @@ use be_sdk_test::BeuiTest;
 use be_type_example_counter::{Counter as CounterModel, CounterContent};
 use uuid::Uuid;
 
-use crate::app::CounterApp;
+use crate::root::CounterRoot;
 
 mod a_click_paints_its_count_in_the_frame_that_takes_it;
 mod an_edit_stays_on_screen_until_the_host_takes_it;
@@ -11,7 +11,7 @@ mod resetting_puts_the_block_back_to_zero;
 mod the_counter_shows_what_the_block_holds;
 
 struct Harness {
-    editor: BeuiTest<CounterApp>,
+    editor: BeuiTest<CounterRoot>,
 }
 
 impl Harness {

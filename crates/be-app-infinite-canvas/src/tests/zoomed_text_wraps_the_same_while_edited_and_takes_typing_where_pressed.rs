@@ -3,7 +3,7 @@ use be_sdk_beui::beui::styled::{TextAreaApi, TextAreaSurfaceApi};
 use be_sdk_beui::beui::{Key, Modifiers, Pos2, Rect, pos2};
 use be_type_infinite_canvas::CanvasTextStyle;
 
-fn zoom_to(editor: &mut BeuiTest<CanvasApp>, label: &str) {
+fn zoom_to(editor: &mut BeuiTest<CanvasRoot>, label: &str) {
     for _ in 0..8 {
         if editor.label("infinite-canvas.pill.zoom") == label {
             return;
@@ -15,7 +15,7 @@ fn zoom_to(editor: &mut BeuiTest<CanvasApp>, label: &str) {
     assert_eq!(editor.label("infinite-canvas.pill.zoom"), label);
 }
 
-fn index_at(editor: &BeuiTest<CanvasApp>, field: &str, at: Pos2) -> usize {
+fn index_at(editor: &BeuiTest<CanvasRoot>, field: &str, at: Pos2) -> usize {
     let document = editor.document();
     let node = document.find_test_id(field).expect("the text is drawn");
     let surface = document.api::<TextAreaSurfaceApi>(node).surface();
@@ -24,7 +24,7 @@ fn index_at(editor: &BeuiTest<CanvasApp>, field: &str, at: Pos2) -> usize {
         .index_at(&*document, at)
 }
 
-fn layout(editor: &BeuiTest<CanvasApp>, field: &str) -> Vec<usize> {
+fn layout(editor: &BeuiTest<CanvasRoot>, field: &str) -> Vec<usize> {
     let rect = editor.rect_of(field);
     let (columns, rows) = (7, 12);
     (0..rows)

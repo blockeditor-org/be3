@@ -13,9 +13,9 @@ fn program(id: &str, name: &str, target: &str, app_user_model_id: Option<&str>) 
     }
 }
 
-fn named(names: &ProgramNames, app_id: &str, origin: Origin) -> String {
+fn named(names: &ProgramNames, program_id: &str, origin: Origin) -> String {
     let entry = Entry {
-        app_id: app_id.to_owned(),
+        program_id: program_id.to_owned(),
         origin,
         ..window(1, Rect::new(0, 0, 100, 100))
     };

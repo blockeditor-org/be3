@@ -5,7 +5,7 @@ fn creating_a_beui_demo_makes_a_block_with_no_state() {
     let host = EditorHost::default();
     let creation = Creation::new(host.clone());
 
-    let created = <BeuiGalleryApp as be_sdk_beui::BeuiApp>::create_block(&creation)
+    let created = <BeuiGalleryRoot as be_sdk_beui::BeuiApp>::create_block(&creation)
         .expect("a beui demo can always be made");
 
     let commands = host.take_graph_commands();

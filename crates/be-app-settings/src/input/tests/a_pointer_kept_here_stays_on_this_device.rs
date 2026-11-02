@@ -15,7 +15,7 @@ fn a_pointer_kept_here_stays_on_this_device() {
     host.set_watched::<InputDevicesWatch>(&vec![touchpad()]);
     host.set_editable(true);
     host.set_client_id(client);
-    let mut editor = BeuiTest::<InputSettingsApp>::new(OwnedEditor::new(host, block));
+    let mut editor = BeuiTest::<InputSettingsRoot>::new(OwnedEditor::new(host, block));
     editor.hold(None, InputSettingsContent::default());
     editor.set_size(Vec2::new(800.0, 1200.0));
     let store = editor.store();
@@ -37,7 +37,7 @@ fn a_pointer_kept_here_stays_on_this_device() {
     store.hold(Some(here), InputSettingsContent::default());
     editor.run();
     choose_pointer(&mut editor, 1);
-    let tap = |editor: &BeuiTest<InputSettingsApp>, layer: Option<Uuid>| {
+    let tap = |editor: &BeuiTest<InputSettingsRoot>, layer: Option<Uuid>| {
         editor
             .content::<InputSettingsContent>(layer)
             .root()

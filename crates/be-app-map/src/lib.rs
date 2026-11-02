@@ -1,4 +1,4 @@
-pub mod app;
+pub mod root;
 mod geo;
 mod mvt;
 mod points;
@@ -9,5 +9,5 @@ mod tiles;
 mod tests;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    map => app::MapApp,
+    map => root::MapRoot,
 });

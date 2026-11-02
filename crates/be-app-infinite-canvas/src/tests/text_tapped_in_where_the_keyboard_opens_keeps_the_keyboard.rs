@@ -14,7 +14,7 @@ fn text_tapped_in_where_the_keyboard_opens_keeps_the_keyboard() {
     editor.fingers(TouchPhase::End, &[(1, at)]);
     editor.run();
     let keyboard =
-        |editor: &BeuiTest<CanvasApp>| editor.window().ime.as_ref().map(|area| area.keyboard);
+        |editor: &BeuiTest<CanvasRoot>| editor.window().ime.as_ref().map(|area| area.keyboard);
     let asked = keyboard(&editor);
     assert!(
         asked.is_some_and(|keyboard| keyboard.shown()),

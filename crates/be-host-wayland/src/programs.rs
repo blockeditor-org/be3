@@ -130,12 +130,12 @@ impl Environment {
         out
     }
 
-    pub fn entry(&self, app_id: &str) -> Option<DesktopEntry> {
-        if app_id.is_empty() || app_id.contains('/') {
+    pub fn entry(&self, program_id: &str) -> Option<DesktopEntry> {
+        if program_id.is_empty() || program_id.contains('/') {
             return None;
         }
-        let id = format!("{app_id}.desktop");
-        let places = entry_places(app_id);
+        let id = format!("{program_id}.desktop");
+        let places = entry_places(program_id);
         self.data_dirs.iter().find_map(|dir| {
             let applications = dir.join("applications");
             places.iter().find_map(|place| {
@@ -181,8 +181,8 @@ fn executable(path: &Path) -> bool {
 
 const MOST_FOLDER_SPLITS: usize = 8;
 
-fn entry_places(app_id: &str) -> Vec<PathBuf> {
-    let parts: Vec<&str> = app_id.split('-').collect();
+fn entry_places(program_id: &str) -> Vec<PathBuf> {
+    let parts: Vec<&str> = program_id.split('-').collect();
     let joins = (parts.len() - 1).min(MOST_FOLDER_SPLITS);
     (0..1usize << joins)
         .filter_map(|folders| {

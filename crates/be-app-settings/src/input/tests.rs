@@ -5,7 +5,7 @@ use be_sdk_beui::{EditorHost, HostInputDevice, InputDevicesWatch, OwnedEditor};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::input::InputSettingsApp;
+use crate::input::InputSettingsRoot;
 
 mod a_device_follows_its_default_until_it_is_overridden;
 mod a_narrow_page_stacks_each_control_under_its_label;
@@ -17,13 +17,13 @@ mod outside_a_session_input_is_not_offered;
 mod resetting_a_layout_returns_it_to_the_default;
 mod typing_a_layout_stores_it;
 
-fn editor(devices: Vec<HostInputDevice>) -> BeuiTest<InputSettingsApp> {
+fn editor(devices: Vec<HostInputDevice>) -> BeuiTest<InputSettingsRoot> {
     let host = EditorHost::default();
     host.set_watched::<InputDevicesWatch>(&devices);
     open(host)
 }
 
-fn open(host: EditorHost) -> BeuiTest<InputSettingsApp> {
+fn open(host: EditorHost) -> BeuiTest<InputSettingsRoot> {
     host.set_editable(true);
     let mut editor = BeuiTest::new(OwnedEditor::new(host, Uuid::new_v4()));
     editor.hold(None, InputSettingsContent::default());
@@ -31,18 +31,18 @@ fn open(host: EditorHost) -> BeuiTest<InputSettingsApp> {
     editor
 }
 
-fn content(editor: &BeuiTest<InputSettingsApp>) -> InputSettingsContent {
+fn content(editor: &BeuiTest<InputSettingsRoot>) -> InputSettingsContent {
     editor.content(None)
 }
 
-fn reset(editor: &mut BeuiTest<InputSettingsApp>, row: &str) {
+fn reset(editor: &mut BeuiTest<InputSettingsRoot>, row: &str) {
     editor.click(format!("{row}.menu"));
     editor.run();
     editor.click(format!("{row}.reset"));
     editor.run();
 }
 
-fn choose_pointer(editor: &mut BeuiTest<InputSettingsApp>, index: usize) {
+fn choose_pointer(editor: &mut BeuiTest<InputSettingsRoot>, index: usize) {
     editor.click("input.pointer");
     editor.run();
     editor.key(Key::Home, Modifiers::NONE);

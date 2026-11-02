@@ -6,7 +6,7 @@ use be_sdk_test::{BeuiTest, HostCall};
 #[test]
 fn choosing_a_staged_game_copies_it_into_the_workspace() {
     let creation = Creation::new(EditorHost::default());
-    let mut editor = BeuiTest::<DeterministicGameApp>::creation(creation.clone());
+    let mut editor = BeuiTest::<DeterministicGameRoot>::creation(creation.clone());
     editor.run();
 
     let asked = editor.take_requests();

@@ -10,10 +10,10 @@ use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as E
 
 const BARRED_TYPE: Uuid = Uuid::from_u128(0x0b42);
 
-struct BarredApp;
+struct BarredRoot;
 
 #[component]
-impl BeuiApp for BarredApp {
+impl BeuiApp for BarredRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
@@ -39,16 +39,16 @@ impl BeuiApp for BarredApp {
     }
 }
 
-fn barred(display: DisplaySettingsContent) -> (BeuiTest<BarredApp>, Uuid) {
+fn barred(display: DisplaySettingsContent) -> (BeuiTest<BarredRoot>, Uuid) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_block_type(BARRED_TYPE);
-    let mut test = BeuiTest::<BarredApp>::new(OwnedEditor::new(host, Uuid::new_v4())).docked();
+    let mut test = BeuiTest::<BarredRoot>::new(OwnedEditor::new(host, Uuid::new_v4())).docked();
     let held = settings_here(&mut test, display);
     (test, held)
 }
 
-fn ids(test: &mut BeuiTest<BarredApp>) -> (u64, u64) {
+fn ids(test: &mut BeuiTest<BarredRoot>) -> (u64, u64) {
     let declaration = test
         .take_dock_messages()
         .into_iter()
@@ -110,7 +110,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
     })
 }
 
-fn saved(test: &BeuiTest<BarredApp>, display: Uuid) -> (String, String) {
+fn saved(test: &BeuiTest<BarredRoot>, display: Uuid) -> (String, String) {
     let root = test.content::<DisplaySettingsContent>(Some(display)).root();
     root.docks
         .iter()
@@ -119,7 +119,7 @@ fn saved(test: &BeuiTest<BarredApp>, display: Uuid) -> (String, String) {
         .expect("the editor keeps its dock's layout on this device")
 }
 
-fn restored(test: &mut BeuiTest<BarredApp>) -> DockLayout {
+fn restored(test: &mut BeuiTest<BarredRoot>) -> DockLayout {
     test.take_dock_messages()
         .into_iter()
         .filter_map(|message| match message {

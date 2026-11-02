@@ -6,7 +6,7 @@ use beui_text_editor_core::schema::basic::{self, BULLET, LIST, QUOTE};
 
 const PINK: [u8; 3] = [255, 105, 180];
 
-fn note(text: RichText) -> BeuiTest<CanvasApp> {
+fn note(text: RichText) -> BeuiTest<CanvasRoot> {
     let mut note = shaped(Uuid::from_u128(1), CanvasShape::Text);
     note.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(200.0, 80.0), 0.0);
@@ -14,7 +14,7 @@ fn note(text: RichText) -> BeuiTest<CanvasApp> {
     editor(&[note])
 }
 
-fn pink_pixels(editor: &mut BeuiTest<CanvasApp>) -> usize {
+fn pink_pixels(editor: &mut BeuiTest<CanvasRoot>) -> usize {
     palette_runs(editor, "copy as png");
     let copied = editor.take_copied_images();
     let [png] = copied.as_slice() else {
@@ -28,7 +28,7 @@ fn pink_pixels(editor: &mut BeuiTest<CanvasApp>) -> usize {
         .count()
 }
 
-fn pink_rects(editor: &mut BeuiTest<CanvasApp>) -> usize {
+fn pink_rects(editor: &mut BeuiTest<CanvasRoot>) -> usize {
     palette_runs(editor, "copy as svg");
     let copied = editor.take_copied_text();
     copied

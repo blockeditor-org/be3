@@ -6,7 +6,7 @@ use be_sdk_test::BeuiTest;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 use uuid::Uuid;
 
-use crate::app::FileTreeApp;
+use crate::root::FileTreeRoot;
 
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
@@ -57,7 +57,7 @@ mod zoomed_into_a_block_still_loading_says_so_and_never_that_it_is_empty;
 mod zoomed_into_a_folder_new_adds_straight_into_it;
 
 struct Fixture {
-    test: BeuiTest<FileTreeApp>,
+    test: BeuiTest<FileTreeRoot>,
     host: EditorHost,
 }
 
@@ -232,7 +232,7 @@ fn viewed_on_phone(view: EditorViewContent) -> Fixture {
 
 fn viewed_in(
     view: EditorViewContent,
-    shape: impl FnOnce(BeuiTest<FileTreeApp>) -> BeuiTest<FileTreeApp>,
+    shape: impl FnOnce(BeuiTest<FileTreeRoot>) -> BeuiTest<FileTreeRoot>,
 ) -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();

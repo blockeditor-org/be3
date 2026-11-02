@@ -40,10 +40,10 @@ mod undo_in_the_menu_asks_the_host_for_a_block_it_cannot_open;
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
-struct ChildApp;
+struct ChildRoot;
 
 #[component]
-impl BeuiApp for ChildApp {
+impl BeuiApp for ChildRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {
@@ -84,11 +84,11 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
     }
 }
 
-fn editor() -> BeuiTest<ChildApp> {
+fn editor() -> BeuiTest<ChildRoot> {
     BeuiTest::editing(Uuid::new_v4())
 }
 
-fn status(test: &BeuiTest<ChildApp>) -> String {
+fn status(test: &BeuiTest<ChildRoot>) -> String {
     let node = test
         .document()
         .find_test_id("child.status")
@@ -100,9 +100,9 @@ fn status(test: &BeuiTest<ChildApp>) -> String {
         .to_owned()
 }
 
-fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
+fn undoable_editor() -> (BeuiTest<ChildRoot>, Uuid) {
     let block = Uuid::new_v4();
-    let mut test = BeuiTest::<ChildApp>::editing(block).with_top_bar(false);
+    let mut test = BeuiTest::<ChildRoot>::editing(block).with_top_bar(false);
     test.set_histories([(
         block,
         be_sdk_beui::BlockHistory {
@@ -150,10 +150,10 @@ thread_local! {
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
-struct StandaloneApp;
+struct StandaloneRoot;
 
 #[component]
-impl BeuiApp for StandaloneApp {
+impl BeuiApp for StandaloneRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         use beui::dock::styled::{DockBar, DockBarPlacement, DockEdge};
@@ -193,14 +193,14 @@ fn standalone(
     display: DisplaySettingsContent,
     docked: bool,
 ) -> (
-    BeuiTest<StandaloneApp>,
+    BeuiTest<StandaloneRoot>,
     Uuid,
     beui::dock::styled::DockingLayout<u64>,
 ) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_block_type(STANDALONE_TYPE);
-    let mut test = BeuiTest::<StandaloneApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<StandaloneRoot>::new(OwnedEditor::new(host, Uuid::new_v4()));
     if docked {
         test = test.docked();
     }

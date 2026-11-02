@@ -20,7 +20,7 @@ fn the_eraser_end_of_a_pen_deletes_what_it_touches() {
     let mut editor = editor(&[first.clone(), second.clone(), locked.clone()]);
     editor.click("infinite-canvas.dock.tool.Pen");
     editor.run();
-    let at = |editor: &BeuiTest<CanvasApp>, entity: &CanvasEntity| {
+    let at = |editor: &BeuiTest<CanvasRoot>, entity: &CanvasEntity| {
         editor
             .rect_of(&format!("infinite-canvas.entity.{}", entity.id))
             .center()

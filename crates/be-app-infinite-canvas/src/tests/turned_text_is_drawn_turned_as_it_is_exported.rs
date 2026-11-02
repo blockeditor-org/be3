@@ -4,7 +4,7 @@ use be_sdk_beui::beui::{Key, Modifiers, Rect, native::Shape};
 
 const TURN: f32 = 0.5;
 
-fn turned(editor: &BeuiTest<CanvasApp>, written: &str) -> (f32, Rect, Rect) {
+fn turned(editor: &BeuiTest<CanvasRoot>, written: &str) -> (f32, Rect, Rect) {
     let output = editor.drawn().expect("the canvas has drawn");
     let mut shapes = Vec::new();
     for layer in output.layers.iter() {

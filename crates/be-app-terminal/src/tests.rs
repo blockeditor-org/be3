@@ -11,7 +11,7 @@ use be_type_terminal::{
 };
 use uuid::Uuid;
 
-use crate::app::{TerminalApp, setup_command};
+use crate::root::{TerminalRoot, setup_command};
 
 mod a_selection_copies_a_wrapped_line_as_one_and_select_all_copies_unbuilt_history;
 mod keys_and_text_reach_the_host_as_input;
@@ -23,7 +23,7 @@ mod the_terminal_shows_history_and_a_wrapped_line_and_scrolls_back;
 const HOST: u64 = 41;
 
 struct Harness {
-    editor: BeuiTest<TerminalApp>,
+    editor: BeuiTest<TerminalRoot>,
     block: Uuid,
 }
 

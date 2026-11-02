@@ -5,7 +5,7 @@ fn switching_the_profile_changes_this_viewers_chrome_and_the_default() {
     let rectangle = card();
     let mut editor = editor(std::slice::from_ref(&rectangle)).with_top_bar(false);
     let profile =
-        |editor: &BeuiTest<CanvasApp>| editor.content::<CanvasContent>(None).root().profile;
+        |editor: &BeuiTest<CanvasRoot>| editor.content::<CanvasContent>(None).root().profile;
 
     assert_eq!(profile(&editor), CanvasProfile::Prototyping);
     assert!(!editor.shown("infinite-canvas.selection"));

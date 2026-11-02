@@ -10,14 +10,14 @@ fn tapping_selected_text_on_a_phone_edits_it() {
     let at = editor
         .rect_of(&format!("infinite-canvas.entity.{}", label.id))
         .center();
-    let tap = |editor: &mut BeuiTest<CanvasApp>| {
+    let tap = |editor: &mut BeuiTest<CanvasRoot>| {
         editor.fingers(TouchPhase::Start, &[(1, at)]);
         editor.run();
         editor.fingers(TouchPhase::End, &[(1, at)]);
         editor.run();
     };
 
-    let typed = |editor: &mut BeuiTest<CanvasApp>| {
+    let typed = |editor: &mut BeuiTest<CanvasRoot>| {
         editor.type_text("!");
         editor.run();
         entities(editor)[0].text.to_str_lossy().into_owned()

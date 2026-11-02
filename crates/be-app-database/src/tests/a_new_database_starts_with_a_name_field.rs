@@ -8,7 +8,7 @@ fn a_new_database_starts_with_a_name_field() {
     let host = EditorHost::default();
     let creation = Creation::new(host.clone());
 
-    let id = DatabaseApp::create_block(&creation).unwrap();
+    let id = DatabaseRoot::create_block(&creation).unwrap();
 
     let commands = host.take_graph_commands();
     let seeded_as = |block: Uuid| {

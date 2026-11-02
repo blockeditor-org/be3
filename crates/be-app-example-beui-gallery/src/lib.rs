@@ -1,7 +1,7 @@
-pub mod app;
+pub mod root;
 
 be_sdk_beui::beui_plugin!("../manifest.json", {
-    gallery => app::BeuiGalleryApp,
+    gallery => root::BeuiGalleryRoot,
 });
 
 #[cfg(test)]

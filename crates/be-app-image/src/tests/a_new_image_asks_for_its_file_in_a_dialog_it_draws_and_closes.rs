@@ -5,7 +5,7 @@ use super::*;
 
 #[test]
 fn a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes() {
-    let mut dialog = BeuiTest::<ImageApp>::creation(Creation::new(EditorHost::default()));
+    let mut dialog = BeuiTest::<ImageRoot>::creation(Creation::new(EditorHost::default()));
     dialog.set_size(vec2(360.0, 200.0));
     dialog.run();
     assert_eq!(

@@ -4,7 +4,7 @@ use super::*;
 fn a_programs_modal_dialog_points_at_its_tab_and_dims_its_window() {
     let (mut fixture, _) = editor();
     let drawing = |id: u64, title: &str, parent: Option<u64>| be_sdk_beui::HostWindow {
-        app_id: "com.github.maoschanz.drawing".to_owned(),
+        program_id: "com.github.maoschanz.drawing".to_owned(),
         name: "Drawing".to_owned(),
         ..window(id, title, parent)
     };

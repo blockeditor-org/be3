@@ -7,10 +7,10 @@ use beui::styled::*;
 const SLIDE: Uuid = Uuid::from_u128(1);
 const SLIDE_TYPE: Uuid = Uuid::from_u128(2);
 
-struct NestingApp;
+struct NestingRoot;
 
 #[component]
-impl crate::BeuiApp for NestingApp {
+impl crate::BeuiApp for NestingRoot {
     #[component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
@@ -34,7 +34,7 @@ impl crate::BeuiApp for NestingApp {
 
 #[test]
 fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
-    let mut session = session::<NestingApp>(Uuid::new_v4());
+    let mut session = session::<NestingRoot>(Uuid::new_v4());
     frame(&mut session, None, TopBar::Hidden);
 
     session.run(ViewId::MAIN, 0);

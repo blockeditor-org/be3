@@ -36,7 +36,7 @@ and the tray its items.
 ## The bars
 
 The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.dock`), declared in
-`DesktopBody` (`app/bar.rs`), each a `DockBarSurface` with a `DockBarGrip` first:
+`DesktopBody` (`root/bar.rs`), each a `DockBarSurface` with a `DockBarGrip` first:
 
 - Apps (`desktop.bar.apps`, `AppsBar`): the Apps button (The Apps panel, below).
 - Windows (`desktop.bar.windows`, `WindowsBar`): the window chips (Shown and hidden entries).
@@ -97,15 +97,15 @@ The Status bar holds the tray, the device tools (the on-screen keyboard, `deskto
 while the display settings' `keyboard_in_bar` is on, which does not take the focus from the
 field being typed in; rotate while `rotate_in_bar` is on and the host reports a screen; refresh
 while the display is e-paper), then
-one status button (`desktop.status`, `app/status.rs`) and the clock (`desktop.clock`,
-`app/clock.rs`). The status button's face is the Wi-Fi, volume and power icons that apply
+one status button (`desktop.status`, `root/status.rs`) and the clock (`desktop.clock`,
+`root/clock.rs`). The status button's face is the Wi-Fi, volume and power icons that apply
 (`desktop.status.{wifi,volume,power}`), and it opens Quick settings (`desktop.quick`): tiles
-for Wi-Fi (`desktop.quick.wifi`, which turns the panel to its network list, `app/wifi.rs`), the
+for Wi-Fi (`desktop.quick.wifi`, which turns the panel to its network list, `root/wifi.rs`), the
 on-screen keyboard, rotate where the display is reported and refresh on e-paper; the volume
-slider, mute and output (`app/volume.rs`); and the power row (`app/power.rs`), which asks before
+slider, mute and output (`root/volume.rs`); and the power row (`root/power.rs`), which asks before
 restarting, powering off or logging out. The clock carries the count of listed notifications
 (`desktop.clock.unread`) and opens the desktop's calendar beside the notification history
-(`app/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. block-app publishes each as soon as the
+(`root/notifications/history.rs`), stacked on a narrow screen; toasts make way while it is open. block-app publishes each as soon as the
 service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
 `windows`, `programs` and `power` (`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
@@ -145,12 +145,12 @@ own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog 
 the parent dialog's header), escaping its pane as a layer, in space and outside it alike. Its
 header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, the one way to name
 a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
-app id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
-then " — " and the window's title when it says more (not the name or app id, a trailing
+program id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
+then " — " and the window's title when it says more (not the name or program id, a trailing
 " - name" cut off). Both hosts first name a window after the program the desktop launched it from
-(`origin.program`). Otherwise the Linux host fills `name` from the desktop entry named by the window's app id
+(`origin.program`). Otherwise the Linux host fills `name` from the desktop entry named by the window's program id
 (`Environment::entry`), and the Windows host from the Start menu program whose AppUserModelID or
-shortcut target is the window's app id or command (guides/desktop/windows.md). A placeholder keeps
+shortcut target is the window's program id or command (guides/desktop/windows.md). A placeholder keeps
 the name (`KeptWindow::name`, `KeptWindow::window_name`), and the "not responding" banner says
 only the program's name. It is the size the program drew (`HostWindow::size`, followed as the
 program resizes itself) and can be dragged off by its header, which drops its beak. While it is
@@ -168,14 +168,14 @@ texture back, opaque), so paintings and `drive paint` show what programs drew.
 
 ## The Apps panel
 
-The Apps bar holds one icon-only Apps button (`desktop.apps`, `app/apps.rs`, labelled Apps for
+The Apps bar holds one icon-only Apps button (`desktop.apps`, `root/apps.rs`, labelled Apps for
 its tooltip and screen readers), and a tap of Super alone opens the same panel (the
 `desktop.apps.toggle` action, captured from programs too, registered while the host offers
 `ProgramsWatch`). The panel (`desktop.apps.panel`) is a popover of the button, and when no Apps
 button shows on the display it opens on (`Apps` keeps which displays have one), as while the Apps
 bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It holds, top to bottom:
 
-- while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`app/launcher.rs`):
+- while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`root/launcher.rs`):
   opening the panel asks the host to list them with icons at the display's scale, an empty query
   shows them as a grid of tiles (`desktop.apps.item.ID`) that the arrow keys walk, and typing
   narrows them to a list by name, keywords and comment, ending with a row that runs the query as
@@ -183,7 +183,7 @@ bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It 
   and closes the panel. The watch's `ProgramCatalog::listed` is false until the host has looked for
   the programs once, so the panel says "Loading programs…" until then and "No programs found." only
   when the host found none;
-- the sessions (`app/sessions.rs`): every block-app session the account's settings list, other
+- the sessions (`root/sessions.rs`): every block-app session the account's settings list, other
   than desktop sessions, each a row (`desktop.apps.sessions.UUID`, "Open" under one already in a
   window) that opens it in a floating window, or brings its window to the front if it is already
   open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
@@ -208,7 +208,7 @@ The shells draw only shown entries: be-sdk-shell's `Workspace` keeps the whole l
 (`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
 floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
 The desktop plugin's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
-`app/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
+`root/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
 order, then the block windows the shell opened itself (sessions and shown blocks), each with its
 icon (the window's own, else a display, block or window glyph) and its `window_name` (the program
 first, so a long title is what the ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). Along a horizontal bar the chips share the
@@ -271,7 +271,7 @@ beside its top or left edge moves the dock's own area. A dock window whose
 rect the dock changes itself (`DockingLayout::move_window`) asks the host for its new place with
 the protocol's `place` window request (beui's `WindowRequest::Place`, an `Over` its home view).
 The Windows bar on each display lists the windows mostly on that display, and a chip's menu
-offers "Move to display N" (`<chip>.display.<n>`, `app/windows.rs`), which keeps the window's size
+offers "Move to display N" (`<chip>.display.<n>`, `root/windows.rs`), which keeps the window's size
 and its relative place on the display, held inside it. `BeginMove` and `BeginResize`
 hand the press to the host: the window follows the pointer from where it was pressed (the
 press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees

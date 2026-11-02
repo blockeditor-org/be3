@@ -5,10 +5,10 @@ use super::*;
 
 const ALARM: Duration = Duration::from_secs(60);
 
-struct AlarmApp;
+struct AlarmRoot;
 
 #[component]
-impl BeuiApp for AlarmApp {
+impl BeuiApp for AlarmRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         view! {
@@ -39,7 +39,7 @@ fn Alarm() -> NodeId {
 
 #[test]
 fn a_plugin_timer_runs_on_the_tests_clock() {
-    let mut test: BeuiTest<AlarmApp> =
+    let mut test: BeuiTest<AlarmRoot> =
         BeuiTest::new(OwnedEditor::new(EditorHost::default(), Uuid::new_v4()));
     test.run();
     assert_eq!(test.label("alarm"), "waiting");

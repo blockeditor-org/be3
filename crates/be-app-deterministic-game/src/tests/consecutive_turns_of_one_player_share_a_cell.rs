@@ -1,5 +1,5 @@
-use crate::app::ui::moves::{Cell, rows};
-use crate::app::ui::{Table, Turn};
+use crate::root::ui::moves::{Cell, rows};
+use crate::root::ui::{Table, Turn};
 
 fn turn(description: &str, column: Option<u32>) -> Turn {
     Turn {

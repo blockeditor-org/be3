@@ -1,6 +1,6 @@
 use super::*;
 
-fn offers_close(test: &BeuiTest<ChildApp>) -> bool {
+fn offers_close(test: &BeuiTest<ChildRoot>) -> bool {
     test.menu_ids().iter().any(|id| id == "editor.close")
 }
 
