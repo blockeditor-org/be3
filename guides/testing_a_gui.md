@@ -385,17 +385,17 @@ directory of its own, with the editors it names (below); drives it with the comm
 the whole window, every app included; and fails unless the host exits cleanly when it closes,
 which close() checks, so a test that ends without calling it fails too.
 
-    let mut app = HostTest::start();
-    add_to_my_files(&mut app, "Canvas");
-    add_to_canvas(&mut app, "Checklist");
-    app.crop("#workspace.block");
-    app.record();
-    app.click("#checklist.draft");
-    app.type_text("buy milk");
-    app.click("#checklist.add");
-    app.wait("CheckBox \"buy milk\"");
-    app.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
-    app.close();
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Canvas");
+    add_to_canvas(&mut host, "Checklist");
+    host.crop("#workspace.block");
+    host.record();
+    host.click("#checklist.draft");
+    host.type_text("buy milk");
+    host.click("#checklist.add");
+    host.wait("CheckBox \"buy milk\"");
+    host.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
+    host.close();
 
 - Every step settles as `drive` does, and the clock is stopped as the host starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.

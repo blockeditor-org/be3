@@ -58,7 +58,7 @@ library in its closure, in dependency order, with exported globals `__be3_lib_<p
 whole closure. A library is staged beside the apps as `lib-<identity>.wasm` (and `.cwasm` where
 apps are precompiled; `buck/program/stage.sh`), every library in the closure of every staged module:
 each module's rule gives its closure as `WasmLibrariesInfo` (`buck/wasm/libraries.bzl`), which the
-`app` rule stages. Both hosts hash a library's `.wasm` before using it and refuse one whose SHA-256
+`program` rule stages. Both hosts hash a library's `.wasm` before using it and refuse one whose SHA-256
 is not the name it was found by. A `.cwasm` cannot be checked that way and is trusted as it is
 found.
 

@@ -59,7 +59,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   of its own. For each scene it prints the median and slowest frame (`Runner::frame`, which
   runs the compositor's drawing, and `present`), beui's layout and paint, and how many
   windows' outputs changed (`VERBOSE=1` prints every frame). `NO_GPU=1` leaves out the GPU
-  and so measures the app's own work. On lavapipe `present` is mostly the software
+  and so measures the program's own work. On lavapipe `present` is mostly the software
   rasterizer; judge `frame`.
   - `resize` floats the Docking tab into a window of its own, and drags a corner of the
     main panel and of that window for 60 frames each. In October 2026 a resize step's
@@ -73,7 +73,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
 - Both beui benches run their frames through the real `Runner`, with no drive layer (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
-  around the app's update; the open bench takes the renderer's `prepare` out of it.
+  around the program's update; the open bench takes the renderer's `prepare` out of it.
 - `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls (set
   pipeline, viewport and scissor, draw) through wasmtime and be-wasm-gpu-host into wgpu's
   noop device: about 130 ns a call on this machine in October 2026.

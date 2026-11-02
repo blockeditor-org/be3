@@ -12,9 +12,9 @@ that build on it. VISION.md says why each part exists.
 differs from the package's (`block-app` is built from `be-host`, `be` from
 `be-tool-cli`). The name's prefix says which family a crate belongs to:
 
-- `be-app-*`: the apps, each a manifest.json and an entry module, staged as
-  apps (`be-app-example-*` are the debug and example ones: they exercise the
-  platform and are not apps a person uses).
+- `be-app-*`: the apps, each a manifest.json describing its editors and block
+  types, and an entry module (`be-app-example-*` are the debug and example
+  ones: they exercise the platform and are not apps a person uses).
 - `be-type-*`: the block type module of the app with the same name
   (`be-type-checklist` for `be-app-checklist`), and `be-type-bundle`, every
   first-party type module by app id.

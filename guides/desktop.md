@@ -13,7 +13,7 @@ programs open as windows inside it (guides/desktop/linux.md); on Windows it show
 monitors and windows, launches Start Menu programs and offers power (guides/desktop/windows.md);
 on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
 windows, notification server, tray, media, power, lock screen or programs to launch.
-The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
+The host test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
 and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
 
 Everything the desktop gets from the host comes through `be3:desktop`, a WIT package
