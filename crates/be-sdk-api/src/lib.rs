@@ -107,7 +107,7 @@ pub use desktop::{
     },
     power::{PowerAction, PowerAvailability},
     programs::{HostProgram, ProgramAction, ProgramCatalog},
-    tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
+    tray::{HostTrayItem, TrayClick, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
     windows::{HostWindow, WindowAction, WindowKind, WindowMenu, WindowOrigin},

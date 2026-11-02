@@ -1,16 +1,15 @@
-use be_sdk_beui::beui::icons::Glyph;
-use be_sdk_beui::beui::icons::{
-    ICON_BLOCKS, ICON_CIRCLE, ICON_CIRCLE_DOT, ICON_SQUARE, ICON_SQUARE_CHECK,
-};
+use be_sdk_beui::beui::icons::ICON_BLOCKS;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Image, NodeId, ScrollGesture};
+use be_sdk_beui::beui::native::last_pointer;
+use be_sdk_beui::beui::{Image, NodeId, Pos2, ScrollGesture, window_origin};
 use be_sdk_beui::desktop;
 use beui::{Align, Direction};
 
 use super::bar::bar_bounds;
 use be_sdk_beui::{
-    Editor, HostImage, HostTrayItem, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
+    Editor, HostImage, HostTrayItem, TrayClick, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle,
+    TrayWatch,
 };
 
 const TRAY_SPACING: Space = Space::Xs2;
@@ -23,14 +22,22 @@ fn picture(icon: &HostImage) -> Option<Image> {
     fits.then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-fn toggle_glyph(toggle: TrayToggle) -> Option<Glyph> {
-    Some(match toggle {
-        TrayToggle::None => return None,
-        TrayToggle::Check(true) => ICON_SQUARE_CHECK,
-        TrayToggle::Check(false) => ICON_SQUARE,
-        TrayToggle::Radio(true) => ICON_CIRCLE_DOT,
-        TrayToggle::Radio(false) => ICON_CIRCLE,
-    })
+fn checked(toggle: TrayToggle) -> Option<bool> {
+    match toggle {
+        TrayToggle::None => None,
+        TrayToggle::Check(on) | TrayToggle::Radio(on) => Some(on),
+    }
+}
+
+fn pointed(item: &str) -> TrayClick {
+    let at = last_pointer()
+        .map(|sample| window_origin(sample.window).unwrap_or(Pos2::ZERO) + sample.pos.to_vec2())
+        .unwrap_or(Pos2::ZERO);
+    TrayClick {
+        item: item.to_owned(),
+        x: at.x.round() as i32,
+        y: at.y.round() as i32,
+    }
 }
 
 fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
@@ -98,12 +105,13 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
         let (editor, id) = (editor, id.clone());
-        move |request: fn(String) -> TrayRequest| {
-            let request = request(id.clone());
+        move |request: fn(TrayClick) -> TrayRequest| {
+            let request = request(pointed(&id));
             editor.act(move || desktop::tray::request(request).detach())
         }
     };
-    let (click, secondary, middle) = (request.clone(), request.clone(), request);
+    let (click, secondary, middle, own_menu) =
+        (request.clone(), request.clone(), request.clone(), request);
     let (scrolled_id, opened_id, chosen_id) = (id.clone(), id.clone(), id.clone());
     let chosen = Chosen::new(move |entry: i32| {
         let request = TrayRequest::MenuChosen {
@@ -114,17 +122,32 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     });
     let prefix = format!("desktop.tray.{id}");
     let open = create_signal(false);
+    let activating = create_signal(false);
     let mut was_open = false;
     create_effect(move || {
         let now = open.get();
         if now != was_open {
             was_open = now;
             untrack(|| {
+                activating.set(false);
                 let request = match now {
-                    true => TrayRequest::MenuOpened(opened_id.clone()),
+                    true => TrayRequest::MenuOpened(pointed(&opened_id)),
                     false => TrayRequest::MenuClosed(opened_id.clone()),
                 };
                 editor.act(move || desktop::tray::request(request).detach())
+            });
+        }
+    });
+    let mut was_menu = item_is_menu.get_untracked();
+    create_effect(move || {
+        let menu = item_is_menu.get();
+        let became = menu && !was_menu;
+        was_menu = menu;
+        if became && activating.get_untracked() {
+            activating.set(false);
+            untrack(|| match has_menu.get() {
+                true => open.set(true),
+                false => own_menu(TrayRequest::MenuOpened),
             });
         }
     });
@@ -145,7 +168,10 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             }}
             on_click={move || match item_is_menu.get_untracked() {
                 true => click(TrayRequest::MenuOpened),
-                false => click(TrayRequest::Activate),
+                false => {
+                    activating.set(true);
+                    click(TrayRequest::Activate)
+                }
             }}
             on_secondary_click={move || secondary(TrayRequest::MenuOpened)}
             on_middle_click={move || middle(TrayRequest::SecondaryActivate)}
@@ -175,13 +201,13 @@ fn TrayEntries(
             entries
                 .iter()
                 .filter(|entry| !entry.item.separator)
-                .map(|entry| entry.item.id)
-                .collect::<Vec<i32>>()
+                .map(|entry| (entry.item.id, matches!(entry.item.toggle, TrayToggle::Radio(_))))
+                .collect::<Vec<(i32, bool)>>()
         })
     });
     view! {
-        <ForEach keys>|id: i32|
-            <TrayEntry entries={entries} id chosen={chosen} prefix={prefix.clone()} />
+        <ForEach keys>|(id, radio): (i32, bool)|
+            <TrayEntry entries={entries} id radio chosen={chosen} prefix={prefix.clone()} />
         </ForEach>
     }
 }
@@ -190,6 +216,7 @@ fn TrayEntries(
 fn TrayEntry(
     entries: Memo<Vec<TrayMenuEntry>>,
     id: i32,
+    radio: bool,
     chosen: Chosen,
     prefix: String,
 ) -> MenuItem {
@@ -216,12 +243,12 @@ fn TrayEntry(
         })
     });
     let label = create_memo(move || entry.with(|entry| entry.item.label.clone()));
-    let glyph = create_memo(move || entry.with(|entry| toggle_glyph(entry.item.toggle)));
+    let checked = create_memo(move || entry.with(|entry| checked(entry.item.toggle)));
     let disabled = create_memo(move || entry.with(|entry| !entry.item.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
     view! {
-        <MenuItem label glyph disabled separated row_test_id on_click={move || chosen.call(id)}>
+        <MenuItem label checked radio disabled separated row_test_id on_click={move || chosen.call(id)}>
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }

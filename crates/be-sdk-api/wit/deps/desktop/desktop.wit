@@ -490,8 +490,18 @@ interface tray {
         tooltip: string,
         status: tray-status,
         icon: option<host-image>,
+        /// The item only shows its menu: it says so (`ItemIsMenu`), or it
+        /// has no `Activate` to take a click.
         item-is-menu: bool,
         menu: list<tray-menu-item>,
+    }
+
+    /// A click on an item, `x` and `y` where it was in desktop points: the
+    /// compositor's global coordinates, which X11 programs see as the screen's.
+    record tray-click {
+        item: string,
+        x: s32,
+        y: s32,
     }
 
     record tray-scroll {
@@ -506,10 +516,10 @@ interface tray {
     }
 
     variant tray-request {
-        activate(string),
-        secondary-activate(string),
+        activate(tray-click),
+        secondary-activate(tray-click),
         scroll(tray-scroll),
-        menu-opened(string),
+        menu-opened(tray-click),
         menu-closed(string),
         menu-chosen(tray-menu-chosen),
     }

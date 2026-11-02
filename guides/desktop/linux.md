@@ -257,7 +257,15 @@ item that is not `Passive` as a `MenuButton` with a picture face in the Status b
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
-own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event.
+own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event. Check and
+radio entries are the menu's `checked` items, which say whether they are on to accessibility.
+`Activate`, `SecondaryActivate` and `MenuOpened` carry a `TrayClick`, where the pointer was in
+desktop points, which are the compositor's global coordinates and so the screen's to X11
+programs; the host passes it as the methods' `x` and `y`. Many items, every libappindicator
+one among them (Discord, Steam, Nextcloud), have no `Activate`. As Plasma and waybar do, the host
+publishes such an item as `item_is_menu`: when its introspection lists no `Activate` when it is
+first read, or when an `Activate` fails with `UnknownMethod`. The shell opens the menu when an
+item it has just asked to activate becomes `item_is_menu`, so the first click shows it too.
 
 The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAEMON`). To try it
 under `:dev`, start a bus as for notifications and run a tray program against it with the
