@@ -316,6 +316,7 @@ fn fitted(decoded: image::RgbaImage, pixels: u32) -> Image {
     Image::from_rgba(width, height, decoded.into_raw())
 }
 
+#[cfg(test)]
 pub(super) fn bundled_fonts() -> fontdb::Database {
     let mut fonts = fontdb::Database::new();
     with_bundled(&mut fonts);
