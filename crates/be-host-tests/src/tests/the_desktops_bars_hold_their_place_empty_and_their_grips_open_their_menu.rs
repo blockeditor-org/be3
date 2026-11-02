@@ -36,7 +36,9 @@ fn the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu() {
         chosen(&mut host, "grip.dock.bar.beside.ends"),
         "a bar docked at an end checks the submenu that holds its place"
     );
-    host.snapshot("the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu_at_an_end");
+    host.snapshot(
+        "the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu_at_an_end",
+    );
     host.key("Escape");
     host.gone("#grip.dock.bar.beside.ends");
 

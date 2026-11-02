@@ -1188,12 +1188,17 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         Some(MenuNode::Submenu(submenu)) => {
             let items = submenu.items.clone();
             let choices = radio_choices(&items);
-            let radio = !choices.is_empty();
-            let checked = create_memo(move || {
-                radio.then(|| choices.iter().any(|chosen| chosen.get()))
-            });
+            let radio = submenu.glyph.is_none() && !choices.is_empty();
+            let checked =
+                create_memo(move || radio.then(|| choices.iter().any(|chosen| chosen.get())));
             view! {
-                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} checked radio separated>
+                <MenuItem
+                    label={submenu.label.clone()}
+                    glyph={submenu.glyph}
+                    checked
+                    radio
+                    separated
+                >
                     <MenuNodes nodes={items} test_prefix />
                 </MenuItem>
             }

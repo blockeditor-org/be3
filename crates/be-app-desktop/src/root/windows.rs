@@ -343,7 +343,11 @@ pub(crate) fn WindowChips(
                 </Scroll>
             </Show>
             <Show condition={empty}>
-                <Frame width={Length::Size(CHIP_WIDTH)} align=Align::Center @test_id={"desktop.windows.none"}>
+                <Frame
+                    width={Length::Size(CHIP_WIDTH)}
+                    align=Align::Center
+                    @test_id={"desktop.windows.none"}
+                >
                     <Text size=TextSize::Sm color=TextColor::Muted>"No windows"</Text>
                 </Frame>
             </Show>
