@@ -4,7 +4,9 @@ use super::*;
 fn a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    fixture.test.set_watched::<ProgramsWatch>(&a_shelf_of_programs());
+    fixture
+        .test
+        .set_watched::<ProgramsWatch>(&a_shelf_of_programs());
     fixture.test.click("desktop.apps");
     fixture.settle();
     let calc = "desktop.apps.item.libreoffice-calc.desktop";
@@ -32,5 +34,7 @@ fn a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover() {
         "a name cut short shows whole in a tooltip"
     );
     assert_eq!(fixture.test.label("tooltip"), "LibreOffice Calc");
-    fixture.test.snapshot("a_cut_short_program_name_in_a_tooltip");
+    fixture
+        .test
+        .snapshot("a_cut_short_program_name_in_a_tooltip");
 }
