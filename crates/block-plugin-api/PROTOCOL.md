@@ -1009,7 +1009,10 @@ A host frame runs in rounds. The host asks every plugin it is drawing at
 once and waits on all of them together; when a commit's child placements
 change another plugin's view, the host lays out again and sends that plugin
 its screens, a configure and a draw request within the same frame, and waits
-for it too. The frame stops waiting once no plugin owes it anything or its
+for it too. Dock messages in a commit work the same way: the updates they
+give another plugin (a bar a child moved, a tab it declared) reach that plugin
+in a later round of the same frame, so if it has yet to draw in the frame it
+draws with them, and if it already has, it gets them before its next draw. The frame stops waiting once no plugin owes it anything or its
 deadline passes: the display's next present less the time the host itself
 needs to composite and submit, so the wait never runs past what the screen
 can show in that refresh. A child that answers in time is shown at its new size in the

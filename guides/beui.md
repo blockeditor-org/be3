@@ -5633,7 +5633,10 @@ hears `on_hover_change` when it joins or leaves the path whether the pointer
 moved or the layout did. `on_pointed_change` is the stricter state, as a platform's
 menus and lists have it: a catcher is pointed once the pointer moves while it is on
 the path, so one that only scrolled or was laid out under a resting pointer is
-hovered but not pointed until the pointer moves. A list whose highlight follows the
+hovered but not pointed until the pointer moves. A forwarding catcher that a
+layout moves under a resting mouse is handed a pointer move at the mouse's
+position in the same frame (`forward::reforward`), so what it shows hovered
+follows its new place rather than where it was when the mouse last moved. A list whose highlight follows the
 pointer (`SearchList`, and menus, whose `MenuRowHandle` carries `pointed`)
 follows `ButtonHandle::pointed`, so keys walking it under a resting pointer keep
 the highlight; other hover visuals keep `hovered`. The cursor is the innermost armed catcher's, else the

@@ -1163,26 +1163,28 @@ impl Runtime {
             changed |= self.instances.set_children(placements);
         }
         self.instances.laid(laid.serial, &screens);
-        self.report_docked();
+        changed |= self.report_docked();
         changed
     }
 
-    fn report_docked(&self) {
+    fn report_docked(&self) -> bool {
         let mut framed: stable_hash::HashMap<_, _> =
             self.instances.frame_children().into_iter().collect();
+        let mut changed = false;
         for (placer, children) in self.instances.docked_children() {
             let frame = framed.remove(&placer).flatten();
-            match self.instances.on_screen(placer) {
+            changed |= match self.instances.on_screen(placer) {
                 true => super::docks::placed(placer, &children, frame),
                 false => super::docks::offscreen(placer),
-            }
+            };
         }
         for (placer, frame) in framed {
-            match self.instances.on_screen(placer) {
+            changed |= match self.instances.on_screen(placer) {
                 true => super::docks::placed(placer, &[], frame),
                 false => super::docks::offscreen(placer),
-            }
+            };
         }
+        changed
     }
 
     fn apply(&mut self, answers: Vec<Answer>) {
@@ -1327,7 +1329,7 @@ impl Runtime {
             children,
         });
         changed |= self.instances.refresh_anchoring_views();
-        super::docks::heard(&self.plugin.identity.id, docks);
+        changed |= super::docks::heard(&self.plugin.identity.id, docks);
         changed
     }
 

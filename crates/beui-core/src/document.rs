@@ -2738,16 +2738,7 @@ impl Document {
         if std::mem::take(&mut self.measure_pending) {
             self.publish_measurements();
         }
-        let mut passes = self.lay_out_until_settled(ctx, rect);
-        if passes > 0 {
-            let rects = Rc::clone(&self.rects);
-            let rehovered = crate::current::run_in(self, |document| {
-                crate::interact::pointer::rehover(document, ctx, &rects)
-            });
-            if rehovered && self.needs_layout() {
-                passes += self.lay_out_until_settled(ctx, rect);
-            }
-        }
+        let passes = self.lay_out_until_settled(ctx, rect);
         if self.measure_pending {
             ctx.request_repaint();
         }
@@ -2758,6 +2749,7 @@ impl Document {
         let mut passes = 0;
         if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
         }
         let mut watermark = self.arena.relaid_len();
@@ -2782,11 +2774,20 @@ impl Document {
                 return passes + 1;
             }
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
             watermark = self.arena.relaid_len();
             self.report_laid_out();
             self.run_laid_out();
         }
+    }
+
+    fn point_again(&mut self, ctx: &Context) {
+        let rects = Rc::clone(&self.rects);
+        crate::current::run_in(self, |document| {
+            crate::interact::pointer::rehover(document, ctx, &rects);
+            crate::interact::forward::reforward(document, ctx, &rects);
+        });
     }
 
     fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
