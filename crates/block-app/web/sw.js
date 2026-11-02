@@ -1,9 +1,9 @@
-// The service worker that opens the app without a network.
+// The service worker that opens the host without a network.
 //
 // Every request of the page's own origin, apart from the server's (/api and
 // /auth), goes to the network first, so an online page always gets what is
 // deployed, and each answer is kept. When the network fails, the kept answer
-// is served instead: the page, the module, the shims and every plugin the app
+// is served instead: the page, the module, the shims and every plugin the host
 // loaded before. A kept answer carries its headers, so the page is still
 // cross-origin isolated when it comes from here.
 //

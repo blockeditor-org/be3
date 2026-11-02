@@ -179,7 +179,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::AudioStatusWatchNext { .. }
         | ShellCall::WebViewLoad { .. }
         | ShellCall::WebViewReload { .. }
-        | ShellCall::WebViewFocusApp { .. }
+        | ShellCall::WebViewFocusHost { .. }
         | ShellCall::WebViewNextEvents { .. } => None,
     }
 }

@@ -198,7 +198,7 @@ fn AppsPanel(
     };
     let open_menu = move || {
         close.call(());
-        editor.show_app_menu(menu);
+        editor.show_host_menu(menu);
     };
     view! {
         <List spacing=SECTION_SPACING @test_id={"desktop.apps.panel"}>

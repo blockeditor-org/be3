@@ -4,19 +4,19 @@ const PANE: &str = "Pane \"Checklist\"";
 
 #[test]
 fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Canvas");
-    add_to_canvas(&mut app, "Checklist");
-    app.wait(PANE);
-    app.wait("#checklist.add");
-    let pane = app.place(PANE);
-    let button = app.place("#checklist.add");
-    app.crop("#infinite-canvas.canvas");
-    app.record();
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Canvas");
+    add_to_canvas(&mut host, "Checklist");
+    host.wait(PANE);
+    host.wait("#checklist.add");
+    let pane = host.place(PANE);
+    let button = host.place("#checklist.add");
+    host.crop("#infinite-canvas.canvas");
+    host.record();
 
-    app.click("#infinite-canvas.pill.zoom-in");
-    let zoomed = app.place(PANE);
-    let zoomed_button = app.place("#checklist.add");
+    host.click("#infinite-canvas.pill.zoom-in");
+    let zoomed = host.place(PANE);
+    let zoomed_button = host.place("#checklist.add");
     let zoom = zoomed.2 / pane.2;
     assert!(
         zoom > 1.1,
@@ -26,21 +26,21 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
         (zoomed_button.2 / button.2 - zoom).abs() < 0.05,
         "its content grows with it rather than laying out again, from {button:?} to {zoomed_button:?}"
     );
-    app.click("#infinite-canvas.pill.zoom-out");
+    host.click("#infinite-canvas.pill.zoom-out");
 
-    app.run(&["move", "#checklist.draft"]);
-    app.record();
+    host.run(&["move", "#checklist.draft"]);
+    host.record();
 
-    app.click("#checklist.draft");
-    app.type_text("buy milk");
-    app.click("#checklist.add");
-    app.wait("CheckBox \"buy milk\"");
-    app.wait("#infinite-canvas.dock");
+    host.click("#checklist.draft");
+    host.type_text("buy milk");
+    host.click("#checklist.add");
+    host.wait("CheckBox \"buy milk\"");
+    host.wait("#infinite-canvas.dock");
     assert_eq!(
-        app.place(PANE),
+        host.place(PANE),
         pane,
         "the checklist stays where it is on the canvas"
     );
-    app.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
-    app.close();
+    host.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
+    host.close();
 }

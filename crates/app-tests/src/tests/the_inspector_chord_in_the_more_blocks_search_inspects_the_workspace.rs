@@ -2,24 +2,24 @@ use super::*;
 
 #[test]
 fn the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace() {
-    let mut app = AppTest::start();
-    app.click("Label value=\"My files\"");
-    app.click("#file-tree.new");
-    app.click("#picker.more");
-    app.wait("TextInput \"Search\" focused");
-    app.run(&["keydown", "ctrl"]);
-    app.run(&["keydown", "shift"]);
-    app.run(&["keydown", "i"]);
-    app.run(&["keyup", "i"]);
-    app.run(&["keyup", "shift"]);
-    app.run(&["keyup", "ctrl"]);
+    let mut host = HostTest::start();
+    host.click("Label value=\"My files\"");
+    host.click("#file-tree.new");
+    host.click("#picker.more");
+    host.wait("TextInput \"Search\" focused");
+    host.run(&["keydown", "ctrl"]);
+    host.run(&["keydown", "shift"]);
+    host.run(&["keydown", "i"]);
+    host.run(&["keyup", "i"]);
+    host.run(&["keyup", "shift"]);
+    host.run(&["keyup", "ctrl"]);
     assert!(
-        !app.shown("#inspector.dock"),
-        "the chord opens the inspector of the plugin that has the keyboard, not the app's"
+        !host.shown("#inspector.dock"),
+        "the chord opens the inspector of the plugin that has the keyboard, not the host's"
     );
-    app.wait("TextInput \"Search\" focused");
-    app.key("ctrl+shift+i");
-    app.key("Escape");
-    app.gone("#picker.search");
-    app.close();
+    host.wait("TextInput \"Search\" focused");
+    host.key("ctrl+shift+i");
+    host.key("Escape");
+    host.gone("#picker.search");
+    host.close();
 }

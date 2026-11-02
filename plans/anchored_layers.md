@@ -21,7 +21,7 @@ One pull request, built by parallel agents (guides/parallel_agents.md). Done: th
 
 A layer is painted output of the region that opened it, allowed outside the region's rectangle. The host draws it from the frame commit, like today's `floating` rects, so nothing is mounted and there is no round trip.
 
-- **Layer space.** Each screen request carries `to_host` (region coordinates to the app window's logical coordinates, at the view the frame is laid out against) and `bounds` (where layers may go, in host coordinates): the app window for a trusted plugin, the plugin's own box for a confined one. A child's bounds never exceed its parent's.
+- **Layer space.** Each screen request carries `to_host` (region coordinates to the host window's logical coordinates, at the view the frame is laid out against) and `bounds` (where layers may go, in host coordinates): the host window for a trusted plugin, the plugin's own box for a confined one. A child's bounds never exceed its parent's.
 - **Layers in the commit.** `frame-commit.layers`: id; parent (the region or another layer, for submenus); placement (anchored to a rect in the parent's coordinates, or attached to an edge of the bounds for sheets); the rect the plugin chose in host coordinates; surface; painted and floating rects; scrims; flags `dismiss-on-outside-press`, `keyboard`, `blocks-owner`; child placements (so a layer can embed another editor).
 - **Plugin places and draws.** The plugin lays the layer out against `bounds` (flip, slide, resize as beui's `Floating` already does), allocates its surface itself from a pool (natively the same synchronous `configure_surface` it already uses), paints it and commits it with that frame. The host only clips to `bounds`.
 - **Host composites and routes.** Layers are drawn after every region, in the order they opened, clipped to `bounds`. A region move moves its layers rigidly (`to_host` now versus the one laid out against); a camera pan does nothing to layers (the plugin repositions or closes them on its next layout). Layers are hit-tested first; input reaches the owner tagged with the layer id. A press outside a dismissible chain closes it (the owner hears `layer-dismissed`, which beui maps to `Dismiss::OutsidePress`) and still reaches what it landed on. `keyboard` gives the owner the keyboard as `wants_keyboard` does. `blocks-owner` keeps presses on the owning frame from its content while the layer is open.
@@ -35,7 +35,7 @@ A layer can hold a child editor; its content appears one frame after the layer, 
 
 - **Picker.** `Editor::pick_block(filter, anchor, cb)` keeps its API. The asking editor opens an anchored layer, draws the card and beak, and places `SubregionContent::Picker` inside it (drawn by workspace-ui's picker view). The layer takes the picker's last reported size (256x320 the first time). On touch it is a sheet attached to the bottom edge of the bounds.
 - **Rename.** The asking editor opens a layer holding a new `SubregionContent::Rename(block)`, drawn by workspace-ui's rename view.
-- **App menu.** A layer holding `SubregionContent::Host(AppMenu)`, drawn by block-app, placed by the asking editor.
+- **Host menu.** A layer holding `SubregionContent::Host(HostPanel::Menu)`, drawn by block-app, placed by the asking editor.
 
 ### Dialogs (workstream H)
 
@@ -44,15 +44,15 @@ One `Dialog`, presented by kind and size, with an optional anchor:
 1. Small per-object forms opened from a control (text settings, logic-grid storage, calendar event form, file-tree Inspect, database filter, canvas Export, Rename): a card with a beak on desktop, a bottom sheet on phones. They escape the frame, have no scrim, close on an outside press, set `blocks-owner`, trap focus and give it back.
 2. Confirmations (Alerts): centred over the frame that asked, with a scrim, inside its region. Never a sheet.
 3. Large forms and embedded editors (block creation, artifact settings, Share, Members, Contacts, Agents, conflict compare): attached to the owning frame, not a point; a full-height sheet on phones (escaping, attached to an edge). The anchor only drives the opening transition.
-4. App-level modals with no origin (lock, reauth, onboarding, add device, sync errors): host-drawn, centred over the app. Unchanged.
+4. Host-level modals with no origin (lock, reauth, onboarding, add device, sync errors): host-drawn, centred over the host window. Unchanged.
 5. Program dialogs (Wayland/X): windows centred on their parent. Unchanged.
 6. Command palette: top-centred overlay. Unchanged.
 
-Anchor fallback: the control that opened it; if that was a menu row that has closed, the thing the menu was opened on (a context menu's target, a dropdown's button); if the command came from a menu another layer drew (the frame menu on the tab bar) or from a shortcut or the palette, the editor's tab, whose rectangle in host coordinates the root dock fills in on menu picks (`dock-update.pick`, the child-menu pick) and on request; for a child with no tab, the rect its parent placed it at; if none of those is visible (a fullscreen tab), a zero-height rect at the top centre of the owning frame. A small dialog is always one placement, anchored to a rect; it draws its beak only when the anchor is something the user can see (control, row, tab), not the synthesized top-centre one, so `HangFrom` and `DialogAnchor::Frame` go. Large dialogs stay centred on their frame and app-level modals over the window. On phones, sheets. `DockDialog`'s presentation policy moves into this shared `Dialog` (workstream I, after B4 and D2).
+Anchor fallback: the control that opened it; if that was a menu row that has closed, the thing the menu was opened on (a context menu's target, a dropdown's button); if the command came from a menu another layer drew (the frame menu on the tab bar) or from a shortcut or the palette, the editor's tab, whose rectangle in host coordinates the root dock fills in on menu picks (`dock-update.pick`, the child-menu pick) and on request; for a child with no tab, the rect its parent placed it at; if none of those is visible (a fullscreen tab), a zero-height rect at the top centre of the owning frame. A small dialog is always one placement, anchored to a rect; it draws its beak only when the anchor is something the user can see (control, row, tab), not the synthesized top-centre one, so `HangFrom` and `DialogAnchor::Frame` go. Large dialogs stay centred on their frame and host-level modals over the window. On phones, sheets. `DockDialog`'s presentation policy moves into this shared `Dialog` (workstream I, after B4 and D2).
 
 ### Web (workstream G)
 
-Each plugin worker gets one overlay canvas covering the app viewport, above the app canvas with pointer events off, created and transferred on its first layer and kept. The worker draws its layers into it. The page sets a `clip-path` to the plugin's bounds and raises the canvas of the plugin that opened the newest layer.
+Each plugin worker gets one overlay canvas covering the host's viewport, above the host's canvas with pointer events off, created and transferred on its first layer and kept. The worker draws its layers into it. The page sets a `clip-path` to the plugin's bounds and raises the canvas of the plugin that opened the newest layer.
 
 ### Dock bars (workstream D)
 
@@ -76,7 +76,7 @@ Today an editor shows things through region kinds that each carry their own feat
 - **Every view has exactly one placer**, and placement is separate from the view:
   - *parent*: a child placement names the child's view (its main view, its preview view);
   - *dock*: the root dock places a view as a tab body or bar body (dock tabs and bars name view ids);
-  - *host*: a window (in-app panel or OS window) or a display;
+  - *host*: a window (a panel in the host or an OS window) or a display;
   - *anchored*: the view places itself against an anchor in its parent view (today's layers).
 - **Docking is only a question of who places the views.** A non-docked editor's main view is placed by its parent. A docked editor declares its views as tabs and bars and the root places them. The canvas joining the workspace moves its stage view and bar view to the root's placement; no feature is lost because features follow the view.
 - **Popping out** changes a view's placer to a host window, the same move for a tab, a bar or a whole editor.
@@ -97,7 +97,7 @@ V runs after B4 and before C, F, I and D4, which build on views. D3's phase 2 (g
 Every workstream landed (A, B0-B4, C, D1-D4, E1-E2, F, G, H, I, K, P, R, T, V0-V4, CL1-CL3, BG and the final pass). The design above is what the code does, with these differences:
 
 - **Names.** "Layer" became the *anchored view* and "layer space" the *anchor space* (`screen-request.anchor-space`): an anchored view is a screen the plugin numbers itself (`ScreenId::opened`) and reports like any other, so `frame-commit.layers`, `layer-id`, `child-placement.in-layer` and `timed-input.layer` went with V4. beui keeps its own words: an overlay that escapes its window is an escaped layer, its window's space a layer space; beui-platform-plugin (`escaped.rs`) maps each escaped layer to one anchored view. The host and compositor say view too (`PlacedView`, `PluginView`, `HostAnchored`, `AnchoredViews`), and block-editor-plugin's `Regions`/`Region` are `ViewHandler`/`ShownView`.
-- **Sheets.** On touch or a phone every embedded popup (picker, rename, app menu) is a bare view the asker attaches to the bottom edge; the host tells a child placed in a view attached to an edge that it is a sheet (`open-picker.sheet`, `open-rename.sheet`, `PanelReport::sheet`) and the child draws the sheet.
+- **Sheets.** On touch or a phone every embedded popup (picker, rename, host menu) is a bare view the asker attaches to the bottom edge; the host tells a child placed in a view attached to an edge that it is a sheet (`open-picker.sheet`, `open-rename.sheet`, `PanelReport::sheet`) and the child draws the sheet.
 - **Popping out** a dock tab keeps the root as its placer (V4): the root draws the dock window's chrome in a window view it creates with no frame of delay and places the tab's body in it. No "change of placer" request exists.
 - **Stacked or tiled** is still decided from the dock's measured width, inside the layout loop (one frame late on native, within the frame on HTML); panes and splitters are arranged in the same layout (K1).
 - **The presentation** keeps its own chrome when a slide's editor takes its frame over; the slide's editor joins through the stage tab.

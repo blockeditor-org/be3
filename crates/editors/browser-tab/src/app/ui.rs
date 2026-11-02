@@ -35,9 +35,9 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let typed = move |value: String| session.set_address(value);
     let submit = move |value: String| session.navigate(&value);
     let navigate = move || session.navigate(&address.get_untracked());
-    let focus_app = move |focused: bool| {
+    let focus_host = move |focused: bool| {
         if focused {
-            session.focus_app();
+            session.focus_host();
         }
     };
 
@@ -77,7 +77,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                     placeholder="Search or enter address"
                     @test_id={"browser.address"}
                     on_submit={submit}
-                    on_focus_change={focus_app}
+                    on_focus_change={focus_host}
                 />
                 <Button
                     label="Go"

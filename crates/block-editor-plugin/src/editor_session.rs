@@ -644,9 +644,9 @@ impl EditorSession {
                     shown.reload().detach();
                 }
             }
-            WebViewCommand::FocusApp => {
+            WebViewCommand::FocusHost => {
                 if let Some(shown) = self.web_views.get(&web_view) {
-                    shown.focus_app().detach();
+                    shown.focus_host().detach();
                 }
             }
             WebViewCommand::Close => {

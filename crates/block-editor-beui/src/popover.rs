@@ -215,7 +215,7 @@ const MENU_SIZE: Vec2 = Vec2::new(256.0, 320.0);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Asked {
     Rename(uuid::Uuid),
-    AppMenu,
+    HostMenu,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -261,11 +261,11 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
             RENAME_SIZE,
             "rename.child",
         ),
-        Asked::AppMenu => (
-            SubregionContent::Host(block_plugin_api::HostPanel::AppMenu),
+        Asked::HostMenu => (
+            SubregionContent::Host(block_plugin_api::HostPanel::Menu),
             Face::Bare,
             MENU_SIZE,
-            "app-menu.child",
+            "host-menu.child",
         ),
     };
     let size = create_signal(first);

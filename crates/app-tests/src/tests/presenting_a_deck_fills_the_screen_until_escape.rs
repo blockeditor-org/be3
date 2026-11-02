@@ -1,43 +1,43 @@
 use super::*;
 
-fn fullscreen(app: &mut AppTest) -> bool {
-    app.run(&["state"]).contains("fullscreen yes")
+fn fullscreen(host: &mut HostTest) -> bool {
+    host.run(&["state"]).contains("fullscreen yes")
 }
 
 #[test]
 fn presenting_a_deck_fills_the_screen_until_escape() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Presentation");
-    app.click("#presentation.add");
-    app.wait("#picker.slides");
-    app.click("MenuItem \"Title page\"");
-    app.gone("#picker.slides");
-    app.wait("Slide 1 of 1");
-    app.click("#presentation.present");
-    app.wait("#presentation.playback");
-    app.pause(500);
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Presentation");
+    host.click("#presentation.add");
+    host.wait("#picker.slides");
+    host.click("MenuItem \"Title page\"");
+    host.gone("#picker.slides");
+    host.wait("Slide 1 of 1");
+    host.click("#presentation.present");
+    host.wait("#presentation.playback");
+    host.pause(500);
     assert!(
-        app.shown("#presentation.playback"),
+        host.shown("#presentation.playback"),
         "the deck is still presented after it starts"
     );
     assert!(
-        fullscreen(&mut app),
+        fullscreen(&mut host),
         "presenting makes the window fullscreen"
     );
-    app.key("Escape");
-    app.gone("#presentation.playback");
-    assert!(!fullscreen(&mut app), "stopping leaves fullscreen");
-    app.wait("#presentation.filmstrip");
-    app.wait("#infinite-canvas.dock");
-    app.run(&["settle"]);
+    host.key("Escape");
+    host.gone("#presentation.playback");
+    assert!(!fullscreen(&mut host), "stopping leaves fullscreen");
+    host.wait("#presentation.filmstrip");
+    host.wait("#infinite-canvas.dock");
+    host.run(&["settle"]);
     assert_eq!(
-        app.count("#presentation.toolbar "),
+        host.count("#presentation.toolbar "),
         1,
         "the deck's dock is hosted again, toolbar and all"
     );
     assert!(
-        app.shown("Slide 1 of 1"),
+        host.shown("Slide 1 of 1"),
         "and its toolbar shows the deck again"
     );
-    app.close();
+    host.close();
 }

@@ -8,13 +8,13 @@ use beui::{NodeId, TextAlign};
 use block_accounts_ui::{AccountDetails, Column, ErrorText};
 use uuid::Uuid;
 
-use super::{AccountForm, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send};
+use super::{AccountForm, HostUiStore, ErrorAction, OrganizationsState, UiCommand, send};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use beui::{Align, Direction, ItemSize};
 use block_app_base::platform;
 
 #[component]
-pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
+pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
     let message = create_memo(move || view.error.get().message);
     let pending = create_memo(move || view.error.get().pending);
     let asking = create_memo(move || pending.get().is_some());
@@ -101,7 +101,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
+pub(super) fn AccountsScreen(view: HostUiStore) -> NodeId {
     let accounts = create_memo(move || view.accounts.get());
     let error = create_memo(move || match view.add_account.get().open {
         true => None,
@@ -121,7 +121,7 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 pub(super) fn AddAccountDialog(
-    view: AppViewStore,
+    view: HostUiStore,
     #[prop(default = platform::default_account_server())] default_server: Option<
         build_id::DefaultServer,
     >,
@@ -449,7 +449,7 @@ pub(super) fn AddAccountDialog(
 }
 
 #[component]
-pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
+pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
     let organizations = create_memo(move || view.organizations.get());
     let busy = create_memo(move || organizations.get().busy);
     let keys = create_memo(move || {
@@ -550,7 +550,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
+fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     let joining = create_memo(move || view.organizations.get().joining);
     let asking = create_memo(move || joining.get().is_some());
     let pasting = create_memo(move || !asking.get());
@@ -574,7 +574,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
         }
     };
     view! {
-        <List spacing=Space::Md @test_id={"app.join"}>
+        <List spacing=Space::Md @test_id={"host.join"}>
             <Show condition={asking}>
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -592,7 +592,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             label="Join"
                             variant=ButtonVariant::Primary
                             disabled={busy}
-                            @test_id={"app.join.confirm"}
+                            @test_id={"host.join.confirm"}
                             on_click={|| send(UiCommand::JoinInvited)}
                         />
                     </List>
@@ -607,14 +607,14 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             value={link}
                             label="Invite link"
                             placeholder="https://…/#invite/…"
-                            @test_id={"app.join.link"}
+                            @test_id={"host.join.link"}
                             on_submit={move |_value: String| open()}
                         />
                         <Button
                             label="Open"
                             variant=ButtonVariant::Secondary
                             disabled={cannot}
-                            @test_id={"app.join.open"}
+                            @test_id={"host.join.open"}
                             on_click={open}
                         />
                     </List>
@@ -625,7 +625,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
 }
 
 #[component]
-pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
+pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
     let status = view.status;
     let session_keys = create_memo(move || {
         status
@@ -828,7 +828,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 }
 
 #[component]
-pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
+pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
     let reauth = view.reauth;
     let open = create_memo(move || reauth.get().is_some() && !view.add_account.get().open);
     let busy = create_memo(move || reauth.get().is_some_and(|reauth| reauth.busy));

@@ -20,14 +20,14 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
     let mut document = build(|| {
         crate::compositor::install();
         crate::display::create_handle();
-        let view = AppViewStore::new(AppView {
+        let view = HostUiStore::new(HostUi {
             lock: LockView {
                 available: true,
                 locked: true,
                 user: "Ada Lovelace".to_owned(),
                 ..LockView::default()
             },
-            ..AppView::default()
+            ..HostUi::default()
         });
         view! {
             <beui::styled::Root title="Block">

@@ -1,7 +1,7 @@
 package be3:debug@0.1.0;
 
 /// An extension beside the core plugin protocol, not part of it: what the
-/// app's own debugging tools hear from a plugin and tell it. A host without
+/// host's own debugging tools hear from a plugin and tell it. A host without
 /// those tools answers no watch here and ignores every call, and a plugin may
 /// leave all of it out; nothing in the core protocol depends on it. Every call
 /// is made under the editor resource it is for.

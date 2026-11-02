@@ -1,4 +1,4 @@
-use super::organization::AppMenuPanel;
+use super::organization::HostMenuPanel;
 use beui::NodeId;
 use beui::Overflow;
 use beui::reactive::*;
@@ -56,9 +56,9 @@ pub(crate) struct DebugPanels(pub(crate) Memo<DebugView>);
 
 #[component]
 pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
-    if panel == HostPanel::AppMenu {
+    if panel == HostPanel::Menu {
         return view! {
-            <AppMenuPanel />
+            <HostMenuPanel />
         };
     }
     crate::debug::panel_shown(panel);
@@ -94,7 +94,7 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                 <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
                             }
                         }
-                        HostPanel::AppMenu => view! {
+                        HostPanel::Menu => view! {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                         },
                     }

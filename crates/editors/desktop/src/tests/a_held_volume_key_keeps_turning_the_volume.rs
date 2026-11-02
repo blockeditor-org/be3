@@ -7,7 +7,7 @@ fn a_held_volume_key_keeps_turning_the_volume() {
     assert!(
         fixture
             .test
-            .hold_app_key(Modifiers::NONE, Key::VolumeDown, 3)
+            .hold_host_key(Modifiers::NONE, Key::VolumeDown, 3)
     );
     fixture.settle();
     assert_eq!(

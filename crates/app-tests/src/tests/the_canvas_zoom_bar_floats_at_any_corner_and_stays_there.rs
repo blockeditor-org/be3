@@ -6,49 +6,49 @@ const MODE_BAR: &str = "GenericContainer #infinite-canvas.mode at";
 
 #[test]
 fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Canvas");
-    app.wait("#infinite-canvas.zoom-pill");
-    app.run(&["settle"]);
-    let pane = app.place("Pane \"Canvas\"");
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Canvas");
+    host.wait("#infinite-canvas.zoom-pill");
+    host.run(&["settle"]);
+    let pane = host.place("Pane \"Canvas\"");
     let right = pane.0 + pane.2;
     let bottom = pane.1 + pane.3;
-    let zoom = app.place(ZOOM_BAR);
+    let zoom = host.place(ZOOM_BAR);
     assert!(
         right - (zoom.0 + zoom.2) < 16.0 && zoom.1 - pane.1 < 16.0,
         "the zoom bar starts at the top right, at {zoom:?} in {pane:?}"
     );
 
     drag_bar(
-        &mut app,
+        &mut host,
         "#infinite-canvas.zoom.grip",
         (pane.0 + 90.0, bottom - 80.0),
     );
-    let zoom = app.place(ZOOM_BAR);
+    let zoom = host.place(ZOOM_BAR);
     assert!(
         zoom.0 - pane.0 < 16.0 && bottom - (zoom.1 + zoom.3) < 16.0 && zoom.2 > zoom.3,
         "dropped near the bottom left, it floats over the bottom at its left, at {zoom:?}"
     );
-    let tools = app.place(TOOL_BAR);
+    let tools = host.place(TOOL_BAR);
     assert!(
         tools.0 > zoom.0 + zoom.2 || tools.1 + tools.3 < zoom.1,
         "the tool bar floating over the middle of the bottom stays clear of it, at {tools:?}"
     );
-    app.snapshot("the_canvas_zoom_bar_dragged_to_the_bottom_left_corner");
+    host.snapshot("the_canvas_zoom_bar_dragged_to_the_bottom_left_corner");
 
     drag_bar(
-        &mut app,
+        &mut host,
         "#infinite-canvas.dock.grip",
         (pane.0 + 150.0, pane.1 + 60.0),
     );
     drag_bar(
-        &mut app,
+        &mut host,
         "#infinite-canvas.zoom.grip",
         (right - 150.0, pane.1 + 60.0),
     );
-    let tools = app.place(TOOL_BAR);
-    let zoom = app.place(ZOOM_BAR);
-    let mode = app.place(MODE_BAR);
+    let tools = host.place(TOOL_BAR);
+    let zoom = host.place(ZOOM_BAR);
+    let mode = host.place(MODE_BAR);
     assert!(
         tools.0 - pane.0 < 16.0
             && mode.1 - pane.1 < 16.0
@@ -61,17 +61,17 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
         right - (zoom.0 + zoom.2) < 16.0 && (zoom.1 - mode.1).abs() < 1.0,
         "and the zoom bar beside it on the same edge, at its right, at {zoom:?}"
     );
-    app.snapshot("both_canvas_bars_float_over_the_top_at_either_end");
+    host.snapshot("both_canvas_bars_float_over_the_top_at_either_end");
 
-    app.click("Button \"Close tab\"");
-    app.gone("#infinite-canvas.dock");
-    app.click("TreeItem \"Canvas\"");
-    app.wait("#infinite-canvas.zoom-pill");
-    app.run(&["settle"]);
+    host.click("Button \"Close tab\"");
+    host.gone("#infinite-canvas.dock");
+    host.click("TreeItem \"Canvas\"");
+    host.wait("#infinite-canvas.zoom-pill");
+    host.run(&["settle"]);
     assert_eq!(
-        (app.place(TOOL_BAR), app.place(ZOOM_BAR)),
+        (host.place(TOOL_BAR), host.place(ZOOM_BAR)),
         (tools, zoom),
         "the canvas opened again keeps both bars where they were"
     );
-    app.close();
+    host.close();
 }

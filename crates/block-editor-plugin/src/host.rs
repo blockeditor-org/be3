@@ -1744,8 +1744,8 @@ impl EditorHost {
         self.command_web_view(web_view, WebViewCommand::Close);
     }
 
-    pub fn focus_app(&self, web_view: WebViewId) {
-        self.command_web_view(web_view, WebViewCommand::FocusApp);
+    pub fn focus_host(&self, web_view: WebViewId) {
+        self.command_web_view(web_view, WebViewCommand::FocusHost);
     }
 
     fn command_web_view(&self, web_view: WebViewId, command: WebViewCommand) {

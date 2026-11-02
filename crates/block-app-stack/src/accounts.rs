@@ -357,9 +357,9 @@ pub async fn pair(
         .map_err(|_| wrong())
 }
 
-pub fn authorize(saved: &[block_app_base::app_state::SavedAccount]) {
+pub fn authorize(saved: &[block_app_base::host_state::SavedAccount]) {
     for account in saved {
-        if let block_app_base::app_state::ServerLocation::Remote(url) = &account.server {
+        if let block_app_base::host_state::ServerLocation::Remote(url) = &account.server {
             be_client::authorize(url, account.authorization.clone());
         }
     }

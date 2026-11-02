@@ -1,13 +1,13 @@
 # The block stack
 
-Every block in the app lives in the `be-*` crates: `be-store`, `be-commit`,
+Every block in the host lives in the `be-*` crates: `be-store`, `be-commit`,
 `be-session`, `be-graph`, `be-protocol`, `be-model`, `be-block`, `be-vcs`,
-`be-client` and `be-server`. The app is a peer of its own (`crates/block-app-stack/src/lib.rs` and
+`be-client` and `be-server`. The host is a peer of its own (`crates/block-app-stack/src/lib.rs` and
 `be/`), the server is `be-server`, and every editor keeps its content here.
 
 To add a block type, read `guides/adding_a_block.md` first; it is the short
 version of "Adding a content type" below. This guide is for work on the stack
-itself and on how the app hosts it.
+itself and on how the host holds it.
 
 ## Why the stack looks like this
 
@@ -165,7 +165,7 @@ and sweep. Do not reintroduce one.
 Every content type therefore lists the blocks it is the parent of among its
 references, and whatever makes a child under a parent also adds it to the
 parent's content. Until that edit is saved the child shows in the trash for
-the parent's other viewers; the app hides the window on its own side by
+the parent's other viewers; the host hides the window on its own side by
 treating the block as being placed (`Graph::placing`) until the parent lists it.
 
 ### be-server
@@ -186,7 +186,7 @@ time, so notifications wait for the next post.
   missing table or index and a missing column that has a default, and refuses
   anything else (a column gone, retyped or unknown), so a schema only grows.
   Values that may grow (a role, an access level, a parent kind) have no `CHECK`,
-  since SQLite rebuilds a table to change one. The app's own `app.sqlite3`
+  since SQLite rebuilds a table to change one. The host's own `app.sqlite3`
   is checked the same way, and recreated (signing the device out) when it
   does not match.
 - A connection starts with a greeting outside the protocol: each side sends
@@ -232,7 +232,7 @@ time, so notifications wait for the next post.
   `be_protocol::client::<interface>` functions take `&connection`. It opens
   the connection-wide streams on the first `subscribe()` and the per-block ones
   as `watch` and `join_session` are called, and pumps every stream into one
-  `broadcast` of `be_client::Event` in the connection's worker, which the app's
+  `broadcast` of `be_client::Event` in the connection's worker, which the host's
   loop and `be` follow; a receiver that falls behind it re-lists what it wants
   and joins its sessions again, as after a reconnect.
 - A publish is a compare-and-swap on the head. A publish against a stale head
@@ -277,7 +277,7 @@ time, so notifications wait for the next post.
   (`BlockSummary::no_access`: no author, parent, head, version, references,
   metadata, key or scope), and are served none of its keys or objects. Ancestors
   are not shown: a block someone can see whose parent they cannot is an entry
-  point, which the app lists under Shared with me. `SetAccess` grants, and only
+  point, which the host lists under Shared with me. `SetAccess` grants, and only
   someone who manages a block may grant on it or list its access; a grant above `None` must also
   name a member of the organization who is a contact of the granter (see
   Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
@@ -801,10 +801,10 @@ through one in-process `block_type_guest::Module` (every be-block type is
 registered, and `hold::<C>` registers a type it does not know): one replica per
 block, owned by this device, a store of commits that takes every publish, the test's
 frame clock as the replica's time, and editors attached as endpoints on their first
-frame through a `replica` resource, the way the app's host does. `BeuiTest` plays
+frame through a `replica` resource, the way the host does. `BeuiTest` plays
 the host's side of the `be3:plugin/blocks` interface over a be-ops connection to the
 headless plugin's executor (`block-ui-test/src/link.rs`), so a test runs the same
-calls and watches the app does. `edit` and `apply_elsewhere` are edits
+calls and watches the host does. `edit` and `apply_elsewhere` are edits
 submitted by another participant, `set_peers` and `receive_from_peer` are presence and
 channel messages from one; `store()` hands a test fixture the same `ContentStore` to
 read or write between runs.
@@ -900,9 +900,9 @@ verification messages are printed in the server log. Deployments also configure
 `--auth-origin` with the public HTTPS origin (guides/hosting.md).
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
-`be-server-data`. The desktop app does not need a server of its own for a local
+`be-server-data`. The native host does not need a server of its own for a local
 account: it embeds be-server (`crates/block-app-stack/src/embedded_server.rs`) on an
-ephemeral port with a data directory under the app's, and signs in to it like
+ephemeral port with a data directory under the host's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
 //crates/block-app:web` starts be-server beside it, closed to new
@@ -912,29 +912,29 @@ Tests and examples start their own server on an ephemeral port with
 `be_server::Running`, which serves a fresh temporary directory (or one it is
 given) on a task of the current runtime, registers accounts, and stops and
 removes the directory when dropped; see `Harness` in
-`crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
+`crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. block-app-stack's
 own tests do the same through the embedded server, register an account and
-create an organization, and then start the app's peer against it the way the app
+create an organization, and then start the host's peer against it the way the host
 does: `Harness` in `crates/block-app-stack/src/tests.rs`. The crates above the
 stack (the plugin host, block-app) test against it through `block-app-testing`'s
 `Harness`, which turns on block-app-stack's `testing` feature and serves the
 first-party types in process (`block_app_stack::testing::serve_in_process`), as
 the stack's own tests do under `cfg(test)`.
 
-## How the app hosts content
+## How the host holds content
 
-The app is the peer, not the plugin. A plugin never sees a key, the
+The host is the peer, not the plugin. A plugin never sees a key, the
 connection or the server; it is handed content and graph answers by the host,
 and hands back operations and graph commands.
 
 ### The peer and its registry
 
-The app's peer names no content type. Every block type runs in a type module
+The host's peer names no content type. Every block type runs in a type module
 (guides/type_modules.md): a plugin's own, which its manifest's `block_types` name
-and the app runs one instance of per plugin, staged beside the plugin as
+and the host runs one instance of per plugin, staged beside the plugin as
 `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
 sessions); and `host_types::registrations()`, the settings types, the
-repository and the checkout, which the app reads itself and runs in process
+repository and the checkout, which the host reads itself and runs in process
 (`block_app_stack::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
 `block_app_stack::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
@@ -943,14 +943,14 @@ refuses a plugin that declares a type someone else already has or edits one
 nobody declares. `block_app_stack::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `block-app-stack/src/types.rs`, which
-lists the app's module sources) knows every type a manifest declares from the start
+lists the host's module sources) knows every type a manifest declares from the start
 (`block_app_stack::is_known`), and a plugin's module runs only once a block of its types
 needs it (guides/type_modules.md, "Hosts"); its `start` then adds what `block_app_stack::kind_of`
 answers (frozen, schema fingerprint, blank content and its description), which is `None`
 until then, so the worker asks `Replicas::kind`, which starts the module and awaits it. Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
 which the worker awaits without blocking (`Replicas::merge`, `describe`). A block
-whose content type no module has has no content in the app.
+whose content type no module has has no content in the host.
 
 ### Blocks saved by another build
 
@@ -965,15 +965,15 @@ with no stamp is not stale. A stale block's frame shows `StaleNotice`
 (`surfaces::StaleBlock`, with the notice in `surfaces/notices.rs`) instead of its editor: Reset publishes the type's
 default content (`block_app_stack::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`block_app_stack::try_anyway`). A block
-the app holds itself (`block_app_stack::hold`: settings, the shell's session) is reset by
-the worker without asking, with a notice, since the app needs it to work: it
+the host holds itself (`block_app_stack::hold`: settings, the shell's session) is reset by
+the worker without asking, with a notice, since the host needs it to work: it
 publishes the type's blank content and opens the replica again. The
-app deletes `plugin-cache/` whenever its build id changes; it keeps
+host deletes `plugin-cache/` whenever its build id changes; it keeps
 `be-objects/` (objects are content-addressed and frozen) and the refs database.
 
 `crates/block-app-stack/src/worker.rs` is the peer's loop and
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
-`block-app-stack/src/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
+`block-app-stack/src/replicas.rs` is block-app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, constructs the `replica` with the head and calls `head-moved` for
 a later one), answers its calls with the real primitives (`read`, `publish` through
@@ -990,7 +990,7 @@ attached and the messages relayed since its last seal replayed. `block-app-stack
 and `block-app-stack/src/web.rs` runs it in a web worker of its own with the same `FileStore`,
 whose directory is in the origin private file system (guides/running/web.md).
 
-The app holds one connection per signed-in account and server, in
+The host holds one connection per signed-in account and server, in
 `crates/block-app-stack/src/link.rs`, and keeps it until it closes. Sign-in hands its
 connection over (`link::adopt`); the account requests in `accounts.rs` and the
 worker's `Peer` borrow it (`link::signed_in`), which reconnects and
@@ -1018,14 +1018,14 @@ While the connection is down, reads fall back to the cache: `summary`, the
 listings and `read_contents` answer from it on `ClientError::Disconnected`, and
 `open` reads the local head first while it has unpublished commits.
 
-The app keeps one refs database per device, `be-refs.sqlite3` beside
+The host keeps one refs database per device, `be-refs.sqlite3` beside
 `be-objects/` in the data directory (`block_app_stack::refs_in`, `/block` on the web). The worker builds its `Peer` once per workspace: with
 `Peer::cached` when the database already holds a session for that server,
 account and workspace, so the graph, listings and open blocks come up with no
 network, and otherwise with `Peer::signed_in` on the first connection. Every
 later connection is handed to the same peer with `attach`. The workspace list is
 cached there too (`RefsDb::set_workspaces` after each load); when the list
-request fails the app shows the cached one and loads it again once the worker
+request fails the host shows the cached one and loads it again once the worker
 connects or the window gains focus.
 
 Every save is a `be_client::Write` (encoded bytes or an already written
@@ -1072,15 +1072,15 @@ unsent area, and a refs record that no longer decodes is skipped on load.
 
 ### The graph mirror
 
-The app keeps a mirror of the part of the server's graph something in the app
+The host keeps a mirror of the part of the server's graph something in the host
 is looking at, in `block-app-stack/src/graph.rs`: a `Node` per block with its content type,
 author, parent, access, references, unsealed `BlockMetadata` and whether no key
 it holds opens it (`locked`). A block the account may only know exists has no
 author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list
 it; it is reached only through what references it (`ReadBlock` answers it with
-that much), and is never `locked`. The app never lists the whole organization.
+that much), and is never `locked`. The host never lists the whole organization.
 `Query` (`Roots`, `Detached`, `Shared`, `Children`, `References`, `Backrefs`,
-`Parents`, `Block`, and the host's own `Subtree`) is how everything in the app
+`Parents`, `Block`, and the host's own `Subtree`) is how everything in the host
 asks the mirror a question, and `block_app_stack::graph_revision` says when to ask again.
 Whoever asks first says what it wants with `block_app_stack::want(owner, queries)`: each
 plugin instance its `blocks-watch` queries, its own block's `Parents` and the
@@ -1176,7 +1176,7 @@ the next build that knows them.
 commit of the current content with the new metadata, which a live session then
 catches up with like any other publish from outside it; a block with no content
 yet takes it through `SetMetadata`, which the server refuses once the block has
-a head. In the app, `block_app_stack::define` (and `block_app_stack::set_name`, the `NAME` key) applies
+a head. In the host, `block_app_stack::define` (and `block_app_stack::set_name`, the `NAME` key) applies
 the change to the mirror at once and sends it. `block_app_stack::describe_implicitly` keeps
 the derived metadata of an open block current in the mirror as its content
 changes (`Graph::derive`), until the save that publishes it.
@@ -1227,7 +1227,7 @@ it watches the block (a `replica` for it) and hands back the same
 host keeps a content link per block per instance beside the editor's own, opens
 a block's replica only when an instance first sends it a frame, attaches it read-only unless
 the account may edit the block, and closes the replica when no instance and
-nothing in the app holds it any more. A revision preview and a block still
+nothing in the host holds it any more. A revision preview and a block still
 uploading from an import are answered with a `Snapshot` the host makes from the
 bytes it has, with no session state, since no replica holds them. An editor
 that follows a block chosen by its content rather than a fixed one uses
@@ -1450,7 +1450,7 @@ host-services' `export-block`, answered like `save-file`: the worker lists the t
 a level at a time (starting from the view when asked for a database inside
 one), all of a level's `ListChildren` together, and fills in each block's
 bytes, from its open session or else its head, so it works for content types
-the app does not know.
+the host does not know.
 `Peer::read_contents` reads the heads, which `be download` uses too: one
 `ReadContents` request per 256 blocks answers each block's summary with its head
 commit and chunks (those that fit in half a frame, and none for a head the
@@ -1499,14 +1499,14 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's replica shows (its `content`), or its head
 when it is not open, into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor:
+The host can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the login session's
 seat through `beui_platform_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings to the app and the seat. `DisplaySettings` is
+keyboard, and the display settings to the host and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
 which `sync_ui_settings` takes from the display settings last applied (the theme,
-motion and canvas touch are the app's layer of beui's preferences, so an unset one follows
+motion and canvas touch are the host's layer of beui's preferences, so an unset one follows
 the system's, guides/beui.md; canvas touch, which a canvas's dock turns off, is kept on
 this device only; the scale is beui's zoom factor, multiplied into the screen's own pixels
 per point); a
@@ -1520,11 +1520,11 @@ libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
-(guides/adding_a_plugin_editor.md says how host values reach a plugin). The seat, the stored settings and those host values share one set of types from `ui-preferences` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the app
-keeps a copy of the last settings of each kind it applied in `app_state` and
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). The seat, the stored settings and those host values share one set of types from `ui-preferences` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the host
+keeps a copy of the last settings of each kind it applied in `host_state` and
 applies that at startup, the theme and scale with it, even before anyone signs
 in; the block stays the source of truth. A kind of setting
-the app applies itself implements `local_settings::LocalSettings` and is kept by
+the host applies itself implements `local_settings::LocalSettings` and is kept by
 a `SettingsSync`; its `apply` answers whether the settings may be saved now.
 Display settings may not until someone keeps them: a change of mode that moves what a
 connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
@@ -1537,7 +1537,7 @@ starts a new round and a full countdown, and an answer counts only for the
 round it was given in. Keep saves, storing a kept default as the monitor's mode;
 Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,
 put back the earlier modes, or the preferred mode for an untried one. The modes each
-monitor showed once answered are this device's own memory (`app_state`'s
+monitor showed once answered are this device's own memory (`host_state`'s
 `tried_display_modes`), not a setting. The guard answers with modes per screen, which
 `display::keep` and `display::revert` write by the layer rule below (a fallback from a mode
 another device chose goes to this device's profile, so it leaves the others alone), each as
@@ -1547,7 +1547,7 @@ them to their layers and layers the result again. It writes
 those edits into the block too, holding them until its content is loaded and reading
 the block with them on top until a revision holds them.
 `block_app_stack::hold` opens a
-block for the app and keeps it open when the last editor showing it closes,
+block for the host and keeps it open when the last editor showing it closes,
 because `block_app_stack::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the organization changes.
 
@@ -1789,11 +1789,11 @@ starting a new one keeps them. It is a view block (below) of a shell editor:
 workspace-ui (`WORKSPACE_EDITOR`), or the desktop plugin (`DESKTOP_EDITOR`) for
 a client run as the desktop with `block-app --desktop`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
-client uses for that shell, so the desktop and the app each keep their own while
+client uses for that shell, so the desktop and the workspace shell each keep their own while
 sharing the device's settings profile. The host opens the shell on that session,
 creating one named after the device when the client has none, and reopens the
 shell when it changes. block-app's sessions screen (the organization list's
-dropdown, or Sessions and profiles in the app menu) picks the device's settings
+dropdown, or Sessions and profiles in the host's menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
 layout and recents in the session's state; every tab, and the file tree, is a
 view block child of the session that the layout references, naming the editor
@@ -1826,7 +1826,7 @@ Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;
 workspace-ui lays them out as Files beside a pane of tabs, and the desktop plugin
 floats every block in a window of its own over an empty main pane, with a bar
-along the bottom for the app menu, the sessions to open and the time.
+along the bottom for the host's menu, the sessions to open and the time.
 
 The shell's layout is the `layout` view state of its session (`saved::SavedLayout`,
 postcard). One that does not decode is never replaced silently: `Workspace` builds
@@ -1834,7 +1834,7 @@ nothing from it, saves nothing (`unreadable_layout()` holds the report), and
 `WorkspaceDialogs` shows an alert (`workspace.layout`) with Copy report, Exit and
 Reset layout. Reset starts a fresh layout and saves it over the old bytes. Exit
 (`Workspace::exit`) sends `close-editor` for the shell's own block: block-app
-closes the app for the session it shows itself (logging out in a login
+closes for the session it shows itself (logging out in a login
 session), and for a session shown in a window of another shell routes
 `shell-dialog::close` to that shell, which closes the tab. Either way the saved
 bytes stay for a build that can read them.
@@ -1931,7 +1931,7 @@ they keep their order. The wait
 before each attempt doubles from 0.5 s to at most 30 s with each failure in a
 row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection
-succeeds. `block_app_stack::retry_now()` cuts the wait short: the app calls it whenever its
+succeeds. `block_app_stack::retry_now()` cuts the wait short: the host calls it whenever its
 window gains focus, and it is the hook for network-change and foreground
 events. `block_app_stack::stop` never waits on the server: it closes the connection
 (`Connection::close`, through `Shared.connection`), so whatever the worker was
@@ -1954,12 +1954,12 @@ zero; what waits in the outbox is kept and sent later. A type module's error
 
 ### Reaching the server
 
-The app talks to be-server directly. `crates/block-app-stack/src/accounts.rs` is the
+The host talks to be-server directly. `crates/block-app-stack/src/accounts.rs` is the
 account client: it connects to `{server}/api/be` (be-server accepts the
 websocket on any path, so the suffix only matters behind a proxy that routes on
 it), registers, logs in and out, lists and creates organizations, and invites and
 joins with invite links. What comes back is an account id and a token, and the
-app's peer connects with `Credentials::Token` for the organization it opens.
+host's peer connects with `Credentials::Token` for the organization it opens.
 
 ### Keys
 
@@ -2038,7 +2038,7 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   keys: the rotations on blocks it may edit, scope keys (and the escrow key)
   not yet sealed to someone who should have them (`unsealed`), and scope keys
   not yet wrapped under the escrow key (`unescrowed`). `Peer::tend` does all of
-  it; the app's worker calls it on connect, on `ContactsChanged`, on
+  it; the host's worker calls it on connect, on `ContactsChanged`, on
   `KeyWorkChanged` (sent to a block's audience when a revocation or move
   records a rotation) and after its own changes. `Peer::rotate` walks the block's
   subtree and sends one `Rotate`: a new epoch of every scope key in it, each
@@ -2089,13 +2089,13 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   the newest it verified (`PinEscrow`: sealed for itself, so every device of
   the account has it; `OwnKind::Escrow` rows are resealed with a new phrase
   like contacts). A newer key it cannot verify is not used: it keeps wrapping
-  under the last verified one, and the app menu shows the warning
+  under the last verified one, and the host's menu shows the warning
   (`KeyBook::escrow_warning`); with nothing pinned it escrows nothing.
 - **Identity.** Each account has a twelve-word recovery phrase, shown once and
   checked by typing three of its words. The phrase derives an X25519 key pair;
   the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
   and a `Peer` sets it from its secret when the account has none. A device keeps
-  the secret itself (`AppStateStore::identity`), and an account whose device
+  the secret itself (`HostStateStore::identity`), and an account whose device
   lacks it, or holds one the server's public key does not match, opens on the
   unlock screen (`crates/block-app-stack/src/keys.rs`, `ui/keys.rs`): the phrase, or
   a pairing code. A new phrase (the organization menu's New recovery phrase)
@@ -2123,7 +2123,7 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   invitee's card back, exactly like a contact link (below), and pins the
   escrow key. The dialog shows
   the link once. The invitee pastes it on the Organizations screen, or opens it
-  in the web app, which takes it from the address bar on load and replaces it
+  in the host's web build, which takes it from the address bar on load and replaces it
   with `#`. The server never sees the part of the link after `#`.
 - **Adding a device.** The new device shows an eight-character code. The user
   types it on a device of the same account that has any organization open, and
@@ -2135,7 +2135,7 @@ account-level cryptography, `be_store::Keyring` the content keys, and
 
 ### Contacts
 
-Nobody reaches a stranger from inside the app: every sharing relationship
+Nobody reaches a stranger from inside the host: every sharing relationship
 starts with a link one person passes to another outside it. A contact is what
 that exchange leaves behind, and a device seals a key only to a contact's
 public key it verified this way, never to one the server hands it.
@@ -2158,7 +2158,7 @@ public key it verified this way, never to one the server hands it.
   server records both `contacts` rows (the maker's empty), marks the link used
   and sends `ContactsChanged` to both accounts. The maker's device then lists
   its links (`ListContactLinks`), opens the accepter's card with the code,
-  writes its row (`PutContact`) and deletes the link (`finish_links`; the app's
+  writes its row (`PutContact`) and deletes the link (`finish_links`; the host's
   worker does it on connect and on `ContactsChanged`). Organization invites
   finish the same way: accepting one leaves a used link behind for the inviter.
 - **A pending grant.** A link may carry a block, an access level and that
@@ -2181,9 +2181,9 @@ public key it verified this way, never to one the server hands it.
   too. `RemoveContact` deletes both rows and, in every organization they share,
   revokes each one's grants on blocks the other may edit, which records their
   rotations.
-- **In the app** the Contacts dialog (app menu) lists contacts, removes them,
+- **In the host** the Contacts dialog (the host's menu) lists contacts, removes them,
   makes a link shown once with a copy button, and opens a pasted one; the web
-  app takes `#contact/` from the address bar like `#invite/`. The worker keeps
+  build takes `#contact/` from the address bar like `#invite/`. The worker keeps
   `Shared::contacts` (each with its verified key, or none until the exchange
   finishes) and seals a share only to those keys. The share dialog lists
   contacts and current grantees, lists them again when the `Contacts` host
@@ -2332,7 +2332,7 @@ regenerates this way.
   from content outside an editor and no search over it. Server-side search is
   impossible under end-to-end encryption, so it has to become client-side over
   the local cache, or a client-built encrypted index.
-- Deleted blocks are never collected by the app. be-server's
+- Deleted blocks are never collected by the host. be-server's
   `CollectDetached` (`Peer::collect_detached`) removes every deleted block the
   caller may edit (`BlockGraph::detached`: each deleted root's subtree), with
   its objects, but nothing calls it. When something does, it will remove a

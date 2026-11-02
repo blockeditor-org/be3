@@ -45,7 +45,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
         assert!(
             EDITORS.get().is_none_or(|editors| !editors.0.is_alive()),
             "an editor left to the thread's teardown is dropped after the plugin host it closes \
-             through, which aborts the app when it exits",
+             through, which aborts the host when it exits",
         );
     })
     .join()

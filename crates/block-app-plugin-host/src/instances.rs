@@ -3000,7 +3000,7 @@ impl Instances {
                     EditorCall::WebViewEvent {
                         web_view,
                         event: WebViewEvent::Failed(
-                            "This app can't show web pages yet.".to_owned(),
+                            "block-app can't show web pages yet.".to_owned(),
                         ),
                     },
                 ));
@@ -3483,7 +3483,7 @@ impl Instances {
             ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
             ShellCall::WebViewLoad { reply, .. }
             | ShellCall::WebViewReload { reply, .. }
-            | ShellCall::WebViewFocusApp { reply, .. } => {
+            | ShellCall::WebViewFocusHost { reply, .. } => {
                 ack(reply);
                 return false;
             }

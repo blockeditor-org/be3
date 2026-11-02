@@ -1,7 +1,7 @@
 use be_block::InputSettings;
 
 use crate::local_settings::LocalSettings;
-use block_app_base::app_state::{AppStateError, AppStateStore};
+use block_app_base::host_state::{HostStateError, HostStateStore};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -17,11 +17,11 @@ pub(crate) fn start(_setup: &beui::native::Setup) {}
 fn apply(_settings: &InputSettings) {}
 
 impl LocalSettings for InputSettings {
-    fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
+    fn load(store: &HostStateStore) -> Result<Option<Vec<u8>>, HostStateError> {
         store.input_settings()
     }
 
-    fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError> {
+    fn save(store: &HostStateStore, content: &[u8]) -> Result<(), HostStateError> {
         store.set_input_settings(content)
     }
 

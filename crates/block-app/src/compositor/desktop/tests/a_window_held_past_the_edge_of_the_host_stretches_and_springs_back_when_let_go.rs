@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go() {
+fn a_window_held_past_the_edge_of_the_host_stretches_and_springs_back_when_let_go() {
     let mut window = Carrying::open(pos2(100.0, 100.0), vec2(300.0, 200.0));
     assert_eq!(
         window.shown(),

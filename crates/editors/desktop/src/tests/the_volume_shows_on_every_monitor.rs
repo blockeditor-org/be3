@@ -21,7 +21,7 @@ fn the_volume_shows_on_every_monitor() {
         brightness: None,
         ..MediaLevels::default()
     });
-    assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
+    assert!(fixture.test.host_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
     let shown = [
         fixture.test.desk_rects_of("desktop.osd.0"),

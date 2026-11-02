@@ -4,7 +4,7 @@ use beui_host::native::build;
 #[test]
 fn an_expired_session_signs_in_through_the_browser() {
     let document = build(|| {
-        let view = AppViewStore::new(crate::ui::AppView {
+        let view = HostUiStore::new(crate::ui::HostUi {
             reauth: Some(crate::ui::ReauthView {
                 name: "Ada".into(),
                 busy: false,

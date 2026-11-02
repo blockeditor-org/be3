@@ -10,9 +10,9 @@ fn escape_leaves_the_window_switcher_without_switching() {
         "a program keeps Alt+Escape while nothing is being switched"
     );
 
-    assert!(fixture.test.app_key(alt, Key::Tab));
+    assert!(fixture.test.host_key(alt, Key::Tab));
     fixture.settle();
-    assert!(fixture.test.app_key(alt, Key::Escape));
+    assert!(fixture.test.host_key(alt, Key::Escape));
     fixture.settle();
     assert!(
         !fixture

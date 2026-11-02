@@ -34,7 +34,7 @@ let onWake = null;
 
 /**
  * Says what to do when a thread reports that a job it was started for landed.
- * The plugin worker steps the module again; the app has nothing to schedule
+ * The plugin worker steps the module again; the host has nothing to schedule
  * and leaves this unset.
  */
 export function bindWake(wake) {
@@ -97,7 +97,7 @@ function threadSpawn(startArgument) {
 
 export { threadSpawn as "thread-spawn" };
 
-// The worker the app's block stack runs in (be-worker.js), started with the
+// The worker the host's block stack runs in (be-worker.js), started with the
 // first stack and kept for the page's life: what the stack opened there, such
 // as its sockets, belongs to that worker's JavaScript.
 /** @type {Worker | null} */

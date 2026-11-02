@@ -1,4 +1,4 @@
-# Running the web app
+# Running the web build
 
 For a change that only shows in the browser, serve the web build and open it in a headless
 Chromium, then drive the page from the shell (anything else is checked natively, which is
@@ -9,13 +9,13 @@ quicker: guides/running/drive.md):
 
 The command builds the web bundle with every plugin and starts be-server and Caddy in front
 of it on http://127.0.0.1:8090. It then opens the page in a headless Chromium and returns
-once the app is up. The page is signed in to `dev@localhost` (password `dev-password`) on
+once the host is up. The page is signed in to `dev@localhost` (password `dev-password`) on
 that be-server, with the personal organization open on My files, so there is no account or
 organization to make first. The server's data and the browser's profile live in `~/.cache/be3/web-dev` and
 survive restarts, so running the command again reopens the same organization, which is how to
 pick up a rebuild.
 - `-- --fresh` deletes the data first.
-- `-- --webgl` starts the browser without WebGPU, so the app and its plugins draw with WebGL.
+- `-- --webgl` starts the browser without WebGPU, so the host and its plugins draw with WebGL.
 - `-- --stop` stops the browser and the servers.
 
 `BLOCK_WEB_DEV_DIR` moves the directory. `BLOCK_WEB_DEV_PORT` moves the page, and be-server,
@@ -40,15 +40,15 @@ two parameters work on any page serving the bundle:
 
 ## Driving the page
 
-`drive` answers the native app's commands (guides/running/drive.md), run by the app itself in
+`drive` answers the commands it takes natively (guides/running/drive.md), run by the host itself in
 the page under one drive layer, except those of the headless window: the browser is the
 platform here. Its own commands take their place (`drive` with no command lists them):
 - `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
 - `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
 
-Both aim where the app's own input does: they ask the app to `reveal` TARGET and use the part
+Both aim where the host's own input does: they ask the host to `reveal` TARGET and use the part
 that shows, with web-test.mjs's lookup (`shownPlaces` in buck/app/drive-words.mjs).
-- `drive size W H` resizes the page. `drive reload` reloads it and returns once the app answers
+- `drive size W H` resizes the page. `drive reload` reloads it and returns once the host answers
   again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
 
@@ -60,7 +60,7 @@ the launcher's browser.
 A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
 than drawing them. Its bundle answers the reading commands of `drive` through
 `beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
-app's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
+drive layer's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
 has revealed it, or as it is), `wait`, `gone`, `settle`, `pause` and `clock stop|run`, parsed and
 formatted by the same `beui_types::drive` the native drive layer uses. Input does
 not go through it: the browser gives it, from Playwright. crates/beui-shared-tests' `:web-test`
@@ -68,7 +68,7 @@ does that for its scripts (guides/testing_a_gui.md, 7), with buck/app/web-test.m
 shares its command parsing and that reveal-then-aim lookup with web-drive.mjs (buck/app/drive-words.mjs).
 
 crates/beui-html-spike is block-app's account picker (crates/block-accounts-ui) on that core,
-rendered on the host and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
+prerendered natively and hydrated in the browser: `./scripts/buck run //crates/beui-html-spike:web`
 serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
 `./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
@@ -90,9 +90,9 @@ src/guest.js, which runs type modules too; crates/block-app/web/plugin.js,
 which it loads for a plugin; and crates/block-gpu-shim, which answers the
 plugin's gpu abi there). Nothing a
 plugin draws leaves its worker; the page hands the worker canvases instead:
-- Screens: each shown screen is a `<canvas>` in `#plugins`, behind the app's
+- Screens: each shown screen is a `<canvas>` in `#plugins`, behind the host's
   canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed
-  by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The app
+  by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The host's
   canvas punches a hole where the screen shows.
 - Anchored views (menus, popovers, sheets: PROTOCOL.md, Anchored views): each
   worker that has opened one gets one more canvas, the overlay canvas, in
@@ -105,13 +105,13 @@ plugin draws leaves its worker; the page hands the worker canvases instead:
   page clips the canvas to the plugin's anchor bounds, hides it
   (`visibility:hidden`) while the plugin has no anchored view, and stacks the
   canvases in the order of each plugin's newest one. Scrims are drawn by the
-  app canvas, below every overlay. Input still lands on the app canvas, which
+  host's canvas, below every overlay. Input still lands on the host's canvas, which
   routes it to anchored views and dismisses them as natively.
 - A child placed in an anchored view, above its pixels, shows under them on the web,
   since its screen canvas is behind `#block`.
 
-Screens and anchored views are placed from what the app canvas drew in its last frame,
-so on the web they follow the app by one frame. To see an anchored view, open one (`drive
+Screens and anchored views are placed from what the host's canvas drew in its last frame,
+so on the web they follow the host by one frame. To see an anchored view, open one (`drive
 click TARGET right` on a file-tree row) and check `drive eval` on
 `#layers canvas`'s style. `drive shot` captures the plugins' canvases with
 `-- --webgl`; with WebGPU in the headless browser it can time out once a plugin
@@ -119,7 +119,7 @@ canvas is shown.
 
 ## Files and offline
 
-The web build keeps the same files as the native app, under `/block` in the
+The web build keeps the same files as block-app does natively, under `/block` in the
 origin private file system: `app.sqlite3`, the refs database and `be-objects`.
 The module reaches them through ordinary WASI file calls; `web/wasi.js`
 forwards every call on a descriptor other than the standard streams to
@@ -180,7 +180,7 @@ files.js answers from memory and nothing survives a reload.
   the editor's value from `drive tree`. Compare `performance.timeOrigin`
   before and after to be sure the page did reload. `kill -CONT` the server
   before stopping web-dev, whose stop waits for it.
-- The app closes its tab when it exits, except when the page is already
+- The host closes its tab when it exits, except when the page is already
   leaving (a reload), since closing it would stop the reload.
 
 ## Hosted web build

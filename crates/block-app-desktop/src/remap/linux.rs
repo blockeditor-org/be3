@@ -13,7 +13,7 @@ use beui_platform_drm::{InputControl, InputFilter, RawInput};
 use block_plugin_api::{RemapState, RemapsWatch};
 use uuid::Uuid;
 
-use block_app_base::app_state::AppStateStore;
+use block_app_base::host_state::HostStateStore;
 use block_app_stack::discovery;
 use loader::{Loader, Step, Wanted};
 
@@ -166,7 +166,7 @@ pub fn set_locked(locked: bool) {
     with_remapper(|remapper, _| remapper.set_locked(locked));
 }
 
-pub fn frame(store: &AppStateStore) {
+pub fn frame(store: &HostStateStore) {
     read_chosen();
     take_fetched();
     if let Some(save) = STATE.with_borrow_mut(|state| state.save.take())

@@ -1,4 +1,4 @@
-# One command palette for the whole app
+# One command palette for the whole host
 
 Today every editor frame has a command palette of its own (Ctrl+Shift+P in
 `block-editor-beui`'s `BeuiFrame`). It lists the actions that are live in that
@@ -7,7 +7,7 @@ close) and whatever the editor registered. It cannot see past the plugin it is
 in. A text block shown as a direct editor inside a canvas has its palette, and
 the canvas has another, and neither one knows about the workspace. This plan
 replaces them with one palette. It lists the actions of the focused editor, of
-every plugin that contains it, and of the app. Not implemented yet. Items
+every plugin that contains it, and of the host. Not implemented yet. Items
 marked **(ask)** need a decision from the user during the work.
 
 ## What exists
@@ -18,27 +18,27 @@ marked **(ask)** need a decision from the user during the work.
   `active_actions_from(focus_path)` lists the ones live where the focus is,
   innermost first, deduplicated by id. `styled::CommandPalette` takes its rows
   from that list when it opens, unless it is handed `PaletteItems::list(..)`.
-- **One focused instance in the app.** block-app keeps a single
+- **One focused instance in the host.** block-app keeps a single
   `host.focus: Option<Target>` (`block-app/src/host.rs`). Key, text and IME
-  events go only to that instance (`plugin_host/input.rs`). The app also knows
+  events go only to that instance (`plugin_host/input.rs`). The host also knows
   every child instance's parent, which is how `report_child_bars`
   (`plugin_host/runtime.rs`) sends a child's `BarAction` to the plugin that
   placed it.
 - **A plugin-to-host message with an echo to the parent.** `BarAction` goes
   guest `EditorHost::bar_action` → `editor_session.rs` → `instances.rs` →
   `editors/plugin.rs`. From there it reaches either the parent plugin as
-  `EditorMessage::ChildBar`, or the app. A new message follows the same path
+  `EditorMessage::ChildBar`, or the host. A new message follows the same path
   and touches the same files: `block-plugin-api` (`lib.rs` variant,
   `instance()`, `direction()`, and `block_ids.rs`), `block-editor-plugin`
   (`host.rs`, `editor_session.rs`, `screens.rs`), `block-app` (`instances.rs`,
   `runtime.rs`, `editors/plugin.rs`, `editors.rs`) and the `block-ui-test`
   harness.
-- **App-level keys.** block-app takes F6/Shift+F6 and Escape before plugins
+- **Host-level keys.** block-app takes F6/Shift+F6 and Escape before plugins
   (`host::consume_key`), so it can take Ctrl+Shift+P the same way.
 
 ## The design
 
-The app owns the palette, because it is the only one that knows the focused
+The host owns the palette, because it is the only one that knows the focused
 instance and its ancestors. Plugins only describe their actions and run one
 when asked. The protocol carries plain data, so it stays independent of the
 framework: a plugin written without beui can publish actions the same way.
@@ -84,8 +84,8 @@ framework: a plugin written without beui can publish actions the same way.
   - grouped under the instance's block name, so "Undo" for the text and
     "Undo" for the canvas can both be shown (**ask**: show both, or only the
     innermost one of each id).
-- Add the app's own actions: switch account, settings, theme, and the dialogs
-  the app owns.
+- Add the host's own actions: switch account, settings, theme, and the dialogs
+  the host owns.
 - Draw the palette with `styled::CommandPalette`. Its rows come from an
   explicit list instead of the document's registry: pass
   `items={PaletteItems::list(..)}`, one `PaletteItem` per `ActionInfo`
@@ -111,14 +111,14 @@ same protocol:
 
 Keys still go only to the focused instance, which runs its own actions. An
 ancestor's shortcut (say the workspace's Ctrl+P while a canvas has the focus)
-needs the app to try the ancestors' chords when the focused instance leaves a
+needs the host to try the ancestors' chords when the focused instance leaves a
 key unhandled. Two ways to do that:
 
-1. Plugins report whether they handled each key, and the app retries the
+1. Plugins report whether they handled each key, and the host retries the
    chord on each ancestor in turn. This needs a round trip per key.
-2. The app matches the chord against the ancestors' published `ActionInfo`
+2. The host matches the chord against the ancestors' published `ActionInfo`
    shortcuts and sends `RunAction` directly. This needs no round trip, but it
-   only works for keys the focused plugin does not want, which the app cannot
+   only works for keys the focused plugin does not want, which the host cannot
    know without option 1.
 
 Recommend 1, limited to keys with Ctrl or Alt (**ask**).
@@ -139,5 +139,5 @@ Recommend 1, limited to keys with Ctrl or Alt (**ask**).
 1. Protocol messages and the guest mirror, behind the capability flag.
 2. The host palette fed from the focused instance only.
 3. Walk up the ancestors.
-4. App and workspace actions.
+4. Host and workspace actions.
 5. Ancestor shortcuts.

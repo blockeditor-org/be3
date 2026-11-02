@@ -2,12 +2,12 @@ use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 
-use super::{AppViewStore, UiCommand, send};
+use super::{HostUiStore, UiCommand, send};
 use beui::{Align, Direction, ItemSize};
 use block_accounts_ui::{Column, ErrorText};
 
 #[component]
-pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
+pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
     let recovery = view.recovery;
     let phrase = create_memo(move || {
         recovery
@@ -120,7 +120,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
+pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
     let unlock = view.unlock;
     let title = create_memo(move || format!("Unlock {}", unlock.get().account));
     let code = create_memo(move || unlock.get().code.unwrap_or_default());
@@ -200,7 +200,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
+pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
     let pairing = view.pairing;
     let open = create_memo(move || !pairing.get().is_empty());
     let request = create_memo(move || pairing.get().first().cloned());

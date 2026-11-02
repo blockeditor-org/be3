@@ -10,7 +10,7 @@
 	}
 	handle {
 		# The module's memory is shared, which a browser only hands out to a
-		# cross-origin isolated page. Without these two headers the app cannot
+		# cross-origin isolated page. Without these two headers the host cannot
 		# start at all, and index.html says so rather than failing obscurely.
 		header {
 			Cross-Origin-Opener-Policy same-origin

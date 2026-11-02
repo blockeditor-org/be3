@@ -2,19 +2,19 @@ use super::*;
 
 #[test]
 fn a_local_account_needs_only_a_display_name() {
-    let mut app = AppTest::start();
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.accounts");
-    app.click("Button \"Add account\"");
-    app.click("#account.local");
-    app.click("#account.name");
-    app.type_text("Ada");
-    let tree = app.tree();
+    let mut host = HostTest::start();
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.accounts");
+    host.click("Button \"Add account\"");
+    host.click("#account.local");
+    host.click("#account.name");
+    host.type_text("Ada");
+    let tree = host.tree();
     assert!(!tree.contains("Email address"));
     assert!(!tree.contains("Password"));
-    app.crop("Dialog \"Create local account\"");
-    app.snapshot("a_local_account_needs_only_a_display_name");
-    app.click("#account.confirm");
-    app.wait("Heading \"Check that you saved them\"");
-    app.close();
+    host.crop("Dialog \"Create local account\"");
+    host.snapshot("a_local_account_needs_only_a_display_name");
+    host.click("#account.confirm");
+    host.wait("Heading \"Check that you saved them\"");
+    host.close();
 }

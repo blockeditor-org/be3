@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn installing_the_login_session_puts_the_app_under_the_prefix_and_its_entry_where_display_managers_look()
+fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_where_display_managers_look()
  {
     let root = std::env::temp_dir().join(format!("block-app-install-{}", uuid::Uuid::new_v4()));
     let source = root.join("app");
@@ -14,14 +14,14 @@ fn installing_the_login_session_puts_the_app_under_the_prefix_and_its_entry_wher
     std::fs::create_dir_all(old.parent().unwrap()).unwrap();
     std::fs::write(&old, "an older entry").unwrap();
     std::fs::create_dir_all(source.join("data/notes/files")).unwrap();
-    std::fs::write(source.join(EXECUTABLE), "the app").unwrap();
+    std::fs::write(source.join(EXECUTABLE), "block-app").unwrap();
     std::fs::write(source.join("notes.plugin.json"), "{}").unwrap();
     std::fs::write(source.join("data/notes/files/readme.txt"), "hello").unwrap();
     let stale = prefix.join("lib/block-app/stale.plugin.json");
     std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
     std::fs::write(
         prefix.join("lib/block-app").join(EXECUTABLE),
-        "an older app",
+        "an older block-app",
     )
     .unwrap();
     std::fs::write(&stale, "{}").unwrap();
@@ -33,7 +33,7 @@ fn installing_the_login_session_puts_the_app_under_the_prefix_and_its_entry_wher
     assert_eq!(installed.home, home);
     assert_eq!(
         std::fs::read_to_string(home.join(EXECUTABLE)).unwrap(),
-        "the app"
+        "block-app"
     );
     assert!(home.join("notes.plugin.json").is_file());
     assert_eq!(

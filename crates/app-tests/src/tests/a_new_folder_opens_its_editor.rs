@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn a_new_folder_opens_its_editor() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Folder");
-    app.wait("#folder.empty");
-    app.close();
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Folder");
+    host.wait("#folder.empty");
+    host.close();
 }

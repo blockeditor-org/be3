@@ -90,8 +90,8 @@ impl Session {
         self.editor.host().reload_web_view(PAGE);
     }
 
-    pub(crate) fn focus_app(&self) {
-        self.editor.host().focus_app(PAGE);
+    pub(crate) fn focus_host(&self) {
+        self.editor.host().focus_host(PAGE);
     }
 
     pub(crate) fn navigate(&self, address: &str) {

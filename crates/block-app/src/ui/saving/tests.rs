@@ -6,12 +6,12 @@ use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use crate::ui::{AppView, Root as AppRoot, StatusView, SyncState};
+use crate::ui::{HostUi, Root as HostRoot, StatusView, SyncState};
 use beui_host::native::build;
 use block_app_desktop::desktop_host::{DesktopHost, Host};
 
-fn saving(saved: bool, saves: u64) -> AppView {
-    AppView {
+fn saving(saved: bool, saves: u64) -> HostUi {
+    HostUi {
         status: StatusView {
             sync: match saved {
                 true => SyncState::Saved,
@@ -26,7 +26,7 @@ fn saving(saved: bool, saves: u64) -> AppView {
 
 struct Saving {
     stepped: Stepped,
-    view: AppViewStore,
+    view: HostUiStore,
 }
 
 impl Saving {
@@ -36,11 +36,11 @@ impl Saving {
             crate::compositor::install();
             Host::create();
             crate::surfaces::create_handles();
-            let store = AppViewStore::new(saving(false, 0));
+            let store = HostUiStore::new(saving(false, 0));
             view = Some(store);
             view! {
                 <beui::styled::Root>
-                    <AppRoot view={store} />
+                    <HostRoot view={store} />
                 </beui::styled::Root>
             }
         });
@@ -61,7 +61,7 @@ impl Saving {
         }
     }
 
-    fn after(&mut self, wait: Duration, shown: AppView) -> bool {
+    fn after(&mut self, wait: Duration, shown: HostUi) -> bool {
         self.view.set(shown);
         self.stepped.frame(Vec::new());
         self.stepped.advance(wait);

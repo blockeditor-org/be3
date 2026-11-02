@@ -39,7 +39,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
     Linux::exiting();
     assert!(
         !Linux::running(),
-        "the compositor, with the GPU textures and Wayland clients it holds, is gone once the app \
+        "the compositor, with the GPU textures and Wayland clients it holds, is gone once the host \
          has exited, rather than left for the thread's destructors at process exit"
     );
     assert!(

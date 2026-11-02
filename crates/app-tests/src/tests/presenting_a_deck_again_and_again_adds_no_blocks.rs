@@ -2,29 +2,29 @@ use super::*;
 
 #[test]
 fn presenting_a_deck_again_and_again_adds_no_blocks() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Presentation");
-    app.click("#presentation.add");
-    app.wait("#picker.slides");
-    app.click("MenuItem \"Title page\"");
-    app.gone("#picker.slides");
-    app.wait("Slide 1 of 1");
-    app.run(&["settle"]);
-    let before = app.count("TreeItem ");
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Presentation");
+    host.click("#presentation.add");
+    host.wait("#picker.slides");
+    host.click("MenuItem \"Title page\"");
+    host.gone("#picker.slides");
+    host.wait("Slide 1 of 1");
+    host.run(&["settle"]);
+    let before = host.count("TreeItem ");
     for _ in 0..3 {
-        app.click("#presentation.present");
-        app.wait("#presentation.playback");
-        app.key("Escape");
-        app.gone("#presentation.playback");
-        app.wait("#presentation.toolbar");
-        app.run(&["settle"]);
+        host.click("#presentation.present");
+        host.wait("#presentation.playback");
+        host.key("Escape");
+        host.gone("#presentation.playback");
+        host.wait("#presentation.toolbar");
+        host.run(&["settle"]);
     }
-    let tree = app.tree();
+    let tree = host.tree();
     assert_eq!(
-        app.count("TreeItem "),
+        host.count("TreeItem "),
         before,
         "presenting and stopping adds nothing to the files:\n{tree}"
     );
-    assert_eq!(app.count("TreeItem \"Presentation\""), 1, "{tree}");
-    app.close();
+    assert_eq!(host.count("TreeItem \"Presentation\""), 1, "{tree}");
+    host.close();
 }

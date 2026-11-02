@@ -17,7 +17,7 @@ fn installing_lists_the_login_session_once_where_greetds_greeters_look() {
     assert_eq!(
         std::fs::read_to_string(&environments).unwrap(),
         "sway_hrdl\nsway\nenv BEUI_PLATFORM=drm /usr/local/bin/block-app --desktop\n",
-        "the other sessions stay and the app's is listed once"
+        "the other sessions stay and block-app's is listed once"
     );
 
     let spaced = Path::new("/opt/my apps/bin/block-app");

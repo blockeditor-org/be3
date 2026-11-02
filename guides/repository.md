@@ -15,9 +15,9 @@ that build on it. VISION.md says why each part exists.
   randomly seeded one there.
 - block-app is the binary on top of its parts, each a crate of its own so they
   build in parallel: `block-app-base` (the frame host, notices, the panic guard,
-  platform requests, app state and the watches the host publishes; no beui),
+  platform requests, the host's state and the watches the host publishes; no beui),
   `block-app-services` (Linux's D-Bus services: media, notifications, the tray,
-  Wi-Fi; no beui), `block-app-stack` (the app's block stack peer, accounts,
+  Wi-Fi; no beui), `block-app-stack` (the host's block stack peer, accounts,
   links, keys and plugin discovery; no beui), `block-app-plugin-host` (the
   runtime every plugin runs in), and `block-app-desktop` (the Linux and Windows
   desktop hosts, input remaps and programs). `block-app-testing` is the stack

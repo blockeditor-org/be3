@@ -40,7 +40,7 @@ interface plugin {
         /// Whether the editor shows its user's presence to others.
         presence: async func(visible: bool);
 
-        /// Where the focus of the app is.
+        /// Where the focus of the host is.
         focus-changed: async func(focus: focus);
 
         /// The user resized the editor.

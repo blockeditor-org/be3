@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn rename_and_app_menu_children_round_trip() {
+fn rename_and_host_menu_children_round_trip() {
     let rect = Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(280.0, 120.0));
     let child = |child, content| ChildPlacement {
         child: ChildId(child),
@@ -26,7 +26,7 @@ fn rename_and_app_menu_children_round_trip() {
         view: ViewId::MAIN,
         children: vec![
             child(1, ChildContent::Rename([1; 16])),
-            child(2, ChildContent::Host(HostPanel::AppMenu)),
+            child(2, ChildContent::Host(HostPanel::Menu)),
         ],
         occluders: Vec::new(),
     });

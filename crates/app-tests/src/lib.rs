@@ -9,8 +9,8 @@ const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
 
-pub struct AppTest {
-    app: Option<Driven>,
+pub struct HostTest {
+    host: Option<Driven>,
     steps: Vec<String>,
     recorded: Option<Snapshot>,
     overflows: Vec<String>,
@@ -21,7 +21,7 @@ pub struct AppTest {
     editors: Option<String>,
 }
 
-impl AppTest {
+impl HostTest {
     pub fn start() -> Self {
         Self::start_with(&[], "Pane \"Files\"")
     }
@@ -45,10 +45,10 @@ impl AppTest {
     fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
-            .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
+            .expect("BLOCK_APP names the host to test; run these through ./scripts/buck test //crates/host-tests:test");
         let mut all = vec!["--dev-workspace"];
         all.extend_from_slice(arguments);
-        let app = Driven::start(
+        let host = Driven::start(
             &program,
             &all,
             SIZE,
@@ -56,9 +56,9 @@ impl AppTest {
             space,
             render,
         )
-        .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
+        .unwrap_or_else(|error| panic!("block-host did not start: {error}"));
         let mut test = Self {
-            app: Some(app),
+            host: Some(host),
             steps: Vec::new(),
             recorded: None,
             overflows: Vec::new(),
@@ -100,10 +100,10 @@ impl AppTest {
     }
 
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<Reply, String> {
-        let app = self.app.as_mut().expect("the app is still open");
-        app.set_timeout(timeout);
-        let reply = app.request(words);
-        app.set_timeout(be_drive::TIMEOUT);
+        let host = self.host.as_mut().expect("the host is still open");
+        host.set_timeout(timeout);
+        let reply = host.request(words);
+        host.set_timeout(be_drive::TIMEOUT);
         reply
     }
 
@@ -125,16 +125,16 @@ impl AppTest {
         };
         let editors = match &self.editors {
             Some(editors) => format!(
-                "its app stages only the editors {editors}: add {} to this test's editors in crates/app-tests/BUCK",
+                "its host stages only the editors {editors}: add {} to this test's editors in crates/host-tests/BUCK",
                 needle
                     .as_deref()
                     .map_or_else(Vec::new, editors_naming)
                     .join(" or ")
             ),
-            None => "its app stages every editor, and none edits this block's type".to_owned(),
+            None => "its host stages every editor, and none edits this block's type".to_owned(),
         };
         self.fail(&format!(
-            "the app shows {shown:?}: this test opens or creates a block of a type no staged editor edits; {editors}"
+            "the host shows {shown:?}: this test opens or creates a block of a type no staged editor edits; {editors}"
         ));
     }
 
@@ -233,12 +233,12 @@ impl AppTest {
 
     pub fn close(mut self) {
         self.steps.push("close".to_owned());
-        let app = self.app.take().expect("the app is still open");
-        if let Err(error) = app.close() {
-            self.fail(&format!("the app did not exit cleanly: {error}"));
+        let host = self.host.take().expect("the host is still open");
+        if let Err(error) = host.close() {
+            self.fail(&format!("the host did not exit cleanly: {error}"));
         }
         eprintln!(
-            "the app ran for {:.1}s, {} steps",
+            "the host ran for {:.1}s, {} steps",
             self.started.elapsed().as_secs_f32(),
             self.steps.len()
         );
@@ -262,7 +262,7 @@ impl AppTest {
     }
 
     fn driven(&self) -> &Driven {
-        self.app.as_ref().expect("the app is still open")
+        self.host.as_ref().expect("the host is still open")
     }
 
     fn fail(&self, error: &str) -> ! {
@@ -272,34 +272,34 @@ impl AppTest {
     fn context(&self) -> String {
         self.reported.set(true);
         let log = self
-            .app
+            .host
             .as_ref()
-            .map(|app| {
-                let tree = match app.request(&["tree"]) {
+            .map(|host| {
+                let tree = match host.request(&["tree"]) {
                     Ok(Reply::Text(tree)) => tree,
-                    _ => "(the app did not answer)".to_owned(),
+                    _ => "(the host did not answer)".to_owned(),
                 };
-                format!("\n\nWhat the app shows:\n{tree}\n\n{}", app.log_report())
+                format!("\n\nWhat the host shows:\n{tree}\n\n{}", host.log_report())
             })
             .unwrap_or_default();
         let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
             format!(
-                "\n\nThis test's app stages only the editors {editors}. If it fails for want of another, or a painting changes because the add menu offers fewer types, add the editor to this test's editors in crates/app-tests/BUCK, or remove the test from there to stage every editor."
+                "\n\nThis test's host stages only the editors {editors}. If it fails for want of another, or a painting changes because the add menu offers fewer types, add the editor to this test's editors in crates/host-tests/BUCK, or remove the test from there to stage every editor."
             )
         });
         format!(
-            "The steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}{editors}",
+            "The steps so far, which `drive -` replays against ./scripts/buck run //crates/block-host:dev -- --fresh:\n{}{log}{editors}",
             self.steps.join("\n")
         )
     }
 }
 
-impl Drop for AppTest {
+impl Drop for HostTest {
     fn drop(&mut self) {
         match std::thread::panicking() {
             true if !self.reported.get() => eprintln!("\n{}", self.context()),
             true => {}
-            false if self.app.is_some() => self.fail("the test ended with the app still open; end it with close(), which fails unless the app exits cleanly"),
+            false if self.host.is_some() => self.fail("the test ended with the host still open; end it with close(), which fails unless the host exits cleanly"),
             false => {}
         }
     }

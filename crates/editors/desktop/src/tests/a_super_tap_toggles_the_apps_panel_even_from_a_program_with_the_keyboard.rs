@@ -11,7 +11,7 @@ fn a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard() {
         "the desktop asks the host for a tap of Super"
     );
 
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     assert!(fixture.test.shown("desktop.apps.panel"));
     assert!(fixture.test.wants_keyboard());
@@ -22,7 +22,7 @@ fn a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard() {
         [ProgramAction::List { .. }]
     ));
 
-    assert!(fixture.test.app_tap(Key::Logo));
+    assert!(fixture.test.host_tap(Key::Logo));
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.apps.panel"),

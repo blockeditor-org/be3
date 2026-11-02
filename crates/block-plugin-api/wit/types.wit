@@ -60,7 +60,7 @@ interface types {
     /// An editor a plugin's manifest declares.
     type editor-id = uuid;
 
-    /// An installation of the app, as the id it keeps across restarts.
+    /// An installation of the host, as the id it keeps across restarts.
     type installation-id = uuid;
 
     /// Why one side did not do what the other asked of it: the host, a call an
@@ -254,7 +254,7 @@ interface types {
         origin: option<pos2>,
     }
 
-    /// Maps a view's logical points to the app window's (host
+    /// Maps a view's logical points to the host window's (host
     /// coordinates): `host = origin + point * scale`, per axis.
     record host-transform {
         origin: pos2,
@@ -264,7 +264,7 @@ interface types {
     /// Where a view's anchored views go. `to-host` maps the view's points to
     /// host coordinates at the camera this request lays the view out against.
     /// `bounds`, in host coordinates, is where its anchored views may go: the
-    /// app window for a trusted plugin, the plugin's own box for a confined
+    /// host window for a trusted plugin, the plugin's own box for a confined
     /// one, and never more than the bounds of the view that placed this one.
     record anchor-space {
         to-host: host-transform,
@@ -329,9 +329,9 @@ interface types {
         block-stack,
         performance,
         plugins,
-        /// The app's menu, which an editor places in a view it anchored to
+        /// The host's menu, which an editor places in a view it anchored to
         /// its menu button.
-        app-menu,
+        menu,
     }
 
     /// A child an editor placed, numbered by the editor.

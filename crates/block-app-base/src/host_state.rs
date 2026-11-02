@@ -5,26 +5,26 @@ use uuid::Uuid;
 
 mod native;
 
-pub use native::AppStateStore;
+pub use native::HostStateStore;
 
 #[derive(Clone, Debug)]
-pub struct AppStateError(String);
+pub struct HostStateError(String);
 
-impl fmt::Display for AppStateError {
+impl fmt::Display for HostStateError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
 }
 
-impl std::error::Error for AppStateError {}
+impl std::error::Error for HostStateError {}
 
-impl From<String> for AppStateError {
+impl From<String> for HostStateError {
     fn from(message: String) -> Self {
         Self(message)
     }
 }
 
-impl From<rusqlite::Error> for AppStateError {
+impl From<rusqlite::Error> for HostStateError {
     fn from(error: rusqlite::Error) -> Self {
         Self(error.to_string())
     }

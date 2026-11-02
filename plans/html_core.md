@@ -646,7 +646,7 @@ small, and still a real mix of `Scroll`, `Card`, `Button`, `MenuButton`,
   `AccountRow`, into a new crate `block-accounts-ui`, taking
   `accounts: Memo<Vec<AccountRow>>`, `error: Memo<Option<String>>` and
   callbacks (`on_add`, `on_open`, `on_choose_organization`, `on_log_out`)
-  instead of `AppViewStore` and `send`. block-app passes those; a native
+  instead of `HostUiStore` and `send`. block-app passes those; a native
   painting test in the new crate keeps it from regressing.
 - `crates/beui-html-spike` builds it with two fixture accounts; `on_add`
   appends a third, which shows hydration left it live. Its `:ssr` binary

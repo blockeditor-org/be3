@@ -3,12 +3,12 @@ use super::*;
 
 #[test]
 fn leaving_a_workspace_someone_shared_asks_first() {
-    let mut app = AppTest::start();
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.contacts");
-    app.click("#app.contacts.new-link");
-    app.wait("#app.contacts.link");
-    let link = app
+    let mut host = HostTest::start();
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.new-link");
+    host.wait("#host.contacts.link");
+    let link = host
         .tree()
         .lines()
         .find_map(|line| {
@@ -17,57 +17,57 @@ fn leaving_a_workspace_someone_shared_asks_first() {
             value.contains("#contact/").then(|| value.to_owned())
         })
         .expect("the dialog shows the link it made");
-    app.key("Escape");
-    app.pause(500);
-    app.gone("Dialog \"Contacts\"");
+    host.key("Escape");
+    host.pause(500);
+    host.gone("Dialog \"Contacts\"");
 
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.accounts");
-    app.click("Button \"Add account\"");
-    app.click("#account.local");
-    app.click("#account.name");
-    app.type_text("Ada");
-    app.click("#account.confirm");
-    app.wait("Heading \"Check that you saved them\"");
-    confirm_phrase(&mut app);
-    app.click("Button \"Personal\"");
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.contacts");
-    app.click("#app.contacts.paste");
-    app.type_text(&link);
-    app.click("#app.contacts.open");
-    app.click("#app.contacts.offered.accept");
-    app.wait("Label value=\"Dev\"");
-    app.key("Escape");
-    app.pause(500);
-    app.gone("Dialog \"Contacts\"");
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.accounts");
+    host.click("Button \"Add account\"");
+    host.click("#account.local");
+    host.click("#account.name");
+    host.type_text("Ada");
+    host.click("#account.confirm");
+    host.wait("Heading \"Check that you saved them\"");
+    confirm_phrase(&mut host);
+    host.click("Button \"Personal\"");
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.paste");
+    host.type_text(&link);
+    host.click("#host.contacts.open");
+    host.click("#host.contacts.offered.accept");
+    host.wait("Label value=\"Dev\"");
+    host.key("Escape");
+    host.pause(500);
+    host.gone("Dialog \"Contacts\"");
 
-    app.click("#file-tree.new");
-    app.click("#file-tree.new-workspace");
-    app.wait("TextInput \"Name\" value=\"New workspace\" focused");
-    app.type_text("Team");
-    app.key("Enter");
-    app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
-    app.click("#file-tree.section.share");
-    app.click("#share.query");
-    app.type_text("dev");
-    app.click("Button \"Dev\"");
-    app.click("#share.add");
-    app.wait("Label value=\"Dev\"");
-    app.click("#share.close");
+    host.click("#file-tree.new");
+    host.click("#file-tree.new-workspace");
+    host.wait("TextInput \"Name\" value=\"New workspace\" focused");
+    host.type_text("Team");
+    host.key("Enter");
+    host.wait("TreeItem \"Team\"");
+    host.run(&["click", "TreeItem \"Team\"", "right"]);
+    host.click("#file-tree.section.share");
+    host.click("#share.query");
+    host.type_text("dev");
+    host.click("Button \"Dev\"");
+    host.click("#share.add");
+    host.wait("Label value=\"Dev\"");
+    host.click("#share.close");
 
-    app.click("#file-tree.app-menu");
-    app.click("#app.menu.accounts");
-    app.click("#account.open.Dev");
-    app.gone("#account.open.Dev");
-    app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
-    app.click("#file-tree.section.leave");
-    app.wait("AlertDialog \"Leave?\"");
-    app.crop("AlertDialog \"Leave?\"");
-    app.snapshot("leaving_a_workspace_someone_shared_asks_first");
-    app.click("Button \"Stay\"");
-    app.gone("AlertDialog \"Leave?\"");
-    app.close();
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.accounts");
+    host.click("#account.open.Dev");
+    host.gone("#account.open.Dev");
+    host.wait("TreeItem \"Team\"");
+    host.run(&["click", "TreeItem \"Team\"", "right"]);
+    host.click("#file-tree.section.leave");
+    host.wait("AlertDialog \"Leave?\"");
+    host.crop("AlertDialog \"Leave?\"");
+    host.snapshot("leaving_a_workspace_someone_shared_asks_first");
+    host.click("Button \"Stay\"");
+    host.gone("AlertDialog \"Leave?\"");
+    host.close();
 }

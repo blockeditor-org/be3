@@ -10,13 +10,13 @@ use super::*;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
 mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
-mod a_window_held_past_the_edge_of_the_app_stretches_and_springs_back_when_let_go;
-mod a_window_moved_off_the_bottom_of_the_app_keeps_its_size_and_its_top_in_view;
+mod a_window_held_past_the_edge_of_the_host_stretches_and_springs_back_when_let_go;
+mod a_window_moved_off_the_bottom_of_the_host_keeps_its_size_and_its_top_in_view;
 mod a_window_opened_from_a_dock_tab_is_hosted_by_that_tab;
-mod a_window_shown_in_the_app_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener;
+mod a_window_shown_in_the_host_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener;
 mod a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_moved;
 
-const APP: Vec2 = vec2(800.0, 600.0);
+const HOST: Vec2 = vec2(800.0, 600.0);
 const HELD: Vec2 = vec2(50.0, 10.0);
 const STEP: Duration = Duration::from_millis(16);
 
@@ -37,7 +37,7 @@ impl Carrying {
         let document = build(|| {
             install();
             crate::display::create_handle();
-            shown = Some(carried(key.clone(), create_memo(|| APP)));
+            shown = Some(carried(key.clone(), create_memo(|| HOST)));
             view! {
                 <beui::styled::Root>
                     <beui::styled::Frame />
@@ -45,7 +45,7 @@ impl Carrying {
             }
         });
         let window = WindowSize {
-            size: APP,
+            size: HOST,
             scale: 1.0,
         };
         let mut stepped = Stepped::new(

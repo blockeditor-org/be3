@@ -23,14 +23,14 @@ fn the_status_says_whether_changes_are_saved_syncing_offline_or_failed() {
             shown
                 .stepped
                 .document()
-                .find_test_id("app.menu.status")
+                .find_test_id("host.menu.status")
                 .is_some()
         );
         assert_eq!(
             shown
                 .stepped
                 .document()
-                .find_test_id("app.menu.unsent")
+                .find_test_id("host.menu.unsent")
                 .is_some(),
             unsent > 0,
             "unsent edits are offered from the menu only while there are some"
@@ -39,7 +39,7 @@ fn the_status_says_whether_changes_are_saved_syncing_offline_or_failed() {
         if offline {
             shown
                 .stepped
-                .click(beui_host::native::testing::Target::id("app.menu.unsent"));
+                .click(beui_host::native::testing::Target::id("host.menu.unsent"));
             assert!(
                 crate::ui::take_commands()
                     .iter()

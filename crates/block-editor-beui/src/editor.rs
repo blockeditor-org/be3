@@ -769,8 +769,8 @@ impl Editor {
         self.pop(crate::popover::Asked::Rename(block), anchor.into());
     }
 
-    pub fn show_app_menu(&self, anchor: impl Into<crate::PickAnchor>) {
-        self.pop(crate::popover::Asked::AppMenu, anchor.into());
+    pub fn show_host_menu(&self, anchor: impl Into<crate::PickAnchor>) {
+        self.pop(crate::popover::Asked::HostMenu, anchor.into());
     }
 
     fn pop(&self, asked: crate::popover::Asked, anchor: crate::PickAnchor) {

@@ -95,7 +95,7 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
     send(
         block,
         host,
-        TerminalMessage::Paste("echo from-the-app-$((40+2))".to_owned()),
+        TerminalMessage::Paste("echo from-the-host-$((40+2))".to_owned()),
     );
     send(
         block,
@@ -110,7 +110,7 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
     wait_until("read what the shell ran in the block's content", |shared| {
         terminal_text(shared, block)
             .lines()
-            .any(|line| line.ends_with("from-the-app-42"))
+            .any(|line| line.ends_with("from-the-host-42"))
     });
 
     stop.send(()).expect("the host is still serving");

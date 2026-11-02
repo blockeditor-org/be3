@@ -10,7 +10,7 @@ use beui::styled::*;
 use beui::{Key, NodeId};
 use block_plugin_api::PowerAction;
 
-use super::{AppViewStore, UiCommand, send};
+use super::{HostUiStore, UiCommand, send};
 use beui::{Align, Align2, Direction};
 use block_app_base::password::Password;
 
@@ -61,7 +61,7 @@ fn clock() -> ReadSignal<DateTime> {
 }
 
 #[component]
-pub(crate) fn SessionLock(view: AppViewStore, #[prop(default = true)] shortcut: bool) -> NodeId {
+pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: bool) -> NodeId {
     let lock = view.lock;
     let available = create_memo(move || lock.get().available && !lock.get().locked);
     if shortcut {

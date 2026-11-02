@@ -30,7 +30,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
         "nothing shows unasked"
     );
 
-    assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
+    assert!(fixture.test.host_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
     fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
@@ -45,14 +45,14 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     assert!(fixture.test.shown("desktop.osd.0"), "the new volume shows");
     fixture.test.snapshot("a_volume_key_shows_the_volume");
 
-    assert!(fixture.test.app_key(Modifiers::NONE, Key::BrightnessUp));
+    assert!(fixture.test.host_key(Modifiers::NONE, Key::BrightnessUp));
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.osd.0"),
         "a brightness the host has not reported shows nothing"
     );
 
-    assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeMute));
+    assert!(fixture.test.host_key(Modifiers::NONE, Key::VolumeMute));
     fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.7,

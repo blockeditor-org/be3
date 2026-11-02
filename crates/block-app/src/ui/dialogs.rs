@@ -8,11 +8,11 @@ use uuid::Uuid;
 
 use block_accounts_ui::ErrorText;
 
-use super::{AppViewStore, UiCommand, send};
+use super::{HostUiStore, UiCommand, send};
 use beui::{Align, Direction, ItemSize};
 
 #[component]
-pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
+pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
     view! {
         <List spacing=Space::None>
             <DiscardDialog view={view} />
@@ -28,7 +28,7 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn InviteDialog(view: AppViewStore) -> NodeId {
+fn InviteDialog(view: HostUiStore) -> NodeId {
     let invite = view.invite;
     let open = create_memo(move || invite.get().is_some());
     let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
@@ -49,7 +49,7 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Invite member"
             width={Size::Custom(380.0)}
-            id="app.invite"
+            id="host.invite"
             actions={vec![
                 DialogAction::primary("Create invite link", move || {
                     send(UiCommand::SendInvite(email.get_untracked(), role.get_untracked()))
@@ -66,7 +66,7 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn AgentsDialog(view: AppViewStore) -> NodeId {
+fn AgentsDialog(view: HostUiStore) -> NodeId {
     let agents = view.agents;
     let open = create_memo(move || agents.get().is_some());
     let title = create_memo(
@@ -91,7 +91,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
             title={title}
             width={Size::Custom(460.0)}
             size=DialogSize::Large
-            id="app.agents"
+            id="host.agents"
             actions={vec![
                 DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
                     .disabled(cannot)
@@ -108,7 +108,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn ContactsDialog(view: AppViewStore) -> NodeId {
+fn ContactsDialog(view: HostUiStore) -> NodeId {
     let contacts = view.contacts;
     let open = create_memo(move || contacts.get().is_some());
     let busy = create_memo(move || contacts.get().is_some_and(|contacts| contacts.busy));
@@ -118,7 +118,7 @@ fn ContactsDialog(view: AppViewStore) -> NodeId {
             title="Contacts"
             width={Size::Custom(460.0)}
             size=DialogSize::Large
-            id="app.contacts"
+            id="host.contacts"
             actions={vec![
                 DialogAction::primary("New contact link", || send(UiCommand::NewContactLink))
                     .busy(busy)
@@ -132,7 +132,7 @@ fn ContactsDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn MembersDialog(view: AppViewStore) -> NodeId {
+fn MembersDialog(view: HostUiStore) -> NodeId {
     let members = view.members;
     let open = create_memo(move || members.get().is_some());
     view! {
@@ -141,7 +141,7 @@ fn MembersDialog(view: AppViewStore) -> NodeId {
             title="Members"
             width={Size::Custom(480.0)}
             size=DialogSize::Large
-            id="app.members"
+            id="host.members"
             actions={vec![
                 DialogAction::primary("Invite member", || {
                     send(UiCommand::CloseMembers);
@@ -157,7 +157,7 @@ fn MembersDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn MembersPanel(view: AppViewStore) -> NodeId {
+fn MembersPanel(view: HostUiStore) -> NodeId {
     let members = view.members;
     let shown = create_memo(move || members.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
@@ -212,7 +212,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 label={role_label}
                                 variant=ButtonVariant::Secondary
                                 disabled={fixed}
-                                @test_id={format!("app.members.role.{account}")}
+                                @test_id={format!("host.members.role.{account}")}
                                 on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
                             />
                             <Button
@@ -220,7 +220,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 glyph=ICON_USER_MINUS
                                 label="Remove member"
                                 disabled={unremovable}
-                                @test_id={format!("app.members.remove.{account}")}
+                                @test_id={format!("host.members.remove.{account}")}
                                 on_click={move || send(UiCommand::RemoveMember(account))}
                             />
                         </List>
@@ -234,7 +234,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                     open={asks_removal}
                     kind=DialogKind::Alert
                     title="Remove member?"
-                    id="app.members.remove"
+                    id="host.members.remove"
                     actions={vec![
                         DialogAction::destructive("Remove", || send(UiCommand::ConfirmRemoveMember)),
                         DialogAction::cancel("Keep"),
@@ -249,7 +249,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn ContactsPanel(view: AppViewStore) -> NodeId {
+fn ContactsPanel(view: HostUiStore) -> NodeId {
     let contacts = view.contacts;
     let shown = create_memo(move || contacts.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
@@ -315,7 +315,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 icon_only=true
                                 glyph=ICON_TRASH
                                 label="Remove contact"
-                                @test_id={format!("app.contacts.remove.{account}")}
+                                @test_id={format!("host.contacts.remove.{account}")}
                                 on_click={move || send(UiCommand::RemoveContact(account))}
                             />
                         </List>
@@ -325,7 +325,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     open={asks_removal}
                     kind=DialogKind::Alert
                     title="Remove contact?"
-                    id="app.contacts.remove"
+                    id="host.contacts.remove"
                     actions={vec![
                         DialogAction::destructive("Remove", || send(UiCommand::ConfirmRemoveContact)),
                         DialogAction::cancel("Keep"),
@@ -336,14 +336,14 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                 </Dialog>
                 <Show condition={has_link}>
                     <List spacing=Space::Sm>
-                        <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.link-help"}>
+                        <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                         </Text>
                         <TextInput
                             value={Binding::new(link, Callback::empty())}
                             label="Contact link"
                             copyable=true
-                            @test_id={"app.contacts.link"}
+                            @test_id={"host.contacts.link"}
                         />
                     </List>
                 </Show>
@@ -353,14 +353,14 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         @sizing=ItemSize::Percent(100.0)
                         value={pasted}
                         label="Contact link"
-                        @test_id={"app.contacts.paste"}
+                        @test_id={"host.contacts.paste"}
                         on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
                     />
                     <Button
                         label="Open"
                         variant=ButtonVariant::Secondary
                         disabled={cannot_open}
-                        @test_id={"app.contacts.open"}
+                        @test_id={"host.contacts.open"}
                         on_click={move || send(UiCommand::OpenContactLink(pasted.get_untracked()))}
                     />
                 </List>
@@ -368,14 +368,14 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     open={offered}
                     kind=DialogKind::Alert
                     title="Connect?"
-                    id="app.contacts.offered"
+                    id="host.contacts.offered"
                     actions={vec![
                         DialogAction::primary("Connect", || send(UiCommand::AcceptContact)).named("accept"),
                         DialogAction::cancel("Cancel"),
                     ]}
                     on_dismiss={|| send(UiCommand::DeclineContact)}
                 >
-                    <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.offer"}>{offer}</Text>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.offer"}>{offer}</Text>
                 </Dialog>
                 <Show condition={has_connected}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
@@ -387,7 +387,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn AgentsPanel(view: AppViewStore, name: Signal<String>) -> NodeId {
+fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
     let agents = view.agents;
     let shown = create_memo(move || agents.get().unwrap_or_default());
     let organization = create_memo(move || format!("Organization: {}", shown.get().organization));
@@ -442,14 +442,14 @@ fn AgentsPanel(view: AppViewStore, name: Signal<String>) -> NodeId {
                                         icon_only=true
                                         glyph=ICON_TRASH
                                         label="Remove agent"
-                                        @test_id={format!("app.agents.remove.{account}")}
+                                        @test_id={format!("host.agents.remove.{account}")}
                                         on_click={move || send(UiCommand::RemoveAgent(account))}
                                     />
                                 </List>
                             }
                         }</ForEach>
                         <Text style=TextStyle::CAPTION>"Name"</Text>
-                        <TextInput value={name} label="Agent name" @test_id={"app.agents.name"} />
+                        <TextInput value={name} label="Agent name" @test_id={"host.agents.name"} />
                         <ErrorText text={error} />
                     </List>
                 </Show>
@@ -492,13 +492,13 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=Space::Sm>
-            <Text style=TextStyle::PARAGRAPH @test_id={"app.agents.credentials-help"}>
+            <Text style=TextStyle::PARAGRAPH @test_id={"host.agents.credentials-help"}>
                 {heading}
             </Text>
             <Checkbox
                 label="Account token supplied by proxy"
                 checked={proxy}
-                @test_id={"app.agents.proxy"}
+                @test_id={"host.agents.proxy"}
             />
             <Show condition={proxy}>
                 <List spacing=Space::Sm>
@@ -509,7 +509,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                         value={Binding::new(header, Callback::empty())}
                         label="Proxy Authorization header"
                         copyable=true
-                        @test_id={"app.agents.header"}
+                        @test_id={"host.agents.header"}
                     />
                 </List>
             </Show>
@@ -517,14 +517,14 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 value={Binding::new(credentials, Callback::empty())}
                 label="Agent credentials"
                 copyable=true
-                @test_id={"app.agents.credentials"}
+                @test_id={"host.agents.credentials"}
             />
         </List>
     }
 }
 
 #[component]
-fn UnsentDialog(view: AppViewStore) -> NodeId {
+fn UnsentDialog(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
     let open = create_memo(move || unsent.get().is_some());
     view! {
@@ -533,7 +533,7 @@ fn UnsentDialog(view: AppViewStore) -> NodeId {
             title="Unsent edits"
             width={Size::Custom(460.0)}
             size=DialogSize::Large
-            id="app.unsent"
+            id="host.unsent"
             on_dismiss={|| send(UiCommand::Unsent(false))}
         >
             <UnsentPanel view />
@@ -542,7 +542,7 @@ fn UnsentDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn UnsentPanel(view: AppViewStore) -> NodeId {
+fn UnsentPanel(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
     let shown = create_memo(move || unsent.get().unwrap_or_default());
     let keys = create_memo(move || {
@@ -603,14 +603,14 @@ fn UnsentPanel(view: AppViewStore) -> NodeId {
                                 label="Restore"
                                 variant=ButtonVariant::Primary
                                 disabled={blocked}
-                                @test_id={format!("app.unsent.restore.{block}")}
+                                @test_id={format!("host.unsent.restore.{block}")}
                                 on_click={move || send(UiCommand::RestoreUnsent(block))}
                             />
                             <Button
                                 icon_only=true
                                 glyph=ICON_TRASH
                                 label="Discard"
-                                @test_id={format!("app.unsent.discard.{block}")}
+                                @test_id={format!("host.unsent.discard.{block}")}
                                 on_click={move || send(UiCommand::DiscardUnsent(block))}
                             />
                         </List>
@@ -620,7 +620,7 @@ fn UnsentPanel(view: AppViewStore) -> NodeId {
                     open={asks_discard}
                     kind=DialogKind::Alert
                     title="Discard edits?"
-                    id="app.unsent.discard"
+                    id="host.unsent.discard"
                     actions={vec![
                         DialogAction::destructive("Discard", || send(UiCommand::ConfirmDiscardUnsent)),
                         DialogAction::cancel("Keep"),
@@ -635,7 +635,7 @@ fn UnsentPanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn AboutDialog(view: AppViewStore) -> NodeId {
+fn AboutDialog(view: HostUiStore) -> NodeId {
     let open = view.about;
     view! {
         <Dialog
@@ -651,7 +651,7 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
 
 #[component]
 fn InvitePanel(
-    view: AppViewStore,
+    view: HostUiStore,
     email: Signal<String>,
     administrator: Signal<bool>,
     role: Memo<OrganizationRole>,
@@ -686,7 +686,7 @@ fn InvitePanel(
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>{organization}</Text>
                 <Text style=TextStyle::CAPTION>"Email address"</Text>
-                <TextInput value={email} label="Email address" @test_id={"app.invite.email"} />
+                <TextInput value={email} label="Email address" @test_id={"host.invite.email"} />
                 <Text style=TextStyle::CAPTION>"Role"</Text>
                 <SegmentedControl
                     label="Role"
@@ -700,13 +700,13 @@ fn InvitePanel(
                 <ErrorText text={error} />
                 <Show condition={has_link}>
                     <List spacing=Space::Sm>
-                        <Text style=TextStyle::PARAGRAPH @test_id={"app.invite.help"}>
+                        <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                         </Text>
                         <TextInput
                             value={Binding::new(link, Callback::empty())}
                             label="Invite link"
-                            @test_id={"app.invite.link"}
+                            @test_id={"host.invite.link"}
                         />
                     </List>
                 </Show>
@@ -731,7 +731,7 @@ fn AboutPanel() -> NodeId {
 }
 
 #[component]
-fn LeaveDialog(view: AppViewStore) -> NodeId {
+fn LeaveDialog(view: HostUiStore) -> NodeId {
     let leaving = view.leaving;
     let open = create_memo(move || leaving.get());
     view! {
@@ -739,7 +739,7 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
             open={open}
             kind=DialogKind::Alert
             title="Leave?"
-            id="app.leave"
+            id="host.leave"
             actions={vec![
                 DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)),
                 DialogAction::cancel("Stay"),
@@ -754,7 +754,7 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn DiscardDialog(view: AppViewStore) -> NodeId {
+fn DiscardDialog(view: HostUiStore) -> NodeId {
     let discard = view.discard;
     let open = create_memo(move || discard.get().is_some());
     let title = create_memo(move || {

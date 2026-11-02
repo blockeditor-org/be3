@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn a_block_added_from_the_files_is_named_in_its_row() {
-    let mut app = AppTest::start();
-    start_adding_to_my_files(&mut app, "Text");
-    app.crop("#workspace.files");
-    app.snapshot("a_block_added_from_the_files_is_named_in_its_row");
-    app.type_text("Plans");
-    app.key("Enter");
-    app.wait("TreeItem \"Plans\"");
-    app.wait("Tab \"Plans\"");
-    app.close();
+    let mut host = HostTest::start();
+    start_adding_to_my_files(&mut host, "Text");
+    host.crop("#workspace.files");
+    host.snapshot("a_block_added_from_the_files_is_named_in_its_row");
+    host.type_text("Plans");
+    host.key("Enter");
+    host.wait("TreeItem \"Plans\"");
+    host.wait("Tab \"Plans\"");
+    host.close();
 }

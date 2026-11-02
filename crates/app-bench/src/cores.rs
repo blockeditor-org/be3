@@ -3,20 +3,20 @@ use std::process::Command;
 
 pub struct Cores {
     server: Option<usize>,
-    app: Vec<usize>,
+    host: Vec<usize>,
 }
 
 impl Cores {
     pub fn split() -> Result<Self, String> {
         let allowed = allowed()?;
         Ok(match allowed.split_last() {
-            Some((server, app)) if !app.is_empty() => Self {
+            Some((server, host)) if !host.is_empty() => Self {
                 server: Some(*server),
-                app: app.to_vec(),
+                host: host.to_vec(),
             },
             _ => Self {
                 server: None,
-                app: allowed,
+                host: allowed,
             },
         })
     }
@@ -25,7 +25,7 @@ impl Cores {
         match self.server {
             Some(server) => format!(
                 "the server and its network on core {server}, block-app and the bench on cores {:?}",
-                self.app
+                self.host
             ),
             None => "one core, shared by the server, block-app and the bench".to_owned(),
         }
@@ -34,7 +34,7 @@ impl Cores {
     pub fn keep_to_app(&self) -> Result<(), String> {
         match self.server {
             Some(_) => {
-                pin(&self.app).map_err(|error| format!("could not pin to {:?}: {error}", self.app))
+                pin(&self.host).map_err(|error| format!("could not pin to {:?}: {error}", self.host))
             }
             None => Ok(()),
         }

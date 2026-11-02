@@ -6,7 +6,7 @@ use be_block::display_settings::DisplayMode;
 use be_block::{DisplaySettings, SettingsLayer};
 
 use crate::local_settings::{LayerContents, LocalSettings};
-use block_app_base::app_state::{AppStateError, AppStateStore};
+use block_app_base::host_state::{HostStateError, HostStateStore};
 
 mod guard;
 pub(crate) mod shown;
@@ -54,7 +54,7 @@ pub(crate) fn prompt(now: Duration) -> Prompt {
     GUARD.with(|guard| guard.borrow_mut().prompt(now))
 }
 
-pub(crate) fn boot(store: &AppStateStore) {
+pub(crate) fn boot(store: &HostStateStore) {
     let tried = match store.tried_display_modes() {
         Ok(Some(text)) => serde_json::from_str::<Vec<(String, DisplayMode)>>(&text)
             .map(|tried| tried.into_iter().collect())
@@ -69,21 +69,21 @@ pub(crate) fn boot(store: &AppStateStore) {
 }
 
 pub(crate) fn keep(
-    store: &AppStateStore,
+    store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
 ) -> Vec<(SettingsLayer, Edit)> {
     settle(store, layers, Guard::keep)
 }
 
 pub(crate) fn revert(
-    store: &AppStateStore,
+    store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
 ) -> Vec<(SettingsLayer, Edit)> {
     settle(store, layers, Guard::revert)
 }
 
 fn settle(
-    store: &AppStateStore,
+    store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
     answer: impl FnOnce(&mut Guard) -> Vec<ModeChange>,
 ) -> Vec<(SettingsLayer, Edit)> {
@@ -106,11 +106,11 @@ fn settle(
 }
 
 impl LocalSettings for DisplaySettings {
-    fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
+    fn load(store: &HostStateStore) -> Result<Option<Vec<u8>>, HostStateError> {
         store.display_settings()
     }
 
-    fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError> {
+    fn save(store: &HostStateStore, content: &[u8]) -> Result<(), HostStateError> {
         store.set_display_settings(content)
     }
 

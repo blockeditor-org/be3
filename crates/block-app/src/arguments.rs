@@ -19,7 +19,7 @@ pub(crate) fn parse(
     if arguments.first().map(String::as_str) == Some("--install-login-session") {
         if !linux {
             return Err(
-                "--install-login-session installs the app as a Linux login session, which only Linux has; --desktop runs the desktop shell in a window".to_owned(),
+                "--install-login-session installs block-app as a Linux login session, which only Linux has; --desktop runs the desktop shell in a window".to_owned(),
             );
         }
         parsed.install_login_session = Some(arguments.get(1).cloned());
@@ -35,7 +35,7 @@ pub(crate) fn parse(
     if platform == Some(DRM) {
         if !linux {
             return Err(format!(
-                "{}={DRM} runs the app on the displays and input devices themselves, which only Linux can; --desktop runs the desktop shell in a window",
+                "{}={DRM} runs block-app on the displays and input devices themselves, which only Linux can; --desktop runs the desktop shell in a window",
                 beui_host::native::environment::PLATFORM
             ));
         }

@@ -1,6 +1,6 @@
-# Running the app natively
+# Running block-app natively
 
-To see a change working, run the app headless and drive it: guides/running/drive.md. This
+To see a change working, run block-app headless and drive it: guides/running/drive.md. This
 guide is for what that does not cover.
 
 ## block-app's flags
@@ -13,11 +13,11 @@ guide is for what that does not cover.
   (Linux), a login session on the displays themselves (guides/desktop/linux.md). `BEUI_PLATFORM=drm`
   without `--desktop` runs the workspace shell on the displays instead.
   `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
-- `--install-login-session [PREFIX]` (Linux): install the app as a login session
+- `--install-login-session [PREFIX]` (Linux): install block-app as a login session
   (guides/desktop/linux.md).
 
 `./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
-The bundle’s `build-info.json` selects the app identity: local builds use
+The bundle’s `build-info.json` selects block-app's identity: local builds use
 `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
 They keep separate accounts, workspaces and caches, including for local release builds.
 
@@ -25,7 +25,7 @@ They keep separate accounts, workspaces and caches, including for local release 
 
 A change to the platform layer - beui-platform-winit's translation of keys, the pointer and
 the clipboard, the native file dialog, the window's surface, IME, key repeat, a crash only a
-real window shows - needs the app in a real window, which in a container means a virtual X
+real window shows - needs block-app in a real window, which in a container means a virtual X
 display driven with xdotool. Install them first (`sudo apt-get install xvfb xdotool imagemagick`):
 
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
@@ -47,17 +47,17 @@ Always pass `--window $WINDOW`, or keys go to whichever window has focus. `click
 right button and `click 4`/`click 5` scroll; `mousedown 1`, `mousemove` and `mouseup 1` drag.
 xdotool's coordinates are the window's pixels, the same as the tree's, and with
 the drive layer stacked `drive --socket=/tmp/block.sock tree` reads the tree and
-`drive --socket=/tmp/block.sock settle` waits for the app to settle in between. xdotool
-returns before the app has drawn, so settle before reading anything.
+`drive --socket=/tmp/block.sock settle` waits for the host to settle in between. xdotool
+returns before the host has drawn, so settle before reading anything.
 
 A window also shows how plugins' frames arrive relative to each other, which the headless
 platform hides: dragging workspace-ui's splitter between Files and an editor, say. Drag in
 small steps (`mousedown 1`, then `mousemove` one step at a time) and run `import -window root`
 after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the window a fractional
 scale. To skip building every plugin, run the binary that `:dev` built
-(`target/apps/dev-app-*/block-app`, where it unpacked the app, with the
+(`target/apps/dev-app-*/block-app`, where it unpacked block-app, with the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it, read from `/proc/PID/environ`,
-then stop that headless app) with the variables above in place of `:native`.
+then stop that headless copy) with the variables above in place of `:native`.
 
 ## Profiling
 

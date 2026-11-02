@@ -189,7 +189,7 @@ bar is hidden, it is centred over the windows' area instead (`AppsOverlay`). It 
   open, and New session (`desktop.apps.sessions.new`), which adds one to the settings and opens it
   (disabled, saying why, while the workspace has no settings block);
 - while one of the display's bars is hidden, "Show this display's bars" (`desktop.apps.bars`);
-- Menu (`desktop.apps.menu`), which closes the panel and opens the app menu at the Apps button.
+- Menu (`desktop.apps.menu`), which closes the panel and opens block-app's menu at the Apps button.
 
 ## Notes
 
@@ -275,7 +275,7 @@ offers "Move to display N" (`<chip>.display.<n>`, `app/windows.rs`), which keeps
 and its relative place on the display, held inside it. `BeginMove` and `BeginResize`
 hand the press to the host: the window follows the pointer from where it was pressed (the
 press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
-no moves meanwhile, and the release ends it and gives the new placement. In the app's own window (`OverlaidWindows`, no desktop) a window the user has moved is kept where its top-left corner, its left 96 points and the point it was held by stay in view (`desktop::reachable`), pulled past that it stretches like a rubber band and springs back when let go (`desktop::carried`), and one never moved is kept inside the app, shrinking rather than covering what opened it (`desktop::clamped`). While one moves it is
+no moves meanwhile, and the release ends it and gives the new placement. In block-app's own window (`OverlaidWindows`, no desktop) a window the user has moved is kept where its top-left corner, its left 96 points and the point it was held by stay in view (`desktop::reachable`), pulled past that it stretches like a rubber band and springs back when let go (`desktop::carried`), and one never moved is kept inside block-app's window, shrinking rather than covering what opened it (`desktop::clamped`). While one moves it is
 drawn on every display it overlaps and on the one the move began on, which holds the press;
 once let go it is drawn only on the display holding most of it. Each view is laid out at the
 document's scale and rendered at the raster of the display that shows most of it (each mount's
@@ -296,7 +296,7 @@ popovers and dialogs escape above the windows, takes input in desktop points (`d
 `desk_move`, `desk_release`, `desk_drag`, and `desk_moves`, which advances the clock by a given
 step before each move so a fluid drag is followed frame by frame; `click`, `hover`, `down`, `up` and `drag` go the same
 way, a test id to the centre of the first place the desk shows it, revealed first when a scroll cuts it, a point read in desktop
-points), sends `app_tap` to whichever view holds the keyboard (the one whose window requests
+points), sends `host_tap` to whichever view holds the keyboard (the one whose window requests
 intercept the tap) and paints a display with the windows and escaped layers on it
 (`desk_snapshot`); without it a plugin draws its windows inside its frame.
 

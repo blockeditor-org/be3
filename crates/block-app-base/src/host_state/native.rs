@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 use be_protocol::Organization;
 
-use super::{AppStateError, SavedAccount, ServerLocation};
+use super::{HostStateError, SavedAccount, ServerLocation};
 
-pub struct AppStateStore {
+pub struct HostStateStore {
     connection: Connection,
 }
 
@@ -49,13 +49,13 @@ const SCHEMA: &str = "
 
 enum Opened {
     Incompatible(String),
-    Failed(AppStateError),
+    Failed(HostStateError),
 }
 
 impl Opened {
-    fn into_error(self) -> AppStateError {
+    fn into_error(self) -> HostStateError {
         match self {
-            Self::Incompatible(problems) => AppStateError::from(problems),
+            Self::Incompatible(problems) => HostStateError::from(problems),
             Self::Failed(error) => error,
         }
     }
@@ -78,8 +78,8 @@ impl From<sqlite_schema::SchemaError> for Opened {
     }
 }
 
-impl AppStateStore {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, AppStateError> {
+impl HostStateStore {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, HostStateError> {
         let path = path.as_ref();
         match Self::with_connection(sqlite_schema::open(path)?) {
             Err(Opened::Incompatible(problems)) => {
@@ -90,7 +90,7 @@ impl AppStateStore {
                 ] {
                     match std::fs::remove_file(&stale) {
                         Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
-                            return Err(AppStateError::from(error.to_string()));
+                            return Err(HostStateError::from(error.to_string()));
                         }
                         _ => {}
                     }
@@ -116,7 +116,7 @@ impl AppStateStore {
         Ok(Self { connection })
     }
 
-    pub fn accounts(&self) -> Result<Vec<SavedAccount>, AppStateError> {
+    pub fn accounts(&self) -> Result<Vec<SavedAccount>, HostStateError> {
         let mut statement = self.connection.prepare(
             "SELECT server_key, server_url, account_id, email, display_name, token, last_organization_id,
                     authorization
@@ -149,7 +149,7 @@ impl AppStateStore {
         Ok(accounts)
     }
 
-    pub fn save_account(&self, saved: &SavedAccount) -> Result<(), AppStateError> {
+    pub fn save_account(&self, saved: &SavedAccount) -> Result<(), HostStateError> {
         let server_url = match &saved.server {
             ServerLocation::Local => None,
             ServerLocation::Remote(url) => Some(url.as_str()),
@@ -180,7 +180,7 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn remove_account(&self, saved: &SavedAccount) -> Result<(), AppStateError> {
+    pub fn remove_account(&self, saved: &SavedAccount) -> Result<(), HostStateError> {
         self.connection.execute(
             "DELETE FROM saved_accounts WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
@@ -199,12 +199,12 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn set_active_account(&self, saved: &SavedAccount) -> Result<(), AppStateError> {
+    pub fn set_active_account(&self, saved: &SavedAccount) -> Result<(), HostStateError> {
         self.set_setting("active_server", saved.server.key())?;
         self.set_setting("active_account", &saved.id.to_string())
     }
 
-    pub fn clear_active_account(&self) -> Result<(), AppStateError> {
+    pub fn clear_active_account(&self) -> Result<(), HostStateError> {
         self.connection.execute(
             "DELETE FROM app_settings WHERE key IN ('active_server', 'active_account')",
             [],
@@ -212,7 +212,7 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn active_account(&self) -> Result<Option<(String, Uuid)>, AppStateError> {
+    pub fn active_account(&self) -> Result<Option<(String, Uuid)>, HostStateError> {
         let server = self.setting("active_server")?;
         let account = self.setting("active_account")?;
         match (server, account) {
@@ -225,7 +225,7 @@ impl AppStateStore {
         &self,
         saved: &SavedAccount,
         organization_id: Option<Uuid>,
-    ) -> Result<(), AppStateError> {
+    ) -> Result<(), HostStateError> {
         self.connection.execute(
             "UPDATE saved_accounts SET last_organization_id = ?3
              WHERE server_key = ?1 AND account_id = ?2",
@@ -241,12 +241,12 @@ impl AppStateStore {
     pub fn last_organization(
         &self,
         saved: &SavedAccount,
-    ) -> Result<Option<Organization>, AppStateError> {
+    ) -> Result<Option<Organization>, HostStateError> {
         let Some(stored) = self.setting(&organization_key(saved))? else {
             return Ok(None);
         };
         serde_json::from_str(&stored).map(Some).map_err(|error| {
-            AppStateError::from(format!("the saved organization is unreadable: {error}"))
+            HostStateError::from(format!("the saved organization is unreadable: {error}"))
         })
     }
 
@@ -254,13 +254,13 @@ impl AppStateStore {
         &self,
         saved: &SavedAccount,
         organization: &Organization,
-    ) -> Result<(), AppStateError> {
+    ) -> Result<(), HostStateError> {
         let stored = serde_json::to_string(organization)
-            .map_err(|error| AppStateError::from(error.to_string()))?;
+            .map_err(|error| HostStateError::from(error.to_string()))?;
         self.set_setting(&organization_key(saved), &stored)
     }
 
-    pub fn warm_plugins(&self) -> Result<Vec<String>, AppStateError> {
+    pub fn warm_plugins(&self) -> Result<Vec<String>, HostStateError> {
         Ok(self
             .setting("warm_plugins")?
             .map(|plugins| {
@@ -273,11 +273,11 @@ impl AppStateStore {
             .unwrap_or_default())
     }
 
-    pub fn set_warm_plugins(&self, plugins: &[String]) -> Result<(), AppStateError> {
+    pub fn set_warm_plugins(&self, plugins: &[String]) -> Result<(), HostStateError> {
         self.set_setting("warm_plugins", &plugins.join("\n"))
     }
 
-    pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
+    pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, HostStateError> {
         let secret: Option<Vec<u8>> = self
             .connection
             .query_row(
@@ -289,7 +289,7 @@ impl AppStateStore {
         secret
             .map(|secret| {
                 secret.try_into().map_err(|_| {
-                    AppStateError::from("a stored identity secret is corrupt".to_owned())
+                    HostStateError::from("a stored identity secret is corrupt".to_owned())
                 })
             })
             .transpose()
@@ -299,7 +299,7 @@ impl AppStateStore {
         &self,
         saved: &SavedAccount,
         secret: [u8; 32],
-    ) -> Result<(), AppStateError> {
+    ) -> Result<(), HostStateError> {
         self.connection.execute(
             "INSERT OR REPLACE INTO identity_secrets (server_key, account_id, secret)
              VALUES (?1, ?2, ?3)",
@@ -308,7 +308,7 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn client_id(&self) -> Result<Uuid, AppStateError> {
+    pub fn client_id(&self) -> Result<Uuid, HostStateError> {
         if let Some(existing) = self.setting("client_id")? {
             return Ok(parse_uuid(existing)?);
         }
@@ -317,7 +317,7 @@ impl AppStateStore {
         Ok(id)
     }
 
-    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, HostStateError> {
         let content = self
             .connection
             .query_row("SELECT content FROM input_settings", [], |row| row.get(0))
@@ -325,7 +325,7 @@ impl AppStateStore {
         Ok(content)
     }
 
-    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), HostStateError> {
         self.connection.execute(
             "INSERT INTO input_settings (id, content) VALUES (0, ?1)
              ON CONFLICT(id) DO UPDATE SET content = excluded.content",
@@ -334,7 +334,7 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn remapper(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+    pub fn remapper(&self) -> Result<Option<Vec<u8>>, HostStateError> {
         let content = self
             .connection
             .query_row("SELECT content FROM remapper", [], |row| row.get(0))
@@ -342,7 +342,7 @@ impl AppStateStore {
         Ok(content)
     }
 
-    pub fn set_remapper(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
+    pub fn set_remapper(&self, content: Option<&[u8]>) -> Result<(), HostStateError> {
         match content {
             Some(content) => self.connection.execute(
                 "INSERT INTO remapper (id, content) VALUES (0, ?1)
@@ -354,7 +354,7 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+    pub fn display_settings(&self) -> Result<Option<Vec<u8>>, HostStateError> {
         let content = self
             .connection
             .query_row("SELECT content FROM display_settings", [], |row| row.get(0))
@@ -362,7 +362,7 @@ impl AppStateStore {
         Ok(content)
     }
 
-    pub fn set_display_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+    pub fn set_display_settings(&self, content: &[u8]) -> Result<(), HostStateError> {
         self.connection.execute(
             "INSERT INTO display_settings (id, content) VALUES (0, ?1)
              ON CONFLICT(id) DO UPDATE SET content = excluded.content",
@@ -371,15 +371,15 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn tried_display_modes(&self) -> Result<Option<String>, AppStateError> {
+    pub fn tried_display_modes(&self) -> Result<Option<String>, HostStateError> {
         self.setting("tried_display_modes")
     }
 
-    pub fn set_tried_display_modes(&self, modes: &str) -> Result<(), AppStateError> {
+    pub fn set_tried_display_modes(&self, modes: &str) -> Result<(), HostStateError> {
         self.set_setting("tried_display_modes", modes)
     }
 
-    fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {
+    fn setting(&self, key: &str) -> Result<Option<String>, HostStateError> {
         let value = self
             .connection
             .query_row(
@@ -391,7 +391,7 @@ impl AppStateStore {
         Ok(value)
     }
 
-    fn set_setting(&self, key: &str, value: &str) -> Result<(), AppStateError> {
+    fn set_setting(&self, key: &str, value: &str) -> Result<(), HostStateError> {
         self.connection.execute(
             "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",

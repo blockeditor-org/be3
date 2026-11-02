@@ -11,7 +11,7 @@
 // wrong assumption surfaces as a clear error instead of silently corrupting
 // state.
 //
-// The file system is the app's only: once the page binds files.js's channel
+// The file system is the host's only: once the page binds files.js's channel
 // (bindFiles), every call on a descriptor other than the standard streams is
 // forwarded to that worker, which answers it from the origin private file
 // system, and the caller waits for the answer. A worker waits with
@@ -251,7 +251,7 @@ function none_fd_prestat_dir_name() {
 }
 
 function none_path_open() {
-    // There is no filesystem, so every path is missing. The app only reaches
+    // There is no filesystem, so every path is missing. The host only reaches
     // here through code paths that already tolerate a failed open, such as the
     // text editor's search for system fonts, which the web build answers with
     // fonts held in the binary instead.

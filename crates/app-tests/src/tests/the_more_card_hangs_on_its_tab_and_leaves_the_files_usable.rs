@@ -2,27 +2,27 @@ use super::*;
 
 #[test]
 fn the_more_card_hangs_on_its_tab_and_leaves_the_files_usable() {
-    let mut app = AppTest::start();
-    add_to_my_files(&mut app, "Canvas");
-    app.click("#infinite-canvas.dock.block");
-    app.click("#picker.more");
-    app.wait("#picker.search");
-    app.type_text("check");
-    app.wait("Button \"Checklist\"");
-    app.snapshot("the_more_card_hangs_on_its_tab_and_leaves_the_files_usable");
+    let mut host = HostTest::start();
+    add_to_my_files(&mut host, "Canvas");
+    host.click("#infinite-canvas.dock.block");
+    host.click("#picker.more");
+    host.wait("#picker.search");
+    host.type_text("check");
+    host.wait("Button \"Checklist\"");
+    host.snapshot("the_more_card_hangs_on_its_tab_and_leaves_the_files_usable");
 
-    app.click("TreeItem \"Canvas\"");
-    app.gone("#picker.search");
+    host.click("TreeItem \"Canvas\"");
+    host.gone("#picker.search");
     assert!(
-        app.shown("TreeItem \"Canvas\" selected"),
+        host.shown("TreeItem \"Canvas\" selected"),
         "the files take a press beside the card, which closes it"
     );
-    app.click("#infinite-canvas.dock.block");
-    app.click("#picker.more");
-    app.wait("#picker.search");
-    app.type_text("check");
-    app.click("Button \"Checklist\"");
-    app.gone("#picker.search");
-    app.wait("GenericContainer #infinite-canvas.entity.");
-    app.close();
+    host.click("#infinite-canvas.dock.block");
+    host.click("#picker.more");
+    host.wait("#picker.search");
+    host.type_text("check");
+    host.click("Button \"Checklist\"");
+    host.gone("#picker.search");
+    host.wait("GenericContainer #infinite-canvas.entity.");
+    host.close();
 }

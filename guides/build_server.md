@@ -166,7 +166,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 `crates/build-helper` builds named products of a commit on request, so that
 the build server's outputs are downloaded once, by one long-lived host whose
 `buck-out` persists, and devices download from the Bunny CDN instead. It is
-what be-launcher asks for Android APKs and the native app.
+what be-launcher asks for Android APKs and native block-app builds.
 
 - `POST /build/products/PRODUCT/COMMIT` asks for a build and answers its
   status as JSON: `queued` (with `position`, the builds ahead of it, the

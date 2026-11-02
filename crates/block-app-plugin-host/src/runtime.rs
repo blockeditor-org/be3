@@ -682,7 +682,7 @@ impl Runtime {
         match block_app_base::panic_guard::contain(|| act(self)) {
             Ok(done) => done,
             Err(panic) => {
-                self.crashed(format!("The app failed while running it: {panic}"));
+                self.crashed(format!("block-app failed while running it: {panic}"));
                 R::default()
             }
         }

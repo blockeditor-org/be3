@@ -1,10 +1,10 @@
-// The file system the app's WASI calls reach in a browser.
+// The file system the host's WASI calls reach in a browser.
 //
 // block-app keeps its state in files on every platform: the object store's
-// directory, the refs database and the app state's database. In a browser
+// directory, the refs database and the host state's database. In a browser
 // those live in the origin private file system (OPFS), whose only synchronous
 // way in, a FileSystemSyncAccessHandle, has to be opened asynchronously and
-// only from a worker. A WASI call is synchronous, and the app makes them from
+// only from a worker. A WASI call is synchronous, and the host makes them from
 // the page and from its threads alike, so this worker owns every handle and
 // answers each call: wasi.js forwards a call's name and arguments through a
 // shared buffer and waits, and this worker reads and writes what the call
@@ -653,7 +653,7 @@ const calls = {
             return SUCCESS;
         }
         if (found.kind !== "file") {
-            // Nothing the app does renames a directory.
+            // Nothing the host does renames a directory.
             return ENOTSUP;
         }
         const replaced = await entry(to);

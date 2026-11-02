@@ -1391,7 +1391,7 @@ into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as a sheet when a
 finger opened it or `sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
-outside. A host that opens one for a plugin's button (block-app's app menu)
+outside. A host that opens one for a plugin's button (the host's menu)
 anchors it to the button's rect, which the plugin sends from `node_anchor`; the
 host routed that press, so the surface knows whether a finger made it. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`

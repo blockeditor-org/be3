@@ -17,7 +17,7 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::compositor::{AnchoredViews, ShellDisplay};
-use block_app_base::app_state::{SavedAccount, ServerLocation};
+use block_app_base::host_state::{SavedAccount, ServerLocation};
 use block_app_desktop::desktop_host::{DesktopHost, Host};
 
 pub(crate) use debug::{
@@ -312,7 +312,7 @@ pub(crate) struct LockView {
 }
 
 #[derive(Clone, Default, PartialEq, Store)]
-pub(crate) struct AppView {
+pub(crate) struct HostUi {
     pub(crate) screen: Screen,
     pub(crate) error: ErrorView,
     pub(crate) accounts: Vec<AccountRow>,
@@ -431,7 +431,7 @@ pub(crate) enum UiCommand {
 }
 
 #[component]
-pub(crate) fn Displays(view: AppViewStore) -> NodeId {
+pub(crate) fn Displays(view: HostUiStore) -> NodeId {
     let shown = crate::display::shown();
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
@@ -465,7 +465,7 @@ pub(crate) fn Displays(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
+fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
     let shown = crate::display::shown();
     let key = id.clone();
     let display = create_memo(move || {
@@ -530,7 +530,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
 }
 
 #[component]
-fn SecondaryDisplay(view: AppViewStore, index: Memo<usize>) -> NodeId {
+fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
     let area = NodeRef::new();
     let screen = view.screen;
     let presenting = view.presenting;
@@ -560,7 +560,7 @@ fn SecondaryDisplay(view: AppViewStore, index: Memo<usize>) -> NodeId {
 }
 
 #[component]
-pub(crate) fn Root(view: AppViewStore) -> NodeId {
+pub(crate) fn Root(view: HostUiStore) -> NodeId {
     let screen = view.screen;
     let area = NodeRef::new();
     view! {
@@ -607,7 +607,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
+fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
     let slow_save = saving::SlowSave::new(view);
     let notices = view.toasts;
     let toasts = create_memo(move || slow_save.with_toast(notices.get()));

@@ -1,7 +1,7 @@
 # Adding a game
 
 A deterministic game is a crate of its own that compiles to a single
-WebAssembly module. The app never links a game: a module is imported into a
+WebAssembly module. block-app never links a game: a module is imported into a
 game module block, and the game block that references it runs the module
 through the `wasmi` interpreter in `crates/tabletop-games/host`, asking it what
 a player currently sees. That is the same on desktop, Android and the browser,
@@ -16,7 +16,7 @@ side of the WebAssembly boundary it runs on:
   and the build script helper each game calls. It has to build for
   wasm32-unknown-unknown, so it depends on nothing that needs a host.
 - `host` (`game-host`) is the other side: it embeds `wasmi`, loads a module,
-  and calls it. Only the app depends on it. It re-exports the `game-api`
+  and calls it. Only block-app depends on it. It re-exports the `game-api`
   types it passes across, so a caller needs the one crate.
 - `rules/<game>` is one game each - the only place a game's actual rules
   live.
@@ -248,17 +248,17 @@ so what is tested is the artifact that ships. Pure helpers (a deck, a win
 check) are still tested directly. A guest panic has nowhere to print, so it
 reaches the test as a trap rather than a message.
 
-## 4. Getting the module into the app
+## 4. Getting the module into the host
 
-Every crate under `crates/tabletop-games/rules` is staged beside the app as
+Every crate under `crates/tabletop-games/rules` is staged beside block-app as
 the Games plugin's data (`games/<game>.wasm`, see
 crates/editors/deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
 those games by the name each module gives itself; choosing one copies that
 exact module into the workspace as a Game Module block under the new game, so
-the game keeps playing the bytes it started with whatever the app is later
+the game keeps playing the bytes it started with whatever block-app is later
 rebuilt with. The same dialog can instead play a Game Module block the
 workspace already holds, or one imported there and then from a `.wasm` file,
-which is how a game the app was not built with gets played:
+which is how a game block-app was not built with gets played:
 `./scripts/buck build //crates/tabletop-games/rules/<game>:module --out <game>.wasm`
 writes one.
 

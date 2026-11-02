@@ -245,7 +245,7 @@ pub struct ProgramNames {
     by_app: HashMap<String, String>,
 }
 
-fn app_key(app: &str) -> String {
+fn host_key(app: &str) -> String {
     app.trim().replace('/', "\\").to_lowercase()
 }
 
@@ -262,7 +262,7 @@ impl ProgramNames {
             for app in shortcut.app_user_model_id.iter().chain(target.iter()) {
                 names
                     .by_app
-                    .entry(app_key(app))
+                    .entry(host_key(app))
                     .or_insert_with(|| program.name.clone());
             }
         }
@@ -280,7 +280,7 @@ impl ProgramNames {
                 .into_iter()
                 .chain(entry.origin.command.first().map(String::as_str))
                 .filter(|app| !app.trim().is_empty())
-                .find_map(|app| self.by_app.get(&app_key(app)))
+                .find_map(|app| self.by_app.get(&host_key(app)))
         };
         launched.or_else(matched).cloned().unwrap_or_default()
     }

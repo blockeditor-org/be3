@@ -5,21 +5,21 @@ a person at a machine with displays, a device or a headset, and an agent in a co
 none of them. AGENTS.md's Commands section has the everyday ones (`./scripts/verify`,
 `./scripts/test`, `:dev`, `rasterize`); guides/running/ says how to run and drive each platform.
 `./scripts/buck run` passes the environment on to the program, so a `BEUI_*` variable before it
-reaches the app.
+reaches the program.
 
 ## For a person
 
 ```
-# the app in a window, with every plugin beside it
+# the host in a window, with every plugin beside it
 ./scripts/buck run //crates/block-app:native
 
 # the desktop shell in a window
 ./scripts/buck run //crates/block-app:native -- --desktop
 
-# the app in the VR simulator: its windows as panels in a 3D scene, in a window
+# the host in the VR simulator: its windows as panels in a 3D scene, in a window
 BEUI_LAYERS=space ./scripts/buck run //crates/block-app:native
 
-# the app on an OpenXR headset (SteamVR or Monado running); the window is the headset's mirror
+# the host on an OpenXR headset (SteamVR or Monado running); the window is the headset's mirror
 BEUI_LAYERS=xr ./scripts/buck run //crates/block-app:native
 
 # the desktop as a login session on this machine's displays, from a virtual terminal with no
@@ -32,7 +32,7 @@ BEUI_PLATFORM=drm ./scripts/buck run //crates/block-app:native -- --desktop
 # build the APK, install it on the connected device and start it
 ./scripts/buck run //crates/block-app:android -- --install
 
-# the web app and be-server, on http://127.0.0.1:8080
+# the host's web build and be-server, on http://127.0.0.1:8080
 ./scripts/buck run //crates/block-app:web
 
 # beui's demo in a window; any beui program takes BEUI_LAYERS too
@@ -51,18 +51,18 @@ An agent cannot use the displays (`drm`), a headset, an Android device or the em
 a cloud container, guides/running/android.md); it runs everything headless and drives it.
 
 ```
-# the app headless, signed in with a workspace open, for `drive` (guides/running/drive.md)
+# the host headless, signed in with a workspace open, for `drive` (guides/running/drive.md)
 ./scripts/buck run //crates/block-app:dev [-- --fresh | --stop]
 source ~/.cache/be3/dev/env
 
 # the desktop shell headless
 ./scripts/buck run //crates/block-app:dev -- --desktop
 
-# the VR simulator headless, with drive taps under space and the app: `drive --into=space ...`
+# the VR simulator headless, with drive taps under space and the host: `drive --into=space ...`
 # walks and clicks through space, `drive xr left|right ...` works a headset's controllers
 BEUI_LAYERS=space ./scripts/buck run //crates/block-app:dev
 
-# the web app in a headless Chromium (guides/running/web.md)
+# the host's web build in a headless Chromium (guides/running/web.md)
 ./scripts/buck run //crates/block-app:web-dev
 
 # beui's demo and the launcher, headless
@@ -84,9 +84,9 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/editors/desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
-| `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with the editors each test names, driven and painted as a whole |
-| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |
+| `./scripts/buck run //crates/block-app:native` | the host, with every plugin beside it |
+| `./scripts/test //crates/app-tests:test [--update]` | the host tests: block-app headless with the editors each test names, driven and painted as a whole |
+| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |

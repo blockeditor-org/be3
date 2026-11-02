@@ -29,12 +29,12 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
-use app_state::{AppStateStore, SavedAccount, ServerLocation};
+use host_state::{HostStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::native::Document;
-use block_app_base::{app_state, host, notices, panic_guard, performance, platform};
+use block_app_base::{host_state, host, notices, panic_guard, performance, platform};
 use block_app_desktop::desktop_host::{DesktopHost, Host};
 use block_app_plugin_host::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
@@ -54,7 +54,7 @@ use invite_link::InviteLink;
 use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
-use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
+use ui::{AccountForm, HostUi, HostUiStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -221,7 +221,7 @@ pub async fn automate(
             Err("the browser takes screenshots itself: use drive shot".into())
         }
         beui_host::native::drive::Reply::Painting(_) => {
-            Err("the web build does not answer paint; run the app natively".into())
+            Err("the web build does not answer paint; run block-app natively".into())
         }
     }
 }
@@ -263,7 +263,7 @@ fn android_main(app: beui_host::native::AndroidApp) {
 
 struct Shell {
     document: Document,
-    view: AppViewStore,
+    view: HostUiStore,
     app: BlockApp,
 }
 
@@ -275,7 +275,7 @@ impl Shell {
             Host::create();
             surfaces::create_handles();
             display::create_handle();
-            let store = AppViewStore::new(AppView::default());
+            let store = HostUiStore::new(HostUi::default());
             view = Some(store);
             beui::reactive::view! {
                 <beui::styled::Root title="Block">
@@ -316,7 +316,7 @@ impl beui::native::App for Shell {
             login_session::export_environment(Host::environment());
         }
         display::start(setup);
-        block_app_desktop::remap::load_cached(self.app.app_state.remapper().unwrap_or_else(
+        block_app_desktop::remap::load_cached(self.app.host_state.remapper().unwrap_or_else(
             |error| {
                 eprintln!(
                     "block-app: the input remapper kept for this session was not read: {error}"
@@ -324,9 +324,9 @@ impl beui::native::App for Shell {
                 None
             },
         ));
-        self.app.input.boot(&self.app.app_state);
-        self.app.display.boot(&self.app.app_state);
-        display::boot(&self.app.app_state);
+        self.app.input.boot(&self.app.host_state);
+        self.app.display.boot(&self.app.host_state);
+        display::boot(&self.app.host_state);
     }
 
     fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
@@ -466,7 +466,7 @@ impl beui::native::App for Shell {
 }
 
 struct BlockApp {
-    app_state: AppStateStore,
+    host_state: HostStateStore,
 
     client_id: Uuid,
     local_server_url: String,
@@ -694,8 +694,8 @@ impl BlockApp {
         block_app_plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
-        let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
-        let mut app = Self::with_state(app_state, url)?;
+        let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
+        let mut app = Self::with_state(host_state, url)?;
         app.programs.keep_files_in(data_dir.join("files"));
         app.data_dir = data_dir;
         app.embedded_server = Some(embedded_server);
@@ -706,20 +706,20 @@ impl BlockApp {
     fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
         let data_dir = PathBuf::from(WEB_DATA_DIR);
         std::fs::create_dir_all(&data_dir)?;
-        let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
-        let mut app = Self::with_state(app_state, String::new())?;
+        let host_state = HostStateStore::open(data_dir.join("app.sqlite3"))?;
+        let mut app = Self::with_state(host_state, String::new())?;
         app.data_dir = data_dir;
         Ok(app)
     }
 
     fn with_state(
-        app_state: AppStateStore,
+        host_state: HostStateStore,
         url: String,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let client_id = app_state.client_id()?;
-        let accounts = app_state.accounts()?;
+        let client_id = host_state.client_id()?;
+        let accounts = host_state.accounts()?;
         accounts::authorize(&accounts);
-        let active = app_state.active_account()?;
+        let active = host_state.active_account()?;
         let account = active
             .and_then(|(server, id)| {
                 accounts
@@ -729,7 +729,7 @@ impl BlockApp {
             .cloned();
         let signed_in = account.is_some();
         let identity = match &account {
-            Some(account) => app_state.identity(account)?,
+            Some(account) => host_state.identity(account)?,
             None => None,
         };
         let account = account.unwrap_or_else(|| Account {
@@ -748,7 +748,7 @@ impl BlockApp {
         let registry = Rc::new(EditorRegistry::new());
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         let mut app = Self {
-            app_state,
+            host_state,
             client_id,
             local_server_url: url,
             accounts,
@@ -1222,11 +1222,11 @@ impl BlockApp {
                         .and_then(|account| account.last_organization_id),
                     authorization: pending.authorization.clone(),
                 };
-                if let Err(error) = self.app_state.save_account(&saved) {
+                if let Err(error) = self.host_state.save_account(&saved) {
                     self.account_error = Some(error.to_string());
                     return;
                 }
-                self.accounts = self.app_state.accounts().unwrap_or_else(|error| {
+                self.accounts = self.host_state.accounts().unwrap_or_else(|error| {
                     self.account_error = Some(error.to_string());
                     Vec::new()
                 });
@@ -1241,7 +1241,7 @@ impl BlockApp {
     fn open_account(&mut self, mut account: Account, choose_organization: bool) {
         if choose_organization {
             account.last_organization_id = None;
-            if let Err(error) = self.app_state.set_last_organization(&account, None) {
+            if let Err(error) = self.host_state.set_last_organization(&account, None) {
                 self.account_error = Some(error.to_string());
             }
         }
@@ -1262,7 +1262,7 @@ impl BlockApp {
             let _ = accounts::logout(url, token).await;
         });
 
-        if let Err(error) = self.app_state.remove_account(account) {
+        if let Err(error) = self.host_state.remove_account(account) {
             self.account_error = Some(error.to_string());
             return;
         }
@@ -1522,7 +1522,7 @@ impl BlockApp {
                 updated.email = session.email;
                 updated.name = session.display_name;
                 updated.token = session.token;
-                if let Err(error) = self.app_state.save_account(&updated) {
+                if let Err(error) = self.host_state.save_account(&updated) {
                     reauth.error = Some(error.to_string());
                     self.reauth = Some(reauth);
                     return;
@@ -1552,7 +1552,7 @@ impl BlockApp {
     fn close_reauth(&mut self) {
         self.reauth = None;
         self.signed_in = false;
-        if let Err(error) = self.app_state.clear_active_account() {
+        if let Err(error) = self.host_state.clear_active_account() {
             self.account_error = Some(error.to_string());
         }
     }
@@ -1562,7 +1562,7 @@ impl BlockApp {
             return;
         }
         let last = self
-            .app_state
+            .host_state
             .last_organization(&self.account)
             .ok()
             .flatten()
@@ -1589,7 +1589,7 @@ impl BlockApp {
             Some(listed) if listed == open => {}
             Some(listed) => {
                 let _ = self
-                    .app_state
+                    .host_state
                     .set_last_organization_details(&self.account, &listed);
                 self.organization = Some(listed);
                 self.publish_administrator();
@@ -1597,7 +1597,7 @@ impl BlockApp {
             None => {
                 let mut account = self.account.clone();
                 account.last_organization_id = None;
-                let _ = self.app_state.set_last_organization(&account, None);
+                let _ = self.host_state.set_last_organization(&account, None);
                 self.switch_account(account);
             }
         }
@@ -1634,10 +1634,10 @@ impl BlockApp {
             saved.last_organization_id = Some(organization.id);
         }
         if let Err(error) = self
-            .app_state
+            .host_state
             .set_last_organization(&self.account, Some(organization.id))
             .and_then(|()| {
-                self.app_state
+                self.host_state
                     .set_last_organization_details(&self.account, &organization)
             })
         {
@@ -1669,7 +1669,7 @@ impl BlockApp {
             }
             None => return,
         };
-        if let Err(error) = self.app_state.set_identity(&self.account, secret) {
+        if let Err(error) = self.host_state.set_identity(&self.account, secret) {
             self.organization_error = Some(error.to_string());
             return;
         }
@@ -1762,14 +1762,14 @@ impl BlockApp {
         self.input.set_layers(Default::default());
         self.display.set_layers(Default::default());
         self.keys = keys::KeyState::default();
-        self.identity = self.app_state.identity(&account).unwrap_or_else(|error| {
+        self.identity = self.host_state.identity(&account).unwrap_or_else(|error| {
             self.organization_error = Some(error.to_string());
             None
         });
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
-        if let Err(error) = self.app_state.set_active_account(&self.account) {
+        if let Err(error) = self.host_state.set_active_account(&self.account) {
             self.account_error = Some(error.to_string());
         }
         self.resume_organization();
@@ -2651,7 +2651,7 @@ impl BlockApp {
             }));
             if caught.is_err() {
                 self.crashed(
-                    panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
+                    panic_guard::take().unwrap_or_else(|| "block-app stopped responding.".into()),
                 );
             }
         }
@@ -2664,8 +2664,8 @@ impl BlockApp {
         let now = host::now();
         let mut prompt = display::prompt(now);
         if prompt == display::Prompt::Expired {
-            let edits = display::revert(&self.app_state, &self.display.layers());
-            self.display.commit(&self.app_state, edits);
+            let edits = display::revert(&self.host_state, &self.display.layers());
+            self.display.commit(&self.host_state, edits);
             prompt = display::prompt(now);
         }
         self.display_round = match prompt {
@@ -2685,15 +2685,15 @@ impl BlockApp {
             return;
         }
         let edits = match keep {
-            true => display::keep(&self.app_state, &self.display.layers()),
-            false => display::revert(&self.app_state, &self.display.layers()),
+            true => display::keep(&self.host_state, &self.display.layers()),
+            false => display::revert(&self.host_state, &self.display.layers()),
         };
-        self.display.commit(&self.app_state, edits);
+        self.display.commit(&self.host_state, edits);
         self.display_round = None;
     }
 
     fn crashed(&mut self, report: String) {
-        let _ = self.app_state.clear_active_account();
+        let _ = self.host_state.clear_active_account();
         #[cfg(target_os = "linux")]
         if self.login_session.is_some() {
             panic_guard::persist(&report);
@@ -2739,7 +2739,7 @@ impl BlockApp {
             self.scheduled_organization_list = false;
             let mut account = self.account.clone();
             account.last_organization_id = None;
-            let _ = self.app_state.set_last_organization(&account, None);
+            let _ = self.host_state.set_last_organization(&account, None);
             self.switch_account(account);
         }
         if self.organization.is_none() {
@@ -2779,7 +2779,7 @@ impl BlockApp {
         #[cfg(target_os = "linux")]
         {
             self.take_power_request();
-            block_app_desktop::remap::frame(&self.app_state);
+            block_app_desktop::remap::frame(&self.host_state);
         }
         self.poll_artifacts();
         self.record_plugins_in_use();
@@ -2793,7 +2793,7 @@ impl BlockApp {
             return;
         }
         let shell = self.root_settings.shell().into_bytes();
-        let in_use = self.app_state.warm_plugins().unwrap_or_default();
+        let in_use = self.host_state.warm_plugins().unwrap_or_default();
         let manifests = block_app_stack::discovery::manifests();
         let opened: Vec<[u8; 16]> = manifests
             .iter()
@@ -2818,7 +2818,7 @@ impl BlockApp {
         if in_use.is_empty() || in_use == self.plugins_in_use {
             return;
         }
-        if let Err(error) = self.app_state.set_warm_plugins(&in_use) {
+        if let Err(error) = self.host_state.set_warm_plugins(&in_use) {
             eprintln!("block-app: the plugins in use were not saved: {error}");
         }
         self.plugins_in_use = in_use;
@@ -2885,8 +2885,8 @@ impl BlockApp {
             self.display
                 .set_layers(settings.layers(DisplaySettings::CONTENT_TYPE, self.client_id));
         }
-        self.input.sync(&self.app_state);
-        self.display.sync(&self.app_state);
+        self.input.sync(&self.host_state);
+        self.display.sync(&self.host_state);
     }
 
     fn sync_ui_settings(&mut self) {
@@ -3028,7 +3028,7 @@ impl BlockApp {
             }
             UiCommand::SwitchAccount | UiCommand::ManageAccounts => {
                 self.signed_in = false;
-                if let Err(error) = self.app_state.clear_active_account() {
+                if let Err(error) = self.host_state.clear_active_account() {
                     self.account_error = Some(error.to_string());
                 }
             }
@@ -3173,7 +3173,7 @@ impl BlockApp {
             }
             UiCommand::UnlockWithPhrase(phrase) => {
                 if let Some(secret) = self.keys.unlock_with_phrase(&phrase) {
-                    if let Err(error) = self.app_state.set_identity(&self.account, secret) {
+                    if let Err(error) = self.host_state.set_identity(&self.account, secret) {
                         self.organization_error = Some(error.to_string());
                     }
                     self.identity = Some(secret);
@@ -3198,7 +3198,7 @@ impl BlockApp {
         }
     }
 
-    fn view(&self) -> AppView {
+    fn view(&self) -> HostUi {
         let screen = match (&self.error, self.signed_in, &self.organization) {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
@@ -3249,7 +3249,7 @@ impl BlockApp {
             .as_ref()
             .map(|organization| organization.name.clone())
             .unwrap_or_default();
-        AppView {
+        HostUi {
             screen,
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
@@ -3444,7 +3444,7 @@ impl BlockApp {
 
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("app.sqlite3");
-        let _ = std::mem::replace(&mut self.app_state, AppStateStore::placeholder());
+        let _ = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
         if let Err(error) = std::fs::remove_file(&path)
             && error.kind() != io::ErrorKind::NotFound
         {
