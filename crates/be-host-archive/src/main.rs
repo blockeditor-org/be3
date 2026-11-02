@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: app-archive pack DIR ARCHIVE
-       app-archive run ARCHIVE PROGRAM [ARGUMENTS...]";
+const USAGE: &str = "usage: program-archive pack DIR ARCHIVE
+       program-archive run ARCHIVE PROGRAM [ARGUMENTS...]";
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -17,7 +17,7 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("app-archive: {message}");
+            eprintln!("program-archive: {message}");
             ExitCode::FAILURE
         }
     }

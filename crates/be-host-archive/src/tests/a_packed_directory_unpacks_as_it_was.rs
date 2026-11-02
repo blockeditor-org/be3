@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_packed_directory_unpacks_as_it_was() {
-    let scratch = std::env::temp_dir().join(format!("app-archive-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("program-archive-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let staged = scratch.join("staged");
     fs::create_dir_all(staged.join("data/be3.settings")).unwrap();
@@ -10,7 +10,7 @@ fn a_packed_directory_unpacks_as_it_was() {
     make_executable(&staged.join("app")).unwrap();
     fs::write(staged.join("app.wasm"), vec![7; 300_000]).unwrap();
     fs::write(staged.join("data/be3.settings/empty"), b"").unwrap();
-    let archive = scratch.join("staged.appz");
+    let archive = scratch.join("staged.programz");
     pack(&staged, &archive).unwrap();
     assert!(fs::metadata(&archive).unwrap().len() < 10_000);
     let out = scratch.join("out");
@@ -20,7 +20,7 @@ fn a_packed_directory_unpacks_as_it_was() {
     assert_eq!(fs::read(out.join("data/be3.settings/empty")).unwrap(), b"");
     assert!(executable(&fs::metadata(out.join("app")).unwrap()));
     assert!(!executable(&fs::metadata(out.join("app.wasm")).unwrap()));
-    let again = scratch.join("again.appz");
+    let again = scratch.join("again.programz");
     pack(&staged, &again).unwrap();
     assert_eq!(fs::read(&archive).unwrap(), fs::read(&again).unwrap());
     let cached = unpacked(&archive).unwrap();

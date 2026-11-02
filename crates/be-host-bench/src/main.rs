@@ -64,15 +64,15 @@ fn setting(name: &str, default: usize) -> Result<usize, String> {
 fn run() -> Result<(), String> {
     let program = std::env::var("BLOCK_APP")
         .map_err(|_| "BLOCK_APP names the block-app to run; run this through //crates/be-tool-bench:suite (guides/performance.md)".to_owned())?;
-    let out = std::env::temp_dir().join(format!("app-bench-{}", std::process::id()));
+    let out = std::env::temp_dir().join(format!("host-bench-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out)
         .map_err(|error| format!("could not create {}: {error}", out.display()))?;
     let settings = Settings {
         program,
-        libraries: std::env::var("APP_LIBRARIES").ok(),
-        points: setting("APP_BENCH_POINTS", POINTS)?,
-        text_bytes: setting("APP_BENCH_TEXT_BYTES", TEXT_BYTES)?,
+        libraries: std::env::var("HOST_LIBRARIES").ok(),
+        points: setting("HOST_BENCH_POINTS", POINTS)?,
+        text_bytes: setting("HOST_BENCH_TEXT_BYTES", TEXT_BYTES)?,
         out,
     };
     let measured = measure(&settings);

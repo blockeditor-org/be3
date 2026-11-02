@@ -19,7 +19,7 @@ suite(
     libraries = "//buck/sysroot:amd64-libraries",
     programs = {
         "access-bench": "//crates/be-block-graph:example-access-bench",
-        "app-bench": "//crates/be-host-bench:bin",
+        "host-bench": "//crates/be-host-bench:bin",
         "canvas-bench": "//crates/be-app-infinite-canvas:example-canvas-bench",
         "open-bench": "//crates/beui-demo:example-open-bench",
         "space-bench": "//crates/beui-demo:example-space-bench",

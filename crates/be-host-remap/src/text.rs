@@ -23,7 +23,6 @@ struct TextGroup {
 #[serde(deny_unknown_fields)]
 struct TextWindow {
     exe: Option<String>,
-    #[serde(rename = "app_id")]
     program_id: Option<String>,
     title: Option<String>,
 }

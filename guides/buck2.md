@@ -340,7 +340,7 @@ A native target depends on a wasm one through a transition in
   (`crates/be-host-archive`, packed on a worker): a quarter of the release bundle and a
   seventh of a debug one, since zstd's long matching finds the code the apps
   share. `buck2 run` and `:dev` download only that, unpack it into
-  `target/apps/<name>-<hash>/` when it changed, and run the program there.
+  `target/programs/<name>-<hash>/` when it changed, and run the program there.
 - `:native-dist` is a platform's release, `:apps` the apps once for
   all, and `//crates/be-server-bin:dist` the server with its build id.
 - `:web` is block-app for `wasi` and `be-wasm-gpu-shim` for `wasm32`, each run

@@ -186,7 +186,7 @@ time, so notifications wait for the next post.
   missing table or index and a missing column that has a default, and refuses
   anything else (a column gone, retyped or unknown), so a schema only grows.
   Values that may grow (a role, an access level, a parent kind) have no `CHECK`,
-  since SQLite rebuilds a table to change one. The host's own `app.sqlite3`
+  since SQLite rebuilds a table to change one. The host's own `host.sqlite3`
   is checked the same way, and recreated (signing the device out) when it
   does not match.
 - A connection starts with a greeting outside the protocol: each side sends
@@ -968,7 +968,7 @@ anyway shows the editor for the rest of the session (`be_host_stack::try_anyway`
 the host holds itself (`be_host_stack::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the host needs it to work: it
 publishes the type's blank content and opens the replica again. The
-host deletes `plugin-cache/` whenever its build id changes; it keeps
+host deletes `app-cache/` whenever its build id changes; it keeps
 `be-objects/` (objects are content-addressed and frozen) and the refs database.
 
 `crates/be-host-stack/src/worker.rs` is the peer's loop and

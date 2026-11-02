@@ -12,14 +12,14 @@ use beui_runner::environment;
 
 use crate::{Unanswered, request};
 
-const USAGE: &str = "usage: be-drive launch --program=PATH [--archive=APPZ] [--name=NAME] [--data]
+const USAGE: &str = "usage: be-drive launch --program=PATH [--archive=ARCHIVE] [--name=NAME] [--data]
        [--libraries=DIR] [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS]
        [--pin-clock] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
 round trip between the program and its server. --pin-clock starts its wall clock at the fixed
 moment tests use (2026-03-02 09:41 UTC) in the UTC time zone, instead of the real time and zone.
-With --archive, PROGRAM is a path in that app archive (crates/be-host-archive), unpacked first.
+With --archive, PROGRAM is a path in that program archive (crates/be-host-archive), unpacked first.
 Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SOCKET_PATH: usize = 107;

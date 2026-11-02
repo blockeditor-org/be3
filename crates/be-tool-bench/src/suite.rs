@@ -14,7 +14,7 @@ pub struct Benchmark {
 pub const BENCHMARKS: &[Benchmark] = &[
     Benchmark {
         name: "app-canvas-and-text",
-        program: "app-bench",
+        program: "host-bench",
         arguments: &[],
         about: "block-app end to end against a server 30 ms away: canvas and text blocks made, saved, painted, closed, exported and reopened on a new device",
     },
@@ -81,7 +81,7 @@ impl Suite {
             .args(benchmark.arguments)
             .env(METRICS, &metrics)
             .env("BLOCK_APP", self.dir.join("block-app").join("block-app"))
-            .env("APP_LIBRARIES", self.dir.join("lib"))
+            .env("HOST_LIBRARIES", self.dir.join("lib"))
             .stdin(Stdio::null());
         if !verbose {
             let file = std::fs::File::create(log)

@@ -23,7 +23,7 @@ const SCHEMA: &str = "
         authorization     TEXT,
         PRIMARY KEY (server_key, account_id)
     );
-    CREATE TABLE app_settings (
+    CREATE TABLE host_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
@@ -191,7 +191,7 @@ impl HostStateStore {
             params![saved.server.key(), saved.id.to_string()],
         )?;
         self.connection.execute(
-            "DELETE FROM app_settings WHERE key = ?1",
+            "DELETE FROM host_settings WHERE key = ?1",
             [organization_key(saved)],
         )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
@@ -207,7 +207,7 @@ impl HostStateStore {
 
     pub fn clear_active_account(&self) -> Result<(), HostStateError> {
         self.connection.execute(
-            "DELETE FROM app_settings WHERE key IN ('active_server', 'active_account')",
+            "DELETE FROM host_settings WHERE key IN ('active_server', 'active_account')",
             [],
         )?;
         Ok(())
@@ -263,7 +263,7 @@ impl HostStateStore {
 
     pub fn warm_apps(&self) -> Result<Vec<String>, HostStateError> {
         Ok(self
-            .setting("warm_plugins")?
+            .setting("warm_apps")?
             .map(|apps| {
                 apps.split('\n')
                     .filter(|app| !app.is_empty())
@@ -274,7 +274,7 @@ impl HostStateStore {
     }
 
     pub fn set_warm_apps(&self, apps: &[String]) -> Result<(), HostStateError> {
-        self.set_setting("warm_plugins", &apps.join("\n"))
+        self.set_setting("warm_apps", &apps.join("\n"))
     }
 
     pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, HostStateError> {
@@ -383,7 +383,7 @@ impl HostStateStore {
         let value = self
             .connection
             .query_row(
-                "SELECT value FROM app_settings WHERE key = ?1",
+                "SELECT value FROM host_settings WHERE key = ?1",
                 [key],
                 |row| row.get(0),
             )
@@ -393,7 +393,7 @@ impl HostStateStore {
 
     fn set_setting(&self, key: &str, value: &str) -> Result<(), HostStateError> {
         self.connection.execute(
-            "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+            "INSERT INTO host_settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![key, value],
         )?;

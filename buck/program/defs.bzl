@@ -122,7 +122,7 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
 # apps through. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module. `[archive]` is the whole directory as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
-# worker. `buck2 run` runs the executable from it, unpacked into target/apps
+# worker. `buck2 run` runs the executable from it, unpacked into target/programs
 # once for each new archive, so a run downloads only the archive; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
@@ -184,7 +184,7 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.index:
         command.add("--index")
     ctx.actions.run(command, category = "program")
-    archive = ctx.actions.declare_output(ctx.label.name + ".appz")
+    archive = ctx.actions.declare_output(ctx.label.name + ".programz")
     ctx.actions.run(
         cmd_args(ctx.attrs._archiver[RunInfo], "pack", out, archive.as_output()),
         category = "program_archive",

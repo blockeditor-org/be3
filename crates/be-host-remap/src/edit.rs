@@ -84,7 +84,7 @@ impl Editing {
             .map(|group| GroupOutline {
                 name: text(group.get("name")),
                 exe: window(group, "exe"),
-                program_id: window(group, "app_id"),
+                program_id: window(group, "program_id"),
                 title: window(group, "title"),
                 rules: group
                     .get("rules")
@@ -137,7 +137,7 @@ impl Editing {
                 return;
             }
             GroupField::Exe => "exe",
-            GroupField::ProgramId => "app_id",
+            GroupField::ProgramId => "program_id",
             GroupField::Title => "title",
         };
         if text.is_empty() {

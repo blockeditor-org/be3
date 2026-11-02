@@ -16,7 +16,7 @@ using it would. Each item says what "done" looks like.
   path (email, or at least a `be-server` command for the operator), which
   leaves the sealed keys as they are.
 - **Keys in the OS keystore.** Workspace keys and the session token sit in
-  plaintext host state (`app.sqlite3`). Done: Keychain,
+  plaintext host state (`host.sqlite3`). Done: Keychain,
   Android Keystore, libsecret or DPAPI, and non-extractable WebCrypto keys in
   IndexedDB on web.
 - **Key rotation.** A workspace has one key for its whole life, and sealed
@@ -57,7 +57,7 @@ anyone else can sign in:
 
 - Native and Android are what the daily driver uses.
 - Done: the web build keeps the same files as native, in the origin private
-  file system: `app.sqlite3`, the refs database and the `FileStore` objects,
+  file system: `host.sqlite3`, the refs database and the `FileStore` objects,
   through WASI file calls that `crates/be-host/web/files.js` answers. One
   tab owns them (a Web Lock), the page asks for persistent storage, and a
   service worker keeps the host so it opens offline.

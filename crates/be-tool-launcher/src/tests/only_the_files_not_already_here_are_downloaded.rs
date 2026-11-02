@@ -42,7 +42,7 @@ fn only_the_files_not_already_here_are_downloaded() {
     builds::fetch(&cache, &second, &mut store, &mut |_, _| {}).unwrap();
     assert_eq!(store.urls(), vec![helper::file_url(&changed.sha256)]);
 
-    let app_directory = cache.join("apps").join("android");
+    let app_directory = cache.join("programs").join("android");
     builds::assemble(&cache, &first, &app_directory).unwrap();
     assert_eq!(
         std::fs::read(app_directory.join("block-app")).unwrap(),
