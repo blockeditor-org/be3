@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--previews BASE OUT] [--bootstrap DIR]";
+const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--app-tests] [--previews BASE OUT] [--bootstrap DIR]";
 
 struct Options {
     manifest: PathBuf,
@@ -107,7 +107,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--check" => options.check = true,
             "--lint" => options.lint = true,
             "--tests" => {}
-            "--plugin-tests" => options.app_tests = true,
+            "--app-tests" | "--plugin-tests" => options.app_tests = true,
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;
