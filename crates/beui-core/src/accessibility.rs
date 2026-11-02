@@ -638,7 +638,9 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
+        if !inert {
+            self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
+        }
         self.described += 1;
         let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
         if layered {
@@ -786,9 +788,14 @@ impl Document {
         }
         let inert = self.inert_roots();
         let held = std::mem::replace(&mut tree.inert, inert);
-        let toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
-        for id in toggled {
-            tree.mark(id, &self.arena);
+        let mut toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
+        while let Some(id) = toggled.pop() {
+            if self.arena.contains(id) {
+                tree.mark(id, &self.arena);
+                self.arena
+                    .get(id)
+                    .for_each_shown_child(&mut |child| toggled.push(child));
+            }
         }
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
@@ -824,14 +831,42 @@ impl Document {
     }
 
     fn inert_roots(&self) -> HashSet<NodeId> {
-        self.layers()
-            .iter()
-            .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
-            .filter_map(|layer| {
-                let blocked = layer.hangs_from?;
-                let overlay = layer.overlay?;
-                (!self.is_within(overlay.id(), blocked)).then_some(blocked)
-            })
+        let layers = self.layers();
+        if layers.blocking() == 0
+            && !layers
+                .iter()
+                .any(|layer| layer.policy == LayerPolicy::BlocksParent)
+        {
+            return HashSet::default();
+        }
+        let open = self.open_overlays();
+        let mut kept = HashSet::default();
+        for overlay in open.iter().filter(|overlay| !self.inert(overlay.id())) {
+            let mut current = Some(overlay.id());
+            while let Some(id) = current {
+                if !kept.insert(id) || Some(id) == self.root {
+                    break;
+                }
+                current = self.arena.parent(id);
+            }
+        }
+        let mut candidates: Vec<NodeId> = open.iter().map(|overlay| overlay.id()).collect();
+        candidates.extend(
+            layers
+                .iter()
+                .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
+                .filter_map(|layer| layer.hangs_from),
+        );
+        for id in &kept {
+            if self.inert(*id) {
+                self.arena
+                    .get(*id)
+                    .for_each_shown_child(&mut |child| candidates.push(child));
+            }
+        }
+        candidates
+            .into_iter()
+            .filter(|id| !kept.contains(id) && self.inert(*id))
             .collect()
     }
 
@@ -1049,7 +1084,7 @@ impl Document {
         let Some(target) = self.local_node_id(request.target_node) else {
             return false;
         };
-        if !self.contains(target) {
+        if !self.contains(target) || self.inert(target) {
             return true;
         }
         if request.action == Action::ScrollIntoView {

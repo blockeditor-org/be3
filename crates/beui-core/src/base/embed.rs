@@ -17,6 +17,7 @@ pub struct EmbedPlacement {
     pub clip: Rect,
     pub radius: f32,
     pub raster: f32,
+    pub inert: bool,
 }
 
 type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
@@ -46,6 +47,17 @@ impl EmbedState {
         {
             self.place(Some(EmbedPlacement {
                 raster,
+                ..placement
+            }));
+        }
+    }
+
+    fn make_inert(&self, inert: bool) {
+        if let Some(placement) = self.placement.get()
+            && placement.inert != inert
+        {
+            self.place(Some(EmbedPlacement {
+                inert,
                 ..placement
             }));
         }
@@ -155,6 +167,7 @@ impl Element for EmbedNode {
                 .to_screen(Rect::from_min_size(rect.min, Vec2::new(self.radius, 0.0)))
                 .width(),
             raster: self.own.map_or(1.0, |own| doc.raster_of(own)),
+            inert: self.own.is_some_and(|own| doc.inert(own)),
         }));
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -232,6 +245,19 @@ impl Document {
         for embed in embeds {
             if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
                 embed.rerasterise(self.raster_of(node));
+            }
+        }
+    }
+
+    pub(crate) fn refresh_inert_embeds(&mut self) {
+        let embeds: Vec<Rc<EmbedState>> = self
+            .embeds
+            .iter()
+            .filter_map(std::rc::Weak::upgrade)
+            .collect();
+        for embed in embeds {
+            if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
+                embed.make_inert(self.inert(node));
             }
         }
     }

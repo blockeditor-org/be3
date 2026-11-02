@@ -46,7 +46,7 @@ fn a_modal_dock_dialog_hides_its_parent_from_assistive_technology() {
     harness.frame(Vec::new());
     let (shown, hidden) = hidden_ids(&harness);
     assert!(
-        hidden.iter().any(|id| id == "content.1"),
+        !shown.iter().any(|id| id == "content.1"),
         "a modal dialog makes the panel it blocks inert: {hidden:?}"
     );
     assert!(

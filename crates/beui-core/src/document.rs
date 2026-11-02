@@ -1471,6 +1471,7 @@ impl Document {
                 self.update_layout(ctx, rect)
             });
         self.sync_escapes();
+        crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
         let layers = self.layers();
         let keyboard_window = match self.focused {

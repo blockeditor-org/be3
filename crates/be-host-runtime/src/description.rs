@@ -54,20 +54,22 @@ pub fn describe(context: &beui::native::Context) {
                     placed.clip,
                     placed.zoom,
                     false,
+                    placed.inert,
                 )
             })
             .collect();
         let anchored: Vec<_> = placements
             .iter()
-            .flat_map(|(instance, region, ..)| {
+            .flat_map(|(instance, region, .., inert)| {
                 runtime
                     .instances
                     .anchored_views(*instance, *region)
                     .into_iter()
-                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, true))
+                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, true, *inert))
             })
             .collect();
-        for (instance, region, rect, clip, zoom, anchored) in placements.into_iter().chain(anchored)
+        for (instance, region, rect, clip, zoom, anchored, inert) in
+            placements.into_iter().chain(anchored)
         {
             let title =
                 (!anchored && !super::docks::is_bar(instance, region.0)).then_some(name.as_str());
@@ -76,6 +78,10 @@ pub fn describe(context: &beui::native::Context) {
             };
             let document = described.tree.document();
             let screen = described.screen;
+            if inert {
+                context.take_accessibility_actions(document);
+                continue;
+            }
             let requests: Vec<_> = context
                 .take_accessibility_actions(document)
                 .into_iter()
