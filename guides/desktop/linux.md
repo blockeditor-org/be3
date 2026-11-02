@@ -178,9 +178,20 @@ comes back or a display is plugged in or out.
 
 The power row in the Status bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
 app watches `PowerWatch` for what it may offer and sends `power::request(PowerAction)`;
-`src/login_session/power.rs` decides what happens (programs are asked to close, and are given five
-seconds before the session ends or logind is asked to restart or power off) and
-`src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
+`src/login_session/power.rs` (`Power`, which `HostCore` keeps on Linux whether or not it is a login
+session) decides what happens. Logging out, restarting, powering off, and closing be-host's window
+(its Close, `drive close`, the shell closing itself) while programs are open, which in a login
+session is logging out, start an ending: `PowerAvailability::ending` names it
+(`SessionEnd`), and only once it is published are the programs asked to close, so the shell has
+kept their windows before any goes (see "Windows kept across restarts"). There is no time limit:
+the session ends, or logind is asked to restart or power off, once every window has gone. Meanwhile
+the desktop app's ending bar (`root/ending.rs`, at the top of the windows' area, above the
+windows and not modal, so a program's own "Save changes?" stays usable) names the programs still
+open and answers with `power::answer_ending`: `Cancel` stops the ending, leaving those programs
+open, and `EndNow` ends with them open. A Restart or PowerOff logind refuses is reported and ends
+the ending as `Cancel` does; once logind is asked, the ending can no longer be cancelled. When the
+ending's own exit is refused after all (be-host asks about unsent changes), `Power::stay` lets a
+later close start a new one. `src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
 signal. Logging out closes be-host the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops be-host, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
@@ -644,8 +655,12 @@ to its key (a shell started again over the same compositor keeps every window), 
 appears after the restore takes the placeholder it was launched from, else the oldest unbound
 one with its program id, and any other window is its own key. The dock never sees a binding change:
 `WindowTab` shows the bound window's `WindowPanel`, or the placeholder the desktop app hands it
-when none is bound. While the host's `PowerAvailability` says the session is `ending`, nothing
-is saved, so the programs closing as it ends stay kept.
+when none is bound. When the host's `PowerAvailability` says the session is `ending`, the
+workspace (`keep_through_ending`, `kept::ending`) first makes a record of every window open then,
+and while it ends a window that closes becomes a placeholder rather than being forgotten, saved as
+usual. So whether the session ends, is cancelled or a restart fails, nothing open at that moment
+is lost: cancelled, the person has the programs that stayed open and a placeholder for each one
+that closed.
 
 Window ids start from the compositor's start time in microseconds, so an id never names two
 windows across runs: a saved record's window id is only ever adopted by that window, and a new

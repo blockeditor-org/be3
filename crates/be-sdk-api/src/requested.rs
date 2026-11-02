@@ -1,14 +1,15 @@
 use crate::__args::{
     DESKTOP_EPAPER_REFRESH, DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT,
-    DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
-    DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs, DesktopMediaRequestArgs,
-    DesktopNotificationsReportArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
-    DesktopTrayRequestArgs, DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
+    DESKTOP_POWER_ANSWER_ENDING, DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST,
+    DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST, DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs,
+    DesktopMediaRequestArgs, DesktopNotificationsReportArgs, DesktopPowerAnswerEndingArgs,
+    DesktopPowerRequestArgs, DesktopProgramsRequestArgs, DesktopTrayRequestArgs,
+    DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
-    MediaRequest, NotificationReport, PowerAction, ProgramAction, TrayRequest, WifiRequest,
-    WindowAction,
+    EndingAnswer, MediaRequest, NotificationReport, PowerAction, ProgramAction, TrayRequest,
+    WifiRequest, WindowAction,
 };
 
 fn args<A: serde::de::DeserializeOwned>(started: &Started, method: MethodId) -> Option<A> {
@@ -23,6 +24,11 @@ pub fn window(started: &Started) -> Option<WindowAction> {
 
 pub fn power(started: &Started) -> Option<PowerAction> {
     args::<DesktopPowerRequestArgs>(started, DESKTOP_POWER_REQUEST).map(|args| args.action)
+}
+
+pub fn ending_answer(started: &Started) -> Option<EndingAnswer> {
+    args::<DesktopPowerAnswerEndingArgs>(started, DESKTOP_POWER_ANSWER_ENDING)
+        .map(|args| args.answer)
 }
 
 pub fn media(started: &Started) -> Option<MediaRequest> {

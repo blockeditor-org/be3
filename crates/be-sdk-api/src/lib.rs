@@ -105,7 +105,7 @@ pub use desktop::{
         HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
         NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
     },
-    power::{PowerAction, PowerAvailability},
+    power::{EndingAnswer, PowerAction, PowerAvailability, SessionEnd},
     programs::{HostProgram, ProgramAction, ProgramCatalog},
     tray::{HostTrayItem, TrayClick, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,

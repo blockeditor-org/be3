@@ -47,7 +47,7 @@ fn power_actions_the_host_cannot_take_say_why() {
 
     fixture.allow_power(PowerAvailability {
         log_out: false,
-        ending: true,
+        ending: Some(SessionEnd::LogOut),
         ..EVERYTHING
     });
     assert_eq!(

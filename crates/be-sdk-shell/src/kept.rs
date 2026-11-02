@@ -32,6 +32,7 @@ impl KeptWindow {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Kept {
     pub(crate) restored: bool,
+    pub(crate) ending: bool,
     pub(crate) records: Vec<KeptWindow>,
     pub(crate) seen: HashSet<HostWindowId>,
 }
@@ -78,7 +79,7 @@ pub(crate) fn sort_out(kept: &Kept, windows: &[HostWindow]) -> Desk {
             Some(window) if open.contains(&window) => {
                 desk.bound.insert(window, record.key);
             }
-            Some(window) if kept.seen.contains(&window) => {}
+            Some(window) if kept.seen.contains(&window) && !kept.ending => {}
             _ => free.push(record),
         }
     }
@@ -122,11 +123,27 @@ pub(crate) fn settle(kept: &Kept, desk: &Desk, windows: &[HostWindow]) -> Kept {
         }
     }
     next.seen.extend(live.iter().copied());
+    if next.ending {
+        for record in &mut next.records {
+            if record.window.is_some_and(|window| !live.contains(&window)) {
+                record.window = None;
+            }
+        }
+    }
     next.records.retain(|record| {
         record
             .window
             .is_none_or(|window| live.contains(&window) || !next.seen.contains(&window))
     });
+    next
+}
+
+pub(crate) fn ending(kept: &Kept, desk: &Desk, windows: &[HostWindow], ending: bool) -> Kept {
+    let mut next = kept.clone();
+    if ending && !kept.ending {
+        next.records = saved(kept, desk, windows);
+    }
+    next.ending = ending;
     next
 }
 

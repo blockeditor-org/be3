@@ -9,8 +9,6 @@ mod sleep;
 
 use std::time::Duration;
 
-use be_sdk_api::{PowerAction, PowerAvailability};
-
 use be_host_base::host::{Desk, Mailbox, Post};
 use be_host_base::password::Password;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
@@ -21,7 +19,8 @@ pub(crate) use lock::{LockState, Trigger};
 pub(crate) use log::start_log;
 use logind::Logind;
 pub(crate) use logind::LogindEvent;
-use power::{LogindCall, Power, SessionControl};
+pub(crate) use power::Power;
+use power::{LogindCall, SessionControl};
 use sleep::{Inhibit, SleepGuard};
 
 const SHOWN_FRAMES: u32 = 2;
@@ -171,9 +170,7 @@ impl Authenticate for Pam {
 pub(crate) struct LoginSession {
     _events: Mailbox,
     logind: Logind,
-    power: Power,
     sleep: SleepGuard,
-    requested: Option<PowerAction>,
     hinted: Option<bool>,
 }
 
@@ -185,28 +182,17 @@ impl LoginSession {
         Self {
             _events: events,
             logind,
-            power: Power::default(),
             sleep,
-            requested: None,
             hinted: None,
         }
     }
 
-    pub(crate) fn request(&mut self, action: PowerAction) {
-        self.requested = Some(action);
-    }
-
-    pub(crate) fn availability(&self) -> PowerAvailability {
-        self.power.availability()
-    }
-
-    pub(crate) fn heard(&mut self, event: LogindEvent, lock: &mut ScreenLock) {
-        let mut control = Live {
-            logind: &self.logind,
-        };
+    pub(crate) fn heard(&mut self, event: LogindEvent, lock: &mut ScreenLock, power: &mut Power) {
         match event {
-            LogindEvent::Abilities(abilities) => self.power.set_abilities(abilities),
-            LogindEvent::Called(call, result) => self.power.called(call, result, &mut control),
+            LogindEvent::Abilities(abilities) => power.set_abilities(abilities),
+            LogindEvent::Called(call, result) => {
+                power.called(call, result, &mut Live::of(Some(self)));
+            }
             LogindEvent::PrepareForSleep(starting) => {
                 match starting {
                     true => eprintln!("be-host: logind is suspending the computer"),
@@ -221,17 +207,6 @@ impl LoginSession {
     }
 
     pub(crate) fn frame(&mut self, lock: &mut ScreenLock) {
-        let now = be_host_base::host::now();
-        let mut control = Live {
-            logind: &self.logind,
-        };
-        let wait = self
-            .requested
-            .take()
-            .and_then(|action| self.power.request(action, now, &mut control));
-        if let Some(wait) = self.power.frame(now, &mut control).or(wait) {
-            be_host_base::host::request_repaint_after(wait);
-        }
         if self.sleep.waiting() {
             match lock.shown() {
                 true => self.sleep.shown(&mut Inhibitor(&self.logind)),
@@ -258,13 +233,23 @@ impl Inhibit for Inhibitor<'_> {
     }
 }
 
-struct Live<'a> {
-    logind: &'a Logind,
+pub(crate) struct Live<'a> {
+    logind: Option<&'a Logind>,
+}
+
+impl<'a> Live<'a> {
+    pub(crate) fn of(session: Option<&'a LoginSession>) -> Self {
+        Self {
+            logind: session.map(|session| &session.logind),
+        }
+    }
 }
 
 impl SessionControl for Live<'_> {
     fn call(&mut self, call: LogindCall) {
-        self.logind.call(call);
+        if let Some(logind) = self.logind {
+            logind.call(call);
+        }
     }
 
     fn windows(&self) -> usize {

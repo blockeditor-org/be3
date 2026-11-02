@@ -1,10 +1,12 @@
 use super::*;
 
-mod a_failed_power_off_is_reported_and_leaves_the_session_running;
+mod a_failed_power_call_ends_the_ending_as_cancelling_does;
+mod a_program_that_never_closes_holds_the_session_until_it_is_ended_now;
+mod cancelling_mid_way_leaves_the_programs_still_open;
+mod closing_the_desktop_waits_for_its_programs;
 mod logging_out_waits_for_programs_to_close_then_exits;
 mod restarting_and_powering_off_ask_logind_once_the_programs_have_gone;
 mod suspending_asks_logind_at_once_and_only_when_it_can;
-mod the_session_ends_after_the_grace_period_even_if_a_program_stays;
 
 const EVERYTHING: LogindAbilities = LogindAbilities {
     suspend: true,
@@ -46,9 +48,6 @@ impl SessionControl for Recorder {
 fn power() -> Power {
     let mut power = Power::default();
     power.set_abilities(EVERYTHING);
+    power.log_in();
     power
-}
-
-fn seconds(seconds: u64) -> Duration {
-    Duration::from_secs(seconds)
 }
