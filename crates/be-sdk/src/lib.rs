@@ -89,7 +89,8 @@ pub use host::{
     RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
     Waker,
 };
-pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
+pub use layered_settings::{
+    KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
