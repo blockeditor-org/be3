@@ -60,28 +60,28 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
     };
     view! {
         <Frame width={Extent::at_most(CALENDAR_WIDTH)}>
-        <List spacing=SPACING @test_id={"desktop.calendar"}>
-            <Calendar selected={picked} today={Some(today)} width={Length::FILL} />
-            <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
-                <Text weight=Weight::Bold>{heading}</Text>
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION>"No events"</Text>
-                </Show>
-                <Show condition={some}>
-                    <ForEach keys={events}>|event: DayEvent|
-                        <EventRow event />
-                    </ForEach>
-                </Show>
+            <List spacing=SPACING @test_id={"desktop.calendar"}>
+                <Calendar selected={picked} today={Some(today)} width={Length::FILL} />
+                <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
+                    <Text weight=Weight::Bold>{heading}</Text>
+                    <Show condition={none}>
+                        <Text style=TextStyle::CAPTION>"No events"</Text>
+                    </Show>
+                    <Show condition={some}>
+                        <ForEach keys={events}>|event: DayEvent|
+                            <EventRow event />
+                        </ForEach>
+                    </Show>
+                </List>
+                <Button
+                    label="Open calendar"
+                    glyph=ICON_CALENDAR_DAYS
+                    variant=ButtonVariant::Ghost
+                    disabled={unopened}
+                    @test_id={"desktop.calendar.open"}
+                    on_click={open}
+                />
             </List>
-            <Button
-                label="Open calendar"
-                glyph=ICON_CALENDAR_DAYS
-                variant=ButtonVariant::Ghost
-                disabled={unopened}
-                @test_id={"desktop.calendar.open"}
-                on_click={open}
-            />
-        </List>
         </Frame>
     }
 }
