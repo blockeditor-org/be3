@@ -43,6 +43,7 @@ const FRAME_BUDGET: Duration = Duration::from_millis(8);
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 use block_app_base::performance::PACING;
 const REMEMBERED_PRESENTS: usize = 16;
+const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
@@ -127,6 +128,29 @@ impl Host {
             .expect("fewer runtimes than surface ids")
     }
 
+    fn stop_idle(&mut self, now: Duration) -> Option<Duration> {
+        let mut wake: Option<Duration> = None;
+        let mut idle = Vec::new();
+        for (plugin_id, runtime) in &mut self.runtimes {
+            if !runtime.instances.is_empty() {
+                runtime.idle_since = None;
+                continue;
+            }
+            let since = *runtime.idle_since.get_or_insert(now);
+            match (since + IDLE_TIMEOUT).checked_sub(now) {
+                Some(left) if !left.is_zero() => {
+                    wake = Some(wake.map_or(left, |wake| wake.min(left)));
+                }
+                _ => idle.push(plugin_id.clone()),
+            }
+        }
+        for plugin_id in idle {
+            self.shutdown(&plugin_id);
+            mark(&plugin_id);
+        }
+        wake
+    }
+
     fn shutdown(&mut self, plugin_id: &str) {
         let Some(mut runtime) = self.runtimes.remove(plugin_id) else {
             return;
@@ -167,6 +191,7 @@ pub(super) struct Runtime {
     presents: Presents,
     frames: u64,
     steps: u64,
+    idle_since: Option<Duration>,
 }
 
 enum Answer {
@@ -371,6 +396,7 @@ impl Runtime {
             presents: Presents::default(),
             frames: 0,
             steps: 0,
+            idle_since: None,
         }
     }
 
@@ -1476,6 +1502,9 @@ pub fn poll() {
         if host.grabbed != grabbed {
             host.grabbed = grabbed;
             block_app_base::host::set_grab(grabbed);
+        }
+        if let Some(wake) = host.stop_idle(host::now()) {
+            host::request_repaint_after(wake);
         }
     });
 }
