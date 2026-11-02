@@ -220,8 +220,8 @@ way for the test to fail.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
-  text field's) can move it out from under - the region's edge, a sidebar too narrow for a
-  row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
+  text field's) can move it out from under - the window's or region's own edge (except inside an overlay,
+  which places itself, or a frame moved by `translate`, such as a page sliding away), a sidebar too narrow for a row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
   focus ring) that a clip cuts while the frame itself shows whole. A node culled out of sight is
   checked only for being cut off, since its text keeps its last shape until it is laid out in
   sight again. Each line names the node, its

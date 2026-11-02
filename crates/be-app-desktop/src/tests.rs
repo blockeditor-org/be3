@@ -95,6 +95,7 @@ mod the_apps_button_is_named_apps;
 mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
+mod the_clock_lists_the_days_events_and_opens_the_full_calendar;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
@@ -459,11 +460,17 @@ impl Fixture {
     }
 
     fn calendar(&self) -> Option<Uuid> {
-        match self.placed_blocks()[..] {
-            [] => None,
-            [(block, _, _)] => Some(block),
-            ref placed => panic!("only the calendar is placed: {placed:?}"),
-        }
+        assert_eq!(
+            self.placed_blocks(),
+            Vec::new(),
+            "the clock shows its calendar without placing a block"
+        );
+        self.test.test_ids().rect("desktop.calendar")?;
+        self.test
+            .content::<EditorViewContent>(None)
+            .root()
+            .state("desktop.calendar")
+            .and_then(|state| state.refs.first().copied())
     }
 
     fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
