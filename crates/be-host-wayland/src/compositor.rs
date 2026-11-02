@@ -387,6 +387,9 @@ impl Compositor {
                 ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
                 ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
                 ServerEvent::Activated(id) => activated = Some(id),
+                ServerEvent::Grabbed(id, grab) => windows.grab(id, grab),
+                ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
+                ServerEvent::Minimized(id) => windows.minimize(id),
                 ServerEvent::Committed(id) => {
                     if !windows.listed(id) {
                         changed = true;

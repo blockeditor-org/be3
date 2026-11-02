@@ -5,7 +5,7 @@ use std::rc::Rc;
 use beui::reactive::*;
 use beui::{CursorIcon, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
 
-use crate::state::WindowId;
+use crate::state::{Grab, WindowId};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowInfo {
@@ -51,6 +51,7 @@ pub struct WindowSignals {
     pub popups: Signal<Option<Popups>>,
     pub focused: Signal<bool>,
     pub(crate) asks: Signal<u64>,
+    pub(crate) grabs: Signal<(u64, Option<Grab>)>,
     pub(crate) typing: Signal<Option<u32>>,
     pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
@@ -74,6 +75,8 @@ struct Inner {
     activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
     raised: RefCell<HashMap<WindowId, u64>>,
+    menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
+    minimized: RefCell<Vec<WindowId>>,
     list: Signal<Vec<WindowInfo>>,
     revision: Cell<u64>,
     cursor: Signal<CursorIcon>,
@@ -98,6 +101,8 @@ impl Windows {
             activate: Cell::new(None),
             focused: Cell::new(None),
             raised: RefCell::new(HashMap::new()),
+            menus: RefCell::new(HashMap::new()),
+            minimized: RefCell::new(Vec::new()),
             list,
             revision: Cell::new(0),
             cursor,
@@ -183,6 +188,38 @@ impl Windows {
         inner.raised.borrow().get(&id).copied().unwrap_or_default()
     }
 
+    pub(crate) fn grab(&self, id: WindowId, grab: Grab) {
+        if let Some(signals) = self.signals(id) {
+            signals
+                .grabs
+                .update(|(asked, held)| (*asked, *held) = (*asked + 1, Some(grab)));
+        }
+    }
+
+    pub(crate) fn ask_menu(&self, id: WindowId, at: Vec2) {
+        let inner = self.0.value();
+        let mut menus = inner.menus.borrow_mut();
+        let asked = menus.get(&id).map_or(0, |(asked, _)| *asked) + 1;
+        menus.insert(id, (asked, at));
+        inner.revision.set(inner.revision.get() + 1);
+    }
+
+    pub fn menu(&self, id: WindowId) -> Option<(u64, Vec2)> {
+        let inner = self.0.value();
+        inner.menus.borrow().get(&id).copied()
+    }
+
+    pub(crate) fn minimize(&self, id: WindowId) {
+        let inner = self.0.value();
+        inner.minimized.borrow_mut().push(id);
+        inner.revision.set(inner.revision.get() + 1);
+    }
+
+    pub fn take_minimized(&self) -> Vec<WindowId> {
+        let inner = self.0.value();
+        std::mem::take(&mut *inner.minimized.borrow_mut())
+    }
+
     pub fn blocked_by(&self, id: WindowId) -> Option<WindowId> {
         let inner = self.0.value();
         inner
@@ -226,12 +263,14 @@ impl Windows {
             let popups = create_signal(None);
             let focused = create_signal(false);
             let asks = create_signal(1);
+            let grabs = create_signal((0, None));
             let typing = create_signal(None);
             WindowSignals {
                 drawing,
                 popups,
                 focused,
                 asks,
+                grabs,
                 typing,
                 answered: Rc::new(Cell::new(0)),
                 painted: Rc::new(Cell::new(false)),
@@ -257,6 +296,8 @@ impl Windows {
         inner.windows.borrow_mut().remove(&id);
         inner.views.borrow_mut().remove(&id);
         inner.raised.borrow_mut().remove(&id);
+        inner.menus.borrow_mut().remove(&id);
+        inner.minimized.borrow_mut().retain(|held| *held != id);
         if inner.focused.get() == Some(id) {
             inner.focused.set(None);
         }

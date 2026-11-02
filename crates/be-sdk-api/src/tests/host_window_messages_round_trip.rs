@@ -27,6 +27,7 @@ fn host_window_messages_round_trip() {
             launch: Some(9),
         },
         note: None,
+        menu: None,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [

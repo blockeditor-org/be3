@@ -9,7 +9,9 @@ use super::shown::Shown;
 use crate::programs::{Opener, ProgramSource};
 use be_host_wayland::programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, load_icon};
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
-use be_sdk_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowOrigin};
+use be_sdk_api::{
+    HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowMenu, WindowOrigin,
+};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
@@ -200,6 +202,11 @@ impl DesktopHost for Linux {
             running.compositor.set_monitors(monitors);
             running.compositor.before(context, rect);
         });
+        if let Some(windows) = windows() {
+            for id in windows.take_minimized() {
+                set_shown(HostWindowId(id.0), false);
+            }
+        }
     }
 
     fn after(context: &Context, document: &mut Document) {
@@ -334,6 +341,7 @@ impl DesktopHost for Linux {
                         launch: launched.launch,
                     },
                     note: None,
+                    menu: windows.menu(info.id).map(|(asked, at)| WindowMenu { asked, at }),
                 }
             })
             .collect()
@@ -421,9 +429,21 @@ impl DesktopHost for Linux {
                 .map(|occluders| occluders.get())
                 .unwrap_or_default()
         });
+        let carrier = crate::carrier::carrier().map(|carrier| {
+            let begin = carrier.begin;
+            be_host_wayland::Carrier {
+                begin: std::rc::Rc::new(move |grab| {
+                    begin(match grab {
+                        be_host_wayland::Grab::Move => crate::carrier::Carry::Move,
+                        be_host_wayland::Grab::Resize(edge) => crate::carrier::Carry::Resize(edge),
+                    })
+                }),
+                steer: carrier.steer,
+            }
+        });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders />
+                <WindowView windows id={WindowId(window.0)} occluders carrier />
             },
             None => view! {
                 <Frame />

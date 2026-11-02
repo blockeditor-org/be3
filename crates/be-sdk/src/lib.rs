@@ -64,6 +64,7 @@ pub use be_sdk_api::{
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
     VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WifiLink,
     WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
+    WindowMenu,
     WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use be_sdk_api::{

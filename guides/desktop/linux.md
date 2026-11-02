@@ -485,10 +485,20 @@ name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside
 which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
 tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
-exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
-fullscreen capability (`wm_capabilities`): a tab has nowhere to minimize to, and its size is
+exported window, and it is shown as that window's child like any other dialog. The xdg shell offers the
+fullscreen, minimize and window menu capabilities (`wm_capabilities`), but not maximize: a window's size is
 the dock's, so maximizing would change nothing (a request to maximize is still answered
-with the maximized state, for programs that ask anyway). GTK ignores those capabilities
+with the maximized state, for programs that ask anyway). A program that draws its own title bar
+asks to move or resize its window from it (`xdg_toplevel.move` and `resize`, an X11 window's
+`_NET_WM_MOVERESIZE`); be-host-wayland honours an ask only while the press it names is still held
+(`ServerEvent::Grabbed`), and the window's `WindowView` hands it to the `Carrier` it was given:
+be-host's `AppView` gives one to the views of a floating window (`be_host_desktop::carrier`), which
+begins the same gesture the window's own bar would (`compositor/desktop.rs`'s `begin`) and steers
+the window's pointer input through it until the button is let go. A window docked in a pane has no
+carrier, so it does not move. `show_window_menu` reaches the shell as `HostWindow::menu` (a count of
+asks and the point, from the window's top left), where be-sdk-shell's `WindowPanel` opens a menu
+there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
+iconify) hides the window as its chip's Hide does. GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
 (`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
