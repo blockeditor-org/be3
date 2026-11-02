@@ -26,7 +26,17 @@ fn a_desktop_window_too_big_for_its_work_area_shrinks_and_one_on_no_display_come
         display,
         Rect::from_min_size(pos2(0.0, 720.0), vec2(1100.0, 720.0)),
     ];
-    assert_eq!(home(&others, Rect::from_min_size(pos2(10.0, 700.0), vec2(100.0, 100.0))), Some(1));
-    assert_eq!(home(&others, lost), Some(0), "the nearest display takes a window on none");
+    assert_eq!(
+        home(
+            &others,
+            Rect::from_min_size(pos2(10.0, 700.0), vec2(100.0, 100.0))
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        home(&others, lost),
+        Some(0),
+        "the nearest display takes a window on none"
+    );
     assert_eq!(home(&[], lost), None);
 }

@@ -206,8 +206,12 @@ pub fn home(displays: &[Rect], rect: Rect) -> Option<usize> {
         shared.width().max(0.0) * shared.height().max(0.0)
     };
     let gap = |display: &Rect| {
-        let x = (display.min.x - rect.max.x).max(rect.min.x - display.max.x).max(0.0);
-        let y = (display.min.y - rect.max.y).max(rect.min.y - display.max.y).max(0.0);
+        let x = (display.min.x - rect.max.x)
+            .max(rect.min.x - display.max.x)
+            .max(0.0);
+        let y = (display.min.y - rect.max.y)
+            .max(rect.min.y - display.max.y)
+            .max(0.0);
         x * x + y * y
     };
     displays

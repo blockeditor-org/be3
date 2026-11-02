@@ -5,9 +5,10 @@ use super::*;
 #[test]
 fn new_windows_cascade_inside_the_work_area_and_a_tall_one_shrinks_to_it() {
     let mut fixture = Fixture::new();
-    fixture
-        .test
-        .show_on_displays(&[(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 720.0)), 1.0)]);
+    fixture.test.show_on_displays(&[(
+        Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 720.0)),
+        1.0,
+    )]);
     fixture.settle();
     let mut windows = vec![HostWindow {
         size: Vec2::new(800.0, 647.0),
