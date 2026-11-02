@@ -1,5 +1,5 @@
 use be_sdk_beui::be_block::BlockContent;
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
@@ -74,7 +74,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(VIEWS)}>
-            <DockSplit id="database" fraction={1.0 - SCHEMA_SHARE}>
+            <DockSplit id="database" size={SplitSize::Fraction(1.0 - SCHEMA_SHARE)}>
                 <DockPane id="views" locked=true bare=true>
                     <DockTab id=VIEWS title="Views">
                         <List direction=Direction::Horizontal spacing=Space::None>
