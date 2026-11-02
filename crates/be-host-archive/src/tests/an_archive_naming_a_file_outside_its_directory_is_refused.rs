@@ -2,7 +2,8 @@ use super::*;
 
 #[test]
 fn an_archive_naming_a_file_outside_its_directory_is_refused() {
-    let scratch = std::env::temp_dir().join(format!("program-archive-escape-{}", std::process::id()));
+    let scratch =
+        std::env::temp_dir().join(format!("program-archive-escape-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     fs::create_dir_all(&scratch).unwrap();
     let archive = scratch.join("escape.programz");

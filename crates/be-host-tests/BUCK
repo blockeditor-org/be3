@@ -101,8 +101,8 @@ cargo_test(
     paints = True,
     run_apart = True,
     run_env = {
-        "HOST_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
         "BLOCK_APP": "$(location :host-with-all)/block-app",
+        "HOST_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },
