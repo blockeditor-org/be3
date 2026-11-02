@@ -156,41 +156,70 @@ fn name(kept: &KeptWindow, program: Option<&HostProgram>) -> String {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Shown {
+    pub(crate) name: Memo<String>,
+    pub(crate) title: Memo<String>,
+    pub(crate) picture: Memo<Option<Image>>,
+    pub(crate) openable: Memo<bool>,
+}
+
+impl Placeholders {
+    pub(crate) fn shown(&self, key: HostWindowId) -> Shown {
+        let placeholders = *self;
+        let kept = self.kept(key);
+        let program = self.program(kept);
+        let name = create_memo(move || {
+            kept.with(|kept| {
+                kept.as_ref()
+                    .map_or_else(String::new, |kept| name(kept, program.get().as_ref()))
+            })
+        });
+        let title = create_memo(move || {
+            kept.with(|kept| match kept {
+                Some(kept) if !kept.title.is_empty() => kept.title.clone(),
+                _ => name.get(),
+            })
+        });
+        let picture = create_memo(move || {
+            program.with(|program| {
+                let icon = program.as_ref()?.icon.as_ref()?;
+                icon.is_whole()
+                    .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
+            })
+        });
+        let launchable = self.launchable;
+        let openable = create_memo(move || {
+            launchable.get()
+                && kept.with(|kept| {
+                    kept.as_ref().is_some_and(|kept| {
+                        placeholders
+                            .programs
+                            .with(|programs| launch_action(kept, programs).is_some())
+                    })
+                })
+        });
+        Shown {
+            name,
+            title,
+            picture,
+            openable,
+        }
+    }
+
+    pub(crate) fn dismiss(&self, key: HostWindowId) {
+        self.workspace.dismiss(key);
+    }
+}
+
 #[component]
 pub(crate) fn Placeholder(placeholders: Placeholders, key: HostWindowId) -> NodeId {
-    let workspace = placeholders.workspace;
-    let kept = placeholders.kept(key);
-    let program = placeholders.program(kept);
-    let name = create_memo(move || {
-        kept.with(|kept| {
-            kept.as_ref()
-                .map_or_else(String::new, |kept| name(kept, program.get().as_ref()))
-        })
-    });
-    let title = create_memo(move || {
-        kept.with(|kept| match kept {
-            Some(kept) if !kept.title.is_empty() => kept.title.clone(),
-            _ => name.get(),
-        })
-    });
-    let picture = create_memo(move || {
-        program.with(|program| {
-            let icon = program.as_ref()?.icon.as_ref()?;
-            icon.is_whole()
-                .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
-        })
-    });
-    let launchable = placeholders.launchable;
-    let openable = create_memo(move || {
-        launchable.get()
-            && kept.with(|kept| {
-                kept.as_ref().is_some_and(|kept| {
-                    placeholders
-                        .programs
-                        .with(|programs| launch_action(kept, programs).is_some())
-                })
-            })
-    });
+    let Shown {
+        name,
+        title,
+        picture,
+        openable,
+    } = placeholders.shown(key);
     view! {
         <PlaceholderBody
             key
@@ -199,7 +228,7 @@ pub(crate) fn Placeholder(placeholders: Placeholders, key: HostWindowId) -> Node
             picture
             openable
             on_open={move || placeholders.open(key)}
-            on_dismiss={move || workspace.dismiss(key)}
+            on_dismiss={move || placeholders.dismiss(key)}
         />
     }
 }
