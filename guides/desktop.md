@@ -141,7 +141,9 @@ drive like any other run (guides/running/drive.md).
 
 ## Program windows
 
-Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
+Only the shell sees the program windows: the host answers `WindowsWatch` and takes its
+`windows::request` only from the shell instance, so a session opened inside the desktop is a block
+window and shows none of them. Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
 window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
 window (`FloatingWindow`) instead of a tab, as the desktop app always does. A program's dialog
 (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned

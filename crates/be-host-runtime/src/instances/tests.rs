@@ -445,6 +445,7 @@ mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
+mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
 
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {

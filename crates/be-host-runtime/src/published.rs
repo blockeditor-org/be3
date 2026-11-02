@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::sync::Arc;
 
 use be_sdk_api::{
-    ContactsWatch, EditorInstanceId, Watched as _,
+    ContactsWatch, EditorInstanceId, Watched as _, WindowsWatch,
     ops::{MethodId, Started, Watching},
 };
 use be_sdk_manifest::extension_of;
@@ -46,7 +46,11 @@ pub(super) fn windows_offers(interface: &str) -> bool {
 }
 
 fn shell_only(open: MethodId) -> bool {
-    open == ContactsWatch::OPEN
+    open == ContactsWatch::OPEN || open == WindowsWatch::OPEN
+}
+
+fn shell_only_call(started: &Started) -> bool {
+    interface_of(started) == Some(WindowsWatch::INTERFACE)
 }
 
 pub(super) type Published = HashMap<MethodId, Arc<Vec<u8>>>;
@@ -62,7 +66,10 @@ impl Watched {
         self.reported.entry(open).or_default();
     }
 
-    pub(super) fn call(&mut self, started: Started) -> bool {
+    pub(super) fn call(&mut self, started: Started, shell: bool) -> bool {
+        if !shell && shell_only_call(&started) {
+            return false;
+        }
         let queued = self
             .calls
             .iter()

@@ -3259,12 +3259,13 @@ impl Instances {
         started: be_sdk_api::ops::Started,
     ) -> bool {
         let op = started.op;
+        let shell = self.shell == Some(instance);
         let queued = self.entries.get_mut(&instance).is_some_and(|entry| {
             let preview = entry
                 .role
                 .block()
                 .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
-            !preview && entry.published.call(started)
+            !preview && entry.published.call(started, shell)
         });
         let outcome = match queued {
             true => Outcome::returned(&()),

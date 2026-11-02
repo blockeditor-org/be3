@@ -9,6 +9,7 @@ use be_sdk_api::{
 #[test]
 fn host_calls_are_taken_by_kind_in_the_order_they_came() {
     let mut instances = placed();
+    instances.set_shell(Some(INSTANCE));
     instances.next_screens(PASS);
 
     let media = [
