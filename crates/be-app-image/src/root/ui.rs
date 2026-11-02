@@ -2,12 +2,19 @@ use be_sdk_beui::Fit;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
-use be_sdk_beui::{Editor, FileChooser, Sidebar, fit_content};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::{Editor, FileChooser, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
 use be_type_image::ImageContent;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, ItemSize};
+
+const STAGE: &str = "stage";
+const PANEL: &str = "panel";
+const PANEL_SHARE: f32 = 0.26;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Md;
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
@@ -44,44 +51,61 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::World));
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <Layers>
-                    <Loading fallback>|| {
-                        let block = editor.block_content::<ImageContent>();
-                        let shown = watch(editor, block);
-                        let image = create_memo(move || shown.get().image);
-                        let error = create_memo(move || shown.get().error);
-                        create_effect(move || {
-                            editor.set_intrinsic_size(image.get().map(|image| image.size()));
-                        });
-                        view! {
-                            <ImageArea
-                                editor={editor}
-                                image={image}
-                                thumbhash={placeholder}
-                                error={error}
-                            />
-                        }
-                    }</Loading>
-                </Layers>
-            </Frame>
-            <Sidebar shown={chrome}>
-                <Text style=TextStyle::HEADING>"Image"</Text>
-                <Button
-                    label="Replace image…"
-                    variant=ButtonVariant::Secondary
-                    disabled={blocked}
-                    @test_id={"image.replace"}
-                    on_click={choose}
-                />
-                <Show condition={refused}>
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="image" fraction={1.0 - PANEL_SHARE}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Picture">
+                        <Frame @node_ref={&content}>
+                            <Layers>
+                                <Loading fallback>|| {
+                                    let block = editor.block_content::<ImageContent>();
+                                    let shown = watch(editor, block);
+                                    let image = create_memo(move || shown.get().image);
+                                    let error = create_memo(move || shown.get().error);
+                                    create_effect(move || {
+                                        editor.set_intrinsic_size(image.get().map(|image| image.size()));
+                                    });
+                                    view! {
+                                        <ImageArea
+                                            editor={editor}
+                                            image={image}
+                                            thumbhash={placeholder}
+                                            error={error}
+                                        />
+                                    }
+                                }</Loading>
+                            </Layers>
+                        </Frame>
+                    </DockTab>
+                </DockPane>
+                <Show condition={chrome}>
+                    <DockPane id="panel" locked=true>
+                        <DockTab id=PANEL title="Image">
+                            <Frame fill=ColorRole::Surface>
+                                <Scroll @test_id={"image.panel"}>
+                                    <Frame padding=PANEL_PADDING>
+                                        <List spacing=PANEL_SPACING>
+                                            <Button
+                                                label="Replace image…"
+                                                variant=ButtonVariant::Secondary
+                                                disabled={blocked}
+                                                @test_id={"image.replace"}
+                                                on_click={choose}
+                                            />
+                                            <Show condition={refused}>
+                                                <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
+                                            </Show>
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                            </Frame>
+                        </DockTab>
+                    </DockPane>
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </Sidebar>
-        </List>
+            </DockSplit>
+        </Docking>
     }
 }
 

@@ -6,6 +6,7 @@ fn the_replace_panel_goes_away_with_the_chrome() {
 
     assert!(test.shown("audio.replace"));
     let with_panel = editor.content_rect();
+    test.snapshot("the_replace_panel_goes_away_with_the_chrome");
 
     test.set_chrome(false);
 
