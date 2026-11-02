@@ -10,7 +10,10 @@ fn with_middle_click_paste_off_x11_keeps_its_primary_selection_to_itself() {
     copy_in_x11(&mut harness, SelectionTarget::Primary, &[client::TEXT]);
     harness.settle();
 
-    assert!(client::control_primary().is_none(), "programs are offered nothing");
+    assert!(
+        client::control_primary().is_none(),
+        "programs are offered nothing"
+    );
     assert!(
         harness
             .compositor()
