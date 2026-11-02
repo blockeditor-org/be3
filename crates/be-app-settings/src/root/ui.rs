@@ -428,7 +428,7 @@ fn SettingRow(
         _ => TextColor::Muted,
     });
     view! {
-        <ListRow selected disabled={off} on_click={on_click}>
+        <ListRow label={label} selected disabled={off} on_click={on_click}>
             <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
                     <Text color={icon_color} align=TextAlign::Center>

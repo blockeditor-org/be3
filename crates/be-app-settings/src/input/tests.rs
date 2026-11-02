@@ -1,7 +1,9 @@
 use be_sdk_beui::be_block::InputSettingsContent;
 use be_sdk_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use be_sdk_beui::beui::{Key, Modifiers};
-use be_sdk_beui::{EditorHost, HostInputDevice, InputDevicesWatch, OwnedEditor};
+use be_sdk_beui::{
+    EditorHost, HostInputDevice, InputDevicesWatch, InputReach, InputReachWatch, OwnedEditor,
+};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
@@ -12,6 +14,7 @@ mod a_narrow_page_stacks_each_control_under_its_label;
 mod a_pointer_kept_here_stays_on_this_device;
 mod every_pointer_reads_as_mixed_until_it_is_set;
 mod middle_click_paste_is_off_until_it_is_switched_on;
+mod in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers;
 mod opening_the_remaps_makes_them_with_the_remapper_and_opens_them;
 mod outside_a_session_input_is_not_offered;
 mod resetting_a_layout_returns_it_to_the_default;
@@ -20,6 +23,10 @@ mod typing_a_layout_stores_it;
 fn editor(devices: Vec<HostInputDevice>) -> BeuiTest<InputSettingsRoot> {
     let host = EditorHost::default();
     host.set_watched::<InputDevicesWatch>(&devices);
+    host.set_watched::<InputReachWatch>(&InputReach {
+        keyboard: true,
+        middle_click_paste: true,
+    });
     open(host)
 }
 

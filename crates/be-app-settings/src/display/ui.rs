@@ -3,7 +3,7 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    ChangesToast, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow, PowerWatch,
+    ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow, PowerWatch,
 };
 
 use super::appearance::AppearanceSection;
@@ -26,7 +26,11 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                 .collect::<Vec<String>>()
         })
     });
-    let none = create_memo(move || displays.with(Vec::is_empty));
+    let none = create_memo(move || offered.get() && displays.with(Vec::is_empty));
+    let bar = editor.offered::<DesktopBarWatch>();
+    let rotate_shown = create_memo(move || bar.get() && offered.get());
+    let screens = create_memo(move || bar.get() || offered.get());
+    let after_rotate = create_memo(move || none.get() || rotate_shown.get());
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
@@ -40,11 +44,12 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     view! {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
-            <Show condition={offered}>
+            <Show condition={screens}>
                 <SettingsSection title="Screens">
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
+                    <Show condition={rotate_shown}>
                     <LayeredSettingsRow
                         setting={in_bar_row}
                         label="Rotate button in the bar"
@@ -61,11 +66,13 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             @test_id={"display.rotate-in-bar"}
                         />
                     </LayeredSettingsRow>
+                    </Show>
+                    <Show condition={bar}>
                     <LayeredSettingsRow
                         setting={keyboard_row}
                         label="Keyboard button in the bar"
                         description="A button in the desktop's bar that opens the on-screen keyboard."
-                        separated=true
+                        separated={after_rotate}
                         compact=true
                         locked={read_only}
                         id={"display.keyboard-in-bar".to_owned()}
@@ -77,6 +84,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             @test_id={"display.keyboard-in-bar"}
                         />
                     </LayeredSettingsRow>
+                    </Show>
                 </SettingsSection>
             </Show>
             <ForEach keys={ids}>|id: String|

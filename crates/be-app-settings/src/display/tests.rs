@@ -6,7 +6,7 @@ use be_sdk_beui::be_block::{
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, Modifiers, NodeId, Vec2};
 use be_sdk_beui::{
-    BlockInfo, BlockParent, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
+    BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
     PowerWatch,
 };
 use be_sdk_test::BeuiTest;
@@ -25,6 +25,7 @@ mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
 mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
+mod in_a_windowed_desktop_only_the_keyboard_button_goes_in_the_bar;
 mod keeping_a_setting_copies_it_here_and_later_changes_stay_here;
 mod keeping_makes_this_devices_display_block_when_it_has_none;
 mod outside_a_session_only_the_appearance_is_shown;
@@ -67,7 +68,16 @@ impl Harness {
     fn in_a_session(displays: Vec<HostDisplay>) -> Self {
         let host = EditorHost::default();
         host.set_watched::<DisplaysWatch>(&displays);
+        host.set_watched::<DesktopBarWatch>(&true);
         host.set_watched::<PowerWatch>(&PowerAvailability::default());
+        let mut harness = Self::with_host(host);
+        harness.editor.set_size(Vec2::new(800.0, SESSION_HEIGHT));
+        harness
+    }
+
+    fn in_a_window() -> Self {
+        let host = EditorHost::default();
+        host.set_watched::<DesktopBarWatch>(&true);
         let mut harness = Self::with_host(host);
         harness.editor.set_size(Vec2::new(800.0, SESSION_HEIGHT));
         harness

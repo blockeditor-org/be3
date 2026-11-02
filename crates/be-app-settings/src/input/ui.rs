@@ -7,7 +7,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::{
-    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, LayeredSettings, LayeredSettingsRow,
+    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings, LayeredSettingsRow,
     SettingHandle,
 };
 
@@ -41,20 +41,28 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let set_delay = settings.setter(&delay_setting);
     let set_rate = settings.setter(&rate_setting);
     let set_paste = settings.setter(&paste_setting);
-    let offered = editor.offered::<InputDevicesWatch>();
-    let elsewhere = create_memo(move || !offered.get());
+    let pointers = editor.offered::<InputDevicesWatch>();
+    let reach = editor.watch::<InputReachWatch>();
+    let keyboard = create_memo(move || reach.get().keyboard);
+    let pasting = create_memo(move || reach.get().middle_click_paste);
+    let elsewhere =
+        create_memo(move || !keyboard.get() && !pasting.get() && !pointers.get());
+    let keyboard_reach = create_memo(move || match pointers.get() {
+        true => String::new(),
+        false => "For the programs this desktop runs.".to_owned(),
+    });
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
             <Show condition={elsewhere}>
                 <SettingsSection title="Input">
                     <SettingsRow
-                        label="These settings apply in a Linux session, and this device is not one."
+                        label="These settings take effect in a desktop session on Linux, and this session is not one."
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={offered}>
-                <SettingsSection title="Keyboard">
+            <Show condition={keyboard}>
+                <SettingsSection title="Keyboard" description={keyboard_reach}>
                     <TextSetting
                         label="Layout"
                         description="XKB names, like us, de or us,de."
@@ -106,7 +114,11 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         }}
                     />
                 </SettingsSection>
+            </Show>
+            <Show condition={pointers}>
                 <Pointers settings={settings} devices={devices} read_only={read_only} />
+            </Show>
+            <Show condition={pasting}>
                 <SettingsSection title="Programs">
                     <SwitchSetting
                         label="Middle-click paste"
@@ -120,6 +132,8 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         on_change={move |on: Option<bool>| set_paste.call(on)}
                     />
                 </SettingsSection>
+            </Show>
+            <Show condition={pointers}>
                 <RemapperSetting editor={editor} settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />

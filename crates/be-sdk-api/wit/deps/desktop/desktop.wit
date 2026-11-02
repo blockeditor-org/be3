@@ -133,6 +133,21 @@ interface input {
         constructor();
         next: async func() -> remap-state;
     }
+
+    /// Which of the input settings that are not a device's own take effect in the session.
+    record input-reach {
+        /// The keymap and key repeat: for the keyboards the session reads, and the programs it hosts.
+        keyboard: bool,
+        /// Middle-click paste, for the programs the session hosts.
+        middle-click-paste: bool,
+    }
+
+    /// Answered only where some of them do. The pointers' settings take effect where
+    /// `input-devices-watch` is answered.
+    resource input-reach-watch {
+        constructor();
+        next: async func() -> input-reach;
+    }
 }
 
 /// The displays connected to the session.
@@ -156,6 +171,13 @@ interface displays {
     resource displays-watch {
         constructor();
         next: async func() -> list<host-display>;
+    }
+
+    /// Whether the session shows the desktop's bar, where the display settings put buttons;
+    /// answered only where it does.
+    resource desktop-bar-watch {
+        constructor();
+        next: async func() -> bool;
     }
 }
 
