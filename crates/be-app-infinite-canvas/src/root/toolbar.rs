@@ -8,7 +8,6 @@ use be_type_infinite_canvas::CanvasProfile;
 use super::actions::CanvasActions;
 use super::mode::ModeMenu;
 use super::selection_bar::SelectionTools;
-use super::sidebar::inspector_sheet;
 use super::state::{CanvasState, Tool};
 use crate::raster::PixelTool;
 use beui::{Align, Align2, Direction, Vec2};
@@ -62,8 +61,7 @@ pub(crate) const ZOOM: &str = "zoom";
 
 pub(crate) fn tools_open(state: CanvasState, shown: ReadSignal<bool>) -> Memo<bool> {
     let previewing = state.previewing();
-    let sheet = inspector_sheet().map(|sheet| sheet.shown());
-    create_memo(move || shown.get() && !previewing && !sheet.is_some_and(|sheet| sheet.get()))
+    create_memo(move || shown.get() && !previewing)
 }
 
 #[component]
@@ -210,7 +208,7 @@ pub(crate) fn SelectionDock(
         <Frame align={align} padding={padding}>
             <List spacing=Space::None>
                 <Show condition={chosen}>
-                    <SelectionTools state direction />
+                    <SelectionTools state layout direction />
                 </Show>
             </List>
         </Frame>

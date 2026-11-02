@@ -10,7 +10,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{Creation, Editor, narrow_chrome};
+use be_sdk_beui::{Creation, Editor};
 use uuid::Uuid;
 
 pub(crate) mod actions;
@@ -41,7 +41,7 @@ use export::ExportDialog;
 use layers::CanvasLayers;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
-use sidebar::{CanvasInspector, CanvasSheet, InspectorSheet};
+use sidebar::CanvasInspector;
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
@@ -49,7 +49,7 @@ use touch::TouchSetting;
 use crate::geometry::MIN_SIZE;
 use beui::{Direction, ItemSize};
 
-const INSPECTOR: &str = "inspector";
+pub(crate) const INSPECTOR: &str = "inspector";
 const LAYERS: &str = "layers";
 const INSPECTOR_WIDTH: f32 = 280.0;
 const LAYERS_HEIGHT: f32 = 240.0;
@@ -117,11 +117,8 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);
-    let sheet = InspectorSheet::new(inspected);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
-    let narrow = narrow_chrome();
-    let docked = create_memo(move || inspected.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
@@ -137,11 +134,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                                 <CanvasStage @node_ref={&content} state={state} />
                                 <SelectionDock state layout open bar={bar_size.read_only()} />
                             </Layers>
-                            <CanvasSheet state sheet />
                         </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={docked}>
+                <Show condition={inspected}>
                     <DockSplit
                         id="side"
                         direction=Direction::Vertical

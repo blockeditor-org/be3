@@ -30,7 +30,7 @@ pub(crate) fn CanvasLayers(state: CanvasState) -> NodeId {
 }
 
 #[component]
-pub(crate) fn LayerList(state: CanvasState) -> NodeId {
+fn LayerList(state: CanvasState) -> NodeId {
     let entities = state.entities.ids();
     let ids =
         create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
