@@ -41,6 +41,10 @@ impl Embedded {
         self.document
     }
 
+    pub fn focus(&self) -> Option<AccessNodeId> {
+        self.focus
+    }
+
     pub fn update(&mut self, update: TreeUpdate) {
         if let Some(tree) = update.tree
             && self.root != Some(tree.root)
@@ -66,7 +70,7 @@ impl Embedded {
         area: Rect,
         origin: Vec2,
         scale: f32,
-        focused: bool,
+        focus: Option<AccessNodeId>,
         full: bool,
     ) -> Fragment {
         let placed = (title.map(str::to_owned), area, origin, scale);
@@ -114,9 +118,8 @@ impl Embedded {
             let node = self.translate(id, origin, scale);
             nodes.push((self.host(id), node));
         }
-        let focus = self
-            .focus
-            .filter(|focus| focused && Some(*focus) != root && self.nodes.contains_key(focus))
+        let focus = focus
+            .filter(|focus| Some(*focus) != root && self.nodes.contains_key(focus))
             .map(|focus| self.host(focus));
         Fragment {
             nodes,
