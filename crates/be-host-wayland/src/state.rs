@@ -36,6 +36,7 @@ use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_output;
 use smithay::delegate_shm;
+use smithay::delegate_fractional_scale;
 use smithay::delegate_viewporter;
 use smithay::delegate_xdg_shell;
 use smithay::desktop::{
@@ -54,11 +55,11 @@ use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
 use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{Client, DisplayHandle, Resource};
-use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size, Transform};
+use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size};
 use smithay::wayland::buffer::BufferHandler;
 use smithay::wayland::compositor::{
     CompositorClientState, CompositorHandler, CompositorState, TraversalAction, get_parent,
-    send_surface_state, with_states, with_surface_tree_upward,
+    with_states, with_surface_tree_upward,
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
@@ -70,6 +71,7 @@ use smithay::wayland::shell::xdg::{
     XdgShellState, XdgToplevelSurfaceData,
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
+use smithay::wayland::fractional_scale::{FractionalScaleHandler, FractionalScaleManagerState};
 use smithay::wayland::viewporter::ViewporterState;
 use smithay::wayland::xdg_foreign::XdgForeignState;
 use smithay::xwayland::XWaylandClientData;
@@ -227,6 +229,7 @@ impl State {
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
+        FractionalScaleManagerState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
         let mut seat_state = SeatState::new();
         let mut seat = seat_state.new_wl_seat(handle, "seat0");
@@ -282,7 +285,7 @@ impl State {
             id: "be-wayland".to_owned(),
             name: "Nested".to_owned(),
             rect: Rectangle::from_size((1280, 800).into()),
-            scale: 1,
+            scale: 1.0,
         }]);
         state
     }
@@ -1096,7 +1099,7 @@ impl State {
             if let Some(output) = &output {
                 output.enter(surface);
             }
-            send_surface_state(surface, data, scale, Transform::Normal);
+            crate::heads::tell_scale(surface, data, scale);
         });
         if let Some(toplevel) = window.window.toplevel()
             && !toplevel.is_initial_configure_sent()
@@ -1587,6 +1590,16 @@ impl State {
 
 impl OutputHandler for State {}
 
+impl FractionalScaleHandler for State {
+    fn new_fractional_scale(&mut self, surface: WlSurface) {
+        let scale = match self.window_of_surface(&surface) {
+            Some(id) => self.scale_of(id),
+            None => self.heads.first().map_or(1.0, |head| head.monitor.scale),
+        };
+        with_states(&surface, |data| crate::heads::tell_scale(&surface, data, scale));
+    }
+}
+
 delegate_compositor!(State);
 delegate_xdg_shell!(State);
 delegate_shm!(State);
@@ -1597,5 +1610,6 @@ delegate_data_device!(State);
 delegate_output!(State);
 delegate_cursor_shape!(State);
 delegate_viewporter!(State);
+delegate_fractional_scale!(State);
 delegate_dmabuf!(State);
 delegate_drm_syncobj!(State);

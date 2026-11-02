@@ -22,6 +22,7 @@ const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: Space = Space::Lg;
 const BANNER_SPACING: Space = Space::Lg;
 const PLACEHOLDER_EDGE: f32 = 1.0;
+const SNAP_TOLERANCE: f32 = 0.01;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
 pub fn window_tab(window: HostWindowId) -> TabId {
@@ -71,11 +72,17 @@ pub(crate) fn followed_size(size: Vec2, asked: Option<Vec2>, min: Vec2, max: Vec
         return size;
     };
     let held = within_limits(asked, min, max);
-    let axis = |size: f32, asked: f32, held: f32| match (size - held).abs() < 0.5 {
+    let axis = |size: f32, asked: f32, held: f32| match (size - held).abs() < 1.0 {
         true => asked,
         false => size,
     };
     vec2(axis(size.x, asked.x, held.x), axis(size.y, asked.y, held.y))
+}
+
+pub(crate) fn snapped_short(size: Vec2, shown: Vec2) -> Option<Vec2> {
+    let short = size - shown;
+    let snapped = |axis: f32| axis.abs() > SNAP_TOLERANCE && axis.abs() < 1.0;
+    (snapped(short.x) || snapped(short.y)).then_some(short)
 }
 
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
@@ -317,7 +324,7 @@ pub(crate) fn WindowPanel(
         };
         host.act(move || desktop::windows::request(action).detach())
     });
-    view! {
+    let built = view! {
         <Layers>
             <ContextMenu
                 disabled=true
@@ -363,7 +370,23 @@ pub(crate) fn WindowPanel(
                 />
             </Floating>
         </Layers>
+    };
+    if let (Some(tab), Some(node)) = (use_dock_tab(), panel.try_get()) {
+        let shown = measure(node);
+        create_effect(move || {
+            let (Some(size), Some(shown)) = (size.get().and_then(own_size), shown.get()) else {
+                return;
+            };
+            if let Some(short) = snapped_short(size, shown.rect.size()) {
+                untrack(|| {
+                    if let Some(outer) = tab.window_size() {
+                        tab.resize_window(outer + short);
+                    }
+                });
+            }
+        });
     }
+    built
 }
 
 #[component]
@@ -400,3 +423,6 @@ fn NotResponding(
         </Frame>
     }
 }
+
+#[cfg(test)]
+mod tests;

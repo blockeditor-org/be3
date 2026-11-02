@@ -13,8 +13,7 @@ use smithay::desktop::utils::{send_frames_surface_tree, with_surfaces_surface_tr
 use smithay::reexports::calloop::{LoopHandle, RegistrationToken};
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{Client, DisplayHandle};
-use smithay::utils::{Logical, Point, Rectangle, Size, Transform};
-use smithay::wayland::compositor::send_surface_state;
+use smithay::utils::{Logical, Point, Rectangle, Size};
 use smithay::wayland::selection::SelectionTarget;
 use smithay::wayland::xwayland_shell::{XWaylandShellHandler, XWaylandShellState};
 use smithay::xwayland::xwm::{Reorder, ResizeEdge, WmWindowProperty, X11Window, XwmId};
@@ -484,7 +483,7 @@ impl State {
             if let Some(output) = &output {
                 output.enter(surface);
             }
-            send_surface_state(surface, data, scale, Transform::Normal);
+            crate::heads::tell_scale(surface, data, scale);
         });
         self.redraw(owner);
         true

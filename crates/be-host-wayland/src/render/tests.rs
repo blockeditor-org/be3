@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_buffer_larger_than_its_pane_is_clipped_not_scaled;
+mod a_fractionally_scaled_buffer_maps_onto_whole_pixels;
 mod a_buffer_smaller_than_its_pane_is_drawn_unscaled_at_the_top_left;
 mod a_scaled_buffer_is_drawn_at_its_logical_size;
 mod a_viewport_destination_is_the_size_the_surface_is_drawn_at;

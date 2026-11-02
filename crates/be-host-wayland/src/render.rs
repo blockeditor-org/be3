@@ -350,8 +350,8 @@ fn place(
     at: &DrawAt,
 ) -> Quad {
     let scale = at.pixels_per_point;
-    let left = at.rect[0] + rect.loc.x as f32 * scale;
-    let top = at.rect[1] + rect.loc.y as f32 * scale;
+    let left = (at.rect[0] + rect.loc.x as f32 * scale).round();
+    let top = (at.rect[1] + rect.loc.y as f32 * scale).round();
     let (width, height) = (
         buffer.w.max(f64::MIN_POSITIVE),
         buffer.h.max(f64::MIN_POSITIVE),
@@ -360,8 +360,8 @@ fn place(
         rect: [
             left,
             top,
-            left + rect.size.w as f32 * scale,
-            top + rect.size.h as f32 * scale,
+            left + (rect.size.w as f32 * scale).round(),
+            top + (rect.size.h as f32 * scale).round(),
         ],
         uv: [
             (source.loc.x / width) as f32,
