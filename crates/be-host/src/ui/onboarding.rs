@@ -477,7 +477,9 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     arrow=false
                     on_select={|_path: Vec<usize>| send(UiCommand::LogOutCurrent)}
                     items={view! {
-                        <MenuItem label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())} />
+                        <MenuItem
+                            label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())}
+                        />
                     }}
                 />
                 <Button
