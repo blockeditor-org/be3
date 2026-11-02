@@ -34,6 +34,14 @@ search and grid, the Super tap and placeholders' Open need `ProgramsWatch`, the 
 history `NotificationsWatch`, the power row `PowerWatch`, the media keys `MediaWatch` (the
 volume icon and controls, its `output`), the Wi-Fi icon and tile `WifiWatch` (its `available`),
 and the tray its items.
+Settings shows each input and display setting where it takes effect, not wherever one
+coarse watch is answered: the keymap and key repeat while `InputReachWatch`'s `keyboard`
+is (the keyboards the seat reads, under DRM, or the programs any desktop hosts), middle-click
+paste while its `middle_click_paste` is (any desktop's programs), the pointers and remaps only
+while `InputDevicesWatch` is (a seat of physical devices), the bar's keyboard button while
+`DesktopBarWatch` is (any desktop) and its rotate button while that and `DisplaysWatch` are.
+be-host publishes `InputReachWatch` from `input::start` and `DesktopBarWatch` from
+`run_as_desktop`, so a windowed desktop sets its programs' keymap too.
 
 ## The bars
 

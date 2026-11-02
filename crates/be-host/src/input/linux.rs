@@ -20,6 +20,13 @@ pub(crate) fn start(setup: &beui::native::Setup) {
             );
         });
     }
+    let reach = be_sdk_api::InputReach {
+        keyboard: control.is_some() || Host::running(),
+        middle_click_paste: Host::running(),
+    };
+    if reach.keyboard || reach.middle_click_paste {
+        be_host_base::watches::publish::<be_sdk_api::InputReachWatch>(&reach);
+    }
     be_host_desktop::remap::start(control.clone());
     CONTROL.with(|slot| *slot.borrow_mut() = control);
 }

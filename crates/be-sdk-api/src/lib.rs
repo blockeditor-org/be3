@@ -99,7 +99,7 @@ pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
     displays::HostDisplay,
-    input::{HostInputDevice, RemapState},
+    input::{HostInputDevice, InputReach, RemapState},
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
     notifications::{
         HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
@@ -116,9 +116,9 @@ pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
-    displays::DisplaysWatch,
+    displays::{DesktopBarWatch, DisplaysWatch},
     epaper::EpaperWatch,
-    input::{InputDevicesWatch, RemapsWatch},
+    input::{InputDevicesWatch, InputReachWatch, RemapsWatch},
     media::MediaWatch,
     notifications::NotificationsWatch,
     power::PowerWatch,
