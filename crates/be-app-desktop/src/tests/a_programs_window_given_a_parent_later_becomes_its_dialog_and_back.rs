@@ -22,15 +22,21 @@ fn a_programs_window_given_a_parent_later_becomes_its_dialog_and_back() {
         "given a parent, it becomes the parent's dialog"
     );
 
-    fixture.show_windows(&[main, dialog]);
+    fixture.show_windows(&[main.clone(), dialog]);
     assert!(
         fixture.test.shown(&tab_id) && !fixture.test.shown(&dialog_id),
         "its parent cleared, it is a window of its own again"
     );
 
-    fixture.show_windows(&[child]);
+    fixture.show_windows(&[child.clone()]);
     assert!(
         fixture.test.shown(&tab_id),
         "a window whose parent is not listed is shown on its own rather than lost"
+    );
+
+    fixture.show_windows(&[main, child]);
+    assert!(
+        fixture.test.shown(&dialog_id) && !fixture.test.shown(&tab_id),
+        "once its parent is listed, it becomes the parent's dialog"
     );
 }
