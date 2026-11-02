@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, TabId};
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize, TabId};
 
 #[test]
 fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
@@ -8,7 +8,7 @@ fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
     let document = build_node(move || {
         view! {
             <dock::styled::Docking layout focus=10u64>
-                <DockSplit id="workspace" fraction=0.3>
+                <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
                     <DockPane id="files" locked=true>
                         <DockTab id=1u64 title="Tab 1">
                             <Frame />

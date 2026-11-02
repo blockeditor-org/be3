@@ -1,7 +1,12 @@
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    SplitSize,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Editor, Loaded, Toolbar, narrow_chrome};
+use be_sdk_beui::{Editor, Loaded, narrow_chrome};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_database::DatabaseValueEditor;
 use be_sdk_ui_database::DatabaseValueChange;
@@ -13,7 +18,7 @@ use crate::database_view::root::calendar::CalendarView;
 use crate::database_view::root::data::{Data, ViewData};
 use crate::database_view::root::header::ViewHeader;
 use crate::database_view::root::kanban::Kanban;
-use crate::database_view::root::list::{ListView, RowBeside};
+use crate::database_view::root::list::{ListView, OpenRow, RowBeside};
 use crate::database_view::root::scatter::Scatter;
 use crate::database_view::root::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
@@ -21,6 +26,11 @@ use beui::{Align, Direction, ItemSize};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
 const CELL_EDITOR_HEIGHT: Size = Size::Xl;
+const CELL_EDITOR_WIDTH: f32 = 360.0;
+const STAGE: &str = "stage";
+const ROW: &str = "row";
+const CELL_BAR: &str = "cell-editor";
+const ROW_WIDTH: f32 = 460.0;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
@@ -54,23 +64,56 @@ fn ViewEditor(editor: Editor) -> NodeId {
             && data.selected_row().is_some();
         chrome.get() && !covered
     });
+    let cell_bar = create_memo(move || chrome.get() && spreadsheet.get());
+    let opened = open_row(data);
+    let beside = create_memo(move || !narrow.get() && opened.get().is_some());
     let content = NodeRef::new();
     editor.content(&content);
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List spacing=Space::None>
-            <Show condition={spreadsheet}>
-                <Toolbar shown={chrome}>
-                    <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
-                </Toolbar>
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="view" size={SplitSize::Second(ROW_WIDTH)}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="View">
+                        <List spacing=Space::None>
+                            <Show condition={header_shown}>
+                                <ViewHeader data={data} />
+                            </Show>
+                            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                                <Content data={data} panels=true />
+                            </Frame>
+                        </List>
+                    </DockTab>
+                </DockPane>
+                <Show condition={beside}>
+                    <DockPane id="row" locked=true>
+                        <DockTab id=ROW title="Row">
+                            <OpenRow data={data} row={opened} />
+                        </DockTab>
+                    </DockPane>
+                </Show>
+            </DockSplit>
+            <Show condition={cell_bar}>
+                <DockBar
+                    id=CELL_BAR
+                    parent=STAGE
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                >
+                    <DockBarSurface spacing=Space::Md @test_id={"database-view.cell-editor"}>
+                        <DockBarGrip />
+                        <CellEditor data={data} />
+                    </DockBarSurface>
+                </DockBar>
             </Show>
-            <Show condition={header_shown}>
-                <ViewHeader data={data} />
-            </Show>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <Content data={data} panels=true />
-            </Frame>
-        </List>
+        </Docking>
     }
+}
+
+fn open_row(data: Data) -> Memo<Option<be_sdk_beui::be_block::ObjectId>> {
+    create_memo(move || match data.kind.get() {
+        DatabaseViewKind::Spreadsheet => None,
+        _ => data.selected_row(),
+    })
 }
 
 #[component]
@@ -168,7 +211,7 @@ fn CellEditor(data: Data) -> NodeId {
                 </Frame>
                 <Show condition={chosen}>
                     <DatabaseValueEditor
-                        @sizing=ItemSize::Percent(100.0)
+                        @sizing=ItemSize::Fixed(CELL_EDITOR_WIDTH)
                         fields={fields}
                         values={values}
                         labels={labels}

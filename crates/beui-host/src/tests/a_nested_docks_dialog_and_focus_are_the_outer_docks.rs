@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockDialog, DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockDialog, DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 #[test]
 fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
@@ -17,7 +17,7 @@ fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
         });
         view! {
             <dock::styled::Docking layout=outer focus=2u64>
-                <DockSplit id="root" fraction=0.3>
+                <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
                     <DockPane id="side">
                         <DockTab id=1u64 title="Side">
                             <Frame @test_id="content.1" />

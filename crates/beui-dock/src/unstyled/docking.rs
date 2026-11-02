@@ -21,7 +21,7 @@ use beui_view::types::{Pos2, Rect, Vec2};
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
     DockAlign, DockBarPlacement, DockEdge, DockFullscreen, DockSpec, DockSpecBar, DockSpecEntry,
-    DockSpecNode, DockSpecPane, DockSpecWindow, joined_host, joined_key, joined_prefix,
+    DockSpecNode, DockSpecPane, DockSpecWindow, SplitSize, joined_host, joined_key, joined_prefix,
 };
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarControl, DockBarHandle,
@@ -78,7 +78,7 @@ enum NodeKind<K: 'static> {
     Split {
         key: String,
         direction: Direction,
-        fraction: Memo<f32>,
+        size: Memo<SplitSize>,
         children: Run<DockNode<K>>,
     },
     Pane {
@@ -139,7 +139,7 @@ beui_view::value_child_type!(<K> DockEntry<K>);
 pub fn DockSplit<K>(
     id: String,
     #[prop(default = Direction::Horizontal)] direction: Direction,
-    #[prop(default = 0.5)] fraction: Prop<f32>,
+    #[prop(default = SplitSize::default())] size: Prop<SplitSize>,
     children: Children<DockNode<K>>,
 ) -> DockNode<K>
 where
@@ -149,7 +149,7 @@ where
         kind: NodeKind::Split {
             key: id,
             direction,
-            fraction: create_memo(move || fraction.get()),
+            size: create_memo(move || size.get()),
             children: children.into_run(),
         },
     }
@@ -1190,7 +1190,7 @@ impl<K: DockKey> DockingLayout<K> {
             NodeKind::Split {
                 key,
                 direction,
-                fraction,
+                size,
                 children,
             } => {
                 let mut parts: Vec<DockSpecNode> = children
@@ -1206,7 +1206,7 @@ impl<K: DockKey> DockingLayout<K> {
                 Some(DockSpecNode::Split {
                     key: key.clone(),
                     direction: *direction,
-                    fraction: fraction.get(),
+                    size: size.get(),
                     first: Box::new(first),
                     second: Box::new(second),
                 })
@@ -1363,13 +1363,13 @@ impl<K: DockKey> DockingLayout<K> {
             DockSpecNode::Split {
                 key,
                 direction,
-                fraction,
+                size,
                 first,
                 second,
             } => DockSpecNode::Split {
                 key: format!("{prefix}{key}"),
                 direction: *direction,
-                fraction: *fraction,
+                size: *size,
                 first: Box::new(self.foreign_node(host, joined, first, found)),
                 second: Box::new(self.foreign_node(host, joined, second, found)),
             },
@@ -1859,6 +1859,16 @@ where
         let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
+    let tab_key = Func::new(move |tab: TabId| {
+        let foreign = found.with(|found| found.foreign.get(&tab).cloned());
+        if let Some((joined, inner)) = foreign {
+            let declaration = joined.declaration.borrow();
+            let declared = declaration.as_ref()?.tab(inner)?;
+            let (host, _) = layout.inner().registry.foreign.borrow().inner(tab)?;
+            return layout.path(host, &declared.key);
+        }
+        layout.key_of(tab).map(|key| key.key())
+    });
     let hosts = create_memo(move || {
         found.with(|found| {
             found
@@ -1924,6 +1934,7 @@ where
                 area: layout.area,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),
+                tab_key,
             }}
         />
     }

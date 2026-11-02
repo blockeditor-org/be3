@@ -9,7 +9,7 @@ use beui::dock::styled::{DockBarGrip, DockBarSurface, Docking};
 use beui::dock::unstyled::{
     DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
     DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
-    DockTabControl, DockingLayout, TabId, dock_menu, use_dock_tab,
+    DockTabControl, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{
@@ -582,7 +582,7 @@ fn DemoShell() -> NodeId {
             </Frame>
             <Separator />
             <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
-                <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
+                <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
                     <DockPane id="catalog" locked=true>
                         <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
                             <CatalogPanel pages active={active} />

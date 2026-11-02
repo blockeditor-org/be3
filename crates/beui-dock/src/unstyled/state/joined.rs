@@ -511,7 +511,7 @@ impl DockState {
                     (Some(first), Some(second)) => Some(Node::Split(Split {
                         id: SplitId(self.mint()),
                         direction: split.direction,
-                        fraction: split.fraction,
+                        size: split.size,
                         first: Box::new(first),
                         second: Box::new(second),
                         key: split.key.as_deref().and_then(map.key),

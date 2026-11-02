@@ -77,8 +77,8 @@ pub use state::{
     DockTree, DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId,
     TabPosition, Tree, layout_surface, layout_tree,
 };
-use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved, tree_shape};
-pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, tree_shape};
+pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SplitSize};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
@@ -122,6 +122,7 @@ pub struct DockTabHandle {
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
     pub host: Option<TabId>,
+    pub test_key: Option<String>,
     pub grouped: bool,
     pub notice: Memo<Option<String>>,
     pub close: ClickCallback,
@@ -189,7 +190,7 @@ pub struct DockStackHandle {
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
-    pub closable_tabs: Memo<usize>,
+    pub open_tabs: Memo<usize>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -204,6 +205,7 @@ pub struct DockSwitcherHandle {
 
 pub struct DockSwitcherCardHandle {
     pub tab: TabId,
+    pub test_key: String,
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub current: Memo<bool>,
@@ -600,6 +602,7 @@ struct State {
     bar_windows: Stored<RefCell<HashMap<String, WindowHandle>>>,
     bar_placements: Signal<HashMap<String, WindowPlacement>>,
     bar_key: Func<TabId, Option<String>>,
+    tab_key: Func<TabId, Option<String>>,
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
@@ -643,6 +646,10 @@ impl State {
                 }
             });
         });
+    }
+
+    fn test_key(&self, tab: TabId) -> String {
+        untrack(|| self.tab_key.call(tab)).unwrap_or_else(|| tab.value().to_string())
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -1708,6 +1715,7 @@ pub(crate) struct DockConfig {
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
     pub(crate) bar_key: Func<TabId, Option<String>>,
+    pub(crate) tab_key: Func<TabId, Option<String>>,
 }
 
 #[component]
@@ -1766,6 +1774,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         area: dock_rect_held,
         bars_away,
         bar_key,
+        tab_key,
     } = config;
     let dock_rect = dock_rect_held.read_only();
     let outer_held = create_signal(Rect::ZERO);
@@ -1830,6 +1839,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_windows: store(RefCell::default()),
         bar_placements: create_signal(HashMap::default()),
         bar_key,
+        tab_key,
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
@@ -2231,11 +2241,8 @@ fn stack_handle(
     let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
-    let closable = dock.closable;
-    let closable_tabs = create_memo(move || {
-        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
-    });
-    let switch_label = create_memo(move || match closable_tabs.get() {
+    let open_tabs = create_memo(move || tabs.with(Vec::len));
+    let switch_label = create_memo(move || match open_tabs.get() {
         1 => "1 open tab".to_owned(),
         count => format!("{count} open tabs"),
     });
@@ -2246,7 +2253,7 @@ fn stack_handle(
         backward,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
-        closable_tabs,
+        open_tabs,
         switch_label,
         open_switcher: ClickCallback::new(move || switching.set(true)),
     }
@@ -2284,6 +2291,7 @@ fn switcher_handle(
         fixed,
         card: Func::new(move |tab: TabId| DockSwitcherCardHandle {
             tab,
+            test_key: dock.test_key(tab),
             title: create_memo(move || dock.title(tab)),
             icon: create_memo(move || dock.icon(tab)),
             current: create_memo(move || shown.get() == Some(tab)),
@@ -2667,6 +2675,10 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let closable = dock.all_closable(contents);
+    let lone_tab = create_memo(move || {
+        !icons_only.get() && state.with(|state| matches!(state.entries(leaf)[..], [Entry::Tab(_)]))
+    });
+    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
     let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -2711,7 +2723,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         }),
                         title: create_memo(String::new),
                         vacant,
-                        closable,
+                        closable: bar_closable,
                         menu,
                         close,
                         test_prefix: dock.pane_test_id("dock", leaf),
@@ -3040,6 +3052,10 @@ fn DockTabView(
         closable,
         waiting,
         host,
+        test_key: match entry {
+            Entry::Tab(tab) => Some(dock.test_key(tab)),
+            Entry::Group(_) => host.map(|host| dock.test_key(host)),
+        },
         grouped,
         notice,
         close,
@@ -3062,7 +3078,7 @@ fn DockTabView(
         false => Direction::Vertical,
     };
     let tab_test_id = match entry {
-        Entry::Tab(tab) => format!("dock.tab.{}", tab.value()),
+        Entry::Tab(tab) => format!("dock.tab.{}", dock.test_key(tab)),
         Entry::Group(_) => String::new(),
     };
     let handle = NodeRef::new();
@@ -3274,12 +3290,19 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     let direction = state
         .with_untracked(|state| state.split_direction(split))
         .unwrap_or(Direction::Horizontal);
-    let fraction = create_memo(move || state.with(|state| state.split_fraction(split)));
+    let size = create_memo(move || state.with(|state| state.split_size(split)));
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Splitter);
-        node.set_numeric_value(f64::from(fraction.get() * 100.0));
+        match size.get() {
+            SplitSize::Fraction(fraction) => {
+                node.set_numeric_value(f64::from(fraction * 100.0));
+                node.set_max_numeric_value(100.0);
+            }
+            SplitSize::First(points) | SplitSize::Second(points) => {
+                node.set_numeric_value(f64::from(points));
+            }
+        }
         node.set_min_numeric_value(0.0);
-        node.set_max_numeric_value(100.0);
         node
     }));
     let face = dock.splitter.call(DockSplitterHandle {
@@ -3288,13 +3311,12 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         active: active.read_only(),
         focused: focused.read_only(),
     });
-    let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
+    let held: Rc<Cell<Option<(SplitSize, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    let shown = Rc::new(move || {
+    let start = move || {
         dock.splitter_of(tree, split)
-            .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
-    });
-    let start = shown.clone();
+            .map_or_else(|| size.get_untracked(), |splitter| splitter.size)
+    };
     let node = view! {
         <Interactive
             @test_id={dock.splitter_test_id(split)}
@@ -3312,8 +3334,12 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     (Direction::Vertical, Key::ArrowDown) => SPLIT_STEP,
                     _ => return false,
                 };
-                let next = shown() + step;
-                dock.edit(|state| state.set_split_fraction(split, next));
+                let Some(splitter) = dock.splitter_of(tree, split) else {
+                    return false;
+                };
+                let available = splitter.available(dock.thickness);
+                let next = splitter.size.moved(available, step * available);
+                dock.edit(|state| state.set_split_size(split, next));
                 true
             }}
             cursor={match direction {
@@ -3337,14 +3363,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 let Some(splitter) = dock.splitter_of(tree, split) else {
                     return;
                 };
-                let fraction = fraction_moved(
-                    splitter.area,
-                    splitter.direction,
-                    dock.thickness,
-                    start,
-                    moved,
-                );
-                dock.drag_edit(move |state| state.set_split_fraction(split, fraction));
+                let next = start.moved(splitter.available(dock.thickness), moved);
+                dock.drag_edit(move |state| state.set_split_size(split, next));
             }}
         >
             <Frame>{face}</Frame>

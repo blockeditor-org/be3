@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 fn shown(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -16,7 +16,7 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
         let layout = DockingLayout::new();
         view! {
             <dock::styled::Docking layout focus=10u64>
-                <DockSplit id="workspace" fraction=0.3>
+                <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
                     <DockPane id="files" locked=true>
                         <DockTab id=1u64 title="Tab 1">
                             <Frame />

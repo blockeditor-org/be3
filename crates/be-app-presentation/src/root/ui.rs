@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use be_sdk_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    SplitSize,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{
@@ -21,7 +22,7 @@ use beui::{Align, Direction, ItemSize};
 const FILMSTRIP: &str = "filmstrip";
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
-const FILMSTRIP_SHARE: f32 = 0.22;
+const FILMSTRIP_WIDTH: f32 = 240.0;
 const THUMBNAIL_WIDTH: Size = Size::Custom(176.0);
 const PLAYBACK_HEIGHT: Size = Size::Xl2;
 const SLIDE_HEIGHT: f32 = 540.0;
@@ -100,7 +101,7 @@ fn DeckDock(
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="deck" fraction=FILMSTRIP_SHARE>
+            <DockSplit id="deck" size={SplitSize::First(FILMSTRIP_WIDTH)}>
                 <DockPane id="filmstrip" locked=true>
                     <DockTab id=FILMSTRIP title="Slides">
                         <Filmstrip editor={editor} slides={slides} />

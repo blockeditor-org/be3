@@ -8,7 +8,7 @@ fn the_style_popover_restyles_the_selection() {
     let rectangle = card();
     let mut editor = editor(std::slice::from_ref(&rectangle));
     assert!(
-        !editor.shown("chrome.sidebar"),
+        !editor.shown("infinite-canvas.inspector"),
         "prototyping has no inspector"
     );
 

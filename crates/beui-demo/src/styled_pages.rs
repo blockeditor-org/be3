@@ -4321,7 +4321,7 @@ pub(crate) fn NestedDocksPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
     view! {
         <Docking layout>
-            <DockSplit id="nested" fraction=0.3>
+            <DockSplit id="nested" size={SplitSize::Fraction(0.3)}>
                 <DockPane id="outline" locked=true>
                     <DockTab id=1u64 title="Outline" icon=beui::icons::ICON_LIST_TREE>
                         <NestedNote
@@ -4357,12 +4357,14 @@ fn NestedNote(text: &'static str) -> NodeId {
     }
 }
 
+const BARS_SIDE_WIDTH: f32 = 280.0;
+
 #[component]
 pub(crate) fn DockBarsPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
     view! {
         <Docking layout>
-            <DockSplit id="bars" fraction=0.75>
+            <DockSplit id="bars" size={SplitSize::Second(BARS_SIDE_WIDTH)}>
                 <DockPane id="stage" bare=true>
                     <DockTab id=1u64 title="Stage" icon=beui::icons::ICON_PEN_TOOL>
                         <BarsStage layout />

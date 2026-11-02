@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use beui::dock::styled::Docking;
-use beui::dock::styled::{DockPane, DockSplit, DockTab};
+use beui::dock::styled::{DockPane, DockSplit, DockTab, SplitSize};
 use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
@@ -128,7 +128,7 @@ fn PaintReview(
                 </Show>
                 <Show condition={ready}>
                     <Docking @sizing=ItemSize::Percent(100.0) layout focus>
-                        <DockSplit id="review" fraction=0.28>
+                        <DockSplit id="review" size={SplitSize::Fraction(0.28)}>
                             <DockPane id="paintings">
                                 <DockTab id=1u64 title="Paintings">
                                     <PaintingList review={review} />

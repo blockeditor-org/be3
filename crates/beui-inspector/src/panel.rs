@@ -13,7 +13,9 @@ use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
 use beui_dock::styled::Docking;
-use beui_dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, dock_menu, use_dock_tab};
+use beui_dock::unstyled::{
+    DockPane, DockSplit, DockTab, DockingLayout, SplitSize, dock_menu, use_dock_tab,
+};
 use beui_types::NodeId;
 use beui_types::TextAlign;
 use beui_types::{BackEdge, BackGesture};
@@ -202,18 +204,15 @@ pub struct Panel {
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
     pub program: EmbedSlot,
-    pub width: Signal<f32>,
 }
 
-pub fn build(state: Stored<State>, width: f32, embeds_program: bool) -> Panel {
+pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
-    let width = create_signal(width);
-    let fraction = create_memo(move || program_share(width.get()));
     let program = EmbedSlot::new();
 
     let mut document = Document::new();
@@ -245,7 +244,11 @@ pub fn build(state: Stored<State>, width: f32, embeds_program: bool) -> Panel {
         };
         let layout = match embeds_program {
             true => view! {
-                <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
+                <DockSplit
+                    id="inspector"
+                    direction=Direction::Horizontal
+                    size={SplitSize::Second(DEFAULT_WIDTH)}
+                >
                     <DockPane id="app">
                         <DockTab
                             id=InspectorTab::Program
@@ -277,14 +280,6 @@ pub fn build(state: Stored<State>, width: f32, embeds_program: bool) -> Panel {
         performance,
         renderer,
         program,
-        width,
-    }
-}
-
-fn program_share(width: f32) -> f32 {
-    match width > DEFAULT_WIDTH {
-        true => 1.0 - DEFAULT_WIDTH / width,
-        false => 0.5,
     }
 }
 

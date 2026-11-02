@@ -149,7 +149,7 @@ pub(crate) fn FrameChrome(
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} shown_in />
-                <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
+                <ChromeRoot @sizing=ItemSize::Percent(100.0)>|| {
                     let built = view();
                     let content = built.child();
                     rooted.set(Some(built));

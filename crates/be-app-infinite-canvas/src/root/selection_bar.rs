@@ -1,13 +1,13 @@
 use super::actions::{CanvasActions, embedded_block};
 use super::paint::resolve_color;
-use super::sidebar::{set_foreground, styled_entities};
+use super::sidebar::{inspector_sheet, set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{narrow_chrome, sheet_control};
+use be_sdk_beui::narrow_chrome;
 use be_type_infinite_canvas::{CanvasColor, CanvasProfile};
 use beui::{Align, Direction};
 
@@ -31,10 +31,10 @@ pub(crate) fn SelectionTools(state: CanvasState, direction: Memo<Direction>) -> 
     let bind_lines = actions.bind_lines.clone();
     let lining = create_memo(move || state.tool.get().draws_a_line());
     let embedded = create_memo(move || embedded_block(&state).is_some());
-    let sheet = sheet_control();
+    let sheet = inspector_sheet();
     let tune = move || {
-        if let Some(sheet) = &sheet {
-            sheet.set(true);
+        if let Some(sheet) = sheet {
+            sheet.open();
         }
     };
     view! {

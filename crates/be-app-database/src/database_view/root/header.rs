@@ -15,26 +15,33 @@ const GUTTER: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 const SEARCH_WIDTH: f32 = 220.0;
 const DISPLAY_WIDTH: Size = Size::Custom(380.0);
+const WIDE_WIDTH: f32 = 560.0;
 
 #[component]
 pub fn ViewHeader(data: Data) -> NodeId {
-    let narrow = narrow_chrome();
-    let wide = create_memo(move || !narrow.get());
+    let chrome = narrow_chrome();
     view! {
-        <List spacing=Space::None>
-            <Show condition={wide}>
-                <WideHeader data={data} />
-            </Show>
-            <Show condition={narrow}>
-                <NarrowHeader data={data} />
-            </Show>
-            <Banner
-                message={data.error}
-                id="database-view.error"
-                on_dismiss={move || data.dismiss_error()}
-            />
-            <Separator />
-        </List>
+        <Container>|_| {
+            let squeezed = narrower_than(WIDE_WIDTH);
+            let narrow = create_memo(move || chrome.get() || squeezed.get());
+            let wide = create_memo(move || !narrow.get());
+            view! {
+                <List spacing=Space::None>
+                    <Show condition={wide}>
+                        <WideHeader data={data} />
+                    </Show>
+                    <Show condition={narrow}>
+                        <NarrowHeader data={data} />
+                    </Show>
+                    <Banner
+                        message={data.error}
+                        id="database-view.error"
+                        on_dismiss={move || data.dismiss_error()}
+                    />
+                    <Separator />
+                </List>
+            }
+        }</Container>
     }
 }
 
@@ -46,7 +53,12 @@ fn WideHeader(data: Data) -> NodeId {
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING>{data.name}</Text>
-                    <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <Scroll
+                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                        direction=Direction::Horizontal
+                    >
+                        <ViewTabs data={data} />
+                    </Scroll>
                     <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
                     <NewRow data={data} compact=false />
                 </List>

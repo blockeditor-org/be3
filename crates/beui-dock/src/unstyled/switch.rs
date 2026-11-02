@@ -21,6 +21,7 @@ pub struct DockSwitchHandle {
 
 pub struct DockSwitchRowHandle {
     pub tab: TabId,
+    pub test_key: String,
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub chosen: Memo<bool>,
@@ -53,6 +54,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         create_memo(move || switch.with(|switch| switch.as_ref().map(|switch| switch.chosen)));
     let row = Func::new(move |tab: TabId| DockSwitchRowHandle {
         tab,
+        test_key: dock.test_key(tab),
         title: create_memo(move || dock.title(tab)),
         icon: create_memo(move || dock.icon(tab)),
         chosen: create_memo(move || chosen.get() == Some(tab)),

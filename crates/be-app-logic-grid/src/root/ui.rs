@@ -1,6 +1,11 @@
 use std::cell::Cell;
 
-use be_sdk_beui::{Editor, LoadingPane, Side, Sidebar, Toolbar};
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    SplitSize,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
 use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
@@ -11,10 +16,16 @@ use super::panels::{Panels, StorageDialog};
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
+use beui::ItemSize;
 use beui::native::draw_gpu;
-use beui::{Direction, ItemSize};
 
 const ZOOM_STEP: f32 = 1.25;
+const STAGE: &str = "stage";
+const HOTBAR: &str = "hotbar";
+const PANELS: &str = "panels";
+const TOOLS: &str = "tools";
+const ZOOM: &str = "zoom";
+const PANELS_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 #[component]
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
@@ -30,26 +41,89 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
             </Show>
             <Show condition={loaded}>
                 <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <GridToolbar session={session} shown={chrome} />
-                    <List
-                        @sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
-                        spacing=Space::None
-                    >
-                        <Sidebar side=Side::Left shown={chrome} width=HOTBAR_WIDTH>
-                            <Hotbar session={session} />
-                            <Separator />
-                            <ToolSettings session={session} />
-                        </Sidebar>
-                        <GridCanvas @sizing=ItemSize::Percent(100.0) session={session} />
-                        <Sidebar shown={chrome}>
-                            <Panels session={session} />
-                        </Sidebar>
-                    </List>
+                    <GridDock @sizing=ItemSize::Percent(100.0) session={session} chrome={chrome} />
                     <StorageDialog session={session} />
                 </List>
             </Show>
         </List>
+    }
+}
+
+#[component]
+fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
+    let layout = DockingLayout::<&'static str>::new();
+    view! {
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
+                <Show condition={chrome}>
+                    <DockPane id="hotbar" locked=true>
+                        <DockTab id=HOTBAR title="Components">
+                            <HotbarPane session={session} />
+                        </DockTab>
+                    </DockPane>
+                </Show>
+                <DockSplit id="workspace" size={SplitSize::Second(PANELS_WIDTH)}>
+                    <DockPane id="stage" locked=true bare=true>
+                        <DockTab id=STAGE title="Grid">
+                            <GridCanvas session={session} />
+                        </DockTab>
+                    </DockPane>
+                    <Show condition={chrome}>
+                        <DockPane id="panels" locked=true>
+                            <DockTab id=PANELS title="Simulation">
+                                <PanelsPane session={session} />
+                            </DockTab>
+                        </DockPane>
+                    </Show>
+                </DockSplit>
+            </DockSplit>
+            <Show condition={chrome}>
+                <DockBar
+                    id=TOOLS
+                    parent=STAGE
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                >
+                    <GridTools session={session} />
+                </DockBar>
+                <DockBar
+                    id=ZOOM
+                    parent=STAGE
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::End)}
+                >
+                    <GridZoom session={session} />
+                </DockBar>
+            </Show>
+        </Docking>
+    }
+}
+
+#[component]
+fn HotbarPane(session: Session) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll @test_id={"logic-grid.hotbar"}>
+                <Frame padding=Space::Lg>
+                    <List spacing=Space::Md>
+                        <Hotbar session={session} />
+                        <Separator />
+                        <ToolSettings session={session} />
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
+#[component]
+fn PanelsPane(session: Session) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll @test_id={"logic-grid.panels"}>
+                <Frame padding=Space::Lg>
+                    <Panels session={session} />
+                </Frame>
+            </Scroll>
+        </Frame>
     }
 }
 
@@ -73,7 +147,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
 }
 
 #[component]
-fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<ListChild> {
+fn GridTools(session: Session) -> NodeId {
     let editor = session.editor();
     let read_only = editor.read_only();
     let compile = move || {
@@ -97,22 +171,11 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
     let compile_error =
         create_memo(move || session.read(|model| model.compile_error.clone().unwrap_or_default()));
     let failed = create_memo(move || !compile_error.get().is_empty());
-    let scale = editor.scale();
-    let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
-    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
-    let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let world = editor.world();
-    let recenter = move || {
-        if let Some(world) = world.get_untracked() {
-            let origin =
-                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
-            editor.fit(origin, editor.content_rect(), 1.0);
-        }
-    };
-    let problem_color = TextColor::Danger;
-    let error_color = TextColor::Danger;
     view! {
-        <Toolbar shown={shown}>
+        <DockBarSurface spacing=Space::Md @test_id={"logic-grid.toolbar"}>
+            <Frame @test_id={"logic-grid.toolbar.grip"}>
+                <DockBarGrip />
+            </Frame>
             <Button
                 label="Compile"
                 glyph=ICON_WRENCH
@@ -125,18 +188,41 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
                 <Text>{challenge}</Text>
             </Show>
             <Show condition={misplaced}>
-                <Text style=TextStyle::CAPTION color={problem_color}>{problem_text}</Text>
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{problem_text}</Text>
             </Show>
             <Show condition={failed}>
                 <Text
                     style=TextStyle::CAPTION
-                    color={error_color}
+                    color=TextColor::Danger
                     @test_id={"logic-grid.compile-error"}
                 >
                     {compile_error}
                 </Text>
             </Show>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+fn GridZoom(session: Session) -> NodeId {
+    let editor = session.editor();
+    let scale = editor.scale();
+    let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
+    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
+    let zoom_in = move || editor.zoom(ZOOM_STEP);
+    let world = editor.world();
+    let recenter = move || {
+        if let Some(world) = world.get_untracked() {
+            let origin =
+                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
+            editor.fit(origin, editor.content_rect(), 1.0);
+        }
+    };
+    view! {
+        <DockBarSurface @test_id={"logic-grid.zoom"}>
+            <Frame @test_id={"logic-grid.zoom.grip"}>
+                <DockBarGrip />
+            </Frame>
             <Button icon_only=true glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
             <Text style=TextStyle::CAPTION>{percent}</Text>
             <Button icon_only=true glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
@@ -146,7 +232,7 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
                 label="Return to the origin"
                 on_click={recenter}
             />
-        </Toolbar>
+        </DockBarSurface>
     }
 }
 

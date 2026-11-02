@@ -27,7 +27,7 @@ fn reopening_a_block_keeps_the_view_the_person_moved() {
         "ctrl and the wheel zoom in, from {fitted:?} to {zoomed:?}"
     );
 
-    host.click("Button \"Close tab\"");
+    host.click("#dock.tab.2.close");
     host.gone(ARTWORK);
     host.click("TreeItem \"Pan and Zoom\"");
     host.wait(ARTWORK);

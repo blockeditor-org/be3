@@ -35,7 +35,7 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         center(&editor, &right),
     );
     let bounds = editor.rect_of(&format!("infinite-canvas.entity.{}", around.id));
-    let outside = Pos2::new(bounds.left() - 30.0, first.y);
+    let outside = Pos2::new(bounds.left() / 2.0, first.y);
 
     editor.key(Key::E, Modifiers::NONE);
     editor.run();

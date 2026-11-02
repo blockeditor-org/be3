@@ -5,7 +5,7 @@ use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
@@ -40,7 +40,7 @@ use canvas::CanvasStage;
 use export::ExportDialog;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
-use sidebar::{CanvasInspector, CanvasSidebar};
+use sidebar::{CanvasInspector, CanvasSheet, InspectorSheet};
 use state::CanvasState;
 use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
@@ -49,7 +49,7 @@ use crate::geometry::MIN_SIZE;
 use beui::ItemSize;
 
 const INSPECTOR: &str = "inspector";
-const INSPECTOR_SHARE: f32 = 0.3;
+const INSPECTOR_WIDTH: f32 = 280.0;
 
 pub struct CanvasRoot;
 
@@ -114,15 +114,15 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);
+    let sheet = InspectorSheet::new(inspected);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
     let narrow = narrow_chrome();
-    let sheet = create_memo(move || inspected.get() && narrow.get());
     let docked = create_memo(move || inspected.get() && !narrow.get());
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="canvas" fraction={1.0 - INSPECTOR_SHARE}>
+            <DockSplit id="canvas" size={SplitSize::Second(INSPECTOR_WIDTH)}>
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Canvas">
                         <List @node_ref=&scope spacing=Space::None>
@@ -134,7 +134,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                                 <CanvasStage @node_ref={&content} state={state} />
                                 <SelectionDock state layout open bar={bar_size.read_only()} />
                             </Layers>
-                            <CanvasSidebar state={state} shown={sheet} />
+                            <CanvasSheet state sheet />
                         </List>
                     </DockTab>
                 </DockPane>

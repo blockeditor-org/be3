@@ -85,8 +85,8 @@ pub use types::{
     DockDeclaration, DockDeclare, DockDialog, DockDirection, DockDragStage, DockEdge,
     DockFullscreen, DockGroup, DockHold, DockHome, DockHosted, DockItem, DockItemKind, DockLayout,
     DockMessage, DockOutside, DockOutsidePane, DockOutsidePlace, DockPane, DockPlace,
-    DockPlacedBar, DockRequest, DockSplit, DockTab, DockTabPath, DockTree, DockViewRequest,
-    DockWindow,
+    DockPlacedBar, DockRequest, DockSplit, DockSplitSize, DockTab, DockTabPath, DockTree,
+    DockViewRequest, DockWindow,
 };
 pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
 pub use types::{

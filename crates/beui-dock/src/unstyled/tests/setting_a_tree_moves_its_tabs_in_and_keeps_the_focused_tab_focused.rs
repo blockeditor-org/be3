@@ -25,7 +25,7 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
 
     let split = DockTree::Split {
         direction: Direction::Horizontal,
-        fraction: 0.4,
+        size: SplitSize::Fraction(0.4),
         first: Box::new(DockTree::Tabs {
             entries: vec![DockTreeEntry::Tab(TabId::new(10))],
             active: 0,
