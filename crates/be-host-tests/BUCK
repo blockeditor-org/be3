@@ -80,6 +80,7 @@ APPS = {
     "the_canvas_menu_ticks_its_grid_and_profile_in_submenus": ["infinite-canvas"],
     "the_canvas_zoom_bar_floats_at_any_corner_and_stays_there": ["infinite-canvas"],
     "the_desktop_shell_opens_and_closes_cleanly": ["desktop"],
+    "the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu": ["desktop"],
     "the_files_new_menu_row_loses_its_highlight_when_the_pointer_leaves": [],
     "the_host_menu_opens_under_its_button": [],
     "the_host_opens_its_files_and_closes_cleanly": [],

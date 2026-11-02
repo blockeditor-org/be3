@@ -1025,6 +1025,7 @@ pub fn DockBarGrip(
                 open
                 bounds
                 click_opens=false
+                secondary_opens=true
                 on_click={move || {
                     if !moved.get() {
                         open.update(|open| *open = !*open);
