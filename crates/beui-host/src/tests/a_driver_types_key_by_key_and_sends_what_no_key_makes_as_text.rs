@@ -16,14 +16,14 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     assert_eq!(
         pressed,
         vec![
-            (Key::A, false, Some(30), Some("a".to_owned())),
-            (Key::Shift, true, Some(42), None),
-            (Key::B, true, Some(48), Some("B".to_owned())),
-            (Key::Shift, true, Some(42), None),
-            (Key::One, true, Some(2), Some("!".to_owned())),
+            (Key::A, false, None, Some("a".to_owned())),
+            (Key::Shift, true, None, None),
+            (Key::B, true, None, Some("B".to_owned())),
+            (Key::Shift, true, None, None),
+            (Key::One, true, None, Some("!".to_owned())),
         ],
-        "each character a key makes is that key pressed, with shift held where it needs it, so a \
-         Wayland program's window, which reads keys rather than text, gets it too"
+        "each character a key makes is that key pressed, with shift held where it needs it and no \
+         physical place, so a Wayland program's window gets the key that makes it in its own layout"
     );
     assert_eq!(
         events.last(),

@@ -372,8 +372,10 @@ same way for the browser:
     EOF
 
 `type` presses the key that makes each character, with Shift where a US layout needs it,
-with each key's evdev code, so a Wayland program's window takes it as it takes `key` and
-`keydown`. A character no key makes, such as `é`, is sent as text, which only beui takes.
+and no physical place, as the on-screen keyboard does, so a Wayland program's window gets
+the key that makes it in the active layout (guides/desktop/linux.md, The on-screen keyboard).
+A character no US key makes, such as `é`, is sent as text, which beui and a program's enabled
+text field take.
 
 ## The headless window
 

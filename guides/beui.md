@@ -4890,9 +4890,10 @@ nothing, except where it is a window of its own (`Context::keyboard_in_a_window`
 where windows open, which only space sets): there the person put it somewhere,
 so it stays open until its close button or a toggle closes it. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the program as a keyboard
-would: the engine makes `Input::Key`s with evdev codes and real modifier
-presses (`beui_core::input::typing`, which `drive type` and `drive key`
-use too) and `Input::Text` for what no key types, `Context::type_events` puts
+would: the engine makes `Input::Key`s with real modifier presses and no
+physical place (`evdev` is `None`; `beui_core::input::typing`, which `drive type` and `drive key`
+use too, so a Wayland program gets the key that makes each character in its own layout,
+guides/desktop/linux.md) and `Input::Text` for what no key types, `Context::type_events` puts
 them in `FrameOutput::typed`, and the runner pushes them as the next frame's
 input, so a beui field, an app and a Wayland program all take them
 the same way. Paste as plain text asks for a `PasteRequest::Typed`, whose

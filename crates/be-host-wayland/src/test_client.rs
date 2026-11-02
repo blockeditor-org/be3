@@ -68,6 +68,8 @@ pub(crate) struct Received {
     pub(crate) serial: Option<u32>,
     pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
+    pub(crate) depressed: u32,
+    pub(crate) leveled: Vec<(u32, u32)>,
     pub(crate) keymaps: usize,
     pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
@@ -716,11 +718,15 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
                 let pressed = pressed == wl_keyboard::KeyState::Pressed;
                 state.keys.push((key, pressed));
                 if pressed {
+                    state.leveled.push((key, state.depressed));
                     state.serial = Some(serial);
                     if let Some(surface) = state.keyboard_surface.clone() {
                         state.seen.push(Seen::Key(surface, key));
                     }
                 }
+            }
+            wl_keyboard::Event::Modifiers { mods_depressed, .. } => {
+                state.depressed = mods_depressed;
             }
             wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
             wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),

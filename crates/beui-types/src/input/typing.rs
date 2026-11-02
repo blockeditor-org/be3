@@ -157,7 +157,7 @@ fn stroke(key: Key, pressed: bool, repeat: bool, text: Option<String>) -> Input 
         key: Some(key),
         pressed,
         repeat,
-        evdev: key.evdev(),
+        evdev: None,
         text,
     })
 }
@@ -178,10 +178,14 @@ pub fn chord_name(key: Key, modifiers: Modifiers) -> Option<String> {
     Some(chord)
 }
 
-fn text(key: Key, shift: bool) -> Option<String> {
-    let character = "abcdefghijklmnopqrstuvwxyz0123456789-=,./\\;'`[] "
+pub fn character(key: Key) -> Option<char> {
+    "abcdefghijklmnopqrstuvwxyz0123456789-=,./\\;'`[] "
         .chars()
-        .find(|character| Key::unshifted(*character) == Some(key))?;
+        .find(|character| Key::unshifted(*character) == Some(key))
+}
+
+fn text(key: Key, shift: bool) -> Option<String> {
+    let character = character(key)?;
     match (shift, character.is_ascii_lowercase()) {
         (true, true) => Some(character.to_ascii_uppercase().to_string()),
         (true, false) => None,
