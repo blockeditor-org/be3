@@ -2140,7 +2140,14 @@ Each layer has one `policy` (`LayerPolicy`):
 
 - `BlocksAll` (the default) - a menu, a select popup, a dialog. Its content
   takes the pointer, and a press anywhere else is shut out: it asks the layer
-  to close and goes no further, and nothing beneath it is hovered.
+  to close and goes no further, and nothing beneath it is hovered. One that
+  dims what lies beneath (a scrim, as `Modal` and `ModalSheet` draw) or locks
+  the session (`LayerLevel::Lock`) is modal to assistive technology too
+  (`Layer::modal`, `Document::inert`): what it covers is a `hidden` node with
+  nothing under it, actions aimed into it are refused, and an `Embed` beneath it
+  hears it is inert (`EmbedSlot::on_inert`), so a host leaves the app shown
+  there out of its description, as be-host does. A menu, with no scrim, leaves
+  the rest to assistive technology.
 - `Pass` - a window, a toast, a popover. Its content takes the pointer where it
   actually is, so a press on it does not land on what is underneath, and
   everything around it stays live.
@@ -2148,7 +2155,8 @@ Each layer has one `policy` (`LayerPolicy`):
   is shut out and asks the layer to close, the focus cannot enter it (Tab skips
   it, and focusing something inside it focuses the layer's first focusable
   instead), and everything else stays live. Assistive technology skips the node
-  too (natively it is `hidden` in accesskit, on the HTML core `inert`), while the
+  too (natively it is `hidden` in accesskit with nothing under it, on the HTML
+  core `inert`), while the
   layer itself, blocking only part of the program, is not `aria-modal`. A modal
   `DockDialog` is one.
 - `Inert` - a tooltip, a drag preview. It takes no input at all, so the
