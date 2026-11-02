@@ -1,13 +1,15 @@
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{Editor, FileChooser, Sidebar};
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+use be_sdk_beui::{Editor, FileChooser};
 use be_type_deterministic_game::GameModuleContent;
 use tabletop_host::Game;
 
 use super::{filter, imported};
-use beui::{Direction, ItemSize};
-
+const STAGE: &str = "stage";
+const PANEL: &str = "panel";
+const PANEL_SHARE: f32 = 0.3;
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 
@@ -50,40 +52,53 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
+    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                <List spacing=SPACING>
-                    <Show condition={named}>
-                        <Text
-                            style=TextStyle::HEADING
-                            align=TextAlign::Center
-                            @test_id={"game-module.name"}
-                        >
-                            {name}
-                        </Text>
-                    </Show>
-                    <Show condition={failed}>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            align=TextAlign::Center
-                            color=TextColor::Danger
-                            @test_id={"game-module.error"}
-                        >
-                            {reason}
-                        </Text>
-                    </Show>
-                    <Show condition={waiting}>
-                        <Text style=TextStyle::CAPTION align=TextAlign::Center>"Loading…"</Text>
-                    </Show>
-                    <Text align=TextAlign::Center>{source}</Text>
-                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{bytes}</Text>
-                </List>
-            </Frame>
-            <Sidebar shown={chrome}>
-                <ModulePanel editor={editor} />
-            </Sidebar>
-        </List>
+        <Docking layout focus={Some(STAGE)}>
+            <DockSplit id="module" fraction={1.0 - PANEL_SHARE}>
+                <DockPane id="stage" locked=true bare=true>
+                    <DockTab id=STAGE title="Module">
+                        <Frame @node_ref={&content} padding=PADDING>
+                            <List spacing=SPACING>
+                                <Show condition={named}>
+                                    <Text
+                                        style=TextStyle::HEADING
+                                        align=TextAlign::Center
+                                        @test_id={"game-module.name"}
+                                    >
+                                        {name}
+                                    </Text>
+                                </Show>
+                                <Show condition={failed}>
+                                    <Text
+                                        style=TextStyle::PARAGRAPH
+                                        align=TextAlign::Center
+                                        color=TextColor::Danger
+                                        @test_id={"game-module.error"}
+                                    >
+                                        {reason}
+                                    </Text>
+                                </Show>
+                                <Show condition={waiting}>
+                                    <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                        "Loading…"
+                                    </Text>
+                                </Show>
+                                <Text align=TextAlign::Center>{source}</Text>
+                                <Text style=TextStyle::CAPTION align=TextAlign::Center>{bytes}</Text>
+                            </List>
+                        </Frame>
+                    </DockTab>
+                </DockPane>
+                <Show condition={chrome}>
+                    <DockPane id="panel" locked=true>
+                        <DockTab id=PANEL title="Game module">
+                            <ModulePanel editor={editor} />
+                        </DockTab>
+                    </DockPane>
+                </Show>
+            </DockSplit>
+        </Docking>
     }
 }
 
@@ -104,8 +119,10 @@ fn ModulePanel(editor: Editor) -> NodeId {
     let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     view! {
-        <List spacing=SPACING>
-            <Text style=TextStyle::HEADING>"Game module"</Text>
+        <Frame fill=ColorRole::Surface>
+            <Scroll>
+            <Frame padding=PADDING>
+            <List spacing=SPACING>
             <Button
                 label="Replace module..."
                 variant=ButtonVariant::Secondary
@@ -116,6 +133,9 @@ fn ModulePanel(editor: Editor) -> NodeId {
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
-        </List>
+            </List>
+            </Frame>
+            </Scroll>
+        </Frame>
     }
 }
