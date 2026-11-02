@@ -15,9 +15,15 @@ fn a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from() {
     ]);
     fixture.settle();
 
-    let header = fixture
-        .test
-        .rect_of(&format!("dock.dialog.{}.header", (1u64 << 41) + 2));
+    let header = {
+        let document = fixture.test.document();
+        let node = document
+            .find_test_id(&format!("dock.dialog.{}.header", (1u64 << 41) + 2))
+            .expect("the first dialog has a header");
+        document
+            .node_rect(node)
+            .expect("the first dialog's header is laid out beneath the second")
+    };
     let inner = fixture
         .test
         .rect_of(&format!("dock.dialog.{}.header", (1u64 << 41) + 3));
