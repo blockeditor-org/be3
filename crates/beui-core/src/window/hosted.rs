@@ -35,6 +35,8 @@ pub(crate) struct Windows {
     host_focused: Option<WindowId>,
     pub(crate) focus_resized: bool,
     pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
+    fit_nodes: HashMap<WindowId, NodeId>,
+    fitted: HashMap<WindowId, Vec2>,
 }
 
 impl Default for Windows {
@@ -56,6 +58,8 @@ impl Default for Windows {
             host_focused: None,
             focus_resized: false,
             appearances: HashMap::default(),
+            fit_nodes: HashMap::default(),
+            fitted: HashMap::default(),
         }
     }
 }
@@ -182,8 +186,82 @@ impl Document {
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {
         let node = self.window_node(window)?;
         let spec = self.arena.get_as::<OverlayNode>(node).window.as_ref()?;
+        if let Some(max) = spec.fit {
+            return Some(self.windows.fitted.get(&window).copied().unwrap_or(max));
+        }
         let reported = self.context().and_then(|ctx| ctx.window_size(window));
         Some(reported.unwrap_or(spec.size))
+    }
+
+    pub fn fit_window_to(&mut self, window: WindowId, node: Option<NodeId>) {
+        let changed = match node {
+            Some(node) => self.windows.fit_nodes.insert(window, node) != Some(node),
+            None => self.windows.fit_nodes.remove(&window).is_some(),
+        };
+        if changed && let Some(overlay) = self.window_node(window) {
+            self.arena.invalidate_node(overlay);
+        }
+    }
+
+    pub fn fitted_window_size(&self, window: WindowId) -> Option<Vec2> {
+        let node = self.window_node(window)?;
+        self.arena
+            .get_as::<OverlayNode>(node)
+            .window
+            .as_ref()?
+            .fit?;
+        self.windows.fitted.get(&window).copied()
+    }
+
+    pub(crate) fn fitted_size_of(&self, window: WindowId) -> Option<Vec2> {
+        self.windows.fitted.get(&window).copied()
+    }
+
+    pub(crate) fn refit_windows(&mut self, ctx: &crate::context::Context) {
+        let fitting: Vec<(WindowId, NodeOf<OverlayNode>, Vec2)> = self
+            .windows
+            .nodes
+            .iter()
+            .filter(|(_, node)| self.contains(*node))
+            .filter_map(|(id, node)| {
+                let spec = self.arena.get_as::<OverlayNode>(*node).window.as_ref()?;
+                Some((*id, *node, spec.fit?))
+            })
+            .collect();
+        self.windows
+            .fitted
+            .retain(|window, _| fitting.iter().any(|(id, _, _)| id == window));
+        for (window, overlay, max) in fitting {
+            let measured = match self.windows.fit_nodes.get(&window).copied() {
+                Some(node) if self.arena.contains(node) => {
+                    Some(self.content_of_overlay(node).unwrap_or(node))
+                }
+                _ => self
+                    .overlay_content(overlay)
+                    .and_then(|frame| self.children(frame).first().copied()),
+            };
+            let Some(measured) = measured else {
+                continue;
+            };
+            let painter = ctx.window_painter(window);
+            let natural =
+                crate::layout::measure(self, &painter, measured, Vec2::splat(f32::INFINITY));
+            let natural = match natural.x.is_finite() && natural.x <= max.x {
+                true => natural,
+                false => crate::layout::measure(
+                    self,
+                    &painter,
+                    measured,
+                    Vec2::new(max.x, f32::INFINITY),
+                ),
+            };
+            let size = Vec2::new(finite_or(natural.x, max.x), finite_or(natural.y, max.y))
+                .min(max)
+                .max(Vec2::splat(1.0));
+            if self.windows.fitted.insert(window, size) != Some(size) {
+                self.arena.invalidate_node(overlay);
+            }
+        }
     }
 
     pub fn window_rect(&self, window: WindowId) -> Option<Rect> {
@@ -529,5 +607,12 @@ impl Document {
                 appearance,
             );
         }
+    }
+}
+
+fn finite_or(length: f32, otherwise: f32) -> f32 {
+    match length.is_finite() {
+        true => length,
+        false => otherwise,
     }
 }

@@ -421,6 +421,15 @@ hooks the higher crates fill in:
   did, whether the app asked or not, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
   platform is always fullscreen; Android and plugins say nothing.
+- A window can be sized to its content: `<Window fit={Some(max)}>` (`WindowSpec::fit`)
+  ignores the size it is given or reported and takes min(content, max). Each layout of the
+  frame first measures the window's content (`Document::refit_windows`, before
+  `layout::layout`) with the measure pass, at an unbounded width and again at the most it
+  may take when wider, and lays the window out once at that size, with its frame filling it,
+  so rows that fill their window fill the width it took. The content is the window frame's
+  child, or the node `Document::fit_window_to` names (an overlay's content when that node is
+  an overlay, such as a plugin's menu). `Document::window_size` and `fitted_window_size`
+  answer with the size taken.
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,

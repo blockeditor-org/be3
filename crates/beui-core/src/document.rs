@@ -2797,6 +2797,7 @@ impl Document {
             self.layout_parent = None;
             ((), removing) = crate::current::enter_holding_removals(self, || {
                 crate::current::with_document(|document| {
+                    document.refit_windows(ctx);
                     layout::layout(document, &painter, root, rect, placed);
                     document.lay_out_boundaries(ctx, placed);
                     document.place_moved_overlays(ctx, placed);
