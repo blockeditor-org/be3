@@ -110,6 +110,7 @@ mod the_restore_chip_leads_the_windows_bar_while_windows_from_last_time_wait;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_status_button_shows_the_volume_and_opens_its_controls;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
+mod a_tray_item_without_activate_shows_its_menu_on_a_click;
 mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 mod the_wifi_list_asks_the_host_to_connect;
@@ -761,4 +762,17 @@ fn accessible_under(document: &Document, id: NodeId) -> Option<String> {
 
 fn toast(id: u32) -> String {
     format!("toast.{}", (1_u64 << 32) + u64::from(id))
+}
+
+fn tray_button(id: &str) -> String {
+    format!("desktop.tray.{id}")
+}
+
+fn tray_click(fixture: &Fixture, id: &str) -> be_sdk_beui::TrayClick {
+    let at = fixture.test.rect_of(&tray_button(id)).center();
+    be_sdk_beui::TrayClick {
+        item: id.to_owned(),
+        x: at.x.round() as i32,
+        y: at.y.round() as i32,
+    }
 }

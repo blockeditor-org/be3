@@ -59,15 +59,20 @@ fn tray_messages_round_trip() {
     );
     assert_eq!(item.entries(), Ok(entries), "the flat menu nests back");
     watched_round_trips::<TrayWatch>(vec![item]);
+    let click = TrayClick {
+        item: "a".into(),
+        x: 1920,
+        y: -4,
+    };
     for request in [
-        TrayRequest::Activate("a".into()),
-        TrayRequest::SecondaryActivate("a".into()),
+        TrayRequest::Activate(click.clone()),
+        TrayRequest::SecondaryActivate(click.clone()),
         TrayRequest::Scroll {
             item: "a".into(),
             delta: -120,
             horizontal: true,
         },
-        TrayRequest::MenuOpened("a".into()),
+        TrayRequest::MenuOpened(click),
         TrayRequest::MenuClosed("a".into()),
         TrayRequest::MenuChosen {
             item: "a".into(),
