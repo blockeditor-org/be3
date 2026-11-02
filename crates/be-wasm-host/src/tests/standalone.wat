@@ -1,12 +1,12 @@
-;; A standalone plugin (guides/plugin_libraries.md, "The raw plugin interface"): one
+;; A standalone app (guides/app_libraries.md, "The raw app interface"): one
 ;; module with no dylink.0, no SDK, no WASI, no threads and no thread-local
 ;; storage, which owns a memory that is not shared and paints through be3:gpu.
 ;; block-wasm-host's tests run it on wasmtime, and :standalone-web-test
-;; (crates/be-wasm-host/BUCK) in Chromium through plugin.js and
+;; (crates/be-wasm-host/BUCK) in Chromium through app.js and
 ;; block-gpu-shim.
 ;;
-;; plugin_start makes surface 7 and gives it a 4 by 4 rgba8unorm target. The
-;; first plugin_step clears it to orange in a render pass, presents it and
+;; app_start makes surface 7 and gives it a 4 by 4 rgba8unorm target. The
+;; first app_step clears it to orange in a render pass, presents it and
 ;; sends the frame [1]; later steps send [2] and draw nothing. Each handle it
 ;; is given is the first of its kind, 1, which the descriptors below name.
 (module
@@ -46,12 +46,12 @@
     (if (i32.ne (local.get $handle) (i32.const 1)) (then unreachable))
     (local.get $handle))
 
-  (func (export "plugin_start")
+  (func (export "app_start")
     (global.set $surface (call $surface (i32.const 7)))
     ;; 17 is rgba8unorm in be3:gpu's texture-format.
     (call $configure (global.get $surface) (i32.const 4) (i32.const 4) (i32.const 17)))
 
-  (func (export "plugin_step")
+  (func (export "app_step")
     (local $encoder i32)
     (local $pass i32)
     (if (global.get $painted)
@@ -69,5 +69,5 @@
     (global.set $painted (i32.const 1))
     (call $send (i32.const 112) (i32.const 1)))
 
-  (func (export "plugin_shutdown"))
+  (func (export "app_shutdown"))
 )

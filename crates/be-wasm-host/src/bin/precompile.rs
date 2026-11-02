@@ -23,10 +23,10 @@ fn main() {
         std::process::exit(1);
     }
     let described = target.as_deref().unwrap_or("this machine");
-    println!("Compiled {} plugins for {described}", modules.len());
+    println!("Compiled {} apps for {described}", modules.len());
 }
 
 fn usage() -> ! {
-    eprintln!("usage: precompile [--target TRIPLE] PLUGIN.wasm...");
+    eprintln!("usage: precompile [--target TRIPLE] APP.wasm...");
     std::process::exit(2);
 }

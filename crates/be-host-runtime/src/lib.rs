@@ -4,7 +4,7 @@ use be_sdk_api::{
     ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, InteractionMode,
     ResizeMode, ScreenId, ViewId,
 };
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 use beui::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -106,7 +106,7 @@ pub enum EditorAction {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct PluginCatalog {
+pub struct AppCatalog {
     pub catalog: be_sdk_api::Catalog,
     pub debug_templates: Vec<be_sdk_api::DebugTemplate>,
 }
@@ -333,7 +333,7 @@ fn picker_request(instance: EditorInstanceId) -> Option<PickerRequest> {
 }
 
 pub struct RuntimeStatus {
-    pub plugin_id: String,
+    pub app_id: String,
     pub state: String,
     pub surface: SurfaceStatus,
     pub steps: u64,
@@ -392,8 +392,8 @@ pub fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 }
 
 pub struct CreationSlot<'a> {
-    pub plugin: &'a PluginManifest,
-    pub block_types: &'a Arc<crate::PluginCatalog>,
+    pub app: &'an AppManifest,
+    pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub instance: EditorInstanceId,
     pub role: InstanceRole,
@@ -431,8 +431,8 @@ impl InstanceRole {
 }
 
 pub struct ArtifactSlot<'a> {
-    pub plugin: &'a PluginManifest,
-    pub block_types: &'a Arc<crate::PluginCatalog>,
+    pub app: &'an AppManifest,
+    pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub instance: EditorInstanceId,
     pub editor: Uuid,

@@ -261,21 +261,21 @@ impl HostStateStore {
         self.set_setting(&organization_key(saved), &stored)
     }
 
-    pub fn warm_plugins(&self) -> Result<Vec<String>, HostStateError> {
+    pub fn warm_apps(&self) -> Result<Vec<String>, HostStateError> {
         Ok(self
             .setting("warm_plugins")?
-            .map(|plugins| {
-                plugins
+            .map(|apps| {
+                apps
                     .split('\n')
-                    .filter(|plugin| !plugin.is_empty())
+                    .filter(|app| !app.is_empty())
                     .map(str::to_owned)
                     .collect()
             })
             .unwrap_or_default())
     }
 
-    pub fn set_warm_plugins(&self, plugins: &[String]) -> Result<(), HostStateError> {
-        self.set_setting("warm_plugins", &plugins.join("\n"))
+    pub fn set_warm_apps(&self, apps: &[String]) -> Result<(), HostStateError> {
+        self.set_setting("warm_plugins", &apps.join("\n"))
     }
 
     pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, HostStateError> {

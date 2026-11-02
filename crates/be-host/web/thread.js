@@ -5,7 +5,7 @@
 // wasi_thread_start, which is where wasi-libc picks up the stack and the
 // thread-local block the spawning thread already laid out for it. The module's
 // start function is deliberately not run: memory, and everything in it, is
-// already initialised by the thread that got there first. A plugin linked
+// already initialised by the thread that got there first. An app linked
 // against libraries is linked again here, by its own thread's plan, and its
 // thread-local blocks are given back when the thread ends.
 //

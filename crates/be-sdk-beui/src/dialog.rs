@@ -36,7 +36,7 @@ impl DialogControl {
 }
 
 #[component]
-pub(crate) fn PluginDialog(
+pub(crate) fn AppDialog(
     host: EditorHost,
     control: Rc<Cell<Option<DialogControl>>>,
     #[prop(children)] content: Render,

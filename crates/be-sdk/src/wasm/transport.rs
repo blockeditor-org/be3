@@ -70,5 +70,5 @@ impl Editor {
 }
 
 fn failed(error: String) -> String {
-    format!("the plugin could not run a frame: {error}")
+    format!("the app could not run a frame: {error}")
 }

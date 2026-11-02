@@ -5,7 +5,7 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
     let modules = diamond();
     assert_eq!(pages(&modules), Ok(1));
     let plan = plan(&modules, 65536, 10).unwrap();
-    let [root, left, plugin] = &plan.modules[..] else {
+    let [root, left, app] = &plan.modules[..] else {
         panic!("{plan:?}");
     };
     assert_eq!((root.memory_base, root.imports.len()), (0, 0));
@@ -14,7 +14,7 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
         (65536, 12, 0)
     );
     assert_eq!(
-        (plugin.memory_base, plugin.table_base, plugin.block),
+        (app.memory_base, app.table_base, app.block),
         (65636, 15, 16)
     );
     assert_eq!(plan.region, 65648);
@@ -36,7 +36,7 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
         ]
     );
     assert_eq!(
-        plugin.imports,
+        app.imports,
         vec![
             Import::Function(1),
             Import::FunctionSlot(16),

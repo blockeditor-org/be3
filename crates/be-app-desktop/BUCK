@@ -1,5 +1,5 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
-editor(
+app(
     module = "desktop",
 )

@@ -11,8 +11,8 @@ use beui::{Align, Direction, ItemSize};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
-    KillPlugin(String),
-    CrashPlugin(String),
+    KillApp(String),
+    CrashApp(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,7 +39,7 @@ pub(crate) struct RuntimeView {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct PluginsView {
+pub(crate) struct AppsView {
     pub(crate) lines: Vec<Line>,
     pub(crate) runtimes: Vec<RuntimeView>,
 }
@@ -48,7 +48,7 @@ pub(crate) struct PluginsView {
 pub(crate) struct DebugView {
     pub(crate) client: Option<Vec<Line>>,
     pub(crate) performance: Option<Vec<PerformanceRow>>,
-    pub(crate) plugins: Option<PluginsView>,
+    pub(crate) apps: Option<AppsView>,
 }
 
 #[derive(Clone)]
@@ -88,10 +88,10 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                 <PerformancePanel @sizing=ItemSize::Percent(100.0) performance />
                             }
                         }
-                        HostPanel::Plugins => {
-                            let plugins = create_memo(move || debug.get().plugins);
+                        HostPanel::Apps => {
+                            let apps = create_memo(move || debug.get().apps);
                             view! {
-                                <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
+                                <AppsPanel @sizing=ItemSize::Percent(100.0) apps />
                             }
                         }
                         HostPanel::Menu => view! {
@@ -250,18 +250,18 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 }
 
 #[component]
-fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
+fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
     let lines = create_memo(move || {
-        plugins
+        apps
             .get()
-            .map(|plugins| plugins.lines)
+            .map(|apps| apps.lines)
             .unwrap_or_default()
     });
     let line_keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let runtimes = create_memo(move || {
-        plugins
+        apps
             .get()
-            .map(|plugins| plugins.runtimes)
+            .map(|apps| apps.runtimes)
             .unwrap_or_default()
     });
     let runtime_keys = create_memo(move || {
@@ -284,7 +284,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                 }</ForEach>
                 <Text style=TextStyle::HEADING>{running}</Text>
                 <Show condition={idle}>
-                    <Text style=TextStyle::CAPTION>"no editor plugins are running"</Text>
+                    <Text style=TextStyle::CAPTION>"no apps are running"</Text>
                 </Show>
                 <ForEach keys={runtime_keys}>|id: String| {
                     let key = id.clone();
@@ -317,7 +317,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
     let crash = id.clone();
-    let crash_id = format!("debug.plugins.crash.{id}");
+    let crash_id = format!("debug.apps.crash.{id}");
     view! {
         <Frame padding={Padding::vertical(Space::Sm)}>
             <List spacing=Space::Xs2>
@@ -327,13 +327,13 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary
-                        on_click={move || debug(DebugCommand::KillPlugin(kill.clone()))}
+                        on_click={move || debug(DebugCommand::KillApp(kill.clone()))}
                     />
                     <Button
                         label="Crash"
                         variant=ButtonVariant::Secondary
                         @test_id={crash_id}
-                        on_click={move || debug(DebugCommand::CrashPlugin(crash.clone()))}
+                        on_click={move || debug(DebugCommand::CrashApp(crash.clone()))}
                     />
                 </List>
                 <ForEach keys={keys}>|index: usize| {

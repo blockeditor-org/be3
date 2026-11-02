@@ -5,7 +5,7 @@ use be_sdk_api::{
 };
 use uuid::Uuid;
 
-use crate::headless::HeadlessPlugin;
+use crate::headless::HeadlessApp;
 use crate::{EditorHost, Frame, Instance, ShownView, ViewHandler, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
@@ -48,8 +48,8 @@ impl ViewHandler for StillViews {
     }
 }
 
-fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
-    plugin
+fn configure(app: &mut HeadlessApp, height: f32, serial: u64) {
+    app
         .screens(vec![ScreenRequest {
             screen: SCREEN,
             instance: INSTANCE,
@@ -74,18 +74,18 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             anchor_space: None,
         }])
         .unwrap();
-    plugin.configure(serial).unwrap();
+    app.configure(serial).unwrap();
 }
 
-fn drawn(plugin: &mut HeadlessPlugin) -> FrameCommit {
-    plugin.draw();
-    plugin.outbound().expect("a drawn plugin commits a frame")
+fn drawn(app: &mut HeadlessApp) -> FrameCommit {
+    app.draw();
+    app.outbound().expect("a drawn app commits a frame")
 }
 
 #[test]
 fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
-    let mut plugin = HeadlessPlugin::new("still", "Still", "1");
-    plugin
+    let mut app = HeadlessApp::new("still", "Still", "1");
+    app
         .accept(HelloAccepted {
             host_name: "test host".into(),
             surface: Some(SurfaceSpec {
@@ -96,8 +96,8 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         })
         .unwrap();
     let host = EditorHost::new(Waker::default());
-    plugin.adopt(INSTANCE, Box::new(Still(host.clone())), host);
-    plugin
+    app.adopt(INSTANCE, Box::new(Still(host.clone())), host);
+    app
         .open(Opening::Block(OpenBlock {
             instance: INSTANCE,
             editor: [6; 16],
@@ -111,13 +111,13 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         }))
         .unwrap();
 
-    configure(&mut plugin, 100.0, 3);
-    let first = drawn(&mut plugin);
+    configure(&mut app, 100.0, 3);
+    let first = drawn(&mut app);
     assert_eq!(first.serial, 3);
     assert_eq!(first.reports.len(), 1, "the frame carries what it laid out");
 
-    configure(&mut plugin, 60.0, 4);
-    let resized = drawn(&mut plugin);
+    configure(&mut app, 60.0, 4);
+    let resized = drawn(&mut app);
     assert_eq!(
         resized.serial, 4,
         "the host stretches the painting and the children by the size it sent at this serial, \

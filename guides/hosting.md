@@ -78,7 +78,7 @@ cannot issue a block-app session from an unclaimed approval.
   `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/pins`,
   which `./scripts/be` must match the server by (guides/tracker.md);
 - uploads block-app's downloads to `data/BUILD/app/` in the same zone, each read
-  back the same way: `:native` with its plugins for Linux, macOS and Windows on
+  back the same way: `:native` with its apps for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
   `be-tool-buck archive` into a folder of its own name, and `:android-release`,
   signed locally with the release keystore under the id and label
@@ -91,7 +91,7 @@ cannot issue a block-app session from an unclaimed approval.
   download connects only to a server of its build. `--skip-downloads` leaves
   the downloads out of the build, and `--skip-android` only the APK, so that
   neither needs the keystore;
-- uploads the unpacked web bundle and plugins to `data/BUILD/web/` and archives the
+- uploads the unpacked web bundle and apps to `data/BUILD/web/` and archives the
   server executable and its build ID to `data/BUILD/server/` in the same zone;
 - copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
@@ -129,7 +129,7 @@ The mutable pages stay cached at the edge until deployment purges their exact UR
 Use a prefix rule for `/data/*` and exact-path rules for the mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
 types, especially `application/wasm` and JavaScript MIME types. Uploading an
 HTML entry point last avoids incomplete releases; long-lived versioned paths
-avoid mixing modules and plugins from different builds. The public web bundle
+avoid mixing modules and apps from different builds. The public web bundle
 contains no gateway key. Visit `https://api.be3.pfg.pw/` to unlock the gateway;
 after setting its host-only cookie it redirects to block-app's web build. Keep the same
 gateway secret when adding the new API hostname, and establish a new cookie

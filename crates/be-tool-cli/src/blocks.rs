@@ -90,7 +90,7 @@ pub fn default_parent(top: &[Entry]) -> Result<&Entry, String> {
         true => top
             .iter()
             .filter(|entry| {
-                crate::plugins::adds_children(entry.block_type) && entry.access.can_edit()
+                crate::apps::adds_children(entry.block_type) && entry.access.can_edit()
             })
             .collect(),
     };
@@ -182,6 +182,6 @@ pub fn type_name(block_type: Uuid) -> &'static str {
         .iter()
         .find(|(id, _)| *id == block_type)
         .map(|(_, name)| *name)
-        .or_else(|| crate::plugins::name_of(block_type))
+        .or_else(|| crate::apps::name_of(block_type))
         .unwrap_or("block")
 }

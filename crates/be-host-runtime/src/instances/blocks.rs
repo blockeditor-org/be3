@@ -209,7 +209,7 @@ impl Instances {
                 defined,
                 content,
             } => {
-                let parent = be_host_stack::plugin_graph::parent_of(parent);
+                let parent = be_host_stack::app_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return self.acknowledge(reply, None);
                 }
@@ -217,7 +217,7 @@ impl Instances {
                 if be_host_stack::node(block).is_some() {
                     return self.acknowledge(reply, None);
                 }
-                let mut defined = be_host_stack::plugin_graph::entries_of(defined);
+                let mut defined = be_host_stack::app_graph::entries_of(defined);
                 defined.remove(&be_block::LOCAL_ID.id);
                 let metadata = be_block::BlockMetadata {
                     defined,
@@ -238,7 +238,7 @@ impl Instances {
                 parent,
             } => {
                 let block = Uuid::from_bytes(block);
-                let parent = be_host_stack::plugin_graph::parent_of(parent);
+                let parent = be_host_stack::app_graph::parent_of(parent);
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {

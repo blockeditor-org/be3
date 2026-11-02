@@ -6,7 +6,7 @@ mod raster;
 pub mod root;
 mod rough;
 
-be_sdk_beui::beui_plugin!("../manifest.json", {
+be_sdk_beui::beui_app!("../manifest.json", {
     canvas => root::CanvasRoot,
 });
 

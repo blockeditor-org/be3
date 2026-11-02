@@ -32,10 +32,10 @@ impl Drop for Exported {
 
 impl Previews {
     fn retire(&mut self, image: u64) {
-        for (plugin, offered) in &mut self.offered {
+        for (app, offered) in &mut self.offered {
             if offered.remove(&image) {
                 self.withdrawn
-                    .entry(plugin.clone())
+                    .entry(app.clone())
                     .or_default()
                     .push(image);
             }
@@ -54,7 +54,7 @@ pub(super) struct Painted {
     pub(super) size: [u32; 2],
 }
 
-pub(super) fn exported(plugin: &str, shared: &Rc<RefCell<Shared>>, painted: Vec<Painted>) {
+pub(super) fn exported(app: &str, shared: &Rc<RefCell<Shared>>, painted: Vec<Painted>) {
     if painted.is_empty() {
         return;
     }
@@ -80,7 +80,7 @@ pub(super) fn exported(plugin: &str, shared: &Rc<RefCell<Shared>>, painted: Vec<
             };
             if let Some(old) = previews
                 .latest
-                .insert((plugin.to_owned(), instance), exported)
+                .insert((app.to_owned(), instance), exported)
             {
                 previews.retire(old.image.image);
             }
@@ -88,11 +88,11 @@ pub(super) fn exported(plugin: &str, shared: &Rc<RefCell<Shared>>, painted: Vec<
     });
 }
 
-pub(super) fn keep(plugin: &str, shown: impl Fn(EditorInstanceId, ScreenId) -> bool) {
+pub(super) fn keep(app: &str, shown: impl Fn(EditorInstanceId, ScreenId) -> bool) {
     PREVIEWS.with_borrow_mut(|previews| {
         let mut gone = Vec::new();
         previews.latest.retain(|(held, instance), exported| {
-            let kept = held != plugin || shown(*instance, exported.screen);
+            let kept = held != app || shown(*instance, exported.screen);
             if !kept {
                 gone.push(exported.image.image);
             }
@@ -104,16 +104,16 @@ pub(super) fn keep(plugin: &str, shown: impl Fn(EditorInstanceId, ScreenId) -> b
     });
 }
 
-pub(super) fn image(plugin: &str, instance: EditorInstanceId) -> Option<PreviewImage> {
+pub(super) fn image(app: &str, instance: EditorInstanceId) -> Option<PreviewImage> {
     PREVIEWS.with_borrow(|previews| {
         previews
             .latest
-            .get(&(plugin.to_owned(), instance))
+            .get(&(app.to_owned(), instance))
             .map(|exported| exported.image)
     })
 }
 
-pub(super) fn offer(plugin: &str, image: u64) -> Option<Picture> {
+pub(super) fn offer(app: &str, image: u64) -> Option<Picture> {
     PREVIEWS.with_borrow_mut(|previews| {
         let picture = previews
             .latest
@@ -123,28 +123,28 @@ pub(super) fn offer(plugin: &str, image: u64) -> Option<Picture> {
             .clone();
         previews
             .offered
-            .entry(plugin.to_owned())
+            .entry(app.to_owned())
             .or_default()
             .insert(image)
             .then_some(picture)
     })
 }
 
-pub(super) fn take_withdrawn(plugin: &str) -> Vec<u64> {
-    PREVIEWS.with_borrow_mut(|previews| previews.withdrawn.remove(plugin).unwrap_or_default())
+pub(super) fn take_withdrawn(app: &str) -> Vec<u64> {
+    PREVIEWS.with_borrow_mut(|previews| previews.withdrawn.remove(app).unwrap_or_default())
 }
 
-pub(super) fn forget(plugin: &str) {
+pub(super) fn forget(app: &str) {
     PREVIEWS.with_borrow_mut(|previews| {
-        previews.offered.remove(plugin);
-        previews.withdrawn.remove(plugin);
+        previews.offered.remove(app);
+        previews.withdrawn.remove(app);
         let gone: Vec<u64> = previews
             .latest
             .iter()
-            .filter(|((held, _), _)| held == plugin)
+            .filter(|((held, _), _)| held == app)
             .map(|(_, exported)| exported.image.image)
             .collect();
-        previews.latest.retain(|(held, _), _| held != plugin);
+        previews.latest.retain(|(held, _), _| held != app);
         for image in gone {
             previews.retire(image);
         }

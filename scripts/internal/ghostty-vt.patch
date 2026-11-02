@@ -68,7 +68,7 @@ index 690f864..fe4cc29 100644
 -        lib.root_module.pic = target.result.os.tag != .freestanding;
 +        //
 +        // WebAssembly does, and a module linked as a shared library (a
-+        // plugin linked against the plugin SDK) can only take PIC objects.
++        // app linked against the app SDK) can only take PIC objects.
 +        lib.root_module.pic = target.result.os.tag != .freestanding or
 +            target.result.cpu.arch.isWasm();
      }

@@ -1,15 +1,15 @@
-// Linking a plugin to the libraries it needs, in a browser.
+// Linking an app to the libraries it needs, in a browser.
 //
-// A linked plugin (guides/plugin_libraries.md) names the libraries in its closure,
+// A linked app (guides/app_libraries.md) names the libraries in its closure,
 // in dependency order, by the SHA-256 of each module: the first is the root,
 // linked at fixed addresses with std and wasi-libc, and each one after it, the
-// plugin last, is a position-independent module that imports what the modules
+// app last, is a position-independent module that imports what the modules
 // below it have: their functions by name from "env", the addresses of their
 // data through "GOT.mem", the table slots of their functions through
 // "GOT.func" and their thread-locals through "GOT.tls". Where everything goes
 // is planned by crates/be-wasm-dylink, the same plan crates/be-wasm-host
-// follows under wasmtime, which the plugin worker reaches through
-// be-wasm-gpu-shim; this only carries the plan out. The plugin worker plans
+// follows under wasmtime, which the app worker reaches through
+// be-wasm-gpu-shim; this only carries the plan out. The app worker plans
 // once, and every thread links the whole list again from the same plan, which
 // is plain data, each with thread-local blocks of its own.
 
@@ -79,7 +79,7 @@ function describe(module, name) {
 export function plan(shim, modules, identities, root, memory) {
     const described = JSON.stringify(
         modules.map((module, index) =>
-            describe(module, index === modules.length - 1 ? "the plugin" : `the library ${identities[index]}`),
+            describe(module, index === modules.length - 1 ? "the app" : `the library ${identities[index]}`),
         ),
     );
     const placed = memory.grow(shim.link_pages(described)) * PAGE_SIZE;
@@ -112,7 +112,7 @@ function fillSlots(plan, table, instance, module) {
  * start (takeBlocks), the root's block on this thread, and whether this is the
  * thread that relocates the data and runs the constructors. host(module) gives
  * the imports neither the plan nor the other modules answer: WASI, the be3
- * abi and the memory. Returns the plugin's instance.
+ * abi and the memory. Returns the app's instance.
  */
 export function link(modules, plan, root, thread, host) {
     const table = root.exports[TABLE];

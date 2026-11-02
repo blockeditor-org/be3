@@ -136,8 +136,8 @@ changes. Export (`root/export.rs`) reads the same sketches: Copy as PNG / SVG
 and Export as PNG / SVG… take the selection, a selected frame (clipped to it),
 or the whole canvas. SVG writes each sketch's paths, text and labels as SVG text with a
 `<tspan>` per formatted run, and images embedded; PNG paints the entities into an offscreen beui context and
-rasterizes that painting on the CPU (`beui_paint_format::rasterize`), since a
-plugin cannot read pixels back from the GPU. Both lay text out as the
+rasterizes that painting on the CPU (`beui_paint_format::rasterize`), since an
+app cannot read pixels back from the GPU. Both lay text out as the
 canvas's text area does (`TextAreaState::lay_out_prose`), and turn a text
 shape, and the label of a box shape, by its rotation as the canvas does
 (`text::text_turn`; the canvas draws it upright only while it is edited,
@@ -249,7 +249,7 @@ can change freely until step 8.
   `plans/public_release.md`, Web offline). Local-only workspaces are permanent, not a testing aid.
 - Signing in later can move the canvas into a remote workspace and share it by
   link.
-- Load only the canvas plugin to start, and cache the host so it opens offline
+- Load only the canvas app to start, and cache the host so it opens offline
   and installs to a home screen. Done: the service worker that opens it
   offline (`crates/be-host/web/sw.js`).
 - A cold-start target on a mid-range phone, measured in CI. **(ask)** the

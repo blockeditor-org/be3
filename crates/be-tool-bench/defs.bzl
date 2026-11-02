@@ -1,6 +1,6 @@
 # The benchmark suite as one directory (guides/performance.md): the runner as
 # `bench`, each benchmark under programs/ by name, and block-app with every
-# plugin, and the libraries it loads, for the end-to-end benchmarks. `buck2
+# app, and the libraries it loads, for the end-to-end benchmarks. `buck2
 # build --out DIR` keeps a build of it to compare another against.
 def _suite_impl(ctx: AnalysisContext) -> list[Provider]:
     contents = {

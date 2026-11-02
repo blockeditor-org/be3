@@ -1,6 +1,6 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
-editor(
+app(
     module = "terminal",
     types = "//crates/be-type-terminal:module",
 )

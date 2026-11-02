@@ -1,7 +1,7 @@
 pub mod root;
 
-be_sdk::plugin!("../manifest.json", {
-    triangle => root::TrianglePlugin,
+be_sdk::app!("../manifest.json", {
+    triangle => root::TriangleApp,
 });
 
 #[cfg(test)]

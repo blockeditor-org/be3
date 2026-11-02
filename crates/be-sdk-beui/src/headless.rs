@@ -3,7 +3,7 @@ use std::any::Any;
 use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 
-use be_sdk::headless::HeadlessPlugin as Core;
+use be_sdk::headless::HeadlessApp as Core;
 use be_sdk::{Instance, ViewRef};
 use be_sdk_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
 
@@ -51,13 +51,13 @@ pub struct Drawn {
     pub windows: Vec<(ScreenPlacement, beui::WindowId)>,
 }
 
-pub struct HeadlessPlugin {
+pub struct HeadlessApp {
     core: Core,
     module: Rc<Module>,
     access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 
-impl std::ops::Deref for HeadlessPlugin {
+impl std::ops::Deref for HeadlessApp {
     type Target = Core;
 
     fn deref(&self) -> &Core {
@@ -65,13 +65,13 @@ impl std::ops::Deref for HeadlessPlugin {
     }
 }
 
-impl std::ops::DerefMut for HeadlessPlugin {
+impl std::ops::DerefMut for HeadlessApp {
     fn deref_mut(&mut self) -> &mut Core {
         &mut self.core
     }
 }
 
-impl HeadlessPlugin {
+impl HeadlessApp {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         be_sdk_beui_platform_api::runtime().use_bundled_fonts();
         let core = Core::new(id, name, version);

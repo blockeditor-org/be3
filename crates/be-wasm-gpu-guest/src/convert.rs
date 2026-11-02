@@ -5,7 +5,7 @@ use crate::objects::{
 };
 
 fn unsupported(name: &str, value: &dyn core::fmt::Debug) -> ! {
-    panic!("the plugin gpu abi does not support {name} {value:?}")
+    panic!("the app gpu abi does not support {name} {value:?}")
 }
 
 pub(crate) fn to_abi<A: TryFrom<W>, W: Copy + core::fmt::Debug>(value: W) -> A {
@@ -82,7 +82,7 @@ pub(crate) fn binding_resource(value: &wgpu::BindingResource<'_>) -> abi::Bindin
 pub(crate) fn custom<T>(value: Option<&T>) -> &T {
     match value {
         Some(value) => value,
-        None => panic!("a resource from another wgpu backend reached the plugin gpu abi"),
+        None => panic!("a resource from another wgpu backend reached the app gpu abi"),
     }
 }
 

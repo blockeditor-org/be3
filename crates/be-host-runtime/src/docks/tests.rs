@@ -117,9 +117,9 @@ fn spliced() -> DockDeclaration {
     spliced
 }
 
-fn updates(docks: &mut Docks, plugin: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
+fn updates(docks: &mut Docks, app: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
     let mut queued: Vec<(EditorInstanceId, DockUpdate)> = Vec::new();
-    for (to, update) in docks.take(plugin) {
+    for (to, update) in docks.take(app) {
         let mut held: Vec<DockUpdate> = queued
             .iter()
             .filter(|(at, _)| *at == to)
@@ -132,8 +132,8 @@ fn updates(docks: &mut Docks, plugin: &str) -> Vec<(EditorInstanceId, DockUpdate
     queued
 }
 
-fn hosted(docks: &mut Docks, plugin: &str, instance: EditorInstanceId) -> DockHosted {
-    match updates(docks, plugin).as_slice() {
+fn hosted(docks: &mut Docks, app: &str, instance: EditorInstanceId) -> DockHosted {
+    match updates(docks, app).as_slice() {
         [(to, DockUpdate::Hosted(hosted))] if *to == instance => {
             hosted.hosted.clone().expect("the root hosts it")
         }
@@ -186,7 +186,7 @@ mod a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down;
 mod a_request_reaches_the_root_through_each_placer;
 mod a_spliced_childs_bar_action_reaches_its_placer;
 mod a_tab_the_root_closes_is_closed_at_its_owner;
-mod messages_about_another_plugins_instances_are_ignored;
+mod messages_about_another_apps_instances_are_ignored;
 mod the_root_places_a_descendants_dialog_and_empty_pane_bodies;
 mod the_root_places_only_visible_tabs_of_its_docked_descendants;
 mod what_the_root_hosts_is_split_into_each_instances_own_tabs;

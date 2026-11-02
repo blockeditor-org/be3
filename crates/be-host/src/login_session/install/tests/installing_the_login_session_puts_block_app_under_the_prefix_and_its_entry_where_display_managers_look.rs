@@ -15,9 +15,9 @@ fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_wh
     std::fs::write(&old, "an older entry").unwrap();
     std::fs::create_dir_all(source.join("data/notes/files")).unwrap();
     std::fs::write(source.join(EXECUTABLE), "block-app").unwrap();
-    std::fs::write(source.join("notes.plugin.json"), "{}").unwrap();
+    std::fs::write(source.join("notes.app.json"), "{}").unwrap();
     std::fs::write(source.join("data/notes/files/readme.txt"), "hello").unwrap();
-    let stale = prefix.join("lib/block-app/stale.plugin.json");
+    let stale = prefix.join("lib/block-app/stale.app.json");
     std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
     std::fs::write(
         prefix.join("lib/block-app").join(EXECUTABLE),
@@ -35,14 +35,14 @@ fn installing_the_login_session_puts_block_app_under_the_prefix_and_its_entry_wh
         std::fs::read_to_string(home.join(EXECUTABLE)).unwrap(),
         "block-app"
     );
-    assert!(home.join("notes.plugin.json").is_file());
+    assert!(home.join("notes.app.json").is_file());
     assert_eq!(
         std::fs::read_to_string(home.join("data/notes/files/readme.txt")).unwrap(),
         "hello"
     );
     assert!(
         !stale.exists(),
-        "a plugin left from an older install is gone"
+        "an app left from an older install is gone"
     );
     assert_eq!(
         std::fs::read_link(prefix.join("bin/block-app")).unwrap(),

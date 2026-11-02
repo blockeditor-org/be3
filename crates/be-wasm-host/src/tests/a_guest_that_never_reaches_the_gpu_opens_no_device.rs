@@ -14,10 +14,10 @@ fn a_guest_that_never_reaches_the_gpu_opens_no_device() {
     )
     .unwrap();
     let source = guest("(call $host_send (i32.const 0) (i32.const 1))");
-    let mut plugin = host.load_bytes(source.as_bytes()).unwrap();
-    plugin.start().unwrap();
-    plugin.step().unwrap();
+    let mut app = host.load_bytes(source.as_bytes()).unwrap();
+    app.start().unwrap();
+    app.step().unwrap();
 
-    assert_eq!(plugin.take_outbound().len(), 1);
+    assert_eq!(app.take_outbound().len(), 1);
     assert!(!OPENED.load(Ordering::SeqCst));
 }

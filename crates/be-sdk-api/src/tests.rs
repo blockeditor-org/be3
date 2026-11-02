@@ -13,9 +13,9 @@ where
 
 fn hello() -> Hello {
     Hello {
-        plugin: PluginIdentity {
+        app: AppIdentity {
             id: "demo".into(),
-            name: "Plugin Demo".into(),
+            name: "App Demo".into(),
             version: "1.0".into(),
         },
         surface: SurfaceSupport::Texture,

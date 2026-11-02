@@ -39,7 +39,7 @@ unsafe extern "C" {
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-pub extern "C" fn plugin_start() {
+pub extern "C" fn app_start() {
     assert_eq!(sequence(), EXPECTED, "on the main thread");
     let spawned = std::thread::spawn(|| {
         let seen = sequence();
@@ -53,7 +53,7 @@ pub extern "C" fn plugin_start() {
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-pub extern "C" fn plugin_step() {
+pub extern "C" fn app_step() {
     if !ENDED.load(Ordering::Acquire) {
         return;
     }
@@ -73,4 +73,4 @@ pub extern "C" fn plugin_step() {
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-pub extern "C" fn plugin_shutdown() {}
+pub extern "C" fn app_shutdown() {}

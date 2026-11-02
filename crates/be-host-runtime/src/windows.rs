@@ -7,7 +7,7 @@ thread_local! {
     static FORGOTTEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
-pub fn request_windows(plugin: &str, requests: Vec<WindowRequest>) {
+pub fn request_windows(app: &str, requests: Vec<WindowRequest>) {
     if requests.is_empty() {
         return;
     }
@@ -15,14 +15,14 @@ pub fn request_windows(plugin: &str, requests: Vec<WindowRequest>) {
         pending.borrow_mut().extend(
             requests
                 .into_iter()
-                .map(|request| (plugin.to_owned(), request)),
+                .map(|request| (app.to_owned(), request)),
         )
     });
     be_host_base::host::request_repaint();
 }
 
-pub fn forget_windows(plugin: &str) {
-    FORGOTTEN.with(|forgotten| forgotten.borrow_mut().push(plugin.to_owned()));
+pub fn forget_windows(app: &str) {
+    FORGOTTEN.with(|forgotten| forgotten.borrow_mut().push(app.to_owned()));
     be_host_base::host::request_repaint();
 }
 

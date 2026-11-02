@@ -1,4 +1,4 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "app_packages")
 
 WIT = {
     "foreign_resources": {"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"},
@@ -12,7 +12,7 @@ cargo_library(**WIT)
 # manifests are inputs of the test like any other and it runs on a worker.
 filegroup(
     name = "editor-manifests",
-    srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in editor_packages()},
+    srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in app_packages()},
     visibility = ["//crates/be-tool-cli:"],
 )
 

@@ -35,7 +35,7 @@ pub(crate) fn link<T: Reads + 'static>(linker: &mut Linker<T>) -> Result<(), Str
             |mut caller: Caller<'_, T>, pointer: u32, length: u32| -> wasmtime::Result<()> {
                 let message = match T::read(&mut caller, pointer, length) {
                     Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-                    Err(error) => format!("the plugin panicked, and its message was lost: {error}"),
+                    Err(error) => format!("the app panicked, and its message was lost: {error}"),
                 };
                 Err(panicked(message))
             },
@@ -57,6 +57,6 @@ pub(crate) fn message(error: &wasmtime::Error) -> Option<String> {
         return Some(message.clone());
     }
     let GuestPanic(message) = error.downcast_ref::<GuestPanic>()?;
-    eprintln!("block-wasm-host: a plugin panicked: {error:?}");
+    eprintln!("block-wasm-host: an app panicked: {error:?}");
     Some(message.clone())
 }

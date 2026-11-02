@@ -1,7 +1,7 @@
 use be_lib_stable_hash::HashMap;
 use std::collections::BTreeMap;
 
-use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
+use super::calls::{EditorAnswer, EditorCall, Heard, AppCall};
 use be_sdk_api::{Encoded, Watch};
 
 use be_sdk_api::{
@@ -13,7 +13,7 @@ use be_sdk_api::{
         dock::Call as DockCall,
         exports::{
             debug::paintings,
-            plugin::{self, Editor},
+            app::{self, Editor},
         },
         host::Call,
         host_services,
@@ -139,7 +139,7 @@ impl Wire {
     }
 
     pub(super) fn shutdown(&mut self) {
-        let done = plugin::shutdown(&mut self.connection);
+        let done = app::shutdown(&mut self.connection);
         self.draws.insert(done.op(), Awaited::Shutdown);
     }
 
@@ -160,47 +160,47 @@ impl Wire {
         self.audio.remove(&instance);
     }
 
-    pub(super) fn plugin_call(&mut self, call: PluginCall) {
+    pub(super) fn app_call(&mut self, call: AppCall) {
         let connection = &mut self.connection;
         match call {
-            PluginCall::Preferences(preferences) => {
+            AppCall::Preferences(preferences) => {
                 self.preferences.change(connection, |_| preferences);
             }
-            PluginCall::UtcOffset(seconds) => self.utc_offset.change(connection, |_| seconds),
-            PluginCall::Fonts(fonts) => self.fonts.change(connection, |held| merged(held, fonts)),
-            PluginCall::Input(batch) => self.input.change(connection, |held| {
+            AppCall::UtcOffset(seconds) => self.utc_offset.change(connection, |_| seconds),
+            AppCall::Fonts(fonts) => self.fonts.change(connection, |held| merged(held, fonts)),
+            AppCall::Input(batch) => self.input.change(connection, |held| {
                 let mut batches = held.unwrap_or_default();
                 InputBatch::queue(&mut batches, batch);
                 batches
             }),
-            PluginCall::Screens(screens) => {
-                plugin::screens(connection, screens);
+            AppCall::Screens(screens) => {
+                app::screens(connection, screens);
             }
-            PluginCall::Configure(serial) => {
-                plugin::configure(connection, serial);
+            AppCall::Configure(serial) => {
+                app::configure(connection, serial);
             }
-            PluginCall::Draw {
+            AppCall::Draw {
                 now_micros,
                 wall_micros,
                 seen,
             } => {
-                let drawn = plugin::draw(connection, now_micros, wall_micros, seen);
+                let drawn = app::draw(connection, now_micros, wall_micros, seen);
                 self.draws.insert(drawn.op(), Awaited::Draw);
             }
-            PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
-            PluginCall::DebugTemplates(templates) => {
+            AppCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
+            AppCall::DebugTemplates(templates) => {
                 self.debug_templates.change(connection, |_| templates)
             }
-            PluginCall::Describe(on) => {
-                plugin::describe(connection, on);
+            AppCall::Describe(on) => {
+                app::describe(connection, on);
             }
-            PluginCall::RunAction { screen, id } => {
-                plugin::run_action(connection, screen, id);
+            AppCall::RunAction { screen, id } => {
+                app::run_action(connection, screen, id);
             }
-            PluginCall::NodeAction { screen, request } => {
-                plugin::node_action(connection, screen, request);
+            AppCall::NodeAction { screen, request } => {
+                app::node_action(connection, screen, request);
             }
-            PluginCall::Paintings => {
+            AppCall::Paintings => {
                 let painted = paintings::paintings(connection);
                 self.painting.insert(painted.op(), painted);
             }
@@ -516,7 +516,7 @@ impl Wire {
     ) -> Result<(), String> {
         use blocks::Call as Blocks;
         call.validate()
-            .map_err(|error| format!("the plugin asked for something it may not: {error:?}"))?;
+            .map_err(|error| format!("the app asked for something it may not: {error:?}"))?;
         let owner = |this: OpId| self.held.owners.get(&this).copied();
         let instance = match &call {
             Blocks::BlocksWatchNext { this, .. } => owner(this.op()),
@@ -644,7 +644,7 @@ impl Wire {
     pub(super) fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
         self.connection
             .receive(frame)
-            .map_err(|error| format!("the plugin sent a frame that did not decode: {error}"))?;
+            .map_err(|error| format!("the app sent a frame that did not decode: {error}"))?;
         while let Some(event) = self.connection.next_event() {
             self.heard(event, heard)?;
         }
@@ -736,15 +736,15 @@ impl Wire {
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
                         let commit: be_sdk_api::FrameCommit = be_sdk_api::ops::decode(&bytes)
-                            .ok_or("the plugin answered a draw with a frame that did not decode")?;
+                            .ok_or("the app answered a draw with a frame that did not decode")?;
                         commit.validate().map_err(|error| {
-                            format!("the plugin drew a frame it may not: {error}")
+                            format!("the app drew a frame it may not: {error}")
                         })?;
                         heard.push(Heard::Frame(Box::new(commit)));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => heard.push(Heard::ShutDown),
                     (Some(_), Outcome::Err(error)) => heard.push(Heard::Unanswered(format!(
-                        "the plugin did not answer: {error:?}"
+                        "the app did not answer: {error:?}"
                     ))),
                     (None, _) => {}
                 }

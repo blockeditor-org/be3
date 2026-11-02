@@ -20,7 +20,7 @@ const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
 const START: &str = "wasi_thread_start";
 const REFUSED: i32 = -1;
-const UNSHARED: &str = "the plugin spawned a thread, which needs a shared memory it imports";
+const UNSHARED: &str = "the app spawned a thread, which needs a shared memory it imports";
 const REAPING_PASSES: u32 = 8;
 const REAPING_WAIT: Duration = Duration::from_millis(50);
 
@@ -97,7 +97,7 @@ impl Spawner {
         }
         let spawner = Arc::clone(self);
         let reaper = std::thread::Builder::new()
-            .name("plugin reaper".to_owned())
+            .name("app reaper".to_owned())
             .spawn(move || {
                 for _ in 0..REAPING_PASSES {
                     if spawner.await_ended(REAPING_WAIT) {
@@ -181,7 +181,7 @@ impl Spawner {
         let spawner = Arc::clone(self);
         self.begin();
         let spawned = std::thread::Builder::new()
-            .name(format!("plugin thread {thread}"))
+            .name(format!("app thread {thread}"))
             .spawn(move || {
                 let entered = spawner.enter(thread, argument, thread_locals);
                 if let Err(failure) = entered
@@ -197,7 +197,7 @@ impl Spawner {
             Err(error) => {
                 self.free(blocks);
                 self.end();
-                self.fail(format!("a plugin thread could not start: {error}"));
+                self.fail(format!("an app thread could not start: {error}"));
                 REFUSED
             }
         }
@@ -219,13 +219,13 @@ impl Spawner {
         interrupt::watch(&mut store, false);
         let mut linker: Linker<Threaded> = Linker::new(&self.engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut Threaded| &mut state.wasi)
-            .map_err(|error| format!("wasi could not be linked for a plugin thread: {error}"))?;
+            .map_err(|error| format!("wasi could not be linked for an app thread: {error}"))?;
         let memory = self.memory.clone().ok_or(UNSHARED)?;
         for import in self.program.first().imports() {
             if import.ty().memory().is_some() {
                 linker
                     .define(&store, import.module(), import.name(), memory.clone())
-                    .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
+                    .map_err(|error| format!("an app thread could not share memory: {error}"))?;
             }
         }
         link(&mut linker)?;
@@ -234,23 +234,23 @@ impl Spawner {
         self.refuse_host_calls(&mut linker)?;
         linker
             .define_unknown_imports_as_traps(self.program.first())
-            .map_err(|error| format!("a plugin thread could not stub its imports: {error}"))?;
+            .map_err(|error| format!("an app thread could not stub its imports: {error}"))?;
         let instance = linker
             .instantiate(&mut store, self.program.first())
-            .map_err(|error| format!("a plugin thread could not be instantiated: {error}"))?;
+            .map_err(|error| format!("an app thread could not be instantiated: {error}"))?;
         if let (Program::Linked(modules), Some(thread)) = (&self.program, &thread_locals) {
             let linked = self
                 .linked
                 .get()
-                .ok_or("a plugin thread started before its plugin was linked")?;
+                .ok_or("an app thread started before its app was linked")?;
             dylink::link(&mut store, &linker, modules, linked, instance, thread)?;
         }
         let start: TypedFunc<(i32, i32), ()> = instance
             .get_typed_func(&mut store, START)
-            .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
+            .map_err(|error| format!("the app has no usable {START} export: {error}"))?;
         start.call(&mut store, (thread, argument)).map_err(|error| {
             crate::panic::message(&error)
-                .unwrap_or_else(|| format!("a plugin thread trapped: {error:?}"))
+                .unwrap_or_else(|| format!("an app thread trapped: {error:?}"))
         })
     }
 
@@ -258,7 +258,7 @@ impl Spawner {
         let linked = self
             .linked
             .get()
-            .ok_or("a plugin thread was spawned before its plugin was linked")?;
+            .ok_or("an app thread was spawned before its app was linked")?;
         Ok(dylink::Thread {
             blocks: linked.take(memory)?,
             root_block: dylink::spawned_thread_locals(memory, argument)?,
@@ -292,7 +292,7 @@ impl Spawner {
                 continue;
             };
             let refusal = format!(
-                "a plugin thread called {}::{}, which only its main thread may do",
+                "an app thread called {}::{}, which only its main thread may do",
                 import.module(),
                 import.name()
             );

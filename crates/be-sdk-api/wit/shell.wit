@@ -1,4 +1,4 @@
-package be3:plugin@0.1.0;
+package be3:app@0.1.0;
 
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
@@ -77,7 +77,7 @@ interface shell-types {
         failed(string),
     }
 
-    /// A picture of a child the host painted, offered to the plugin as a texture.
+    /// A picture of a child the host painted, offered to the app as a texture.
     record preview-image {
         image: image-id,
         width: u32,
@@ -148,7 +148,7 @@ interface shell-types {
         name: string,
         icon-codepoint: string,
         /// The file extensions, without the dot, a program editor opens: a
-        /// block whose file name ends in one opens in it. Empty for a plugin.
+        /// block whose file name ends in one opens in it. Empty for an app.
         extensions: list<string>,
     }
 
@@ -309,7 +309,7 @@ interface shell {
     focused: async func(instance: editor-instance-id, focus: focus);
 
     /// Whether the editor, shown as a dialog, answers a dismissal itself
-    /// (the plugin's `dismiss`) by asking to close with `close-dialog`.
+    /// (the app's `dismiss`) by asking to close with `close-dialog`.
     handles-dismiss: async func(instance: editor-instance-id, handles: bool);
 
     /// The editor, shown as a dialog, asks to be closed.

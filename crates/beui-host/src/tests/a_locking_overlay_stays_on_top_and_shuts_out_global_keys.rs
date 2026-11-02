@@ -108,7 +108,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     assert_eq!(
         globals.get_untracked(),
         before,
-        "a key intercepted for a plugin is not heard while locked"
+        "a key intercepted for an app is not heard while locked"
     );
 
     set(&mut harness, menu, true);

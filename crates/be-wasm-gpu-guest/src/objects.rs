@@ -94,7 +94,7 @@ fn reject(message: String) {
     };
     match UNCAPTURED.with(|handler| handler.borrow().clone()) {
         Some(handler) => handler(error),
-        None => panic!("the plugin gpu abi rejected a request: {error}"),
+        None => panic!("the app gpu abi rejected a request: {error}"),
     }
 }
 
@@ -366,7 +366,7 @@ impl DeviceInterface for Device {
 
     fn adapter_info(&self) -> wgpu::AdapterInfo {
         wgpu::AdapterInfo {
-            name: "BE3 plugin host".into(),
+            name: "BE3 app host".into(),
             vendor: 0,
             device: 0,
             device_type: wgpu::DeviceType::Other,
@@ -387,7 +387,7 @@ impl DeviceInterface for Device {
     ) -> DispatchShaderModule {
         let wgsl = match desc.source {
             wgpu::ShaderSource::Wgsl(source) => source.into_owned(),
-            _ => panic!("the plugin gpu abi only accepts wgsl shaders, as browser WebGPU does"),
+            _ => panic!("the app gpu abi only accepts wgsl shaders, as browser WebGPU does"),
         };
         if let Err(message) = self.allowed.shader(&wgsl) {
             return DispatchShaderModule::custom(ShaderModule::refused(message));
@@ -414,7 +414,7 @@ impl DeviceInterface for Device {
         _desc: &wgpu::ShaderModuleDescriptorPassthrough<'_>,
     ) -> DispatchShaderModule {
         unimplemented!(
-            "passthrough shaders are refused: plugins are untrusted, and wgpu cannot validate them"
+            "passthrough shaders are refused: apps are untrusted, and wgpu cannot validate them"
         )
     }
 
@@ -586,7 +586,7 @@ impl DeviceInterface for Device {
         _desc: &wgpu::PipelineCacheDescriptor<'_>,
     ) -> DispatchPipelineCache {
         unimplemented!(
-            "pipeline caches are refused: plugins are untrusted, and wgpu cannot validate a cache"
+            "pipeline caches are refused: apps are untrusted, and wgpu cannot validate a cache"
         )
     }
 
@@ -630,7 +630,7 @@ impl DeviceInterface for Device {
         _desc: &wgpu::ExternalTextureDescriptor<'_>,
         _planes: &[&wgpu::TextureView],
     ) -> DispatchExternalTexture {
-        unimplemented!("external textures are not available to plugins yet")
+        unimplemented!("external textures are not available to apps yet")
     }
 
     fn create_blas(
@@ -807,7 +807,7 @@ impl QueueInterface for Queue {
         staging_buffer: &DispatchQueueWriteBuffer,
     ) {
         let Some(staging) = staging_buffer.as_custom::<StagingBuffer>() else {
-            panic!("a staging buffer from another wgpu backend reached the plugin gpu abi");
+            panic!("a staging buffer from another wgpu backend reached the app gpu abi");
         };
         self.write_buffer(buffer, offset, &staging.bytes);
     }
@@ -835,7 +835,7 @@ impl QueueInterface for Queue {
         _dest: wgpu::CopyExternalImageDestInfo<&wgpu::Texture>,
         _size: wgpu::Extent3d,
     ) {
-        unimplemented!("external image copies are not available to plugins yet")
+        unimplemented!("external image copies are not available to apps yet")
     }
 
     fn submit(&self, command_buffers: &mut dyn Iterator<Item = DispatchCommandBuffer>) -> u64 {

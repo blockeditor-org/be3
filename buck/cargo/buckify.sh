@@ -47,7 +47,7 @@ for crate in "$CARGO_HOME"/registry/cache/*/*.crate; do
     printf '%s %s\n' "$(basename "$crate" .crate)" "$(wc -c < "$crate")"
 done > "$scratch/sizes"
 
-plugins=""
+apps=""
 excluded=""
 package_name() {
     sed -n 's/^name[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$1" | head -n 1
@@ -56,7 +56,7 @@ package_name() {
 # (editor() in buck/wasm/defs.bzl).
 for manifest in crates/be-app-*/Cargo.toml; do
     name="$(package_name "$manifest")"
-    plugins="$plugins -p $name"
+    apps="$apps -p $name"
     [ -d "$(dirname "$manifest")/examples" ] || excluded="$excluded --exclude $name"
 done
 games=""
@@ -72,10 +72,10 @@ done
 
 # The builds buck2 stands in for, as cargo would be asked for them: the host
 # (without the wasm-only crates), block-app, beui's DOM
-# demo, the paint review page and beui-html's live DOM for the web, the plugins, beui's demo and the
-# paint review, whose tests paint as a plugin's do (a plan of their own: they
+# demo, the paint review page and beui-html's live DOM for the web, the apps, beui's demo and the
+# paint review, whose tests paint as an app's do (a plan of their own: they
 # want a different wgpu), the games, the gpu shim, the remap module and the
-# pure guests (the plugins' type modules among them), and
+# pure guests (the apps' type modules among them), and
 # the host again for each cross target. `cargo test` where
 # there are tests, so the plan has the dev-dependencies. Every plan names its
 # target, so what cargo builds for the machine running the build - proc
@@ -88,7 +88,7 @@ RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format
 host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --exclude be-wasm-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude be-server-portal-ui --exclude be-server-bin --exclude beui-demo-html --exclude be-tool-paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p be-host -p beui-web-demo -p be-tool-paint-review-web -p beui-html --lib > "$scratch/wasi.json"
-plan test --target wasm32-wasip1-threads $plugins -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
+plan test --target wasm32-wasip1-threads $apps -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p be-host-remap-module -p be-wasm-guest-echo > "$scratch/wasm32.json"
 # beui's HTML core (buck/constraints:html): the crates that build on it, for
 # the browser and for the host, under the cfg that picks it. cargo evaluates

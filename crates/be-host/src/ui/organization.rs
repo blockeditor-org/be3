@@ -288,7 +288,7 @@ fn panel_icon(panel: HostPanel) -> Glyph {
     match panel {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_GAUGE,
-        HostPanel::Plugins => beui::icons::ICON_PUZZLE,
+        HostPanel::Apps => beui::icons::ICON_PUZZLE,
         HostPanel::Menu => beui::icons::ICON_MENU,
     }
 }

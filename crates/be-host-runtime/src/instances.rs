@@ -22,7 +22,7 @@ use super::{
     ChildCommit, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
-    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
+    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, AppCall},
     heads::{HeadRead, Heads},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
@@ -58,10 +58,10 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     unannounced_input: Vec<Outbound>,
-    block_types: Option<Arc<crate::PluginCatalog>>,
+    block_types: Option<Arc<crate::AppCatalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
-    plugin_id: String,
+    app_id: String,
     services: services::Services,
     epoch: u64,
     graph_seen: Option<u64>,
@@ -334,9 +334,9 @@ impl Instance {
             })
             .collect();
         for query in queries {
-            let graph_query = be_host_stack::plugin_graph::query_of(query);
+            let graph_query = be_host_stack::app_graph::query_of(query);
             let mut answer = match be_host_stack::ready(graph_query) {
-                true => Ok(be_host_stack::plugin_graph::answer(query)),
+                true => Ok(be_host_stack::app_graph::answer(query)),
                 false => match be_host_stack::failure(graph_query) {
                     Some(error) => Err(error),
                     None => continue,
@@ -357,7 +357,7 @@ impl Instance {
         let mut wants: Vec<be_host_stack::Query> = self
             .watching()
             .filter_map(|watched| match watched {
-                Subject::Blocks(query) => Some(be_host_stack::plugin_graph::query_of(query)),
+                Subject::Blocks(query) => Some(be_host_stack::app_graph::query_of(query)),
                 _ => None,
             })
             .collect();
@@ -814,7 +814,7 @@ impl Instances {
                 continue;
             }
             match &message {
-                Outbound::Plugin(PluginCall::Input(batch))
+                Outbound::App(AppCall::Input(batch))
                     if !self.announced.contains(&batch.screen)
                         && !self.is_anchored_screen(batch.screen) =>
                 {
@@ -929,7 +929,7 @@ impl Instances {
         shown: View,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<crate::PluginCatalog>,
+        block_types: &Arc<crate::AppCatalog>,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
@@ -981,7 +981,7 @@ impl Instances {
         shown: View,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<crate::PluginCatalog>,
+        block_types: &Arc<crate::AppCatalog>,
     ) {
         self.report(
             instance,
@@ -1192,7 +1192,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
         gesture: beui::BackGesture,
-    ) -> Vec<PluginCall> {
+    ) -> Vec<AppCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1202,7 +1202,7 @@ impl Instances {
         else {
             return Vec::new();
         };
-        vec![PluginCall::Input(be_sdk_api::InputBatch {
+        vec![AppCall::Input(be_sdk_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![be_sdk_api::Input::Back(gesture).into()],
@@ -1216,7 +1216,7 @@ impl Instances {
         region: ViewId,
         press: Option<beui::KeyPress>,
         modifiers: beui::Modifiers,
-    ) -> Vec<PluginCall> {
+    ) -> Vec<AppCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1230,7 +1230,7 @@ impl Instances {
         if events.is_empty() {
             return Vec::new();
         }
-        vec![PluginCall::Input(be_sdk_api::InputBatch {
+        vec![AppCall::Input(be_sdk_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events,
@@ -1243,7 +1243,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
         key: beui::Key,
-    ) -> Vec<PluginCall> {
+    ) -> Vec<AppCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1257,7 +1257,7 @@ impl Instances {
         if key == beui::Key::Unidentified {
             return Vec::new();
         }
-        vec![PluginCall::Input(be_sdk_api::InputBatch {
+        vec![AppCall::Input(be_sdk_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![be_sdk_api::Input::InterceptedTap(key).into()],
@@ -1595,7 +1595,7 @@ impl Instances {
         if dismissed.is_empty() {
             return Vec::new();
         }
-        vec![Outbound::from(PluginCall::Input(be_sdk_api::InputBatch {
+        vec![Outbound::from(AppCall::Input(be_sdk_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events: Vec::new(),
@@ -1760,7 +1760,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<crate::PluginCatalog>,
+        block_types: &Arc<crate::AppCatalog>,
         role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
@@ -1777,7 +1777,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<crate::PluginCatalog>,
+        block_types: &Arc<crate::AppCatalog>,
         editor: Uuid,
         block: EditorBlock,
         source: Uuid,
@@ -1844,8 +1844,8 @@ impl Instances {
         self.network = hosts;
     }
 
-    pub(super) fn set_plugin_id(&mut self, plugin_id: String) {
-        self.plugin_id = plugin_id;
+    pub(super) fn set_app_id(&mut self, app_id: String) {
+        self.app_id = app_id;
     }
 
     pub(super) fn reopen(&mut self) {
@@ -1903,8 +1903,8 @@ impl Instances {
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
             block_types.editors.extend(program_editors);
-            opened.push(Outbound::Plugin(PluginCall::BlockTypes(block_types)));
-            opened.push(Outbound::Plugin(PluginCall::DebugTemplates(
+            opened.push(Outbound::App(AppCall::BlockTypes(block_types)));
+            opened.push(Outbound::App(AppCall::DebugTemplates(
                 debug_templates,
             )));
         }
@@ -2115,11 +2115,11 @@ impl Instances {
         NextScreens { opened, screens }
     }
 
-    pub(super) fn configure(&mut self, messages: &[Outbound]) -> Option<PluginCall> {
+    pub(super) fn configure(&mut self, messages: &[Outbound]) -> Option<AppCall> {
         let configures = messages.iter().any(|message| {
             matches!(
                 message,
-                Outbound::Plugin(PluginCall::Screens(_))
+                Outbound::App(AppCall::Screens(_))
                     | Outbound::Editor(_, EditorCall::ViewChanged { .. })
             )
         });
@@ -2130,7 +2130,7 @@ impl Instances {
         let serial = self.serial;
         for message in messages {
             match message {
-                Outbound::Plugin(PluginCall::Screens(screens)) => {
+                Outbound::App(AppCall::Screens(screens)) => {
                     for request in screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
                             screen.scales.push(serial, request.metrics.scale_factor);
@@ -2157,7 +2157,7 @@ impl Instances {
                 _ => {}
             }
         }
-        Some(PluginCall::Configure(serial))
+        Some(AppCall::Configure(serial))
     }
 
     pub(super) fn serial(&self) -> u64 {
@@ -3136,7 +3136,7 @@ impl Instances {
         let held = std::mem::take(&mut self.unannounced_input);
         let (announced, waiting): (Vec<Outbound>, Vec<Outbound>) =
             held.into_iter().partition(|message| match message {
-                Outbound::Plugin(PluginCall::Input(batch)) => {
+                Outbound::App(AppCall::Input(batch)) => {
                     self.announced.contains(&batch.screen)
                 }
                 _ => true,
@@ -3144,7 +3144,7 @@ impl Instances {
         self.unannounced_input = waiting
             .into_iter()
             .filter(|message| match message {
-                Outbound::Plugin(PluginCall::Input(batch)) => self.is_screen(batch.screen),
+                Outbound::App(AppCall::Input(batch)) => self.is_screen(batch.screen),
                 _ => false,
             })
             .collect();
@@ -3445,7 +3445,7 @@ impl Instances {
                 ack(reply);
                 entry.child_commits.push(ChildCommit {
                     child,
-                    parent: be_host_stack::plugin_graph::parent_of(parent),
+                    parent: be_host_stack::app_graph::parent_of(parent),
                     name,
                 });
             }

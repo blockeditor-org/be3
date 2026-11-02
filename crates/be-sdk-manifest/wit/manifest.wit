@@ -1,7 +1,7 @@
 package be3:manifest@0.1.0;
 
-/// What a plugin's manifest declares of its editors and block types, which the
-/// plugin protocol (`be3:plugin`) carries too. The Rust in
+/// What an app's manifest declares of its editors and block types, which the
+/// app protocol (`be3:app`) carries too. The Rust in
 /// `be-sdk-manifest` is generated from this.
 interface types {
     use be3:shared/ids@0.1.0.{block-type-id};
@@ -73,7 +73,7 @@ interface types {
         nothing,
     }
 
-    record plugin-identity {
+    record app-identity {
         id: string,
         name: string,
         version: string,

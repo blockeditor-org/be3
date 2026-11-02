@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     BlockTypeDescriptor, BlockTypeManifest, ChildOperations, EditorCapabilities, EditorManifest,
-    Edits, InteractionMode, ManifestError, ParentView, PluginIdentity, PluginManifest, Press,
+    Edits, InteractionMode, ManifestError, ParentView, AppIdentity, AppManifest, Press,
     ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
@@ -170,17 +170,17 @@ impl ManifestDocument {
         serde_json::from_str(source).map_err(|error| ManifestError::Malformed(error.to_string()))
     }
 
-    pub fn identity(&self) -> PluginIdentity {
-        PluginIdentity {
+    pub fn identity(&self) -> AppIdentity {
+        AppIdentity {
             id: self.id.clone(),
             name: self.name.clone(),
             version: self.version.clone(),
         }
     }
 
-    pub fn into_manifest(self) -> Result<PluginManifest, ManifestError> {
-        let manifest = PluginManifest {
-            identity: PluginIdentity {
+    pub fn into_manifest(self) -> Result<AppManifest, ManifestError> {
+        let manifest = AppManifest {
+            identity: AppIdentity {
                 id: self.id,
                 name: self.name,
                 version: self.version,
@@ -277,6 +277,6 @@ impl EditorDocument {
     }
 }
 
-pub fn manifest_from_json(source: &str) -> Result<PluginManifest, ManifestError> {
+pub fn manifest_from_json(source: &str) -> Result<AppManifest, ManifestError> {
     ManifestDocument::parse(source)?.into_manifest()
 }

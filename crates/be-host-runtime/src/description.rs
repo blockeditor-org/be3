@@ -16,7 +16,7 @@ pub(super) fn describing() -> bool {
 }
 
 struct Region {
-    plugin: String,
+    app: String,
     screen: ScreenId,
     document: u32,
     fragment: Fragment,
@@ -35,7 +35,7 @@ pub fn describe(context: &beui::native::Context) {
     }
     let mut regions = Vec::new();
     runtime::each(|runtime| {
-        let plugin = runtime.id().to_owned();
+        let app = runtime.id().to_owned();
         let name = runtime.name().to_owned();
         let placements: Vec<_> = runtime
             .placements
@@ -80,7 +80,7 @@ pub fn describe(context: &beui::native::Context) {
                 .take_accessibility_actions(document)
                 .into_iter()
                 .filter_map(|mut request| {
-                    request.target_node = described.tree.plugin_node(request.target_node)?;
+                    request.target_node = described.tree.app_node(request.target_node)?;
                     Some(request)
                 })
                 .collect();
@@ -109,7 +109,7 @@ pub fn describe(context: &beui::native::Context) {
                     .collect(),
             };
             regions.push(Region {
-                plugin: plugin.clone(),
+                app: app.clone(),
                 screen,
                 document,
                 fragment,
@@ -121,7 +121,7 @@ pub fn describe(context: &beui::native::Context) {
                     Action::Focus | Action::Click | Action::SetValue | Action::ReplaceSelectedText
                 ) {
                     runtime.instances.request_focus(screen);
-                    runtime::mark(&plugin);
+                    runtime::mark(&app);
                 }
                 runtime.node_action(screen, request);
             }
@@ -149,7 +149,7 @@ pub fn describe(context: &beui::native::Context) {
         if let Some(owner) = owner {
             let screen = owner.screen;
             let id = id.to_owned();
-            runtime::with(&owner.plugin, |runtime| runtime.run_action(screen, id));
+            runtime::with(&owner.app, |runtime| runtime.run_action(screen, id));
             context.action_ran(&requested);
         }
     }

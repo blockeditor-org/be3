@@ -5,7 +5,7 @@ use beui::reactive::*;
 use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
 
 pub(super) fn intercept_keys(
-    plugin_id: Stored<String>,
+    app_id: Stored<String>,
     instance: EditorInstanceId,
     region: ViewId,
     chords: Memo<Vec<KeyChord>>,
@@ -19,7 +19,7 @@ pub(super) fn intercept_keys(
                     chords.iter().any(|chord| chord.tap && chord.key == key)
                 });
                 if asked && allowed() {
-                    be_host_runtime::intercept_tap(&plugin_id.value(), instance, region, key);
+                    be_host_runtime::intercept_tap(&app_id.value(), instance, region, key);
                 }
                 return false;
             }
@@ -37,7 +37,7 @@ pub(super) fn intercept_keys(
             held.with(|held| held.set(press.modifiers));
         }
         be_host_runtime::intercept_view(
-            &plugin_id.value(),
+            &app_id.value(),
             instance,
             region,
             Some(press),
@@ -60,6 +60,6 @@ pub(super) fn intercept_keys(
                 logo: was.logo && now.logo,
             })
         });
-        be_host_runtime::intercept_view(&plugin_id.value(), instance, region, None, now);
+        be_host_runtime::intercept_view(&app_id.value(), instance, region, None, now);
     });
 }

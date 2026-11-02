@@ -4,14 +4,14 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--previews BASE OUT] [--bootstrap DIR]";
+const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--app-tests] [--previews BASE OUT] [--bootstrap DIR]";
 
 struct Options {
     manifest: PathBuf,
     build_failed: bool,
     check: bool,
     lint: bool,
-    plugin_tests: bool,
+    app_tests: bool,
     previews: Option<(String, PathBuf)>,
     bootstrap: Option<PathBuf>,
 }
@@ -96,7 +96,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         build_failed: false,
         check: false,
         lint: false,
-        plugin_tests: false,
+        app_tests: false,
         previews: None,
         bootstrap: None,
     };
@@ -107,7 +107,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--check" => options.check = true,
             "--lint" => options.lint = true,
             "--tests" => {}
-            "--plugin-tests" => options.plugin_tests = true,
+            "--app-tests" => options.app_tests = true,
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;
@@ -129,7 +129,7 @@ impl Run {
             self.fixes();
         }
         self.bootstrap();
-        if self.options.plugin_tests {
+        if self.options.app_tests {
             self.paintings();
             self.unpainted();
         }
@@ -504,8 +504,8 @@ fn named_paintings(crates: &Path) -> BTreeSet<PathBuf> {
     for directory in directories_under(crates) {
         let paints = fs::read_to_string(directory.join("BUCK")).is_ok_and(|build| {
             build.lines().any(|line| {
-                line.starts_with("editor(")
-                    || line.starts_with("plugin_tests(")
+                line.starts_with("app(")
+                    || line.starts_with("app_tests(")
                     || line.trim() == "paints = True,"
             })
         });

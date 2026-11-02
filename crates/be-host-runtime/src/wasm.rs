@@ -8,19 +8,19 @@ use std::{
 
 use be_host_stack::discovery;
 
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 use be_wasm_guest_host::{
     Presented, Produced,
     thread::{self, Runnable, Threaded},
 };
-use be_wasm_host::{Host, Plugin};
+use be_wasm_host::{Host, App};
 
 use super::{
     backend::StepTime,
     surface::{PresentedTexture, SurfaceFrame, gpu},
 };
 
-const NO_GPU: &str = "The plugin host has no graphics device.";
+const NO_GPU: &str = "The app host has no graphics device.";
 
 pub(super) type Frame = SurfaceFrame;
 
@@ -38,7 +38,7 @@ thread_local! {
 }
 
 struct Prepared {
-    plugin_id: String,
+    app_id: String,
     module: String,
     started: Result<(Channel, Mailbox, Arc<AtomicBool>), String>,
     device: Arc<Handover>,
@@ -99,14 +99,14 @@ pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFr
     }
 }
 
-pub(super) fn prepare(plugin: &PluginManifest, module: String) {
+pub(super) fn prepare(app: &AppManifest, module: String) {
     let device = Arc::<Handover>::default();
     let handover = Arc::clone(&device);
     let started = Host::awaiting(move || handover.wait(), cache().as_deref())
-        .and_then(|host| start(plugin, &module, host));
+        .and_then(|host| start(app, &module, host));
     PREPARED.with(|prepared| {
         prepared.borrow_mut().push(Prepared {
-            plugin_id: plugin.identity.id.clone(),
+            app_id: app.identity.id.clone(),
             module,
             started,
             device,
@@ -129,13 +129,13 @@ pub(super) fn discard_prepared() {
 }
 
 pub(super) fn spawn(
-    plugin: &PluginManifest,
+    app: &AppManifest,
     module: String,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
     let prepared = PREPARED.with(|prepared| {
         let mut prepared = prepared.borrow_mut();
         let index = prepared.iter().position(|prepared| {
-            prepared.plugin_id == plugin.identity.id && prepared.module == module
+            prepared.app_id == app.identity.id && prepared.module == module
         })?;
         Some(prepared.remove(index))
     });
@@ -146,11 +146,11 @@ pub(super) fn spawn(
         Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
         None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
     };
-    start(plugin, &module, host)
+    start(app, &module, host)
 }
 
 fn start(
-    plugin: &PluginManifest,
+    app: &AppManifest,
     module: &str,
     host: Host,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
@@ -158,7 +158,7 @@ fn start(
     let waiting = Arc::<AtomicBool>::default();
     let mailbox = host.imports();
     let channel = host.spawn(
-        format!("plugin {}", plugin.identity.id),
+        format!("app {}", app.identity.id),
         move |host| host.load_from(&module, discovery::open).map(Editor),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
@@ -199,7 +199,7 @@ pub(super) fn pictures(frame: &SurfaceFrame, surfaces: &[u32]) -> Vec<(u32, Pict
         .collect()
 }
 
-struct Editor(Plugin);
+struct Editor(App);
 
 impl Runnable for Editor {
     type Presented = PresentedTexture;
@@ -227,11 +227,11 @@ impl Runnable for Editor {
     }
 }
 
-fn produced(plugin: &mut Plugin, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
-    let (gpu, submit) = plugin.take_gpu_time();
+fn produced(app: &mut App, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
+    let (gpu, submit) = app.take_gpu_time();
     let mut presented: Vec<PresentedTexture> = Vec::new();
-    for surface in plugin.take_presented() {
-        let Some((texture, generation)) = plugin.surface(surface) else {
+    for surface in app.take_presented() {
+        let Some((texture, generation)) = app.surface(surface) else {
             continue;
         };
         presented.retain(|held| held.surface != surface);

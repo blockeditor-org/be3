@@ -16,7 +16,7 @@ guide is for what that does not cover.
 - `--install-login-session [PREFIX]` (Linux): install block-app as a login session
   (guides/desktop/linux.md).
 
-`./scripts/buck run //crates/be-host:native` runs it in a window, with every plugin beside it.
+`./scripts/buck run //crates/be-host:native` runs it in a window, with every app beside it.
 The bundle’s `build-info.json` selects block-app's identity: local builds use
 `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
 They keep separate accounts, workspaces and caches, including for local release builds.
@@ -50,11 +50,11 @@ the drive layer stacked `drive --socket=/tmp/block.sock tree` reads the tree and
 `drive --socket=/tmp/block.sock settle` waits for the host to settle in between. xdotool
 returns before the host has drawn, so settle before reading anything.
 
-A window also shows how plugins' frames arrive relative to each other, which the headless
+A window also shows how apps' frames arrive relative to each other, which the headless
 platform hides: dragging workspace-ui's splitter between Files and an editor, say. Drag in
 small steps (`mousedown 1`, then `mousemove` one step at a time) and run `import -window root`
 after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the window a fractional
-scale. To skip building every plugin, run the binary that `:dev` built
+scale. To skip building every app, run the binary that `:dev` built
 (`target/apps/dev-app-*/block-app`, where it unpacked block-app, with the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it, read from `/proc/PID/environ`,
 then stop that headless copy) with the variables above in place of `:native`.

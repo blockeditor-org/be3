@@ -1,13 +1,13 @@
 use super::*;
-use crate::headless::HeadlessPlugin;
+use crate::headless::HeadlessApp;
 use be_sdk_api::{
     HelloAccepted,
     embed::host::Call,
     ops::{Connection, Incoming, Side},
 };
 
-fn accepted(plugin: &mut HeadlessPlugin) {
-    plugin
+fn accepted(app: &mut HeadlessApp) {
+    app
         .accept(HelloAccepted {
             host_name: "test host".into(),
             surface: None,
@@ -16,10 +16,10 @@ fn accepted(plugin: &mut HeadlessPlugin) {
         .unwrap();
 }
 
-fn asked(plugin: &mut HeadlessPlugin) -> Vec<Vec<char>> {
-    plugin.outbound();
+fn asked(app: &mut HeadlessApp) -> Vec<Vec<char>> {
+    app.outbound();
     let mut host = Connection::new(Side::Host);
-    for frame in plugin.take_frames() {
+    for frame in app.take_frames() {
         host.receive(&frame).unwrap();
     }
     let mut asked = Vec::new();
@@ -36,4 +36,4 @@ fn asked(plugin: &mut HeadlessPlugin) -> Vec<Vec<char>> {
 }
 
 mod a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive;
-mod fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back;
+mod fonts_from_the_host_reach_the_app_and_missing_characters_go_back;

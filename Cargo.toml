@@ -240,14 +240,14 @@ overflow-checks = false
 debug = false
 incremental = false
 
-[profile.plugin]
+[profile.app]
 inherits = "dev"
 opt-level = 2
 debug = false
 strip = "debuginfo"
 incremental = false
 
-[profile.plugin-release]
+[profile.app-release]
 inherits = "release"
 strip = "debuginfo"
 
@@ -343,22 +343,22 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
-# Cranelift is what compiles a plugin, both in the app when an artifact is
-# missing and in the compiler the build hands every plugin to, and unoptimised
-# it is an order of magnitude slower at it: the plugins a debug build ships take
+# Cranelift is what compiles an app, both in the app when an artifact is
+# missing and in the compiler the build hands every app to, and unoptimised
+# it is an order of magnitude slower at it: the apps a debug build ships take
 # minutes rather than seconds. Optimising the compiler where it is built is what
 # lets it be built in the same profile, and so the same cargo call, as the app.
 #
 # The checks a debug build adds cost it a fifth of its speed on top of that,
 # and they are checks on someone else's code rather than on ours, so they come
-# off with the optimisation going on. Compiling the plugin test modules is a
-# minute of every verify, and the app pays the same price whenever it opens a
-# plugin it has no artifact for.
+# off with the optimisation going on. Compiling the app test modules is a
+# minute of every verify, and the app pays the same price whenever it opens an
+# app it has no artifact for.
 #
 # opt-level 1 was measured against this and is a worse trade, not a cheaper one:
-# cranelift-codegen compiles 44 seconds faster, and compiling six plugin modules
+# cranelift-codegen compiles 44 seconds faster, and compiling six app modules
 # with the result goes from 22 seconds to 34. A verify compiles closer to seventy
-# of them, so what the build saves the plugins pay back three times over.
+# of them, so what the build saves the apps pay back three times over.
 
 [profile.dev.package.cranelift-assembler-x64]
 opt-level = 2

@@ -5,7 +5,7 @@ pub mod logic_game;
 mod renderer;
 pub mod root;
 
-be_sdk_beui::beui_plugin!("../manifest.json", {
+be_sdk_beui::beui_app!("../manifest.json", {
     grid => root::LogicGridRoot,
     game => logic_game::root::LogicGameRoot,
     hotbar => hotbar::root::HotbarRoot,

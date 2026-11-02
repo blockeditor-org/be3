@@ -2,12 +2,12 @@ use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, HelloAccepted, OpenBlock, Opening, ParentView,
     ScreenId, ScreenRequest, ViewId, ViewPlacement, ViewportMetrics,
     embed::{
-        exports::plugin::{self, Editor},
+        exports::app::{self, Editor},
         host::Call,
     },
     ops::{Connection, Incoming, OpId, Outcome, Side},
 };
-use be_wasm_host::{Host, Plugin};
+use be_wasm_host::{Host, App};
 
 const SCREENS_SURFACE: u32 = 1;
 const WIDTH: u32 = 640;
@@ -16,7 +16,7 @@ const HEIGHT: u32 = 400;
 fn main() {
     let mut arguments = std::env::args().skip(1);
     let (Some(path), Some(editor)) = (arguments.next(), arguments.next()) else {
-        eprintln!("usage: instantiate PLUGIN.wasm EDITOR_ID [CACHE_DIRECTORY]");
+        eprintln!("usage: instantiate APP.wasm EDITOR_ID [CACHE_DIRECTORY]");
         std::process::exit(2);
     };
     let editor = match uuid::Uuid::parse_str(&editor) {
@@ -35,8 +35,8 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let mut plugin = match host.load(path.as_ref()) {
-        Ok(plugin) => plugin,
+    let mut app = match host.load(path.as_ref()) {
+        Ok(app) => app,
         Err(error) => {
             eprintln!("load failed: {error}");
             std::process::exit(1);
@@ -48,34 +48,34 @@ fn main() {
         draw: None,
         drawn: false,
     };
-    check(plugin.start());
-    session.hear("start", &mut plugin);
+    check(app.start());
+    session.hear("start", &mut app);
     let _editor = Editor::new(&mut session.connection, opening(editor));
-    plugin::screens(&mut session.connection, screens());
-    session.step("open", &mut plugin);
-    session.draw = Some(plugin::draw(&mut session.connection, 0, 0, true).op());
-    session.step("draw", &mut plugin);
-    match plugin.surface(SCREENS_SURFACE) {
+    app::screens(&mut session.connection, screens());
+    session.step("open", &mut app);
+    session.draw = Some(app::draw(&mut session.connection, 0, 0, true).op());
+    session.step("draw", &mut app);
+    match app.surface(SCREENS_SURFACE) {
         Some((texture, generation)) => println!(
             "surface {SCREENS_SURFACE} is {}x{} at generation {generation}",
             texture.width(),
             texture.height()
         ),
         None => {
-            eprintln!("the plugin never asked for a surface");
+            eprintln!("the app never asked for a surface");
             std::process::exit(1);
         }
     }
     if !session.drawn {
-        eprintln!("the plugin never answered the draw with a frame");
+        eprintln!("the app never answered the draw with a frame");
         std::process::exit(1);
     }
-    if !plugin.take_presented().contains(&SCREENS_SURFACE) {
-        eprintln!("the plugin never presented its surface");
+    if !app.take_presented().contains(&SCREENS_SURFACE) {
+        eprintln!("the app never presented its surface");
         std::process::exit(1);
     }
     println!("presented");
-    plugin.stop();
+    app.stop();
 }
 
 struct Session {
@@ -85,14 +85,14 @@ struct Session {
 }
 
 impl Session {
-    fn step(&mut self, stage: &str, plugin: &mut Plugin) {
-        plugin.deliver(self.connection.take_outbound());
-        check(plugin.step());
-        self.hear(stage, plugin);
+    fn step(&mut self, stage: &str, app: &mut App) {
+        app.deliver(self.connection.take_outbound());
+        check(app.step());
+        self.hear(stage, app);
     }
 
-    fn hear(&mut self, stage: &str, plugin: &mut Plugin) {
-        let outbound = plugin.take_outbound();
+    fn hear(&mut self, stage: &str, app: &mut App) {
+        let outbound = app.take_outbound();
         println!("{stage} sent {} item(s)", outbound.len());
         for item in outbound {
             if let Err(error) = self.connection.receive(&item) {
@@ -105,7 +105,7 @@ impl Session {
                 Incoming::Started(started) if Call::accepts(&started) => {
                     match Call::accept(&mut self.connection, started) {
                         Some(Call::Connect { reply, hello }) => {
-                            println!("  connect from {}", hello.plugin.id);
+                            println!("  connect from {}", hello.app.id);
                             reply.send(&mut self.connection, &accepted());
                             answered = true;
                         }
@@ -124,14 +124,14 @@ impl Session {
             }
         }
         if answered {
-            self.step(stage, plugin);
+            self.step(stage, app);
         }
     }
 }
 
 fn check(outcome: Result<(), String>) {
     if let Err(error) = outcome {
-        eprintln!("the plugin failed: {error}");
+        eprintln!("the app failed: {error}");
         std::process::exit(1);
     }
 }

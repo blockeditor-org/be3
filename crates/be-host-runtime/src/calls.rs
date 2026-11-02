@@ -12,11 +12,11 @@ pub(super) enum Outbound {
     Open(Box<Opening>),
     Close(EditorInstanceId),
     Editor(EditorInstanceId, EditorCall),
-    Plugin(PluginCall),
+    App(AppCall),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum PluginCall {
+pub(super) enum AppCall {
     Preferences(Preferences),
     UtcOffset(i32),
     Fonts(Fonts),
@@ -102,9 +102,9 @@ pub(super) enum EditorAnswer {
     Replaced { request_id: u64, replaced: bool },
 }
 
-impl From<PluginCall> for Outbound {
-    fn from(call: PluginCall) -> Self {
-        Self::Plugin(call)
+impl From<AppCall> for Outbound {
+    fn from(call: AppCall) -> Self {
+        Self::App(call)
     }
 }
 
@@ -113,7 +113,7 @@ impl Outbound {
         match self {
             Self::Open(opening) => Some(opening.instance()),
             Self::Close(instance) | Self::Editor(instance, _) => Some(*instance),
-            Self::Plugin(_) => None,
+            Self::App(_) => None,
         }
     }
 
@@ -221,7 +221,7 @@ impl BlockIds for Outbound {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
             }
-            Self::Close(_) | Self::Editor(..) | Self::Plugin(_) => {}
+            Self::Close(_) | Self::Editor(..) | Self::App(_) => {}
         }
     }
 }

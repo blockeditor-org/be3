@@ -15,7 +15,7 @@ fn submitted_work_calls_back_once_the_gpu_has_done_it() {
     queue.on_submitted_work_done(move || called.store(true, Ordering::SeqCst));
     assert!(
         !done.load(Ordering::SeqCst),
-        "the callback waits for the plugin to poll"
+        "the callback waits for the app to poll"
     );
     device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
     assert!(

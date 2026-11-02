@@ -1,6 +1,6 @@
 use be_sdk_api::Opening;
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
-use be_sdk_api::embed::{self, exports::plugin::Editor, shell::Call as ShellCall};
+use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
@@ -14,7 +14,7 @@ use be_sdk_api::{
 };
 use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block::{LiveEdit, Merge};
-use be_sdk_beui::headless::{Adopted, HeadlessPlugin};
+use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
     Artifacts, BeuiRoot, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
     Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
@@ -27,7 +27,7 @@ use beui::{
 use beui_host::native::testing::{Target, button_name};
 use std::marker::PhantomData;
 
-type Delivered = Box<dyn FnOnce(&mut HeadlessPlugin) -> Result<(), String>>;
+type Delivered = Box<dyn FnOnce(&mut HeadlessApp) -> Result<(), String>>;
 
 enum Inbound {
     Pushed(Delivered),
@@ -35,7 +35,7 @@ enum Inbound {
 }
 
 impl Inbound {
-    fn pushed(deliver: impl FnOnce(&mut HeadlessPlugin) -> Result<(), String> + 'static) -> Self {
+    fn pushed(deliver: impl FnOnce(&mut HeadlessApp) -> Result<(), String> + 'static) -> Self {
         Self::Pushed(Box::new(deliver))
     }
 }
@@ -73,7 +73,7 @@ const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
 pub struct BeuiTest<A: BeuiRoot> {
-    plugin: HeadlessPlugin,
+    app: HeadlessApp,
     kind: Kind,
     host: EditorHost,
     store: ContentStore,
@@ -266,8 +266,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
-        let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
-        plugin.adopt::<A>(INSTANCE, adopted);
+        let mut app = HeadlessApp::new("block-ui-test", "block-ui-test", "0");
+        app.adopt::<A>(INSTANCE, adopted);
         let store = SHARED_STORE
             .with(|shared| shared.borrow_mut().take())
             .unwrap_or_else(|| ContentStore::new(host.organization_id()));
@@ -366,7 +366,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             _ => None,
         };
         let mut test = Self {
-            plugin,
+            app,
             kind,
             host,
             store,
@@ -418,7 +418,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             drawn_screens: Vec::new(),
             root: PhantomData,
         };
-        roundtrip(test.plugin.hello(), "the plugin's hello");
+        roundtrip(test.app.hello(), "the app's hello");
         let accepted = roundtrip(
             HelloAccepted {
                 host_name: "block-ui-test".to_owned(),
@@ -430,7 +430,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             },
             "the host's acceptance",
         );
-        test.deliver(Inbound::pushed(move |plugin| plugin.accept(accepted)));
+        test.deliver(Inbound::pushed(move |app| app.accept(accepted)));
         test.editor = Some(Editor::new(&mut test.connection, open));
         let frames = test.connection.take_outbound();
         test.deliver(Inbound::Frames(frames));
@@ -441,11 +441,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     fn deliver(&mut self, inbound: Inbound) {
         let delivered = match inbound {
-            Inbound::Pushed(deliver) => deliver(&mut self.plugin),
-            Inbound::Frames(frames) => self.plugin.deliver(frames),
+            Inbound::Pushed(deliver) => deliver(&mut self.app),
+            Inbound::Frames(frames) => self.app.deliver(frames),
         };
         if let Err(error) = delivered {
-            panic!("the plugin refused what the host sent: {error}");
+            panic!("the app refused what the host sent: {error}");
         }
     }
 
@@ -478,7 +478,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 anchor_space: None,
             }]
         });
-        be_sdk_api::embed::exports::plugin::screens(&mut self.connection, screens);
+        be_sdk_api::embed::exports::app::screens(&mut self.connection, screens);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
     }
@@ -804,7 +804,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn document(&self) -> std::cell::Ref<'_, Document> {
-        self.plugin
+        self.app
             .document()
             .expect("the editor has not built its view yet")
     }
@@ -838,10 +838,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let outcome = self
             .completed
             .remove(&ticket.op())
-            .expect("the plugin never answered the replacement");
+            .expect("the app never answered the replacement");
         ticket
             .decode(outcome)
-            .expect("the plugin answered the replacement")
+            .expect("the app answered the replacement")
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
@@ -913,8 +913,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_preferences(&mut self, preferences: be_sdk_api::Preferences) {
         let preferences = roundtrip(preferences, "the host's preferences");
-        self.inbox.push(Inbound::pushed(move |plugin| {
-            plugin.set_preferences(preferences)
+        self.inbox.push(Inbound::pushed(move |app| {
+            app.set_preferences(preferences)
         }));
     }
 
@@ -1112,22 +1112,22 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 },
                 "the host's input",
             );
-            inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
+            inbox.push(Inbound::pushed(move |app| app.input(batch)));
         }
         for batch in std::mem::take(&mut self.desk_batches) {
             let batch = roundtrip(batch, "the host's input");
-            inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
+            inbox.push(Inbound::pushed(move |app| app.input(batch)));
         }
         let now_micros = self.clock.as_micros() as u64;
         let wall_micros = (beui_core::timer::TEST_WALL_CLOCK + self.clock).as_micros() as u64;
-        inbox.push(Inbound::pushed(move |plugin| {
-            plugin.draw_frame(now_micros, wall_micros, true)
+        inbox.push(Inbound::pushed(move |app| {
+            app.draw_frame(now_micros, wall_micros, true)
         }));
         for message in inbox {
             self.deliver(message);
         }
         self.hear();
-        let drawn = self.plugin.draw().and_then(|drawn| {
+        let drawn = self.app.draw().and_then(|drawn| {
             self.drawn_screens = drawn
                 .windows
                 .iter()
@@ -1146,8 +1146,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
             self.shown_window = Some(window);
         }
         self.desk_escaped();
-        if let Some(commit) = self.plugin.outbound() {
-            self.committed(roundtrip(commit, "the plugin's frame"));
+        if let Some(commit) = self.app.outbound() {
+            self.committed(roundtrip(commit, "the app's frame"));
         }
         self.hear();
         let intrinsic = self.intrinsic;
@@ -1212,9 +1212,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     fn hear(&mut self) {
-        for frame in self.plugin.take_frames() {
+        for frame in self.app.take_frames() {
             self.connection.receive(&frame).unwrap_or_else(|error| {
-                panic!("the plugin sent a frame that did not decode: {error}")
+                panic!("the app sent a frame that did not decode: {error}")
             });
         }
         while let Some(event) = self.connection.next_event() {
@@ -1375,7 +1375,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             match &call {
                 ShellCall::Menu { view, items, .. } if view.is_main() => {
                     self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
-                        panic!("the plugin sent a menu it may not: {error}")
+                        panic!("the app sent a menu it may not: {error}")
                     });
                 }
                 ShellCall::LeaveFrame { .. } => self.exited = true,
@@ -1896,7 +1896,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
         {
             let mut document = self
-                .plugin
+                .app
                 .document_mut()
                 .expect("the editor has not built its view yet");
             let node = document
@@ -2123,7 +2123,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             }
             Target::Point(at) => at,
             Target::Text(text) => panic!(
-                "a plugin test finds a target by its test id or a point, not by text: {text:?}\n{}",
+                "an app test finds a target by its test id or a point, not by text: {text:?}\n{}",
                 self.replay()
             ),
         }

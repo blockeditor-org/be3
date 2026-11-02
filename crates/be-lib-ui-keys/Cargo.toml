@@ -1,6 +1,6 @@
 [package]
 name = "be-lib-ui-keys"
-description = "The keys and modifiers that beui, the plugin protocol and the terminal share, with no geometry"
+description = "The keys and modifiers that beui, the app protocol and the terminal share, with no geometry"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

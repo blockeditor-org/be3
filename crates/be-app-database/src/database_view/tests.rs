@@ -235,7 +235,7 @@ fn tracker() -> Tracker {
     );
     let rows = [
         (
-            "Ctrl+Shift+I opens both the host's inspector and the plugin's",
+            "Ctrl+Shift+I opens both the host's inspector and the app's",
             started,
             None,
             None,

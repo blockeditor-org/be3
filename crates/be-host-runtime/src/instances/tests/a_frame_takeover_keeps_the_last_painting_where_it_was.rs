@@ -17,7 +17,7 @@ fn resize(instances: &mut Instances, rect: Rect) {
         View::MAIN,
         Uuid::nil(),
         role,
-        &Arc::new(crate::PluginCatalog::default()),
+        &Arc::new(crate::AppCatalog::default()),
         Some(be_sdk_api::FrameSpec::default()),
         rect.size(),
         Rect::from_min_size(Pos2::ZERO, rect.size()),

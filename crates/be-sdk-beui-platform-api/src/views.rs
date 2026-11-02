@@ -115,7 +115,7 @@ impl Views {
 }
 
 fn placement_of(id: ViewRef) -> HostPlacement {
-    HostPlacement(format!("plugin view {} {}", id.instance.0, id.view.0))
+    HostPlacement(format!("app view {} {}", id.instance.0, id.view.0))
 }
 
 const WINDOW_VIEWS: u64 = 1 << 61;

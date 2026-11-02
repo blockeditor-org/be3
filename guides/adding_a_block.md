@@ -1,10 +1,10 @@
 # Adding a block
 
-A block's type is its content type, and a plugin brings it: the content is a `be-block-model` document in the plugin's *types crate*, which knows how to merge, undo and address its own parts and is built into the plugin's type module (guides/type_modules.md), and the plugin's manifest declares it. Its UI is the plugin's editor under `crates/editors`. This guide covers the type. For how documents, edits, merging and undo work underneath, read `guides/the_new_block_stack.md` ("Adding a content type"); this guide does not repeat it. `crates/be-type-checklist` is the example to copy.
+A block's type is its content type, and an app brings it: the content is a `be-block-model` document in the app's *types crate*, which knows how to merge, undo and address its own parts and is built into the app's type module (guides/type_modules.md), and the app's manifest declares it. Its UI is the app's editor under `crates/editors`. This guide covers the type. For how documents, edits, merging and undo work underneath, read `guides/the_new_block_stack.md` ("Adding a content type"); this guide does not repeat it. `crates/be-type-checklist` is the example to copy.
 
 ## 1. Make the types crate
 
-A plugin `crates/be-app-my-block` keeps its types in `crates/be-type-my-block`, a crate of its own (added to the root `Cargo.toml`'s members; run `./scripts/buck run //:buckify` after). It is a plain library that the editor, its tests and any other crate depend on for the typed content, and its `:module` build is the type module the host runs:
+An app `crates/be-app-my-block` keeps its types in `crates/be-type-my-block`, a crate of its own (added to the root `Cargo.toml`'s members; run `./scripts/buck run //:buckify` after). It is a plain library that the editor, its tests and any other crate depend on for the typed content, and its `:module` build is the type module the host runs:
 
 ```toml
 [lib]
@@ -88,7 +88,7 @@ pub type MyBlockContent = Document<MyBlock>;
 
 Give each `Model` struct a kind, `#[model(kind = "my_block.item")]`: it is saved with every object, and the stack guide's "The stored form" says how fields are saved and how to add, rename and retire them without a migration. A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole; give its structs `#[serde(default)]`), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
 
-A block holds what it is, not what an editor makes of it. The image block keeps the file's bytes and a header saying what decoding them found - or why it failed - which the editor fills in the first time it draws the image. Nothing but the plugin then needs a decoder, and no other client has to decode the block to know its shape.
+A block holds what it is, not what an editor makes of it. The image block keeps the file's bytes and a header saying what decoding them found - or why it failed - which the editor fills in the first time it draws the image. Nothing but the app then needs a decoder, and no other client has to decode the block to know its shape.
 
 ## 3. Write edits as helpers
 
@@ -180,7 +180,7 @@ A content type that does not fit a document - a file with a large payload (`Blob
 
 ## 8. Declare it in the manifest
 
-The plugin's `manifest.json` declares each type it brings under `block_types`, next to `editors`, keyed by a name unique within the plugin:
+The app's `manifest.json` declares each type it brings under `block_types`, next to `editors`, keyed by a name unique within the app:
 
 ```json
 "block_types": {
@@ -196,9 +196,9 @@ The plugin's `manifest.json` declares each type it brings under `block_types`, n
 }
 ```
 
-`id` is the `CONTENT_TYPE`. `display_name`, `icon` (a Lucide codepoint) and `color` are what the add menu, the file tree and every label show for a block of the type, whichever editor opens it. `children` (each `false` by default) is which structural edits it takes, `press` is `Open` (the default) or `Zoom`, which the file tree does to a block of it instead of opening it (a folder), `exported_whole` (`false` by default) makes exporting any child of a block of the type as a block file export the block instead (a database view, so its database never leaves without it), `plain_file` (`false` by default) says the type has a plain-file form (its registration's `file`; a be-tool-cli test holds every manifest to its module), which the file tree offers to export before the module has run, and `module` is the plugin's type module, the file `:module` builds. All of a plugin's types name the same module: the host runs one instance of it per plugin. Every type names it: the manifest is refused without one. Then give the editor's `editor()` call in its BUCK file `types = "//crates/be-type-my-block:module"`, which stages the module beside the plugin's own, with its `.cwasm` and its SHA-256, the tag of its sessions.
+`id` is the `CONTENT_TYPE`. `display_name`, `icon` (a Lucide codepoint) and `color` are what the add menu, the file tree and every label show for a block of the type, whichever editor opens it. `children` (each `false` by default) is which structural edits it takes, `press` is `Open` (the default) or `Zoom`, which the file tree does to a block of it instead of opening it (a folder), `exported_whole` (`false` by default) makes exporting any child of a block of the type as a block file export the block instead (a database view, so its database never leaves without it), `plain_file` (`false` by default) says the type has a plain-file form (its registration's `file`; a be-tool-cli test holds every manifest to its module), which the file tree offers to export before the module has run, and `module` is the app's type module, the file `:module` builds. All of an app's types name the same module: the host runs one instance of it per app. Every type names it: the manifest is refused without one. Then give the editor's `app()` call in its BUCK file `types = "//crates/be-type-my-block:module"`, which stages the module beside the app's own, with its `.cwasm` and its SHA-256, the tag of its sessions.
 
-The host builds its catalog of block types from every installed manifest and the types it applies itself, and refuses a plugin that declares a type another plugin or the host already has, or whose editor `edits` (or whose template makes) a type nobody declares. The type is known from its manifest before its module has started.
+The host builds its catalog of block types from every installed manifest and the types it applies itself, and refuses an app that declares a type another app or the host already has, or whose editor `edits` (or whose template makes) a type nobody declares. The type is known from its manifest before its module has started.
 
 The editor depends on the types crate (`be-type-my-block = { path = "../be-type-my-block" }`) for its typed content, as `crates/be-app-checklist` does; `be_sdk_beui::be_block` still gives it the traits and `ObjectId`.
 
@@ -234,13 +234,13 @@ fn a_my_block_clears_only_the_done_items() {
 }
 ```
 
-Test what the helpers mean: an edit made against content that has since changed, references, `child_edit`, a merge of two sides (`Merge::merge3`), and an undo (`Undo::step` then `revert`) when the type has one. The model itself is tested in `crates/be-block-model`; do not re-test lists or registers here. An editor test (block_ui_test) hosts blocks in an in-process type module that already has the host's types (`crates/be-sdk-type-host`), and registers a type, without undo, the first time the test holds or reads one by its Rust type; a test that undoes, or that has blocks of a plugin's type it never names (an embedded child), registers them first with `test.store().register(my_block_types::registrations())`.
+Test what the helpers mean: an edit made against content that has since changed, references, `child_edit`, a merge of two sides (`Merge::merge3`), and an undo (`Undo::step` then `revert`) when the type has one. The model itself is tested in `crates/be-block-model`; do not re-test lists or registers here. An editor test (block_ui_test) hosts blocks in an in-process type module that already has the host's types (`crates/be-sdk-type-host`), and registers a type, without undo, the first time the test holds or reads one by its Rust type; a test that undoes, or that has blocks of an app's type it never names (an embedded child), registers them first with `test.store().register(my_block_types::registrations())`.
 
-The unit tests of block-app, be-tool-cli, be-block-sync and be-block-frozen run every plugin's module in process from `be_type_bundle::sources()` (`crates/be-type-bundle`): add the new types crate to its `sources()` and `knows()`, named by the plugin's manifest id. An in-process module's session tag is a hash of its name, so another peer in the same test (a terminal host) joins block-app's session only under the same name; give such a peer the same sources, in the same order. Do not put tests in the production file and do not use `#[path]`.
+The unit tests of block-app, be-tool-cli, be-block-sync and be-block-frozen run every app's module in process from `be_type_bundle::sources()` (`crates/be-type-bundle`): add the new types crate to its `sources()` and `knows()`, named by the app's manifest id. An in-process module's session tag is a hash of its name, so another peer in the same test (a terminal host) joins block-app's session only under the same name; give such a peer the same sources, in the same order. Do not put tests in the production file and do not use `#[path]`.
 
 ## Moving a type out of be-block
 
-`crates/be-block` holds only the types the host applies itself and the libraries every type builds on (`Root`, `Blob`, metadata, settling, history); a block type lives in its plugin's types crate, and a type that a frozen format covers keeps its `frozen_*.rs` tests there (guides/frozen_formats.md). be's `type_name` falls back to the manifest's display name, so a new type needs no entry there.
+`crates/be-block` holds only the types the host applies itself and the libraries every type builds on (`Root`, `Blob`, metadata, settling, history); a block type lives in its app's types crate, and a type that a frozen format covers keeps its `frozen_*.rs` tests there (guides/frozen_formats.md). be's `type_name` falls back to the manifest's display name, so a new type needs no entry there.
 
 ## 10. Verify
 
@@ -250,4 +250,4 @@ The unit tests of block-app, be-tool-cli, be-block-sync and be-block-frozen run 
 ./scripts/verify
 ```
 
-If the block needs a UI, continue with the [plugin editor guide](adding_a_plugin_editor.md).
+If the block needs a UI, continue with the [editor guide](adding_an_app.md).

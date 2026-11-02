@@ -727,7 +727,7 @@ impl Host for Gpu {
 
     fn texture_describe(&mut self, this: abi::Texture) -> Option<abi::TextureInfo> {
         let described = self.textures.get(this.0, "texture").and_then(|texture| {
-            let unsupported = || format!("texture {} has a format plugins cannot use", this.0);
+            let unsupported = || format!("texture {} has a format apps cannot use", this.0);
             Ok(abi::TextureInfo {
                 size: texture.size().into(),
                 mip_level_count: texture.mip_level_count(),
@@ -839,7 +839,7 @@ impl Host for Gpu {
         if self.destroyed {
             return Some(abi::DeviceLostInfo {
                 reason: abi::DeviceLostReason::Destroyed,
-                message: "the plugin destroyed its device".to_owned(),
+                message: "the app destroyed its device".to_owned(),
             });
         }
         self.settling.lost().map(|message| abi::DeviceLostInfo {
@@ -1320,7 +1320,7 @@ impl Host for Gpu {
         }
         let texture = || {
             self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("plugin surface"),
+                label: Some("app surface"),
                 size: wgpu::Extent3d {
                     width,
                     height,

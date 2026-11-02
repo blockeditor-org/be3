@@ -1,8 +1,8 @@
 package be3:debug@0.1.0;
 
-/// An extension beside the core plugin protocol, not part of it: what the
-/// host's own debugging tools hear from a plugin and tell it. A host without
-/// those tools answers no watch here and ignores every call, and a plugin may
+/// An extension beside the core app protocol, not part of it: what the
+/// host's own debugging tools hear from an app and tell it. A host without
+/// those tools answers no watch here and ignores every call, and an app may
 /// leave all of it out; nothing in the core protocol depends on it. Every call
 /// is made under the editor resource it is for.
 interface debug {
@@ -46,9 +46,9 @@ interface debug {
     }
 }
 
-/// What the host's tests ask of a plugin.
+/// What the host's tests ask of an app.
 interface paintings {
-    /// What the plugin's screens painted, in beui-paint-format's encoding of screen
+    /// What the app's screens painted, in beui-paint-format's encoding of screen
     /// paintings, for the tests to compare.
     paintings: async func() -> list<u8>;
 }

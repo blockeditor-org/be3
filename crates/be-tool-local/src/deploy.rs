@@ -20,7 +20,7 @@ release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
 the new build, and pins the uploaded be in scripts/internal/pins.
 
-The downloads are the app with its plugins for Linux, macOS and Windows on
+The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go

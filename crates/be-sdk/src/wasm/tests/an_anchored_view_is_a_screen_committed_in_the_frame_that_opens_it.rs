@@ -25,7 +25,7 @@ fn an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it() {
     );
     assert!(
         anchored.iter().all(|(screen, _)| screen.is_opened()),
-        "numbered by the plugin: {anchored:?}"
+        "numbered by the app: {anchored:?}"
     );
     assert_eq!(anchored[0].1.rect, menu);
     assert_eq!(

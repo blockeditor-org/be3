@@ -70,4 +70,4 @@ fn pressing(pressed: &Pressed, what: &'static str) -> impl Fn() + 'static {
 }
 
 mod a_block_another_build_saved_offers_reset_delete_and_try_anyway;
-mod a_crashed_plugin_offers_a_reload;
+mod a_crashed_app_offers_a_reload;

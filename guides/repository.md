@@ -13,7 +13,7 @@ differs from the package's (`block-app` is built from `be-host`, `be` from
 `be-tool-cli`). The name's prefix says which family a crate belongs to:
 
 - `be-app-*`: the apps, each a manifest.json and an entry module, staged as
-  plugins (`be-app-example-*` are the debug and example ones: they exercise the
+  apps (`be-app-example-*` are the debug and example ones: they exercise the
   platform and are not apps a person uses).
 - `be-type-*`: the block type module of the app with the same name
   (`be-type-checklist` for `be-app-checklist`), and `be-type-bundle`, every
@@ -27,8 +27,8 @@ differs from the package's (`block-app` is built from `be-host`, `be` from
   `be-host-base` (the frame host, notices, the panic guard, platform requests,
   the host's state and the watches the host publishes; no beui), `be-host-services`
   (Linux's D-Bus services; no beui), `be-host-stack` (the block stack peer,
-  accounts, links, keys and plugin discovery; no beui), `be-host-runtime` (the
-  runtime every plugin runs in) and `be-host-desktop` (the Linux and Windows
+  accounts, links, keys and app discovery; no beui), `be-host-runtime` (the
+  runtime every app runs in) and `be-host-desktop` (the Linux and Windows
   desktop hosts, input remaps and programs). `be-host-testing` is the stack
   harness they test with, and `be-host-tests` the host tests.
 - `be-block-*`: the block stack (guides/the_new_block_stack.md).
@@ -48,12 +48,12 @@ differs from the package's (`block-app` is built from `be-host`, `be` from
   desktop), `be-tool-cli` (`be`: the tracker, `be sync` and terminal hosts),
   `be-tool-paint-review` (the page a pull request's summary links to for
   reviewing its paintings), and `be-tool-tls-diamond-*`, the test of how one
-  module reaches another's thread-locals (guides/plugin_libraries.md,
+  module reaches another's thread-locals (guides/app_libraries.md,
   "Thread-locals").
 
 ## Separate projects
 
-These depend on beui and the plugin system and live here so a change to either
+These depend on beui and the app system and live here so a change to either
 updates them in the same pull request. They are not part of the core, and are
 named on their own, without `be-`:
 

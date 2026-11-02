@@ -19,7 +19,7 @@ mod link;
 mod module;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-mod plugin;
+mod app;
 mod preferences;
 #[cfg(target_arch = "wasm32")]
 mod previews;
@@ -86,9 +86,9 @@ pub use host::{
 };
 pub use layered_settings::{SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget};
 pub use module::Module;
-pub use plugin::{Anchored, Claim, Frame, Instance, Plugin, SettingsDraft, ShownView, ViewHandler};
+pub use app::{Anchored, Claim, Frame, Instance, App, SettingsDraft, ShownView, ViewHandler};
 #[cfg(target_arch = "wasm32")]
-pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
+pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use previews::preview_texture;
@@ -111,7 +111,7 @@ pub mod __private {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn editor_entry<P: crate::Plugin>(name: &'static str) -> EditorEntry {
+    pub fn editor_entry<P: crate::App>(name: &'static str) -> EditorEntry {
         EditorEntry {
             name,
             open: P::open,
@@ -160,9 +160,9 @@ pub mod __private {
         Editor::start(started, waker, outbound)
     }
 
-    pub fn parsed(manifest: &str) -> be_sdk_manifest::PluginManifest {
+    pub fn parsed(manifest: &str) -> be_sdk_manifest::AppManifest {
         be_sdk_manifest::manifest_from_json(manifest)
-            .unwrap_or_else(|error| panic!("this plugin's manifest is invalid: {error}"))
+            .unwrap_or_else(|error| panic!("this app's manifest is invalid: {error}"))
     }
 }
 
@@ -170,14 +170,14 @@ pub mod __private {
 #[macro_export]
 macro_rules! platform_entry {
     ($manifest:ident, $entries:expr) => {
-        struct PluginGuest($crate::__private::Editor);
+        struct AppGuest($crate::__private::Editor);
 
-        impl $crate::__private::Guest for PluginGuest {
+        impl $crate::__private::Guest for AppGuest {
             fn start(
                 waker: $crate::__private::Waker,
                 outbound: &mut Vec<Vec<u8>>,
             ) -> Result<Self, String> {
-                $crate::__private::start_wasm($manifest, $entries, waker, outbound).map(PluginGuest)
+                $crate::__private::start_wasm($manifest, $entries, waker, outbound).map(AppGuest)
             }
 
             fn step(
@@ -190,7 +190,7 @@ macro_rules! platform_entry {
             }
         }
 
-        $crate::__private::guest!(PluginGuest);
+        $crate::__private::guest!(AppGuest);
     };
 }
 
@@ -201,14 +201,14 @@ macro_rules! platform_entry {
 }
 
 #[macro_export]
-macro_rules! plugin {
-    ($manifest:expr, { $($name:ident => $plugin:ty),+ $(,)? }) => {
-        const PLUGIN_MANIFEST: &str = include_str!($manifest);
+macro_rules! app {
+    ($manifest:expr, { $($name:ident => $app:ty),+ $(,)? }) => {
+        const APP_MANIFEST: &str = include_str!($manifest);
 
         $crate::platform_entry!(
-            PLUGIN_MANIFEST,
+            APP_MANIFEST,
             vec![$(
-                $crate::__private::editor_entry::<$plugin>(stringify!($name))
+                $crate::__private::editor_entry::<$app>(stringify!($name))
             ),+]
         );
     };

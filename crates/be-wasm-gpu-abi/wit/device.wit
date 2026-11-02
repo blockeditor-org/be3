@@ -1,7 +1,7 @@
 package be3:gpu@0.1.0;
 
 /// A subset of WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for
-/// the one device and queue a plugin is given, plus the surfaces its host
+/// the one device and queue an app is given, plus the surfaces its host
 /// shows. Usages, shader stages and color writes are WebGPU's bit values.
 ///
 /// A create that fails answers `none`; the reason is kept for `take-error`,
@@ -182,7 +182,7 @@ interface device {
     resource buffer {
         /// Starts mapping a range of the buffer. It is pending until the gpu
         /// is done with the buffer, then mapped, or unmapped again if the map
-        /// failed. The host wakes the plugin when it settles.
+        /// failed. The host wakes the app when it settles.
         map-async: func(mode: map-mode, offset: u64, size: u64);
         map-state: func() -> map-state;
         /// Copies a mapped range out.
@@ -204,7 +204,7 @@ interface device {
     resource texture {
         create-view: func(descriptor: texture-view-descriptor) -> option<texture-view>;
         describe: func() -> option<texture-info>;
-        /// Frees a texture the plugin created; any later use of it is an
+        /// Frees a texture the app created; any later use of it is an
         /// error. The host owns surface and imported textures, and destroying
         /// one does nothing.
         destroy: func();
@@ -352,7 +352,7 @@ interface device {
 
     resource shader-module {
         /// The messages of the module's compilation: none until the host has
-        /// them, and it wakes the plugin when it does. A module whose WGSL
+        /// them, and it wakes the app when it does. A module whose WGSL
         /// was rejected is still made, and its messages say why.
         get-compilation-info: func() -> option<list<compilation-message>>;
     }
@@ -726,7 +726,7 @@ interface device {
         format: texture-format,
     }
 
-    /// One place the host shows the plugin, named by the id the host gave it.
+    /// One place the host shows the app, named by the id the host gave it.
     /// Dropping it lets the host forget it.
     resource surface {
         constructor(id: surface-id);
@@ -741,20 +741,20 @@ interface device {
     }
 
     /// The optional features the host's device has that browser WebGPU can
-    /// offer. A plugin asks for those it needs when it requests its device.
+    /// offer. An app asks for those it needs when it requests its device.
     features: func() -> list<feature-name>;
     /// The host device's limits.
     limits: func() -> supported-limits;
-    /// Starts the plugin's view of the device afresh: one it destroyed works
+    /// Starts the app's view of the device afresh: one it destroyed works
     /// again. A device the host lost stays lost.
     request-device: func();
-    /// Destroys the plugin's view of the device, never the host's device:
-    /// frees the buffers and textures the plugin made, fails its pending maps,
+    /// Destroys the app's view of the device, never the host's device:
+    /// frees the buffers and textures the app made, fails its pending maps,
     /// and drops whatever it asks of the gpu after, without errors, until it
     /// requests the device again.
     destroy-device: func();
-    /// Why the device was lost: destroyed by the plugin, or lost by the host.
-    /// None while it is not. The host wakes the plugin when it is lost.
+    /// Why the device was lost: destroyed by the app, or lost by the host.
+    /// None while it is not. The host wakes the app when it is lost.
     device-lost: func() -> option<device-lost-info>;
 
     create-buffer: func(descriptor: buffer-descriptor) -> option<buffer>;
@@ -795,14 +795,14 @@ interface device {
     poll: func(wait: bool);
     /// Asks to be told when the gpu has done the work submitted so far, and
     /// answers a ticket to ask `submitted-work-done` about. The host wakes the
-    /// plugin when the work is done.
+    /// app when the work is done.
     on-submitted-work-done: func() -> u64;
     /// Whether the work a ticket waits on is done. A ticket that answers true
     /// is forgotten.
     submitted-work-done: func(ticket: u64) -> bool;
 
-    /// A texture the host shares with every plugin under an image id, such as
-    /// a preview another plugin painted; none when no such image is shared.
+    /// A texture the host shares with every app under an image id, such as
+    /// a preview another app painted; none when no such image is shared.
     import-texture: func(image: image-id) -> option<texture>;
 
     /// The first error since the last time it was taken.

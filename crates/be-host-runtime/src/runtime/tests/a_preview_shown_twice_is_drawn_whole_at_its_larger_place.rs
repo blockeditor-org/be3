@@ -4,7 +4,7 @@ use crate::EditorBlock;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: ViewId = ViewId::PREVIEW;
 
-fn manifest() -> PluginManifest {
+fn manifest() -> AppManifest {
     be_sdk_manifest::manifest_from_json(
         r#"{
             "id": "test.previewed",
@@ -58,14 +58,14 @@ fn shown() -> Option<Rect> {
 
 #[test]
 fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
-    let plugin = manifest();
+    let app = manifest();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         host.availability = Availability(Ok(()));
         host.runtimes
-            .insert(plugin.identity.id.clone(), Runtime::new(&plugin, 0));
+            .insert(app.identity.id.clone(), Runtime::new(&app, 0));
     });
-    let block_types = Arc::new(crate::PluginCatalog::default());
+    let block_types = Arc::new(crate::AppCatalog::default());
     let role = InstanceRole::Editor(
         Uuid::nil(),
         EditorBlock {

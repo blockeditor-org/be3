@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashSet;
 use std::sync::{Arc, atomic::AtomicBool};
 
 use be_sdk_api::ScreenDamage;
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 
 mod canvases;
 mod overlay;
@@ -39,14 +39,14 @@ impl ShownFrame for Frame {
     }
 }
 
-pub(super) fn prepare(_plugin: &PluginManifest, _module: String) {}
+pub(super) fn prepare(_app: &AppManifest, _module: String) {}
 
 pub(super) fn hand_over_device() {}
 
 pub(super) fn discard_prepared() {}
 
 pub(super) fn spawn(
-    _plugin: &PluginManifest,
+    _app: &AppManifest,
     module: String,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
     let waiting = Arc::<AtomicBool>::default();

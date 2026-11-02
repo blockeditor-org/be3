@@ -1,23 +1,23 @@
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "page_test")
-load("@root//buck/wasm:defs.bzl", "linked_plugin")
+load("@root//buck/wasm:defs.bzl", "linked_app")
 
-# The plugin at the top of the thread-local diamond (guides/plugin_libraries.md,
+# The app at the top of the thread-local diamond (guides/app_libraries.md,
 # "Thread-locals"): its generics reach the thread-locals of base, left and
 # right, which be-wasm-host's tests and :web-test below check on wasmtime and
 # in Chromium.
-linked_plugin(
+linked_app(
     libraries = [
         "//crates/be-tool-tls-diamond-base:module",
         "//crates/be-tool-tls-diamond-left:module",
         "//crates/be-tool-tls-diamond-right:module",
     ],
-    module = "plugin",
+    module = "app",
     rustc_flags = ["-Copt-level=2"],
 )
 
-# The thread-local diamond in Chromium: the plugin run by be-wasm-guest-host's
-# guest.js with block-app's plugin.js against be-wasm-gpu-shim, as a plugin's
+# The thread-local diamond in Chromium: the app run by be-wasm-guest-host's
+# guest.js with block-app's app.js against be-wasm-gpu-shim, as an app's
 # worker runs one, with base, left and right staged beside it as libraries.
 program(
     name = "web-bundle",
@@ -26,7 +26,7 @@ program(
         "//crates/be-host:dylink.js",
         "//crates/be-wasm-guest-host:guest.js",
         "//crates/be-host:env.js",
-        "//crates/be-host:plugin.js",
+        "//crates/be-host:app.js",
         "//crates/be-host:thread.js",
         "//crates/be-host:threads.js",
         "//crates/be-host:wasi.js",

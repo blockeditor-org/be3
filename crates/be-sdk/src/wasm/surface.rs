@@ -22,7 +22,7 @@ fn gpu() -> Option<Gpu> {
         let mut gpu = gpu.borrow_mut();
         if gpu.is_none() && FORMAT.get().is_some() {
             let requested = be_wasm_gpu_guest::request_device(&wgpu::DeviceDescriptor {
-                label: Some("plugin device"),
+                label: Some("app device"),
                 required_limits: be_wasm_gpu_guest::limits(),
                 ..Default::default()
             });
@@ -55,7 +55,7 @@ impl Surfaces {
             true => {
                 FORMAT.set(Some(format(spec.format)));
                 Some((
-                    gpu().ok_or("the plugin gpu is not ready")?,
+                    gpu().ok_or("the app gpu is not ready")?,
                     format(spec.format),
                 ))
             }

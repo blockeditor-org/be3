@@ -1,5 +1,5 @@
 mod client;
-mod plugins;
+mod apps;
 
 use std::{cell::RefCell, collections::HashMap};
 
@@ -34,10 +34,10 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
 
 pub(crate) fn command(command: DebugCommand) {
     match command {
-        DebugCommand::KillPlugin(plugin_id) => be_host_runtime::kill(&plugin_id),
-        DebugCommand::CrashPlugin(plugin_id) => be_host_runtime::crash(
-            &plugin_id,
-            "It was crashed from the Plugins panel.".to_owned(),
+        DebugCommand::KillApp(app_id) => be_host_runtime::kill(&app_id),
+        DebugCommand::CrashApp(app_id) => be_host_runtime::crash(
+            &app_id,
+            "It was crashed from the Apps panel.".to_owned(),
         ),
     }
 }
@@ -46,6 +46,6 @@ pub(crate) fn view() -> DebugView {
     DebugView {
         client: is_shown(HostPanel::BlockStack).then(client::lines),
         performance: is_shown(HostPanel::Performance).then(be_host_base::performance::rows),
-        plugins: is_shown(HostPanel::Plugins).then(plugins::view),
+        apps: is_shown(HostPanel::Apps).then(apps::view),
     }
 }

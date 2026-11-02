@@ -279,7 +279,7 @@ impl Instances {
                 });
             }
             Call::ImportBlocks { reply, parent } => {
-                let parent = be_host_stack::plugin_graph::parent_of(parent);
+                let parent = be_host_stack::app_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
@@ -321,7 +321,7 @@ impl Instances {
                 parent,
             } => {
                 let source = Uuid::from_bytes(source);
-                let parent = be_host_stack::plugin_graph::parent_of(parent);
+                let parent = be_host_stack::app_graph::parent_of(parent);
                 if !self.can_view(source)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
@@ -345,7 +345,7 @@ impl Instances {
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 be_host_stack::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.listed(be_host_stack::plugin_graph::grants_of(listed));
+                    answering.listed(be_host_stack::app_graph::grants_of(listed));
                 });
             }
             Call::SetAccess {
@@ -358,7 +358,7 @@ impl Instances {
                 be_host_stack::set_access(
                     Uuid::from_bytes(block),
                     Uuid::from_bytes(account),
-                    be_host_stack::plugin_graph::access_of(access),
+                    be_host_stack::app_graph::access_of(access),
                 );
             }
             Call::MakeContactLink {
@@ -369,7 +369,7 @@ impl Instances {
                 let answering = self.answering(instance, reply);
                 let offer = (
                     Uuid::from_bytes(block),
-                    be_host_stack::plugin_graph::access_of(access),
+                    be_host_stack::app_graph::access_of(access),
                 );
                 be_host_stack::make_contact_link(Some(offer), move |made| {
                     answering.send_or_fail(made)
@@ -388,7 +388,7 @@ impl Instances {
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
-                discovery::data_listing(&self.plugin_id, move |index| {
+                discovery::data_listing(&self.app_id, move |index| {
                     answering.send_or_fail(index.and_then(|index| {
                         serde_json::from_slice(&index)
                             .map_err(|error| format!("the data index is {error}"))
@@ -397,7 +397,7 @@ impl Instances {
             }
             Call::ReadData { reply, path } => {
                 let answering = self.answering(instance, reply);
-                discovery::data(&self.plugin_id, &path, move |body| {
+                discovery::data(&self.app_id, &path, move |body| {
                     answering.send_or_fail(body)
                 });
             }

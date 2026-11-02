@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::input_remaps::InputRemapsRoot;
 
 mod remaps_that_do_not_read_say_why_and_store_nothing;
-mod remaps_written_as_text_name_this_plugins_remapper_once_applied;
+mod remaps_written_as_text_name_this_apps_remapper_once_applied;
 mod the_editor_changes_rules_and_keeps_the_comments;
 
 const SIZE: Vec2 = Vec2::new(800.0, 1400.0);

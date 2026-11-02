@@ -1,5 +1,5 @@
 load("@root//buck/program:defs.bzl", "program", "type_bundle")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "app_packages")
 
 cargo_library()
 
@@ -9,17 +9,17 @@ cargo_test(
     env = {"EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)"},
 )
 
-# be carries every plugin's manifest and type module in its executable, so a
+# be carries every app's manifest and type module in its executable, so a
 # release is one file (guides/type_modules.md, "Hosts").
 type_bundle(
-    name = "plugin-types",
-    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
-    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
+    name = "app-types",
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
+    app_types = ["//{}:types".format(package) for package in app_packages()],
 )
 
 cargo_binary(
     env = {
-        "PLUGIN_TYPES": "$(location :plugin-types)",
+        "APP_TYPES": "$(location :app-types)",
     },
 )
 

@@ -44,7 +44,7 @@ pub use editor::{
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use fitting::Fitting;
 pub use graph::{BlockList, Blocks};
-pub use instance::BeuiPlugin;
+pub use instance::BeuiApp;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
@@ -106,8 +106,8 @@ pub fn context() -> beui::native::Context {
 }
 
 #[macro_export]
-macro_rules! beui_plugin {
+macro_rules! beui_app {
     ($manifest:expr, { $($name:ident => $root:ty),+ $(,)? }) => {
-        $crate::be_sdk::plugin!($manifest, { $($name => $crate::BeuiPlugin<$root>),+ });
+        $crate::be_sdk::app!($manifest, { $($name => $crate::BeuiApp<$root>),+ });
     };
 }

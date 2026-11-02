@@ -97,7 +97,7 @@ impl Screens {
             .map_err(|error| error.to_string())?;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                label: Some("plugin device"),
+                label: Some("app device"),
                 required_features: adapter.features() & wgpu::Features::all_webgpu_mask(),
                 required_limits: adapter.limits(),
                 ..Default::default()
@@ -107,7 +107,7 @@ impl Screens {
         let atlas = (adapter.get_info().backend == wgpu::Backend::Gl)
             .then(|| Painted::new(&adapter, canvas, surface));
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("plugin screen layout"),
+            label: Some("app screen layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -120,7 +120,7 @@ impl Screens {
             }],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("plugin screen pipeline layout"),
+            label: Some("app screen pipeline layout"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
@@ -303,7 +303,7 @@ impl Screens {
                     .get_context("2d")
                     .ok()
                     .flatten()
-                    .ok_or("a plugin screen's canvas has no 2d context")?;
+                    .ok_or("an app screen's canvas has no 2d context")?;
                 Target::Copied {
                     canvas,
                     context: context.into(),
@@ -415,7 +415,7 @@ impl Screens {
             let group = screens
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("plugin screen"),
+                    label: Some("app screen"),
                     layout: &screens.layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
@@ -440,7 +440,7 @@ impl Screens {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("plugin screen"),
+                label: Some("app screen"),
             });
         let frame = match target {
             Target::Surface(painted) => self.draw(&mut encoder, source, painted, size, draws),
@@ -448,7 +448,7 @@ impl Screens {
                 let mut atlas = self
                     .atlas
                     .take()
-                    .ok_or("a copied plugin screen has no atlas to copy from")?;
+                    .ok_or("a copied app screen has no atlas to copy from")?;
                 let drawn = self.draw(&mut encoder, source, &mut atlas, size, draws);
                 self.atlas = Some(atlas);
                 drawn
@@ -481,7 +481,7 @@ impl Screens {
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
             status => {
                 return Err(format!(
-                    "a plugin screen's canvas is unavailable: {status:?}"
+                    "an app screen's canvas is unavailable: {status:?}"
                 ));
             }
         };
@@ -491,7 +491,7 @@ impl Screens {
         });
         let draws = draws(self, format);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("plugin screen"),
+            label: Some("app screen"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &target,
                 depth_slice: None,
@@ -525,7 +525,7 @@ impl Screens {
             .or_insert_with(|| {
                 self.device
                     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                        label: Some("plugin screen pipeline"),
+                        label: Some("app screen pipeline"),
                         layout: Some(&self.pipeline_layout),
                         vertex: wgpu::VertexState {
                             module: &self.shader,
@@ -557,7 +557,7 @@ impl Screens {
 impl Layers {
     fn new(device: &wgpu::Device) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("plugin layer layout"),
+            label: Some("app layer layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -582,7 +582,7 @@ impl Layers {
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("plugin layer pipeline layout"),
+            label: Some("app layer pipeline layout"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
@@ -607,7 +607,7 @@ impl Layers {
             .flat_map(|value| value.to_le_bytes())
             .collect();
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("plugin layer piece"),
+            label: Some("app layer piece"),
             size: values.len() as u64,
             usage: wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: true,
@@ -619,7 +619,7 @@ impl Layers {
         buffer.unmap();
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("plugin layer piece"),
+            label: Some("app layer piece"),
             layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -643,7 +643,7 @@ impl Layers {
             .entry(format)
             .or_insert_with(|| {
                 device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("plugin layer pipeline"),
+                    label: Some("app layer pipeline"),
                     layout: Some(&self.pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &self.shader,
@@ -732,7 +732,7 @@ impl Painted {
                         },
                     )
                 })
-                .ok_or("this browser cannot show a plugin's canvas in an 8-bit format")?;
+                .ok_or("this browser cannot show an app's canvas in an 8-bit format")?;
         let configuration = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
@@ -778,7 +778,7 @@ fn copy(
             .and_then(|method| method.dyn_into::<js_sys::Function>())
             .and_then(|method| method.apply(context, &arguments.iter().collect::<js_sys::Array>()))
             .map(|_| ())
-            .map_err(|error| format!("a plugin screen could not be copied: {error:?}"))
+            .map_err(|error| format!("an app screen could not be copied: {error:?}"))
     };
     let number = |value: u32| JsValue::from(value);
     call(

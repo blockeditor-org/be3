@@ -5,7 +5,7 @@
 #
 #   ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt
 
-# The platforms ./scripts/verify's tests compile on: the host, and plugins.
+# The platforms ./scripts/verify's tests compile on: the host, and apps.
 # Everything else - release copies, Android, the desktop and arm64 targets the
 # dist bundles transition to, the web's wasm, the type modules and games on
 # wasm32 - is left to CI and ./scripts/deploy, and beui's HTML core and its

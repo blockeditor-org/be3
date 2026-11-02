@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn accepts_ordered_lifecycle() {
     let mut session = ClientSession::default();
-    assert_eq!(session.hello().plugin.id, "");
+    assert_eq!(session.hello().app.id, "");
     accept(&mut session);
     assert_eq!(session.state(), State::Running);
 

@@ -2,12 +2,12 @@
 
 Today every editor frame has a command palette of its own (Ctrl+Shift+P in
 `be-sdk-beui`'s `BeuiFrame`). It lists the actions that are live in that
-plugin's document: the frame's own (undo, redo, rename, share, file details,
-close) and whatever the editor registered. It cannot see past the plugin it is
+app's document: the frame's own (undo, redo, rename, share, file details,
+close) and whatever the editor registered. It cannot see past the app it is
 in. A text block shown as a direct editor inside a canvas has its palette, and
 the canvas has another, and neither one knows about the workspace. This plan
 replaces them with one palette. It lists the actions of the focused editor, of
-every plugin that contains it, and of the host. Not implemented yet. Items
+every app that contains it, and of the host. Not implemented yet. Items
 marked **(ask)** need a decision from the user during the work.
 
 ## What exists
@@ -20,48 +20,48 @@ marked **(ask)** need a decision from the user during the work.
   from that list when it opens, unless it is handed `PaletteItems::list(..)`.
 - **One focused instance in the host.** block-app keeps a single
   `host.focus: Option<Target>` (`be-host/src/host.rs`). Key, text and IME
-  events go only to that instance (`plugin_host/input.rs`). The host also knows
+  events go only to that instance (`app_host/input.rs`). The host also knows
   every child instance's parent, which is how `report_child_bars`
-  (`plugin_host/runtime.rs`) sends a child's `BarAction` to the plugin that
+  (`app_host/runtime.rs`) sends a child's `BarAction` to the app that
   placed it.
-- **A plugin-to-host message with an echo to the parent.** `BarAction` goes
+- **An app-to-host message with an echo to the parent.** `BarAction` goes
   guest `EditorHost::bar_action` → `editor_session.rs` → `instances.rs` →
-  `editors/plugin.rs`. From there it reaches either the parent plugin as
+  `editors/app.rs`. From there it reaches either the parent app as
   `EditorMessage::ChildBar`, or the host. A new message follows the same path
   and touches the same files: `be-sdk-api` (`lib.rs` variant,
   `instance()`, `direction()`, and `block_ids.rs`), `be-sdk`
   (`host.rs`, `editor_session.rs`, `screens.rs`), `block-app` (`instances.rs`,
-  `runtime.rs`, `editors/plugin.rs`, `editors.rs`) and the `be-sdk-test`
+  `runtime.rs`, `editors/app.rs`, `editors.rs`) and the `be-sdk-test`
   harness.
-- **Host-level keys.** block-app takes F6/Shift+F6 and Escape before plugins
+- **Host-level keys.** block-app takes F6/Shift+F6 and Escape before apps
   (`host::consume_key`), so it can take Ctrl+Shift+P the same way.
 
 ## The design
 
 The host owns the palette, because it is the only one that knows the focused
-instance and its ancestors. Plugins only describe their actions and run one
+instance and its ancestors. Apps only describe their actions and run one
 when asked. The protocol carries plain data, so it stays independent of the
-framework: a plugin written without beui can publish actions the same way.
+framework: an app written without beui can publish actions the same way.
 
 ### Protocol
 
-- `EditorMessage::Actions { instance, actions: Vec<ActionInfo> }`, plugin to
+- `EditorMessage::Actions { instance, actions: Vec<ActionInfo> }`, app to
   host. `ActionInfo` holds `id`, `label`, `glyph`, `shortcuts: Vec<Chord>` (a
   protocol chord: key, ctrl, shift, alt), `enabled`, `checked: Option<bool>`
   and `in_menu`.
-  - The plugin sends it whenever the list or any field in it changes. It is a
-    snapshot, not a diff; a plugin rarely has more than about 50 actions.
-  - The list is what `active_actions()` returns, so it follows the plugin's
+  - The app sends it whenever the list or any field in it changes. It is a
+    snapshot, not a diff; an app rarely has more than about 50 actions.
+  - The list is what `active_actions()` returns, so it follows the app's
     own focus. That needs a reactive focus signal on `Document`
     (`watch_focused()`), so the mirror effect re-runs when the focus moves
     rather than polling for it.
-- `EditorMessage::RunAction { instance, id }`, host to plugin. The guest looks
+- `EditorMessage::RunAction { instance, id }`, host to app. The guest looks
   the id up among its live actions and runs it if it is still enabled. It does
   nothing when the action is gone or disabled, because the list the palette
   showed may be a frame old.
 - A capability flag in the frame spec, like `panes_offered`, says the host
   draws the palette. When it is set, `BeuiFrame` does not register its own
-  Ctrl+Shift+P, so a frame still has a palette in plugin tests and in hosts
+  Ctrl+Shift+P, so a frame still has a palette in app tests and in hosts
   that do not draw one.
 
 ### Guest (`be-sdk-beui`)
@@ -107,18 +107,18 @@ same protocol:
 - close the tab, split right and down, show or hide the files pane;
 - new file.
 
-### Shortcuts across plugins
+### Shortcuts across apps
 
 Keys still go only to the focused instance, which runs its own actions. An
 ancestor's shortcut (say the workspace's Ctrl+P while a canvas has the focus)
 needs the host to try the ancestors' chords when the focused instance leaves a
 key unhandled. Two ways to do that:
 
-1. Plugins report whether they handled each key, and the host retries the
+1. Apps report whether they handled each key, and the host retries the
    chord on each ancestor in turn. This needs a round trip per key.
 2. The host matches the chord against the ancestors' published `ActionInfo`
    shortcuts and sends `RunAction` directly. This needs no round trip, but it
-   only works for keys the focused plugin does not want, which the host cannot
+   only works for keys the focused app does not want, which the host cannot
    know without option 1.
 
 Recommend 1, limited to keys with Ctrl or Alt (**ask**).
@@ -127,7 +127,7 @@ Recommend 1, limited to keys with Ctrl or Alt (**ask**).
 
 - `be-sdk-api`: `Actions` and `RunAction` round-trip, as
   `bar_actions_round_trip` does.
-- `be-sdk-test`: a `BeuiTest` reports a plugin's published actions, follows
+- `be-sdk-test`: a `BeuiTest` reports an app's published actions, follows
   a change in an action's enabled state, and runs an action from a
   `RunAction`.
 - block-app: with a text child focused inside a canvas inside the workspace,

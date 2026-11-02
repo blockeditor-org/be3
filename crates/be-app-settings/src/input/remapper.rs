@@ -50,7 +50,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         };
         match chosen.get() {
             Some(choice) => format!("Edited with {}.", name(choice.editor).unwrap_or_default()),
-            None if none.get() => "No plugin here remaps input.".to_owned(),
+            None if none.get() => "No app here remaps input.".to_owned(),
             None => "None yet: opening them makes them.".to_owned(),
         }
     });
@@ -114,7 +114,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             <LayeredSettingsRow
                 setting={row}
                 label="Remapper"
-                description="The plugin that changes keys, buttons and wheel turns in a Linux session."
+                description="The app that changes keys, buttons and wheel turns in a Linux session."
                 locked={read_only}
                 id={"input.remapper".to_owned()}
             >

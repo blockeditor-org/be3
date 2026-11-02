@@ -40,7 +40,7 @@ pub const USAGE: &str = "Session:
   hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
   frames                    how many frames ran since the last frames, and the longest one's wall time:
-                            the window's, and those the program ran elsewhere, such as a plugin's
+                            the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
   help                      this
@@ -55,7 +55,7 @@ Reading the program:
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   actions [all]             the actions the command palette would list (all: every one)
-  act ID [PANE]             run the action ID as the command palette would, in PANE's plugin when given
+  act ID [PANE]             run the action ID as the command palette would, in PANE's app when given
   a11y TARGET               the node a screen reader would act on, and the actions it offers
   a11y TARGET ACTION [VALUE]   do what a screen reader does: click, focus, increment, set VALUE, ...
   wait TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id is on
@@ -65,10 +65,10 @@ Reading the program:
                             such as WAYLAND_DISPLAY; empty when the program hosts no programs
   windows                   the program's windows, each one's number and size
   paint [TARGET] [in WINDOW]   what a window of the program paints (the main one unless WINDOW names
-                            another), plugins included, as a paint snapshot, of TARGET only when given;
+                            another), apps included, as a paint snapshot, of TARGET only when given;
                             in platform, what reaches the platform instead, below the layers that
                             compose the program's windows, such as space's 3D scene
-  overflows                 what the program shows out of bounds, plugins included, one per line:
+  overflows                 what the program shows out of bounds, apps included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
 The platform's side:

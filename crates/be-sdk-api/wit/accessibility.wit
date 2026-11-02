@@ -1,14 +1,14 @@
-package be3:plugin@0.1.0;
+package be3:app@0.1.0;
 
-/// What a plugin describes to assistive technology, and what it is asked to
-/// do there: AccessKit's shapes, as the plugin and host exchange them.
+/// What an app describes to assistive technology, and what it is asked to
+/// do there: AccessKit's shapes, as the app and host exchange them.
 interface accessibility {
     use be3:shared/ids@0.1.0.{uuid};
 
     /// A tree's id, AccessKit's uuid.
     type tree-id = uuid;
 
-    /// A node of a tree, numbered by the plugin that describes it.
+    /// A node of a tree, numbered by the app that describes it.
     type node-id = u64;
 
     enum action {

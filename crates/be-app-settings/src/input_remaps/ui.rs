@@ -6,7 +6,7 @@ use be_sdk_beui::{ContentProjection, Editor, RemapState, RemapsWatch};
 
 use super::gui::EditorTab;
 use super::raw::TomlTab;
-use super::{MODULE, PLUGIN};
+use super::{MODULE, APP};
 
 pub(super) type Remapper = ContentProjection<InputRemapperContent>;
 
@@ -24,7 +24,7 @@ impl Shared {
         }
         let config = (!text.trim().is_empty()).then(|| text.as_bytes().to_vec());
         self.remapper
-            .operate(InputRemapper::set(PLUGIN, MODULE, config));
+            .operate(InputRemapper::set(APP, MODULE, config));
     }
 }
 

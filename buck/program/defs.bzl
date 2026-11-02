@@ -1,10 +1,10 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
-# A plugin's read-only data, which the app stages beside it under
-# data/<plugin id>/ and a plugin reads through the host (ReadData): each file at
+# An app's read-only data, which the app stages beside it under
+# data/<app id>/ and an app reads through the host (ReadData): each file at
 # files/<path>, and index.json listing every path.
-def _plugin_data_impl(ctx: AnalysisContext) -> list[Provider]:
+def _app_data_impl(ctx: AnalysisContext) -> list[Provider]:
     paths = sorted(ctx.attrs.files)
     for path in paths:
         for segment in path.split("/"):
@@ -14,34 +14,34 @@ def _plugin_data_impl(ctx: AnalysisContext) -> list[Provider]:
     contents["index.json"] = ctx.actions.write_json("index.json", paths, pretty = True)
     return [DefaultInfo(default_output = ctx.actions.copied_dir(ctx.label.name, contents))]
 
-plugin_data = rule(
+app_data = rule(
     attrs = {
         "files": attrs.dict(attrs.string(), attrs.source(), default = {}),
     },
-    impl = _plugin_data_impl,
+    impl = _app_data_impl,
 )
 
-# A plugin's type module (guides/type_modules.md), or nothing for a plugin
-# that brings no block type: what editor()'s :types is, so the app can stage
-# every plugin's the same way.
-def _plugin_types_impl(ctx: AnalysisContext) -> list[Provider]:
+# An app's type module (guides/type_modules.md), or nothing for an app
+# that brings no block type: what app()'s :types is, so the app can stage
+# every app's the same way.
+def _app_types_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.module:
         return [DefaultInfo(default_outputs = ctx.attrs.module[DefaultInfo].default_outputs)]
     return [DefaultInfo()]
 
-plugin_types = rule(
+app_types = rule(
     attrs = {
         "module": attrs.option(attrs.dep(), default = None),
     },
-    impl = _plugin_types_impl,
+    impl = _app_types_impl,
 )
 
-# Every plugin's manifest and type module in one file (buck/program/bundle.sh), which
+# Every app's manifest and type module in one file (buck/program/bundle.sh), which
 # an executable that is its whole release, `be`, carries with include_bytes!.
 def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name + ".bundle")
     command = cmd_args("sh", ctx.attrs._bundle, out.as_output())
-    for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.plugin_types):
+    for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.app_types):
         modules = types[DefaultInfo].default_outputs
         command.add(cmd_args(manifest, modules[0] if modules else "", delimiter = "="))
     ctx.actions.run(command, category = "type_bundle")
@@ -50,7 +50,7 @@ def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
 type_bundle = rule(
     attrs = {
         "manifests": attrs.list(attrs.source()),
-        "plugin_types": attrs.list(attrs.dep()),
+        "app_types": attrs.list(attrs.dep()),
         "_bundle": attrs.default_only(attrs.source(default = "root//buck/program:bundle.sh")),
     },
     impl = _type_bundle_impl,
@@ -74,14 +74,14 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
     )
     return artifact
 
-# Every plugin's modules, libraries and type modules precompiled once, for
+# Every app's modules, libraries and type modules precompiled once, for
 # apps that stage some or all of them (crates/be-host-tests stages a few editors
 # per test): an app given it as `precompiled` takes each .cwasm from here
 # rather than precompiling its own, so apps that share a module share its
 # action, which only runs once an app asks for its output.
 PrecompiledInfo = provider(fields = {"artifacts": provider_field(dict)})
 
-def _precompiled_plugins_impl(ctx: AnalysisContext) -> list[Provider]:
+def _precompiled_apps_impl(ctx: AnalysisContext) -> list[Provider]:
     artifacts = {}
     for module in ctx.attrs.modules:
         info = module.get(WasmLibrariesInfo)
@@ -89,19 +89,19 @@ def _precompiled_plugins_impl(ctx: AnalysisContext) -> list[Provider]:
             if library not in artifacts:
                 name = "library{}-{}".format(len(artifacts), library.basename.removesuffix(".wasm"))
                 artifacts[library] = _precompile(ctx, library, name)
-    for module in ctx.attrs.modules + ctx.attrs.plugin_types:
+    for module in ctx.attrs.modules + ctx.attrs.app_types:
         for wasm in module[DefaultInfo].default_outputs[:1]:
             artifacts[wasm] = _precompile(ctx, wasm)
     return [DefaultInfo(default_outputs = artifacts.values()), PrecompiledInfo(artifacts = artifacts)]
 
-precompiled_plugins = rule(
+precompiled_apps = rule(
     attrs = {
         "modules": attrs.list(attrs.dep()),
-        "plugin_types": attrs.list(attrs.dep(), default = []),
+        "app_types": attrs.list(attrs.dep(), default = []),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.dep(providers = [RunInfo]),
     },
-    impl = _precompiled_plugins_impl,
+    impl = _precompiled_apps_impl,
 )
 
 def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
@@ -113,13 +113,13 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
     return artifacts[wasm]
 
 # The app as it runs (buck/program/stage.sh): the executable under cargo's name, and
-# beside it every plugin, each module precompiled for precompile_target in an
-# action of its own by the precompiler, plugin-test-runner as the workers run
+# beside it every app, each module precompiled for precompile_target in an
+# action of its own by the precompiler, app-test-runner as the workers run
 # it, whatever the app is built for, and every library in their closures
-# (guides/plugin_libraries.md), each with its .cwasm, and the type modules; with no
-# precompiler, each plugin is its module alone. With no binary it
-# is the plugins alone. `index` writes the plugins.json the app finds the
-# plugins through. The web bundle is this rule too: `bindgen` runs
+# (guides/app_libraries.md), each with its .cwasm, and the type modules; with no
+# precompiler, each app is its module alone. With no binary it
+# is the apps alone. `index` writes the apps.json the app finds the
+# apps through. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module. `[archive]` is the whole directory as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/apps
@@ -152,8 +152,8 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     for module in ctx.attrs.linked:
         command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
-    plugin_types = ctx.attrs.plugin_types or [None] * len(ctx.attrs.manifests)
-    for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, plugin_types):
+    app_types = ctx.attrs.app_types or [None] * len(ctx.attrs.manifests)
+    for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, app_types):
         wasm = module[DefaultInfo].default_outputs[0]
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
@@ -161,7 +161,7 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
             command.add(cmd_args("--artifact=", _compiled(ctx, wasm), delimiter = ""))
         for type_module in types[DefaultInfo].default_outputs if types else []:
-            command.add(cmd_args("--plugin-type=", type_module, delimiter = ""))
+            command.add(cmd_args("--app-type=", type_module, delimiter = ""))
             if ctx.attrs.precompiler or ctx.attrs.precompiled:
                 command.add(cmd_args("--type-artifact=", _compiled(ctx, type_module), delimiter = ""))
     for module in ctx.attrs.bindgen:
@@ -205,27 +205,27 @@ program = rule(
     attrs = {
         "binary": attrs.option(attrs.dep(), default = None),
         "bindgen": attrs.list(attrs.dep(), default = []),
-        # Each precompiled plugin without its module, for an app that only
+        # Each precompiled app without its module, for an app that only
         # falls back to the module.
         "compiled_only": attrs.bool(default = False),
-        # Each plugin's read-only data (plugin_data), in the order of manifests.
+        # Each app's read-only data (app_data), in the order of manifests.
         "data": attrs.list(attrs.source(), default = []),
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
         # Modules staged as they are, like files, with every library they
-        # need: a linked module that is not a plugin with a manifest, such as
+        # need: a linked module that is not an app with a manifest, such as
         # a test's.
         "linked": attrs.list(attrs.dep(), default = []),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
-        # Each plugin's type module (plugin_types), in the order of manifests:
+        # Each app's type module (app_types), in the order of manifests:
         # staged beside its editor module under the name its manifest's
         # block_types give it.
-        "plugin_types": attrs.list(attrs.dep(), default = []),
+        "app_types": attrs.list(attrs.dep(), default = []),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         # Where each .cwasm comes from in place of the precompiler: a
-        # precompiled_plugins target over these modules or more.
+        # precompiled_apps target over these modules or more.
         "precompiled": attrs.option(attrs.dep(providers = [PrecompiledInfo]), default = None),
         "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
         # What `buck2 run` runs a bundle without an executable with, followed

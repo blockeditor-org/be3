@@ -28,7 +28,7 @@ fn a_new_images_dialog_is_modal_while_its_host_blocks_everything() {
     assert_eq!(
         modal(&dialog),
         vec![true],
-        "nothing in the plugin blocks around its own dialog, so it is modal as its host says"
+        "nothing in the app blocks around its own dialog, so it is modal as its host says"
     );
 
     dialog.set_dialog(DialogFrame::default());

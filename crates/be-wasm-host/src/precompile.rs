@@ -10,14 +10,14 @@ use wasmtime::{Engine, Module, OptLevel};
 use crate::{Flavor, PRECOMPILED_EXTENSION, Stored, configuration, module};
 
 struct Engines {
-    plugin: Engine,
+    app: Engine,
     pure: Engine,
 }
 
 impl Engines {
     fn new(target: Option<&str>, quick: bool) -> Result<Self, String> {
         Ok(Self {
-            plugin: compiler(Flavor::Plugin, target, quick)?,
+            app: compiler(Flavor::App, target, quick)?,
             pure: compiler(Flavor::Pure, target, quick)?,
         })
     }
@@ -25,7 +25,7 @@ impl Engines {
     fn for_module(&self, bytes: &[u8]) -> &Engine {
         match Module::validate(&self.pure, bytes) {
             Ok(()) => &self.pure,
-            Err(_) => &self.plugin,
+            Err(_) => &self.app,
         }
     }
 }

@@ -9,7 +9,7 @@ use be_tool_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    plugins();
+    apps();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -103,33 +103,33 @@ async fn run() -> Result<String, String> {
     }
 }
 
-const PLUGIN_TYPES: &[u8] = include_bytes!(env!("PLUGIN_TYPES"));
+const APP_TYPES: &[u8] = include_bytes!(env!("APP_TYPES"));
 
-fn plugins() -> &'static [be_tool_cli::plugins::Plugin] {
-    if be_tool_cli::plugins::installed().is_empty() {
-        match be_tool_cli::plugins::parse(PLUGIN_TYPES) {
-            Ok(plugins) => return be_tool_cli::plugins::install(plugins),
+fn apps() -> &'static [be_tool_cli::apps::App] {
+    if be_tool_cli::apps::installed().is_empty() {
+        match be_tool_cli::apps::parse(APP_TYPES) {
+            Ok(apps) => return be_tool_cli::apps::install(apps),
             Err(error) => eprintln!("be: {error}"),
         }
     }
-    be_tool_cli::plugins::installed()
+    be_tool_cli::apps::installed()
 }
 
 fn sources(settings: &Settings) -> be_tool_cli::tracker::Sources {
     let cache = settings.cache.join("modules");
-    let plugins = plugins();
+    let apps = apps();
     Box::new(move || {
         let mut sources = Vec::new();
-        for plugin in plugins.iter().filter(|plugin| !plugin.module.is_empty()) {
-            let module = plugin.module;
+        for app in apps.iter().filter(|app| !app.module.is_empty()) {
+            let module = app.module;
             sources.push(
                 be_block_type_host::modules::wasm(
-                    plugin.manifest.identity.id.clone(),
+                    app.manifest.identity.id.clone(),
                     Ok(be_block_type_host::tag_of(module)),
                     Some(cache.clone()),
                     move |host| host.load_bytes(module),
                 )
-                .declaring(plugin.declared()),
+                .declaring(app.declared()),
             );
         }
         sources

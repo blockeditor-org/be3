@@ -11,7 +11,7 @@ use beui_core::document::Document;
 
 pub use views::{Report, View, Views, anchored_layer, anchored_view, window_view};
 
-pub trait PluginRuntime {
+pub trait AppRuntime {
     fn launch(
         &self,
         host: &EditorHost,
@@ -38,10 +38,10 @@ pub trait ViewRunner {
 
 // unsafe(ffi)
 unsafe extern "Rust" {
-    fn __be3_beui_plugin_runtime() -> &'static dyn PluginRuntime;
+    fn __be3_beui_app_runtime() -> &'static dyn AppRuntime;
 }
 
-pub fn runtime() -> &'static dyn PluginRuntime {
+pub fn runtime() -> &'static dyn AppRuntime {
     // unsafe(ffi)
-    unsafe { __be3_beui_plugin_runtime() }
+    unsafe { __be3_beui_app_runtime() }
 }

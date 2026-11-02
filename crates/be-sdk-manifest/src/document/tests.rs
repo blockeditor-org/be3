@@ -21,7 +21,7 @@ pub(super) const DOCUMENT: &str = r#"{
     "entry_point": "counter.wasm"
 }"#;
 
-mod a_plugin_declares_its_block_types_and_their_module;
+mod an_app_declares_its_block_types_and_their_module;
 mod an_editor_is_found_by_its_id;
 mod an_editor_names_the_editors_it_opens_with;
 mod an_editor_that_edits_nothing_declares_no_templates;

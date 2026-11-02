@@ -103,7 +103,7 @@ genrule(
     visibility = ["PUBLIC"],
 )
 
-# wasm-opt, which a release build runs over every plugin and game module
+# wasm-opt, which a release build runs over every app and game module
 # (buck/wasm/defs.bzl), and wasm-as.
 binaryen_version = "133"
 
@@ -420,8 +420,8 @@ command_alias(
 
 # Every wasm link: rust-lld, through crates/be-wasm-link, which drops the
 # -fuse-ld=lld prelude//os_lookup adds (it has no case for WebAssembly and falls
-# back to linux) and makes the links of the libraries plugins share and of the
-# plugins linked against them (guides/plugin_libraries.md).
+# back to linux) and makes the links of the libraries apps share and of the
+# apps linked against them (guides/app_libraries.md).
 command_alias(
     name = "wasm-ld",
     args = [

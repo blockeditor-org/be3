@@ -48,7 +48,7 @@ env:
 # than there.
 jobs:
   # ./scripts/ci, the way a person runs it: one buck2 command builds the
-  # fixes and runs the lints, the tests and the plugin tests on the build
+  # fixes and runs the lints, the tests and the app tests on the build
   # server, and the script writes what they changed into the checkout, the
   # accepted paintings in each crate's snapshots/ among them. On a pull request it fixes and
   # accepts instead of only reporting, and anything that leaves the checkout

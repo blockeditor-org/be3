@@ -10,7 +10,7 @@ use crate::threads::{Spawner, Spawns};
 pub(crate) struct Interrupt {
     engine: Engine,
     interrupted: AtomicBool,
-    plugins: Mutex<Vec<Weak<Spawner>>>,
+    apps: Mutex<Vec<Weak<Spawner>>>,
 }
 
 #[derive(Clone)]
@@ -21,7 +21,7 @@ impl Interrupt {
         Arc::new(Self {
             engine,
             interrupted: AtomicBool::new(false),
-            plugins: Mutex::new(Vec::new()),
+            apps: Mutex::new(Vec::new()),
         })
     }
 
@@ -33,10 +33,10 @@ impl Interrupt {
         self.engine.increment_epoch();
     }
 
-    pub(crate) fn watch(&self, plugin: &Arc<Spawner>) {
-        if let Ok(mut plugins) = self.plugins.lock() {
-            plugins.retain(|plugin| plugin.strong_count() > 0);
-            plugins.push(Arc::downgrade(plugin));
+    pub(crate) fn watch(&self, app: &Arc<Spawner>) {
+        if let Ok(mut apps) = self.apps.lock() {
+            apps.retain(|app| app.strong_count() > 0);
+            apps.push(Arc::downgrade(app));
         }
     }
 }
@@ -51,12 +51,12 @@ impl Interrupter {
             return;
         }
         self.0.tick();
-        let plugins: Vec<Arc<Spawner>> = match self.0.plugins.lock() {
-            Ok(plugins) => plugins.iter().filter_map(Weak::upgrade).collect(),
+        let apps: Vec<Arc<Spawner>> = match self.0.apps.lock() {
+            Ok(apps) => apps.iter().filter_map(Weak::upgrade).collect(),
             Err(_) => return,
         };
-        for plugin in plugins {
-            plugin.reap();
+        for app in apps {
+            app.reap();
         }
     }
 }

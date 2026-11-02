@@ -1,6 +1,6 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
-editor(
+app(
     module = "infinite_canvas",
     types = "//crates/be-type-infinite-canvas:module",
 )

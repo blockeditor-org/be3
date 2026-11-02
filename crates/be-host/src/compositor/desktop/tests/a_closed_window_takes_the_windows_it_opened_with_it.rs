@@ -2,7 +2,7 @@ use be_sdk_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 
-const PLUGIN: &str = "test.windows";
+const APP: &str = "test.windows";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
 fn open(window: u64, opener: View) -> WindowRequest {
@@ -29,11 +29,11 @@ fn open(window: u64, opener: View) -> WindowRequest {
 fn a_closed_window_takes_the_windows_it_opened_with_it() {
     let _root = beui::reactive::RootScope::new();
     install();
-    let frame = overlaid(PLUGIN.to_owned(), INSTANCE, View::MAIN);
-    let first = overlaid(PLUGIN.to_owned(), INSTANCE, View::window(ViewId(1)));
-    let second = overlaid(PLUGIN.to_owned(), INSTANCE, View::window(ViewId(2)));
+    let frame = overlaid(APP.to_owned(), INSTANCE, View::MAIN);
+    let first = overlaid(APP.to_owned(), INSTANCE, View::window(ViewId(1)));
+    let second = overlaid(APP.to_owned(), INSTANCE, View::window(ViewId(2)));
     be_host_runtime::request_windows(
-        PLUGIN,
+        APP,
         vec![
             open(1, View::MAIN),
             open(2, View::window(ViewId(1))),
@@ -51,7 +51,7 @@ fn a_closed_window_takes_the_windows_it_opened_with_it() {
     assert_eq!(second.get_untracked(), [ViewId(3)]);
 
     dismiss(&FloatedKey {
-        plugin: PLUGIN.to_owned(),
+        app: APP.to_owned(),
         instance: INSTANCE,
         window: ViewId(2),
     });
@@ -67,7 +67,7 @@ fn a_closed_window_takes_the_windows_it_opened_with_it() {
     );
 
     dismiss(&FloatedKey {
-        plugin: PLUGIN.to_owned(),
+        app: APP.to_owned(),
         instance: INSTANCE,
         window: ViewId(1),
     });

@@ -5,15 +5,16 @@ use crate::Root;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct InputRemapper {
-    pub plugin: Option<String>,
+    #[model(rename = "plugin")]
+    pub app: Option<String>,
     pub module: Option<String>,
     pub config: Option<Bytes>,
 }
 
 impl InputRemapper {
-    pub fn set(plugin: &str, module: &str, config: Option<Vec<u8>>) -> Edit {
+    pub fn set(app: &str, module: &str, config: Option<Vec<u8>>) -> Edit {
         [
-            Self::PLUGIN.set(ObjectId::ROOT, &Some(plugin.to_owned())),
+            Self::APP.set(ObjectId::ROOT, &Some(app.to_owned())),
             Self::MODULE.set(ObjectId::ROOT, &Some(module.to_owned())),
             Self::CONFIG.set(ObjectId::ROOT, &config.map(Bytes)),
         ]
@@ -23,7 +24,7 @@ impl InputRemapper {
 
     pub fn runs(&self) -> Option<(&str, &str, &[u8])> {
         Some((
-            self.plugin.as_deref()?,
+            self.app.as_deref()?,
             self.module.as_deref()?,
             self.config.as_deref()?.as_slice(),
         ))

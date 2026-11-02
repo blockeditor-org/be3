@@ -264,7 +264,7 @@ impl Settling {
         let shared = Arc::clone(&self.shared);
         let device = device.clone();
         self.poller = std::thread::Builder::new()
-            .name("plugin gpu maps".into())
+            .name("app gpu maps".into())
             .spawn(move || {
                 loop {
                     {

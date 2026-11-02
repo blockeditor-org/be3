@@ -1,6 +1,6 @@
 use be_lib_stable_hash::HashSet;
 use be_sdk_api::{
-    EditorInstanceId, Hello, HelloAccepted, PluginIdentity, ScreenId, SurfaceSpec, SurfaceSupport,
+    EditorInstanceId, Hello, HelloAccepted, AppIdentity, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 
 use crate::wire::Delivery;
@@ -15,7 +15,7 @@ pub enum State {
 pub struct ClientSession {
     state: State,
     screens: HashSet<ScreenId>,
-    plugin: PluginIdentity,
+    app: AppIdentity,
     instances: HashSet<EditorInstanceId>,
     surface: Option<SurfaceSpec>,
 }
@@ -31,7 +31,7 @@ impl ClientSession {
         Self {
             state: State::AwaitingHello,
             screens: HashSet::default(),
-            plugin: PluginIdentity {
+            app: AppIdentity {
                 id: id.into(),
                 name: name.into(),
                 version: version.into(),
@@ -51,7 +51,7 @@ impl ClientSession {
 
     pub fn hello(&self) -> Hello {
         Hello {
-            plugin: self.plugin.clone(),
+            app: self.app.clone(),
             surface: match cfg!(target_arch = "wasm32") {
                 true => SurfaceSupport::Texture,
                 false => SurfaceSupport::None,
@@ -67,15 +67,15 @@ impl ClientSession {
                 Ok(())
             }
             (State::AwaitingHello, delivery) => Err(format!(
-                "the host sent {} before accepting this plugin",
+                "the host sent {} before accepting this app",
                 delivery.name()
             )),
             (State::Running, Delivery::Accepted(_)) => {
-                Err("the host accepted this plugin twice".into())
+                Err("the host accepted this app twice".into())
             }
             (State::Running, Delivery::Screens(screens)) => {
                 if self.surface.is_none() {
-                    return Err("the host sent screens to a plugin it gave no surface".into());
+                    return Err("the host sent screens to an app it gave no surface".into());
                 }
                 if let Some(request) = screens
                     .iter()
@@ -93,7 +93,7 @@ impl ClientSession {
                 match input.screen.is_opened() || self.screens.contains(&input.screen) {
                     true => Ok(()),
                     false => Err(format!(
-                        "input arrived for screen {}, which this plugin was not given",
+                        "input arrived for screen {}, which this app was not given",
                         input.screen.0
                     )),
                 }
@@ -114,7 +114,7 @@ impl ClientSession {
             },
             (State::Running, Delivery::Draw { .. }) => match self.surface.is_some() {
                 true => Ok(()),
-                false => Err("the host asked a plugin it gave no surface to draw a frame".into()),
+                false => Err("the host asked an app it gave no surface to draw a frame".into()),
             },
             (State::Running, Delivery::Shutdown) => {
                 self.state = State::Closed;

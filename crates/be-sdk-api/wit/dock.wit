@@ -1,4 +1,4 @@
-package be3:plugin@0.1.0;
+package be3:app@0.1.0;
 
 /// What the host tells an editor instance about the docks it declares and
 /// the docks of the children it placed. What the instance says back travels

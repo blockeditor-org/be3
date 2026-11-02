@@ -7,7 +7,7 @@ pub mod prefixes;
 pub mod root;
 pub mod tags;
 
-be_sdk_beui::beui_plugin!("../manifest.json", {
+be_sdk_beui::beui_app!("../manifest.json", {
     settings => root::SettingsRoot,
     profile => root::SettingsProfileRoot,
     display => display::DisplaySettingsRoot,

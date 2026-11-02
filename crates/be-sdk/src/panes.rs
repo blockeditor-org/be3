@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::cooldown::Cooldown;
 
-use crate::plugin::PaintTarget;
+use crate::app::PaintTarget;
 use crate::screens::Screens;
 
 #[derive(Default)]
@@ -169,7 +169,7 @@ impl Panes {
 fn clear(device: &wgpu::Device, queue: &wgpu::Queue, view: &wgpu::TextureView) {
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("plugin surface clear"),
+        label: Some("app surface clear"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             resolve_target: None,

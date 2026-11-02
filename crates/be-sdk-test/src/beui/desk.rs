@@ -351,7 +351,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             desk.anchored.clear();
             return;
         };
-        let screens = &self.plugin.layout().screens;
+        let screens = &self.app.layout().screens;
         desk.anchored = output
             .escaped
             .iter()

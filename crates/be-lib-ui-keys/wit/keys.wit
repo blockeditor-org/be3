@@ -1,6 +1,6 @@
 package be3:keys@0.1.0;
 
-/// The keys and modifiers beui, the plugin protocol and the terminal share.
+/// The keys and modifiers beui, the app protocol and the terminal share.
 /// The Rust in `be-lib-ui-keys` is generated from this. None of it is frozen
 /// (guides/frozen_formats.md), so a shape may change like any other.
 interface types {

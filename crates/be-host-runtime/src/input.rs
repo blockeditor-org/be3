@@ -77,7 +77,7 @@ impl InputForwarder {
         every_sample: bool,
         aim: &dyn Fn(Option<beui::Over>, Pos2) -> beui::Aim,
         screen_of: &dyn Fn(beui::NodeId) -> Option<ScreenId>,
-    ) -> Vec<super::calls::PluginCall> {
+    ) -> Vec<super::calls::AppCall> {
         let mut batch = InputBatch::new(screen, every_sample);
         let input = match std::mem::replace(&mut self.started, true) || !input.focused {
             true => std::borrow::Cow::Borrowed(input),
@@ -103,7 +103,7 @@ impl InputForwarder {
         }
         match batch.events.is_empty() {
             true => Vec::new(),
-            false => vec![super::calls::PluginCall::Input(batch)],
+            false => vec![super::calls::AppCall::Input(batch)],
         }
     }
 

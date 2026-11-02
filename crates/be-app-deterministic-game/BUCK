@@ -1,11 +1,11 @@
 load("@root//buck/cargo:defs.bzl", "game_packages")
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
 # The tests play real games, so they are compiled against the modules those
-# games build. Every game is staged beside the app as this plugin's data,
+# games build. Every game is staged beside the app as this app's data,
 # games/<game>.wasm, which the creation dialog offers to copy into the
 # workspace.
-editor(
+app(
     data = {
         "games/{}.wasm".format(package.removeprefix("crates/tabletop-rules-").replace("-", "_")): "//{}:module".format(package) for package in game_packages()
     },

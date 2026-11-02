@@ -7,7 +7,7 @@ quicker: guides/running/drive.md):
     ./scripts/buck run //crates/be-host:web-dev
     source ~/.cache/be3/web-dev/env
 
-The command builds the web bundle with every plugin and starts be-server and Caddy in front
+The command builds the web bundle with every app and starts be-server and Caddy in front
 of it on http://127.0.0.1:8090. It then opens the page in a headless Chromium and returns
 once the host is up. The page is signed in to `dev@localhost` (password `dev-password`) on
 that be-server, with the personal organization open on My files, so there is no account or
@@ -15,7 +15,7 @@ organization to make first. The server's data and the browser's profile live in 
 survive restarts, so running the command again reopens the same organization, which is how to
 pick up a rebuild.
 - `-- --fresh` deletes the data first.
-- `-- --webgl` starts the browser without WebGPU, so the host and its plugins draw with WebGL.
+- `-- --webgl` starts the browser without WebGPU, so the host and its apps draw with WebGL.
 - `-- --stop` stops the browser and the servers.
 
 `BLOCK_WEB_DEV_DIR` moves the directory. `BLOCK_WEB_DEV_PORT` moves the page, and be-server,
@@ -26,7 +26,7 @@ It needs Node and Playwright's Chromium: `npm install -g playwright` and
 `npx playwright install chromium` where they are missing.
 
 `env` defines `drive`, which runs one command against the page and exits. Everything the page
-and its plugins' workers log to the console goes to `~/.cache/be3/web-dev/browser.log` as
+and its apps' workers log to the console goes to `~/.cache/be3/web-dev/browser.log` as
 `INFO:CONSOLE` lines, among the browser's own output. be-server's goes to `server.log`.
 
 What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&automation`; those
@@ -82,29 +82,29 @@ native one (the inspector button shows a stand-in, since the inspector reads the
 `./scripts/test //crates/beui-demo-html:web-test` opens every page in Chromium and drives the dock,
 the on-screen keyboard and the floating window there (crates/beui-demo-html/src/drive).
 
-## Plugins on the page
+## Apps on the page
 
-Each plugin runs in a Web Worker of its own with its own GPU device
+Each app runs in a Web Worker of its own with its own GPU device
 (crates/be-host-runtime/src/web; be-wasm-guest-host's worker runtime,
-src/guest.js, which runs type modules too; crates/be-host/web/plugin.js,
-which it loads for a plugin; and crates/be-wasm-gpu-shim, which answers the
-plugin's gpu abi there). Nothing a
-plugin draws leaves its worker; the page hands the worker canvases instead:
-- Screens: each shown screen is a `<canvas>` in `#plugins`, behind the host's
+src/guest.js, which runs type modules too; crates/be-host/web/app.js,
+which it loads for an app; and crates/be-wasm-gpu-shim, which answers the
+app's gpu abi there). Nothing an
+app draws leaves its worker; the page hands the worker canvases instead:
+- Screens: each shown screen is a `<canvas>` in `#apps`, behind the host's
   canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed
   by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The host's
   canvas punches a hole where the screen shows.
 - Anchored views (menus, popovers, sheets: PROTOCOL.md, Anchored views): each
   worker that has opened one gets one more canvas, the overlay canvas, in
   `#layers` above `#block`, covering the whole viewport with
-  `pointer-events: none`. It is made on the plugin's first anchored view and
+  `pointer-events: none`. It is made on the app's first anchored view and
   kept (`web/overlay.rs`). The page lists the anchored views' painted pieces
   (`anchored_blits`, the same ones native draws) as a surface, a rectangle in
   the canvas's pixels and one in the surface's; the shim redraws the canvas
   from them whenever the list changes or a listed surface is presented. The
-  page clips the canvas to the plugin's anchor bounds, hides it
-  (`visibility:hidden`) while the plugin has no anchored view, and stacks the
-  canvases in the order of each plugin's newest one. Scrims are drawn by the
+  page clips the canvas to the app's anchor bounds, hides it
+  (`visibility:hidden`) while the app has no anchored view, and stacks the
+  canvases in the order of each app's newest one. Scrims are drawn by the
   host's canvas, below every overlay. Input still lands on the host's canvas, which
   routes it to anchored views and dismisses them as natively.
 - A child placed in an anchored view, above its pixels, shows under them on the web,
@@ -113,8 +113,8 @@ plugin draws leaves its worker; the page hands the worker canvases instead:
 Screens and anchored views are placed from what the host's canvas drew in its last frame,
 so on the web they follow the host by one frame. To see an anchored view, open one (`drive
 click TARGET right` on a file-tree row) and check `drive eval` on
-`#layers canvas`'s style. `drive shot` captures the plugins' canvases with
-`-- --webgl`; with WebGPU in the headless browser it can time out once a plugin
+`#layers canvas`'s style. `drive shot` captures the apps' canvases with
+`-- --webgl`; with WebGPU in the headless browser it can time out once an app
 canvas is shown.
 
 ## Files and offline

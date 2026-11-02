@@ -46,8 +46,8 @@ use be_sdk_api::{
 use be_sdk_manifest::ShellRequest;
 use beui::native::Document;
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorRegistry, PluginEditor, SidebarDragSource,
-    plugin::InstanceSource,
+    ArtifactSession, ArtifactStatus, EditorRegistry, AppEditor, SidebarDragSource,
+    app::InstanceSource,
 };
 use host_state::{HostStateStore, SavedAccount, ServerLocation};
 use invite_link::InviteLink;
@@ -131,7 +131,7 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     if arguments.desktop {
         block_app.run_as_desktop();
     }
-    block_app.warm_plugins();
+    block_app.warm_apps();
     beui_host::native::run_with(options, Shell::new(block_app))
 }
 
@@ -487,7 +487,7 @@ struct BlockApp {
     be_connected: bool,
     resumed: bool,
     warmed: bool,
-    plugins_in_use: Vec<String>,
+    apps_in_use: Vec<String>,
     pending_organization_request: Option<host::Mailbox>,
     organization_created: u64,
     organization_error: Option<String>,
@@ -768,7 +768,7 @@ impl BlockApp {
             be_connected: false,
             resumed: false,
             warmed: false,
-            plugins_in_use: Vec::new(),
+            apps_in_use: Vec::new(),
             pending_organization_request: None,
             organization_created: 0,
             organization_error: None,
@@ -2102,7 +2102,7 @@ impl BlockApp {
         self.block_types.insert(id, view_type);
         let open_as = self
             .editors
-            .with(|open| open.get(&id).and_then(PluginEditor::editor_id));
+            .with(|open| open.get(&id).and_then(AppEditor::editor_id));
         if open_as != Some(shell_editor) {
             let opened = editors::Opened {
                 id,
@@ -2141,16 +2141,16 @@ impl BlockApp {
         let Some(shell) = self.shell else {
             return;
         };
-        let plugin = self
+        let app = self
             .with_editor(shell, |editor| {
-                editor.plugin().map(|plugin| plugin.identity.id.clone())
+                editor.app().map(|app| app.identity.id.clone())
             })
             .flatten();
-        let Some(plugin) = plugin.filter(|plugin| crashed.contains(plugin)) else {
+        let Some(app) = app.filter(|app| crashed.contains(app)) else {
             return;
         };
         self.stop_shell();
-        be_host_runtime::kill(&plugin);
+        be_host_runtime::kill(&app);
         self.choosing_session = true;
     }
 
@@ -2228,7 +2228,7 @@ impl BlockApp {
         }
     }
 
-    fn with_editor<R>(&self, id: Uuid, act: impl FnOnce(&mut PluginEditor) -> R) -> Option<R> {
+    fn with_editor<R>(&self, id: Uuid, act: impl FnOnce(&mut AppEditor) -> R) -> Option<R> {
         self.editors.with(|open| open.get_mut(&id).map(act))
     }
 
@@ -2340,7 +2340,7 @@ impl BlockApp {
         let hosted = self.editors.hosted_sources();
         for (id, source) in editors.iter().chain(&hosted) {
             let (settings, commits): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_commits(&source.plugin_id, source.instance)
+                be_host_runtime::take_child_commits(&source.app_id, source.instance)
                     .into_iter()
                     .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
             for commit in settings {
@@ -2352,7 +2352,7 @@ impl BlockApp {
                 self.editors.commit_creations(*id, commits);
             }
             let (settings, dismissed): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_dismissals(&source.plugin_id, source.instance)
+                be_host_runtime::take_child_dismissals(&source.app_id, source.instance)
                     .into_iter()
                     .partition(|child| self.editors.settings_block(*id, *child).is_some());
             for child in settings {
@@ -2720,7 +2720,7 @@ impl BlockApp {
         desk().deliver(self);
         #[cfg(target_os = "linux")]
         self.run_notifications();
-        self.warm_plugins();
+        self.warm_apps();
         if !self.signed_in {
             be_host_stack::stop();
             performance::end_frame();
@@ -2773,18 +2773,18 @@ impl BlockApp {
             be_host_desktop::remap::frame(&self.host_state);
         }
         self.poll_artifacts();
-        self.record_plugins_in_use();
+        self.record_apps_in_use();
         be_host_runtime::flush();
         performance::end_frame();
     }
 
-    fn warm_plugins(&mut self) {
+    fn warm_apps(&mut self) {
         let opening = self.signed_in || self.pending_account_request.is_some();
         if !opening || std::mem::replace(&mut self.warmed, true) {
             return;
         }
         let shell = self.root_settings.shell().into_bytes();
-        let in_use = self.host_state.warm_plugins().unwrap_or_default();
+        let in_use = self.host_state.warm_apps().unwrap_or_default();
         let manifests = be_host_stack::discovery::manifests();
         let opened: Vec<[u8; 16]> = manifests
             .iter()
@@ -2801,18 +2801,18 @@ impl BlockApp {
                 be_host_runtime::warm(&manifest);
             }
         }
-        self.plugins_in_use = in_use;
+        self.apps_in_use = in_use;
     }
 
-    fn record_plugins_in_use(&mut self) {
+    fn record_apps_in_use(&mut self) {
         let in_use = be_host_runtime::in_use();
-        if in_use.is_empty() || in_use == self.plugins_in_use {
+        if in_use.is_empty() || in_use == self.apps_in_use {
             return;
         }
-        if let Err(error) = self.host_state.set_warm_plugins(&in_use) {
-            eprintln!("block-app: the plugins in use were not saved: {error}");
+        if let Err(error) = self.host_state.set_warm_apps(&in_use) {
+            eprintln!("block-app: the apps in use were not saved: {error}");
         }
-        self.plugins_in_use = in_use;
+        self.apps_in_use = in_use;
     }
 
     fn sync_be_stack(&mut self) {
@@ -3395,7 +3395,7 @@ impl BlockApp {
             leaving: self.leaving.is_some(),
             presenting: self
                 .editors
-                .with(|open| open.values().any(PluginEditor::presenting_now)),
+                .with(|open| open.values().any(AppEditor::presenting_now)),
             debug: debug::view(),
             toasts: ui::notice_toasts(),
             keep_display: self.display_round,

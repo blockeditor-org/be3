@@ -4,7 +4,7 @@ use std::fmt;
 
 be_wasm_ops_bindgen::generate!({
     path: "wit",
-    world: "editor-plugin",
+    world: "editor-app",
     deps: ["../be-lib-ui-keys/wit", "../be-lib-ui-preferences/wit", "../be-lib-ui-types/wit", "../be-wasm-ops/wit", "../be-wasm-gpu-abi/wit", "../be-sdk-manifest/wit"],
     uses: {
         "be3:manifest/types@0.1.0": ::be_sdk_manifest::types,
@@ -152,7 +152,7 @@ pub use be_lib_ui_types::{ImeArea, WindowRequests};
 use be_sdk_manifest::extension_of;
 pub use be_sdk_manifest::{
     BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
-    MAX_STRING_BYTES, PanMode, ParentView, PluginIdentity, Press, ResizeMode, TemplateCategory,
+    MAX_STRING_BYTES, PanMode, ParentView, AppIdentity, Press, ResizeMode, TemplateCategory,
 };
 pub use block_ids::BlockIdRole;
 pub use docking::{
@@ -512,13 +512,13 @@ impl HostTransform {
 }
 
 impl HostPanel {
-    pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Plugins];
+    pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Apps];
 
     pub fn title(self) -> &'static str {
         match self {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
-            Self::Plugins => "Plugins",
+            Self::Apps => "Apps",
             Self::Menu => "Menu",
         }
     }

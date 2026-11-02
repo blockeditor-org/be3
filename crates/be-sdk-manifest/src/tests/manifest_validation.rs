@@ -24,8 +24,8 @@ fn manifest_validation() {
         accepts: Vec::new(),
         opens: Vec::new(),
     };
-    let manifest = PluginManifest {
-        identity: PluginIdentity {
+    let manifest = AppManifest {
+        identity: AppIdentity {
             id: "be3.counter".into(),
             name: "Counter".into(),
             version: "1".into(),

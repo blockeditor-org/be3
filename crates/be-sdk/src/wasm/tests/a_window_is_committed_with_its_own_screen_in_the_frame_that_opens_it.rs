@@ -29,14 +29,14 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
         .expect("the window is asked of the host");
     assert!(
         open.screen.is_opened(),
-        "the plugin numbers the window's screen itself: {:?}",
+        "the app numbers the window's screen itself: {:?}",
         open.screen
     );
     let placed = *rig
         .screens
         .layout()
         .placement(open.screen)
-        .expect("the plugin lists the window's screen in its layout");
+        .expect("the app lists the window's screen in its layout");
     assert_eq!(
         (placed.view, placed.width, placed.height),
         (ViewId(9), 400, 200),

@@ -1,6 +1,6 @@
 use super::*;
 use be_sdk::editor_session::EditorSession;
-use be_sdk::{Plugin, Waker};
+use be_sdk::{App, Waker};
 use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, ParentView, Rect, ScreenId, ScreenPlacement,
     ScreenRequest, TopBar, View, ViewId, ViewPlacement, ViewportMetrics,
@@ -33,7 +33,7 @@ mod the_frame_and_the_preview_of_one_block_both_load_its_content;
 
 fn session<A: BeuiRoot>(block_type: Uuid) -> EditorSession {
     let mut session =
-        EditorSession::new(EditorInstanceId(0), Waker::default(), BeuiPlugin::<A>::open);
+        EditorSession::new(EditorInstanceId(0), Waker::default(), BeuiApp::<A>::open);
     session.connect(Uuid::new_v4(), block_type);
     session
 }

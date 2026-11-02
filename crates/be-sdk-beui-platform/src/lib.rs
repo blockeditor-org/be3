@@ -31,25 +31,25 @@ use beui_types::window::{
 use beui_types::{Pos2, Rect, Vec2, vec2};
 
 use be_sdk_beui_platform_api::{
-    PluginRuntime, View, ViewRunner, Views, anchored_layer, anchored_view, window_view,
+    AppRuntime, View, ViewRunner, Views, anchored_layer, anchored_view, window_view,
 };
 use beui_host::styled::Root;
 use platform::HostPlatform;
 use surface::{ModuleRenderer, Painter, note};
 
-pub struct PluginPlatform {
+pub struct AppPlatform {
     host: EditorHost,
 }
 
-impl PluginPlatform {
+impl AppPlatform {
     pub fn new(host: EditorHost) -> Self {
         Self { host }
     }
 }
 
-impl Platform for PluginPlatform {
+impl Platform for AppPlatform {
     fn name(&self) -> &'static str {
-        "plugin"
+        "app"
     }
 
     fn run(self: Box<Self>, launch: Launch) -> Running {
@@ -97,7 +97,7 @@ impl Platform for PluginPlatform {
 
 struct Runtime;
 
-impl PluginRuntime for Runtime {
+impl AppRuntime for Runtime {
     fn launch(
         &self,
         host: &EditorHost,
@@ -130,7 +130,7 @@ impl PluginRuntime for Runtime {
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
-fn __be3_beui_plugin_runtime() -> &'static dyn PluginRuntime {
+fn __be3_beui_app_runtime() -> &'static dyn AppRuntime {
     &Runtime
 }
 
@@ -146,13 +146,13 @@ fn launch(
         program,
         layers: Vec::new(),
     };
-    let mut running = Box::new(PluginPlatform::new(host.clone())).run(launch);
+    let mut running = Box::new(AppPlatform::new(host.clone())).run(launch);
     match running
         .as_mut()
         .poll(&mut TaskContext::from_waker(TaskWaker::noop()))
     {
         Poll::Ready(result) => result,
-        Poll::Pending => Err("the plugin platform starts without waiting".into()),
+        Poll::Pending => Err("the app platform starts without waiting".into()),
     }
 }
 

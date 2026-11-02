@@ -1,6 +1,6 @@
 [package]
 name = "be-lib-ui-types"
-description = "Framework-free vocabulary that beui and the plugin protocol share: keys, pointers, input and windows, with the preferences of be-lib-ui-preferences"
+description = "Framework-free vocabulary that beui and the app protocol share: keys, pointers, input and windows, with the preferences of be-lib-ui-preferences"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

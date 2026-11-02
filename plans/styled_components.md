@@ -5,8 +5,8 @@ styled components that carry behaviour, components that don't belong in beui,
 and parallel components that should be one. This plan is the agreed list of
 changes. Implemented, except what each section records as left: the
 inspector's compact App/Inspector bar (§4.3), true group opacity (§Polish:
-`Frame`'s `opacity` fades each shape on its own), and a rounded clip for plugin dialog
-regions carried through the plugin protocol (§Polish).
+`Frame`'s `opacity` fades each shape on its own), and a rounded clip for app dialog
+regions carried through the app protocol (§Polish).
 
 ## The rules this plan applies
 
@@ -67,7 +67,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   screens from beui (`use_screens()` is gone; an overlay stays in its window).
   `EveryScreen` and `ModalPlacement::AllScreens` were then deleted: block-app
   shows its keep-changes prompt and lock screen once per display window, and
-  The desktop plugin's `LevelOsd` lays out one card per display rect from the host.
+  The desktop app's `LevelOsd` lays out one card per display rect from the host.
 - **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
   RowHeader and Cell accessibility nodes that `styled::Table` builds. An
   unstyled `ColorInput` for the preview state and the popover plus hex-field
@@ -116,18 +116,18 @@ into a new unstyled component, then rebuild the styled one on top of it.
   nothing else ever would. Build it in block-app from styled pieces and §1's
   `Modal` (one per display window).
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
-  used only by the desktop plugin (`root/media.rs`), so move it there. It is in
-  `app/osd.rs` now, with its tests in the desktop plugin's, and lays out one card
+  used only by the desktop app (`root/media.rs`), so move it there. It is in
+  `app/osd.rs` now, with its tests in the desktop app's, and lays out one card
   per display rect.
 - **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
-  ranking functions. Move everything else Launcher has into the desktop plugin,
+  ranking functions. Move everything else Launcher has into the desktop app,
   next to `ProgramLauncher` (`be-app-desktop/src/app/launcher.rs`),
   the only product user: the program items, the "Run 'query'" row and the
   icons. be-launcher's `Launcher` is its own pull request list and doesn't
   use `styled::Launcher`. Move the launcher tests in `beui/src/tests`
-  that test the desktop plugin behaviour along with it; tests of the palette and
+  that test the desktop app behaviour along with it; tests of the palette and
   ranking stay in beui.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
@@ -136,14 +136,14 @@ into a new unstyled component, then rebuild the styled one on top of it.
   detail, terms, glyph, image, shortcut, checked and disabled), a `score`
   function (`PaletteItem::substring_score` by default, or
   `PaletteItem::fuzzy_score`, which is `launcher_score`), an optional
-  `query` signal, and `on_choose` with the chosen key. The desktop plugin builds
+  `query` signal, and `on_choose` with the chosen key. The desktop app builds
   its program items and the Run row (key `run`, scored below every program)
-  itself. The beui run-as-command test was a copy of the desktop plugin's
+  itself. The beui run-as-command test was a copy of the desktop app's
   `a_query_no_program_matches_runs_as_a_command`, so it went; the reopening
   tests and the filter test now drive the palette. The palette's rows are
   `RowFace`s (`RowSize::Large`), which gained a `shortcut` slot for them.
 - **Done.** **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
-  (`compositor/region.rs`, `surfaces.rs`). Their text is about plugins.
+  (`compositor/region.rs`, `surfaces.rs`). Their text is about apps.
   They are in `surfaces/notices.rs`.
 - **Done.** **`ThemeSelect` and `MotionSelect` → next to the settings editor** (the only
   user, `be-app-settings/src/display/appearance.rs`), or into
@@ -210,7 +210,7 @@ the shown keys (from a `rank: Func<String, Vec<K>>` the caller passes),
 the highlight, which skips disabled rows, Up/Down/Page Up/Page Down/Home/End,
 scroll-to-row, Enter, clicks and hover. `rank`, `substring_score` and
 `fuzzy_score` are the ranking helpers. `Select` and `CommandPalette` (and
-through it the desktop plugin's launcher) are built on it; their trigger,
+through it the desktop app's launcher) are built on it; their trigger,
 popup, panel, search field and rows stay theirs. Home and End move the
 highlight in every search field, as they did in Select's (not the caret). Filtered-out rows
 are no longer built, so `SelectApi::option_button` returns an `Option`.
@@ -277,7 +277,7 @@ user that has no scroll, no disabled rows and no Page keys.
 ### 4.4 One Progress
 
 **Done.** Merge `Spinner` into `Progress`: `value: Option<f32>`, where `None` is
-indeterminate. Use §1's indeterminate progress for it. The desktop plugin's OSD
+indeterminate. Use §1's indeterminate progress for it. The desktop app's OSD
 card (§3) uses `Progress` for its bar, not a hand-drawn track and fill.
 `Progress` takes `fill` and `track` colour roles, which the OSD uses to fade
 and to grey the bar when muted, and a `width` that defaults to filling;
@@ -405,7 +405,7 @@ canvas's text, the last one, moved onto `styled::TextArea` in §10) or
 `primitives::` (the source lint holds that).
 
 About 29 crates import `unstyled::` directly. The biggest are be-sdk-shell (13
-files), the desktop plugin (12), settings (10), be-sdk-beui (7),
+files), the desktop app (12), settings (10), be-sdk-beui (7),
 infinite-canvas (6), database (6) and be-launcher (6). Audit each import: it
 is either a styled component that doesn't exist yet, or a custom face that
 should become a styled component. This is the largest item. Do it after §1-4,
@@ -413,7 +413,7 @@ which remove some of those imports on their own.
 
 Outcomes, by crate group (each also migrated onto §7's tokens):
 
-- **Done.** workspace-ui, the desktop plugin, file-tree, settings, workspace-index,
+- **Done.** workspace-ui, the desktop app, file-tree, settings, workspace-index,
   version-control, browser-tab, terminal and beui-terminal-view import nothing from
   `unstyled` or `primitives`. Styled re-exports the behaviour-only pieces they
   needed (`BackSlide`, `ChoiceOption`, `Container`, `container_size`,
@@ -424,7 +424,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `tab_stop`, `on_focus_change` and `revealed` (keeps its place and
   accessibility but paints nothing: file-tree's hover-revealed add button, which
   was a custom face), `TextColor::None`, and `Tree`'s `outline` returns a
-  `ColorRole`. The desktop plugin's level OSD fades a card drawn in colour roles
+  `ColorRole`. The desktop app's level OSD fades a card drawn in colour roles
   with the base `Fade`'s `opacity` (see "Polish" below). Bar popups now share the
   popover width (`Size::Popover`) instead of each picking pixels.
 - **Done.** database, logic-grid, deterministic-game, map,
@@ -440,7 +440,7 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `Floating`, `Pressable`, `SliderScale`), and `dock::styled` the dock's
   document types (`DockDocument`, `DockDocumentBody`, `DockDocumentTabs`,
   `DockEntry`). Left on purpose: logic-grid's hotbar slot face and
-  deterministic-game's board are plugin canvases with their own drawing;
+  deterministic-game's board are app canvases with their own drawing;
   be-launcher's enlargeable picture is a `Pressable` around the content
   itself (labelled "Enlarge ..." for accessibility). Map's preset
   colour swatches became `SwatchButton`s (square ones take
@@ -492,15 +492,15 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `ToolPill` (a raised, bordered, fully rounded row of tools with arrow-key
   focus that scrolls sideways when squeezed; beui-demo Buttons page "Tool
   pill"). The dock's corners went from `Lg` to `Full` to match the pill. The
-  plugin protocol's `settings-progress` (`changed`, `summary`) is gone: since
-  artifact settings became a plugin dialog nothing read it, and the host's
+  app protocol's `settings-progress` (`changed`, `summary`) is gone: since
+  artifact settings became an app dialog nothing read it, and the host's
   `ArtifactSession::summary` went with it. beui-demo's styled pages use the
   styled re-exports (`MenuThen`, `MenuItem`, `MenuNodes`, `MenuCaption`,
   `MenuGrid`) rather than `unstyled::`; their two custom button faces on
   `unstyled::Button` stay, as samples of building a face on the unstyled
   layer. Dock-like bars under comfortable density: be-sdk-beui's
   `Toolbar` scrolls when chrome is narrow and text-block's format bar
-  scrolls, so neither can overflow a phone; the desktop plugin's bar and
+  scrolls, so neither can overflow a phone; the desktop app's bar and
   be-launcher never resolve comfortable (only `BeuiFrame` on a phone
   provides it, and the desktop is a root editor without a phone top bar).
 
@@ -829,7 +829,7 @@ on who wrote it:
 - **Dock dialogs.**
   - A window has a title-bar X.
   - Rename, a card, draws its own X and has no confirm button.
-  - Plugin editors opened as dialogs draw whatever they like.
+  - Editors opened as dialogs draw whatever they like.
 
 ### Actions are data with roles; the modal places them
 
@@ -867,11 +867,11 @@ on who wrote it:
 - **Done.** **Convert every modal listed above**, the dock's Rename included.
   The block picker's More and Link stages are `DialogBody`s too (in its
   centred card and its dock card alike), and its creation stage is the
-  plugin's own `DialogBody` (below). Left as they are: phone details, which is
+  app's own `DialogBody` (below). Left as they are: phone details, which is
   a menu sheet of rows rather than a dialog; members' busy spinner, which
   shows row actions in flight.
 
-### The dialog's inside is one component that plugins use too
+### The dialog's inside is one component that apps use too
 
 Split the dialog into an outer part and an inner part:
 
@@ -882,13 +882,13 @@ Split the dialog into an outer part and an inner part:
   wide or narrow. `Dialog` and `ModalSheet` use it. (`DialogFrame` is the
   outer part: a card, or a `ModalSheet` holding the body.)
 
-**Done.** A plugin opened as a dialog gets the whole area inside the frame, with no
-padding and no shell title bar. A beui plugin builds its contents with the
+**Done.** An app opened as a dialog gets the whole area inside the frame, with no
+padding and no shell title bar. A beui app builds its contents with the
 same `DialogBody`, so it defines its own buttons with the code beui uses for
-its own dialogs. The plugin protocol stays free of beui: it carries only
+its own dialogs. The app protocol stays free of beui: it carries only
 what any framework needs.
 
-The plugins opened as dialogs today are the creation dialogs of templates
+The apps opened as dialogs today are the creation dialogs of templates
 marked `"dialog": true` (image, PDF, audio, game, game module), which the
 picker shows as a `Subregion dialog=true`; their `Creation` components are
 `DialogBody`s (`ContentFileCreation` for the file pickers) whose Create calls
@@ -896,53 +896,53 @@ picker shows as a `Subregion dialog=true`; their `Creation` components are
 gained `frame-spec.dialog` and `child-placement.dialog` (a `dialog-frame`:
 `narrow`, `bottom-inset`), `shell.handles-dismiss`, `shell.close-dialog`
 (`dialog-answer`: `dismissed` or `accepted`), `shell.dismiss-child`, the
-plugin's `editor.dismiss`, and `child-status.dialog` (`dialog-status`);
-`creation-ready` went, since the plugin now enables its own Create, and
+app's `editor.dismiss`, and `child-status.dialog` (`dialog-status`);
+`creation-ready` went, since the app now enables its own Create, and
 `creation-progress.options` lost its `ready`. be-sdk-beui hands the
-plugin's `DialogBody` a `DialogLayout` and an `unstyled::DialogDismissal`
+app's `DialogBody` a `DialogLayout` and an `unstyled::DialogDismissal`
 (`crates/be-sdk-beui/src/dialog.rs`). **Done:** the artifact settings
 dialog is the same: be-sdk-shell shows a `DialogFrame` around a `Subregion
 dialog=true` of `ArtifactSettings`, and be-sdk-beui puts the editor's
 `ArtifactSettings` component inside a `DialogBody` ("Dynamic artifact
 settings", Cancel and Apply) whose Apply is enabled once the copy differs from
-the stored settings (a plugin's `update` now gets a `SettingsDraft` with both)
+the stored settings (an app's `update` now gets a `SettingsDraft` with both)
 and answers `close-dialog(accepted)`; the shell then commits the child as
 before. The host reports the artifact instance's `dialog-status` on the
 settings child, routes a `dismiss-child` of it to that instance, and forgets
 its answer once the settings close.
 
-- **Done.** **Back and dismiss go to the plugin first.** Back already reaches a plugin
-  as input. Escape, back and a press on the scrim reach the plugin, whose
+- **Done.** **Back and dismiss go to the app first.** Back already reaches an app
+  as input. Escape, back and a press on the scrim reach the app, whose
   `DialogBody` runs its Cancel action. That way a form with unsaved changes
-  can ask before closing. The plugin asks the host to close it. The host
-  closes it itself only if the plugin doesn't answer. "Doesn't answer" is
-  decided up front, not by waiting: the plugin says `handles-dismiss(true)`
+  can ask before closing. The app asks the host to close it. The host
+  closes it itself only if the app doesn't answer. "Doesn't answer" is
+  decided up front, not by waiting: the app says `handles-dismiss(true)`
   while a `DialogBody` is mounted (it claims the `DialogDismissal`), and until
   then, or once the instance stopped, the host answers `dismiss-child` for it
   with `dismissed` at once.
-- **Size.** The plugin reports the height it wants, so a card or sheet fits
+- **Size.** The app reports the height it wants, so a card or sheet fits
   its content, and the host passes back the size it got. Reuse the
   intrinsic sizes the protocol already has for child placements if they
   fit. **Done:** a creation instance already reported the height its root
   measures as its frame's content, which the host passes on as the child's
-  intrinsic height; the picker sizes the card to it, and the size the plugin
+  intrinsic height; the picker sizes the card to it, and the size the app
   got is its frame's.
-- **Done.** **Keyboard and safe area.** The host tells the plugin the bottom inset (the
+- **Done.** **Keyboard and safe area.** The host tells the app the bottom inset (the
   on-screen keyboard, a phone's gesture bar), so the pinned footer stays
   visible. `dialog-frame.bottom-inset` is how far the child reaches below the
   document's viewport (beui's keyboard and the platform's safe area already
   shorten it) or the parent's own `DialogLayout::bottom_inset`, whichever is
   more; `DialogBody` adds it to its bottom padding.
 - **Window dialogs** keep a frame but no title bar. Moving one by dragging
-  its title row needs the plugin to report that row as a drag region. Check
+  its title row needs the app to report that row as a drag region. Check
   whether anything moves dialogs today before adding that. **Checked:** no
-  plugin editor is shown in a window-presentation `DockDialog` today (only
+  editor is shown in a window-presentation `DockDialog` today (only
   program windows are), and dock dialogs are anchored, not dragged, so no
   drag region was added. The dock's card dialogs now provide a
   `DialogLayout`, narrow while the dock is stacked.
-- **Other frameworks.** A plugin written with another framework (egui, say)
+- **Other frameworks.** An app written with another framework (egui, say)
   gets the same area and messages and draws its own version. Only beui
-  plugins match the shell's look exactly, which follows from keeping the
+  apps match the shell's look exactly, which follows from keeping the
   protocol free of beui.
 
 ## Polish
@@ -957,7 +957,7 @@ Problems earlier steps found in the beui crates, fixed at their source:
   scrim now reach `on_dismiss` at once; the modal slides away only when its
   owner closes it after such a request, lingering inert (it takes no
   input) while it goes, and stays put if the owner keeps it open, so a
-  "discard changes?" answer, or a plugin's `DialogDismissal`, decides first.
+  "discard changes?" answer, or an app's `DialogDismissal`, decides first.
   `BackSlide` gained `open: Option<Prop<bool>>` and `on_gone` for this. The
   command palette stays `ModalMotion::Still` by choice, not as a
   workaround: a palette vanishes on Escape rather than sliding away.
@@ -965,9 +965,9 @@ Problems earlier steps found in the beui crates, fixed at their source:
   Opening a trapping overlay moves the focus out of what it blocks, and
   Escape with no focus goes to the top trapping layer, so such a modal hears
   Escape (test `a_modal_with_nothing_to_focus_hears_escape`, which also
-  opens one from a popover). be-sdk-beui's `PluginDialog` wants the
-  keyboard because the plugin's own fields need the keys, and handles Escape
-  itself because keys a plugin holds never reach the shell; neither is a
+  opens one from a popover). be-sdk-beui's `AppDialog` wants the
+  keyboard because the app's own fields need the keys, and handles Escape
+  itself because keys an app holds never reach the shell; neither is a
   workaround for beui.
 - **Done.** **Dialog's sheet rule matches `Anchored`'s**: it samples
   `touched_by_finger()` when it opens, so a pen opens the card. `use_touch()`
@@ -985,11 +985,11 @@ Problems earlier steps found in the beui crates, fixed at their source:
   rectangle. The level OSD, the dock's drop highlight and drag preview, and
   the split button's divider use it with colour roles. It multiplies each
   shape's coverage, so overlapping shapes inside show through each other.
-- **Done, in the picker.** **A plugin dialog's square corners.** A `Below`
+- **Done, in the picker.** **An app dialog's square corners.** A `Below`
   region is composited under its parent's whole surface, so its square
   corners showed through the scrim past the card's rounding. beui has no
   rounded clip and the region is a GPU drawing, so the picker insets the
-  creation `Subregion` by `Space::Sm`, enough for `Radius::Lg`; the plugin's
+  creation `Subregion` by `Space::Sm`, enough for `Radius::Lg`; the app's
   background matches the card, so the inset doesn't show. A rounded clip
   through the protocol is the general fix if more cards host regions.
 - **Done.** Small ones: unstyled `Choice` has no appearance default left
@@ -1003,7 +1003,7 @@ Problems earlier steps found in the beui crates, fixed at their source:
   long the machine took, and `drive pause` was invisible to them;
   `be_block_type_host::hold_clock` now holds their clock while block-app's is
   stopped (`Modules::now` reads the held instant through the module host's
-  `be_block_client::Clock`, which main's offline work passes in). The checklist test measured `#checklist.add` before the plugin
+  `be_block_client::Clock`, which main's offline work passes in). The checklist test measured `#checklist.add` before the app
   had drawn it; it waits for it first.
 - **Checked, overlap noted.** `plans/settings.md` (from main) builds UI
   this plan governs, and its later steps should follow these rules: the file
@@ -1092,7 +1092,7 @@ Changes:
    them (`KeepChanges`, `LockScreen`). Also the moves that are independent:
    `CrashNotice`, `StaleNotice`, `ThemeSelect`, `MotionSelect`,
    `PreferencesSection`, `Bordered`.
-2. §4.4 (`Progress`), then the desktop plugin's OSD card.
+2. §4.4 (`Progress`), then the desktop app's OSD card.
 3. §4.5 and §4.6 (buttons and rows), together with §2's tooltip change.
 4. §4.2 (the search list), then the launcher move in §3.
 5. §4.1 (the anchored surface), which `Select` from step 4 then sits on.

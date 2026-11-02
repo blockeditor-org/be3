@@ -15,7 +15,7 @@
 // (bindFiles), every call on a descriptor other than the standard streams is
 // forwarded to that worker, which answers it from the origin private file
 // system, and the caller waits for the answer. A worker waits with
-// Atomics.wait; the page, which may not block, spins. A plugin binds no
+// Atomics.wait; the page, which may not block, spins. An app binds no
 // channel and has no file system at all.
 //
 // The memory is shared, so it is a SharedArrayBuffer. TextDecoder and
@@ -258,8 +258,8 @@ function none_path_open() {
     return ENOENT;
 }
 
-// The rest of the filesystem calls, which C linked into a plugin (PDFium's
-// search for system fonts, which the plugin turns off) imports whether or not
+// The rest of the filesystem calls, which C linked into an app (PDFium's
+// search for system fonts, which the app turns off) imports whether or not
 // it reaches them. With no directories there is nothing to list, stat or remove.
 
 function none_fd_readdir() {

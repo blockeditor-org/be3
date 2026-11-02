@@ -146,7 +146,7 @@ impl Program for Windowed {
         let views = setup
             .get::<Views>()
             .cloned()
-            .expect("the plugin platform provides its views");
+            .expect("the app platform provides its views");
         let requested = self.requested.handle();
         let watched = views.clone();
         views.watch(move || requested.set(watched.views()));
@@ -220,11 +220,11 @@ fn launched(host: &EditorHost, program: impl Program + 'static) -> Box<Driver<Mo
         beui_host::native::context(),
         Box::new(program),
     )
-    .expect("a plugin program starts");
+    .expect("an app's program starts");
     let handler: Box<dyn Any> = module
         .take_handler()
         .expect("the platform registers its handler with the module");
     handler
         .downcast()
-        .expect("the plugin platform's handler drives a ModuleRunner")
+        .expect("the app platform's handler drives a ModuleRunner")
 }

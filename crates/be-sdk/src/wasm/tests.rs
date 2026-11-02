@@ -12,7 +12,7 @@ mod a_destroyed_buffer_can_no_longer_be_mapped;
 mod a_destroyed_device_is_reported_lost_and_drops_what_it_is_asked;
 mod a_map_still_pending_when_its_buffer_is_unmapped_fails;
 mod a_pipeline_made_without_a_layout_draws_with_the_layout_its_shaders_imply;
-mod a_plugin_device_has_only_the_features_and_limits_it_requested;
+mod an_app_device_has_only_the_features_and_limits_it_requested;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_render_bundle_replays_its_draws_in_a_pass;
 mod a_render_bundle_that_draws_without_a_pipeline_is_refused;
@@ -299,7 +299,7 @@ impl Rig {
         self.surfaces
             .render(&mut self.screens)
             .expect("the frame runs")
-            .expect("the plugin drew a frame")
+            .expect("the app drew a frame")
     }
 
     fn screen_surface(&self) -> u32 {

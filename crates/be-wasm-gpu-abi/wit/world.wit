@@ -1,6 +1,6 @@
 package be3:gpu@0.1.0;
 
-/// The gpu a plugin draws with. It is answered inside the plugin's own worker
+/// The gpu an app draws with. It is answered inside the app's own worker
 /// or thread on every platform (wasmtime host functions natively,
 /// be-wasm-gpu-shim in a browser), so its funcs are direct wasm calls that
 /// return their results.

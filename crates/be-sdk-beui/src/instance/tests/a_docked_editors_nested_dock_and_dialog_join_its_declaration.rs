@@ -90,5 +90,5 @@ fn a_docked_editors_nested_dock_and_dialog_join_its_declaration() {
     );
     joined
         .validate_own()
-        .expect("the plugin still declares only its own tabs");
+        .expect("the app still declares only its own tabs");
 }

@@ -1,4 +1,4 @@
-// The worker every guest runs in in a browser: a type module, or a plugin.
+// The worker every guest runs in in a browser: a type module, or an app.
 //
 // be-wasm-guest-host embeds this file and starts it as a blob worker, so it needs
 // no file served beside the app. The page steps the guest the way the native
@@ -7,8 +7,8 @@
 // says so, so the page steps it again.
 //
 // On its own the worker answers be3_host and refuses any other import, which is
-// all a type module has. A plugin's start names an
-// extension, block-app's plugin.js, which instantiates the guest with its
+// all a type module has. An app's start names an
+// extension, block-app's app.js, which instantiates the guest with its
 // libraries, WASI, threads and the gpu, answers what the worker does not,
 // handles the page's other messages and adds what it painted to each report.
 
@@ -104,7 +104,7 @@ export function runtime(post) {
             guest.memory = guest.exports.memory;
             initialize(guest.exports);
         }
-        guest.exports.plugin_start();
+        guest.exports.app_start();
         for (const message of held) extension?.receive(message);
         held = [];
         running = true;
@@ -120,10 +120,10 @@ export function runtime(post) {
                     if (!running) return;
                     const started = performance.now();
                     for (const frame of data.frames) inbox.push(new Uint8Array(frame));
-                    guest.exports.plugin_step();
+                    guest.exports.app_step();
                     report("stepped", performance.now() - started);
                 } else if (data.kind === "shutdown") {
-                    if (guest.exports !== null) guest.exports.plugin_shutdown();
+                    if (guest.exports !== null) guest.exports.app_shutdown();
                     self.close();
                 } else if (!running) {
                     held.push(data);

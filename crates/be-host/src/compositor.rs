@@ -2,7 +2,7 @@ pub(crate) mod anchored;
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
-pub(crate) mod plugin_view;
+pub(crate) mod app_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -18,7 +18,7 @@ pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use plugin_view::{ChildView, PluginView, ViewEditor};
+pub(crate) use app_view::{ChildView, AppView, ViewEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 
@@ -77,7 +77,7 @@ pub(crate) fn any() -> ReadSignal<u64> {
     })
 }
 
-pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
+pub(crate) fn listen(app_id: &str) -> ReadSignal<u64> {
     let revision = create_signal(0u64);
     let id = NEXT_LISTENER.with(|next| {
         next.set(next.get() + 1);
@@ -86,14 +86,14 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
     LISTENERS.with(|listeners| {
         listeners
             .borrow_mut()
-            .entry(plugin_id.to_owned())
+            .entry(app_id.to_owned())
             .or_default()
             .push((id, revision));
     });
-    let plugin_id = plugin_id.to_owned();
+    let app_id = app_id.to_owned();
     on_cleanup(move || {
         LISTENERS.with(|listeners| {
-            if let Some(held) = listeners.borrow_mut().get_mut(&plugin_id) {
+            if let Some(held) = listeners.borrow_mut().get_mut(&app_id) {
                 held.retain(|(listener, _)| *listener != id);
             }
         });
@@ -107,11 +107,11 @@ pub(crate) fn notify() {
     apply_shell();
     desktop::apply();
     crate::surfaces::apply();
-    notify_plugins();
+    notify_apps();
 }
 
 pub(crate) fn notify_after_layout() {
-    if let Some(changed) = notify_plugins() {
+    if let Some(changed) = notify_apps() {
         OWED.with(|owed| *owed.borrow_mut() = Some(changed));
         be_host_base::host::request_repaint();
     }
@@ -128,7 +128,7 @@ pub(crate) fn owes_frame() -> Option<String> {
     })
 }
 
-fn notify_plugins() -> Option<Vec<String>> {
+fn notify_apps() -> Option<Vec<String>> {
     let stale = be_host_stack::stale_revision();
     if STALE.with(|seen| seen.replace(stale)) != stale {
         be_host_base::host::changed();
@@ -139,11 +139,11 @@ fn notify_plugins() -> Option<Vec<String>> {
     if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
         any.update(|revision| *revision += 1);
     }
-    for plugin_id in &changed {
+    for app_id in &changed {
         let writers: Vec<Signal<u64>> = LISTENERS.with(|listeners| {
             listeners
                 .borrow()
-                .get(plugin_id)
+                .get(app_id)
                 .map(|held| held.iter().map(|(_, listener)| *listener).collect())
                 .unwrap_or_default()
         });

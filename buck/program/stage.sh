@@ -1,15 +1,15 @@
 #!/bin/sh
 #
 # Lays out the app as it runs: the executable under cargo's name, --file beside
-# it as it is, and each plugin's manifest renamed <id>.plugin.json with
-# the module it names and its .cwasm, and --data, the plugin's read-only data
-# (plugin_data), under data/<id>/. Each --library is a library the modules
-# are linked against (guides/plugin_libraries.md), staged as lib-<its SHA-256>.wasm,
+# it as it is, and each app's manifest renamed <id>.app.json with
+# the module it names and its .cwasm, and --data, the app's read-only data
+# (app_data), under data/<id>/. Each --library is a library the modules
+# are linked against (guides/app_libraries.md), staged as lib-<its SHA-256>.wasm,
 # which is the name a module finds it by, with --library-artifact, its .cwasm.
-# --index writes plugins.json,
-# the list of manifests the app finds its plugins through. For the web bundle,
-# --tree copies in what wasm-bindgen wrote. --plugin-type, after a plugin's
-# MANIFEST=MODULE, stages that plugin's type module (guides/type_modules.md)
+# --index writes apps.json,
+# the list of manifests the app finds its apps through. For the web bundle,
+# --tree copies in what wasm-bindgen wrote. --app-type, after an app's
+# MANIFEST=MODULE, stages that app's type module (guides/type_modules.md)
 # under the name its manifest's block_types give it, with its SHA-256 as
 # NAME.sha256 (the tag of its sessions) and, with --type-artifact, its .cwasm.
 # --compiled-only leaves out each module that has a .cwasm, for the APK,
@@ -19,7 +19,7 @@
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
 #            [--index] [--compiled-only] [--library=MODULE [--library-artifact=CWASM]]...
 #            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM]
-#             [--plugin-type=MODULE [--type-artifact=CWASM]])...
+#             [--app-type=MODULE [--type-artifact=CWASM]])...
 set -eu
 out="$1"
 shift
@@ -64,8 +64,8 @@ for argument in "$@"; do
                 rm "$staged"
             fi
             ;;
-        --plugin-type=*)
-            type_module="${argument#--plugin-type=}"
+        --app-type=*)
+            type_module="${argument#--app-type=}"
             named="$(field "$manifest" module)"
             if [ "$(basename "$type_module")" != "$named" ]; then
                 echo "$manifest names $named as its type module, but its type module is $type_module" >&2
@@ -100,8 +100,8 @@ for argument in "$@"; do
                 echo "$manifest names $entry_point as its entry point, but its module is $module" >&2
                 exit 1
             fi
-            cp "$manifest" "$out/$id.plugin.json"
-            manifests="$manifests $id.plugin.json"
+            cp "$manifest" "$out/$id.app.json"
+            manifests="$manifests $id.app.json"
             staged="$out/$entry_point"
             cp "$module" "$staged"
             ;;
@@ -118,5 +118,5 @@ if $index; then
         done
         [ -n "$manifests" ] && printf '\n'
         printf ']\n'
-    } > "$out/plugins.json"
+    } > "$out/apps.json"
 fi

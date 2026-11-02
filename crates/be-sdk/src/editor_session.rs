@@ -20,8 +20,8 @@ use std::{
 use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
-use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, ShownView};
+use crate::app::PaintTarget;
+use crate::app::{Frame, Instance, ShownView};
 use crate::{EditorHost, Module, Waker, host::Dragged};
 use be_sdk_api::ViewRef;
 

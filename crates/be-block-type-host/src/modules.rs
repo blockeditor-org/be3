@@ -112,7 +112,7 @@ pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
     cache: Option<std::path::PathBuf>,
-    load: impl Fn(&be_wasm_host::Host) -> Result<be_wasm_host::Plugin, String> + Clone + Send + 'static,
+    load: impl Fn(&be_wasm_host::Host) -> Result<be_wasm_host::App, String> + Clone + Send + 'static,
 ) -> Source {
     let name = name.into();
     Source {

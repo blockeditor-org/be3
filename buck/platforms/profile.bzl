@@ -1,6 +1,6 @@
 # What every transition in the build does with the platform it replaces: the
 # target platform changes, the profile (buck/constraints:release) does not, so
-# a release build's plugins and Android library are release builds too.
+# a release build's apps and Android library are release builds too.
 PROFILE_REFS = {"release": "root//buck/constraints:release"}
 
 def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> PlatformInfo:
@@ -55,7 +55,7 @@ released = rule(
 # whose rustc_cfg runs rustc without nightly options). Legacy mangling names a
 # generic instance by its path and a hash rather than by every type argument, so
 # a symbol is a third the length: 16 MB less in block-app, whose backtraces
-# still name each function, and a seventh off the plugins, whose name sections
+# still name each function, and a seventh off the apps, whose name sections
 # and exports are made of these symbols.
 RELEASE_SYMBOL_FLAGS = select({
     "DEFAULT": [],

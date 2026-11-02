@@ -1,6 +1,6 @@
 [package]
 name = "be-sdk-manifest"
-description = "A plugin's manifest: the editors and block types it declares, read from its manifest.json and checked, with no geometry or GUI types"
+description = "An app's manifest: the editors and block types it declares, read from its manifest.json and checked, with no geometry or GUI types"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

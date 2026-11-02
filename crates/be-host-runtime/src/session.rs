@@ -59,7 +59,7 @@ impl Session {
     pub(super) fn connect(&mut self, hello: &Hello, preferences: Preferences) -> HelloAccepted {
         if self.state != SessionState::Starting {
             self.fail(SessionFailure::Protocol(
-                "the plugin connected twice".to_owned(),
+                "the app connected twice".to_owned(),
             ));
         } else {
             self.state = SessionState::Running;
@@ -100,7 +100,7 @@ impl Session {
             }
             SessionState::Failed(_) | SessionState::Closed => {}
             _ => self.fail(SessionFailure::Protocol(
-                "the plugin shut down without being asked".to_owned(),
+                "the app shut down without being asked".to_owned(),
             )),
         }
     }

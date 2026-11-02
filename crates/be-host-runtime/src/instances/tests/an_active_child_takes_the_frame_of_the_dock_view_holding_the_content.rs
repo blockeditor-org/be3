@@ -34,7 +34,7 @@ fn an_active_child_takes_the_frame_of_the_dock_view_holding_the_content() {
             view_block: None,
         },
     );
-    let catalog = Arc::new(crate::PluginCatalog::default());
+    let catalog = Arc::new(crate::AppCatalog::default());
     instances.mount(INSTANCE, View::dock(STAGE), Uuid::nil(), role, &catalog);
     instances.report(
         INSTANCE,

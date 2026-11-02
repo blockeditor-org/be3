@@ -14,7 +14,7 @@ pub fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter
         depth_or_array_layers: 1,
     };
     let hole = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("plugin canvas hole"),
+        label: Some("app canvas hole"),
         size,
         mip_level_count: 1,
         sample_count: 1,

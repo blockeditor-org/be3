@@ -1,6 +1,6 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
-editor(
+app(
     module = "browser_tab",
     types = "//crates/be-type-browser-tab:module",
 )

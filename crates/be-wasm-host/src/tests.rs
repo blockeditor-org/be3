@@ -31,9 +31,9 @@ fn guest(body: &str) -> String {
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
             (data (i32.const 0) "{descriptor}")
             (global $length i32 (i32.const {length}))
-            (func (export "plugin_start"))
-            (func (export "plugin_shutdown"))
-            (func (export "plugin_step") {body})
+            (func (export "app_start"))
+            (func (export "app_shutdown"))
+            (func (export "app_step") {body})
         )"#,
         descriptor = escaped(&descriptor),
         length = descriptor.len(),
@@ -48,9 +48,9 @@ fn threaded_guest(body: &str) -> String {
             (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_wake" (func $host_wake))
-            (func (export "plugin_start") (drop (call $spawn (i32.const 0))))
-            (func (export "plugin_shutdown"))
-            (func (export "plugin_step")
+            (func (export "app_start") (drop (call $spawn (i32.const 0))))
+            (func (export "app_shutdown"))
+            (func (export "app_step")
                 (call $host_send (i32.const 8) (i32.const 1)))
             (func (export "wasi_thread_start") (param i32 i32) {body})
         )"#
@@ -97,7 +97,7 @@ fn root_identity() -> String {
     be_wasm_dylink::identity(root().as_bytes())
 }
 
-fn linked_plugin(identity: &str) -> String {
+fn linked_app(identity: &str) -> String {
     r#"(module
         (import "env" "memory" (memory 1 4 shared))
         (import "env" "__indirect_function_table" (table 0 funcref))
@@ -127,7 +127,7 @@ fn linked_plugin(identity: &str) -> String {
             (i32.store offset=64 (global.get $memory_base) (i32.const 5)))
         (func $root_local (result i32)
             (i32.load (i32.add (global.get $tls) (global.get $root_local))))
-        (func (export "plugin_start")
+        (func (export "app_start")
             (if (i32.ne (call_indirect (type $doubling) (i32.const 21) (global.get $double)) (i32.const 42))
                 (then unreachable))
             (drop (i32.atomic.rmw.add (global.get $counter) (i32.const 1)))
@@ -137,8 +137,8 @@ fn linked_plugin(identity: &str) -> String {
             (if (i32.ne (i32.load offset=16 (global.get $tls)) (i32.const 7)) (then unreachable))
             (if (i32.ne (call $root_local) (i32.const 100)) (then unreachable))
             (call $spawn (global.get $worker_slot) (i32.add (global.get $memory_base) (i32.const 200))))
-        (func (export "plugin_shutdown"))
-        (func (export "plugin_step")
+        (func (export "app_shutdown"))
+        (func (export "app_step")
             (call $send (i32.add (global.get $memory_base) (i32.const 200)) (i32.const 1)))
         (func $worker (export "worker") (param $result i32)
             (i32.atomic.store8 (local.get $result)
@@ -159,9 +159,9 @@ struct Told {
 }
 
 impl Told {
-    fn listen(plugin: &Plugin) -> std::sync::Arc<Self> {
+    fn listen(app: &App) -> std::sync::Arc<Self> {
         let told = std::sync::Arc::new(Self::default());
-        plugin.on_wake({
+        app.on_wake({
             let told = std::sync::Arc::clone(&told);
             move || {
                 *told.woken.lock().unwrap() = true;
@@ -180,18 +180,18 @@ impl Told {
     }
 }
 
-fn settled(plugin: &mut Plugin, wanted: u8) -> Result<(), String> {
-    let told = Told::listen(plugin);
+fn settled(app: &mut App, wanted: u8) -> Result<(), String> {
+    let told = Told::listen(app);
     loop {
-        plugin.step()?;
-        if plugin
+        app.step()?;
+        if app
             .take_outbound()
             .last()
             .is_some_and(|frame| frame == &[wanted])
         {
             return Ok(());
         }
-        if !plugin.take_wake() {
+        if !app.take_wake() {
             told.wait();
         }
     }
@@ -219,18 +219,18 @@ fn echo_frames(
     Ok(received)
 }
 
-mod a_dropped_plugin_ends_its_threads;
+mod a_dropped_app_ends_its_threads;
 mod a_guest_creates_a_buffer_and_reports_its_handle;
 mod a_guest_pointer_past_its_memory_is_refused;
 mod a_guest_reads_a_frame_the_host_queued;
 mod a_guest_that_never_reaches_the_gpu_opens_no_device;
 mod a_guest_that_reaches_the_gpu_without_a_device_is_told_why;
 mod a_library_that_is_not_what_it_is_named_is_refused;
-mod a_plugin_linked_against_a_library_runs_on_it_in_every_thread;
-mod a_plugin_runs_its_constructors_before_it_starts;
-mod a_plugin_runs_on_a_thread_of_its_own;
-mod a_plugin_runs_on_when_another_is_interrupted;
-mod a_plugin_that_panics_reports_its_panic_message;
+mod an_app_linked_against_a_library_runs_on_it_in_every_thread;
+mod an_app_runs_its_constructors_before_it_starts;
+mod an_app_runs_on_a_thread_of_its_own;
+mod an_app_runs_on_when_another_is_interrupted;
+mod an_app_that_panics_reports_its_panic_message;
 mod a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own;
 mod a_pure_guest_is_loaded_from_its_precompiled_module;
 mod a_pure_guest_may_not_import_wasi;
@@ -240,9 +240,9 @@ mod a_pure_guest_that_panics_reports_its_panic_message;
 mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
 mod a_spawned_guest_thread_wakes_the_host;
-mod a_standalone_plugin_with_a_memory_of_its_own_paints_through_the_gpu;
+mod a_standalone_app_with_a_memory_of_its_own_paints_through_the_gpu;
 mod a_thread_that_trapped_wakes_the_host_to_be_told;
 mod a_type_module_answers_on_a_thread_of_its_own;
-mod an_interrupted_host_loads_no_plugin;
-mod an_interrupted_plugin_stops_on_every_thread;
+mod an_interrupted_host_loads_no_app;
+mod an_interrupted_app_stops_on_every_thread;
 mod the_thread_local_diamond_runs_on_every_thread;

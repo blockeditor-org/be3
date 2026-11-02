@@ -55,6 +55,6 @@ fn a_watched_value_reaches_an_instance_watching_it_again_after_a_restart() {
     assert_eq!(
         watched_sent::<DisplaysWatch>(&instances.next_screens(PASS).opened),
         vec![second.clone()],
-        "a restarted plugin is told again"
+        "a restarted app is told again"
     );
 }

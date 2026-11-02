@@ -6,7 +6,7 @@ fn a_spawned_guest_thread_shares_the_memory_it_was_given() {
         "(i32.atomic.store8 (i32.const 8) (i32.const 42))
          (call $host_wake)",
     );
-    let mut plugin = host().load_bytes(source.as_bytes()).unwrap();
-    plugin.start().unwrap();
-    assert_eq!(settled(&mut plugin, 42), Ok(()));
+    let mut app = host().load_bytes(source.as_bytes()).unwrap();
+    app.start().unwrap();
+    assert_eq!(settled(&mut app, 42), Ok(()));
 }

@@ -186,7 +186,7 @@ icons! {
     ICON_BLEND "blend" "\u{e59c}" "mode, overlay, multiply, screen, opacity, transparency, alpha, filters, lenses, mixed, shades, tints, hues, saturation, brightness, overlap, colors, colours, marriage, rings, couple, connection";
     ICON_BLENDER "blender" "\u{e6f4}" "mixer, appliances, food, liquid, juicer, vitamizer, mix, emulsify, smoothie, drink, blade, container, kitchen, milkshake, cocktail, beverage, culinary, shredder, processor, cooking, recipe, chef, restaurant";
     ICON_BLINDS "blinds" "\u{e3c0}" "shades, screen, curtain, shutter, roller blind, window, lighting, household, home";
-    ICON_BLOCKS "blocks" "\u{e4fa}" "addon, plugin, integration, extension, package, build, stack, toys, kids, children, learning, squares, corner";
+    ICON_BLOCKS "blocks" "\u{e4fa}" "addon, app, integration, extension, package, build, stack, toys, kids, children, learning, squares, corner";
     ICON_BLUETOOTH "bluetooth" "\u{e05c}" "wireless";
     ICON_BLUETOOTH_CONNECTED "bluetooth-connected" "\u{e1b8}" "paired";
     ICON_BLUETOOTH_OFF "bluetooth-off" "\u{e1b9}" "lost";
@@ -1733,7 +1733,7 @@ icons! {
     ICON_TOUCHPAD_OFF "touchpad-off" "\u{e44a}" "trackpad, cursor";
     ICON_TOWEL_RACK "towel-rack" "\u{e6c7}" "flannel, bathroom, toiletries, sanitation, clean, fresh, dry, laundry, laundrette, hospitality, housekeeping, room service, spa break, health club, amenities, hanging";
     ICON_TOWER_CONTROL "tower-control" "\u{e3bc}" "airport, travel, tower, transportation, lighthouse";
-    ICON_TOY_BRICK "toy-brick" "\u{e347}" "lego, block, addon, plugin, integration";
+    ICON_TOY_BRICK "toy-brick" "\u{e347}" "lego, block, addon, app, integration";
     ICON_TRACTOR "tractor" "\u{e504}" "farming, farmer, ranch, harvest, equipment, vehicle";
     ICON_TRAFFIC_CONE "traffic-cone" "\u{e505}" "roadworks, tarmac, safety, block";
     ICON_TRAILER "trailer" "\u{e742}" "tow, shipping, delivery, haulage, vehicle, equipment, freight";

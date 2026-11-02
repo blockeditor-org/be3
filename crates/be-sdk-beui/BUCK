@@ -1,8 +1,8 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "plugin_tests")
+load("@root//buck/wasm:defs.bzl", "app_tests")
 
 cargo_library()
 
 # This crate's instance only exists in the wasm guest, so its tests only exist
-# compiled to wasm and run the way a plugin's are.
-plugin_tests()
+# compiled to wasm and run the way an app's are.
+app_tests()

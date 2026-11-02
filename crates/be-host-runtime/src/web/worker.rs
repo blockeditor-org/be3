@@ -46,7 +46,7 @@ impl WorkerChannel {
     pub(super) fn start(url: &str, waiting: Arc<AtomicBool>) -> Result<Self, String> {
         let guest = WebGuest::start(
             url,
-            Some("./plugin.js"),
+            Some("./app.js"),
             Arc::new(be_host_base::host::wake),
             waiting,
         )?;
@@ -123,7 +123,7 @@ impl WorkerChannel {
         set(&message, "pieces", &js_sys::Float32Array::from(pieces));
         self.post_canvas(&message, canvas)
             .then_some(())
-            .ok_or_else(|| "a plugin's layers could not be handed to its worker".to_owned())
+            .ok_or_else(|| "an app's layers could not be handed to its worker".to_owned())
     }
 
     pub(super) fn show(
@@ -137,7 +137,7 @@ impl WorkerChannel {
         set(&message, "surface", &surface.into());
         self.post_canvas(&message, canvas)
             .then_some(())
-            .ok_or_else(|| "a plugin screen could not be handed to its worker".to_owned())
+            .ok_or_else(|| "an app screen could not be handed to its worker".to_owned())
     }
 
     pub(super) fn forget(&self, id: u32) {

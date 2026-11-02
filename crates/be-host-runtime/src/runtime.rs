@@ -14,7 +14,7 @@ use be_sdk_api::{
     SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
     shell_types::{Dragged, DraggedBlock},
 };
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use uuid::Uuid;
@@ -25,7 +25,7 @@ use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
-    calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
+    calls::{EditorAnswer, EditorCall, Heard, Outbound, AppCall},
     input::{BlockDrag, DragEvent},
     instances::{DragKind, EditorView, Focus, Instances, Placement},
     presenter::{
@@ -64,7 +64,7 @@ struct Host {
     waited: Duration,
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
-    warming: Option<Vec<PluginManifest>>,
+    warming: Option<Vec<AppManifest>>,
     focus: Focus,
     shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
@@ -86,22 +86,22 @@ impl Host {
         }
     }
 
-    fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
+    fn runtime(&mut self, app: &AppManifest) -> Result<&mut Runtime, String> {
         if let Err(error) = &self.availability.0 {
             return Err(error.clone());
         }
-        let surface = self.surface_for(&plugin.identity.id);
+        let surface = self.surface_for(&app.identity.id);
         let focus = self.focus.clone();
         let shell = self
             .shell
             .as_ref()
-            .filter(|(shell, _)| *shell == plugin.identity.id)
+            .filter(|(shell, _)| *shell == app.identity.id)
             .map(|(_, instance)| *instance);
         let runtime = self
             .runtimes
-            .entry(plugin.identity.id.clone())
+            .entry(app.identity.id.clone())
             .or_insert_with(|| {
-                let mut runtime = Runtime::new(plugin, surface);
+                let mut runtime = Runtime::new(app, surface);
                 for (open, value) in be_host_base::watches::published() {
                     runtime.instances.publish(open, value);
                 }
@@ -114,8 +114,8 @@ impl Host {
         Ok(runtime)
     }
 
-    fn surface_for(&self, plugin_id: &str) -> u32 {
-        if let Some(runtime) = self.runtimes.get(plugin_id) {
+    fn surface_for(&self, app_id: &str) -> u32 {
+        if let Some(runtime) = self.runtimes.get(app_id) {
             return runtime.surface;
         }
         (0..)
@@ -131,7 +131,7 @@ impl Host {
     fn stop_idle(&mut self, now: Duration) -> Option<Duration> {
         let mut wake: Option<Duration> = None;
         let mut idle = Vec::new();
-        for (plugin_id, runtime) in &mut self.runtimes {
+        for (app_id, runtime) in &mut self.runtimes {
             if !runtime.instances.is_empty() {
                 runtime.idle_since = None;
                 continue;
@@ -141,18 +141,18 @@ impl Host {
                 Some(left) if !left.is_zero() => {
                     wake = Some(wake.map_or(left, |wake| wake.min(left)));
                 }
-                _ => idle.push(plugin_id.clone()),
+                _ => idle.push(app_id.clone()),
             }
         }
-        for plugin_id in idle {
-            self.shutdown(&plugin_id);
-            mark(&plugin_id);
+        for app_id in idle {
+            self.shutdown(&app_id);
+            mark(&app_id);
         }
         wake
     }
 
-    fn shutdown(&mut self, plugin_id: &str) {
-        let Some(mut runtime) = self.runtimes.remove(plugin_id) else {
+    fn shutdown(&mut self, app_id: &str) {
+        let Some(mut runtime) = self.runtimes.remove(app_id) else {
             return;
         };
         runtime.stop();
@@ -162,7 +162,7 @@ impl Host {
 }
 
 pub(super) struct Runtime {
-    plugin: PluginManifest,
+    app: AppManifest,
     pub(super) backend: Backend,
     session: Session,
     queued: Vec<Outbound>,
@@ -356,15 +356,15 @@ fn frame_changed(damage: Option<&[ScreenDamage]>) -> bool {
 }
 
 impl Runtime {
-    fn new(plugin: &PluginManifest, surface: u32) -> Self {
-        let mut backend = Backend::new(plugin);
-        backend.start(plugin);
+    fn new(app: &AppManifest, surface: u32) -> Self {
+        let mut backend = Backend::new(app);
+        backend.start(app);
         let mut instances = Instances::default();
-        instances.allow_network(plugin.network.clone());
-        instances.set_plugin_id(plugin.identity.id.clone());
+        instances.allow_network(app.network.clone());
+        instances.set_app_id(app.identity.id.clone());
         let session = session();
         Self {
-            plugin: plugin.clone(),
+            app: app.clone(),
             backend,
             session,
             queued: Vec::new(),
@@ -402,12 +402,12 @@ impl Runtime {
             self.backend.ask_to_shut_down();
         }
         self.backend.shutdown();
-        previews::forget(&self.plugin.identity.id);
+        previews::forget(&self.app.identity.id);
     }
 
     fn restart(&mut self) {
-        mark(&self.plugin.identity.id);
-        let plugin = self.plugin.clone();
+        mark(&self.app.identity.id);
+        let app = self.app.clone();
         self.stop();
         self.session = session();
         self.queued.clear();
@@ -425,8 +425,8 @@ impl Runtime {
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
-        super::docks::restarted(&plugin.identity.id);
-        self.backend.start(&plugin);
+        super::docks::restarted(&app.identity.id);
+        self.backend.start(&app);
     }
 
     fn begin_pass(&mut self, pass: u64) {
@@ -439,22 +439,22 @@ impl Runtime {
         let mut messages: Vec<Outbound> = Vec::new();
         if !self.fonts_sent && self.session.running() {
             self.fonts_sent = true;
-            messages.push(PluginCall::Fonts(super::fonts::bundled()).into());
+            messages.push(AppCall::Fonts(super::fonts::bundled()).into());
         }
         let describing = super::description::describing();
         if self.session.running() && self.described != describing {
             self.described = describing;
-            messages.push(Outbound::Plugin(PluginCall::Describe(describing)));
+            messages.push(Outbound::App(AppCall::Describe(describing)));
         }
         let preferences = host::preferences();
         if self.preferences != preferences {
             self.preferences = preferences;
-            messages.push(PluginCall::Preferences(preferences).into());
+            messages.push(AppCall::Preferences(preferences).into());
         }
         let utc_offset = be_host_base::platform::utc_offset();
         if self.session.running() && self.utc_offset != Some(utc_offset) {
             self.utc_offset = Some(utc_offset);
-            messages.push(PluginCall::UtcOffset(utc_offset).into());
+            messages.push(AppCall::UtcOffset(utc_offset).into());
         }
         self.update(messages);
     }
@@ -471,24 +471,24 @@ impl Runtime {
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
-            messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
+            messages.push(AppCall::Screens(self.instances.screen_set(next.screens)).into());
             messages.extend(self.instances.take_announced_input());
         }
         messages.extend(self.instances.pending());
         messages.extend(
-            super::docks::take(&self.plugin.identity.id)
+            super::docks::take(&self.app.identity.id)
                 .into_iter()
                 .map(|(instance, update)| Outbound::Editor(instance, EditorCall::Dock(update))),
         );
         messages.extend(
-            super::docks::take_picks(&self.plugin.identity.id)
+            super::docks::take_picks(&self.app.identity.id)
                 .into_iter()
                 .map(|(owner, view, id, anchor)| {
                     Outbound::Editor(owner, EditorCall::MenuPick { view, id, anchor })
                 }),
         );
         messages.extend(
-            super::docks::take_bars(&self.plugin.identity.id)
+            super::docks::take_bars(&self.app.identity.id)
                 .into_iter()
                 .map(|(placer, view, child, action)| {
                     Outbound::Editor(
@@ -562,11 +562,11 @@ impl Runtime {
     }
 
     pub(super) fn name(&self) -> &str {
-        &self.plugin.identity.name
+        &self.app.identity.name
     }
 
     pub(super) fn id(&self) -> &str {
-        &self.plugin.identity.id
+        &self.app.identity.id
     }
 
     pub(super) fn node_action(
@@ -575,7 +575,7 @@ impl Runtime {
         request: beui::accesskit::ActionRequest,
     ) {
         self.pacing.needed = true;
-        self.send(vec![Outbound::Plugin(PluginCall::NodeAction {
+        self.send(vec![Outbound::App(AppCall::NodeAction {
             screen,
             request: request.into(),
         })]);
@@ -584,7 +584,7 @@ impl Runtime {
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
         self.pacing.needed = true;
-        self.send(vec![Outbound::Plugin(PluginCall::RunAction { screen, id })]);
+        self.send(vec![Outbound::App(AppCall::RunAction { screen, id })]);
         host::request_repaint();
     }
 
@@ -616,7 +616,7 @@ impl Runtime {
             return;
         }
         self.painting = true;
-        self.send(vec![Outbound::Plugin(PluginCall::Paintings)]);
+        self.send(vec![Outbound::App(AppCall::Paintings)]);
     }
 
     fn painted(&mut self, payload: &[u8]) {
@@ -653,7 +653,7 @@ impl Runtime {
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
             self.pacing.unseen = !seen;
-            self.send(vec![PluginCall::Draw {
+            self.send(vec![AppCall::Draw {
                 now_micros: self.now().as_micros() as u64,
                 wall_micros: host::wall_clock().as_micros() as u64,
                 seen,
@@ -696,10 +696,10 @@ impl Runtime {
         );
         self.error = Some(error);
         let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
-        previews::forget(&self.plugin.identity.id);
-        CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
-        super::forget_windows(&self.plugin.identity.id);
-        mark(&self.plugin.identity.id);
+        previews::forget(&self.app.identity.id);
+        CRASHED.with(|crashed| crashed.borrow_mut().push(self.app.identity.id.clone()));
+        super::forget_windows(&self.app.identity.id);
+        mark(&self.app.identity.id);
         host::request_repaint();
     }
 
@@ -716,7 +716,7 @@ impl Runtime {
             PresenterState::Waiting | PresenterState::Presenting | PresenterState::Released => None,
         };
         if self.error.is_some() {
-            mark(&self.plugin.identity.id);
+            mark(&self.app.identity.id);
         }
     }
 
@@ -752,7 +752,7 @@ impl Runtime {
         self.deliver();
         self.session.tick(now);
         if *self.session.state() != before {
-            mark(&self.plugin.identity.id);
+            mark(&self.app.identity.id);
             host::request_repaint();
         }
         if let Some(deadline) = self.session.next_deadline() {
@@ -761,12 +761,12 @@ impl Runtime {
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
             SessionState::Failed(failure) => {
-                let error = format!("The plugin session stopped: {failure:?}");
+                let error = format!("The app session stopped: {failure:?}");
                 self.crashed(error);
                 return;
             }
             state => {
-                self.error = Some(format!("The plugin session stopped: {state:?}"));
+                self.error = Some(format!("The app session stopped: {state:?}"));
                 return;
             }
         }
@@ -777,13 +777,13 @@ impl Runtime {
             STEPS.with(|steps| {
                 steps
                     .borrow_mut()
-                    .entry(self.plugin.identity.id.clone())
+                    .entry(self.app.identity.id.clone())
                     .or_default()
                     .merge(beui::native::FrameTimes { count, longest });
             });
         }
         if let Some(took) = self.backend.took() {
-            let id = &self.plugin.identity.id;
+            let id = &self.app.identity.id;
             for (name, duration) in [
                 ("step", took.step),
                 ("GPU calls", took.gpu),
@@ -796,7 +796,7 @@ impl Runtime {
                 );
             }
         }
-        for image in previews::take_withdrawn(&self.plugin.identity.id) {
+        for image in previews::take_withdrawn(&self.app.identity.id) {
             self.backend.withdraw(image);
         }
         if let Some(mut frame) = self.backend.received_frame() {
@@ -809,12 +809,12 @@ impl Runtime {
                 self.frames += 1;
                 be_host_base::performance::record_group_count(
                     PACING,
-                    &format!("{} frames", self.plugin.identity.id),
+                    &format!("{} frames", self.app.identity.id),
                     self.frames,
                 );
             }
             if previewed || changed {
-                mark(&self.plugin.identity.id);
+                mark(&self.app.identity.id);
             }
         }
     }
@@ -885,7 +885,7 @@ impl Runtime {
             })
             .collect::<Vec<_>>();
         let exported = !painted.is_empty();
-        previews::exported(&self.plugin.identity.id, &self.shared, painted);
+        previews::exported(&self.app.identity.id, &self.shared, painted);
         exported
     }
 
@@ -896,7 +896,7 @@ impl Runtime {
             .filter(|placement| placement.view == ViewId::PREVIEW)
             .copied()
             .collect();
-        previews::keep(&self.plugin.identity.id, |instance, screen| {
+        previews::keep(&self.app.identity.id, |instance, screen| {
             shown
                 .iter()
                 .any(|placement| placement.instance == instance && placement.screen == screen)
@@ -922,7 +922,7 @@ impl Runtime {
                 let ChildPreview::Image(image) = status.preview else {
                     continue;
                 };
-                if let Some(picture) = previews::offer(&self.plugin.identity.id, image.image) {
+                if let Some(picture) = previews::offer(&self.app.identity.id, image.image) {
                     self.backend.offer(image.image, &picture);
                 }
             }
@@ -1026,7 +1026,7 @@ impl Runtime {
                     true
                 }
                 Answer::MissingCharacters(missing) => {
-                    replies.extend(self.fallbacks.answer(&missing).map(PluginCall::Fonts));
+                    replies.extend(self.fallbacks.answer(&missing).map(AppCall::Fonts));
                     false
                 }
                 Answer::Shell(mut call) => {
@@ -1069,7 +1069,7 @@ impl Runtime {
             };
         }
         if heard || changed {
-            mark(&self.plugin.identity.id);
+            mark(&self.app.identity.id);
         }
         self.send(replies);
         self.serve();
@@ -1107,7 +1107,7 @@ impl Runtime {
                 self.instances.adopt_window(open, &self.layout);
             }
         }
-        super::request_windows(&self.plugin.identity.id, window_requests);
+        super::request_windows(&self.app.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
@@ -1124,7 +1124,7 @@ impl Runtime {
             children,
         });
         changed |= self.instances.refresh_anchoring_views();
-        super::docks::heard(&self.plugin.identity.id, docks);
+        super::docks::heard(&self.app.identity.id, docks);
         changed
     }
 
@@ -1241,8 +1241,8 @@ pub fn install(setup: &beui::native::Setup) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         host.availability = availability;
-        for plugin in host.warming.take().unwrap_or_default() {
-            let _ = host.runtime(&plugin);
+        for app in host.warming.take().unwrap_or_default() {
+            let _ = host.runtime(&app);
         }
     });
     super::backend::discard_prepared();
@@ -1287,7 +1287,7 @@ impl HostFrame {
 }
 
 pub fn report_child_bars(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     actions: Vec<(be_sdk_api::ChildId, be_sdk_api::BarAction)>,
@@ -1295,7 +1295,7 @@ pub fn report_child_bars(
     if actions.is_empty() {
         return;
     }
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime
             .instances
             .child_bar_actions(instance, region, actions);
@@ -1304,12 +1304,12 @@ pub fn report_child_bars(
 }
 
 pub fn report_child_focus(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     child: be_sdk_api::ChildId,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.send(vec![Outbound::Editor(
             instance,
             EditorCall::ChildFocused {
@@ -1320,17 +1320,17 @@ pub fn report_child_focus(
     });
 }
 
-pub fn preview_image(plugin_id: &str, instance: EditorInstanceId) -> Option<PreviewImage> {
-    previews::image(plugin_id, instance)
+pub fn preview_image(app_id: &str, instance: EditorInstanceId) -> Option<PreviewImage> {
+    previews::image(app_id, instance)
 }
 
 pub fn report_children(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     statuses: Vec<HostChildStatus>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime
             .instances
             .set_child_statuses(instance, region, statuses);
@@ -1342,26 +1342,26 @@ pub fn report_children(
     });
 }
 
-pub fn picked(plugin_id: &str, instance: EditorInstanceId) -> Option<BlockPick> {
-    with(plugin_id, |runtime| runtime.instances.picked(instance)).flatten()
+pub fn picked(app_id: &str, instance: EditorInstanceId) -> Option<BlockPick> {
+    with(app_id, |runtime| runtime.instances.picked(instance)).flatten()
 }
 
-pub fn card(plugin_id: &str, instance: EditorInstanceId) -> bool {
-    with(plugin_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
+pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
 pub fn take_child_dismissals(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
 ) -> Vec<be_sdk_api::ChildId> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.instances.take_child_dismissals(instance)
     })
     .unwrap_or_default()
 }
 
-pub fn take_child_commits(plugin_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {
-    with(plugin_id, |runtime| {
+pub fn take_child_commits(app_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {
+    with(app_id, |runtime| {
         runtime.instances.take_child_commits(instance)
     })
     .unwrap_or_default()
@@ -1374,11 +1374,11 @@ pub struct FramePlacement {
 }
 
 pub fn view_placement_of(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
 ) -> Option<FramePlacement> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime
             .placements
             .get(&(instance, region))
@@ -1399,7 +1399,7 @@ fn scale_rect(rect: Rect, size: Vec2) -> Rect {
 
 pub fn creation(slot: CreationSlot<'_>) -> CreationState {
     let CreationSlot {
-        plugin,
+        app,
         block_types,
         client_id,
         instance,
@@ -1407,7 +1407,7 @@ pub fn creation(slot: CreationSlot<'_>) -> CreationState {
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin) {
+        let runtime = match host.runtime(app) {
             Ok(runtime) => runtime,
             Err(error) => return CreationState::Failed(error),
         };
@@ -1431,7 +1431,7 @@ pub fn creation(slot: CreationSlot<'_>) -> CreationState {
 
 pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     let ArtifactSlot {
-        plugin,
+        app,
         block_types,
         client_id,
         instance,
@@ -1443,7 +1443,7 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin) {
+        let runtime = match host.runtime(app) {
             Ok(runtime) => runtime,
             Err(error) => return ArtifactState::Failed(error),
         };
@@ -1480,8 +1480,8 @@ pub fn poll() {
     let pass = host::pass();
     for command in host::take_commands() {
         match command {
-            host::HostCommand::RestartPlugin(plugin_id) => {
-                with(&plugin_id, Runtime::restart);
+            host::HostCommand::RestartApp(app_id) => {
+                with(&app_id, Runtime::restart);
             }
         }
     }
@@ -1555,7 +1555,7 @@ pub fn busy() -> Vec<String> {
                 runtime
                     .contain(Runtime::busy)
                     .into_iter()
-                    .map(move |reason| format!("the plugin {id} {reason}"))
+                    .map(move |reason| format!("the app {id} {reason}"))
             })
             .collect();
         reasons.sort();
@@ -1596,7 +1596,7 @@ pub fn record_pacing() {
         let mut host = host.borrow_mut();
         (std::mem::take(&mut host.waited), host.over_budget)
     });
-    be_host_base::performance::record_group_duration(PACING, "Waiting on plugins", waited);
+    be_host_base::performance::record_group_duration(PACING, "Waiting on apps", waited);
     be_host_base::performance::record_group_count(PACING, "Frames over budget", over_budget);
 }
 
@@ -1630,10 +1630,10 @@ impl be_host_base::watches::WatchHost for Watches {
     fn published(&self, open: be_sdk_api::ops::MethodId, value: Arc<Vec<u8>>) {
         HOST.with(|host| {
             let mut host = host.borrow_mut();
-            for (plugin_id, runtime) in &mut host.runtimes {
+            for (app_id, runtime) in &mut host.runtimes {
                 if runtime.instances.publish(open, Arc::clone(&value)) {
                     runtime.pacing.needed = true;
-                    mark(plugin_id);
+                    mark(app_id);
                     host::request_repaint();
                 }
             }
@@ -1664,89 +1664,89 @@ impl be_host_base::watches::WatchHost for Watches {
 pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let shell = shell.map(|(plugin_id, instance)| (plugin_id.to_owned(), instance));
+        let shell = shell.map(|(app_id, instance)| (app_id.to_owned(), instance));
         if host.shell == shell {
             return;
         }
         host.shell = shell.clone();
-        for (plugin_id, runtime) in &mut host.runtimes {
+        for (app_id, runtime) in &mut host.runtimes {
             let instance = shell
                 .as_ref()
-                .filter(|(shell, _)| shell == plugin_id)
+                .filter(|(shell, _)| shell == app_id)
                 .map(|(_, instance)| *instance);
             if runtime.instances.set_shell(instance) {
                 runtime.pacing.needed = true;
-                mark(plugin_id);
+                mark(app_id);
                 host::request_repaint();
             }
         }
     });
 }
 
-pub fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {
-    with(plugin_id, |runtime| {
+pub fn take_focus_report(app_id: &str, instance: EditorInstanceId) -> Option<Focus> {
+    with(app_id, |runtime| {
         runtime.instances.take_focus_report(instance)
     })
     .flatten()
 }
 
-pub fn take_artifact_watch(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
-    with(plugin_id, |runtime| {
+pub fn take_artifact_watch(app_id: &str, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
+    with(app_id, |runtime| {
         runtime.instances.take_artifact_watch(instance)
     })
     .flatten()
 }
 
-pub fn menu(plugin_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
-    with(plugin_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
+pub fn menu(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
+    with(app_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
 
 pub fn menu_pick(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     id: String,
     anchor: Option<beui::Rect>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime.instances.menu_pick(instance, id, anchor);
         runtime.send(messages);
     });
 }
 
 pub fn take_child_menu_picks(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     children: &[be_sdk_api::ChildId],
 ) -> Vec<(be_sdk_api::ChildId, String, Option<beui::Rect>)> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.instances.take_child_menu_picks(instance, children)
     })
     .unwrap_or_default()
 }
 
 pub fn show_dialog(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     block: Uuid,
     dialog: be_sdk_api::ShellDialog,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let calls = runtime.instances.show_dialog(instance, block, dialog);
         runtime.send(calls);
     });
 }
 
-pub fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
-    with(plugin_id, |runtime| {
+pub fn show_panel(app_id: &str, instance: EditorInstanceId, panel: HostPanel) {
+    with(app_id, |runtime| {
         runtime.instances.show_panel(instance, panel);
         runtime.answer();
     });
 }
 
-pub fn show_block(plugin: &PluginManifest, instance: EditorInstanceId, open: crate::BlockOpen) {
+pub fn show_block(app: &AppManifest, instance: EditorInstanceId, open: crate::BlockOpen) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let Ok(runtime) = host.runtime(plugin) else {
+        let Ok(runtime) = host.runtime(app) else {
             return;
         };
         runtime.contain(|runtime| {
@@ -1754,31 +1754,31 @@ pub fn show_block(plugin: &PluginManifest, instance: EditorInstanceId, open: cra
             runtime.answer();
         });
     });
-    mark(&plugin.identity.id);
+    mark(&app.identity.id);
 }
 
 pub fn set_artifact_states(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     states: Vec<be_sdk_api::ArtifactState>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.instances.set_artifact_states(instance, states);
         runtime.answer();
     });
 }
 
-pub fn kill(plugin_id: &str) {
+pub fn kill(app_id: &str) {
     HOST.with(|host| {
-        host.borrow_mut().shutdown(plugin_id);
+        host.borrow_mut().shutdown(app_id);
     });
-    mark(plugin_id);
+    mark(app_id);
 }
 
-pub fn close(plugin_id: &str, instance: EditorInstanceId) {
+pub fn close(app_id: &str, instance: EditorInstanceId) {
     super::instances::want_presence(instance, false);
     super::docks::forget(instance);
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime
             .instances
             .remove(instance)
@@ -1787,104 +1787,104 @@ pub fn close(plugin_id: &str, instance: EditorInstanceId) {
             runtime.send(messages);
         }
     });
-    mark(plugin_id);
+    mark(app_id);
 }
 
-pub fn artifact_draft(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec<u8>> {
-    with(plugin_id, |runtime| {
+pub fn artifact_draft(app_id: &str, instance: EditorInstanceId) -> Option<Vec<u8>> {
+    with(app_id, |runtime| {
         runtime.instances.artifact_draft(instance)
     })
     .flatten()
 }
 
-pub fn regenerate_artifact(plugin_id: &str, instance: EditorInstanceId, data: &[u8]) {
-    with(plugin_id, |runtime| {
+pub fn regenerate_artifact(app_id: &str, instance: EditorInstanceId, data: &[u8]) {
+    with(app_id, |runtime| {
         let messages = runtime.instances.regenerate_artifact(instance, data);
         runtime.send(messages);
     });
 }
 
 pub fn take_artifact_outcome(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
 ) -> Option<Result<(), String>> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.instances.take_artifact_outcome(instance)
     })
     .flatten()
 }
 
-pub fn view_size(plugin_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
-    with(plugin_id, |runtime| {
+pub fn view_size(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
+    with(app_id, |runtime| {
         runtime.instances.view_size(instance, region)
     })
     .flatten()
 }
 
 pub fn dialog_status(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
 ) -> Option<be_sdk_api::DialogStatus> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.instances.dialog_status(instance)
     })
     .flatten()
 }
 
-pub fn forget_dialog_answer(plugin_id: &str, instance: EditorInstanceId) {
-    with(plugin_id, |runtime| {
+pub fn forget_dialog_answer(app_id: &str, instance: EditorInstanceId) {
+    with(app_id, |runtime| {
         runtime.instances.forget_dialog_answer(instance)
     });
 }
 
-pub fn dismiss(plugin_id: &str, instance: EditorInstanceId) {
-    with(plugin_id, |runtime| {
+pub fn dismiss(app_id: &str, instance: EditorInstanceId) {
+    with(app_id, |runtime| {
         let messages = runtime.instances.dismiss(instance);
         runtime.send(messages);
     });
 }
 
-pub fn commit_creation(plugin_id: &str, instance: EditorInstanceId) {
-    with(plugin_id, |runtime| {
+pub fn commit_creation(app_id: &str, instance: EditorInstanceId) {
+    with(app_id, |runtime| {
         let messages = runtime.instances.commit_creation(instance);
         runtime.send(messages);
     });
 }
 
-pub fn take_created(plugin_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
-    with(plugin_id, |runtime| {
+pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
+    with(app_id, |runtime| {
         runtime.instances.take_created(instance)
     })
     .flatten()
 }
 
-pub fn frame_child(plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
-    with(plugin_id, |runtime| runtime.instances.frame_child(instance)).flatten()
+pub fn frame_child(app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+    with(app_id, |runtime| runtime.instances.frame_child(instance)).flatten()
 }
 
-pub fn revoke_frame_child(plugin_id: &str, instance: EditorInstanceId) {
-    with(plugin_id, |runtime| {
+pub fn revoke_frame_child(app_id: &str, instance: EditorInstanceId) {
+    with(app_id, |runtime| {
         runtime.instances.revoke_frame_child(instance);
         runtime.report_docked();
     });
-    mark(plugin_id);
+    mark(app_id);
 }
 
-pub fn take_leaving(plugin_id: &str, instance: EditorInstanceId) -> bool {
-    with(plugin_id, |runtime| {
+pub fn take_leaving(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| {
         runtime.instances.take_leaving(instance)
     })
     .unwrap_or_default()
 }
 
-pub fn hold(plugin_id: &str, instance: EditorInstanceId, region: ViewId) {
-    with(plugin_id, |runtime| {
+pub fn hold(app_id: &str, instance: EditorInstanceId, region: ViewId) {
+    with(app_id, |runtime| {
         runtime.instances.hold(instance, region)
     });
 }
 
-pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId, view: ViewId) -> Option<HostFrame> {
-    with(plugin_id, |runtime| {
+pub fn frame_rects(app_id: &str, instance: EditorInstanceId, view: ViewId) -> Option<HostFrame> {
+    with(app_id, |runtime| {
         runtime
             .instances
             .frame_report(instance, view)
@@ -1896,51 +1896,51 @@ pub fn frame_rects(plugin_id: &str, instance: EditorInstanceId, view: ViewId) ->
     .flatten()
 }
 
-pub fn content_view(plugin_id: &str, instance: EditorInstanceId) -> ViewId {
-    with(plugin_id, |runtime| {
+pub fn content_view(app_id: &str, instance: EditorInstanceId) -> ViewId {
+    with(app_id, |runtime| {
         runtime.instances.content_view(instance)
     })
     .unwrap_or(ViewId::MAIN)
 }
 
-pub fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
-    with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
+pub fn presenting(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
 }
 
-pub fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {
-    with(plugin_id, |runtime| {
+pub fn present(app_id: &str, instance: EditorInstanceId, presenting: bool) {
+    with(app_id, |runtime| {
         if runtime.instances.set_presenting(instance, presenting) {
-            mark(plugin_id);
+            mark(app_id);
             host::request_repaint();
         }
     });
 }
 
-pub fn set_presented(plugin_id: &str, instance: EditorInstanceId, presented: bool) {
-    with(plugin_id, |runtime| {
+pub fn set_presented(app_id: &str, instance: EditorInstanceId, presented: bool) {
+    with(app_id, |runtime| {
         if runtime.instances.set_presented(instance, presented) {
             runtime.pacing.needed = true;
-            mark(plugin_id);
+            mark(app_id);
             host::request_repaint();
         }
     });
 }
 
-pub fn set_presence_visible(plugin_id: &str, instance: EditorInstanceId, visible: bool) {
+pub fn set_presence_visible(app_id: &str, instance: EditorInstanceId, visible: bool) {
     super::instances::want_presence(instance, visible);
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime.instances.set_presence_visible(instance, visible);
         runtime.send(messages);
     });
 }
 
 pub fn replace_child(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     old: Uuid,
     new: Uuid,
 ) -> Option<bool> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let (messages, replaced) = runtime.instances.replace_child(instance, old, new);
         runtime.send(messages);
         replaced
@@ -1948,61 +1948,61 @@ pub fn replace_child(
     .flatten()
 }
 
-pub fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {
-    with(plugin_id, |runtime| {
+pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
+    with(app_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);
         runtime.send(messages);
     });
 }
 
-pub fn take_view_changes(plugin_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
-    with(plugin_id, |runtime| {
+pub fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
+    with(app_id, |runtime| {
         runtime.instances.take_view_changes(instance)
     })
     .unwrap_or_default()
 }
 
-pub fn take_bar_actions(plugin_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::BarAction> {
-    with(plugin_id, |runtime| {
+pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::BarAction> {
+    with(app_id, |runtime| {
         runtime.instances.take_bar_actions(instance)
     })
     .unwrap_or_default()
 }
 
-pub fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Option<f32> {
-    with(plugin_id, |runtime| {
+pub fn aspect_ratio(app_id: &str, instance: EditorInstanceId) -> Option<f32> {
+    with(app_id, |runtime| {
         runtime.instances.aspect_ratio(instance)
     })
     .flatten()
 }
 
-pub fn assigned_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
-    with(plugin_id, |runtime| {
+pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    with(app_id, |runtime| {
         runtime.instances.assigned_size(instance)
     })
     .flatten()
 }
 
-pub fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
-    with(plugin_id, |runtime| {
+pub fn intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    with(app_id, |runtime| {
         runtime.instances.intrinsic_size(instance)
     })
     .flatten()
 }
 
-pub fn warm(plugin: &PluginManifest) {
+pub fn warm(app: &AppManifest) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let Some(warming) = &mut host.warming else {
-            let _ = host.runtime(plugin);
+            let _ = host.runtime(app);
             return;
         };
         if !warming
             .iter()
-            .any(|warmed| warmed.identity.id == plugin.identity.id)
+            .any(|warmed| warmed.identity.id == app.identity.id)
         {
-            warming.push(plugin.clone());
-            super::backend::prepare(plugin);
+            warming.push(app.clone());
+            super::backend::prepare(app);
         }
     });
 }
@@ -2014,7 +2014,7 @@ pub fn in_use() -> Vec<String> {
             .runtimes
             .iter()
             .filter(|(_, runtime)| !runtime.instances.is_empty())
-            .map(|(plugin_id, _)| plugin_id.clone())
+            .map(|(app_id, _)| app_id.clone())
             .collect();
         in_use.sort_unstable();
         in_use
@@ -2027,8 +2027,8 @@ pub fn running() -> Vec<RuntimeStatus> {
         let mut running: Vec<_> = host
             .runtimes
             .iter()
-            .map(|(plugin_id, runtime)| RuntimeStatus {
-                plugin_id: plugin_id.clone(),
+            .map(|(app_id, runtime)| RuntimeStatus {
+                app_id: app_id.clone(),
                 state: runtime.state(),
                 surface: SurfaceStatus {
                     index: runtime.surface,
@@ -2047,7 +2047,7 @@ pub fn running() -> Vec<RuntimeStatus> {
                 instances: runtime.instances.statuses(&runtime.layout, runtime.pass),
             })
             .collect();
-        running.sort_by(|left, right| left.plugin_id.cmp(&right.plugin_id));
+        running.sort_by(|left, right| left.app_id.cmp(&right.app_id));
         running
     })
 }
@@ -2070,14 +2070,14 @@ pub fn take_crashed() -> Vec<String> {
     CRASHED.with(|crashed| std::mem::take(&mut *crashed.borrow_mut()))
 }
 
-pub fn crash(plugin_id: &str, error: String) {
-    with(plugin_id, |runtime| runtime.crashed(error));
+pub fn crash(app_id: &str, error: String) {
+    with(app_id, |runtime| runtime.crashed(error));
 }
 
-pub(super) fn mark(plugin_id: &str) {
+pub(super) fn mark(app_id: &str) {
     CHANGED.with(|changed| {
-        if !changed.borrow().contains(plugin_id) {
-            changed.borrow_mut().insert(plugin_id.to_owned());
+        if !changed.borrow().contains(app_id) {
+            changed.borrow_mut().insert(app_id.to_owned());
         }
     });
 }
@@ -2087,8 +2087,8 @@ pub fn take_changed() -> Vec<String> {
 }
 
 pub struct ViewSlot<'a> {
-    pub plugin: &'a PluginManifest,
-    pub block_types: &'a Arc<crate::PluginCatalog>,
+    pub app: &'an AppManifest,
+    pub block_types: &'a Arc<crate::AppCatalog>,
     pub client_id: Uuid,
     pub role: InstanceRole,
     pub instance: EditorInstanceId,
@@ -2097,7 +2097,7 @@ pub struct ViewSlot<'a> {
 
 pub fn mount_view(slot: ViewSlot<'_>) {
     let ViewSlot {
-        plugin,
+        app,
         block_types,
         client_id,
         role,
@@ -2106,14 +2106,14 @@ pub fn mount_view(slot: ViewSlot<'_>) {
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let Ok(runtime) = host.runtime(plugin) else {
-            mark(&plugin.identity.id);
+        let Ok(runtime) = host.runtime(app) else {
+            mark(&app.identity.id);
             return;
         };
         runtime.contain(|runtime| {
             super::docks::register(
                 instance,
-                &plugin.identity.id,
+                &app.identity.id,
                 match role {
                     InstanceRole::Editor(_, block) => Some(block.id),
                     InstanceRole::Creation(..)
@@ -2127,27 +2127,27 @@ pub fn mount_view(slot: ViewSlot<'_>) {
                 .mount(instance, view, client_id, role, block_types);
             runtime.release_reported();
         });
-        mark(&plugin.identity.id);
+        mark(&app.identity.id);
     });
     host::request_repaint();
 }
 
-pub fn unmount_view(plugin_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
-    with(plugin_id, |runtime| {
+pub fn unmount_view(app_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
+    with(app_id, |runtime| {
         runtime.instances.unmount(instance, region);
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
     });
-    mark(plugin_id);
+    mark(app_id);
     host::request_repaint();
 }
 
-pub fn unplace_view(plugin_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
-    with(plugin_id, |runtime| {
+pub fn unplace_view(app_id: &str, instance: EditorInstanceId, region: ViewId, mount: u64) {
+    with(app_id, |runtime| {
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
     });
-    mark(plugin_id);
+    mark(app_id);
     host::request_repaint();
 }
 
@@ -2187,7 +2187,7 @@ pub(super) struct Offer {
 }
 
 pub fn place_view(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     mount: u64,
@@ -2195,7 +2195,7 @@ pub fn place_view(
     frame: Option<FrameSpec>,
     view: Option<EditorView>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         if !runtime.instances.mounted(instance, region) {
             return;
         }
@@ -2211,7 +2211,7 @@ pub fn place_view(
             None => offers.push(offer),
         }
         apply_offers(runtime, instance, region);
-        mark(plugin_id);
+        mark(app_id);
     });
     host::request_repaint();
 }
@@ -2317,13 +2317,13 @@ fn ratio_of(shown: f32, logical: f32) -> f32 {
 }
 
 pub fn forward_anchored(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     layer: ViewId,
     input: &beui::ForwardedInput,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
         let messages = runtime
             .instances
@@ -2335,12 +2335,12 @@ pub fn forward_anchored(
 }
 
 pub fn dismiss_anchored_views(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     dismissed: Vec<ViewId>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime
             .instances
             .dismiss_anchored_views(instance, region, dismissed);
@@ -2351,14 +2351,14 @@ pub fn dismiss_anchored_views(
 }
 
 pub fn forward_view(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     input: &beui::ForwardedInput,
     aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
     target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
         let (messages, revoked) = runtime
             .instances
@@ -2366,26 +2366,26 @@ pub fn forward_view(
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {
-            mark(plugin_id);
+            mark(app_id);
         }
     });
 }
 
-pub fn pressed_outside_view(plugin_id: &str, instance: EditorInstanceId, region: ViewId) {
-    with(plugin_id, |runtime| {
+pub fn pressed_outside_view(app_id: &str, instance: EditorInstanceId, region: ViewId) {
+    with(app_id, |runtime| {
         if runtime.instances.revoke_active(instance, region) {
-            mark(plugin_id);
+            mark(app_id);
         }
     });
 }
 
 pub fn back_view(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     gesture: beui::BackGesture,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime.instances.back(instance, region, gesture);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
@@ -2394,13 +2394,13 @@ pub fn back_view(
 }
 
 pub fn intercept_view(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     press: Option<beui::KeyPress>,
     modifiers: beui::Modifiers,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let messages = runtime
             .instances
             .intercepted(instance, region, press, modifiers);
@@ -2410,8 +2410,8 @@ pub fn intercept_view(
     host::request_repaint();
 }
 
-pub fn intercept_tap(plugin_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
-    with(plugin_id, |runtime| {
+pub fn intercept_tap(app_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
+    with(app_id, |runtime| {
         let messages = runtime.instances.intercepted_tap(instance, region, key);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
@@ -2524,7 +2524,7 @@ fn pieces_of(rect: Rect, visible: Rect, textured: Rect, shown: &[Rect]) -> Vec<P
 }
 
 pub fn placed_view(
-    plugin: &PluginManifest,
+    app: &AppManifest,
     instance: EditorInstanceId,
     region: ViewId,
     own: Option<EmbedPlacement>,
@@ -2532,7 +2532,7 @@ pub fn placed_view(
 ) -> PlacedView {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin) {
+        let runtime = match host.runtime(app) {
             Ok(runtime) => runtime,
             Err(error) => return PlacedView::failed(error, false),
         };
@@ -2739,20 +2739,20 @@ fn shown_view(
     }
 }
 
-pub fn frames(plugin_id: &str) -> u64 {
-    with(plugin_id, |runtime| runtime.frames).unwrap_or_default()
+pub fn frames(app_id: &str) -> u64 {
+    with(app_id, |runtime| runtime.frames).unwrap_or_default()
 }
 
-pub fn take_focus_request(plugin_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
-    with(plugin_id, |runtime| {
+pub fn take_focus_request(app_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
+    with(app_id, |runtime| {
         runtime.instances.take_focus_request(instance, region)
     })
     .unwrap_or(false)
 }
 
-pub fn take_view_actions(plugin_id: &str, instance: EditorInstanceId) -> Vec<crate::EditorAction> {
+pub fn take_view_actions(app_id: &str, instance: EditorInstanceId) -> Vec<crate::EditorAction> {
     use crate::EditorAction;
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let mut actions = Vec::new();
         while let Some(open) = runtime.instances.take_open(instance) {
             actions.push(EditorAction::OpenBlock(open));
@@ -2771,21 +2771,21 @@ pub fn take_view_actions(plugin_id: &str, instance: EditorInstanceId) -> Vec<cra
     .unwrap_or_default()
 }
 
-pub fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
-    with(plugin_id, |runtime| {
+pub fn take_block_drags(app_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
+    with(app_id, |runtime| {
         runtime.instances.take_block_drags(instance)
     })
     .unwrap_or_default()
 }
 
 pub fn drag_over_view(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     over: Option<(BlockDrag, Pos2)>,
     dropped: bool,
 ) {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let origin = runtime
             .instances
             .placement(instance, region)
@@ -2805,13 +2805,13 @@ pub fn drag_over_view(
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if was != runtime.instances.dragging(instance, region) {
-            mark(plugin_id);
+            mark(app_id);
         }
     });
 }
 
 pub fn view_drawing(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     view: &PlacedView,
@@ -2823,7 +2823,7 @@ pub fn view_drawing(
     if view.loading {
         return None;
     }
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
@@ -2851,8 +2851,8 @@ pub fn view_drawing(
     .flatten()
 }
 
-pub fn anchored_blits(plugin_id: &str, layer: &HostAnchored) -> Vec<Blit> {
-    with(plugin_id, |runtime| {
+pub fn anchored_blits(app_id: &str, layer: &HostAnchored) -> Vec<Blit> {
+    with(app_id, |runtime| {
         let template = runtime.template(layer.screen, None);
         let pixels_per_point = layer.pixels_per_point;
         Some(
@@ -2892,11 +2892,11 @@ pub fn anchored_drawing(blits: AnchoredBlits) -> beui::native::Drawing {
 }
 
 pub fn view_placed(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
 ) -> Option<[u32; 3]> {
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         runtime
             .layout
@@ -2907,7 +2907,7 @@ pub fn view_placed(
 }
 
 pub fn view_damage(
-    plugin_id: &str,
+    app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
     view: &PlacedView,
@@ -2918,15 +2918,15 @@ pub fn view_damage(
     if view.held.is_some() || rotation != 0.0 {
         return None;
     }
-    with(plugin_id, |runtime| {
+    with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         runtime.template(screen, view.drawn).damage(pieces, seen)
     })
     .flatten()
 }
 
-pub fn view_published(plugin_id: &str) -> u64 {
-    with(plugin_id, |runtime| {
+pub fn view_published(app_id: &str) -> u64 {
+    with(app_id, |runtime| {
         runtime.shared.borrow().published.count()
     })
     .unwrap_or_default()
@@ -2936,11 +2936,11 @@ pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {
     HOST.with(|host| host.borrow_mut().runtimes.values_mut().for_each(&mut act));
 }
 
-pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {
+pub(super) fn with<R>(app_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {
     HOST.with(|host| {
         host.borrow_mut()
             .runtimes
-            .get_mut(plugin_id)?
+            .get_mut(app_id)?
             .contain(|runtime| Some(act(runtime)))
     })
 }

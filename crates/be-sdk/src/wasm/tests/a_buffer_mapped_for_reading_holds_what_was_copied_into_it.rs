@@ -22,7 +22,7 @@ fn a_buffer_mapped_for_reading_holds_what_was_copied_into_it() {
     assert_eq!(
         *answer.lock().unwrap(),
         None,
-        "a map is answered when the plugin polls, not while it asks"
+        "a map is answered when the app polls, not while it asks"
     );
     device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
     assert_eq!(*answer.lock().unwrap(), Some(Ok(())));

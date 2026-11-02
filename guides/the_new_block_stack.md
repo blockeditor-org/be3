@@ -748,7 +748,7 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `undo` in `be_block_types!` and has undo from the start. Almost every content type is
 built this way: the counter, the checklist (the one first-party type already in
-its plugin's types crate, `crates/be-type-checklist`), the browser
+its app's types crate, `crates/be-type-checklist`), the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
 compiled logic, the infinite canvas and text. Implementing the
@@ -802,8 +802,8 @@ registered, and `hold::<C>` registers a type it does not know): one replica per
 block, owned by this device, a store of commits that takes every publish, the test's
 frame clock as the replica's time, and editors attached as endpoints on their first
 frame through a `replica` resource, the way the host does. `BeuiTest` plays
-the host's side of the `be3:plugin/blocks` interface over a be-wasm-ops connection to the
-headless plugin's executor (`be-sdk-test/src/link.rs`), so a test runs the same
+the host's side of the `be3:app/blocks` interface over a be-wasm-ops connection to the
+headless app's executor (`be-sdk-test/src/link.rs`), so a test runs the same
 calls and watches the host does. `edit` and `apply_elsewhere` are edits
 submitted by another participant, `set_peers` and `receive_from_peer` are presence and
 channel messages from one; `store()` hands a test fixture the same `ContentStore` to
@@ -866,7 +866,7 @@ undone.
   A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
   and carries the `LOCAL_ID` metadata key; a block created inside a checkout, or
   one that was adopted into it, keeps its own id as its local id. The host
-  translates every block id that crosses the plugin protocol for an instance
+  translates every block id that crosses the app protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
   the `BlockIds` of what crosses, in be-host-runtime/src/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
@@ -916,35 +916,35 @@ removes the directory when dropped; see `Harness` in
 own tests do the same through the embedded server, register an account and
 create an organization, and then start the host's peer against it the way the host
 does: `Harness` in `crates/be-host-stack/src/tests.rs`. The crates above the
-stack (the plugin host, block-app) test against it through `be-host-testing`'s
+stack (the app host, block-app) test against it through `be-host-testing`'s
 `Harness`, which turns on be-host-stack's `testing` feature and serves the
 first-party types in process (`be_host_stack::testing::serve_in_process`), as
 the stack's own tests do under `cfg(test)`.
 
 ## How the host holds content
 
-The host is the peer, not the plugin. A plugin never sees a key, the
+The host is the peer, not the app. An app never sees a key, the
 connection or the server; it is handed content and graph answers by the host,
 and hands back operations and graph commands.
 
 ### The peer and its registry
 
 The host's peer names no content type. Every block type runs in a type module
-(guides/type_modules.md): a plugin's own, which its manifest's `block_types` name
-and the host runs one instance of per plugin, staged beside the plugin as
+(guides/type_modules.md): an app's own, which its manifest's `block_types` name
+and the host runs one instance of per app, staged beside the app as
 `NAME.wasm` with its `.cwasm` and its SHA-256 (`NAME.sha256`, the tag of its
 sessions); and `be_sdk_type_host::registrations()`, the settings types, the
 repository and the checkout, which the host reads itself and runs in process
 (`be_host_stack::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
-`be_host_stack::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
+`be_host_stack::host_block_types`: discovery (`editors/app/discovery.rs`, `block_type`)
 holds that catalog, so a type is known before its module's `start` lists it, and
-refuses a plugin that declares a type someone else already has or edits one
+refuses an app that declares a type someone else already has or edits one
 nobody declares. `be_host_stack::provided` is whether some module will hold a content type,
-which is what the plugin host checks before following a block's content.
+which is what the app host checks before following a block's content.
 The registry (`be_block_type_host::modules`, re-exported by `be-host-stack/src/types.rs`, which
 lists the host's module sources) knows every type a manifest declares from the start
-(`be_host_stack::is_known`), and a plugin's module runs only once a block of its types
+(`be_host_stack::is_known`), and an app's module runs only once a block of its types
 needs it (guides/type_modules.md, "Hosts"); its `start` then adds what `be_host_stack::kind_of`
 answers (frozen, schema fingerprint, blank content and its description), which is `None`
 until then, so the worker asks `Replicas::kind`, which starts the module and awaits it. Everything else
@@ -1083,7 +1083,7 @@ that much), and is never `locked`. The host never lists the whole organization.
 `Parents`, `Block`, and the host's own `Subtree`) is how everything in the host
 asks the mirror a question, and `be_host_stack::graph_revision` says when to ask again.
 Whoever asks first says what it wants with `be_host_stack::want(owner, queries)`: each
-plugin instance its `blocks-watch` queries, its own block's `Parents` and the
+app instance its `blocks-watch` queries, its own block's `Parents` and the
 blocks whose content it watches (`Owner::Editor`); the worker the parents of
 every open block and of every revision preview's source (`Owner::Open`) and the
 roots (`Owner::Host`, for Settings and My files); version control its
@@ -1145,14 +1145,14 @@ the references it publishes with the block (`Publish`, and `CreateBlock` and
 `SetMetadata` for a block with no content yet), so the graph's backrefs and
 `KnowExists` see them as they see content's, and a parent holds a child its
 metadata points to (a settings block, an edit kind). They are not the block's
-children, though: the host hands plugins only what the content refers to, as
+children, though: the host hands apps only what the content refers to, as
 `BlockInfo::references` and `BlockQuery::References` (block-app `Node::contents`),
 so a canvas or a folder never lists the tags or settings its metadata names; read
 those from the metadata, and `BlockQuery::Backrefs` finds the blocks pointing to
 one either way. `BlockMetadata::name` is `NAME` when someone named the
-block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
+block and `INTRINSIC_NAME` otherwise. Apps get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
-`Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
+`Blocks::define`; the host never lets an app set `LOCAL_ID`. A beui
 `styled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
 at the image's size and paints the blurred placeholder until the image arrives.
 
@@ -1181,10 +1181,10 @@ the change to the mirror at once and sends it. `be_host_stack::describe_implicit
 the derived metadata of an open block current in the mirror as its content
 changes (`Graph::derive`), until the save that publishes it.
 
-### Content on the plugin protocol
+### Content on the app protocol
 
-The blocks an editor reads and changes cross the plugin protocol in the
-`be3:plugin/blocks` WIT interface (`crates/be-sdk-api/wit/blocks.wit`),
+The blocks an editor reads and changes cross the app protocol in the
+`be3:app/blocks` WIT interface (`crates/be-sdk-api/wit/blocks.wit`),
 every call of which is made under the editor's resource, so the host knows the
 instance from the call's parent and closing the editor ends what it opened.
 An editor is a follower of the block's replica (guides/type_modules.md, "Editors
@@ -1197,19 +1197,19 @@ editor's window is full), and `replica.send(frame)` is an `async func` for each 
 the editor sends, which the host answers once it has taken the frame in; the editor
 keeps no more than a window of frames unanswered and leaves the rest in its
 `EditorHost` until answers come. A frame is one `be_sdk_type_api::encode_frame` of a
-`be_sdk_type_guest::editor::ToEditor` (host to plugin) or `FromEditor` (plugin to
+`be_sdk_type_guest::editor::ToEditor` (host to app) or `FromEditor` (app to
 host) (`ToEditor::frame`, `from_frame`), and the host relays it unread between the
 instance and the block's replica.
 
-- Plugin to host: `Operate`, `Gesture` (`Begin`, `Commit`, `Cancel`), `ShowPresence`,
+- App to host: `Operate`, `Gesture` (`Begin`, `Commit`, `Cancel`), `ShowPresence`,
   `SendToPeers` and `Resend`. An instance asks for a block's content by sending
   `Resend` when it first follows the block, and the host attaches the instance to the
   replica on the first frame it sends for a block, with `editable` from the account's
   access, which it sends again when that changes.
-- Host to plugin: `Snapshot { content_type, bytes, session, unsettled, applied }`, the
+- Host to app: `Snapshot { content_type, bytes, session, unsettled, applied }`, the
   settled content and the operations still unsettled on top of it; `applied` counts the
-  operations *this instance* sent that the snapshot already holds, which is what lets a
-  plugin tell its own unacknowledged edits from everyone else's. `Operations`, every
+  operations *this instance* sent that the snapshot already holds, which is what lets an
+  app tell its own unacknowledged edits from everyone else's. `Operations`, every
   operation since the last frame, in order, each marked `mine` when this instance sent
   it, with how many operations are still unsettled after it (`unsettled`) and, for a
   peer's operation that goes beneath those, the unsettled operations as rebased
@@ -1240,7 +1240,7 @@ follower's own edits stay unsettled until the owner accepts them, a peer's
 operation the owner sequenced first goes beneath them) is the replica's:
 guides/type_modules.md.
 
-On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
+On the app side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor, built on `be_sdk_type_guest::editor::EditorMirror<C>` (which keeps the
 settled content, the unsettled and pending operations, what an update touched,
 `revision()` and the `Projected` log `LiveText` reads), plus the watchers. `operate` applies an operation to what the view sees and queues it
@@ -1264,7 +1264,7 @@ without depending on the crate itself.
 
 ### State and change callbacks
 
-be-sdk holds the plugin's state as plain values and knows nothing of
+be-sdk holds the app's state as plain values and knows nothing of
 any UI framework or signal library: `LiveContent<C>` (the projection without
 signals: `read`, `ready`, `revision` and `visible`, which reads what the view
 sees even before the content arrived), `BlockGraph` (`EditorHost::graph()`:
@@ -1360,11 +1360,11 @@ Anchored views, floated windows and scrims are the overlay API and stay the
 framework's: `Regions::anchored` hands the driver an anchored view's surface,
 whose lifetime the framework keeps.
 
-### The graph on the plugin protocol
+### The graph on the app protocol
 
-A plugin asks about the graph with a `blocks-watch` resource per `BlockQuery`,
+An app asks about the graph with a `blocks-watch` resource per `BlockQuery`,
 whose `next` the host answers from its mirror with the query's `BlockInfo`s, or why
-it could not list them, whenever the answer changes (`be-host-stack/src/plugin_graph.rs`); an
+it could not list them, whenever the answer changes (`be-host-stack/src/app_graph.rs`); an
 editor watches a query while anything holds its `BlockList`, and the session drops
 the resource when nothing does. A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
@@ -1401,8 +1401,8 @@ when it gives it a parent again), and otherwise into My files. It changes the gr
 `create-block(block, block-type, parent, defined, content)`, `set-parent` and
 `define`, which the host takes only when the account may edit the block and the
 parent it names, and hands to `be_host_stack::create`, `be_host_stack::set_parent` and `be_host_stack::define`. They
-are sync calls that carry no answer: the plugin chooses a new block's id itself, so
-it can use the block before the host has seen it. On the plugin side these are `editor.watch_blocks(query)` and
+are sync calls that carry no answer: the app chooses a new block's id itself, so
+it can use the block before the host has seen it. On the app side these are `editor.watch_blocks(query)` and
 the `Blocks` handle from `editor.blocks()`.
 
 ### Creating, seeding and replacing
@@ -1411,7 +1411,7 @@ A new block's first content travels with it: `create-block` carries the encoded
 content, and the worker creates the block, then writes the content as its first
 commit, before any later command for that block runs. With no content the
 worker writes the type's blank content, which its type module made when it started
-(`Kind::blank`), so a host or plugin that makes a block of a type whose format
+(`Kind::blank`), so a host or app that makes a block of a type whose format
 it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
 for the file tree's New workspace, `be_host_stack::create(.., None)` for My files and a new
 session's view. `Creation::create` and
@@ -1445,7 +1445,7 @@ way. `content_file_creation::<C>` is the creation view that makes a block of a
 file type from the file the user picks.
 
 A block file (`be_block_client::transfer`, the file `be download` writes) carries a
-block and everything under it. A plugin asks the host for one with
+block and everything under it. An app asks the host for one with
 host-services' `export-block`, answered like `save-file`: the worker lists the tree
 a level at a time (starting from the view when asked for a database inside
 one), all of a level's `ListChildren` together, and fills in each block's
@@ -1486,7 +1486,7 @@ places in, since moving a tree into another workspace rekeys every block in it.
 ### Children, duplication and undo
 
 Moving a block into a container, deleting a child or replacing it with a copy
-asks the container's content to change. `PluginEditor` sends that to
+asks the container's content to change. `AppEditor` sends that to
 `be_host_stack::change_child`, which opens the container's replica if nothing has and sends
 it `Change::Child`; the content type answers with `Root::child_edit`, which
 turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
@@ -1520,7 +1520,7 @@ libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
-(guides/adding_a_plugin_editor.md says how host values reach a plugin). The seat, the stored settings and those host values share one set of types from `be-lib-ui-preferences` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the host
+(guides/adding_an_app.md says how host values reach an app). The seat, the stored settings and those host values share one set of types from `be-lib-ui-preferences` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the host
 keeps a copy of the last settings of each kind it applied in `host_state` and
 applies that at startup, the theme and scale with it, even before anyone signs
 in; the block stays the source of truth. A kind of setting
@@ -1531,7 +1531,7 @@ connected monitor shows (a rotation applies and saves at once), or a monitor sho
 other than its preferred one that this device never kept it at (an untried fastest default, or
 a mode another device chose for that monitor), opens the host's "Keep these display
 settings?" prompt (block-app's `ui/keep_changes.rs`, an alert on every screen) in
-`display::guard`. It is the host's because it must work before any shell plugin
+`display::guard`. It is the host's because it must work before any shell app
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
 round it was given in. Keep saves, storing a kept default as the monitor's mode;
@@ -1559,14 +1559,14 @@ within 750 ms of the last one, by the time the host ticks the module with (the
 frame clock's instant each relayed frame is stamped with), may be absorbed into
 it, and `be_host_stack::undo` and `be_host_stack::redo` send the replica `Change::Undo` and `Redo`.
 An editor groups the edits of one gesture into one step, however long it takes, with
-`FromEditor::Gesture` (`Gesture::Begin`, `Commit`, `Cancel`; on the plugin side
+`FromEditor::Gesture` (`Gesture::Begin`, `Commit`, `Cancel`; on the app side
 `ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`): every edit from
 that instance until the commit folds into one step (`Undo::then`, which keeps one value
 per register however many frames wrote it), and a cancel reverts the step and leaves
 nothing in the history. The replica publishes only once its edits have rested
 for the seal interval, so a gesture written every frame costs one publish, not
 one per frame.
-Plugins reach it with `act(block, block-command::undo)` and `redo`, and watch
+Apps reach it with `act(block, block-command::undo)` and `redo`, and watch
 whether either is possible with a `history-watch` per block, whose `next` the host
 answers with the `block-history` whenever it changes. be-sdk-test's replica keeps the same
 history (with the 750 ms bursts on the test's frame clock) for a block a test calls
@@ -1629,7 +1629,7 @@ folders and workspaces wherever they are embedded, and opens from Open with.
 Each account keeps what is its own in an organization under one top-level
 `Settings` block it authored. Every reader finds it by its author: an organization
 administrator can see every block, including other accounts' `Settings`, and
-nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
+nothing may pick those up. `root_settings::own_settings_blocks` (apps) and
 `RootSettings::owned` (block-app) list the account's own, and when two devices
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
@@ -1645,14 +1645,14 @@ in a tab): its label and description, a chevron where a control would be, and th
 hover a button has, inset and rounded so it stays inside the card, marked when
 `modified`. A reset that deletes the block a link opens belongs to the setting that
 chose the block, whose menu asks first (the Remapper row asks before it deletes the remaps).
-A page shows a section only where the host can back it: the settings plugin's
+A page shows a section only where the host can back it: the settings app's
 Display page (`be-app-settings`, `display`) always has Appearance, but a
 section per screen only once the host offers `Displays` (its mode and its
 rotation: four tiles, each a little screen drawn turned by that rotation less the
 one the host reports now, so the tile that looks upright to the person holding the
 device is the one to pick, named Landscape, Portrait and their flipped turns from
 whether the panel is wider than tall; `be_sdk_beui::RotationPicker`, shared
-with the desktop plugin's bar), a Screens section with the switches for the bar's rotate
+with the desktop app's bar), a Screens section with the switches for the bar's rotate
 and on-screen keyboard buttons (`display.rotate-in-bar`, `display.keyboard-in-bar`) once the host offers `Displays`, and Power and lock only
 once it offers `Power`, which only a login session publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
@@ -1677,7 +1677,7 @@ falls through to the settings for every device, then to the built-in default. Ev
 field of a layered kind is an `Option` for this. `Editor::effective_settings` gives what
 every layer resolves to, which is how workspace-ui reads `EditorSettings`: the default
 editor of each block type, keyed by the editor ids the host's catalog lists (see
-guides/adding_a_plugin_editor.md), and `Editor::inherited_settings` what the layers
+guides/adding_an_app.md), and `Editor::inherited_settings` what the layers
 below an editor's block resolve to.
 
 A block may have settings too, which apply to everything inside it: a workspace's,
@@ -1734,7 +1734,7 @@ say so. A screen known only by its connector (no EDID serial) is always this dev
 alone. Each field is described once as a `be_block::Setting` (a key, a name, how to
 read it from a layer and write it on a layer's own content, and its default), such as
 `DisplaySettings::theme_setting()` or `mode_setting(id)`, and `Setting::layer` is the
-rule. Every write goes through it: in a plugin through
+rule. Every write goes through it: in an app through
 `be_sdk_beui::LayeredSettings` (`this_device(editor)`, or `page(editor)` for a
 kind's editor, which acts on this device when opened on the every-device block and on
 just its own block when opened on a profile's), which makes the every-device or
@@ -1763,7 +1763,7 @@ motion and 150% scale; Desktop and Phone have none, since a phone never shows th
 and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
-(the settings plugin's `SettingsProfileView`, `root/setup.rs`) leads with the name and
+(the settings app's `SettingsProfileView`, `root/setup.rs`) leads with the name and
 "Kind of device", and lists in "Where this device differs" each default it still keeps
 that differs from every device's value, with "Use my usual settings", which deletes
 those from the profile. Nothing is stored to say a profile was set up: while the
@@ -1775,7 +1775,7 @@ that are still at their default values (`DeviceClass::display_edits`).
 The workspace's Settings tab opens the account's `Settings` block on this device's
 settings: Display, Input and Default editors open the every-device blocks (making any
 that is missing), and Devices and profiles (`settings.devices`) lists the settings
-profiles, each of which opens on its own blocks. Above that list, a table (settings plugin
+profiles, each of which opens on its own blocks. Above that list, a table (settings app
 `root/devices.rs`) puts the display and input settings down the side and All devices and
 each profile across, with only the rows some profile keeps: a kept cell shows its value,
 "kept since setup" while it still holds its class default (`ClassDefault::holds`) and
@@ -1786,7 +1786,7 @@ device when there is none yet (`RootSetting::ensure`).
 
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
-workspace-ui (`WORKSPACE_EDITOR`), or the desktop plugin (`DESKTOP_EDITOR`) for
+workspace-ui (`WORKSPACE_EDITOR`), or the desktop app (`DESKTOP_EDITOR`) for
 a client run as the desktop with `block-app --desktop`. `Settings::sessions`
 lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the workspace shell each keep their own while
@@ -1809,7 +1809,7 @@ whose defined metadata names the editor that draws it in `VIEW_EDITOR` (the `id`
 its manifest gives it, never a block type): whoever makes one sets it with
 `BlockMetadata::view(editor, name)`, and that key, a host concept, is all
 anyone reads to know which editor opens the view (the host's
-`RootSettings::session_editor`, be-sdk-shell's `editor_of`, the desktop plugin's
+`RootSettings::session_editor`, be-sdk-shell's `editor_of`, the desktop app's
 session list) or that a block is a view at all (the host skips `DELETED_FROM` for
 one, and a block's places leave out the views that show it). A view made before
 the key, which names no editor, opens as a session in the shell asking and as a
@@ -1824,7 +1824,7 @@ index into `refs`.
 
 Both shells are built from `crates/be-sdk-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;
-workspace-ui lays them out as Files beside a pane of tabs, and the desktop plugin
+workspace-ui lays them out as Files beside a pane of tabs, and the desktop app
 floats every block in a window of its own over an empty main pane, with a bar
 along the bottom for the host's menu, the sessions to open and the time.
 
@@ -1858,7 +1858,7 @@ handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
 (`status().unsaved` is what says whether anything would be lost). The host
 refuses an `Operate`, a replacing `write-content` and a graph command for a block the
-account may only read: the plugin holds its own edits behind `editable()`, but
+account may only read: the app holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
 channel and on the connection's broadcast, with one deadline for the autosave a
@@ -2238,11 +2238,11 @@ participant what it is showing, so a late joiner sees everyone at once; when a
 participant leaves, what it showed is dropped.
 
 A replica sends each editor attached to it the block's peers as
-`ToEditor::Presence` in a replica frame when they change. A plugin shows presence with
+`ToEditor::Presence` in a replica frame when they change. An app shows presence with
 `FromEditor::ShowPresence`, which the replica sends to the other participants.
 `editor.peers` and `editor.on_peer_message` send `Resend` once, so an editor that
 never reads its content is still attached and hears its peers. On the
-plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
+app side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
 signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
 framework shows a `UserActive` value of its own, with a colour picked by
 `pick_free_color` against the colours already showing, whenever the host says the
@@ -2262,7 +2262,7 @@ hears it.
 
 A replica hands each editor attached to it the messages that arrived since it
 attached, as `ToEditor::PeerMessages`; an instance sends with
-`FromEditor::SendToPeers`. On the plugin side that is
+`FromEditor::SendToPeers`. On the app side that is
 `editor.send_to_peers(to, &message)` and `editor.on_peer_message(|from, message|
 ..)` over a `ChannelKind` (`be_block::presence`), which names the channel and
 encodes with postcard. `to` is a client id from presence. The terminal block is

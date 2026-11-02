@@ -58,6 +58,6 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
             Sent::Audio(AudioRequest::Set(0.0)),
             Sent::Brightness(-1.0),
         ],
-        "a plugin's numbers are kept within bounds, and numbers and names that are no such thing are dropped"
+        "an app's numbers are kept within bounds, and numbers and names that are no such thing are dropped"
     );
 }

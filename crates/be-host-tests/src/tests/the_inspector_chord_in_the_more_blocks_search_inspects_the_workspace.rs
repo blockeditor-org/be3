@@ -15,7 +15,7 @@ fn the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace() {
     host.run(&["keyup", "ctrl"]);
     assert!(
         !host.shown("#inspector.dock"),
-        "the chord opens the inspector of the plugin that has the keyboard, not the host's"
+        "the chord opens the inspector of the app that has the keyboard, not the host's"
     );
     host.wait("TextInput \"Search\" focused");
     host.key("ctrl+shift+i");

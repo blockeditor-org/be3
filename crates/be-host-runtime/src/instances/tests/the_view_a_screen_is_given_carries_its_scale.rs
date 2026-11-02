@@ -22,7 +22,7 @@ fn the_view_a_screen_is_given_carries_its_scale() {
     )));
     assert_eq!(
         instances.configure(&opened),
-        Some(PluginCall::Configure(1)),
-        "a view is host state a plugin lays out against, so sending one starts a new serial"
+        Some(AppCall::Configure(1)),
+        "a view is host state an app lays out against, so sending one starts a new serial"
     );
 }

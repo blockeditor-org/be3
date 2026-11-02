@@ -90,7 +90,7 @@ impl Module {
         if let Err(error) =
             be_sdk_beui_platform_api::runtime().launch(host, keeps_accessibility, Box::new(program))
         {
-            panic!("the plugin's beui program could not start: {error}");
+            panic!("the app's beui program could not start: {error}");
         }
     }
 

@@ -95,8 +95,8 @@ def _rustc_flags(crate, kwargs):
     return ["-Zthreads=8"] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # Workspace crates built for wasm outside a release build, at opt-level 1 rather
-# than the plugin profile's 2: a change under beui recompiles each of them for
-# the plugins, and at 2 that took a third of the CPU ./scripts/verify spent on a
+# than the app profile's 2: a change under beui recompiles each of them for
+# the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
 # change to geometry, for modules no slower to precompile or test.
 def _wasm_dev():
     return select({
@@ -242,11 +242,11 @@ library_path_test = rule(
     impl = _library_path_test_impl,
 )
 
-# A native test that compares paintings, as plugin tests do (buck/wasm/defs.bzl):
+# A native test that compares paintings, as app tests do (buck/wasm/defs.bzl):
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/be-host-tests is one: block-app with its plugins, driven headless. With
+# crates/be-host-tests is one: block-app with its apps, driven headless. With
 # run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
 # test that fails costs only its own paintings rather than every one the crate
 # accepts, since a failed action keeps no outputs; apart_env adds to run_env
@@ -450,13 +450,13 @@ def cargo_wasm_facts():
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
 
-# Every editor's package, which is every workspace crate named be-app-*: what
-# the app stages as its plugins.
-def editor_packages():
+# Every app's package, which is every workspace crate named be-app-*: what
+# the host stages as its apps.
+def app_packages():
     return sorted([package for package in crates if package.startswith("crates/be-app-")])
 
 # Every game's package, which is every workspace crate named tabletop-rules-*:
-# what the games plugin stages as its data.
+# what the games app stages as its data.
 def game_packages():
     return sorted([package for package in crates if package.startswith("crates/tabletop-rules-")])
 

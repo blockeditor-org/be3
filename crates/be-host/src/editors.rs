@@ -1,16 +1,16 @@
-pub(crate) mod plugin;
+pub(crate) mod app;
 
 use std::{collections::HashMap, sync::Arc};
 
 use be_block_graph::Access;
 use be_sdk_api::{Edits, TemplateCategory};
-use be_sdk_manifest::{EditorManifest, PluginManifest, ShellRequest};
+use be_sdk_manifest::{EditorManifest, AppManifest, ShellRequest};
 use uuid::Uuid;
 
 use crate::surfaces::HostedView;
-use be_host_runtime::PluginCatalog;
+use be_host_runtime::AppCatalog;
 
-pub(crate) use self::plugin::PluginEditor;
+pub(crate) use self::app::AppEditor;
 
 pub struct FocusReport {
     pub block: Option<(Uuid, Uuid)>,
@@ -89,7 +89,7 @@ pub(super) enum ArtifactStatus {
 
 pub(crate) trait PendingCreation {
     fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView>;
-    fn source(&self) -> plugin::InstanceSource;
+    fn source(&self) -> app::InstanceSource;
     fn step(&mut self, registry: &EditorRegistry, client_id: Uuid);
     fn dialog(&self) -> be_sdk_api::DialogStatus;
     fn dismiss(&mut self);
@@ -98,7 +98,7 @@ pub(crate) trait PendingCreation {
 }
 
 pub(crate) struct TemplateEntry {
-    pub(crate) target: plugin::CreationTarget,
+    pub(crate) target: app::CreationTarget,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
     pub(crate) debug: bool,
@@ -115,7 +115,7 @@ pub(crate) struct Opened {
 struct RegisteredEditor {
     id: Uuid,
     edits: Edits,
-    manifest: Arc<PluginManifest>,
+    manifest: Arc<AppManifest>,
     name: String,
     icon: String,
 }
@@ -129,8 +129,8 @@ impl RegisteredEditor {
         }
     }
 
-    fn open(&self, id: Uuid, block_type: Uuid) -> PluginEditor {
-        PluginEditor::new(Arc::clone(&self.manifest), self.id, id, block_type)
+    fn open(&self, id: Uuid, block_type: Uuid) -> AppEditor {
+        AppEditor::new(Arc::clone(&self.manifest), self.id, id, block_type)
     }
 }
 
@@ -138,7 +138,7 @@ pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, be_sdk_api::BlockTypeDescriptor>,
-    plugin_block_types: Arc<PluginCatalog>,
+    app_block_types: Arc<AppCatalog>,
 }
 
 impl EditorRegistry {
@@ -146,12 +146,12 @@ impl EditorRegistry {
         Self::from_manifests(be_host_stack::discovery::manifests())
     }
 
-    pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
+    pub(crate) fn from_manifests(manifests: Vec<Arc<AppManifest>>) -> Self {
         let mut registry = Self {
             editors: Vec::new(),
             templates: Vec::new(),
             types: be_host_stack::discovery::block_types(&manifests),
-            plugin_block_types: Arc::default(),
+            app_block_types: Arc::default(),
         };
         for manifest in manifests {
             for editor in &manifest.editors {
@@ -198,18 +198,18 @@ impl EditorRegistry {
                 })
                 .collect(),
         };
-        registry.plugin_block_types = Arc::new(PluginCatalog {
+        registry.app_block_types = Arc::new(AppCatalog {
             catalog,
             debug_templates,
         });
         registry
     }
 
-    pub(super) fn plugin_block_types(&self) -> &Arc<PluginCatalog> {
-        &self.plugin_block_types
+    pub(super) fn app_block_types(&self) -> &Arc<AppCatalog> {
+        &self.app_block_types
     }
 
-    fn register_editor(&mut self, manifest: &Arc<PluginManifest>, editor: &EditorManifest) {
+    fn register_editor(&mut self, manifest: &Arc<AppManifest>, editor: &EditorManifest) {
         let id = Uuid::from_bytes(editor.id);
         self.editors.push(RegisteredEditor {
             id,
@@ -219,21 +219,21 @@ impl EditorRegistry {
             icon: editor.icon.clone(),
         });
         for template in &editor.templates {
-            let target = plugin::CreationTarget {
+            let target = app::CreationTarget {
                 editor: id,
                 template: Box::leak(template.id.clone().into_boxed_str()),
                 block_type: Uuid::from_bytes(template.block_type),
                 dialog: template.dialog,
                 name: Box::leak(template.name.clone().into_boxed_str()),
             };
-            let plugin = Arc::clone(manifest);
+            let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
                 debug: template.debug,
                 create: Box::new(move || {
-                    Box::new(plugin::PluginCreation::new(Arc::clone(&plugin), target))
+                    Box::new(app::AppCreation::new(Arc::clone(&app), target))
                 }),
             });
         }
@@ -271,7 +271,7 @@ impl EditorRegistry {
                     .contains(&be_sdk_api::ParentView::ArtifactSettings)
             });
         match generates {
-            true => Ok(Box::new(plugin::PluginArtifact::new(
+            true => Ok(Box::new(app::AppArtifact::new(
                 Arc::clone(&editor.manifest),
                 editor.id,
                 source,
@@ -289,28 +289,28 @@ impl EditorRegistry {
     pub(crate) fn picker(
         &self,
         request: be_host_runtime::PickerRequest,
-    ) -> Option<plugin::PluginPicker> {
+    ) -> Option<app::AppPicker> {
         let editor = self.editors.iter().find(|editor| {
             editor
                 .manifest
                 .editor(editor.id.into_bytes())
                 .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Pick))
         })?;
-        Some(plugin::PluginPicker::new(
+        Some(app::AppPicker::new(
             Arc::clone(&editor.manifest),
             editor.id,
             request,
         ))
     }
 
-    pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<plugin::PluginPicker> {
+    pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<app::AppPicker> {
         let editor = self.editors.iter().find(|editor| {
             editor
                 .manifest
                 .editor(editor.id.into_bytes())
                 .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Rename))
         })?;
-        Some(plugin::PluginPicker::rename(
+        Some(app::AppPicker::rename(
             Arc::clone(&editor.manifest),
             editor.id,
             block,
@@ -322,7 +322,7 @@ impl EditorRegistry {
         &self,
         editor: Uuid,
         template: &str,
-    ) -> Option<(plugin::CreationTarget, Box<dyn PendingCreation>)> {
+    ) -> Option<(app::CreationTarget, Box<dyn PendingCreation>)> {
         let entry = self
             .templates
             .iter()
@@ -330,9 +330,9 @@ impl EditorRegistry {
         Some((entry.target, (entry.create)()))
     }
 
-    pub fn open(&self, id: Uuid, block_type: Uuid) -> PluginEditor {
+    pub fn open(&self, id: Uuid, block_type: Uuid) -> AppEditor {
         self.default_editor(block_type).map_or_else(
-            || PluginEditor::unsupported(id, block_type),
+            || AppEditor::unsupported(id, block_type),
             |editor| editor.open(id, block_type),
         )
     }
@@ -347,7 +347,7 @@ impl EditorRegistry {
         self.choice(editor, opened).is_some()
     }
 
-    pub(crate) fn open_with(&self, opened: Opened, editor: Option<Uuid>) -> PluginEditor {
+    pub(crate) fn open_with(&self, opened: Opened, editor: Option<Uuid>) -> AppEditor {
         let Opened {
             id,
             block_type,

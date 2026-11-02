@@ -109,7 +109,7 @@ deploy = rule(
         "server": attrs.transition_dep(cfg = _linux_x86_64),
         # Run here, so built for this machine like the command itself.
         "tool": attrs.dep(providers = [RunInfo]),
-        # The web bundle with its plugins, which builds for wasm whatever the
+        # The web bundle with its apps, which builds for wasm whatever the
         # command is configured for.
         "web": attrs.dep(),
         # Whether the web bundle is zipped as a download too.

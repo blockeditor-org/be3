@@ -113,23 +113,23 @@ pub(super) fn show(
         held.overlay = overlay;
         return Ok(());
     }
-    let failed = |_| "a plugin's layer canvas could not be made".to_owned();
+    let failed = |_| "an app's layer canvas could not be made".to_owned();
     let layer = web_sys::window()
         .and_then(|window| window.document())
         .and_then(|document| document.get_element_by_id(LAYER))
-        .ok_or_else(|| format!("the page has no #{LAYER} element for plugin layers to show in"))?;
+        .ok_or_else(|| format!("the page has no #{LAYER} element for app layers to show in"))?;
     let element: web_sys::HtmlCanvasElement = web_sys::window()
         .and_then(|window| window.document())
         .ok_or("the page has no document")?
         .create_element("canvas")
         .map_err(failed)?
         .dyn_into()
-        .map_err(|_| "a plugin's layer canvas could not be made".to_owned())?;
+        .map_err(|_| "an app's layer canvas could not be made".to_owned())?;
     let _ = element.set_attribute("style", &overlay.style);
     layer.append_child(&element).map_err(failed)?;
     let offscreen = element
         .transfer_control_to_offscreen()
-        .map_err(|_| "a plugin's layer canvas could not be handed to its worker".to_owned());
+        .map_err(|_| "an app's layer canvas could not be handed to its worker".to_owned());
     match offscreen
         .and_then(|offscreen| channel.layers(Some(&offscreen), overlay.size, &overlay.pieces))
     {

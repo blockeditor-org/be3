@@ -17,7 +17,7 @@ const POINTS: usize = 10_000;
 const STRETCH: usize = 400;
 const STYLUS_PER_FRAME: usize = 4;
 const BULK_PER_FRAME: usize = 1_000;
-const CANVAS_PLUGIN: &str = "be3.infinite-canvas";
+const CANVAS_APP: &str = "be3.infinite-canvas";
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
@@ -240,8 +240,8 @@ fn draw_stroke(
     host.save("canvas.stroke-save")?;
     let frames = host.run(&["frames"])?;
     be_tool_bench::time(
-        "canvas.stroke-lift-longest-plugin-frame",
-        longest(&frames, CANVAS_PLUGIN)?,
+        "canvas.stroke-lift-longest-app-frame",
+        longest(&frames, CANVAS_APP)?,
     );
     Ok(stroke)
 }
@@ -427,8 +427,8 @@ impl Host {
             longest(&frames, "window")?,
         );
         be_tool_bench::time(
-            &format!("{metric}-longest-plugin-frame"),
-            longest(&frames, CANVAS_PLUGIN)?,
+            &format!("{metric}-longest-app-frame"),
+            longest(&frames, CANVAS_APP)?,
         );
         Ok(())
     }

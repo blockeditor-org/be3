@@ -3,13 +3,13 @@ use super::*;
 const BASE: &[u8] = include_bytes!(env!("TLS_DIAMOND_BASE_WASM"));
 const LEFT: &[u8] = include_bytes!(env!("TLS_DIAMOND_LEFT_WASM"));
 const RIGHT: &[u8] = include_bytes!(env!("TLS_DIAMOND_RIGHT_WASM"));
-const PLUGIN: &[u8] = include_bytes!(env!("TLS_DIAMOND_PLUGIN_WASM"));
+const APP: &[u8] = include_bytes!(env!("TLS_DIAMOND_APP_WASM"));
 
 #[test]
 fn the_thread_local_diamond_runs_on_every_thread() {
     let engine = wasmtime::Engine::default();
-    let plugin = wasmtime::Module::new(&engine, PLUGIN).unwrap();
-    let reached: Vec<&str> = plugin
+    let app = wasmtime::Module::new(&engine, APP).unwrap();
+    let reached: Vec<&str> = app
         .imports()
         .filter(|import| import.module() == "GOT.tls")
         .map(|import| import.name())
@@ -20,11 +20,11 @@ fn the_thread_local_diamond_runs_on_every_thread() {
             library
                 .exports()
                 .any(|export| reached.contains(&export.name())),
-            "the plugin reaches {local} without GOT.tls: {reached:?}"
+            "the app reaches {local} without GOT.tls: {reached:?}"
         );
     }
-    let mut plugin = host()
-        .load_bytes_with_libraries(PLUGIN, |identity| {
+    let mut app = host()
+        .load_bytes_with_libraries(APP, |identity| {
             [BASE, LEFT, RIGHT]
                 .into_iter()
                 .find(|library| be_wasm_dylink::identity(library) == identity)
@@ -32,9 +32,9 @@ fn the_thread_local_diamond_runs_on_every_thread() {
                 .ok_or_else(|| format!("no library is {identity}"))
         })
         .unwrap();
-    let told = Told::listen(&plugin);
-    plugin.start().unwrap();
+    let told = Told::listen(&app);
+    app.start().unwrap();
     told.wait();
-    plugin.step().unwrap();
-    assert_eq!(plugin.take_outbound(), [[1]]);
+    app.step().unwrap();
+    assert_eq!(app.take_outbound(), [[1]]);
 }

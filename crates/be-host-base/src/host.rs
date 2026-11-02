@@ -183,7 +183,7 @@ pub fn deliver() {
 
 #[derive(Clone, Debug)]
 pub enum HostCommand {
-    RestartPlugin(String),
+    RestartApp(String),
 }
 
 #[derive(Default)]

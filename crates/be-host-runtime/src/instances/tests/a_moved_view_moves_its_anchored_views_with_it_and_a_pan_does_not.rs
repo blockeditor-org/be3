@@ -17,7 +17,7 @@ fn a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not() {
     assert_eq!(
         shown_rects(&instances),
         vec![menu],
-        "panning the region's camera leaves its layers where the plugin put them"
+        "panning the region's camera leaves its layers where the app put them"
     );
 
     place_layered(&mut instances, pos2(40.0, 30.0), window());
@@ -25,7 +25,7 @@ fn a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not() {
     assert_eq!(
         shown_rects(&instances),
         vec![moved],
-        "a region moved before its plugin lays out again carries its layers with it"
+        "a region moved before its app lays out again carries its layers with it"
     );
 
     lay_out(&mut instances);
@@ -33,7 +33,7 @@ fn a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not() {
     assert_eq!(
         shown_rects(&instances),
         vec![moved],
-        "a move alone sends the plugin no new place, and its layers keep moving with the region"
+        "a move alone sends the app no new place, and its layers keep moving with the region"
     );
 
     assert!(

@@ -1,11 +1,11 @@
 # Type modules
 
-A block type is moving out of block-app into a plugin's *type module*: a pure wasm
+A block type is moving out of block-app into an app's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through typed operations. Two crates
 define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the host holds content";
-"Hosts" below): each plugin that brings types names its module in its manifest's
+"Hosts" below): each app that brings types names its module in its manifest's
 `block_types` (guides/adding_a_block.md), and the types block-app applies itself
 (`crates/be-sdk-type-host`) run in process.
 
@@ -22,7 +22,7 @@ block through them (guides/the_new_block_stack.md, "How the host holds content";
 ## Operations and WIT
 
 WIT is the schema, but there is no component model underneath: everything rides the
-pure-guest ABI (guides/plugin_libraries.md, "The raw plugin interface"). The WIT decides how
+pure-guest ABI (guides/app_libraries.md, "The raw app interface"). The WIT decides how
 each function travels. A plain `func` is answered synchronously, on the caller's
 thread, which only a `local` interface (below) can do, so the generator refuses one in
 any other interface, import or export. Everything else is an `async func`, a
@@ -176,7 +176,7 @@ from the guest's worker on the web, so every call but a `local` one is an `async
 An import that only tells the host something returns nothing: the guest makes it and
 calls `.detach()`, and the host answers `()` in the arm that applies it, or once it took
 effect for a guest that awaits it. The guest's whole wasm interface is then
-be-wasm-guest-abi's (`be3_host` and the `plugin_*` exports) plus its local imports.
+be-wasm-guest-abi's (`be3_host` and the `app_*` exports) plus its local imports.
 
 The one exception is an interface whose host runs inside the guest's own worker or
 thread on every platform, as the GPU device does (be-wasm-gpu-shim on the web, wasmtime
@@ -393,8 +393,8 @@ as `message(editor(instance), bytes, at)` and are `editor::FromEditor`: `Operate
   them, the unsettled operations as rebased (`beneath`).
 - `Presence` and `PeerMessages` from the peers.
 
-On the plugin protocol both directions travel through the editor's `replica` resource
-(guides/the_new_block_stack.md, "Content on the plugin protocol"). The replica keeps no log either:
+On the app protocol both directions travel through the editor's `replica` resource
+(guides/the_new_block_stack.md, "Content on the app protocol"). The replica keeps no log either:
 the replica keeps `projected`, a `Settling` of what its editors hold, lands every
 journaled change in it and snapshots when one cannot land. `editor::EditorMirror` is
 the editor's side, which `ContentProjection` is built on: the settled content, the
@@ -429,7 +429,7 @@ helpers they share. `directory` makes a
 type's plain form a directory that takes new directories (a folder), and `root`
 one that is only ever the root of one (a workspace); `TypeInfo::plain` says which
 form each type has. The order is the order `claims` asks in. A type that takes any
-file (the workspace plugin's file type) sets `ANY_FILE` on its `BlobFile` or
+file (the workspace app's file type) sets `ANY_FILE` on its `BlobFile` or
 `DocumentFile`, and answers only a `claims` with `fallback`: a host asks every
 module without it first, then every module with it (`Modules::claim_requests`,
 which both `be sync` and block-app's import of a picked file follow, so one rule
@@ -453,7 +453,7 @@ that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
 (`crates/be-type-checklist`).
 `Registration::without_undo` drops a registration's undo stack, which is how
 be-sdk-test hosts every type (`ContentStore::register` takes a types crate's
-`registrations()` for a test that needs a plugin's types it never names). The
+`registrations()` for a test that needs an app's types it never names). The
 waker is unused: the replica asks for time with `sleep-until` and the host yields
 it on the clock.
 The undo stack is `History<C, u64>`: `History` is generic
@@ -484,7 +484,7 @@ wasmtime and in process in tests:
   own, so two hosts in one process with different sources each reach their own
   instance), starts each `Source` (`in_process::<G>`, natively
   `wasm(name, tag, cache, load)` on a `Host::pure` thread, on the web
-  `web(name, url, tag)`, a `WebGuest` in the worker runtime plugins run in, with
+  `web(name, url, tag)`, a `WebGuest` in the worker runtime apps run in, with
   no extension) with a host `Connection` of its own, restarts one that
   stops, answers its clock and sleeps itself, and hands everything else on as
   `Heard` (`call` runs a closure on a module's connection after yielding the time).
@@ -506,18 +506,18 @@ wasmtime and in process in tests:
   frames for an editor, status, description, history, conflicts) and how it
   spawns IO, each an associated function of the host's shared state.
 
-Where the modules come from: block-app stages each plugin's type module (and its
-`.cwasm` and `.sha256`) beside the plugin; `be` (and so `be sync`) carries every
-plugin's manifest and type module in its executable as one bundle
-(`PLUGIN_TYPES`, buck/program's `type_bundle`, read by `be_tool_cli::plugins`), so its
+Where the modules come from: block-app stages each app's type module (and its
+`.cwasm` and `.sha256`) beside the app; `be` (and so `be sync`) carries every
+app's manifest and type module in its executable as one bundle
+(`APP_TYPES`, buck/program's `type_bundle`, read by `be_tool_cli::apps`), so its
 release stays the one file guides/bootstrap.md pins, compiles them once into
-`BE3_CACHE/modules` through wasmtime's cache, and runs one module per plugin
+`BE3_CACHE/modules` through wasmtime's cache, and runs one module per app
 that has one, as block-app does; the manifests also name the
 types its own short names (`blocks::type_name`) do not cover. A host gives each
-plugin's `Source` the types its manifest declares (`Source::declaring`): `Modules`
+app's `Source` the types its manifest declares (`Source::declaring`): `Modules`
 registers only those of the types that module lists, and no module takes a type
 another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
 and a block-app built from one tree share sessions. Tests and examples of a host run
 every first-party types crate in process with `be_type_bundle::sources()`
-(`crates/be-type-bundle`), named by plugin id and declaring each module's types.
+(`crates/be-type-bundle`), named by app id and declaring each module's types.

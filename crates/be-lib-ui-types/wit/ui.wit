@@ -1,6 +1,6 @@
 package be3:ui@0.1.0;
 
-/// The vocabulary beui and the plugin protocol share. The Rust in `be-lib-ui-types` is
+/// The vocabulary beui and the app protocol share. The Rust in `be-lib-ui-types` is
 /// generated from this, so these shapes are what every program serializes.
 /// Keys and modifiers are `be3:keys` (`be-lib-ui-keys`), and the preferences and the
 /// display and pointer settings `be3:preferences` (`be-lib-ui-preferences`), which
@@ -240,7 +240,7 @@ interface types {
     }
 
     /// The raw input every platform, drive, the on-screen keyboard and
-    /// the plugin protocol produce.
+    /// the app protocol produce.
     variant input {
         focus(bool),
         modifiers(modifiers),
@@ -326,8 +326,8 @@ interface types {
     /// A `popup` is a menu of another program's window the app shows (a
     /// Wayland or Win32 popup), placed over that window, which keeps the
     /// focus: the host never gives the popup the focus either, and closes it
-    /// on a press outside it. A plugin's windows have no role: what of a
-    /// plugin points back to where it came from is an anchored view.
+    /// on a press outside it. An app's windows have no role: what of an
+    /// app points back to where it came from is an anchored view.
     enum window-role {
         normal,
         keyboard,

@@ -149,9 +149,9 @@ fn guest() -> String {
             (import "{GPU}" "[method]render-pass.set-scissor-rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
             (import "{GPU}" "[method]render-pass.draw" (func $draw (param i32 i32 i32 i32 i32)))
             (data (i32.const 4096) "{data}")
-            (func (export "plugin_start") {start})
-            (func (export "plugin_shutdown"))
-            (func (export "plugin_step") (local $left i32)
+            (func (export "app_start") {start})
+            (func (export "app_shutdown"))
+            (func (export "app_step") (local $left i32)
                 (local.set $left (i32.const {DRAWS}))
                 (loop $draws
                     (call $set_pipeline (i32.const 1) (i32.const 1))
@@ -169,15 +169,15 @@ fn guest() -> String {
 fn main() {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let host = Host::new(device, queue, None).expect("the host should start");
-    let mut plugin = host
+    let mut app = host
         .load_bytes(guest().as_bytes())
         .expect("the guest should load");
-    plugin.start().expect("the guest should start");
+    app.start().expect("the guest should start");
     let mut fastest = Duration::MAX;
     let mut total = Duration::ZERO;
     for _ in 0..STEPS {
         let started = Instant::now();
-        plugin.step().expect("the guest should step");
+        app.step().expect("the guest should step");
         let took = started.elapsed();
         fastest = fastest.min(took);
         total += took;

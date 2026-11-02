@@ -363,12 +363,12 @@ pub(super) fn damaged_pieces(
         .collect()
 }
 
-pub struct PluginDrawing {
+pub struct AppDrawing {
     blits: RefCell<Vec<Blit>>,
     quads: texture_quad::Quads,
 }
 
-impl PluginDrawing {
+impl AppDrawing {
     pub fn new(blits: Vec<Blit>) -> Self {
         Self {
             blits: RefCell::new(blits),
@@ -391,7 +391,7 @@ pub struct ViewDrawing {
     pieces: Pieces,
     held: Option<Rect>,
     rotation: f32,
-    drawing: PluginDrawing,
+    drawing: AppDrawing,
 }
 
 pub type Pieces = Rc<RefCell<Vec<Piece>>>;
@@ -412,7 +412,7 @@ impl ViewDrawing {
             pieces,
             held,
             rotation,
-            drawing: PluginDrawing::new(Vec::new()),
+            drawing: AppDrawing::new(Vec::new()),
         }
     }
 
@@ -457,7 +457,7 @@ pub struct AnchoredDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
     blits: AnchoredBlits,
-    drawing: PluginDrawing,
+    drawing: AppDrawing,
 }
 
 impl AnchoredDrawing {
@@ -466,7 +466,7 @@ impl AnchoredDrawing {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
             blits,
-            drawing: PluginDrawing::new(Vec::new()),
+            drawing: AppDrawing::new(Vec::new()),
         }
     }
 }
@@ -698,7 +698,7 @@ impl Paints for ViewDrawing {
     }
 }
 
-impl beui::native::Draw for PluginDrawing {
+impl beui::native::Draw for AppDrawing {
     fn prepare(
         &self,
         device: &wgpu::Device,
@@ -712,7 +712,7 @@ impl beui::native::Draw for PluginDrawing {
             let Some(presenter) = presenter.as_mut() else {
                 for blit in blits.iter() {
                     blit.status.set(PresenterState::Unsupported(
-                        "The active renderer has no plugin surface presenter.".to_owned(),
+                        "The active renderer has no app surface presenter.".to_owned(),
                     ));
                 }
                 return;
@@ -857,7 +857,7 @@ pub(super) fn release(slot: u32, status: &PresenterStatus) {
     status.set(PresenterState::Released);
 }
 
-const UNSUPPORTED: &str = "This build has no presenter for that plugin surface.";
+const UNSUPPORTED: &str = "This build has no presenter for that app surface.";
 
 #[cfg(test)]
 mod tests;

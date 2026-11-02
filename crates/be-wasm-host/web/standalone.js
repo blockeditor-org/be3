@@ -1,7 +1,7 @@
-// The standalone guest (src/tests/standalone.wat) in a browser: a plugin with
+// The standalone guest (src/tests/standalone.wat) in a browser: an app with
 // a memory of its own that is not shared, no library, no WASI and no threads,
-// run by be-wasm-guest-host's guest.js with block-app's plugin.js against
-// be-wasm-gpu-shim in this worker, as a plugin's worker runs one. It paints its surface orange, which the shim
+// run by be-wasm-guest-host's guest.js with block-app's app.js against
+// be-wasm-gpu-shim in this worker, as an app's worker runs one. It paints its surface orange, which the shim
 // exports as a bitmap that is read back here.
 
 import { runtime } from "./bundle/guest.js";
@@ -14,7 +14,7 @@ async function run() {
     await guest.receive({
         kind: "start",
         url: new URL("./standalone.wasm", import.meta.url).href,
-        extension: new URL("./bundle/plugin.js", import.meta.url).href,
+        extension: new URL("./bundle/app.js", import.meta.url).href,
         imports: [],
     });
     await guest.receive({ kind: "export", surfaces: [SURFACE] });
@@ -26,11 +26,11 @@ async function run() {
     const stepped = posted.find(({ kind }) => kind === "stepped");
     const frames = posted.flatMap((report) => report.frames ?? []).map((frame) => Array.from(new Uint8Array(frame)));
     if (JSON.stringify(frames) !== "[[1]]") {
-        return { error: `the plugin sent ${JSON.stringify(frames)}, not [[1]]` };
+        return { error: `the app sent ${JSON.stringify(frames)}, not [[1]]` };
     }
     const picture = stepped.pictures.find(({ surface }) => surface === SURFACE);
     if (!picture) {
-        return { error: "the plugin's surface was not exported once it presented" };
+        return { error: "the app's surface was not exported once it presented" };
     }
     const canvas = new OffscreenCanvas(picture.bitmap.width, picture.bitmap.height);
     const context = canvas.getContext("2d");
@@ -42,7 +42,7 @@ async function run() {
     }
     return {
         passed: true,
-        message: `a standalone plugin painted ${picture.bitmap.width} by ${picture.bitmap.height} in Chromium`,
+        message: `a standalone app painted ${picture.bitmap.width} by ${picture.bitmap.height} in Chromium`,
     };
 }
 

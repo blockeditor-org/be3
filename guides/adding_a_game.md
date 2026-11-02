@@ -251,7 +251,7 @@ reaches the test as a trap rather than a message.
 ## 4. Getting the module into the host
 
 Every `crates/tabletop-rules-*` crate is staged beside block-app as
-the Games plugin's data (`games/<game>.wasm`, see
+the Games app's data (`games/<game>.wasm`, see
 crates/be-app-deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
 those games by the name each module gives itself; choosing one copies that
 exact module into the workspace as a Game Module block under the new game, so

@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::{
     Frame, Module, ShownView, Waker,
     editor_session::{EditorSession, Open},
-    plugin::Anchored,
+    app::Anchored,
     wire::Delivery,
 };
 
@@ -366,7 +366,7 @@ impl Screens {
                 .iter()
                 .find(|(declared, _)| *declared == editor)
                 .map(|(_, open)| *open)
-                .unwrap_or_else(|| panic!("this plugin has no editor {editor}"));
+                .unwrap_or_else(|| panic!("this app has no editor {editor}"));
             EditorSession::joining(instance, waker, open, module)
         })
     }

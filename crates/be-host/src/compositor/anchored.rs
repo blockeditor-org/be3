@@ -10,7 +10,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, WindowId};
 
-use super::plugin_view::ChildNodes;
+use super::app_view::ChildNodes;
 
 #[derive(Clone, Copy)]
 pub(crate) struct AnchorBounds(pub(crate) Memo<Rect>);
@@ -31,7 +31,7 @@ pub(crate) fn anchor_host() -> Memo<Option<AnchorHost>> {
 #[derive(Clone)]
 pub(crate) struct AnchorOwner {
     pub(crate) mount: u64,
-    pub(crate) plugin: String,
+    pub(crate) app: String,
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
     pub(crate) window: Memo<WindowId>,
@@ -237,7 +237,7 @@ fn forward(input: ForwardedInput, shown: &[Shown], pointing: &Pointing) {
             focus_owner(&owner);
         }
         be_host_runtime::forward_anchored(
-            &owner.plugin,
+            &owner.app,
             owner.instance,
             owner.region,
             layer,
@@ -266,7 +266,7 @@ fn dismiss_outside(window: WindowId, host: Option<AnchorHost>, pos: Pos2) {
         let dismissed = be_host_runtime::dismissed_by_press(&layers, pos);
         if !dismissed.is_empty() {
             be_host_runtime::dismiss_anchored_views(
-                &owner.plugin,
+                &owner.app,
                 owner.instance,
                 owner.region,
                 dismissed,
@@ -413,7 +413,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
         let owner = owner(mount)?;
         owner.revision.get();
         let drawn = layer.get().map_or_else(Vec::new, |layer| {
-            be_host_runtime::anchored_blits(&owner.plugin, &layer)
+            be_host_runtime::anchored_blits(&owner.app, &layer)
         });
         let damage = blits
             .borrow()

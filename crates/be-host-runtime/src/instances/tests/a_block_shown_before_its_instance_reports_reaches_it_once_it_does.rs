@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_api::blocks::ShowRequest;
 
 fn report(instances: &mut Instances) {
-    let block_types = Arc::new(crate::PluginCatalog::default());
+    let block_types = Arc::new(crate::AppCatalog::default());
     instances.report(
         INSTANCE,
         View::MAIN,

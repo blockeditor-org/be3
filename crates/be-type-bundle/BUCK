@@ -1,6 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library")
 
-# Every first-party plugin's type module, run in process, for the tests and
+# Every first-party app's type module, run in process, for the tests and
 # examples of hosts (block-app, be-tool-cli, be-block-sync, be-block-frozen) that hold blocks of
-# any type without staging plugins (guides/type_modules.md).
+# any type without staging apps (guides/type_modules.md).
 cargo_library()

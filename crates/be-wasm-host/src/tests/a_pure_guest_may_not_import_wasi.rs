@@ -5,9 +5,9 @@ fn a_pure_guest_may_not_import_wasi() {
     let module = r#"(module
         (import "wasi_snapshot_preview1" "fd_write" (func (param i32 i32 i32 i32) (result i32)))
         (memory (export "memory") 1)
-        (func (export "plugin_start"))
-        (func (export "plugin_step"))
-        (func (export "plugin_shutdown")))"#;
+        (func (export "app_start"))
+        (func (export "app_step"))
+        (func (export "app_shutdown")))"#;
     let refused = Host::pure(None)
         .unwrap()
         .load_bytes(module.as_bytes())

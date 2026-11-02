@@ -4,7 +4,7 @@ Measuring and profiling beui's performance, and the ideas already tried.
 
 `//crates/be-tool-bench:suite` is every benchmark in one directory, built in release whatever the
 command asks: the runner `be-tool-bench`, each benchmark program under `programs/`, and block-app
-with its plugins for the end-to-end ones. `./scripts/buck run //crates/be-tool-bench:suite -- list`
+with its apps for the end-to-end ones. `./scripts/buck run //crates/be-tool-bench:suite -- list`
 lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
 whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
 a program that reports its metrics through the `be-tool-bench` crate (`be_tool_bench::time`, `count`,
@@ -28,12 +28,12 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   after the edit shows: the seal the host would wait 750 ms for, published to the server.
 - The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
   `canvas.line-draw`, from its first sample until the whole line shows, is the work the
-  samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
+  samples cause (the canvas's edits, relaying them, the replica, the app applying them)
   and not the cost of 10,000 frames, which a person drawing never waits on.
-  `canvas.line-longest-frame` and `canvas.line-longest-plugin-frame` are the longest host
-  frame and the longest canvas plugin step meanwhile (`drive frames`, guides/running/drive.md):
+  `canvas.line-longest-frame` and `canvas.line-longest-app-frame` are the longest host
+  frame and the longest canvas app step meanwhile (`drive frames`, guides/running/drive.md):
   a frame packed with samples is where a per-sample cost that grows with the stroke shows as
-  stutter, and since a host frame waits at most 8 ms for its plugins, the plugin's own line
+  stutter, and since a host frame waits at most 8 ms for its apps, the app's own line
   is where the canvas's share shows. The run fails unless the exported stroke holds exactly
   the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
   than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
@@ -74,7 +74,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
   around the app's update; the open bench takes the renderer's `prepare` out of it.
-- `//crates/be-wasm-host:example-gpu-calls` times a plugin's per-draw gpu calls (set
+- `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls (set
   pipeline, viewport and scissor, draw) through wasmtime and be-wasm-gpu-host into wgpu's
   noop device: about 130 ns a call on this machine in October 2026.
 - `//crates/be-block-graph:example-access-bench` times the server's access queries (one block,
@@ -89,7 +89,7 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   painted, described for accessibility and walked for it. For ink it also counts the frames between
   a pen event's delivery and the first frame whose damage covers the pen, which should
   always be 0. `shape()` is the one place it names the canvas model. An editor with an
-  `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
+  `examples/` folder is built for the host as well (`app()` in buck/wasm/defs.bzl), which
   is how an editor gets a benchmark.
 - `./scripts/buck run //crates/be-tool-bench:suite -- [run|compare BASE|list] [NAME...]` runs the
   benchmarks crates/be-tool-bench/src/suite.rs lists, in release, three rounds each (`--rounds=N`).
@@ -127,7 +127,7 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 `camera()` centres a world point in the canvas: a view is where the content sits on
 screen, not the world rectangle it shows.
 
-Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
+Every frame of a gesture writes the document (guides/adding_an_app.md), so a drag
 or a pen move is an edit the host applies and the editor reads back. None of that walks the
 document: a be-block-model `Document` keeps its block references up to date from what each edit
 touched once they have been asked for (the test host asks after every edit, the host's
@@ -224,10 +224,10 @@ or dump stacks to fold them yourself:
   `-e probe_libc:malloc -g`, and `perf probe -d 'probe_libc:*'` afterwards.
 - To profile block-app itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
   -m release //crates/be-host:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
-  plugins' compiled wasm has names, and record the running host with `perf record -g -p PID`
-  around the `drive` commands being measured. Each plugin runs on a thread named
-  `plugin <id>` (cut to 15 characters, such as `plugin be3.data`), so `perf report --sort comm`
-  splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
+  apps' compiled wasm has names, and record the running host with `perf record -g -p PID`
+  around the `drive` commands being measured. Each app runs on a thread named
+  `app <id>` (cut to 15 characters, such as `app be3.data`), so `perf report --sort comm`
+  splits the report by app and `--comms 'app be3.data'` keeps one app's samples.
   Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
   scroll's or resize's samples; leave them out when judging the host's own work.
   The block store's worker is the thread `block-app-be`, and `:dev`'s embedded server runs on
@@ -251,45 +251,45 @@ session left, with every step that can overlap running at once. What keeps it th
   it without waiting for the server's organization list and keys, which are fetched in
   the background (`resume_organization` in crates/be-host/src/main.rs). If the list
   no longer has it, the host falls back to the organization list.
-- The plugins whose editors were open are kept in the host's state too, and are started with
-  the shell's plugin and the plugins of the editors the shell's manifest `opens`
-  (`warm_plugins` in crates/be-host/src/main.rs, `be_host_runtime::warm`), before the
+- The apps whose editors were open are kept in the host's state too, and are started with
+  the shell's app and the apps of the editors the shell's manifest `opens`
+  (`warm_apps` in crates/be-host/src/main.rs, `be_host_runtime::warm`), before the
   shell asks for them. The host warms them as soon as it knows it will open a workspace (an
-  account signed in or signing in), before its window and GPU are set up: a plugin warmed
+  account signed in or signing in), before its window and GPU are set up: an app warmed
   before `install` loads, links and instantiates on its own thread at once, waits for the
   host's device only when it first reaches the GPU, and becomes the runtime that `install`
   creates for it. Starting workspace-ui and the file tree together, there, took the time to
-  the Files pane from about 0.92 s to 0.76 s locally (October 2026). Most of a plugin's
-  start is `Plugin::new` linking its libraries (about 0.3 s each, the two at once);
-  deserializing its mapped `.cwasm` takes a few milliseconds. A plugin with no editors open
+  the Files pane from about 0.92 s to 0.76 s locally (October 2026). Most of an app's
+  start is `App::new` linking its libraries (about 0.3 s each, the two at once);
+  deserializing its mapped `.cwasm` takes a few milliseconds. An app with no editors open
   idles once it has loaded, and is stopped to free its memory and threads once it has had none
   for `IDLE_TIMEOUT` (30 s by the host's clock, `Host::stop_idle` in
-  be-host-runtime/src/runtime.rs, run from `poll`); a warmed plugin nothing opens is stopped
+  be-host-runtime/src/runtime.rs, run from `poll`); a warmed app nothing opens is stopped
   the same way. Opening one of its editors again starts it afresh.
 - On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
   `Module::deserialize_file`) rather than read into memory and copied: the host's
-  plugins, libraries and type modules come to about 400 MB, and mapping them took about a
+  apps, libraries and type modules come to about 400 MB, and mapping them took about a
   third of a second off the time to the workspace's Files pane (October 2026).
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.
 - The be worker joins every queued `Open` concurrently. Its loop still awaits listings
   between commands, so keep each query to one listing request: a block's references
   come in one `ListReferences`, not one `ReadBlock` each.
-- On the web, plugin manifests are fetched together, before the first frame.
+- On the web, app manifests are fetched together, before the first frame.
 - workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
   named before its block's info arrives.
 
 5. Size
 
 What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`:
-block-app, every plugin and type module, the two libraries (guides/plugin_libraries.md), and a
+block-app, every app and type module, the two libraries (guides/app_libraries.md), and a
 `.cwasm` of each. In October 2026 on Linux x86_64 that was 896 MB, 297 MB gzipped:
 
 - `.cwasm`, 595 MB (198 MB gzipped): Cranelift's machine code is about two and a half times
   the wasm code it compiles, so it shrinks only as the wasm code does. Shipping without
   it moves 95 seconds of compiling (four cores) to the first start, 42 of them the beui
   library's.
-- `.wasm`, 198 MB: 151 MB of code, of which plugins are most; each instantiates beui's and
+- `.wasm`, 198 MB: 151 MB of code, of which apps are most; each instantiates beui's and
   `beui-reactive`'s generics for its own types, which no library can hold. Type modules are
   standalone, 1.8 MB each, mostly `be-block-model`, `be-lib-sequence` and `be-sdk-type-guest` again.
 - block-app, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
@@ -303,8 +303,8 @@ functions (`probe_erased`, `Computation::new`'s `parts`), since every closure ty
 
 What is already in place: fat LTO with one codegen unit for the deploy only (`be3.lto`, a ten
 minute link), legacy symbol mangling in release (buck/platforms/profile.bzl) and the hashed
-export names of linked modules (guides/plugin_libraries.md). Thin LTO left block-app as it was,
-and `opt-level=s` for wasm took a twentieth off the plugins while growing both libraries and
+export names of linked modules (guides/app_libraries.md). Thin LTO left block-app as it was,
+and `opt-level=s` for wasm took a twentieth off the apps while growing both libraries and
 beui-gallery by four fifths. Stripping block-app's symbols or the modules' name sections
 would take 24 MB and 27 MB more, but the panic guard's reports and a guest's backtrace read them.
 

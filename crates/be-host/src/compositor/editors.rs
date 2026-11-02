@@ -18,10 +18,10 @@ use uuid::Uuid;
 
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
-use super::plugin_view::{ChildView, PluginView, ViewEditor};
-use crate::editors::plugin::{InstanceSource, PluginPicker};
+use super::app_view::{ChildView, AppView, ViewEditor};
+use crate::editors::app::{InstanceSource, AppPicker};
 use crate::editors::{
-    Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
+    Chrome, EditorRegistry, PendingCreation, AppEditor, editor_access_ceiling,
 };
 use crate::surfaces::{ConflictNotice, HostedSurface, HostedView, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
@@ -35,11 +35,11 @@ const NO_PICKER: &str = "No editor can pick blocks here.";
 pub(crate) struct State {
     registry: RefCell<Rc<EditorRegistry>>,
     client_id: Cell<Uuid>,
-    open: RefCell<HashMap<Uuid, PluginEditor>>,
+    open: RefCell<HashMap<Uuid, AppEditor>>,
     parents: RefCell<HashMap<Uuid, Uuid>>,
     simulated: RefCell<HashMap<Uuid, Access>>,
     creations: RefCell<HashMap<CreationKey, CreationChild>>,
-    pickers: RefCell<HashMap<CreationKey, PluginPicker>>,
+    pickers: RefCell<HashMap<CreationKey, AppPicker>>,
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
@@ -124,7 +124,7 @@ impl Editors {
     pub(crate) fn reset(&self, registry: Rc<EditorRegistry>) {
         let state = self.0.value();
         *state.registry.borrow_mut() = registry;
-        let closed: Vec<PluginEditor> =
+        let closed: Vec<AppEditor> =
             self.with(|open| open.drain().map(|(_, editor)| editor).collect());
         drop(closed);
         state.parents.borrow_mut().clear();
@@ -151,7 +151,7 @@ impl Editors {
         state.client_id.get()
     }
 
-    pub(crate) fn with<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, PluginEditor>) -> R) -> R {
+    pub(crate) fn with<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, AppEditor>) -> R) -> R {
         let state = self.0.value();
         act(&mut state.open.borrow_mut())
     }
@@ -185,16 +185,16 @@ impl Editors {
         state.parents.borrow_mut().remove(&id);
     }
 
-    pub(crate) fn block_of(&self, plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+    pub(crate) fn block_of(&self, app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
         self.with(|open| {
             open.values()
                 .find(|editor| {
                     editor.instance() == instance
                         && editor
-                            .plugin()
-                            .is_some_and(|plugin| plugin.identity.id == plugin_id)
+                            .app()
+                            .is_some_and(|app| app.identity.id == app_id)
                 })
-                .map(PluginEditor::id)
+                .map(AppEditor::id)
         })
     }
 
@@ -385,7 +385,7 @@ impl Editors {
         creations
             .values()
             .map(|child| child.creation.source())
-            .chain(pickers.values().map(PluginPicker::source))
+            .chain(pickers.values().map(AppPicker::source))
             .map(|source| (hosted_parent(source.instance), source))
             .collect()
     }
@@ -393,7 +393,7 @@ impl Editors {
     fn ensure_picker(
         &self,
         key: CreationKey,
-        make: impl FnOnce(&EditorRegistry) -> Option<PluginPicker>,
+        make: impl FnOnce(&EditorRegistry) -> Option<AppPicker>,
     ) -> bool {
         let state = self.0.value();
         if state.pickers.borrow().contains_key(&key) {
@@ -484,10 +484,10 @@ impl Editors {
 
     fn region(&self, handle: &Handle) -> Option<ViewEditor> {
         Some(ViewEditor {
-            plugin: handle.plugin.clone()?,
+            app: handle.app.clone()?,
             role: handle.role,
             instance: handle.instance,
-            block_types: self.registry().plugin_block_types().clone(),
+            block_types: self.registry().app_block_types().clone(),
             client_id: self.client_id(),
         })
     }
@@ -496,7 +496,7 @@ impl Editors {
 #[derive(Clone)]
 struct Handle {
     block_type: Uuid,
-    plugin: Option<std::sync::Arc<be_sdk_manifest::PluginManifest>>,
+    app: Option<std::sync::Arc<be_sdk_manifest::AppManifest>>,
     instance: be_sdk_api::EditorInstanceId,
     role: be_host_runtime::InstanceRole,
     pan_and_zoom: bool,
@@ -506,11 +506,11 @@ struct Handle {
 }
 
 impl Handle {
-    fn of(editor: &PluginEditor) -> Self {
+    fn of(editor: &AppEditor) -> Self {
         let capabilities = editor.direct_editor_capabilities();
         Self {
             block_type: editor.block_type(),
-            plugin: editor.plugin().cloned(),
+            app: editor.app().cloned(),
             instance: editor.instance(),
             role: editor.role(),
             pan_and_zoom: capabilities.supports_pan_and_zoom,
@@ -520,10 +520,10 @@ impl Handle {
         }
     }
 
-    fn plugin_id(&self) -> Option<&str> {
-        self.plugin
+    fn app_id(&self) -> Option<&str> {
+        self.app
             .as_ref()
-            .map(|plugin| plugin.identity.id.as_str())
+            .map(|app| app.identity.id.as_str())
     }
 }
 
@@ -613,7 +613,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
         editors.with(|open| {
             open.values()
                 .find(|editor| editor.presenting_now())
-                .map(PluginEditor::id)
+                .map(AppEditor::id)
         })
     });
     let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
@@ -871,7 +871,7 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
                     };
                 };
                 view! {
-                    <PluginView
+                    <AppView
                         editor={view_editor}
                         region
                         frame={Some(FrameSpec::default())}
@@ -980,7 +980,7 @@ fn FrameStack(
 
 fn frame_child(editors: &Editors, block: Uuid) -> Option<Uuid> {
     let handle = editors.handle(block)?;
-    be_host_runtime::frame_child(handle.plugin_id()?, handle.instance)
+    be_host_runtime::frame_child(handle.app_id()?, handle.instance)
 }
 
 fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
@@ -999,7 +999,7 @@ fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
 fn frame_menu(editors: &Editors, block: Uuid) -> Vec<be_sdk_api::MenuEntry> {
     let owner = chrome_owner(editors, block);
     editors
-        .with(|open| open.get(&owner).map(PluginEditor::menu))
+        .with(|open| open.get(&owner).map(AppEditor::menu))
         .unwrap_or_default()
 }
 
@@ -1016,9 +1016,9 @@ pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
 
 fn revoke_frame_child(editors: &Editors, block: Uuid) {
     if let Some(handle) = editors.handle(block)
-        && let Some(plugin_id) = handle.plugin_id()
+        && let Some(app_id) = handle.app_id()
     {
-        be_host_runtime::revoke_frame_child(plugin_id, handle.instance);
+        be_host_runtime::revoke_frame_child(app_id, handle.instance);
     }
 }
 
@@ -1092,7 +1092,7 @@ fn BlockFrame(
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct ViewKey {
-    plugin: String,
+    app: String,
     instance: EditorInstanceId,
 }
 
@@ -1102,7 +1102,7 @@ fn view_key(editors: &Editors, block: Uuid, preview: bool) -> Option<ViewKey> {
         return None;
     }
     Some(ViewKey {
-        plugin: handle.plugin_id()?.to_owned(),
+        app: handle.app_id()?.to_owned(),
         instance: handle.instance,
     })
 }
@@ -1329,19 +1329,19 @@ fn BlockFrameView(
     provide_context(FocusedWithin(on_focus));
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
-    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        be_host_runtime::hold(&plugin_id.value(), instance, ViewId::MAIN);
+        be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
     });
-    let revision = super::listen(&plugin_id.value());
+    let revision = super::listen(&app_id.value());
     let read_only = !access.can_edit();
     let placed = embedded || content.get_untracked().is_some();
     let spec = CameraSpec {
         block,
-        plugin_id,
+        app_id,
         instance,
         view: ViewId::MAIN,
         pan_and_zoom: handle.pan_and_zoom,
@@ -1353,7 +1353,7 @@ fn BlockFrameView(
     };
     create_effect(move || {
         revision.get();
-        let actions = be_host_runtime::take_bar_actions(&plugin_id.value(), instance);
+        let actions = be_host_runtime::take_bar_actions(&app_id.value(), instance);
         for action in actions {
             on_bar_action.call(action);
         }
@@ -1361,7 +1361,7 @@ fn BlockFrameView(
     if let Some(tab) = use_context::<TabContext>() {
         create_effect(move || {
             revision.get();
-            if be_host_runtime::take_leaving(&plugin_id.value(), instance) {
+            if be_host_runtime::take_leaving(&app_id.value(), instance) {
                 tab.exit.call();
             }
         });
@@ -1379,7 +1379,7 @@ fn BlockFrameView(
                 }
                 revision.get();
                 let shown = rect.get();
-                be_host_runtime::assigned_size(&plugin_id.value(), instance)
+                be_host_runtime::assigned_size(&app_id.value(), instance)
                     .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
                     .map_or(1.0, |assigned| {
                         (shown.width() / assigned.x).min(shown.height() / assigned.y)
@@ -1402,7 +1402,7 @@ fn BlockFrameView(
                 })
             });
             view! {
-                <PluginView
+                <AppView
                     editor={view_editor.clone()}
                     region=View::MAIN
                     frame={frame}
@@ -1485,10 +1485,10 @@ fn HostedChild(
             rects
         },
     )));
-    provide_context(super::plugin_view::GivenKeyboard(create_memo(move || {
+    provide_context(super::app_view::GivenKeyboard(create_memo(move || {
         child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
     })));
-    provide_context(super::plugin_view::Rounded(create_memo(move || {
+    provide_context(super::app_view::Rounded(create_memo(move || {
         child.with(|child| child.as_ref().map_or(0.0, |child| child.corner_radius))
     })));
     let content = create_memo(move || child.get().map(|child| child.content));
@@ -1598,9 +1598,9 @@ fn HostedChild(
         if let (Some(size), Some(handle)) = (
             child.intrinsic,
             child.block_id().and_then(|id| editors.handle(id)),
-        ) && let Some(plugin_id) = handle.plugin_id()
+        ) && let Some(app_id) = handle.app_id()
         {
-            be_host_runtime::resized(plugin_id, handle.instance, size);
+            be_host_runtime::resized(app_id, handle.instance, size);
         }
     });
     if let Some(reports) = use_context::<ChildReports>() {
@@ -1844,16 +1844,16 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     provide_context(FocusedWithin(reporter.focus));
     provide_context(nesting.within(block, access));
     let region = View::dock(ViewId(tab));
-    let plugin_id = store(view_editor.plugin_id().to_owned());
+    let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
-    let revision = super::listen(&plugin_id.value());
+    let revision = super::listen(&app_id.value());
     let holds = create_memo(move || {
         revision.get();
-        be_host_runtime::content_view(&plugin_id.value(), instance) == region.id
+        be_host_runtime::content_view(&app_id.value(), instance) == region.id
     });
     let spec = CameraSpec {
         block,
-        plugin_id,
+        app_id,
         instance,
         view: region.id,
         pan_and_zoom: handle.pan_and_zoom,
@@ -1883,7 +1883,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
                 <Camera spec>|camera: CameraView| {
                     let CameraView { view: editor_view, pan_drag, .. } = camera;
                     view! {
-                        <PluginView
+                        <AppView
                             editor={view_editor.clone()}
                             region
                             frame={frame}
@@ -1904,7 +1904,7 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
     let child_view = child_view(hosted_parent(hosted.editor.instance), hosted.region);
     let frame = hosted.frame;
     view! {
-        <PluginView
+        <AppView
             editor={hosted.editor}
             region={hosted.region}
             frame={Prop::dynamic(move || {
@@ -1995,23 +1995,23 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
 fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_bar_action = report_to.clone().and_then(|parent| {
-        let plugin_id = parent.plugin_id()?.to_owned();
+        let app_id = parent.app_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
             be_host_runtime::report_child_bars(
-                &plugin_id,
+                &app_id,
                 parent.instance,
                 region.id,
                 vec![(key, action)],
             );
         }))
     });
-    let plugin_id = report_to
+    let app_id = report_to
         .as_ref()
-        .and_then(|parent| parent.plugin_id().map(str::to_owned));
+        .and_then(|parent| parent.app_id().map(str::to_owned));
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
-        if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
-            be_host_runtime::report_child_focus(plugin_id, instance, region.id, key);
+        if let (Some(app_id), Some(instance)) = (&app_id, instance) {
+            be_host_runtime::report_child_focus(app_id, instance, region.id, key);
         }
         within.call(());
     });
@@ -2041,7 +2041,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
                     };
                 };
                 view! {
-                    <PluginView
+                    <AppView
                         editor={view_editor}
                         region=View::PREVIEW
                         offscreen=true
@@ -2057,10 +2057,10 @@ fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
     let Some(handle) = editors.handle(block).filter(|handle| handle.preview) else {
         return ChildPreview::Label;
     };
-    let Some(plugin) = handle.plugin_id() else {
+    let Some(app) = handle.app_id() else {
         return ChildPreview::Label;
     };
-    be_host_runtime::preview_image(plugin, handle.instance)
+    be_host_runtime::preview_image(app, handle.instance)
         .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 

@@ -40,7 +40,7 @@ fn diamond() -> Vec<Described> {
             &["LEFT_DATA", "LEFT_TLS"],
         ),
         module(
-            "plugin",
+            "app",
             "__be3_dylink_8_0_1_0_20_8",
             &[
                 (ENV, "left_function"),

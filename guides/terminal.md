@@ -8,7 +8,7 @@ from inside block-app.
 
 ## The pieces
 
-- `terminal_types` (`crates/be-type-terminal`, the terminal plugin's
+- `terminal_types` (`crates/be-type-terminal`, the terminal app's
   type module): the block's document (`Terminal`, below), the `TerminalHost`
   presence a host shows (its machine and user), and `TerminalMessage`, what
   viewers send the host. Its line helpers (`TerminalLine::spans`, `push`,

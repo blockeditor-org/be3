@@ -44,7 +44,7 @@ fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
 #[wasm_bindgen]
 pub async fn start() -> Result<(), JsValue> {
     std::panic::set_hook(Box::new(|info| {
-        web_sys::console::error_1(&format!("the plugin's gpu shim panicked: {info}").into());
+        web_sys::console::error_1(&format!("the app's gpu shim panicked: {info}").into());
     }));
     let (screens, device, queue) = Screens::open()
         .await

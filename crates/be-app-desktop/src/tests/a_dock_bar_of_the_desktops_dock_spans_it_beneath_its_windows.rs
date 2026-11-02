@@ -79,7 +79,7 @@ fn a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows() {
         bar.left() < 0.5
             && (bar.right() - SIZE.x).abs() < 0.5
             && (bar.bottom() - SIZE.y).abs() < 0.5,
-        "the plugin's dock draws its own bar in a band along the whole bottom: {bar:?}"
+        "the app's dock draws its own bar in a band along the whole bottom: {bar:?}"
     );
     for pane in ["banded.left", "banded.right"] {
         let body = test.rect_of(pane);

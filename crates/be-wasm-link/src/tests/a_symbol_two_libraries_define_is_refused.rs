@@ -7,7 +7,7 @@ fn a_symbol_two_libraries_define_is_refused() {
         library("left", &[], &[], &["shared"]),
         library("right", &[], &[], &["shared"]),
     ];
-    let error = unresolved(&bytes, "plugin", &closure).unwrap_err();
+    let error = unresolved(&bytes, "app", &closure).unwrap_err();
     assert!(error.contains("env.shared (in left and right)"), "{error}");
-    assert_eq!(unresolved(&bytes, "plugin", &closure[..1]), Ok(()));
+    assert_eq!(unresolved(&bytes, "app", &closure[..1]), Ok(()));
 }

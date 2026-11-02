@@ -39,7 +39,7 @@ fn a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_tr
     );
     assert!(
         crate::dismissed_by_press(&shown, on_button).is_empty(),
-        "a press on a button in another view of the plugin reaches it, so the menu is left to the \
+        "a press on a button in another view of the app reaches it, so the menu is left to the \
          button, whose click closes it, rather than closed for the click to open it again"
     );
 }

@@ -60,7 +60,7 @@ own to be driven:
 - `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
   GPU at all (`beui_runner::renderer::NoRenderer`): every frame is laid out and painted as usual,
   but nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app
-  then gives its plugins surfaces it does not render, so they run their frames without a GPU
+  then gives its apps surfaces it does not render, so they run their frames without a GPU
   either. `none` needs the headless platform.
 - `BEUI_DRIVE_SOCKET=PATH` is the Unix socket the drive layer answers on; `BEUI_LAYERS` naming
   `drive` needs it, and it is an error without `drive` there. It works in a window too:
@@ -116,7 +116,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   reads, so a program started any other way can set it too. `settle` waits only until nothing
   is left to draw, not for the server, so wait for what should appear with `wait`, or poll
   `tree` after an input sent with `--no-settle`.
-- `--pin-clock` starts the program's wall clock (the date and time of day beui and every plugin
+- `--pin-clock` starts the program's wall clock (the date and time of day beui and every app
   read) at the moment tests use, 2026-03-02 09:41 UTC (`beui_core::timer::TEST_WALL_CLOCK`), in
   the UTC time zone, and moves it on with the program's clock, so `clock stop` stops it too.
   Without it the program runs on the real time in the machine's time zone. It sets
@@ -162,15 +162,15 @@ does not, and neither do the 3D view of `space` or the previews of blocks, which
         Slider "Load" value=0.8 at 291,476 size 771x20
 
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
-out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
-`Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
-so dialogs, the file tree and every editor read like the host's own controls. A plugin's menu,
+out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each app region is a
+`Pane` named after its app, holding the nodes its editor describes (guides/adding_an_app.md),
+so dialogs, the file tree and every editor read like the host's own controls. An app's menu,
 tooltip or popover that reaches past its frame (an anchored view, crates/be-sdk-api/PROTOCOL.md,
-Anchored views) is described on its own, as an untitled container beside the plugin's `Pane`s at the
+Anchored views) is described on its own, as an untitled container beside the app's `Pane`s at the
 place it is drawn, so `find` and `click` reach its rows like any other.
 
-- `drive ids` lists every test id in the tree with where it is, the plugins' included (with
-  the bodies of a docked plugin's tabs, each a `Pane` of its own wherever the workspace dock
+- `drive ids` lists every test id in the tree with where it is, the apps' included (with
+  the bodies of a docked app's tabs, each a `Pane` of its own wherever the workspace dock
   shows it). Test ids
   (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
   too, as `#id` after a node's state, and a node with nothing else to show reads as a
@@ -182,13 +182,13 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   along the hit path, innermost first, each with its kind, rect, test ids, the components it was
   made in and what it handles, then what forwarded input goes to and which overlays the press
   would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
-  document only; in block-app a press over a plugin ends at that plugin region's catcher.
+  document only; in block-app a press over an app ends at that app region's catcher.
 - `drive comps` prints the host document's component tree with module-qualified names, text
   leaves and `#test_id`s. Caller-supplied children appear beneath the component; components
   built by its body are hidden under `internals`. `drive comps --internals` includes those
   implementation trees too. This is the same tree as the inspector's Comp tab; the inspector
   initially collapses internals of components defined in `beui_*` crates and expands others.
-  Like `hit`, this sees the host document, not plugin documents.
+  Like `hit`, this sees the host document, not app documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition or where the program asks for one and whether it shows the on-screen
@@ -198,12 +198,12 @@ place it is drawn, so `find` and `click` reach its rows like any other.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
   each what the program ran elsewhere and reports through `Program::other_frames`, which in block-app is
-  each plugin's steps by its id (a step takes the plugin's input, makes its edits and draws its
-  frame). A block-app frame waits at most 8 ms for its plugins, so a slower plugin step shows
-  only on the plugin's line. It is wall time, not the program's clock, so it is for benchmarks
+  each app's steps by its id (a step takes the app's input, makes its edits and draws its
+  frame). A block-app frame waits at most 8 ms for its apps, so a slower app step shows
+  only on the app's line. It is wall time, not the program's clock, so it is for benchmarks
   (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is
-  (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
+  (guides/beui_keyboard.md), with their shortcuts, and each app's under its `Pane`;
   `drive actions all` lists every registered one.
 - `drive shot FILE.png [TARGET]` writes a PNG of what the platform shows (under space, the 3D
   view), or of one target: it reveals the target as input does (below) and crops to the part of
@@ -217,21 +217,21 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   `drive click '#lock.password' in 3`.
 - `drive paint FILE.paint [TARGET] [in WINDOW]` writes what the program's main window (or the
   window numbered WINDOW) paints as a paint snapshot
-  (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
+  (guides/testing_a_gui.md, 4), every app's painting included where the host composites it,
   so it compares exactly where a PNG would not; `drive paint FILE.png` draws it into a PNG
   instead, which is how to see the program's own window flat when a layer such as space is
   between it and the platform. `./scripts/buck run //crates/be-tool-local:bin -- rasterize
   SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and `example-dump`
   lists its shapes. It reveals TARGET as `shot` does, waits until the program settles and crops to
   the part of TARGET that shows in the frame it paints, then asks every running
-  plugin for what it last painted, through the plugin's `paintings` export (beui-paint-format's
-  `ScreenPaintings`). What a plugin draws through a
+  app for what it last painted, through the app's `paintings` export (beui-paint-format's
+  `ScreenPaintings`). What an app draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
   snapshot.
 - `drive overflows` lists, one per line, what the window shows out of bounds
   (beui-core's `Document::overflows`, guides/testing_a_gui.md, 4), the host's documents and every
-  plugin shown included. The host's documents check themselves only while the command waits
-  (`Context::want_overflows`); a plugin's document checks itself on every frame while it is
+  app shown included. The host's documents check themselves only while the command waits
+  (`Context::want_overflows`); an app's document checks itself on every frame while it is
   described, and its findings come back with its painting, so it waits as `paint` does.
 
 ## Targets
@@ -299,7 +299,7 @@ the head in space while Ctrl and Shift are held (`drive --into=space keydown ctr
 --into=space motion 200 0; drive --into=space keyup shift ctrl`), and otherwise moves space's
 cursor. `a11y TARGET` with no action prints the node a screen reader would
 act on and the actions it offers; acting goes through the accessibility tree rather than the
-pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
+pointer or keys, the path a screen reader takes, and reaches apps' nodes too.
 
 A pointer gesture that starts somewhere the pointer is not (`click`, `down`, `drag`) first moves
 it there in a frame of its own, as a person's pointer arrives and hovers before it presses: what
@@ -309,14 +309,14 @@ Every command that gives input waits until the program has settled and prints wh
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
 `--changes=0` nothing, without comparing the trees, which a benchmark wants. The program
-has settled once a frame asks for no other and `Program::busy` gives no reason; block-app is busy while a
-plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
-an editor on screen waits for its block's content, while a plugin's change arrived after the
+has settled once a frame asks for no other and `Program::busy` gives no reason; block-app is busy while an
+app is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
+an editor on screen waits for its block's content, while an app's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which it asks
 for at once when driven, unless `hurry` is off, below) or sealed edits it is still sending, or is
 still listing a file's revisions or loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
-instead, to see the program part way through something, such as a plugin still loading. Work the
+instead, to see the program part way through something, such as an app still loading. Work the
 program cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
 `drive wait TEXT over TARGET` also asks that the line's node cover that point (`X,Y`, or
@@ -326,25 +326,25 @@ moves or grows, such as a stroke reaching the pen;
 own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`, and names
 what kept the program busy then, as `drive state` does: input waiting, a frame that asks for
 another or an animation running (while the clock runs), and each reason `Program::busy` gives, such
-as a plugin drawing or the compositor owing a frame for a plugin's change after layout. A
-plugin's frame counts as a change only when it damaged what the host draws, so a plugin that
+as an app drawing or the compositor owing a frame for an app's change after layout. An
+app's frame counts as a change only when it damaged what the host draws, so an app that
 animates without changing anything lets the program settle with the clock running.
 
 `drive clock stop` stops the program's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
-every run, and a program that animates forever still settles. A plugin that asks to be drawn again
-is drawn again only once the clock has moved, so an animating plugin settles too. `drive clock run` starts it again.
+every run, and a program that animates forever still settles. An app that asks to be drawn again
+is drawn again only once the clock has moved, so an animating app settles too. `drive clock run` starts it again.
 While the clock is stopped the headless platform runs a frame that drive asks for (a `pause`,
 the steps of a gesture, input waiting) at once rather than at the next 60 Hz tick, so `pause`
 costs only the frames it runs, not the time it names. So is a frame the program asks for while a
-command waits on it and it says it is busy (`busy`, such as a plugin's change it still has to
+command waits on it and it says it is busy (`busy`, such as an app's change it still has to
 show), so a click settles in the frames it takes; any other frame the program asks for on its own is
 still paced, so a program that animates forever does not spin.
 A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
 animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
 when an animation was waiting for the stopped clock, as `drive state` does.
-Anything else waiting on time, such as a plugin's frame timeout or a type module's clock (which
-groups quick edits into one undo step), waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
+Anything else waiting on time, such as an app's frame timeout or a type module's clock (which
+groups quick edits into one undo step), waits for `pause` too, and a frame waits for the apps it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 
 A driven program may take shortcuts a person never sees so that it settles sooner: block-app seals
 edits at once rather than after the pause a person's edits wait for. A program asks
@@ -399,7 +399,7 @@ real one:
 
 `beui_layer_drive::Drive` is a `Layer` (guides/beui.md, "Layers") in the stack every platform's
 runner carries, so its input lands among the platform's own events, and everything above it -
-the document, block-app's plugin host, the Wayland compositor - runs as it does with a window.
+the document, block-app's app host, the Wayland compositor - runs as it does with a window.
 `Drive::new(inbox)` is one layer with the program above it; `Drive::taps(inbox, under)` is a tap
 under each layer `under` names, all sharing one session (`Rc<RefCell<Session>>`). The session
 takes each command in the lowest tap's `input`, starts it in the `input` of the tap it goes to,

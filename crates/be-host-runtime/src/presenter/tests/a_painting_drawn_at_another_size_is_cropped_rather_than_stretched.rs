@@ -42,6 +42,6 @@ fn a_painting_drawn_at_another_size_is_cropped_rather_than_stretched() {
             Rect::from_min_size(pos2(10.0, 20.0), vec2(80.0, 50.0)),
             whole
         ),
-        "an anchored view that grew before its plugin drew the new size shows its last frame at its own size"
+        "an anchored view that grew before its app drew the new size shows its last frame at its own size"
     );
 }

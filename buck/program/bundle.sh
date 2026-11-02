@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# Writes OUT, every plugin's manifest and its type module in one file, for an
-# executable that carries them (be): for each plugin, its manifest's length as
+# Writes OUT, every app's manifest and its type module in one file, for an
+# executable that carries them (be): for each app, its manifest's length as
 # 8 hex digits and the manifest, then its type module's the same way (length 0
-# for a plugin with no module of its own).
+# for an app with no module of its own).
 #
 # Usage: bundle.sh OUT (MANIFEST [MODULE])...   each as MANIFEST=MODULE or MANIFEST=
 set -eu

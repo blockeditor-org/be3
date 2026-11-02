@@ -19,7 +19,7 @@ fn placed() -> Instances {
 fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
-    let block_types = Arc::new(crate::PluginCatalog::default());
+    let block_types = Arc::new(crate::AppCatalog::default());
     let role = InstanceRole::Editor(
         Uuid::nil(),
         EditorBlock {
@@ -85,7 +85,7 @@ fn input_events<T: Clone + Into<Outbound>>(messages: &[T]) -> Vec<Input> {
         .cloned()
         .map(Into::into)
         .filter_map(|message| match message {
-            Outbound::Plugin(PluginCall::Input(batch)) => {
+            Outbound::App(AppCall::Input(batch)) => {
                 Some(batch.events.into_iter().map(|event| event.input))
             }
             _ => None,
@@ -132,10 +132,10 @@ fn host_call<W: be_sdk_api::Watched, A: serde::Serialize>(
     )
 }
 
-fn configure(instances: &mut Instances) -> Option<PluginCall> {
+fn configure(instances: &mut Instances) -> Option<AppCall> {
     let next = instances.next_screens(PASS);
     let mut messages = next.opened;
-    messages.push(PluginCall::Screens(instances.screen_set(next.screens)).into());
+    messages.push(AppCall::Screens(instances.screen_set(next.screens)).into());
     instances.configure(&messages)
 }
 
@@ -404,33 +404,33 @@ mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
-mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
-mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
+mod a_key_intercepted_for_an_app_reaches_it_with_its_modifiers;
+mod a_listing_the_host_could_not_load_reaches_the_app_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not;
-mod a_plugin_hears_every_sample_only_while_it_asks;
-mod a_plugin_is_told_when_the_pointer_leaves_it;
-mod a_plugin_reaches_only_the_hosts_its_manifest_names;
-mod a_plugin_seeds_only_blocks_it_holds;
+mod an_app_hears_every_sample_only_while_it_asks;
+mod an_app_is_told_when_the_pointer_leaves_it;
+mod an_app_reaches_only_the_hosts_its_manifest_names;
+mod an_app_seeds_only_blocks_it_holds;
 mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_trigger;
 mod a_press_on_an_anchored_views_trigger_leaves_it_to_the_trigger;
 mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
 mod a_resize_leaves_children_where_their_frame_painted_them;
-mod a_restarted_plugin_hears_its_childrens_statuses_again;
-mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
-mod a_restarted_plugin_no_longer_shows_its_views_stopped;
-mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
+mod a_restarted_app_hears_its_childrens_statuses_again;
+mod a_restarted_app_is_sent_its_content_and_blocks_again;
+mod a_restarted_app_no_longer_shows_its_views_stopped;
+mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
-mod a_window_the_plugin_opened_is_shown_and_asked_for_by_its_own_screen;
+mod a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen;
 mod a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_active_child_takes_the_frame_of_the_dock_view_holding_the_content;
 mod an_anchored_view_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
-mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
+mod an_editor_is_only_sent_messages_its_app_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
-mod an_instance_the_plugin_never_opened_is_not_closed;
+mod an_instance_the_app_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
@@ -438,8 +438,8 @@ mod children_of_a_dock_view_holding_the_content_follow_its_camera;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod host_calls_are_taken_by_kind_in_the_order_they_came;
-mod input_for_a_screen_the_plugin_does_not_have_yet_reaches_it_once_announced;
-mod input_is_withheld_from_screens_the_plugin_no_longer_has;
+mod input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced;
+mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
@@ -459,7 +459,7 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
         View::MAIN,
         Uuid::nil(),
         role,
-        &Arc::new(crate::PluginCatalog::default()),
+        &Arc::new(crate::AppCatalog::default()),
         Some(be_sdk_api::FrameSpec::default()),
         size,
         Rect::from_min_size(Pos2::ZERO, size),

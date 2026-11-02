@@ -11,13 +11,13 @@ fn a_region_laid_out_no_longer_lets_its_surface_go_without_a_frame() {
     driver.laid_out(&[kept.id()]);
     assert!(
         driver.surfaces().get(gone.id()).is_none(),
-        "a region the plugin no longer lays out loses its surface at once"
+        "a region the app no longer lays out loses its surface at once"
     );
     assert!(driver.surfaces().get(kept.id()).is_some());
 
     driver.laid_out(&[]);
     assert!(
         driver.surfaces().get(kept.id()).is_none(),
-        "a plugin that shows nothing keeps no surfaces, though it runs no frame"
+        "an app that shows nothing keeps no surfaces, though it runs no frame"
     );
 }

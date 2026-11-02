@@ -58,7 +58,7 @@ server through `scripts/internal/re-relay`, whose errors are in
   action an `Execute` asked for keeps running. The relay then makes the same
   `Execute` again, which joins the running action or reads its cached result,
   and logs `broke off ..., making it again`; buck2 sees nothing.
-- **A test that hangs**: a test run (`:test-run`, a painting or plugin test
+- **A test that hangs**: a test run (`:test-run`, a painting or app test
   run) is stopped after `TEST_TIME_LIMIT` (`buck/cargo/defs.bzl`) and says it
   hangs; libtest's `has been running for over 60 seconds` line above names the
   test. Build its binary with `./scripts/buck build
@@ -158,7 +158,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
   asks for. A test that needs its own (the ones that draw through lavapipe)
   carries it as `BE3_LD_LIBRARY_PATH`, and the shell that starts the test puts
   it back: `library_path_test` in `buck/cargo/defs.bzl`, which `cargo_test`
-  makes for a test whose `env` names `LD_LIBRARY_PATH`, and `plugin_test_run`
+  makes for a test whose `env` names `LD_LIBRARY_PATH`, and `app_test_run`
   in `buck/wasm/defs.bzl`.
 
 ## The build helper

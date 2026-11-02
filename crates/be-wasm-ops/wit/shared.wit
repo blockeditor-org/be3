@@ -13,7 +13,7 @@ interface ids {
 
     type block-id = uuid;
 
-    /// A block type, which the editors and templates of plugins' manifests name.
+    /// A block type, which the editors and templates of apps' manifests name.
     type block-type-id = uuid;
 
     /// The type of a block's content, which a type module reads and writes.
@@ -26,12 +26,12 @@ interface ids {
     /// A commit of a block's history: the hash of its content.
     type commit-id = hash;
 
-    /// A surface the host gives a plugin to draw a screen into, numbered by
+    /// A surface the host gives an app to draw a screen into, numbered by
     /// the host.
     type surface-id = u32;
 
-    /// A picture the host shares with every plugin's gpu, such as a preview
-    /// another plugin painted, numbered by the host.
+    /// A picture the host shares with every app's gpu, such as a preview
+    /// another app painted, numbered by the host.
     type image-id = u64;
 }
 

@@ -1,18 +1,18 @@
-// The thread-local diamond (crates/be-tool-tls-diamond-*) in a browser: the plugin and
+// The thread-local diamond (crates/be-tool-tls-diamond-*) in a browser: the app and
 // the libraries it needs, base, left and right, run by be-wasm-guest-host's
-// guest.js with block-app's plugin.js in this worker as a plugin's worker runs
-// one. The plugin checks
+// guest.js with block-app's app.js in this worker as an app's worker runs
+// one. The app checks
 // its thread-locals on the main thread and on a thread it spawns, which wakes
 // it once it is done; the next step sends [1] if all of them were right. A
-// second worker serves one of the libraries with a byte added, which plugin.js
+// second worker serves one of the libraries with a byte added, which app.js
 // has to refuse, since it no longer hashes to its name.
 
 import { runtime } from "./bundle/guest.js";
 
 const START = {
     kind: "start",
-    url: new URL("./bundle/plugin.wasm", import.meta.url).href,
-    extension: new URL("./bundle/plugin.js", import.meta.url).href,
+    url: new URL("./bundle/app.wasm", import.meta.url).href,
+    extension: new URL("./bundle/app.js", import.meta.url).href,
     imports: [],
 };
 
@@ -38,7 +38,7 @@ async function diamond() {
         .flatMap((report) => report.frames)
         .map((frame) => Array.from(new Uint8Array(frame)));
     if (JSON.stringify(frames) !== "[[1]]") {
-        return { error: `the plugin sent ${JSON.stringify(frames)}, not [[1]]` };
+        return { error: `the app sent ${JSON.stringify(frames)}, not [[1]]` };
     }
     return { passed: true, message: "the thread-local diamond ran in Chromium" };
 }

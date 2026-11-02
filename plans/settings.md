@@ -92,7 +92,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
    parent is viewable, and at most KnowExists otherwise; its own grants never
    raise that (`BlockNode::is_block_settings`, `level_below`). Creating one, or
    moving one under a block, needs Manage on that block. No editor lists it
-   among its block's children: plugins get only what content refers to. Tests: be-block-graph
+   among its block's children: apps get only what content refers to. Tests: be-block-graph
    `a_settings_block_needs_manage_on_its_parent_to_change`, be-server
    `a_settings_block_changes_only_with_manage_on_its_parent`. Left for later
    steps: resolving and editing these settings in the client.
@@ -215,7 +215,7 @@ re-import once, and say so in `guides/frozen_formats.md`.
     Edit on the block. "Every block with tag X" is a `Query::Backrefs` on the
     tag. Personal tags are the same type in the user's settings. Done: a tag is
     a `Tag` block (name, `TagColor`) listed by the `Tags` kind; `TAGGED`
-    metadata on a block points to its tags. The Tags editor (settings plugin)
+    metadata on a block points to its tags. The Tags editor (settings app)
     adds, renames, recolors and removes tags and lists each one's blocks; a
     block's menu in Files puts tags on and takes them off and opens Manage
     tags; file tree rows show their tags; the user's settings open Your tags.
@@ -325,9 +325,9 @@ re-import once, and say so in `guides/frozen_formats.md`.
 
 ## Later
 
-- **Plugins.** Once plugins can be installed: a workspace recommends plugins
+- **Apps.** Once apps can be installed: a workspace recommends apps
   without trusting them, so joining a workspace never runs a stranger's code.
-  What runs is (plugins the user trusts and plugins the organization trusts)
+  What runs is (apps the user trusts and apps the organization trusts)
   limited to the organization's allowlist.
 - **Custom icons** as metadata pointing to an image block (step 1). An icon
   from a workspace's icon set is a reference, not a child, so it needs the

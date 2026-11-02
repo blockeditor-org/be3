@@ -47,7 +47,7 @@ pub use state::{Connect, State};
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
-const INTERRUPTED: &str = "the plugin was stopped while it ran";
+const INTERRUPTED: &str = "the app was stopped while it ran";
 
 const CONSTRUCTORS: &str = "__wasm_call_ctors";
 
@@ -105,21 +105,21 @@ impl Host {
         queue: wgpu::Queue,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        Self::with(Devices::Given(device, queue), cache, Flavor::Plugin)
+        Self::with(Devices::Given(device, queue), cache, Flavor::App)
     }
 
     pub fn awaiting(
         device: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        Self::with(Devices::Awaited(Arc::new(device)), cache, Flavor::Plugin)
+        Self::with(Devices::Awaited(Arc::new(device)), cache, Flavor::App)
     }
 
     pub fn on_demand(
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
-        Self::with(Devices::OnDemand(Arc::new(connect)), cache, Flavor::Plugin)
+        Self::with(Devices::OnDemand(Arc::new(connect)), cache, Flavor::App)
     }
 
     pub fn pure(cache: Option<&Path>) -> Result<Self, String> {
@@ -173,7 +173,7 @@ impl Host {
         )
     }
 
-    pub fn load(&self, path: &Path) -> Result<Plugin, String> {
+    pub fn load(&self, path: &Path) -> Result<App, String> {
         let directory = path.parent().unwrap_or(Path::new("."));
         let entry = path
             .file_name()
@@ -186,12 +186,12 @@ impl Host {
         &self,
         entry: &str,
         read: impl Fn(&str) -> Result<Stored, String>,
-    ) -> Result<Plugin, String> {
-        let plugin = match precompiled(&self.engine, entry, &read) {
-            Some(plugin) => plugin,
+    ) -> Result<App, String> {
+        let app = match precompiled(&self.engine, entry, &read) {
+            Some(app) => app,
             None => module(&self.engine, read(entry)?)?,
         };
-        self.link(plugin, |identity| {
+        self.link(app, |identity| {
             let library = library_file_name(identity);
             match precompiled(&self.engine, &library, &read) {
                 Some(module) => Ok(module),
@@ -200,10 +200,10 @@ impl Host {
         })
     }
 
-    pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
+    pub fn load_bytes(&self, bytes: &[u8]) -> Result<App, String> {
         self.load_bytes_with_libraries(bytes, |identity| {
             Err(format!(
-                "the plugin needs the library {identity}, and none was given"
+                "the app needs the library {identity}, and none was given"
             ))
         })
     }
@@ -212,21 +212,21 @@ impl Host {
         &self,
         bytes: &[u8],
         library: impl Fn(&str) -> Result<Vec<u8>, String>,
-    ) -> Result<Plugin, String> {
-        let plugin = module(&self.engine, Stored::Bytes(bytes.to_vec()))?;
-        self.link(plugin, |identity| {
+    ) -> Result<App, String> {
+        let app = module(&self.engine, Stored::Bytes(bytes.to_vec()))?;
+        self.link(app, |identity| {
             library_module(&self.engine, identity, Stored::Bytes(library(identity)?))
         })
     }
 
     fn link(
         &self,
-        plugin: Module,
+        app: Module,
         library: impl Fn(&str) -> Result<Module, String>,
-    ) -> Result<Plugin, String> {
-        let identities = dylink::libraries(&plugin)?;
+    ) -> Result<App, String> {
+        let identities = dylink::libraries(&app)?;
         if identities.is_empty() {
-            return Plugin::new(self, Program::Whole(plugin), Vec::new());
+            return App::new(self, Program::Whole(app), Vec::new());
         }
         let mut modules = Vec::with_capacity(identities.len() + 1);
         for identity in &identities {
@@ -246,12 +246,12 @@ impl Host {
             };
             modules.push(module);
         }
-        modules.push(plugin);
-        Plugin::new(self, Program::Linked(modules.into()), identities)
+        modules.push(app);
+        App::new(self, Program::Linked(modules.into()), identities)
     }
 }
 
-pub struct Plugin {
+pub struct App {
     store: Store<State>,
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
@@ -260,7 +260,7 @@ pub struct Plugin {
     stopped: bool,
 }
 
-impl Plugin {
+impl App {
     fn new(host: &Host, program: Program, identities: Vec<String>) -> Result<Self, String> {
         if host.interrupt.interrupted() {
             return Err(INTERRUPTED.to_owned());
@@ -270,7 +270,7 @@ impl Plugin {
         let shared = match (&program, &imported) {
             (_, Some((_, _, declared))) if declared.is_shared() => Some(
                 SharedMemory::new(&engine, declared.clone())
-                    .map_err(|error| format!("the plugin memory could not be created: {error}"))?,
+                    .map_err(|error| format!("the app memory could not be created: {error}"))?,
             ),
             (Program::Linked(_), _) => {
                 return Err("the root library does not import a shared memory".to_owned());
@@ -320,13 +320,13 @@ impl Plugin {
                 Some(shared) => linker.define(&store, &module, &name, shared.clone()),
                 None => {
                     let own = wasmtime::Memory::new(&mut store, declared).map_err(|error| {
-                        format!("the plugin memory could not be created: {error}")
+                        format!("the app memory could not be created: {error}")
                     })?;
                     store.data_mut().memory = Memory::Own(Some(own));
                     linker.define(&store, &module, &name, own)
                 }
             };
-            defined.map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
+            defined.map_err(|error| format!("the app memory could not be linked: {error}"))?;
         }
         panic::link(&mut linker)?;
         wake::link(&mut linker)?;
@@ -337,11 +337,11 @@ impl Plugin {
             threads::link(&mut linker)?;
             linker
                 .define_unknown_imports_as_traps(program.first())
-                .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
+                .map_err(|error| format!("the app imports could not be stubbed: {error}"))?;
         }
         let first = linker
             .instantiate(&mut store, program.first())
-            .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
+            .map_err(|error| format!("the app could not be instantiated: {error}"))?;
         let instance = match (&program, &shared) {
             (Program::Whole(_), _) => {
                 if let Memory::Own(None) = store.data().memory {
@@ -365,15 +365,15 @@ impl Plugin {
                 return Err("the root library does not import a shared memory".to_owned());
             }
         };
-        let plugin = Self {
-            start: typed(&instance, &mut store, "plugin_start")?,
-            step: typed(&instance, &mut store, "plugin_step")?,
-            shutdown: typed(&instance, &mut store, "plugin_shutdown")?,
+        let app = Self {
+            start: typed(&instance, &mut store, "app_start")?,
+            step: typed(&instance, &mut store, "app_step")?,
+            shutdown: typed(&instance, &mut store, "app_shutdown")?,
             store,
             wake,
             stopped: false,
         };
-        Ok(plugin)
+        Ok(app)
     }
 
     pub fn start(&mut self) -> Result<(), String> {
@@ -408,7 +408,7 @@ impl Plugin {
             if self.store.data().threads.halts(true) {
                 return INTERRUPTED.to_owned();
             }
-            panic::message(&error).unwrap_or_else(|| format!("the plugin trapped: {error}"))
+            panic::message(&error).unwrap_or_else(|| format!("the app trapped: {error}"))
         });
         if let Err(error) = outcome {
             self.stopped = true;
@@ -487,11 +487,11 @@ impl Plugin {
     }
 }
 
-impl Runnable for Plugin {
+impl Runnable for App {
     type Presented = Infallible;
 
     fn start(&mut self) -> Result<Produced<Infallible>, String> {
-        Plugin::start(self)?;
+        App::start(self)?;
         Ok(Produced::sent(self.take_outbound(), StepTime::default()))
     }
 
@@ -499,7 +499,7 @@ impl Runnable for Plugin {
         self.take_wake();
         let started = Instant::now();
         self.deliver(frames);
-        Plugin::step(self)?;
+        App::step(self)?;
         let took = StepTime {
             step: started.elapsed(),
             ..StepTime::default()
@@ -508,15 +508,15 @@ impl Runnable for Plugin {
     }
 
     fn take_wake(&mut self) -> bool {
-        Plugin::take_wake(self)
+        App::take_wake(self)
     }
 
     fn on_wake(&self, wake: HostWake) {
-        Plugin::on_wake(self, move || wake());
+        App::on_wake(self, move || wake());
     }
 
     fn stop(&mut self) {
-        Plugin::stop(self);
+        App::stop(self);
     }
 }
 
@@ -526,7 +526,7 @@ fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<()
     };
     constructors
         .call(store, ())
-        .map_err(|error| format!("the plugin could not run its constructors: {error}"))
+        .map_err(|error| format!("the app could not run its constructors: {error}"))
 }
 
 fn initialize(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
@@ -535,7 +535,7 @@ fn initialize(instance: &Instance, store: &mut Store<State>) -> Result<(), Strin
     };
     initialize
         .call(store, ())
-        .map_err(|error| format!("the plugin could not initialize itself: {error}"))
+        .map_err(|error| format!("the app could not initialize itself: {error}"))
 }
 
 fn memory_import(module: &Module) -> Option<(String, String, MemoryType)> {
@@ -605,12 +605,12 @@ fn compile(
     if stored.precompiled() {
         return stored
             .deserialize(engine)
-            .map_err(|error| format!("the compiled plugin module could not be loaded: {error}"));
+            .map_err(|error| format!("the compiled app module could not be loaded: {error}"));
     }
     let bytes = stored.into_bytes()?;
     check(&bytes)?;
     Module::new(engine, &bytes)
-        .map_err(|error| format!("the plugin module could not be compiled: {error}"))
+        .map_err(|error| format!("the app module could not be compiled: {error}"))
 }
 
 fn precompiled(
@@ -634,7 +634,7 @@ fn precompiled(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Flavor {
-    Plugin,
+    App,
     Pure,
 }
 
@@ -670,7 +670,7 @@ fn engine(cache: Option<&Path>, flavor: Flavor) -> Result<(Engine, Libraries), S
 fn configuration(flavor: Flavor) -> Config {
     let mut config = Config::new();
     match flavor {
-        Flavor::Plugin => {
+        Flavor::App => {
             config.wasm_threads(true);
             config.shared_memory(true);
             config.wasm_exceptions(true);
@@ -693,20 +693,20 @@ fn configuration(flavor: Flavor) -> Config {
 fn compilation_cache(directory: &Path) -> Result<Cache, String> {
     std::fs::create_dir_all(directory).map_err(|error| {
         format!(
-            "the plugin cache directory {} could not be made: {error}",
+            "the app cache directory {} could not be made: {error}",
             directory.display()
         )
     })?;
     let directory = directory.canonicalize().map_err(|error| {
         format!(
-            "the plugin cache directory {} could not be resolved: {error}",
+            "the app cache directory {} could not be resolved: {error}",
             directory.display()
         )
     })?;
     let mut configuration = CacheConfig::new();
     configuration.with_directory(directory);
     Cache::new(configuration)
-        .map_err(|error| format!("the plugin cache could not be opened: {error}"))
+        .map_err(|error| format!("the app cache could not be opened: {error}"))
 }
 
 fn shared_memory(engine: &Engine, module: &Module) -> Result<SharedMemory, String> {
@@ -714,12 +714,12 @@ fn shared_memory(engine: &Engine, module: &Module) -> Result<SharedMemory, Strin
         .imports()
         .find(|import| import.module() == "env" && import.name() == "memory")
         .and_then(|import| import.ty().memory().cloned())
-        .ok_or_else(|| "the plugin does not import env.memory".to_owned())?;
+        .ok_or_else(|| "the app does not import env.memory".to_owned())?;
     if !declared.is_shared() {
-        return Err("the plugin memory is not shared".to_owned());
+        return Err("the app memory is not shared".to_owned());
     }
     SharedMemory::new(engine, declared)
-        .map_err(|error| format!("the plugin memory could not be created: {error}"))
+        .map_err(|error| format!("the app memory could not be created: {error}"))
 }
 
 fn typed<Parameters, Results>(
@@ -733,5 +733,5 @@ where
 {
     instance
         .get_typed_func(store, name)
-        .map_err(|error| format!("the plugin has no usable {name} export: {error}"))
+        .map_err(|error| format!("the app has no usable {name} export: {error}"))
 }

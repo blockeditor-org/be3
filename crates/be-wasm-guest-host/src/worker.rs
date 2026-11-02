@@ -30,8 +30,8 @@ impl Deadline {
     }
 }
 
-pub const STOPPED: &str = "The plugin worker stopped.";
-pub const NOT_RESPONDING: &str = "The plugin stopped responding.";
+pub const STOPPED: &str = "The app worker stopped.";
+pub const NOT_RESPONDING: &str = "The app stopped responding.";
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub trait Presented {

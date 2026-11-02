@@ -25,7 +25,7 @@ be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wgpu = { version = "29", default-features = false }
 
-# The wasmtime plugin host, which runs every plugin on every platform but the
+# The wasmtime app host, which runs every app on every platform but the
 # browser. The browser runs the same wasm in a worker of its own.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 be-wasm-host = { path = "../be-wasm-host" }

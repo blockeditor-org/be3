@@ -9,9 +9,9 @@ pub const HOST_RECEIVE: &str = "host_receive";
 pub const HOST_WAKE: &str = "host_wake";
 pub const HOST_PANIC: &str = "host_panic";
 
-pub const START: &str = "plugin_start";
-pub const STEP: &str = "plugin_step";
-pub const SHUTDOWN: &str = "plugin_shutdown";
+pub const START: &str = "app_start";
+pub const STEP: &str = "app_step";
+pub const SHUTDOWN: &str = "app_shutdown";
 
 pub const NO_MESSAGE: i64 = -1;
 
@@ -69,18 +69,18 @@ macro_rules! guest {
             }
 
             #[unsafe(no_mangle)]
-            pub extern "C" fn plugin_start() {
+            pub extern "C" fn app_start() {
                 ($before)();
                 $crate::wasm::start(&GUEST);
             }
 
             #[unsafe(no_mangle)]
-            pub extern "C" fn plugin_step() {
+            pub extern "C" fn app_step() {
                 $crate::wasm::step(&GUEST);
             }
 
             #[unsafe(no_mangle)]
-            pub extern "C" fn plugin_shutdown() {
+            pub extern "C" fn app_shutdown() {
                 $crate::wasm::shutdown(&GUEST);
             }
         };

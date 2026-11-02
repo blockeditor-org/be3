@@ -42,13 +42,13 @@ nothing is held or animating and nothing has been drawn for 100 ms, so that an a
 lift starts (a fling) is drawn fast rather than settled first, it switches back and sends a
 frame whose damage is everything drawn in black and white (`Screen::hurry` and
 `Screen::settle`), which the driver redraws in four greys. beui reports animating while an
-`Animation` runs (scroll flings included, `FrameOutput::animating`), and a plugin reports it
+`Animation` runs (scroll flings included, `FrameOutput::animating`), and an app reports it
 in `FrameCommit::animating`. A Wayland window counts as still.
 
 Fast waveforms leave ghosts. The platform provides `beui_platform_drm::Epaper`, whose `refresh()`
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the
 `Epaper` host value (`true`) when the platform provides one and turns each `EpaperRequest::Refresh`
-into a refresh (`display/linux.rs`); the desktop plugin shows a refresh button (`desktop.refresh`)
+into a refresh (`display/linux.rs`); the desktop app shows a refresh button (`desktop.refresh`)
 on the Status bar, and a Refresh tile in Quick settings, while the value is true.
 
 ## Input
@@ -76,7 +76,7 @@ too, with KOReader's own settings.
 
 ## Building and installing
 
-Build block-app with its plugins for arm64 here, copy the directory to the PineNote, and install
+Build block-app with its apps for arm64 here, copy the directory to the PineNote, and install
 it there as a session:
 
     ./scripts/buck build -m release //crates/be-host:native --target-platforms root//buck/platforms:linux_arm64 --out DIR

@@ -84,7 +84,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     exchange(&mut wire, &guest, &mut heard);
     assert!(
         matches!(*power.borrow(), Some(Err(_))),
-        "a plugin that names no extension may not watch one"
+        "an app that names no extension may not watch one"
     );
     assert!(
         matches!(heard.as_slice(), [Heard::Watch(INSTANCE, open)] if *open == AdministratorWatch::OPEN),

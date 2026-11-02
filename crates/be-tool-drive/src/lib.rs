@@ -61,7 +61,7 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
              `shot` takes the file to write the PNG to first: shot FILE.png [TARGET].\n\
              `paint` takes the file to write to first: paint FILE.paint [TARGET] [in WINDOW] writes the paint snapshot,\n\
-             and paint FILE.png [TARGET] [in WINDOW] draws it into a PNG, with what a plugin draws itself left as placeholders.\n\
+             and paint FILE.png [TARGET] [in WINDOW] draws it into a PNG, with what an app draws itself left as placeholders.\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
              `env` prints the app's environment for programs as export lines, for `eval \"$(drive env)\"`.\n\
              `exec PROGRAM [ARGUMENTS]` runs PROGRAM in that environment, so its windows open inside the app.\n\

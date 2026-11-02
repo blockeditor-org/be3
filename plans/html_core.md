@@ -88,8 +88,8 @@ end lists.
   platform escape, whose `scroll` listener and measured sizes feed the
   scroll's position; `Offset` stays beui's own on both cores. Natively
   nothing changes.
-- **Out of scope.** Plugin editors stay on canvas/wgpu on the web for now
-  (they run in workers). Later, web plugins become iframes, which could run
+- **Out of scope.** Editors stay on canvas/wgpu on the web for now
+  (they run in workers). Later, web apps become iframes, which could run
   beui on the HTML core.
 
 ## How the counts below were taken
@@ -133,7 +133,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | `Overlay` | a layer anchored to a node, rect or point: placement, scrim, policy, level, focus trap, dismiss, keep-alive | 11 | 0 | 4 | 2 | CSS + top layer: `popover`/`<dialog>`, CSS anchor positioning with `position-try-fallbacks`, `::backdrop` for the scrim, `showModal()`/`inert` for `BlocksAll` and the trap | `Window` is an `Overlay` mode |
 | `Window` / `WindowHandle` | an `Overlay` that becomes an OS window where the platform opens windows | 0 | 0 | 4 | 4 | CSS (as an `Overlay`); the web opens no windows | Keep as a `beui-view` composition of `Overlay`, not a primitive |
 | `Interactive` | focus, keys, text, IME, paste, pointer, gestures, hit tests: 61 props | 23 | 0 | 4 | 22 | DOM events for focus (`tabindex`, `focus()`, `focusin/out`), keys, pointer (`setPointerCapture`), paste. IME through the hidden `<textarea>`, later EditContext. Custom hit tests (`hit_at`, `capture_at`, `gestures_at`, `drawing_at`, `claim_at`): **unclear** | Split; move gesture recognisers up (§4) |
-| `Embed` | reserves a rect for something composited outside the document, punches a hole, reports placement | 0 | 0 | 0 | 3 | **late** (placement via `ResizeObserver`); the content would be an iframe | Product-only (block-app, be-sdk-beui); plugins are out of scope |
+| `Embed` | reserves a rect for something composited outside the document, punches a hole, reports placement | 0 | 0 | 0 | 3 | **late** (placement via `ResizeObserver`); the content would be an iframe | Product-only (block-app, be-sdk-beui); apps are out of scope |
 | `Portal` | shows a subtree it doesn't own, moving it without a rebuild | 2 | 0 | 2 | 3 | DOM: move the element (`moveBefore` keeps focus and iframe state) | — |
 | `BackHandler` | the innermost enabled handler gets Back and the back gesture | 2 | 1 | 0 | 3 | No layout. `popstate`/history and Escape; the back gesture has no web equivalent | A pass-through node for routing only: make it a hook like `on_key` |
 | `Shift` | moves its child by a vector without moving its box | 2 | 0 | 1 | 0 | CSS `transform: translate()` | `Frame` prop |
@@ -352,7 +352,7 @@ Moves up or out:
 - `BackHandler`: a scoped hook, like `on_key`.
 - `FirstFit`: unstyled, over the measurement API.
 - `Turn` quarter turns: to their users (be-sdk-beui, infinite-canvas).
-- `Embed`: product-facing, beside the plugin work it serves.
+- `Embed`: product-facing, beside the app work it serves.
 - `Spacer`: stays base for fill and empty children; styled gains a `Spacer`
   taking a `Space` token for fixed gaps, replacing the pixel sizes passed to
   it outside beui.
@@ -773,7 +773,7 @@ have landed; its tasks run in parallel unless marked.
   scripts run only in Chromium.
 - Porting block-app itself to the HTML core; it runs the native core with wgpu
   on the web.
-- Web plugins as iframes, which could run the HTML core.
+- Web apps as iframes, which could run the HTML core.
 - `color_var!` is meant to be the only way to make a `ColorVar`, but
   `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
   any code can name one by string.

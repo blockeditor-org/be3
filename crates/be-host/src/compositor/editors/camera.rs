@@ -7,7 +7,7 @@ use beui::styled::*;
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use uuid::Uuid;
 
-use super::super::plugin_view::PanDrag;
+use super::super::app_view::PanDrag;
 use be_host_runtime::EditorView;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -96,7 +96,7 @@ fn zoom(viewport: &mut Viewport, factor: f32, anchor: Pos2, rect: Rect, max_zoom
 #[derive(Clone, Copy)]
 pub(super) struct CameraSpec {
     pub(super) block: Uuid,
-    pub(super) plugin_id: Stored<String>,
+    pub(super) app_id: Stored<String>,
     pub(super) instance: EditorInstanceId,
     pub(super) view: ViewId,
     pub(super) pan_and_zoom: bool,
@@ -122,7 +122,7 @@ pub(super) fn Camera(
 ) -> NodeId {
     let CameraSpec {
         block,
-        plugin_id,
+        app_id,
         instance,
         view: shown_view,
         placed,
@@ -134,7 +134,7 @@ pub(super) fn Camera(
     let rect = rect_held.read_only();
     let holds = create_memo(move || {
         revision.get();
-        match be_host_runtime::frame_rects(&plugin_id.value(), instance, shown_view) {
+        match be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
             Some(frame) => frame.holds_content(),
             None => shown_view == ViewId::MAIN,
         }
@@ -154,7 +154,7 @@ pub(super) fn Camera(
     let viewport_rect = create_memo(move || {
         revision.get();
         let rect = rect.get();
-        be_host_runtime::frame_rects(&plugin_id.value(), instance, shown_view)
+        be_host_runtime::frame_rects(&app_id.value(), instance, shown_view)
             .map(|frame| frame.content(rect))
             .filter(Rect::is_positive)
             .unwrap_or(rect)
@@ -162,7 +162,7 @@ pub(super) fn Camera(
     let content_size = create_memo(move || {
         revision.get();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = be_host_runtime::intrinsic_size(&plugin_id.value(), instance)
+        let intrinsic = be_host_runtime::intrinsic_size(&app_id.value(), instance)
             .unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
@@ -185,7 +185,7 @@ pub(super) fn Camera(
         }
         revision.get();
         let shown = content.get().unwrap_or(rect.get());
-        let scale = be_host_runtime::intrinsic_size(&plugin_id.value(), instance)
+        let scale = be_host_runtime::intrinsic_size(&app_id.value(), instance)
             .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
             .map_or(1.0, |intrinsic| {
                 (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
@@ -250,7 +250,7 @@ pub(super) fn Camera(
             return;
         }
         let rect = rect.get_untracked();
-        for change in be_host_runtime::take_view_changes(&plugin_id.value(), instance) {
+        for change in be_host_runtime::take_view_changes(&app_id.value(), instance) {
             command(match change {
                 ViewChange::Pan(by) => Command::Pan(by),
                 ViewChange::Zoom { factor, anchor } => Command::Zoom {
@@ -318,7 +318,7 @@ pub(super) fn Camera(
         if let Some(steered) = steered.get() {
             area = area.without(steered.translate(-origin));
         }
-        if let Some(frame) = be_host_runtime::frame_rects(&plugin_id.value(), instance, shown_view)
+        if let Some(frame) = be_host_runtime::frame_rects(&app_id.value(), instance, shown_view)
         {
             for floating in frame.floating {
                 area = area.without(floating);

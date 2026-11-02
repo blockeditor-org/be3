@@ -272,10 +272,10 @@ when it repeats one.
 
 ## Blocks
 
-A plugin editor reads its block's content through a `ContentProjection`
+An editor reads its block's content through a `ContentProjection`
 (`be_sdk_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
-follows; both are pumped by the plugin framework once at the top of every frame,
+follows; both are pumped by the app framework once at the top of every frame,
 so an editor never pumps by hand. A
 projection is a `Copy` handle that the `Editor` owns and frees with itself, so
 closures take it with `move`. One made outside an editor, as an artifact's
@@ -346,7 +346,7 @@ it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(i
 is a memo of the host's answer to that query: `Err(Pending::Loading)` until the
 first answer arrives, `Err(Pending::Failed(..))` when the host could not answer
 it, and it changes whenever the host's answer does. A query nobody watches
-keeps its last answer for a while (the plugin keeps the last 64), so watching
+keeps its last answer for a while (the app keeps the last 64), so watching
 it again shows that at once while the host answers again.
 
 ## Loading

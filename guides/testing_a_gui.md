@@ -3,9 +3,9 @@ way a person would, and checks two things — what the block became, and what th
 painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
 well under a second.
 
-A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
-the same wasmtime runtime block-app opens a plugin with (see 5). Nothing about writing one changes
-because of that, but what the editor paints is then what the shipped plugin paints rather than
+An app's tests run where the app runs: compiled to wasm32-wasip1-threads and started by
+the same wasmtime runtime block-app opens an app with (see 5). Nothing about writing one changes
+because of that, but what the editor paints is then what the shipped app paints rather than
 what the machine running the tests happens to have installed.
 
 1. What a GUI test may look at
@@ -41,13 +41,13 @@ Tests live inside the editor's crate, one test per file under src/tests/, like e
 test in the repository. be-sdk-test's BeuiTest is built from an OwnedEditor, which owns the
 state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
 keeps a handle after the BeuiTest takes the owner; `BeuiTest::editing(block)` makes both, with a default
-EditorHost that may edit, and `test.host()` reaches the host), and runs it headless through the plugin's own session (be_sdk::headless):
-the Screens and EditorSession the shipped plugin runs, fed the calls the host would
-make: the world's exports and the answers to the plugin's imports over a be-wasm-ops connection, as
+EditorHost that may edit, and `test.host()` reaches the host), and runs it headless through the app's own session (be_sdk::headless):
+the Screens and EditorSession the shipped app runs, fed the calls the host would
+make: the world's exports and the answers to the app's imports over a be-wasm-ops connection, as
 on the wire, and what the host pushes (acceptance, preferences, input, the draw) encoded and
 decoded as the wire would. Gestures are turned into the protocol's input events the way
 block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
-editor here either, and a call the plugin refuses fails the test.
+editor here either, and a call the app refuses fails the test.
 
     let mut test = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
     test.hold(None, ChecklistContent::default());
@@ -78,7 +78,7 @@ lists the blocks the editor made through its Blocks handle, and defer(true) hold
 editor's operations back until defer(false), for a test of what the editor shows before the
 host has taken an edit.
 
-Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
+Whatever else the app sends the host is kept for the test to read: take_view_changes(),
 take_requests(), take_opens(), take_block_commands() (blocks.act), take_shell_commands() (shell.act: share, leave, rename, close, the host menu) and the other take_ methods drain one
 kind, take_host_calls(reader) the calls of the account and extension interfaces it made (be_sdk_test::requested has a reader per function), and clear_calls() drops what is kept. The host's side of a conversation goes in the same way
 block-app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
@@ -120,7 +120,7 @@ fixed time. Work that lands without waking the editor and without asking for a f
 it until the deadline, which is the stall a person would see in block-app.
 
 Time in the editor is the harness's own clock, not the wall clock: every frame the harness
-paints is one frame interval later, and the host hands the plugin that time with each frame,
+paints is one frame interval later, and the host hands the app that time with each frame,
 which is what its frame clock (`timer::now()`) reads. An animation therefore lands on the same
 frame on any machine, a frame captured part way through one paints the same everywhere, and
 waiting for a delay the editor asked for costs no real time. advance(by) moves the clock on and
@@ -130,7 +130,7 @@ paints a frame, for a timer that is longer than an animation:
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
-wait(by) moves the clock on without painting and hands the plugin what the host has queued
+wait(by) moves the clock on without painting and hands the app what the host has queued
 (a set_watched, say), the way a call reaches an idle editor between frames; the next
 run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
 that frame reads that frame's time from `timer::now()`, not the last frame painted.
@@ -147,14 +147,14 @@ The date and the time of day come from the harness too: an editor reads them fro
 `SystemTime::now()`. That clock is the host's: each draw carries the host's wall clock beside
 its frame time (`wall-micros`), and the harness hands one fixed moment plus its frame clock, so
 a clock or a calendar paints the same on every run. beui's own date and time components (a
-calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
-pins to that clock each frame; a beui test without a plugin pins it with
+calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the app runner
+pins to that clock each frame; a beui test without an app pins it with
 `beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`. The fixed moment is
 `beui_core::timer::TEST_WALL_CLOCK` (2026-03-02 09:41 UTC). The host tests and every other test
 that starts a program through `be_tool_drive::Driven` or `be-tool-drive run` start it with its clock
 pinned (`be-drive launch --pin-clock`, guides/running/drive.md): the headless platform pins
 beui's wall clock to that moment as it starts and runs the program in UTC, so block-app hands every
-plugin that moment too. An agent's `:dev` runs on the real time unless started with
+app that moment too. An agent's `:dev` runs on the real time unless started with
 `-- --pin-clock`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
@@ -203,7 +203,7 @@ way for the test to fail.
 - ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
   but that the crate's snapshots/ does not hold once it is done: the test failed, or returned, before
   painting it.
-- Once every plugin test passes, ./scripts/verify deletes each painting in a snapshots/ that no test
+- Once every app test passes, ./scripts/verify deletes each painting in a snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it on the pull
@@ -254,7 +254,7 @@ way for the test to fail.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 be_sdk_test::DocumentTest, with only the fonts beui carries, never the system's. Its tests
-are compiled to wasm with plugin_tests like an editor's; crates/beui-demo paints every page of
+are compiled to wasm with app_tests like an editor's; crates/beui-demo paints every page of
 the demo that way. A DocumentTest is beui's `testing::Stepped` (guides/beui.md, Test and
 verify changes), which takes the snapshots: the document runs through the real `Runner`, frame(inputs)
 pushes raw `Input`s in points through the runner's intake as a platform would, and its
@@ -271,7 +271,7 @@ to land in an atlas cannot reach the file: text an earlier frame drew - a tempor
 without moving anything in the snapshot. Text that varies in the frame the test captures is
 of course a different painting, and still has to be kept out of it.
 
-Nor does a snapshot hold what a beui Drawing draws - a plugin's surface, a 3D scene - since
+Nor does a snapshot hold what a beui Drawing draws - an app's surface, a 3D scene - since
 those contents never reach the painter: the snapshot keeps the region and nothing inside it,
 so a test of one asserts on the block instead.
 
@@ -325,19 +325,19 @@ an incomplete preview. Browser rendering is not part of snapshot equality.
 
 5. Running them
 
-./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
-tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
+./scripts/verify runs them, through buck2: ./scripts/verify --app-tests is the app
+tests alone, and accepts what they paint. buck2 compiles each app's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
 and runs the module through crates/be-sdk-test-runner, which is wasmtime with the
-plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
+app's own imports linked: the gpu abi an app draws through, the threads an app
 spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
 which reads the accepted paintings as its inputs and outputs the ones that changed;
 ./scripts/verify then copies those into the crate's snapshots/, so a failure's output is in the
 build's log, not on this machine. ./scripts/test (below) runs it on a worker too, and
 copies what it accepts into the crate's snapshots/.
 A painting is compared wherever its test runs, and each crate's BUCK runs its tests in exactly
-one place: plugin_tests as wasm for an editor, beui-demo and the other crates that paint as
-plugins do, and `cargo_test(paints = True)` natively for the host's own crates (block-app, its
+one place: app_tests as wasm for an editor, beui-demo and the other crates that paint as
+apps do, and `cargo_test(paints = True)` natively for the host's own crates (block-app, its
 desktop and accounts crates, beui-layer-space), whose paintings are what the host draws. An
 editor's tests only mean anything as the wasm guest it ships as, so do not build or test an
 editor package natively by itself.
@@ -359,7 +359,7 @@ numbers.
 Until then the module's tests run one after another, in name order, on one thread, so what a
 crate keeps per thread (the frame clock, the pinned wall clock) carries from one test into the
 next, and anything that starts afresh with each harness must be reset when it does
-(HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
+(HeadlessApp::new restarts the frame clock). A test that fails only after others ran passes
 alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter:
 ./scripts/test //crates/be-app-checklist:test. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
@@ -368,7 +368,7 @@ that passed comes from the cache when nothing it reads changed; one that failed 
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
 code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that
-action is cached like any other, so a machine that never built the plugin gets it from
+action is cached like any other, so a machine that never built the app gets it from
 the build server. The runner only opens a graphics adapter when a test calls the gpu abi, so a
 machine without one still runs every test that does not, and what a test compares never
 passes through a gpu.
@@ -378,11 +378,11 @@ passes through a gpu.
 An editor test hosts one editor and fakes the host around it: the children it places are only
 recorded, and a child's statuses are whatever the test reports. What happens between editors
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
-press, a tab closing its editor) lives in block-app's compositor and plugin host, so it is
+press, a tab closing its editor) lives in block-app's compositor and app host, so it is
 tested in crates/be-host-tests instead, against the host itself. Each test there starts
 block-app headless with the dev organization open, exactly as `:dev` does, in a data
 directory of its own, with the editors it names (below); drives it with the commands `drive` has (guides/running/drive.md); paints
-the whole window, every plugin included; and fails unless the host exits cleanly when it closes,
+the whole window, every app included; and fails unless the host exits cleanly when it closes,
 which close() checks, so a test that ends without calling it fails too.
 
     let mut app = HostTest::start();
@@ -413,33 +413,33 @@ which close() checks, so a test that ends without calling it fails too.
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
   crates/be-host-tests/snapshots/<name>.paint and accepted the same way. The painting is `drive paint`: the
-  host's own document with each plugin's painting put where the host composites its surface,
-  and each preview a plugin shows, which its painting marks with `beui_paint_format::preview_key`,
+  host's own document with each app's painting put where the host composites its surface,
+  and each preview an app shows, which its painting marks with `beui_paint_format::preview_key`,
   replaced by the painting of the preview it shows. A preview waits out its cooldown before it
-  paints a second change (guides/adding_a_plugin_editor.md, Drawing the block itself), and the
+  paints a second change (guides/adding_an_app.md, Drawing the block itself), and the
   clock is stopped, so a test that changes a block and then looks at a preview of it pauses for
   `PREVIEW_COOLDOWN` first.
   They also fail, as in an editor test, on what the window shows out of bounds (`drive
-  overflows`), in the host or in any plugin shown, whatever the crop.
+  overflows`), in the host or in any app shown, whatever the crop.
 - `HostTest::start_in_space()` starts the host in the VR simulator (`BEUI_LAYERS=space` on the
   headless platform), where the painting is the 3D view and targets and points are the main
-  panel's, so it shows what happens between panels, such as a plugin's window becoming one.
-- The host runs with no GPU renderer (`BEUI_RENDERER=none`), and plugins then draw nothing on
+  panel's, so it shows what happens between panels, such as an app's window becoming one.
+- The host runs with no GPU renderer (`BEUI_RENDERER=none`), and apps then draw nothing on
   the GPU either, since a painting needs neither. The 3D view of space and the previews of
   blocks (a slide in a deck's filmstrip) are textures, so `start_in_space()` and
   `HostTest::start_drawing_previews()` start it with the renderer, drawing through lavapipe.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
-- Each test names the editors it uses in `EDITORS` in crates/be-host-tests/BUCK, by their
-  directory under crates/editors: the editor of every block type it creates or opens, the
+- Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK, by their
+  directory's name after crates/be-app-: the app of every block type it creates or opens, the
   canvas for a block it adds to a canvas, `presentation`, `infinite-canvas` and `text-block`
   for a deck's slides. Its build of block-app stages those beside the ones every build needs to show the Files
-  (`BASE` in crates/be-host-tests/hosts.bzl), each only as its precompiled module, so the test builds
-  only those editors, and a change to an editor reruns only the tests that name it. A test not
-  in `EDITORS` stages every editor: leave a test out whose paintings show what every editor
-  adds, such as the add menu's types or the type search, since fewer editors would paint fewer
-  rows. A block whose editor is missing fails the test within a few seconds, naming the editor
-  to add; a painting that changes where only the editors changed means the test needs another
+  (`BASE` in crates/be-host-tests/apps.bzl), each only as its precompiled module, so the test builds
+  only those apps, and a change to an app reruns only the tests that name it. A test not
+  in `APPS` stages every app: leave a test out whose paintings show what every app
+  adds, such as the add menu's types or the type search, since fewer apps would paint fewer
+  rows. A block whose app is missing fails the test within a few seconds, naming the app
+  to add; a painting that changes where only the apps changed means the test needs another
   editor (a file's row menu offers Opens in only for a type that two editors edit, such as
   text-block and block-debug), and a test named `foo` runs against its own build of block-app with
   `./scripts/test foo`, as verify runs it.
@@ -451,8 +451,8 @@ which close() checks, so a test that ends without calling it fails too.
 - buck caches a test that passed, so a flake that shows only under load is reproduced by running
   the harness on this machine, all the tests at once and as often as needed. Build it with what
   its `run_env` in crates/be-host-tests/BUCK names (`./scripts/buck build
-  //crates/be-host-tests:test-harness //crates/be-host-tests:host-all //buck/sysroot:amd64-test
-  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:host-all` the build of block-app every
+  //crates/be-host-tests:test-harness //crates/be-host-tests:host-with-all //buck/sysroot:amd64-test
+  //buck/sysroot:amd64 //buck/sysroot:lavapipe_icd.json`, with `:host-with-all` the build of block-app every
   test can run against), then run
   `buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests` with `APP_LIBRARIES`,
   `BLOCK_APP`, `VK_ICD_FILENAMES` and `XKB_CONFIG_ROOT` set to those outputs under buck-out and

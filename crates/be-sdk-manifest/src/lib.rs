@@ -21,14 +21,14 @@ pub use document::{
 };
 pub use types::{
     BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode, PanMode,
-    ParentView, PluginIdentity, Press, ResizeMode, TemplateCategory,
+    ParentView, AppIdentity, Press, ResizeMode, TemplateCategory,
 };
 
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PluginManifest {
-    pub identity: PluginIdentity,
+pub struct AppManifest {
+    pub identity: AppIdentity,
     pub editors: Vec<EditorManifest>,
     pub block_types: Vec<BlockTypeManifest>,
     pub entry_point: String,
@@ -102,7 +102,7 @@ pub struct TemplateManifest {
     pub block_type: [u8; 16],
 }
 
-impl PluginManifest {
+impl AppManifest {
     pub fn grants(&self, extension: &str) -> bool {
         self.extensions.iter().any(|granted| granted == extension)
     }
@@ -179,7 +179,7 @@ impl fmt::Display for ManifestError {
             Self::Malformed(error) => write!(formatter, "the manifest could not be read: {error}"),
             Self::Empty(field) => write!(formatter, "{field} is empty"),
             Self::TooLong(field) => write!(formatter, "{field} is too long"),
-            Self::InvalidIdentity => formatter.write_str("the plugin id is not a plain identifier"),
+            Self::InvalidIdentity => formatter.write_str("the app id is not a plain identifier"),
             Self::InvalidBlockType => formatter.write_str("the block type is not a uuid"),
             Self::InvalidEditorId => formatter.write_str("the editor id is not a uuid"),
             Self::InvalidViews => {
@@ -192,7 +192,7 @@ impl fmt::Display for ManifestError {
                 formatter.write_str("an extension is not one the host knows, or is named twice")
             }
             Self::NoEditors => {
-                formatter.write_str("the plugin declares no editors and no block types")
+                formatter.write_str("the app declares no editors and no block types")
             }
             Self::DuplicateBlockType => {
                 formatter.write_str("two block types are declared with the same id or name")
@@ -216,11 +216,11 @@ impl fmt::Display for ManifestError {
     }
 }
 
-impl PluginManifest {
+impl AppManifest {
     pub fn validate(&self) -> Result<(), ManifestError> {
-        manifest_string("plugin id", &self.identity.id)?;
-        manifest_string("plugin name", &self.identity.name)?;
-        manifest_string("plugin version", &self.identity.version)?;
+        manifest_string("app id", &self.identity.id)?;
+        manifest_string("app name", &self.identity.name)?;
+        manifest_string("app version", &self.identity.version)?;
         if !self
             .identity
             .id

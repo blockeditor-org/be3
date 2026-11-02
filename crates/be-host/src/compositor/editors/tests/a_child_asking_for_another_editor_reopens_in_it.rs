@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use be_sdk_api::{Edits, PluginIdentity};
-use be_sdk_manifest::{EditorManifest, PluginManifest};
+use be_sdk_api::{Edits, AppIdentity};
+use be_sdk_manifest::{EditorManifest, AppManifest};
 
 use super::*;
 
@@ -22,9 +22,9 @@ fn editor(name: &str, edits: Edits) -> EditorManifest {
     }
 }
 
-fn plugin(id: &str, editors: Vec<EditorManifest>) -> Arc<PluginManifest> {
-    Arc::new(PluginManifest {
-        identity: PluginIdentity {
+fn app(id: &str, editors: Vec<EditorManifest>) -> Arc<AppManifest> {
+    Arc::new(AppManifest {
+        identity: AppIdentity {
             id: id.to_owned(),
             name: id.to_owned(),
             version: "1".to_owned(),
@@ -40,14 +40,14 @@ fn plugin(id: &str, editors: Vec<EditorManifest>) -> Arc<PluginManifest> {
 #[test]
 fn a_child_asking_for_another_editor_reopens_in_it() {
     let block_type = Uuid::new_v4();
-    let built_in = plugin(
+    let built_in = app(
         "test.built-in",
         vec![
             editor("main", Edits::Type(block_type.into_bytes())),
             editor("outline", Edits::Type(block_type.into_bytes())),
         ],
     );
-    let debug = plugin("test.debug", vec![editor("debug", Edits::Any)]);
+    let debug = app("test.debug", vec![editor("debug", Edits::Any)]);
     let (built_in_id, outline_id, debug_id) = (
         Uuid::from_bytes(built_in.editors[0].id),
         Uuid::from_bytes(built_in.editors[1].id),
@@ -57,7 +57,7 @@ fn a_child_asking_for_another_editor_reopens_in_it() {
     let editors = OwnedEditors::install(registry, Uuid::new_v4());
     let (id, parent) = (Uuid::new_v4(), Uuid::new_v4());
     let opened = |editors: &OwnedEditors| {
-        editors.with(|open| open.get(&id).and_then(PluginEditor::editor_id))
+        editors.with(|open| open.get(&id).and_then(AppEditor::editor_id))
     };
 
     editors.ensure(id, block_type, None, None, parent);
@@ -71,7 +71,7 @@ fn a_child_asking_for_another_editor_reopens_in_it() {
     assert_eq!(
         opened(&editors),
         Some(outline_id),
-        "a second editor of the same type in the same plugin is opened by its id"
+        "a second editor of the same type in the same app is opened by its id"
     );
 
     editors.ensure(id, block_type, None, Some(debug_id), parent);

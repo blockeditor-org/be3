@@ -2,12 +2,12 @@ use be_sdk_api::{
     EditorInstanceId, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId, ScreenRequest,
     ViewId, ViewPlacement, ViewportMetrics,
     embed::{
-        exports::plugin::{self, Editor},
+        exports::app::{self, Editor},
         host::Call,
     },
     ops::{Connection, Incoming, OpId, Outcome, Side},
 };
-use be_wasm_host::{Host, Plugin};
+use be_wasm_host::{Host, App};
 
 mod a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints;
 
@@ -46,17 +46,17 @@ impl Session {
         }
     }
 
-    fn step(&mut self, plugin: &mut Plugin) {
-        plugin.deliver(self.connection.take_outbound());
-        plugin.step().expect("the plugin steps");
-        self.hear(plugin);
+    fn step(&mut self, app: &mut App) {
+        app.deliver(self.connection.take_outbound());
+        app.step().expect("the app steps");
+        self.hear(app);
     }
 
-    fn hear(&mut self, plugin: &mut Plugin) {
-        for item in plugin.take_outbound() {
+    fn hear(&mut self, app: &mut App) {
+        for item in app.take_outbound() {
             self.connection
                 .receive(&item)
-                .expect("the host reads what the plugin sends");
+                .expect("the host reads what the app sends");
         }
         let mut answered = false;
         while let Some(event) = self.connection.next_event() {
@@ -76,7 +76,7 @@ impl Session {
             }
         }
         if answered {
-            self.step(plugin);
+            self.step(app);
         }
     }
 }
@@ -135,27 +135,27 @@ fn screens() -> Vec<ScreenRequest> {
 fn painted(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    mut plugin: Plugin,
+    mut app: App,
     editor: [u8; 16],
 ) -> Vec<u8> {
     let mut session = Session::new();
-    plugin.start().expect("the plugin starts");
-    session.hear(&mut plugin);
+    app.start().expect("the app starts");
+    session.hear(&mut app);
     let _editor = Editor::new(&mut session.connection, opening(editor));
-    plugin::screens(&mut session.connection, screens());
-    session.step(&mut plugin);
-    session.draw = Some(plugin::draw(&mut session.connection, 0, 0, true).op());
-    session.step(&mut plugin);
-    assert!(session.drawn, "the plugin answered the draw with a frame");
+    app::screens(&mut session.connection, screens());
+    session.step(&mut app);
+    session.draw = Some(app::draw(&mut session.connection, 0, 0, true).op());
+    session.step(&mut app);
+    assert!(session.drawn, "the app answered the draw with a frame");
     assert!(
-        plugin.take_presented().contains(&SURFACE),
-        "the plugin presented its surface"
+        app.take_presented().contains(&SURFACE),
+        "the app presented its surface"
     );
-    let (texture, _) = plugin
+    let (texture, _) = app
         .surface(SURFACE)
-        .expect("the plugin asked for a surface");
+        .expect("the app asked for a surface");
     let pixels = read_back(device, queue, &texture);
-    plugin.stop();
+    app.stop();
     pixels
 }
 

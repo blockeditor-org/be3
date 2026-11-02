@@ -29,7 +29,7 @@ struct Carrying {
 impl Carrying {
     fn open(at: Pos2, size: Vec2) -> Self {
         let key = FloatedKey {
-            plugin: "test.carry".to_owned(),
+            app: "test.carry".to_owned(),
             instance: EditorInstanceId(1),
             window: ViewId(7),
         };
@@ -75,8 +75,8 @@ impl Carrying {
             },
         });
         carrying.inside(|key| {
-            note_origin(&key.plugin, key.instance, ViewId::MAIN, Pos2::ZERO);
-            be_host_runtime::request_windows(&key.plugin, vec![opened]);
+            note_origin(&key.app, key.instance, ViewId::MAIN, Pos2::ZERO);
+            be_host_runtime::request_windows(&key.app, vec![opened]);
             apply();
         });
         carrying
@@ -122,7 +122,7 @@ impl Carrying {
         self.pointer(PointerPhase::Down(PointerButton::Primary), at);
         self.inside(|key| {
             be_host_runtime::request_windows(
-                &key.plugin,
+                &key.app,
                 vec![WindowRequest::BeginMove(key.window)],
             );
             apply();

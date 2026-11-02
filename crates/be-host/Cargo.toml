@@ -76,7 +76,7 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-# The block stack with the plugins' type modules in process.
+# The block stack with the apps' type modules in process.
 be-host-testing = { path = "../be-host-testing" }
 be-sdk-test = { path = "../be-sdk-test" }
 

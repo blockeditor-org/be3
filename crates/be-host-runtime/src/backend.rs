@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use be_sdk_api::{HelloAccepted, ScreenDamage, ops::Outcome};
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 
 use super::calls::{Heard, Outbound};
 use super::wire::Wire;
@@ -15,8 +15,8 @@ use super::wasm as platform;
 #[cfg(target_arch = "wasm32")]
 use super::web as platform;
 
-pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
-const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
+pub(super) const NOT_INSTALLED: &str = "The app host is not installed.";
+const NO_ENTRY_POINT: &str = "This app has no wasm entry point.";
 
 pub(super) type Frame = platform::Frame;
 
@@ -48,27 +48,27 @@ pub(super) struct Backend {
 }
 
 impl Backend {
-    pub(super) fn new(plugin: &PluginManifest) -> Self {
+    pub(super) fn new(app: &AppManifest) -> Self {
         Self {
-            module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
+            module: discovery::entry_point(&app.identity.id, &app.entry_point),
             worker: None,
             mailbox: None,
-            wire: Wire::granting(plugin.extensions.clone()),
+            wire: Wire::granting(app.extensions.clone()),
             started: host::now(),
             error: None,
         }
     }
 
-    pub(super) fn start(&mut self, plugin: &PluginManifest) {
+    pub(super) fn start(&mut self, app: &AppManifest) {
         self.shutdown();
         self.started = host::now();
         self.error = None;
-        self.wire = Wire::granting(plugin.extensions.clone());
+        self.wire = Wire::granting(app.extensions.clone());
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
         };
-        match platform::spawn(plugin, module) {
+        match platform::spawn(app, module) {
             Ok((channel, mailbox, waiting)) => {
                 self.worker = Some(Worker::new(channel, waiting));
                 self.mailbox = Some(mailbox);
@@ -96,7 +96,7 @@ impl Backend {
             Outbound::Open(opening) => wire.open(*opening),
             Outbound::Close(instance) => wire.close(instance),
             Outbound::Editor(instance, call) => wire.call(instance, call),
-            Outbound::Plugin(call) => wire.plugin_call(call),
+            Outbound::App(call) => wire.app_call(call),
         });
     }
 
@@ -284,9 +284,9 @@ impl Backend {
     }
 }
 
-pub(super) fn prepare(plugin: &PluginManifest) {
-    if let Some(module) = discovery::entry_point(&plugin.identity.id, &plugin.entry_point) {
-        platform::prepare(plugin, module);
+pub(super) fn prepare(app: &AppManifest) {
+    if let Some(module) = discovery::entry_point(&app.identity.id, &app.entry_point) {
+        platform::prepare(app, module);
     }
 }
 

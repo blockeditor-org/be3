@@ -66,7 +66,7 @@ throughout; afterwards the rules below hold again for everything.
 
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
-the local plugin API, live-session state (operations,
+the local app API, live-session state (operations,
 `LiveEdit::session_state`, relayed messages, presence), and the host's own
 files on a device (`app.sqlite3`, the refs database, caches).
 
@@ -96,7 +96,7 @@ Only add:
   `crates/be-type-workspace` for the folder and the workspace) hold its registry and a document it saved, checked
   by `be_block_model::schema::check_frozen` (the stack guide's "Freezing a
   version"), and a test there checks its registers read without any one field.
-  Moving a type into its plugin moves these with it.
+  Moving a type into its app moves these with it.
 - `crates/be-block-frozen` holds `src/fixtures/tracker.block`, a block file the
   `block-file` example wrote with the code of 2026-10-16: a folder holding a
   text block and a tracker database (view, database, schema, two rows linked to

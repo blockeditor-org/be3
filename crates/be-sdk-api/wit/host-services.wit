@@ -1,4 +1,4 @@
-package be3:plugin@0.1.0;
+package be3:app@0.1.0;
 
 /// What an editor asks of its host and waits for: files and their dialogs, the
 /// network, a block's revisions, who it is shared with, and blocks to
@@ -100,12 +100,12 @@ interface host-services {
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
 
-    /// A GET of `url`, refused unless the plugin's manifest names its host.
+    /// A GET of `url`, refused unless the app's manifest names its host.
     fetch: async func(url: string) -> result<list<u8>, failure>;
 
-    /// The files the plugin ships in its data directory.
+    /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 
-    /// One file of the plugin's data directory.
+    /// One file of the app's data directory.
     read-data: async func(path: string) -> result<list<u8>, failure>;
 }

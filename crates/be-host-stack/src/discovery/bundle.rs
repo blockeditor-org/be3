@@ -6,15 +6,15 @@ use std::{
 
 use be_wasm_host::Stored;
 
-use super::Plugins;
+use super::Apps;
 
-pub(super) fn scan() -> Plugins {
+pub(super) fn scan() -> Apps {
     let mut scanning = pin!(super::discover(|path| std::future::ready(read(&path))));
     match scanning
         .as_mut()
         .poll(&mut Context::from_waker(Waker::noop()))
     {
-        Poll::Ready(plugins) => plugins,
+        Poll::Ready(apps) => apps,
         Poll::Pending => unreachable!("reading the bundle never waits"),
     }
 }

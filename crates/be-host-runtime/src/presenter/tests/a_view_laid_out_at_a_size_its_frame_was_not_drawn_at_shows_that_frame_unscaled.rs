@@ -55,7 +55,7 @@ fn a_view_laid_out_at_a_size_its_frame_was_not_drawn_at_shows_that_frame_unscale
             (300, 200)
         ),
         (Rect::from_min_size(at, vec2(150.0, 100.0)), WHOLE),
-        "a view laid out wider than the drawing was made for, before its plugin draws the new size, shows its last frame at its own size from the top left rather than stretched"
+        "a view laid out wider than the drawing was made for, before its app draws the new size, shows its last frame at its own size from the top left rather than stretched"
     );
     assert_eq!(
         shown(

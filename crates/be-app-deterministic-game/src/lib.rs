@@ -1,7 +1,7 @@
 pub mod game_module;
 pub mod root;
 
-be_sdk_beui::beui_plugin!("../manifest.json", {
+be_sdk_beui::beui_app!("../manifest.json", {
     game => root::DeterministicGameRoot,
     module => game_module::root::GameModuleRoot,
 });

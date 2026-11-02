@@ -1,6 +1,6 @@
 package be3:preferences@0.1.0;
 
-/// The preferences and the display and pointer settings that beui, the plugin
+/// The preferences and the display and pointer settings that beui, the app
 /// protocol and the display and input settings blocks share. The Rust in
 /// `be-lib-ui-preferences` is generated from this, so these shapes are what every
 /// program serializes. None of them is frozen (guides/frozen_formats.md), so a

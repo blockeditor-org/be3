@@ -17,7 +17,7 @@ fn children_of_a_dock_view_holding_the_content_follow_its_camera() {
                 view_block: None,
             },
         ),
-        &Arc::new(crate::PluginCatalog::default()),
+        &Arc::new(crate::AppCatalog::default()),
         Some(be_sdk_api::FrameSpec::default()),
         SIZE,
         Rect::from_min_size(Pos2::ZERO, SIZE),
@@ -49,7 +49,7 @@ fn children_of_a_dock_view_holding_the_content_follow_its_camera() {
     assert_eq!(
         children[0].view_rect,
         Rect::from_min_size(pos2(20.0, -20.0), vec2(20.0, 20.0)),
-        "a pan moves a child of the dock view the camera is drawn in before the plugin answers, \
+        "a pan moves a child of the dock view the camera is drawn in before the app answers, \
          as it does in the main view"
     );
 }

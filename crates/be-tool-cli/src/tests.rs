@@ -44,30 +44,30 @@ mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod terminal;
-mod the_plugin_bundle_holds_each_manifest_and_its_type_module;
+mod the_app_bundle_holds_each_manifest_and_its_type_module;
 mod two_terminal_hosts_take_turns_and_the_second_stands_by;
 
 fn manifests() {
-    if !crate::plugins::installed().is_empty() {
+    if !crate::apps::installed().is_empty() {
         return;
     }
     let editors = std::env::var_os("EDITOR_MANIFESTS")
         .map(PathBuf::from)
         .expect("EDITOR_MANIFESTS names the editors' manifests");
-    let mut plugins = Vec::new();
+    let mut apps = Vec::new();
     for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
         let path = entry
             .expect("the entry is readable")
             .path()
             .join("manifest.json");
         let document = std::fs::read_to_string(&path).expect("the manifest is readable");
-        plugins.push(crate::plugins::Plugin {
+        apps.push(crate::apps::App {
             manifest: be_sdk_manifest::manifest_from_json(&document)
                 .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
             module: &[],
         });
     }
-    crate::plugins::install(plugins);
+    crate::apps::install(apps);
 }
 
 fn sources() -> crate::tracker::Sources {

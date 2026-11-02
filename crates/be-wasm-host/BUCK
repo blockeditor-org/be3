@@ -10,7 +10,7 @@ cargo_test(
         "GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)",
         "TLS_DIAMOND_BASE_WASM": "$(location //crates/be-tool-tls-diamond-base:module)",
         "TLS_DIAMOND_LEFT_WASM": "$(location //crates/be-tool-tls-diamond-left:module)",
-        "TLS_DIAMOND_PLUGIN_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
+        "TLS_DIAMOND_APP_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
         "TLS_DIAMOND_RIGHT_WASM": "$(location //crates/be-tool-tls-diamond-right:module)",
     }
 )
@@ -25,7 +25,7 @@ cargo_example("instantiate")
 
 # The standalone guest (src/tests/standalone.wat, which the tests above run on
 # wasmtime) in Chromium: assembled into a module, and run by be-wasm-guest-host's
-# guest.js with block-app's plugin.js against be-wasm-gpu-shim, which
+# guest.js with block-app's app.js against be-wasm-gpu-shim, which
 # wasm-bindgen prepares as the web bundle does, in a page that checks what it
 # painted (web/standalone.js).
 genrule(
@@ -42,7 +42,7 @@ program(
         "//crates/be-host:dylink.js",
         "//crates/be-wasm-guest-host:guest.js",
         "//crates/be-host:env.js",
-        "//crates/be-host:plugin.js",
+        "//crates/be-host:app.js",
         "//crates/be-host:thread.js",
         "//crates/be-host:threads.js",
         "//crates/be-host:wasi.js",

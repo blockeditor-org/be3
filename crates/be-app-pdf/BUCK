@@ -1,6 +1,6 @@
-load("@root//buck/wasm:defs.bzl", "editor")
+load("@root//buck/wasm:defs.bzl", "app")
 
-editor(
+app(
     extra_deps = ["root//third-party/pdfium:pdfium"],
     module = "pdf",
     types = "//crates/be-type-pdf:module",

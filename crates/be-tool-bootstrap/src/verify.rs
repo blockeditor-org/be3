@@ -5,7 +5,7 @@ use crate::quiet::Quiet;
 use crate::{Result, buck, in_ci, repository};
 
 const VERIFY_USAGE: &str =
-    "Usage: ./scripts/verify [--check] [--lint] [--tests] [--plugin-tests] [--verbose]";
+    "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]";
 const CI_USAGE: &str = "Usage: ./scripts/ci [--check] [--previews BASE OUT] [--bootstrap DIR]";
 
 pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
@@ -14,7 +14,7 @@ pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
             "--check",
             "--lint",
             "--tests",
-            "--plugin-tests",
+            "--app-tests",
             "--verbose",
         ]
         .contains(&argument.as_str())
@@ -45,17 +45,17 @@ pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
 
 fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
     let has = |flag: &str| arguments.iter().any(|argument| argument == flag);
-    let (mut lint, mut tests, mut plugin_tests) =
-        (has("--lint"), has("--tests"), has("--plugin-tests"));
+    let (mut lint, mut tests, mut app_tests) =
+        (has("--lint"), has("--tests"), has("--app-tests"));
     let verbose = has("--verbose") || in_ci();
     let mut passed: Vec<String> = arguments
         .iter()
         .filter(|argument| *argument != "--verbose")
         .cloned()
         .collect();
-    if !lint && !tests && !plugin_tests {
-        (lint, tests, plugin_tests) = (true, true, true);
-        passed.extend(["--lint".to_owned(), "--plugin-tests".to_owned()]);
+    if !lint && !tests && !app_tests {
+        (lint, tests, app_tests) = (true, true, true);
+        passed.extend(["--lint".to_owned(), "--app-tests".to_owned()]);
     }
     if verbose {
         // unsafe(env)
@@ -79,8 +79,8 @@ fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
         bool(lint),
         "--tests",
         bool(tests),
-        "--plugin_tests",
-        bool(plugin_tests),
+        "--app_tests",
+        bool(app_tests),
         "--previews",
         bool(has("--previews")),
         "--bootstrap",

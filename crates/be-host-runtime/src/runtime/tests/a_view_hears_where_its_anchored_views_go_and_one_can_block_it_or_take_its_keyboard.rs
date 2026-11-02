@@ -4,9 +4,9 @@ use be_sdk_api::{AnchoredPlacement, ViewAnchor, ViewEdge};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: ViewId = ViewId::MAIN;
-const PLUGIN: &str = "test.layered";
+const APP: &str = "test.layered";
 
-fn manifest() -> PluginManifest {
+fn manifest() -> AppManifest {
     be_sdk_manifest::manifest_from_json(
         r#"{
             "id": "test.layered",
@@ -40,7 +40,7 @@ fn sheet(blocks_owner: bool, keyboard: bool) -> AnchoredPlacement {
 fn commit(serial: u64, sheet: AnchoredPlacement) {
     let screen = ScreenId::opened(1);
     let own = Rect::from_min_size(Pos2::ZERO, sheet.rect.size());
-    with(PLUGIN, |runtime| {
+    with(APP, |runtime| {
         runtime.laid_out(be_sdk_api::ScreenLayout {
             screens: vec![be_sdk_api::ScreenPlacement {
                 screen,
@@ -82,12 +82,12 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
 
 #[test]
 fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_keyboard() {
-    let plugin = manifest();
+    let app = manifest();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         host.availability = Availability(Ok(()));
         host.runtimes
-            .insert(plugin.identity.id.clone(), Runtime::new(&plugin, 0));
+            .insert(app.identity.id.clone(), Runtime::new(&app, 0));
     });
     let role = InstanceRole::Editor(
         Uuid::nil(),
@@ -97,19 +97,19 @@ fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_key
             view_block: None,
         },
     );
-    with(PLUGIN, |runtime| {
+    with(APP, |runtime| {
         runtime.instances.mount(
             INSTANCE,
             View::MAIN,
             Uuid::nil(),
             role,
-            &Arc::new(crate::PluginCatalog::default()),
+            &Arc::new(crate::AppCatalog::default()),
         )
     });
     let rect = Rect::from_min_size(pos2(20.0, 30.0), vec2(300.0, 200.0));
     let window = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
     place_view(
-        PLUGIN,
+        APP,
         INSTANCE,
         REGION,
         1,
@@ -127,7 +127,7 @@ fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_key
         None,
     );
 
-    let requested = with(PLUGIN, |runtime| {
+    let requested = with(APP, |runtime| {
         runtime
             .instances
             .next_screens(0)
@@ -150,7 +150,7 @@ fn a_view_hears_where_its_anchored_views_go_and_one_can_block_it_or_take_its_key
     );
 
     let view = || {
-        with(PLUGIN, |runtime| {
+        with(APP, |runtime| {
             shown_view(runtime, INSTANCE, REGION, None, None)
         })
         .expect("the runtime is running")

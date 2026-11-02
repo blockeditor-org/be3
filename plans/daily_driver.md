@@ -250,18 +250,18 @@ lines of 200 words each (about 12 MB):
 - Profile again after each item lands.
 
 **Profile** (8.7 MB, 10,000 lines of 200 words, release build, Linux VM with
-llvmpipe, `perf` with `BE3_PERF_MAP=1` for the plugin's wasm):
+llvmpipe, `perf` with `BE3_PERF_MAP=1` for the app's wasm):
 
 | Scenario | First profile | Now |
 |---|---|---|
-| Pasting the document | plugin trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
+| Pasting the document | app trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
 | Idle, caret blinking | about 0 CPU | unchanged |
 | Holding an arrow key | 53 ms per move | 4.5 ms |
 | Page down | 28 ms per page | not re-measured |
-| Typing near the top, plugin CPU per key | 440 ms | 27 ms |
+| Typing near the top, app CPU per key | 440 ms | 27 ms |
 
 What the 27 ms per key is now:
-- about 6.5 ms in the plugin framework's frame;
+- about 6.5 ms in the app framework's frame;
 - about 6 ms parsing the edited markdown window (about 3 KB here, since the
   test document has no blank lines);
 - about 2 ms splicing the block content's flat `Vec<u8>` (item 1);
@@ -273,7 +273,7 @@ with it costs as much as a fresh parse, because its external scanners
 produce nearly every token. So the cost of an edit is the size of the
 window parsed, and windows are kept small instead.
 
-Outside the plugin, per key:
+Outside the app, per key:
 - the be worker spends about 100 ms, mostly SHA-256 over the whole document
   when it seals (item 6);
 - the host's main thread spends about 140 ms, mostly llvmpipe, which a real
@@ -320,10 +320,10 @@ Outside the plugin, per key:
    - Done: debounce sealing on idle, with a max interval. Reuse the chunks
      before the first edited byte, since content-defined chunking
      resynchronises after the edit.
-7. **Scrolling in plugins.** It repaints the whole viewport, because the
-   plugin path unions the moved region into its damage
+7. **Scrolling in apps.** It repaints the whole viewport, because the
+   app path unions the moved region into its damage
    (`be-sdk-beui/src/instance.rs:83-96`). Carry the native presenter's
-   GPU move copy across the plugin surface.
+   GPU move copy across the app surface.
 8. **Idle.**
    - Stop the caret blink after a few seconds without input, as most editors
      do.
@@ -331,7 +331,7 @@ Outside the plugin, per key:
    - Done when a test confirms a focused, idle editor requests no frames.
 
 Add a frame-time benchmark that types into a generated 10 MB markdown file
-through the plugin host and prints p50 and p99 frame times. Run it in CI as a
+through the app host and prints p50 and p99 frame times. Run it in CI as a
 work-count budget rather than a timing assertion.
 
 ## Phase 7: The notes app itself

@@ -12,13 +12,13 @@ impl Shim {
     fn range(&self, pointer: u32, length: u32) -> Result<(js_sys::Uint8Array, u32), String> {
         let bytes = self
             .guest_bytes()
-            .ok_or("the plugin called its host before its memory was bound")?;
+            .ok_or("the app called its host before its memory was bound")?;
         let end = pointer
             .checked_add(length)
-            .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
+            .ok_or_else(|| "an app pointer overflowed".to_owned())?;
         if end > bytes.length() {
             return Err(format!(
-                "a plugin pointer ran past its memory: {pointer}..{end} of {}",
+                "an app pointer ran past its memory: {pointer}..{end} of {}",
                 bytes.length()
             ));
         }

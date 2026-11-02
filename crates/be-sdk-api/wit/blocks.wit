@@ -1,4 +1,4 @@
-package be3:plugin@0.1.0;
+package be3:app@0.1.0;
 
 /// The blocks an editor reads and changes through its host: the block graph,
 /// a block's content, history and version control, and asks to open blocks.

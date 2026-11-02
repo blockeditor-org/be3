@@ -45,7 +45,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
             let rules =
                 std::fs::read_to_string(repository().join(&krate).join("BUCK")).unwrap_or_default();
             let has_test = rules.lines().any(|line| {
-                ["cargo_test(", "editor(", "plugin_tests("]
+                ["cargo_test(", "app(", "app_tests("]
                     .iter()
                     .any(|rule| line.starts_with(rule))
             });

@@ -33,7 +33,7 @@ impl DesktopPlace {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) struct FloatedKey {
-    pub(crate) plugin: String,
+    pub(crate) app: String,
     pub(crate) instance: EditorInstanceId,
     pub(crate) window: ViewId,
 }
@@ -95,7 +95,7 @@ impl Stacked for Floated {
     }
 
     fn opened_over(&self, other: &Self) -> bool {
-        self.key.plugin == other.key.plugin && self.parent == Some(other.key.window)
+        self.key.app == other.key.app && self.parent == Some(other.key.window)
     }
 
     fn pinned(&self) -> bool {
@@ -177,11 +177,11 @@ pub(crate) fn note_work_area(view: StatusKey, area: Option<Rect>) {
     });
 }
 
-fn work_area_on(plugin: &str, instance: EditorInstanceId, display: Rect) -> Option<Rect> {
+fn work_area_on(app: &str, instance: EditorInstanceId, display: Rect) -> Option<Rect> {
     work_areas_signal().with_untracked(|areas| {
         areas
             .iter()
-            .filter(|((held, from, _), _)| held == plugin && *from == instance)
+            .filter(|((held, from, _), _)| held == app && *from == instance)
             .map(|(_, area)| (*area, display.intersect(*area)))
             .filter(|(_, shared)| shared.is_positive())
             .max_by(|(_, left), (_, right)| {
@@ -199,7 +199,7 @@ fn keep_in_work_areas(
     let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
     be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
         let display = displays[crate::display::owner(displays, window.rect)?];
-        let work = work_area_on(&window.key.plugin, window.key.instance, display)?;
+        let work = work_area_on(&window.key.app, window.key.instance, display)?;
         Some((display, work))
     })
 }
@@ -224,28 +224,28 @@ pub(crate) fn place() -> Option<DesktopPlace> {
     use_context::<DesktopPlace>()
 }
 
-pub(crate) fn note_origin(plugin: &str, instance: EditorInstanceId, region: ViewId, origin: Pos2) {
+pub(crate) fn note_origin(app: &str, instance: EditorInstanceId, region: ViewId, origin: Pos2) {
     ORIGINS.with(|origins| {
         origins
             .borrow_mut()
-            .insert((plugin.to_owned(), instance, region), origin)
+            .insert((app.to_owned(), instance, region), origin)
     });
 }
 
-pub(crate) fn show_view(plugin: &str, instance: EditorInstanceId, view: View) {
+pub(crate) fn show_view(app: &str, instance: EditorInstanceId, view: View) {
     SHOWN.with(|shown| {
         let mut shown = shown.borrow_mut();
         let held = shown
-            .entry((plugin.to_owned(), instance, view.id))
+            .entry((app.to_owned(), instance, view.id))
             .or_insert((view.placement, 0));
         held.1 += 1;
     });
 }
 
-pub(crate) fn hide_view(plugin: &str, instance: EditorInstanceId, view: ViewId) {
+pub(crate) fn hide_view(app: &str, instance: EditorInstanceId, view: ViewId) {
     SHOWN.with(|shown| {
         let mut shown = shown.borrow_mut();
-        let key = (plugin.to_owned(), instance, view);
+        let key = (app.to_owned(), instance, view);
         if let Some(held) = shown.get_mut(&key) {
             held.1 -= 1;
             if held.1 == 0 {
@@ -255,11 +255,11 @@ pub(crate) fn hide_view(plugin: &str, instance: EditorInstanceId, view: ViewId) 
     });
 }
 
-fn shown_view(plugin: &str, instance: EditorInstanceId, view: ViewId) -> View {
+fn shown_view(app: &str, instance: EditorInstanceId, view: ViewId) -> View {
     let placement = SHOWN.with(|shown| {
         shown
             .borrow()
-            .get(&(plugin.to_owned(), instance, view))
+            .get(&(app.to_owned(), instance, view))
             .map(|(placement, _)| *placement)
     });
     View {
@@ -268,17 +268,17 @@ fn shown_view(plugin: &str, instance: EditorInstanceId, view: ViewId) -> View {
     }
 }
 
-pub(crate) fn forget_origin(plugin: &str, instance: EditorInstanceId, region: ViewId) {
+pub(crate) fn forget_origin(app: &str, instance: EditorInstanceId, region: ViewId) {
     ORIGINS.with(|origins| {
         origins
             .borrow_mut()
-            .remove(&(plugin.to_owned(), instance, region))
+            .remove(&(app.to_owned(), instance, region))
     });
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Catcher {
-    pub(crate) plugin: String,
+    pub(crate) app: String,
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: ViewId,
     pub(crate) zoom: f32,
@@ -299,7 +299,7 @@ pub(crate) fn catcher(node: NodeId) -> Option<Catcher> {
 }
 
 pub(crate) fn aim(
-    plugin: &str,
+    app: &str,
     own: Option<NodeId>,
     rect: Rect,
     over: Option<beui::Over>,
@@ -316,7 +316,7 @@ pub(crate) fn aim(
                 break;
             };
             let absolute = *at.get_or_insert(held.rect.min + over.local.to_vec2());
-            if held.plugin == plugin {
+            if held.app == app {
                 let zoom = match held.zoom.is_finite() && held.zoom > 0.0 {
                     true => held.zoom,
                     false => 1.0,
@@ -345,11 +345,11 @@ pub(crate) fn apply() {
     }
     let floated = floated_signal();
     let mut windows = floated.get_untracked();
-    windows.retain(|window| !forgotten.contains(&window.key.plugin));
+    windows.retain(|window| !forgotten.contains(&window.key.app));
     let mut gesture = None;
-    for (plugin, request) in pending {
+    for (app, request) in pending {
         let Some((index, kind)) =
-            be_sdk_window_stack::ask(&mut windows, &mut Opener(&plugin), request)
+            be_sdk_window_stack::ask(&mut windows, &mut Opener(&app), request)
         else {
             continue;
         };
@@ -390,7 +390,7 @@ struct Opener<'a>(&'a str);
 
 impl Host<Floated> for Opener<'_> {
     fn mine(&self, window: &Floated) -> bool {
-        window.key.plugin == self.0
+        window.key.app == self.0
     }
 
     fn pointer(&self) -> Pos2 {
@@ -398,17 +398,17 @@ impl Host<Floated> for Opener<'_> {
     }
 
     fn over(&self, view: ViewRef, at: Pos2) -> Pos2 {
-        let (plugin, instance, region) = (self.0, view.instance, view.view);
+        let (app, instance, region) = (self.0, view.instance, view.view);
         let desktop = ORIGINS.with(|origins| {
             origins
                 .borrow()
-                .get(&(plugin.to_owned(), instance, region))
+                .get(&(app.to_owned(), instance, region))
                 .copied()
         });
         if let Some(origin) = desktop {
             return origin + at.to_vec2();
         }
-        match be_host_runtime::view_placement_of(plugin, instance, region) {
+        match be_host_runtime::view_placement_of(app, instance, region) {
             Some(placed) if placed.zoom.is_finite() && placed.zoom > 0.0 => {
                 placed.rect.min + at.to_vec2() * placed.zoom
             }
@@ -424,7 +424,7 @@ impl Host<Floated> for Opener<'_> {
         held: Option<&Floated>,
         opener: Option<&Floated>,
     ) -> Floated {
-        let plugin = self.0;
+        let app = self.0;
         let panel = be_host_base::host::opens_windows().then(|| Panel {
             opened: open.placement.clone(),
             placed: None,
@@ -440,7 +440,7 @@ impl Host<Floated> for Opener<'_> {
             }),
             (panel, _) => panel,
         };
-        let opened_from = shown_view(plugin, open.opener.instance, open.opener.view);
+        let opened_from = shown_view(app, open.opener.instance, open.opener.view);
         let anchor = match (opener, opened_from.is_window()) {
             (Some(opener), _) => opener.anchor,
             (None, true) => View::MAIN,
@@ -448,7 +448,7 @@ impl Host<Floated> for Opener<'_> {
         };
         Floated {
             key: FloatedKey {
-                plugin: plugin.to_owned(),
+                app: app.to_owned(),
                 instance: open.opener.instance,
                 window: open.view,
             },
@@ -647,7 +647,7 @@ fn carry_from(key: &FloatedKey, by: Vec2) {
 }
 
 pub(crate) fn overlaid(
-    plugin: String,
+    app: String,
     instance: EditorInstanceId,
     region: View,
 ) -> Memo<Vec<ViewId>> {
@@ -655,7 +655,7 @@ pub(crate) fn overlaid(
     create_memo(move || {
         floated.with(|held| {
             held.iter()
-                .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.key.app == app && window.key.instance == instance)
                 .filter(|window| window.overlaid_in(region))
                 .filter(|window| window.panel.is_none())
                 .map(|window| window.key.window)
@@ -706,7 +706,7 @@ pub(crate) fn panel_of(key: FloatedKey) -> Memo<Option<(Vec2, Panel)>> {
 }
 
 pub(crate) fn panels(
-    plugin: String,
+    app: String,
     instance: EditorInstanceId,
     region: View,
 ) -> Memo<Vec<ViewId>> {
@@ -714,7 +714,7 @@ pub(crate) fn panels(
     create_memo(move || {
         floated.with(|held| {
             held.iter()
-                .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.key.app == app && window.key.instance == instance)
                 .filter(|window| window.anchored(region))
                 .filter(|window| window.panel.is_some())
                 .map(|window| window.key.window)
@@ -761,7 +761,7 @@ pub(crate) fn rect_of(key: FloatedKey) -> Memo<Option<Rect>> {
 
 pub(crate) fn shown_on(
     place: DesktopPlace,
-    plugin: String,
+    app: String,
     instance: EditorInstanceId,
 ) -> Memo<Vec<ViewId>> {
     let floated = floated();
@@ -773,7 +773,7 @@ pub(crate) fn shown_on(
         let gesture = gesture.get();
         floated.with(|held| {
             held.iter()
-                .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
+                .filter(|window| window.key.app == app && window.key.instance == instance)
                 .filter(|window| window.panel.is_none())
                 .filter(|window| {
                     let owner = crate::display::owner(&displays, window.rect);

@@ -4,7 +4,7 @@ use beui::{PointerButton, PointerEvent, PointerId, WindowPlacement as Placed};
 use super::*;
 use crate::display::shown::ShownDisplay;
 
-const PLUGIN: &str = "test.desktop";
+const APP: &str = "test.desktop";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
 fn display(id: &str, rect: Rect, scale: f32) -> ShownDisplay {
@@ -63,11 +63,11 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         display("right", right, 2.0),
     ]);
     crate::display::apply_shown();
-    let on_left = shown_on(place(left, &[left, right]), PLUGIN.to_owned(), INSTANCE);
-    let on_right = shown_on(place(right, &[left, right]), PLUGIN.to_owned(), INSTANCE);
-    note_origin(PLUGIN, INSTANCE, ViewId::MAIN, left.min);
+    let on_left = shown_on(place(left, &[left, right]), APP.to_owned(), INSTANCE);
+    let on_right = shown_on(place(right, &[left, right]), APP.to_owned(), INSTANCE);
+    note_origin(APP, INSTANCE, ViewId::MAIN, left.min);
     be_host_runtime::request_windows(
-        PLUGIN,
+        APP,
         vec![WindowRequest::Open(WindowOpen {
             view: ViewId(7),
             screen: be_sdk_api::ScreenId::opened(7),
@@ -95,7 +95,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         "a window opens where the region asked, on the display holding it"
     );
     let key = FloatedKey {
-        plugin: PLUGIN.to_owned(),
+        app: APP.to_owned(),
         instance: INSTANCE,
         window: ViewId(7),
     };
@@ -108,7 +108,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         ),
         origin,
     );
-    be_host_runtime::request_windows(PLUGIN, vec![WindowRequest::BeginMove(ViewId(7))]);
+    be_host_runtime::request_windows(APP, vec![WindowRequest::BeginMove(ViewId(7))]);
     apply();
     follow(&key, mouse(PointerPhase::Move, pos2(700.0, 110.0)), origin);
     assert_eq!(

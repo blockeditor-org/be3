@@ -113,7 +113,7 @@ fn global<T>(store: &mut Store<T>, value: i32, mutability: Mutability) -> Result
         GlobalType::new(ValType::I32, mutability),
         Val::I32(value),
     )
-    .map_err(|error| format!("a plugin global could not be made: {error}"))
+    .map_err(|error| format!("an app global could not be made: {error}"))
 }
 
 fn table<T>(root: &Instance, store: &mut Store<T>) -> Result<Table, String> {
@@ -136,7 +136,7 @@ fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
 
 fn name(modules: &[Module], index: usize, identities: &[String]) -> String {
     match identities.get(index) {
-        _ if index + 1 == modules.len() => "the plugin".to_owned(),
+        _ if index + 1 == modules.len() => "the app".to_owned(),
         Some(identity) => format!("the library {identity}"),
         None => format!("module {index}"),
     }
@@ -157,9 +157,9 @@ pub(crate) fn plan<T>(
     let pages = be_wasm_dylink::pages(&described)?;
     let placed = memory
         .grow(u64::from(pages))
-        .map_err(|error| format!("the memory could not grow to hold the plugin: {error}"))?;
+        .map_err(|error| format!("the memory could not grow to hold the app: {error}"))?;
     let placed = u32::try_from(placed * u64::from(PAGE_SIZE))
-        .map_err(|_| "the plugin lies past a 32-bit address space".to_owned())?;
+        .map_err(|_| "the app lies past a 32-bit address space".to_owned())?;
     let size = table(root, store)?.size(&mut *store);
     Ok(Arc::new(Linked {
         plan: be_wasm_dylink::plan(&described, placed, size)?,
@@ -213,9 +213,9 @@ fn answered<T>(
     }
     let (from, name) = (import.module(), import.name());
     let signature = import.ty().func().cloned().ok_or_else(|| {
-        format!("the plugin imports {from}.{name}, which its host does not answer")
+        format!("the app imports {from}.{name}, which its host does not answer")
     })?;
-    let refusal = format!("the plugin called {from}.{name}, which its host does not answer");
+    let refusal = format!("the app called {from}.{name}, which its host does not answer");
     Ok(Func::new(&mut *store, signature, move |_, _, _| {
         Err(Error::msg(refusal.clone()))
     })
@@ -234,7 +234,7 @@ pub(crate) fn link<T>(
     let table = table(&root, store)?;
     table
         .grow(&mut *store, plan.table_grow, Ref::Func(None))
-        .map_err(|error| format!("the function table could not grow for the plugin: {error}"))?;
+        .map_err(|error| format!("the function table could not grow for the app: {error}"))?;
     fill_slots(store, &table, plan, &root, 0)?;
     let stack_pointer = root
         .get_global(&mut *store, STACK_POINTER)
@@ -276,7 +276,7 @@ pub(crate) fn link<T>(
             imports.push(resolved);
         }
         let instance = Instance::new(&mut *store, module, &imports)
-            .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
+            .map_err(|error| format!("the app could not be instantiated: {error}"))?;
         for (name, entry) in own {
             let value = exported_i32(&instance, store, &name).ok_or_else(|| unexported(&name))?;
             entry
@@ -289,7 +289,7 @@ pub(crate) fn link<T>(
         {
             relocate
                 .call(&mut *store, ())
-                .map_err(|error| format!("the plugin's data could not be relocated: {error}"))?;
+                .map_err(|error| format!("the app's data could not be relocated: {error}"))?;
         }
         if let Ok(initialize) = instance.get_typed_func::<u32, ()>(&mut *store, INIT_TLS) {
             initialize
@@ -315,7 +315,7 @@ pub(crate) fn link<T>(
         {
             constructors
                 .call(&mut *store, ())
-                .map_err(|error| format!("the plugin could not run its constructors: {error}"))?;
+                .map_err(|error| format!("the app could not run its constructors: {error}"))?;
         }
         instances.push(instance);
     }

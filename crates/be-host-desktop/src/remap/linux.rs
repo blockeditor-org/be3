@@ -111,10 +111,10 @@ pub fn start(control: Option<InputControl>) {
 pub fn load_cached(cached: Option<Vec<u8>>) {
     let Some((wanted, module)) = cached
         .and_then(|cached| decode::<(String, String, Vec<u8>, Vec<u8>)>(&cached).ok())
-        .map(|(plugin, module_path, module, config)| {
+        .map(|(app, module_path, module, config)| {
             (
                 Wanted {
-                    plugin,
+                    app,
                     module: module_path,
                     config,
                 },
@@ -211,9 +211,9 @@ fn read_chosen() {
         .ok()
         .and_then(|content| {
             let remapper = content.root();
-            let (plugin, module, config) = remapper.runs()?;
+            let (app, module, config) = remapper.runs()?;
             Some(Wanted {
-                plugin: plugin.to_owned(),
+                app: app.to_owned(),
                 module: module.to_owned(),
                 config: config.to_vec(),
             })
@@ -241,31 +241,31 @@ fn want(wanted: Option<Wanted>) {
             with_remapper(|remapper, _| remapper.configure(Some(config)));
             remember();
         }
-        Step::Fetch { plugin, module } => fetch(plugin, module),
+        Step::Fetch { app, module } => fetch(app, module),
     }
 }
 
-fn fetch(plugin: String, module: String) {
-    if !offers_remapper(&plugin) {
+fn fetch(app: String, module: String) {
+    if !offers_remapper(&app) {
         be_host_base::notices::report(format!(
-            "The input remaps name {plugin}, which is not a plugin that remaps input here."
+            "The input remaps name {app}, which is not an app that remaps input here."
         ));
         return;
     }
     let fetched = STATE.with_borrow(|state| Arc::clone(&state.fetched));
     let path = module.clone();
-    discovery::data(&plugin.clone(), &path, move |read| {
+    discovery::data(&app.clone(), &path, move |read| {
         if let Ok(mut slot) = fetched.lock() {
-            *slot = Some((plugin, module, read));
+            *slot = Some((app, module, read));
         }
         be_host_base::host::wake();
     });
 }
 
-fn offers_remapper(plugin: &str) -> bool {
+fn offers_remapper(app: &str) -> bool {
     let remapper = *InputRemapper::CONTENT_TYPE.as_bytes();
     discovery::manifests().iter().any(|manifest| {
-        manifest.identity.id == plugin
+        manifest.identity.id == app
             && manifest
                 .editors
                 .iter()
@@ -276,7 +276,7 @@ fn offers_remapper(plugin: &str) -> bool {
 fn take_fetched() {
     let fetched =
         STATE.with_borrow(|state| state.fetched.lock().ok().and_then(|mut slot| slot.take()));
-    let Some((plugin, module, read)) = fetched else {
+    let Some((app, module, read)) = fetched else {
         return;
     };
     let bytes = match read {
@@ -286,7 +286,7 @@ fn take_fetched() {
             return;
         }
     };
-    let Some(wanted) = STATE.with_borrow_mut(|state| state.loader.fetched(&plugin, &module)) else {
+    let Some(wanted) = STATE.with_borrow_mut(|state| state.loader.fetched(&app, &module)) else {
         return;
     };
     if install(&wanted, &bytes) {
@@ -300,7 +300,7 @@ fn remember() {
             return;
         };
         state.save = Some(Some(encode(&(
-            wanted.plugin,
+            wanted.app,
             wanted.module,
             state.module.clone(),
             wanted.config,

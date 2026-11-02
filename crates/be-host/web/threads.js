@@ -1,15 +1,15 @@
 // The wasi thread-spawn call the module makes.
 //
-// block-app and every plugin are built for wasm32-wasip1-threads, so a
+// block-app and every app are built for wasm32-wasip1-threads, so a
 // std::thread::spawn reaches wasi-libc's pthread implementation, which asks the
 // host for a thread through the be-wasm-threads import "wasi"."thread-spawn". A
 // browser is not a be-wasm-threads host, so a thread is a Worker that instantiates
 // the very same module against the very same shared memory and calls the
 // module's wasi_thread_start with the id and argument agreed here.
 //
-// A plugin linked against libraries is a list of modules, the root library
+// An app linked against libraries is a list of modules, the root library
 // first: the thread instantiates the root, and links the rest by the plan the
-// plugin's own thread made (dylink.js), with thread-local blocks for the
+// app's own thread made (dylink.js), with thread-local blocks for the
 // modules above the root that the spawning thread takes for it here and the
 // thread gives back when it ends.
 //
@@ -34,7 +34,7 @@ let onWake = null;
 
 /**
  * Says what to do when a thread reports that a job it was started for landed.
- * The plugin worker steps the module again; the host has nothing to schedule
+ * The app worker steps the module again; the host has nothing to schedule
  * and leaves this unset.
  */
 export function bindWake(wake) {

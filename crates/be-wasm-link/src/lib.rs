@@ -35,14 +35,14 @@ const SYNTHESIZED: [&str; 12] = [
     "__wasm_call_ctors",
     "__wasm_apply_data_relocs",
 ];
-const DROPPED_FROM_PLUGINS: [&str; 5] = [
+const DROPPED_FROM_APPS: [&str; 5] = [
     "--import-memory",
     "--export-memory",
     "--stack-first",
     "--no-entry",
     "--export=__heap_base",
 ];
-const PLUGIN_FLAGS: [&str; 7] = [
+const APP_FLAGS: [&str; 7] = [
     "-shared",
     "--experimental-pic",
     "--unresolved-symbols=import-dynamic",
@@ -516,7 +516,7 @@ pub fn closure(given: Vec<Library>) -> Result<Vec<Library>, String> {
             {
                 return Err(format!(
                     "{} is in both {owner} and {}: a crate or C library may be in only one module \
-                     of a plugin's closure",
+                     of an app's closure",
                     crate_of(archive),
                     library.name
                 ));
@@ -526,8 +526,8 @@ pub fn closure(given: Vec<Library>) -> Result<Vec<Library>, String> {
     Ok(ordered)
 }
 
-pub fn plugin_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<String> {
-    let mut rewritten = Vec::with_capacity(arguments.len() + PLUGIN_FLAGS.len());
+pub fn app_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<String> {
+    let mut rewritten = Vec::with_capacity(arguments.len() + APP_FLAGS.len());
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         if argument == "-l" || argument == "-z" {
@@ -540,14 +540,14 @@ pub fn plugin_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec
             }
             continue;
         }
-        let dropped = DROPPED_FROM_PLUGINS.contains(&argument.as_str())
+        let dropped = DROPPED_FROM_APPS.contains(&argument.as_str())
             || (argument.starts_with("-l") && linked.contains(&argument))
             || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {
             rewritten.push(argument);
         }
     }
-    rewritten.extend(PLUGIN_FLAGS.map(str::to_owned));
+    rewritten.extend(APP_FLAGS.map(str::to_owned));
     rewritten
 }
 
@@ -690,7 +690,7 @@ fn link_linked(
         .iter()
         .flat_map(|library| library.linked.iter().cloned())
         .collect();
-    let arguments = plugin_arguments(arguments, &dropped);
+    let arguments = app_arguments(arguments, &dropped);
     let kept = kept(&arguments);
     let arguments = match library {
         Some(_) => library_arguments(arguments),

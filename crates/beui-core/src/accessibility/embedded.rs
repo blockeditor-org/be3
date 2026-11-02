@@ -130,7 +130,7 @@ impl Embedded {
         }
     }
 
-    pub fn plugin_node(&self, id: AccessNodeId) -> Option<AccessNodeId> {
+    pub fn app_node(&self, id: AccessNodeId) -> Option<AccessNodeId> {
         if super::document_of(id) != u64::from(self.document) {
             return None;
         }

@@ -33,13 +33,13 @@ html, body {
     width: 100%;
     height: 100%;
 }
-#plugins {
+#apps {
     position: fixed;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
 }
-#plugins canvas {
+#apps canvas {
     position: absolute;
     left: 0;
     top: 0;
@@ -115,7 +115,7 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
                 view! {
-                    <html::Div id="plugins" />
+                    <html::Div id="apps" />
                     <html::Canvas id="block" />
                     <html::Div id="layers" />
                 },

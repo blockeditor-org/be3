@@ -16,15 +16,15 @@ use beui::styled::WindowHandle;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
-use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
+use crate::dialog::{DialogControl, AppDialog, SettingsDialog};
 use crate::docked::{DockedTabBody, DockedTabs};
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;
 use crate::{Artifacts, BeuiRoot, Creation, Editor, OwnedEditor};
 
-pub struct BeuiPlugin<A: BeuiRoot>(PhantomData<A>);
+pub struct BeuiApp<A: BeuiRoot>(PhantomData<A>);
 
-impl<A: BeuiRoot> be_sdk::Plugin for BeuiPlugin<A> {
+impl<A: BeuiRoot> be_sdk::App for BeuiApp<A> {
     fn open(host: EditorHost) -> Box<dyn Instance> {
         Box::new(BeuiInstance::<A>::new(host))
     }
@@ -97,7 +97,7 @@ impl<A: BeuiRoot> Parts<A> {
                 let control = Rc::clone(&control);
                 let node = beui::reactive::view! {
                     <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
-                        <PluginDialog host control>|| {
+                        <AppDialog host control>|| {
                             let creation = creation.clone();
                             let children = creation.children();
                             beui::reactive::view! {
@@ -106,7 +106,7 @@ impl<A: BeuiRoot> Parts<A> {
                                     <Pickers editor=children />
                                 </beui::styled::Layers>
                             }
-                        }</PluginDialog>
+                        }</AppDialog>
                     </beui::styled::Root>
                 }
                 .child();
@@ -215,7 +215,7 @@ impl<A: BeuiRoot> Parts<A> {
             let control = Rc::clone(&control);
             let node = beui::reactive::view! {
                 <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
-                    <PluginDialog host control>|| {
+                    <AppDialog host control>|| {
                         let outer = artifacts.clone();
                         let inner = artifacts.clone();
                         beui::reactive::view! {
@@ -226,7 +226,7 @@ impl<A: BeuiRoot> Parts<A> {
                                 }
                             }</SettingsDialog>
                         }
-                    }</PluginDialog>
+                    }</AppDialog>
                 </beui::styled::Root>
             }
             .child();

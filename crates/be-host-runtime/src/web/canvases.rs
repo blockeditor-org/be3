@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use super::worker::WorkerChannel;
 use crate::presenter::Blit;
 
-const LAYER: &str = "plugins";
+const LAYER: &str = "apps";
 
 pub struct Placement {
     screen: ScreenId,
@@ -160,7 +160,7 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
     thread_local! {
         static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
-    let failed = |_| "a plugin screen's canvas could not be made".to_owned();
+    let failed = |_| "an app screen's canvas could not be made".to_owned();
     let layer = layer()?;
     let document = web_sys::window()
         .and_then(|window| window.document())
@@ -169,7 +169,7 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
         .create_element("canvas")
         .map_err(failed)?
         .dyn_into()
-        .map_err(|_| "a plugin screen's canvas could not be made".to_owned())?;
+        .map_err(|_| "an app screen's canvas could not be made".to_owned())?;
     layer.append_child(&element).map_err(failed)?;
     let id = NEXT.with(|next| {
         let id = next.get();
@@ -185,7 +185,7 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
     let offscreen = shown
         .element
         .transfer_control_to_offscreen()
-        .map_err(|_| "a plugin screen's canvas could not be handed to its worker".to_owned());
+        .map_err(|_| "an app screen's canvas could not be handed to its worker".to_owned());
     match offscreen.and_then(|offscreen| channel.show(id, Some(&offscreen), surface)) {
         Ok(()) => Ok(shown),
         Err(error) => {
@@ -200,5 +200,5 @@ fn layer() -> Result<web_sys::HtmlElement, String> {
         .and_then(|window| window.document())
         .and_then(|document| document.get_element_by_id(LAYER))
         .and_then(|layer| layer.dyn_into().ok())
-        .ok_or_else(|| format!("the page has no #{LAYER} element for plugins to show in"))
+        .ok_or_else(|| format!("the page has no #{LAYER} element for apps to show in"))
 }

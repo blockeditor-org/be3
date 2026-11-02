@@ -1,12 +1,12 @@
-# Block plugin protocol
+# Block app protocol
 
-The host and a plugin speak the `be3:plugin` WIT world `editor-plugin`
+The host and an app speak the `be3:app` WIT world `editor-app`
 (`wit/`), carried by be-wasm-ops (guides/type_modules.md, "Operations and WIT"); the
 Rust on both sides is generated from it into this crate. The world imports:
 
-- `be3:gpu/device` (crates/be-wasm-gpu-abi/wit), the device the plugin draws with,
-  answered inside the plugin's own worker or thread;
-- `host` (`host.wit`): the handshake (`connect`, the plugin's first call), what a
+- `be3:gpu/device` (crates/be-wasm-gpu-abi/wit), the device the app draws with,
+  answered inside the app's own worker or thread;
+- `host` (`host.wit`): the handshake (`connect`, the app's first call), what a
   frame tells the host besides itself (`layout`, `frame-needed`,
   `missing-characters`) and the watches of preferences, the UTC offset, fonts
   and input;
@@ -23,14 +23,14 @@ Rust on both sides is generated from it into this crate. The world imports:
   beside the core protocol rather than part of it: what a host running a desktop
   (a Linux session, or Windows) offers the editors that draw it, one interface
   per part of the desktop (windows, input devices and remaps, displays, power, media, Wi-Fi,
-  e-paper, notifications, the screen lock, programs, the tray). A plugin's
+  e-paper, notifications, the screen lock, programs, the tray). An app's
   manifest names the extensions it uses (`extensions`); the host answers a call
   into one it did not name `denied`, and a host without a desktop answers its
   watches `unsupported`;
 - `be3:debug/debug` (`wit/deps/debug`), the debugging extension, beside the core
   protocol too: performance measurements, simulating a lower access to a block,
   and which catalog templates are for debugging (the picker's Debug group). The
-  world also exports its `paintings`, what the plugin painted for the host's
+  world also exports its `paintings`, what the app painted for the host's
   tests. A host without these tools answers and asks none of it.
 
 Ids and access levels come from `be3:shared` (crates/be-wasm-ops/wit), which the
@@ -39,7 +39,7 @@ uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 (`block-id`, `block-type-id`, `commit-id`, ...), and a number one side hands
 out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
-It exports `plugin` (`plugin.wit`): `resource editor`, one open editor instance,
+It exports `app` (`app.wit`): `resource editor`, one open editor instance,
 whose methods are what the host says to that instance and whose drop closes it;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
@@ -48,15 +48,15 @@ move, place, restore), and `shell.act` with a `shell-command` asks the host
 around it (share, leave, close the editor). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
-Every call a plugin makes about an editor instance is made under that editor's
+Every call an app makes about an editor instance is made under that editor's
 resource, so the host knows the instance from the call's parent and closing an
-editor ends everything it opened. A value the plugin follows is a resource
+editor ends everything it opened. A value the app follows is a resource
 whose `next` answers with the latest value once it changed; a change made while
-the plugin does not ask is kept, folded into the ones after it, until it does.
+the app does not ask is kept, folded into the ones after it, until it does.
 One named `*-watch` with a `constructor()` and `next` and nothing else is a
 latest-value watch, which be-wasm-ops-bindgen implements `be_wasm_ops::Watched` for, so
 an editor follows any of them with `editor.watch::<W>()`.
-Input is one of them: batches for one screen that the plugin has not taken yet
+Input is one of them: batches for one screen that the app has not taken yet
 merge by the rules beui queues a frame's input by: each pointer's moves fold into
 its latest unless the screen's window requests ask for every sample, scrolls and
 zooms fold into the last of a run, and everything else is kept in order. A watch answered
@@ -64,22 +64,22 @@ with a list of events has a merge rule that keeps it bounded: show requests keep
 each request once, at its latest place; web-view events fold a title, address or
 failure into one of its own kind just before it and keep at most 256.
 
-The host handles the calls a plugin makes in the order it made them, whatever
+The host handles the calls an app makes in the order it made them, whatever
 interface each belongs to: one heard while the host draws a frame waits for the
 next frame together with every call after it, so a `create-block` is done before
-a `read-plain-file` or `fetch` the plugin made after it. Only what a frame
+a `read-plain-file` or `fetch` the app made after it. Only what a frame
 itself carries (its layout, `frame-needed`, paintings) is taken at once.
 
 The accepted handshake carries the theme the host is drawn in, which is what
-a plugin's own interface follows, so an editor looks the same as the host it is
+an app's own interface follows, so an editor looks the same as the host it is
 embedded in wherever it runs.
 
 The protocol has no version and the handshake checks none: the host and its
-plugins are built together, so a change to a function needs no bookkeeping. A
-call the other side does not know is answered `unsupported`. The plugin checks
+apps are built together, so a change to a function needs no bookkeeping. A
+call the other side does not know is answered `unsupported`. The app checks
 the order of what the host asks of it (no screens before the handshake, input
 only for screens it was given, an editor opened once and closed once) and stops
-when it is broken; the host gives a plugin a few seconds to say hello and to
+when it is broken; the host gives an app a few seconds to say hello and to
 shut down, and stops one that takes longer.
 
 Input events carry pointer, touch, wheel, key, text, focus and zoom-gesture
@@ -95,9 +95,9 @@ coalesce by multiplying their factors.
 
 A press made in one screen keeps that screen's input while it is held, as an
 operating system keeps a press with the window it began in. While it is held
-and the pointer is over another screen of the same plugin, each pointer event
+and the pointer is over another screen of the same app, each pointer event
 names that screen (`over`) and carries its position in that screen's
-coordinates, so a drag carries across a plugin's screens; over none of them the
+coordinates, so a drag carries across an app's screens; over none of them the
 host sends `pointer-left` once and goes on with positions in the holding
 screen's coordinates, outside its rectangle.
 
@@ -112,7 +112,7 @@ screen the gesture is left to the platform.
 A screen's input goes out at the start of the host frame that received it,
 before the host lays anything out, and it is routed against where the screen
 sat and what covered it the last time the screen was drawn. The host has that
-much of its own frame left to spend, so a plugin answering promptly is drawn
+much of its own frame left to spend, so an app answering promptly is drawn
 into the frame that delivered the input rather than the one after it. A screen
 the host did not draw last frame is sent nothing.
 
@@ -126,24 +126,24 @@ An editor instance reaches the content of its blocks through `blocks`'
 `replica` resources: frames the host relays unread, in order and
 back-pressured both ways (a stream window to the editor, a window of unanswered
 `send`s from it), between the instance and the block's replica
-(guides/the_new_block_stack.md, "Content on the plugin protocol").
+(guides/the_new_block_stack.md, "Content on the app protocol").
 
-A plugin may edit several block types, and every opening of an
-instance names the block type whose editor it is for, which is how the plugin
+An app may edit several block types, and every opening of an
+instance names the block type whose editor it is for, which is how the app
 picks the editor to run: the block's own type, the type of the editor whose
 template is being made, or the type of the block an artifact was generated
 from.
 
 A manifest may declare an editor for every block type (block type "any"),
-which the plugin runs for any type no other editor of its own names. One block
-type may have editors in several plugins; the host's catalog lists each editor
-by its id (`editor_id` of its plugin's id) with the block type it edits, or the
+which the app runs for any type no other editor of its own names. One block
+type may have editors in several apps; the host's catalog lists each editor
+by its id (`editor_id` of its app's id) with the block type it edits, or the
 nil type for every type. A child placement, a request to open a block and a
 request to show one may name an editor; the host opens the block in it when it
 edits the block's type, and otherwise in the type's built-in editor, the first
-plugin found that names the type.
+app found that names the type.
 
-Every block is made from a template the plugin's manifest declares, and an
+Every block is made from a template the app's manifest declares, and an
 instance opened to make one is opened as a creation instance instead of on a
 block, naming the template it makes: it has a client of its own but no block,
 and a template the manifest marks as a dialog is also shown as a dialog, in
@@ -186,8 +186,8 @@ Every block id a call carries is in the instance's own scope. An instance
 whose block sits inside a version control checkout names the blocks of that
 checkout by the ids their content stores, which are the same in every checkout
 of the same history, and the host translates them to and from the blocks it
-actually holds at the boundary, in both directions and for every call. A
-plugin never sees the translation and needs nothing to take part in it.
+actually holds at the boundary, in both directions and for every call. An
+app never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
 version control command naming that block: adopting a block as the tree to
@@ -217,9 +217,9 @@ turning off again.
 
 Presence is block data like any other and carries no messages of its own. All
 of it - the coarse "someone is looking at this block" entry as much as the
-cursor - is published and read on the one block client the plugin owns, the
+cursor - is published and read on the one block client the app owns, the
 same client it reads the block through. The host publishes none of it, and no
-other plugin reads it for a block it is not itself drawing. That single client
+other app reads it for a block it is not itself drawing. That single client
 is what makes presence add up: a block's entries all carry one identity per
 person, so a reader can join a colour to a cursor, and the server never returns
 to a client the presence that client posted, so a user is never among the
@@ -305,7 +305,7 @@ An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it
 changes: for each of those blocks, the block it was generated from, the block
 type that generated it, what its settings currently produce, why they cannot
-be read, and whether it is being rebuilt. Only the plugin that made an
+be read, and whether it is being rebuilt. Only the app that made an
 artifact can describe it, so the host keeps that instance open for as long as
 a block is watched and answers on its behalf. Each watched block is a watch of
 its own; dropping the last watch on a block closes the instance describing it. That instance
@@ -345,7 +345,7 @@ Files the user drags onto a view reach the instance the way a dragged block
 does: while they are only hovering the instance is told where they are and
 nothing else, and on the drop it is told the same position along with each
 file's name and the bytes the host read. Only the host can read a file on
-every platform, so a plugin never sees a path.
+every platform, so an app never sees a path.
 
 Only the host can read the clipboard on any platform. Each frame an editor
 instance reports the kinds of paste its focus takes (text, images), in the
@@ -356,7 +356,7 @@ image's name and bytes. The host pastes on the paste shortcut it sees itself,
 and when an instance asks it to paste, as a menu's Paste does.
 
 An editor instance may ask the host to play the audio in one of its blocks,
-which only the host can do: a plugin has no sound device on any platform, and
+which only the host can do: an app has no sound device on any platform, and
 an audio file is far larger than one call should carry. The request names the
 block rather than its bytes, which the host already holds through its own
 client. The host answers with what its player is doing - whether it is
@@ -364,24 +364,24 @@ playing, where it is, how long the audio is once it knows, and why it could
 not play - and repeats that answer whenever any of it changes.
 
 An editor instance may ask the host to fetch a URL for it, which is the only
-network a plugin has: a plugin runs with no sockets of its own, and its block
+network an app has: an app runs with no sockets of its own, and its block
 client already reaches the server through the host's connection. The request
 carries the URL and is answered exactly once, with the body the host read or
 with why it could not be read. Requests are identified per instance and may be
 outstanding together. The host refuses a URL that is not https, or whose host
-name is not one the plugin's manifest names, and reports the refusal as an
+name is not one the app's manifest names, and reports the refusal as an
 ordinary failure rather than as a protocol error.
 
-An editor instance may read the files its plugin was staged with, which are
+An editor instance may read the files its app was staged with, which are
 read-only data the build lays out beside the host rather than anything an
-organization holds: a plugin has no file system of its own on any platform. It
+organization holds: an app has no file system of its own on any platform. It
 may ask for the list of those files, answered with every path relative to its
 data, and for one file by that path, answered with its bytes or with why they
-could not be read. A plugin reaches only its own data; a path that is not a
+could not be read. An app reaches only its own data; a path that is not a
 plain relative path is refused as an ordinary failure.
 
 An editor instance may ask the host for web views, each a window of the
-operating system's own laid over the host rather than anything a plugin could
+operating system's own laid over the host rather than anything an app could
 draw. The instance names each view it opens with an identifier of its own,
 opens it at a URL, asks it to navigate, reload or hand the keyboard back to
 the host, and shows it by placing it as a child, like a block; a view no child
@@ -403,12 +403,12 @@ While it is held the host reports raw pointer motion to the focused instance
 alongside the events it already sends, since there is no position to report.
 
 An editor instance may ask the host to put text on the clipboard, which only
-the host can reach: the plugin's own ui context has no window under it. The
+the host can reach: the app's own ui context has no window under it. The
 text an instance copied while drawing is sent as it is drawn and the host puts
 it on the clipboard for it; a paste comes back the other way as a paste
 event.
 
-The host describes its registered block types once per plugin runtime, before
+The host describes its registered block types once per app runtime, before
 the first editor instance is opened, so an editor can name and illustrate
 blocks it only holds a reference to. Each description carries the block type,
 its display name, the codepoint of the host's icon font, and which of the
@@ -435,11 +435,11 @@ instance opened or a further display. A view can also place itself against
 its parent view, as a menu hangs from its button: an anchored view
 (`anchored`), which the host never asks for. There is one way for an instance
 to create a view, whatever places it: in the frame that creates it, the
-plugin lays the view out, paints it as a screen it numbers itself from 2^63,
+app lays the view out, paints it as a screen it numbers itself from 2^63,
 lists that screen in its layout before the commit, and reports it in the
 commit, so a created view costs no frame; how it is placed decides what the
 host does with it: a window (`window-request.open`) the host places and from
-then on asks for, an anchored view (`frame-report.anchored`) the plugin keeps
+then on asks for, an anchored view (`frame-report.anchored`) the app keeps
 placing itself. The host numbers the
 views it asks for other than the main view from the top (the preview 2^63,
 the artifact settings 2^63 + 1, the view on further display `n` 2^63 + 1 + n);
@@ -448,10 +448,10 @@ Screens, frame reports, child placements, input, child statuses and
 `view-stopped` all name a view. A host that shows a desktop on several
 displays shows the main view on its first display and a view placed by the
 host on each further one, numbered from 1 in the order it lists them. A
-screen request may say the host shows the windows the plugin opens from it
-as windows of its own (`windows`). The plugin then opens each window itself,
+screen request may say the host shows the windows the app opens from it
+as windows of its own (`windows`). The app then opens each window itself,
 as it creates any view: in the frame that opens
-it, the plugin lays the window out at the size it wants and paints it as a
+it, the app lays the window out at the size it wants and paints it as a
 screen of its own, which it numbers from 2^63, lists in its layout and
 reports in the same commit as the `window-request` that opens it (`open`,
 naming the view the window will be, that screen, the view it opens from and
@@ -461,24 +461,24 @@ where it came from (a menu, a picker, a popover) is an anchored view. The host s
 screen in the frame that commits it, where the placement says, moved back
 inside its bounds, and from then on asks for the view with that same screen,
 placed by the host, whose size, scale, `host-place` and `origin` (its corner
-in the one space the host places the plugin's windows and views in, sent too for
+in the one space the host places the app's windows and views in, sent too for
 the views windows open from) are the host's answer,
-whose focus arrives as input, and whose going away closes it; the plugin
+whose focus arrives as input, and whose going away closes it; the app
 draws the screen as it opened it until the host's screens name it or it
 closes the window. The other requests, `begin-move` and `begin-resize`, which
 hand the pointer to the host until the press is let go, `raise`, `resize`,
 `place` (put it, at the size it has, where a placement says) and `close`, each
 name the window's view. A view that windows open from may report a
-`work-area` (insets) in its frame report: the part of it the plugin keeps clear
-of its own bars. The host keeps each of the plugin's windows on a display
+`work-area` (insets) in its frame report: the part of it the app keeps clear
+of its own bars. The host keeps each of the app's windows on a display
 wholly inside the work area reported there, on the edges where it is inset,
 and leaves other edges open, so a window still crosses onto another display.
 block-app says `windows` for every
 main view it shows and, where it opens no windows of its own, draws each one
 over its own window at the point asked for, moved back inside it, or shrunk
-to the room below that point when there is enough. Without `windows` the plugin draws its
+to the room below that point when there is enough. Without `windows` the app draws its
 windows inside the screen. The main view is the whole rectangle an editor is
-edited in, and an instance has at most one; the plugin lays its own toolbar
+edited in, and an instance has at most one; the app lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where
 its content goes inside the main view, and the trail of editors it sits
@@ -487,7 +487,7 @@ editor embedded in another one, a creation dialog, or an instance presenting.
 An instance told it owns the chrome and given no content rectangle fills its
 own content band, which is what a tab of its own means.
 
-Docks cross plugins the way windows do: one root dock, the outermost, holds
+Docks cross apps the way windows do: one root dock, the outermost, holds
 the only dock state and draws every tab bar, splitter and drag; a dock nested
 in it only declares its own tree and draws its tab bodies (`dock-message`,
 `dock-update` in `dock.wit`, records at the end of `types.wit`). An instance
@@ -576,7 +576,7 @@ strip, the grab bar that moves it, the drop targets that dock it again, its
 tabs' menus and locks) as a window it creates as it creates any view, in the
 frame that pops the tab out, and places the tab's body in it
 (`child-content.dock-tab`), so the owner's view stays placed by the dock
-whichever plugin owns it, keeping every feature it has, and only its size
+whichever app owns it, keeping every feature it has, and only its size
 changes. An instance popping out a view of its own that no dock places opens
 a window for it the same way.
 
@@ -607,7 +607,7 @@ that hosts it shows that group as the tab: the tab's title, icon, lock and
 close, and the bare pane's tab's menu followed by the hosting tab's.
 
 A frame surface is transparent wherever its owner does not paint, so whatever
-the host draws beneath shows through there. The plugin publishes, with every
+the host draws beneath shows through there. The app publishes, with every
 frame that laid it out again, the content area it laid out, as insets from
 the frame's edges (or `none` where the view holds no content), and the rectangles it painted and the rectangles its
 floating overlays took, in the frame's own logical coordinates. The host works
@@ -628,10 +628,10 @@ request may carry an anchor space (`screen-request.anchor-space`): `to-host`, wh
 maps the view's points to host coordinates (the host window's logical points)
 at the camera the request lays it out against, and `bounds`, the rectangle in
 host coordinates where views anchored to it may go: the host window for a
-trusted plugin, the plugin's own box for a confined one. A child's bounds
+trusted app, the app's own box for a confined one. A child's bounds
 never exceed its parent's, and a screen requested without an anchor space
 anchors no views. An anchored view is a screen like any other, which the
-plugin creates as it creates any view: in the frame that opens it the plugin
+app creates as it creates any view: in the frame that opens it the app
 places it, anchored to a rectangle in its parent's coordinates or attached to
 an edge of the bounds (`view-anchor`), lays it out against the bounds
 (flipping, sliding or shrinking it to fit), numbers its screen from 2^63,
@@ -640,7 +640,7 @@ it, and commits its report with that frame. The report says how it hangs
 (`frame-report.anchored`: its parent, the view the screen request was for or
 another anchored view of the instance for a submenu, its anchor, and its
 rectangle in host coordinates), and every report of it repeats that; the view
-closes when the plugin's layout no longer lists its screen, and with it the
+closes when the app's layout no longer lists its screen, and with it the
 views hanging from it. Everything else is the screen's own, in its own points,
 which are host points from its rectangle's top-left corner: what it painted,
 where it takes input (`floating`) and the scrims it dims, its accessibility
@@ -649,7 +649,7 @@ its parent's, and its child placements (`child-placements.view` naming it),
 which the host places in host coordinates, ordered against the view's pixels
 by their `layer`, clipped to the view and its bounds and hidden by no
 occluder; a child's own frame appears one frame after the view that holds it.
-The plugin lays an anchored view out and draws it at full size in host
+The app lays an anchored view out and draws it at full size in host
 points, so a menu opened in a view shown at half size is as large as any
 other menu, at the screen's raster divided by `to-host`'s scale, in pixels per
 host point: the host window's own density, whatever the view's zoom, since the
@@ -659,17 +659,17 @@ scrims, then its `painted` rectangles from its surface; it draws nothing of
 one outside `painted`, and the commit that opens one draws it in the same host
 frame. When the view a chain hangs from moves, the host moves the chain
 rigidly by the difference between the `to-host` it shows that view at and the
-one the frame was laid out against, so a move alone need not send the plugin
+one the frame was laid out against, so a move alone need not send the app
 a new `to-host`: the host may keep sending the origin it sent last while only
 the origin changes, and sends where the view now is with the next input it
-gives the view, or once the plugin commits a frame with anchored views hanging
+gives the view, or once the app commits a frame with anchored views hanging
 from a view laid out against an older origin; a view attached to an edge of the bounds hangs from the
 bounds rather than from the view, so a move leaves it (and what it holds)
 where it is; a pan of the view's camera does nothing to them, and the
-plugin repositions or closes them on its next layout. The host hit-tests
+app repositions or closes them on its next layout. The host hit-tests
 anchored views before any other view, over their `floating` rectangles, the
 one opened last first, and input that lands on one reaches its own screen in
-its own points; a plugin takes input for any screen it opened itself and
+its own points; an app takes input for any screen it opened itself and
 ignores input for one it has closed since. A press outside a chain of anchored views marked
 `dismiss-on-outside-press` (a view and those hanging from it) closes the
 chain: the instance hears the views in `input-batch.dismissed` of the screen
@@ -698,18 +698,18 @@ attaches a bare view to the bottom edge of its bounds and has the child fill
 it; the host tells a child placed in a view attached to an edge that it is a
 sheet (`open-picker.sheet`, `open-rename.sheet`, and the host menu it draws
 itself), and the child draws the sheet.
-In the browser, where a plugin draws in a worker of its own, the page gives
+In the browser, where an app draws in a worker of its own, the page gives
 that worker one canvas over the whole host on its first anchored view and keeps
 it; the worker draws each anchored view's `painted` rectangles into it where
-the page says, the page clips the canvas to the plugin's bounds, and the
-canvas of the plugin that opened the newest one is on top.
+the page says, the page clips the canvas to the app's bounds, and the
+canvas of the app that opened the newest one is on top.
 
 A frame report may also carry press claims: a set of modifiers and a
 rectangle. While every one of those modifiers is held, a pointer press inside
 the rectangle belongs to the instance itself, not to the children placed
 under it there: the host delivers that press, its drag and its release to the
 instance, and none of it to the child (another editor, or a program's
-window). A window manager written as a plugin claims the windows it places
+window). A window manager written as an app claims the windows it places
 this way, so a drag with the modifier held moves or resizes the window rather
 than reaching the program inside it. The claims of an editor nested in another
 yield to the claims of the editor around it.
@@ -775,19 +775,19 @@ child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a view, then the view,
 then the children above it. A painting is never stretched: the host shows each
 frame at the size it was painted, from the view's top-left corner, so while
-a view is resizing ahead of the plugin the painting is cropped or falls
+a view is resizing ahead of the app the painting is cropped or falls
 short at the right and bottom, and the children, occluders and input method
 area that frame carried are placed in its own coordinates from that corner,
 unscaled. Only a zoom the host renders a view at - a pixel density sent with
 its screen - scales them, and then by the one sent at the frame's serial. A
 child the placement says follows the view is moved from the view sent at that
 serial to the one the host is showing, so a child keeps up with a pan the
-plugin has not drawn yet.
+app has not drawn yet.
 
 A screen also carries its raster: the pixel density the host draws it at,
 which its pixel size counts. It differs from its scale where the host shows
-the screen larger or smaller than it lays it out at, as a panel in VR does. A
-plugin lays out at the scale and paints at the raster, so a change of raster
+the screen larger or smaller than it lays it out at, as a panel in VR does. An
+app lays out at the scale and paints at the raster, so a change of raster
 alone moves nothing; until a painting at the new raster arrives, the host
 shows the last one at the same size in points.
 
@@ -797,7 +797,7 @@ as the instance that placed it, takes over every chrome band, and draws its
 content at the rectangle the placement gave it. Its parent is told for that
 frame that it owns no chrome, and keeps its content exactly where it was, so
 selecting a child moves nothing. Handover is always a replacement: a child's
-chrome is never nested inside its parent's, and the framework, not the plugin,
+chrome is never nested inside its parent's, and the framework, not the app,
 draws the trail back out.
 
 A placement may instead declare that the child owns a frame of its own, which
@@ -835,9 +835,9 @@ listed until its program closes it.
 
 A block pick may name a place for what it makes: the top level or a block. The
 picker then asks for a name and lets the user choose the place as well, and
-the block is created there under that name; the answer says so, and the plugin
+the block is created there under that name; the answer says so, and the app
 only opens what it was given. A block chosen from the ones that already exist
-is never placed by the picker, and the plugin places it as it would without a
+is never placed by the picker, and the app places it as it would without a
 place.
 
 The host answers with a status per child: whether the block could be opened
@@ -920,66 +920,66 @@ with no chrome bands, so it draws its content the same way either way; only the
 size it is given changes.
 
 An editor instance may report named duration and count measurements under a
-named performance group, through the `be3:debug` extension's `performance`. Durations are measured by the plugin and sent as
+named performance group, through the `be3:debug` extension's `performance`. Durations are measured by the app and sent as
 nanoseconds; the host only collects and displays the reported values. Reports
 are informational, require no response, and may arrive independently of a
 rendered frame.
 
-Neither peer polls the other: a plugin runs beside the host - a thread of its
+Neither peer polls the other: an app runs beside the host - a thread of its
 own under wasmtime, a worker of its own in the browser - and either side may
 send at any time.
 
-Every host call that changes what a plugin lays out against - the screens,
+Every host call that changes what an app lays out against - the screens,
 which carries each screen's size, scale, raster and frame, and a view - is followed by
 a configure carrying a serial, one higher each time, which says the host has
-sent everything up to it. A plugin answers no configure: each frame it commits
+sent everything up to it. An app answers no configure: each frame it commits
 names the last serial it had received when it laid out, so the host knows
 which of the states it sent the frame was built from. The host keeps the
 states it sent by serial and forgets each once a frame names a later one.
 
-A frame is one commit of everything a plugin laid out together: the serial,
+A frame is one commit of everything an app laid out together: the serial,
 the size each view used, its frame report, its window requests - cursor,
 input method area, intercepted keys and the rest - and its child placements
 and occluders, along with how long it wants to wait before being drawn again
 and the surfaces it presented. Each part is present only for a screen it
-changed; one a frame leaves out still holds at the frame's serial, since a
-plugin lays out again every instance whose host state changed. A frame may
+changed; one a frame leaves out still holds at the frame's serial, since an
+app lays out again every instance whose host state changed. A frame may
 move children without painting anything, and may paint without moving any.
 
-The host decides when a plugin draws. A plugin paints only when the host asks
+The host decides when an app draws. An app paints only when the host asks
 it for a frame, and never on its own: when a call changes what it shows, or
 something inside it wakes it, it says a frame is needed and waits to be asked.
-It says so once and not again until it has painted, so a plugin that hears
+It says so once and not again until it has painted, so an app that hears
 about a pan sixty times before it can draw once paints one frame carrying all
 sixty rather than one frame each. Every published frame carries how long the
-plugin wants to wait before it is drawn again, absent when it wants nothing
+app wants to wait before it is drawn again, absent when it wants nothing
 further, and the host holds that request until the delay comes due. The host
 asks at the start of its own frame, along with the input it is routing, since
-input it delivers is a change the plugin will want to show. Only one request is
-outstanding at a time, so a plugin that draws more slowly than the host is
-asked again only once the frame it owes has arrived, and a plugin animating
+input it delivers is a change the app will want to show. Only one request is
+outstanding at a time, so an app that draws more slowly than the host is
+asked again only once the frame it owes has arrived, and an app animating
 without any delay is drawn once per host frame rather than as fast as its
-process can run. A request left unanswered for a second is asked again. A
-plugin the host is not drawing is asked for nothing.
+process can run. A request left unanswered for a second is asked again. An
+app the host is not drawing is asked for nothing.
 
-The host shows whatever the plugin has committed by the time it finishes
+The host shows whatever the app has committed by the time it finishes
 building its own frame. Which surface each view is drawn from is settled then
-as well, against the layout that arrived with the frame being shown, so a
-plugin that republishes its layout mid-frame is never drawn through the
+as well, against the layout that arrived with the frame being shown, so an
+app that republishes its layout mid-frame is never drawn through the
 placements of the one before it.
 
 Every screen an instance is given is a surface of its own, the size the host
 asked for, so a screen that grows, shrinks or goes away leaves every other
 screen's surface as it was. Which surface a screen is drawn into is the layout
-the plugin publishes: a screen keeps its surface for as long as it is shown,
+the app publishes: a screen keeps its surface for as long as it is shown,
 and a surface whose screen is gone is released. A frame presents only the
 surfaces whose screens changed, and the damage it reports names the screen
 each rectangle falls on.
 
-A plugin never learns where its pixels live. It asks its host for a render
+An app never learns where its pixels live. It asks its host for a render
 target and draws into an opaque texture, which is the host's own under
 wasmtime and the worker's offscreen canvas in the browser. Which surface each
-screen is drawn into is the layout the plugin sends whenever its screens
+screen is drawn into is the layout the app sends whenever its screens
 change, and the host shows each screen's texture until another frame presents
 it. A frame that presented anything counts its presents, which is how the host
 matches the damage it reports to the textures it took in, even when it skipped

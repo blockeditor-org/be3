@@ -6,7 +6,7 @@ fn a_module_is_fetched_once_and_a_new_config_only_reconfigures_it() {
     assert_eq!(
         loader.want(Some(wanted("remapper.wasm", b"a"))),
         Step::Fetch {
-            plugin: "be3.settings".to_owned(),
+            app: "be3.settings".to_owned(),
             module: "remapper.wasm".to_owned(),
         }
     );

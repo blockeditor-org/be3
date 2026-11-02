@@ -9,7 +9,7 @@ fn main() {
     let mut arguments = std::env::args();
     let program = arguments
         .next()
-        .unwrap_or_else(|| "plugin-test-runner".into());
+        .unwrap_or_else(|| "app-test-runner".into());
     let Some(first) = arguments.next() else {
         usage(&program);
     };
@@ -133,7 +133,7 @@ fn gpu() -> Result<(wgpu::Device, wgpu::Queue), String> {
     }))
     .map_err(|error| format!("no graphics adapter is available: {error}"))?;
     pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        label: Some("plugin test device"),
+        label: Some("app test device"),
         required_features: adapter.features() & wgpu::Features::all_webgpu_mask(),
         required_limits: wgpu::Limits::downlevel_defaults(),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),

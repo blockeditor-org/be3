@@ -10,7 +10,7 @@ reaches the program.
 ## For a person
 
 ```
-# the host in a window, with every plugin beside it
+# the host in a window, with every app beside it
 ./scripts/buck run //crates/be-host:native
 
 # the desktop shell in a window
@@ -80,15 +80,15 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 
 | Command | What it does |
 |---|---|
-| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the plugins' `wasi_guest`, autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the apps' `wasi_guest`, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/be-tool-bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
-| `./scripts/buck run //crates/be-host:native` | the host, with every plugin beside it |
+| `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
 | `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: block-app headless with the editors each test names, driven and painted as a whole |
 | `./scripts/buck build //crates/be-host:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
-| `./scripts/buck build //crates/be-host:plugins --out DIR` | the plugins alone, shared by every platform |
-| `./scripts/buck build //crates/be-host:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
+| `./scripts/buck build //crates/be-host:apps --out DIR` | the apps alone, shared by every platform |
+| `./scripts/buck build //crates/be-host:web --out DIR` | the web bundle with every app (`:web-dist` without) |
 | `./scripts/buck run //crates/be-host:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/be-host:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |

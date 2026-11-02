@@ -100,10 +100,10 @@ pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<V
     let start = pointer as usize;
     let end = start
         .checked_add(length as usize)
-        .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
+        .ok_or_else(|| "an app pointer overflowed".to_owned())?;
     if end > data.len() {
         return Err(format!(
-            "a plugin pointer ran past its memory: {start}..{end} of {}",
+            "an app pointer ran past its memory: {start}..{end} of {}",
             data.len()
         ));
     }
@@ -128,14 +128,14 @@ impl State {
                     }))
                 }
                 Err(message) => Device::Unavailable(format!(
-                    "the plugin used the gpu, and no device could be opened: {message}"
+                    "the app used the gpu, and no device could be opened: {message}"
                 )),
             };
         }
         match &mut self.device {
             Device::Ready(gpu) => Ok(gpu.as_mut()),
             Device::Unavailable(message) => Err(message.clone()),
-            Device::Unconnected { .. } => Err("the plugin's gpu was never connected".to_owned()),
+            Device::Unconnected { .. } => Err("the app's gpu was never connected".to_owned()),
         }
     }
 
@@ -252,10 +252,10 @@ impl<'a> Guest<'a> {
         let start = pointer as usize;
         let end = start
             .checked_add(length)
-            .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
+            .ok_or_else(|| "an app pointer overflowed".to_owned())?;
         if end > size {
             return Err(format!(
-                "a plugin pointer ran past its memory: {start}..{end} of {size}"
+                "an app pointer ran past its memory: {start}..{end} of {size}"
             ));
         }
         Ok(start..end)
@@ -279,7 +279,7 @@ impl Reads for Threaded {
 }
 
 const MEMORY_EXPORT: &str = "memory";
-const NO_MEMORY: &str = "the plugin has no memory to read from";
+const NO_MEMORY: &str = "the app has no memory to read from";
 
 impl Caller for Guest<'_> {
     type Host = Gpu;

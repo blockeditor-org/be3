@@ -2,7 +2,7 @@ use be_sdk_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 
-const PLUGIN: &str = "test.raise";
+const APP: &str = "test.raise";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
 fn open(window: u64, opener: View) -> WindowRequest {
@@ -34,7 +34,7 @@ fn a_raised_window_brings_the_windows_opened_over_it_along() {
     let _root = beui::reactive::RootScope::new();
     install();
     be_host_runtime::request_windows(
-        PLUGIN,
+        APP,
         vec![
             open(1, View::MAIN),
             open(2, View::window(ViewId(1))),
@@ -44,7 +44,7 @@ fn a_raised_window_brings_the_windows_opened_over_it_along() {
     apply();
     assert_eq!(order(), [1, 2, 3]);
 
-    be_host_runtime::request_windows(PLUGIN, vec![WindowRequest::Raise(ViewId(1))]);
+    be_host_runtime::request_windows(APP, vec![WindowRequest::Raise(ViewId(1))]);
     apply();
     assert_eq!(
         order(),
@@ -52,7 +52,7 @@ fn a_raised_window_brings_the_windows_opened_over_it_along() {
         "the dialog window 2 opened over window 1 stays in front of it"
     );
 
-    be_host_runtime::request_windows(PLUGIN, vec![WindowRequest::Raise(ViewId(3))]);
+    be_host_runtime::request_windows(APP, vec![WindowRequest::Raise(ViewId(3))]);
     apply();
     assert_eq!(order(), [1, 2, 3]);
 }

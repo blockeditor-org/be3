@@ -3,7 +3,7 @@ use beui::{PointerButton, PointerEvent, PointerId};
 
 use super::*;
 
-const PLUGIN: &str = "test.move";
+const APP: &str = "test.move";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
 fn view(window: u64) -> ViewRef {
@@ -34,7 +34,7 @@ fn open(window: u64, opener: u64) -> WindowRequest {
 
 fn key(window: u64) -> FloatedKey {
     FloatedKey {
-        plugin: PLUGIN.to_owned(),
+        app: APP.to_owned(),
         instance: INSTANCE,
         window: ViewId(window),
     }
@@ -82,13 +82,13 @@ fn a_moved_window_brings_the_windows_opened_over_it_along() {
     let _root = beui::reactive::RootScope::new();
     install();
     crate::display::create_handle();
-    note_origin(PLUGIN, INSTANCE, ViewId::MAIN, Pos2::ZERO);
-    be_host_runtime::request_windows(PLUGIN, vec![open(1, 0), open(2, 1), open(3, 2), open(4, 0)]);
+    note_origin(APP, INSTANCE, ViewId::MAIN, Pos2::ZERO);
+    be_host_runtime::request_windows(APP, vec![open(1, 0), open(2, 1), open(3, 2), open(4, 0)]);
     apply();
     let before = corners();
 
     be_host_runtime::request_windows(
-        PLUGIN,
+        APP,
         vec![WindowRequest::Place(WindowPlace {
             view: ViewId(1),
             placement: WindowPlacement::Over(WindowOver {
@@ -117,7 +117,7 @@ fn a_moved_window_brings_the_windows_opened_over_it_along() {
         mouse(PointerPhase::Down(PointerButton::Primary), pressed),
         Vec2::ZERO,
     );
-    be_host_runtime::request_windows(PLUGIN, vec![WindowRequest::BeginMove(ViewId(1))]);
+    be_host_runtime::request_windows(APP, vec![WindowRequest::BeginMove(ViewId(1))]);
     apply();
     let dragged = vec2(-50.0, 30.0);
     follow(

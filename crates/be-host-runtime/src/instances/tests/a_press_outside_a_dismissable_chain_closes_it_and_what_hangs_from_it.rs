@@ -34,7 +34,7 @@ fn a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it() {
     let batches: Vec<_> = messages
         .into_iter()
         .filter_map(|message| match message {
-            Outbound::Plugin(PluginCall::Input(batch)) => Some(batch),
+            Outbound::App(AppCall::Input(batch)) => Some(batch),
             _ => None,
         })
         .collect();

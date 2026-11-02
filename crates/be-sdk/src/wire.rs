@@ -7,7 +7,7 @@ use be_sdk_api::{
         debug::debug,
         exports::{
             debug::paintings,
-            plugin::{Guest, GuestEditor},
+            app::{Guest, GuestEditor},
         },
         host, shell,
     },

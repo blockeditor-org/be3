@@ -38,7 +38,7 @@ fn input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points() {
     let events: Vec<_> = messages
         .into_iter()
         .filter_map(|message| match message {
-            Outbound::Plugin(PluginCall::Input(batch)) => {
+            Outbound::App(AppCall::Input(batch)) => {
                 assert_eq!(
                     batch.screen,
                     ScreenId::opened(3),

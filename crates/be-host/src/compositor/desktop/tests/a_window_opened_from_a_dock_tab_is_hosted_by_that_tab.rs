@@ -2,7 +2,7 @@ use be_sdk_api::{Size, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 
-const PLUGIN: &str = "test.desktop";
+const APP: &str = "test.desktop";
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const TAB: View = View::dock(ViewId(3));
 
@@ -27,14 +27,14 @@ fn open(window: u64, opener: View, at: Pos2) -> WindowRequest {
 fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
     let _root = beui::reactive::RootScope::new();
     install();
-    let tab = overlaid(PLUGIN.to_owned(), INSTANCE, TAB);
-    let other_tab = overlaid(PLUGIN.to_owned(), INSTANCE, View::dock(ViewId(4)));
-    let frame = overlaid(PLUGIN.to_owned(), INSTANCE, View::MAIN);
-    let within = overlaid(PLUGIN.to_owned(), INSTANCE, View::window(ViewId(1)));
-    show_view(PLUGIN, INSTANCE, TAB);
-    note_origin(PLUGIN, INSTANCE, TAB.id, pos2(200.0, 100.0));
+    let tab = overlaid(APP.to_owned(), INSTANCE, TAB);
+    let other_tab = overlaid(APP.to_owned(), INSTANCE, View::dock(ViewId(4)));
+    let frame = overlaid(APP.to_owned(), INSTANCE, View::MAIN);
+    let within = overlaid(APP.to_owned(), INSTANCE, View::window(ViewId(1)));
+    show_view(APP, INSTANCE, TAB);
+    note_origin(APP, INSTANCE, TAB.id, pos2(200.0, 100.0));
     be_host_runtime::request_windows(
-        PLUGIN,
+        APP,
         vec![
             open(1, TAB, pos2(10.0, 20.0)),
             open(2, View::window(ViewId(1)), pos2(5.0, 5.0)),
@@ -51,7 +51,7 @@ fn a_window_opened_from_a_dock_tab_is_hosted_by_that_tab() {
     assert_eq!(frame.get_untracked(), [ViewId(3)]);
     assert!(other_tab.get_untracked().is_empty());
     let rect = rect_of(FloatedKey {
-        plugin: PLUGIN.to_owned(),
+        app: APP.to_owned(),
         instance: INSTANCE,
         window: ViewId(1),
     });

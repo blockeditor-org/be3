@@ -1814,7 +1814,7 @@ fn GlobalActions() -> NodeId {
             <Text style=TextStyle::PARAGRAPH>
                 "A global action answers its chord wherever the focus is, even in a text \
                  field or under an open menu; Super chords count like Ctrl and Alt. While a \
-                 program's window or a plugin editor has the focus, its keys are its own, unless \
+                 program's window or an editor has the focus, its keys are its own, unless \
                  the action intercepts them."
             </Text>
             <Shortcut
@@ -1906,7 +1906,7 @@ fn ActionMenu() -> NodeId {
                 <Card @test_id="demo.actions">
                     <Text style=TextStyle::PARAGRAPH>
                         "One description of actions, separators and submenus fills this menu, a \
-                         plugin's frame menu and the command palette. Each row shows its action's \
+                         app's frame menu and the command palette. Each row shows its action's \
                          shortcut. A checkable action shows its tick where its icon would be, and a \
                          radio group ticks the chosen one."
                     </Text>

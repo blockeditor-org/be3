@@ -1,6 +1,6 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Wanted {
-    pub(super) plugin: String,
+    pub(super) app: String,
     pub(super) module: String,
     pub(super) config: Vec<u8>,
 }
@@ -10,7 +10,7 @@ pub(super) enum Step {
     Nothing,
     Stop,
     Configure(Vec<u8>),
-    Fetch { plugin: String, module: String },
+    Fetch { app: String, module: String },
 }
 
 #[derive(Default)]
@@ -22,7 +22,7 @@ pub(super) struct Loader {
 
 impl Loader {
     pub(super) fn installed(&mut self, wanted: Wanted) {
-        self.loaded = Some((wanted.plugin.clone(), wanted.module.clone()));
+        self.loaded = Some((wanted.app.clone(), wanted.module.clone()));
         self.fetching = None;
         self.wanted = Some(wanted);
     }
@@ -37,7 +37,7 @@ impl Loader {
             self.fetching = None;
             return Step::Stop;
         };
-        let source = (wanted.plugin.clone(), wanted.module.clone());
+        let source = (wanted.app.clone(), wanted.module.clone());
         if self.loaded.as_ref() == Some(&source) {
             return Step::Configure(wanted.config);
         }
@@ -46,14 +46,14 @@ impl Loader {
         }
         self.fetching = Some(source);
         Step::Fetch {
-            plugin: wanted.plugin,
+            app: wanted.app,
             module: wanted.module,
         }
     }
 
-    pub(super) fn fetched(&mut self, plugin: &str, module: &str) -> Option<Wanted> {
+    pub(super) fn fetched(&mut self, app: &str, module: &str) -> Option<Wanted> {
         let wanted = self.wanted.clone()?;
-        if wanted.plugin != plugin || wanted.module != module {
+        if wanted.app != app || wanted.module != module {
             return None;
         }
         self.installed(wanted.clone());

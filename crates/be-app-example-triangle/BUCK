@@ -1,16 +1,16 @@
-load("@root//buck/wasm:defs.bzl", "editor", "editor_module")
+load("@root//buck/wasm:defs.bzl", "app", "app_module")
 
 # Triangle draws with plain wgpu and no ui framework, so it needs base alone.
-editor(
+app(
     libraries = ["//crates/be-sdk-library-base:module"],
     module = "triangle",
     types = "//crates/be-type-example-triangle:module",
 )
 
 # The same triangle with every crate it uses linked into it, a standalone
-# plugin (guides/plugin_libraries.md, "The raw plugin interface"), which
+# app (guides/app_libraries.md, "The raw app interface"), which
 # be-wasm-host's tests load and paint beside :module.
-editor_module(
+app_module(
     name = "standalone",
     libraries = [],
     module = "triangle",

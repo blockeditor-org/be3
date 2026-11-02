@@ -3,9 +3,9 @@ use crate::EditorBlock;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: ViewId = ViewId::MAIN;
-const PLUGIN: &str = "test.rastered";
+const APP: &str = "test.rastered";
 
-fn manifest() -> PluginManifest {
+fn manifest() -> AppManifest {
     be_sdk_manifest::manifest_from_json(
         r#"{
             "id": "test.rastered",
@@ -25,7 +25,7 @@ fn manifest() -> PluginManifest {
 }
 
 fn sent() -> Option<(Vec2, [u32; 2], f32, f32)> {
-    with(PLUGIN, |runtime| {
+    with(APP, |runtime| {
         runtime
             .instances
             .statuses(&runtime.layout, 0)
@@ -46,12 +46,12 @@ fn sent() -> Option<(Vec2, [u32; 2], f32, f32)> {
 
 #[test]
 fn a_view_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
-    let plugin = manifest();
+    let app = manifest();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         host.availability = Availability(Ok(()));
         host.runtimes
-            .insert(plugin.identity.id.clone(), Runtime::new(&plugin, 0));
+            .insert(app.identity.id.clone(), Runtime::new(&app, 0));
     });
     let role = InstanceRole::Editor(
         Uuid::nil(),
@@ -61,19 +61,19 @@ fn a_view_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
             view_block: None,
         },
     );
-    with(PLUGIN, |runtime| {
+    with(APP, |runtime| {
         runtime.instances.mount(
             INSTANCE,
             View::MAIN,
             Uuid::nil(),
             role,
-            &Arc::new(crate::PluginCatalog::default()),
+            &Arc::new(crate::AppCatalog::default()),
         )
     });
     let rect = Rect::from_min_size(pos2(20.0, 30.0), vec2(300.0, 200.0));
     let place = |raster: f32| {
         place_view(
-            PLUGIN,
+            APP,
             INSTANCE,
             REGION,
             1,

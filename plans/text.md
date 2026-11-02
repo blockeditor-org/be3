@@ -2,7 +2,7 @@
 
 Text blocks keep their content as a `Vec<u8>` with positional operations that
 `transform` rebases, a line diff3 for offline merges, and an undo stack of their
-own inside the plugin. Model blocks have `List`, whose items have ids, whose
+own inside the app. Model blocks have `List`, whose items have ids, whose
 inserts anchor to a sibling, and whose undo is conditional. This plan moves text
 onto one ordered sequence that lists can share, without saving any of its
 bookkeeping.
@@ -114,7 +114,7 @@ and 8 hours. Revision history is the way back past that.
 A follower shows `confirmed` plus its pending edits. When someone else's edit
 arrives while it has pending edits, `Live` clones `confirmed`, replays every
 pending edit, and journals `Replaced`; the worker then clears its operation log,
-so the editor plugin gets a whole snapshot instead of the edit. Measured on a
+so the app gets a whole snapshot instead of the edit. Measured on a
 1 MB text with two clients typing 200 characters each before catching up:
 
 - The rebuild costs incoming edits times pending edits, not document size:
@@ -123,7 +123,7 @@ so the editor plugin gets a whole snapshot instead of the edit. Measured on a
   is around 100 µs.
 - The snapshot is the expensive part: 3 ms to encode, 1 MB of bytes plus 1 MB
   of session state (it repeats the loaded text), 6.5 ms to decode and adopt in
-  the plugin, then every watcher reruns and the editor diffs the document.
+  the app, then every watcher reruns and the editor diffs the document.
   Over 10 ms per keystroke from a collaborator, whenever you have anything
   unconfirmed.
 
@@ -139,7 +139,7 @@ sends one message per round trip instead of one per keystroke.
 Fixes, best value first:
 
 1. **Skip the rebuild when the incoming edit commutes with the pending ones.**
-   Apply it straight to `visible` and journal it as `Applied`, so plugins keep
+   Apply it straight to `visible` and journal it as `Applied`, so apps keep
    receiving operations. A `LiveEdit::commutes(pending, incoming)` hook that
    defaults to false. For text: the incoming edit is an insert, delete or
    undelete; its insert is not anchored on the same position as a pending

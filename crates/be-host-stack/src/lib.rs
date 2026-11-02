@@ -18,7 +18,7 @@ pub mod keys;
 pub mod link;
 mod nudge;
 pub mod offline_choice;
-pub mod plugin_graph;
+pub mod app_graph;
 mod replicas;
 pub mod revisions;
 #[cfg(feature = "testing")]

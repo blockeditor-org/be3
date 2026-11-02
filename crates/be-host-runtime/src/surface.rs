@@ -17,7 +17,7 @@ pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
 pub(super) fn copied(texture: &wgpu::Texture) -> Option<wgpu::Texture> {
     let (device, queue) = gpu()?;
     let copy = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("plugin preview"),
+        label: Some("app preview"),
         size: texture.size(),
         mip_level_count: 1,
         sample_count: 1,
@@ -29,7 +29,7 @@ pub(super) fn copied(texture: &wgpu::Texture) -> Option<wgpu::Texture> {
         view_formats: &[],
     });
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("plugin preview"),
+        label: Some("app preview"),
     });
     encoder.copy_texture_to_texture(
         texture.as_image_copy(),

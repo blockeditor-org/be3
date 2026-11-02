@@ -11,7 +11,7 @@ use crate::{
     wire::{Delivery, Shared},
 };
 
-pub struct HeadlessPlugin {
+pub struct HeadlessApp {
     session: ClientSession,
     screens: Screens,
     drawn: bool,
@@ -20,7 +20,7 @@ pub struct HeadlessPlugin {
     frames: Vec<Vec<u8>>,
 }
 
-impl HeadlessPlugin {
+impl HeadlessApp {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         crate::clock::restart();
         let wire = Shared::default();
@@ -142,7 +142,7 @@ impl HeadlessPlugin {
         let screens = &mut self.screens;
         self.executor.enter(|| screens.outbound());
         if let Err(error) = self.executor.step(Vec::new(), &mut self.frames) {
-            panic!("the headless plugin's executor failed: {error}");
+            panic!("the headless app's executor failed: {error}");
         }
         commit
     }

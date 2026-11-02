@@ -2,15 +2,15 @@ use be_sdk::wgpu;
 use std::collections::HashMap;
 
 use be_sdk::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, ShownView, SurfaceRect,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, App, ShownView, SurfaceRect,
     TimedInput, View, ViewHandler, ViewRef,
 };
 use be_type_example_triangle::TriangleContent;
 use uuid::Uuid;
 
-pub struct TrianglePlugin;
+pub struct TriangleApp;
 
-impl Plugin for TrianglePlugin {
+impl App for TriangleApp {
     fn open(host: EditorHost) -> Box<dyn Instance> {
         Box::new(Triangle::new(host))
     }

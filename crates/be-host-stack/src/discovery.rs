@@ -5,7 +5,7 @@ use std::{
 };
 
 use be_sdk_api::BlockTypeDescriptor;
-use be_sdk_manifest::PluginManifest;
+use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,15 +24,15 @@ pub use web::load;
 #[cfg(target_arch = "wasm32")]
 use web::{fetch, scan};
 
-const INDEX: &str = "plugins.json";
+const INDEX: &str = "apps.json";
 
-pub struct Plugins {
-    manifests: Vec<Arc<PluginManifest>>,
+pub struct Apps {
+    manifests: Vec<Arc<AppManifest>>,
     types: HashMap<Uuid, BlockTypeDescriptor>,
     errors: Vec<String>,
 }
 
-impl Default for Plugins {
+impl Default for Apps {
     fn default() -> Self {
         Self {
             manifests: Vec::new(),
@@ -42,7 +42,7 @@ impl Default for Plugins {
     }
 }
 
-pub fn block_types(manifests: &[Arc<PluginManifest>]) -> HashMap<Uuid, BlockTypeDescriptor> {
+pub fn block_types(manifests: &[Arc<AppManifest>]) -> HashMap<Uuid, BlockTypeDescriptor> {
     crate::host_block_types()
         .into_iter()
         .chain(
@@ -55,8 +55,8 @@ pub fn block_types(manifests: &[Arc<PluginManifest>]) -> HashMap<Uuid, BlockType
         .collect()
 }
 
-impl Plugins {
-    pub fn manifests(&self) -> &[Arc<PluginManifest>] {
+impl Apps {
+    pub fn manifests(&self) -> &[Arc<AppManifest>] {
         &self.manifests
     }
 
@@ -79,7 +79,7 @@ impl Plugins {
             .find(|block_type| self.types.contains_key(block_type))
         {
             self.errors.push(format!(
-                "{source}: {block_type} is a block type the host or a plugin found first already provides"
+                "{source}: {block_type} is a block type the host or an app found first already provides"
             ));
             return;
         }
@@ -101,7 +101,7 @@ impl Plugins {
             .find(|existing| existing.identity.id == manifest.identity.id)
         {
             self.errors.push(format!(
-                "{source}: {} is already the id of a plugin that was found first",
+                "{source}: {} is already the id of an app that was found first",
                 existing.identity.id
             ));
             return;
@@ -127,14 +127,14 @@ impl Plugins {
                 .find(|block_type| !self.types.contains_key(block_type))
                 .unwrap_or_default();
             self.errors.push(format!(
-                "{}: {missing} is not a block type the host or any plugin provides",
+                "{}: {missing} is not a block type the host or any app provides",
                 manifest.identity.id
             ));
             self.types = block_types(&self.manifests);
         }
     }
 
-    fn unprovided(manifest: &PluginManifest) -> impl Iterator<Item = Uuid> + '_ {
+    fn unprovided(manifest: &AppManifest) -> impl Iterator<Item = Uuid> + '_ {
         manifest
             .editors
             .iter()
@@ -153,35 +153,35 @@ impl Plugins {
     }
 }
 
-static PLUGINS: RwLock<Option<Arc<Plugins>>> = RwLock::new(None);
+static APPS: RwLock<Option<Arc<Apps>>> = RwLock::new(None);
 
-pub fn plugins() -> Arc<Plugins> {
-    if let Some(plugins) = PLUGINS
+pub fn apps() -> Arc<Apps> {
+    if let Some(apps) = APPS
         .read()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .as_ref()
     {
-        return Arc::clone(plugins);
+        return Arc::clone(apps);
     }
-    let mut held = PLUGINS
+    let mut held = APPS
         .write()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     Arc::clone(held.get_or_insert_with(|| Arc::new(scan())))
 }
 
 #[cfg(target_arch = "wasm32")]
-fn install(plugins: Plugins) {
-    *PLUGINS
+fn install(apps: Apps) {
+    *APPS
         .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(plugins));
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(apps));
 }
 
 pub fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
-    plugins().types.get(&content_type).cloned()
+    apps().types.get(&content_type).cloned()
 }
 
 pub fn exported_whole(content_type: Uuid) -> bool {
-    plugins()
+    apps()
         .manifests
         .iter()
         .flat_map(|manifest| &manifest.block_types)
@@ -190,7 +190,7 @@ pub fn exported_whole(content_type: Uuid) -> bool {
         })
 }
 
-async fn discover<F>(read: impl Fn(String) -> F) -> Plugins
+async fn discover<F>(read: impl Fn(String) -> F) -> Apps
 where
     F: Future<Output = Result<Vec<u8>, String>>,
 {
@@ -201,7 +201,7 @@ where
     if let Ok(id) = id {
         let _ = be_lib_build_id::install_metadata(&String::from_utf8_lossy(&id));
     }
-    let mut plugins = Plugins::default();
+    let mut apps = Apps::default();
     let manifests = index.and_then(|document| {
         serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
     });
@@ -215,26 +215,26 @@ where
                 match read
                     .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
                 {
-                    Ok(document) => plugins.add(manifest, &document),
-                    Err(error) => plugins.error(manifest, error),
+                    Ok(document) => apps.add(manifest, &document),
+                    Err(error) => apps.error(manifest, error),
                 }
             }
         }
-        Err(error) => plugins.error(INDEX, error),
+        Err(error) => apps.error(INDEX, error),
     }
-    plugins.settle();
-    plugins
+    apps.settle();
+    apps
 }
 
-pub fn manifests() -> Vec<Arc<PluginManifest>> {
-    plugins().manifests.clone()
+pub fn manifests() -> Vec<Arc<AppManifest>> {
+    apps().manifests.clone()
 }
 
-pub fn entry_point(plugin_id: &str, entry: &str) -> Option<String> {
-    plugins()
+pub fn entry_point(app_id: &str, entry: &str) -> Option<String> {
+    apps()
         .manifests
         .iter()
-        .any(|manifest| manifest.identity.id == plugin_id)
+        .any(|manifest| manifest.identity.id == app_id)
         .then(|| entry.to_owned())
 }
 
@@ -243,38 +243,38 @@ const DATA_INDEX: &str = "index.json";
 const DATA_FILES: &str = "files";
 
 pub fn data_listing(
-    plugin_id: &str,
+    app_id: &str,
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
-    staged(plugin_id, DATA_INDEX, deliver);
+    staged(app_id, DATA_INDEX, deliver);
 }
 
 pub fn data(
-    plugin_id: &str,
+    app_id: &str,
     path: &str,
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
     if !plain(path) {
         return deliver(Err(format!("{path:?} is not a plain relative path")));
     }
-    staged(plugin_id, &format!("{DATA_FILES}/{path}"), deliver);
+    staged(app_id, &format!("{DATA_FILES}/{path}"), deliver);
 }
 
 fn staged(
-    plugin_id: &str,
+    app_id: &str,
     path: &str,
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
-    let plugins = plugins();
-    if !plain(plugin_id)
-        || !plugins
+    let apps = apps();
+    if !plain(app_id)
+        || !apps
             .manifests
             .iter()
-            .any(|manifest| manifest.identity.id == plugin_id)
+            .any(|manifest| manifest.identity.id == app_id)
     {
-        return deliver(Err(format!("{plugin_id} is not a plugin this host found")));
+        return deliver(Err(format!("{app_id} is not an app this host found")));
     }
-    let relative = format!("{DATA}/{plugin_id}/{path}");
+    let relative = format!("{DATA}/{app_id}/{path}");
     fetch(relative.clone(), move |read| {
         deliver(read.map_err(|error| format!("{relative}: {error}")));
     });

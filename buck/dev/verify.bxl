@@ -4,8 +4,8 @@ load("//buck/dev/workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh), every test and plugin test, rustc's check pass over every
-# first-party Rust target on Linux and the plugins' wasm (workspace.bxl), so
+# (fix.sh), every test and app test, rustc's check pass over every
+# first-party Rust target on Linux and the apps' wasm (workspace.bxl), so
 # that a target no test builds still compiles, beui checked for Windows
 # (_CROSS_CHECKS), for ./scripts/ci which of crates/be-tool-bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
@@ -192,8 +192,8 @@ def _impl(ctx: bxl.Context):
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
         built.extend(_cross_checks(ctx))
         built.extend(_workspace_checks(ctx))
-    if args.plugin_tests:
-        targets = ctx.cquery().kind("^(plugin_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
+    if args.app_tests:
+        targets = ctx.cquery().kind("^(app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
         printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])
     if args.previews:
         printed.append(("local-tools", _host_output(ctx, "root//crates/be-tool-local:release", args.host)))
@@ -212,7 +212,7 @@ main = bxl_main(
         "bootstrap": cli_args.bool(False),
         "host": cli_args.string("linux_x86_64"),
         "lint": cli_args.bool(False),
-        "plugin_tests": cli_args.bool(False),
+        "app_tests": cli_args.bool(False),
         "previews": cli_args.bool(False),
         # crates/be-tool-bootstrap's release for six platforms, which ./scripts/ci builds
         # and ./scripts/verify leaves to it. True for a bootstrap older than this

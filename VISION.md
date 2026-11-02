@@ -21,7 +21,7 @@ could. None of that is decided.
 Two things, and neither is enough alone.
 
 - **A strong core for extension.** What a block gets for free has to be good
-  enough that building on BE3 beats building a standalone app, and the plugin
+  enough that building on BE3 beats building a standalone program, and the app
   API has to be safe and stable enough for strangers to build on.
 - **Apps that win on their own.** A few apps have to be solid, or new, enough
   to attract people who don't care about the vision. An app is worth building
@@ -43,8 +43,8 @@ through a layer gets that layer's guarantees, and nothing else does.
 3. **Storage and history.** Encrypted, content-addressed bytes, commits, and
    three-way merge of offline edits. The server stores objects it can't read.
 4. **Live sync.** Today every block goes through a session owner that puts each
-   operation in one order, so nothing has to be a CRDT. Once plugins can
-   provide block types, a plugin should be able to bring its own instead: a
+   operation in one order, so nothing has to be a CRDT. Once apps can
+   provide block types, an app should be able to bring its own instead: a
    CRDT that needs no true order, OT, or a game's own netcode that has no
    operations at all, while still using the layers below.
 5. **The built-in model.** `be_block_model` documents get merging, undo and
@@ -73,25 +73,25 @@ own channel keeps neither, and the host should be honest about that.
 
 ## Extension
 
-Every editor is a plugin, so that eventually anyone can write one.
+Every editor belongs to an app, so that eventually anyone can write one.
 
-**Kinds.** Plugins are wasm only today. Native plugins existed once and were
-dropped to save maintenance effort for now; they will come back. Web plugins
+**Kinds.** Apps are wasm only today. Native apps existed once and were
+dropped to save maintenance effort for now; they will come back. Web apps
 will be a third kind, supported on every platform: webtech is possibly the most
 popular way to build a GUI there is. The protocol stays the same for all three,
 and free of any one GUI framework. What differs is how messages travel and how
-images are passed: wasm and native plugins hand over GPU textures, and a web
-plugin passes none, the host just deals with it.
+images are passed: wasm and native apps hand over GPU textures, and a web
+app passes none, the host just deals with it.
 
-**Trust.** Plugins aren't properly sandboxed yet. The baseline to reach is that
-the host can safely and automatically preview what a plugin draws, on your own
-machine, even when a malicious person sent you the plugin. That is the least a
-plugin can be trusted with. Installing one, so that it shows up in the add-block
+**Trust.** Apps aren't properly sandboxed yet. The baseline to reach is that
+the host can safely and automatically preview what an app draws, on your own
+machine, even when a malicious person sent you the app. That is the least an
+app can be trusted with. Installing one, so that it shows up in the add-block
 menu and elsewhere, is a higher level of trust. Until the baseline holds, the
-first release has to be more careful, and should not run a plugin without the
+first release has to be more careful, and should not run an app without the
 user confirming it.
 
-**Licenses.** A core plugin may be GPL or AGPL, since a plugin is a separate
+**Licenses.** A core app may be GPL or AGPL, since an app is a separate
 program, but the host must still build without it.
 
 **Entry points.** The file tree is the only way into a block today. An editor
@@ -107,7 +107,7 @@ opens to your sheets and a button to make one. Not designed yet.
   back navigation, sheets, long press, text selection and scrolling.
 - **The desktop.** If BE3 is the base of a computer, it has to be able to be the
   computer. As a login session (`BEUI_PLATFORM=drm block-app --desktop`), block-app is a Wayland compositor whose shell is
-  a plugin (`guides/desktop.md`, `guides/desktop/linux.md`). On Linux, a foreign file's own program
+  an app (`guides/desktop.md`, `guides/desktop/linux.md`). On Linux, a foreign file's own program
   can then open inside a tab; elsewhere it opens in a separate app, and web and
   Android can't open it at all.
 - **The PineNote** (`guides/pinenote.md`) is supported because it is a device we
@@ -141,7 +141,7 @@ desktop, mobile and web, and isn't webtech. No big option does that:
   so choosing one means owning it anyway and working around what's broken. If
   we have to own a framework to make it good, it may as well be ours.
 
-The project's own needs point the same way: plugins are sandboxed guests that
+The project's own needs point the same way: apps are sandboxed guests that
 render offscreen and hand over GPU textures, and the same UI is also a desktop
 shell. Owning the framework means owning text shaping, IME, accessibility
 (through AccessKit) and every platform's quirks. Drawn on the web, beui has Flutter's
@@ -165,7 +165,7 @@ selects, pages render on the server and hydrate, and find in page and screen
 readers see real content. beui keeps text editing its own in the first
 version, the same code on both cores (the browser's EditContext and password
 inputs may follow), and owns drawing, the escape hatch (`Drawing`) on both.
-Plugins stay on canvas on the web for now, and later become iframes that could
+Apps stay on canvas on the web for now, and later become iframes that could
 run the HTML core themselves. block-app itself is still drawn on the web until
 it moves to that core.
 
@@ -311,7 +311,7 @@ else sees your browser live, is one possible direction.
 A game is an application, so if the platform is good it has to run games. The
 tabletop games (chess, checkers and others, as deterministic wasm modules) and
 the logic game (a video game concept with some time put into it) are separate
-projects that show what the plugin API can build once it is safe for third
+projects that show what the app API can build once it is safe for third
 parties and frozen. A shared game world that only uses BE3 to join (layers 1
 and 2) is another shape a game can take.
 
@@ -344,6 +344,6 @@ editors are examples, tests and experiments, not apps.
 - How far the version control UI can go for someone who has never used git:
   whether branches need a plainer name, and how the change graph is drawn.
 - Property-based views, as described under Database.
-- How a plugin provides its own live sync, and what the host tells people about
+- How an app provides its own live sync, and what the host tells people about
   the guarantees such a block keeps.
 - Entry points other than the file tree.

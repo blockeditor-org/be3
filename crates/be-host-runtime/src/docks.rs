@@ -39,7 +39,7 @@ enum Hosting {
 
 #[derive(Default)]
 pub(super) struct Docks {
-    plugins: HashMap<EditorInstanceId, String>,
+    apps: HashMap<EditorInstanceId, String>,
     blocks: HashMap<Uuid, EditorInstanceId>,
     children: HashMap<EditorInstanceId, BTreeMap<ChildId, Placed>>,
     declared: HashMap<EditorInstanceId, DockDeclaration>,
@@ -62,10 +62,10 @@ impl Docks {
     pub(super) fn register(
         &mut self,
         instance: EditorInstanceId,
-        plugin: &str,
+        app: &str,
         block: Option<Uuid>,
     ) {
-        self.plugins.insert(instance, plugin.to_owned());
+        self.apps.insert(instance, app.to_owned());
         if let Some(block) = block
             && self.blocks.insert(block, instance) != Some(instance)
         {
@@ -87,14 +87,14 @@ impl Docks {
         self.parked.retain(|(held, _), _| *held != instance);
         self.shown_bars.retain(|(held, _)| *held != instance);
         self.refresh();
-        self.plugins.remove(&instance);
+        self.apps.remove(&instance);
     }
 
-    pub(super) fn restarted(&mut self, plugin: &str) {
+    pub(super) fn restarted(&mut self, app: &str) {
         let gone: Vec<EditorInstanceId> = self
-            .plugins
+            .apps
             .iter()
-            .filter(|(_, held)| *held == plugin)
+            .filter(|(_, held)| *held == app)
             .map(|(instance, _)| *instance)
             .collect();
         for instance in gone {
@@ -167,7 +167,7 @@ impl Docks {
         }
     }
 
-    pub(super) fn heard(&mut self, plugin: &str, messages: Vec<DockMessage>) {
+    pub(super) fn heard(&mut self, app: &str, messages: Vec<DockMessage>) {
         if messages.is_empty() {
             return;
         }
@@ -175,7 +175,7 @@ impl Docks {
             match message {
                 DockMessage::Declare(declare) => {
                     let instance = declare.view.instance;
-                    if declare.view.view != ViewId::MAIN || !self.owns(plugin, instance) {
+                    if declare.view.view != ViewId::MAIN || !self.owns(app, instance) {
                         continue;
                     }
                     match declare.declaration {
@@ -186,17 +186,17 @@ impl Docks {
                 }
                 DockMessage::Request(request) => {
                     let instance = request.view.instance;
-                    if request.view.view == ViewId::MAIN && self.owns(plugin, instance) {
+                    if request.view.view == ViewId::MAIN && self.owns(app, instance) {
                         self.request(instance, request.request);
                     }
                 }
                 DockMessage::Host(host) => {
-                    if self.owns(plugin, host.child.instance) {
+                    if self.owns(app, host.child.instance) {
                         self.host(host.child, host.hold);
                     }
                 }
                 DockMessage::Close(close) => {
-                    if self.owns(plugin, close.child.instance)
+                    if self.owns(app, close.child.instance)
                         && let Some((owner, tab)) = self.owner(close.child, close.tab)
                     {
                         self.send(
@@ -209,11 +209,11 @@ impl Docks {
                     }
                 }
                 DockMessage::Pick(pick) => {
-                    if self.owns(plugin, pick.child.instance)
+                    if self.owns(app, pick.child.instance)
                         && let Some((owner, tab)) = self.owner(pick.child, pick.tab)
                     {
-                        if let Some(plugin) = self.plugins.get(&owner) {
-                            self.changed.insert(plugin.clone());
+                        if let Some(app) = self.apps.get(&owner) {
+                            self.changed.insert(app.clone());
                         }
                         self.picks
                             .push((owner, ViewId(tab.tab), pick.id, pick.anchor));
@@ -254,11 +254,11 @@ impl Docks {
         shown.then_some((block?, path.tab))
     }
 
-    pub(super) fn take(&mut self, plugin: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
-        let plugins = &self.plugins;
+    pub(super) fn take(&mut self, app: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
+        let apps = &self.apps;
         let (taken, kept) = std::mem::take(&mut self.outbox)
             .into_iter()
-            .partition(|(to, _)| plugins.get(to).is_some_and(|held| held == plugin));
+            .partition(|(to, _)| apps.get(to).is_some_and(|held| held == app));
         self.outbox = kept;
         taken
     }
@@ -270,8 +270,8 @@ impl Docks {
         let Some((placer, child, record)) = self.placer_of(instance) else {
             return false;
         };
-        if let Some(plugin) = self.plugins.get(&placer) {
-            self.changed.insert(plugin.clone());
+        if let Some(app) = self.apps.get(&placer) {
+            self.changed.insert(app.clone());
         }
         let view = match self.docked(placer) {
             true => ViewId(record.tab),
@@ -283,12 +283,12 @@ impl Docks {
 
     pub(super) fn take_bars(
         &mut self,
-        plugin: &str,
+        app: &str,
     ) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
-        let plugins = &self.plugins;
+        let apps = &self.apps;
         let (taken, kept) = std::mem::take(&mut self.bars)
             .into_iter()
-            .partition(|(to, _, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+            .partition(|(to, _, _, _)| apps.get(to).is_some_and(|held| held == app));
         self.bars = kept;
         taken
     }
@@ -316,11 +316,11 @@ impl Docks {
         }
     }
 
-    pub(super) fn take_picks(&mut self, plugin: &str) -> Vec<Pick> {
-        let plugins = &self.plugins;
+    pub(super) fn take_picks(&mut self, app: &str) -> Vec<Pick> {
+        let apps = &self.apps;
         let (taken, kept) = std::mem::take(&mut self.picks)
             .into_iter()
-            .partition(|(to, _, _, _)| plugins.get(to).is_some_and(|held| held == plugin));
+            .partition(|(to, _, _, _)| apps.get(to).is_some_and(|held| held == app));
         self.picks = kept;
         taken
     }
@@ -329,10 +329,10 @@ impl Docks {
         self.changed.drain().collect()
     }
 
-    fn owns(&self, plugin: &str, instance: EditorInstanceId) -> bool {
-        self.plugins
+    fn owns(&self, app: &str, instance: EditorInstanceId) -> bool {
+        self.apps
             .get(&instance)
-            .is_some_and(|held| held == plugin)
+            .is_some_and(|held| held == app)
     }
 
     fn instance_of(&self, placer: EditorInstanceId, record: &Placed) -> Option<EditorInstanceId> {
@@ -361,8 +361,8 @@ impl Docks {
     }
 
     fn send(&mut self, to: EditorInstanceId, update: DockUpdate) {
-        if let Some(plugin) = self.plugins.get(&to) {
-            self.changed.insert(plugin.clone());
+        if let Some(app) = self.apps.get(&to) {
+            self.changed.insert(app.clone());
         }
         self.outbox.push((to, update));
     }
@@ -475,8 +475,8 @@ impl Docks {
             .symmetric_difference(&self.docked)
             .chain(framed.symmetric_difference(&self.framed))
         {
-            if let Some(plugin) = self.plugins.get(instance) {
-                self.changed.insert(plugin.clone());
+            if let Some(app) = self.apps.get(instance) {
+                self.changed.insert(app.clone());
             }
         }
         self.docked = docked;
@@ -862,24 +862,24 @@ fn with<R>(act: impl FnOnce(&mut Docks) -> R) -> R {
         (result, docks.take_changed())
     });
     if !changed.is_empty() {
-        for plugin in changed {
-            super::runtime::mark(&plugin);
+        for app in changed {
+            super::runtime::mark(&app);
         }
         be_host_base::host::request_repaint();
     }
     result
 }
 
-pub(super) fn register(instance: EditorInstanceId, plugin: &str, block: Option<Uuid>) {
-    with(|docks| docks.register(instance, plugin, block));
+pub(super) fn register(instance: EditorInstanceId, app: &str, block: Option<Uuid>) {
+    with(|docks| docks.register(instance, app, block));
 }
 
 pub(super) fn forget(instance: EditorInstanceId) {
     with(|docks| docks.forget(instance));
 }
 
-pub(super) fn restarted(plugin: &str) {
-    with(|docks| docks.restarted(plugin));
+pub(super) fn restarted(app: &str) {
+    with(|docks| docks.restarted(app));
 }
 
 pub(super) fn placed(
@@ -894,8 +894,8 @@ pub(super) fn offscreen(placer: EditorInstanceId) {
     with(|docks| docks.offscreen(placer));
 }
 
-pub(super) fn heard(plugin: &str, messages: Vec<DockMessage>) {
-    with(|docks| docks.heard(plugin, messages));
+pub(super) fn heard(app: &str, messages: Vec<DockMessage>) {
+    with(|docks| docks.heard(app, messages));
 }
 
 pub(super) fn docked(instance: EditorInstanceId) -> bool {
@@ -920,20 +920,20 @@ pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
     with(|docks| docks.bar(instance, action))
 }
 
-pub(super) fn take_bars(plugin: &str) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
-    DOCKS.with(|docks| docks.borrow_mut().take_bars(plugin))
+pub(super) fn take_bars(app: &str) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
+    DOCKS.with(|docks| docks.borrow_mut().take_bars(app))
 }
 
 pub(super) fn set_menu(instance: EditorInstanceId, view: ViewId, items: Vec<MenuItem>) {
     with(|docks| docks.set_menu(instance, view, items));
 }
 
-pub(super) fn take_picks(plugin: &str) -> Vec<Pick> {
-    DOCKS.with(|docks| docks.borrow_mut().take_picks(plugin))
+pub(super) fn take_picks(app: &str) -> Vec<Pick> {
+    DOCKS.with(|docks| docks.borrow_mut().take_picks(app))
 }
 
-pub(super) fn take(plugin: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
-    DOCKS.with(|docks| docks.borrow_mut().take(plugin))
+pub(super) fn take(app: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
+    DOCKS.with(|docks| docks.borrow_mut().take(app))
 }
 
 #[cfg(test)]

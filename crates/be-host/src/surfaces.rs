@@ -6,7 +6,7 @@ use beui::styled::*;
 use beui::{Align, NodeId};
 use uuid::Uuid;
 
-use crate::compositor::{ChildView, PluginView, ShellSurface, ViewEditor};
+use crate::compositor::{ChildView, AppView, ShellSurface, ViewEditor};
 use beui::{Align2, Direction};
 
 mod notices;
@@ -139,7 +139,7 @@ pub(crate) fn HostedSurface(
                     None => frame.clone(),
                 });
                 view! {
-                    <PluginView editor={hosted.editor} region={hosted.region} frame child_view />
+                    <AppView editor={hosted.editor} region={hosted.region} frame child_view />
                 }
             }</ForEach>
         </Layers>
