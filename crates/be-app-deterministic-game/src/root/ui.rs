@@ -29,11 +29,11 @@ use moves::MoveTable;
 use play::Play;
 
 const STAGE: &str = "stage";
-const SIDEBAR: &str = "sidebar";
+const HISTORY: &str = "history";
+const CHOICES: &str = "choices";
 const ACTIONS: &str = "actions";
 const SIDEBAR_WIDTH: f32 = be_sdk_beui::SIDE_PANEL_WIDTH;
 const PANEL_PADDING: Space = Space::Lg;
-const SECTION_SPACING: Space = Space::Lg;
 const BANNER_MARGIN: Space = Space::Lg;
 
 pub(crate) trait GameModel {
@@ -257,7 +257,6 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
 #[derive(Clone, Copy)]
 struct Panel {
     game: Stored<Rc<dyn GameModel>>,
-    play: Play,
     controls: Memo<Vec<Action>>,
     editable: Memo<bool>,
     seat: Memo<Seat>,
@@ -317,7 +316,6 @@ fn GamePlay(
     let steps = Steps { game, count, shown };
     let panel = Panel {
         game,
-        play,
         controls,
         editable,
         seat,
@@ -374,8 +372,10 @@ fn GameDock(
     panel: Panel,
 ) -> NodeId {
     let steps = panel.steps;
-    let controls = panel.controls;
-    let acting = create_memo(move || !controls.with(Vec::is_empty));
+    let Panel {
+        table, shown, ..
+    } = panel;
+    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     let dock = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout={dock} focus={Some(STAGE)}>
@@ -385,19 +385,26 @@ fn GameDock(
                         <Stage content={stage} editor play drawn layout hand steps />
                     </DockTab>
                 </DockPane>
-                <DockPane id="sidebar" locked=true>
-                    <DockTab id=SIDEBAR title="Moves">
-                        <Sidebar panel />
+                <DockPane id="history" locked=true>
+                    <DockTab id=HISTORY title="History">
+                        <History table shown steps />
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={acting}>
+            <DockBar
+                id=ACTIONS
+                parent=STAGE
+                placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
+            >
+                <ActionBar panel />
+            </DockBar>
+            <Show condition={choosing}>
                 <DockBar
-                    id=ACTIONS
+                    id=CHOICES
                     parent=STAGE
-                    placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::Start)}
+                    placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}
                 >
-                    <ActionBar panel />
+                    <ChoiceBar play />
                 </DockBar>
             </Show>
         </Docking>
@@ -408,6 +415,7 @@ fn GameDock(
 fn ActionBar(panel: Panel) -> NodeId {
     let Panel {
         game,
+        seat,
         controls,
         editable,
         ..
@@ -419,22 +427,14 @@ fn ActionBar(panel: Panel) -> NodeId {
             <Frame @test_id={"game.actions.grip"}>
                 <DockBarGrip />
             </Frame>
+            <SeatPicker game seat />
             <Controls game controls editable direction />
         </DockBarSurface>
     }
 }
 
 #[component]
-fn Sidebar(panel: Panel) -> NodeId {
-    let Panel {
-        game,
-        play,
-        seat,
-        table,
-        shown,
-        steps,
-        ..
-    } = panel;
+fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
     let names = create_memo(move || seat.get().names);
     let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
     let playing = create_memo(move || Some(seat.get().playing));
@@ -443,39 +443,44 @@ fn Sidebar(panel: Panel) -> NodeId {
             game.value().play_as(seat);
         }
     };
-    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
+    view! {
+        <List spacing=Space::None>
+            <Select
+                options={view! {
+                    <ForEach keys={seat_keys}>|seat: usize| {
+                        let label = create_memo(move || {
+                            names.with(|names| names.get(seat).cloned().unwrap_or_default())
+                        });
+                        view! {
+                            <ChoiceOption label />
+                        }
+                    }</ForEach>
+                }}
+                selected={Binding::new(playing, seated)}
+                label="Playing as"
+                @test_id={"game.player"}
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn ChoiceBar(play: Play) -> NodeId {
+    view! {
+        <DockBarSurface spacing=Space::Sm @test_id={"game.choices"}>
+            <ChoiceButtons play />
+        </DockBarSurface>
+    }
+}
+
+#[component]
+fn History(table: Memo<Table>, shown: Memo<usize>, steps: Steps) -> NodeId {
     view! {
         <Frame fill=ColorRole::Surface>
-            <Scroll>
+            <Scroll @test_id={"game.history"}>
                 <Frame padding=PANEL_PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <Text style=TextStyle::CAPTION>"Playing as"</Text>
-                            <Select
-                                options={view! {
-                                    <ForEach keys={seat_keys}>|seat: usize| {
-                                        let label = create_memo(move || {
-                                            names.with(|names| {
-                                                names.get(seat).cloned().unwrap_or_default()
-                                            })
-                                        });
-                                        view! {
-                                            <ChoiceOption label />
-                                        }
-                                    }</ForEach>
-                                }}
-                                selected={Binding::new(playing, seated)}
-                                label="Playing as"
-                                @test_id={"game.player"}
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            />
-                        </List>
-                        <Show condition={choosing}>
-                            <Choices play={play} />
-                        </Show>
-                        <Separator />
-                        <MoveTable table shown steps />
-                    </List>
+                    <MoveTable table shown steps />
                 </Frame>
             </Scroll>
         </Frame>
@@ -601,24 +606,14 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
 }
 
 #[component]
-fn Choices(play: Play) -> NodeId {
-    view! {
-        <Card>
-            <List spacing=Space::Md>
-                <Text>"Which move?"</Text>
-                <ChoiceButtons play />
-            </List>
-        </Card>
-    }
-}
-
-#[component]
 fn ChoiceButtons(play: Play) -> NodeId {
     let choices = play.choices;
     let keys = create_memo(move || choices.get());
     let cancel = move || play.cancel();
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Vertical, |bar| bar.direction()));
     view! {
-        <List spacing=Space::Sm>
+        <List direction={direction} align=Align::Center spacing=Space::Sm>
             <ForEach keys={keys}>|action: Action| {
                 let index = action.index;
                 view! {
