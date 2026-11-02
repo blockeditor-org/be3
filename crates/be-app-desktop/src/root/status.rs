@@ -51,7 +51,10 @@ fn label(status: Status) -> String {
     if status.audible.get()
         && let Some(output) = status.levels.with(|levels| levels.output)
     {
-        said.push(format!("Volume: {}", volume::percent(output)));
+        said.push(match output.muted {
+            true => "Volume: muted".to_owned(),
+            false => format!("Volume: {}", volume::percent(output)),
+        });
     }
     match said.is_empty() {
         true => "Quick settings".to_owned(),

@@ -3,10 +3,11 @@ use std::time::{Duration, Instant};
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::unstyled::{Progress as BareProgress, ProgressHandle};
 use be_sdk_beui::beui::{
     LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign,
 };
-use beui::{Align, Direction, Sides};
+use beui::{Align, Direction, ItemSize, Sides};
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
 
@@ -17,13 +18,27 @@ const PADDING_HORIZONTAL: Space = Space::Xl2;
 const PADDING_VERTICAL: Space = Space::Xl;
 const SPACING: Space = Space::Xl;
 const BAR_WIDTH: Size = Size::Menu;
+const BAR_HEIGHT: Size = Size::Track;
+const LOUDER_SCALE: f32 = 1.5;
+const SLIVER: f32 = 0.001;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct OsdLevel {
     pub glyph: Glyph,
     pub label: String,
-    pub level: f32,
+    pub level: Option<f32>,
     pub muted: bool,
+}
+
+pub(crate) fn spans(level: f32) -> (f32, f32, f32) {
+    let level = level.max(0.0);
+    let scale = match level > 1.0 {
+        true => level.max(LOUDER_SCALE),
+        false => 1.0,
+    };
+    let full = level.min(1.0) / scale;
+    let louder = (level - 1.0).max(0.0) / scale;
+    (full, louder, (1.0 - full - louder).max(0.0))
 }
 
 #[component]
@@ -110,7 +125,9 @@ fn OsdCard(
         false => ColorRole::Accent,
     });
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
-    let value = create_memo(move || level.with(|level| level.as_ref().map(|level| level.level)));
+    let value = create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
+    let present = create_memo(move || value.get().is_some());
+    let absent = create_memo(move || !present.get());
     let label = create_memo(move || {
         level.with(|level| {
             level
@@ -135,9 +152,44 @@ fn OsdCard(
                     <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <Progress value label width=BAR_WIDTH fill />
+                    <Show condition={present}>
+                        <LevelBar value label fill />
+                    </Show>
+                    <Show condition={absent}>
+                        <Frame width=BAR_WIDTH>
+                            <Text color=TextColor::Muted>{label}</Text>
+                        </Frame>
+                    </Show>
                 </List>
             </Frame>
         </Frame>
+    }
+}
+
+#[component]
+fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
+    let spans = create_memo(move || spans(value.get().unwrap_or_default()));
+    let percent = move |span: fn((f32, f32, f32)) -> f32| {
+        create_memo(move || ItemSize::Percent(span(spans.get()) * 100.0 + SLIVER))
+    };
+    let said = create_memo(move || {
+        let label = label.get();
+        match value.get() {
+            Some(level) if level > 1.0 => format!("{label} {}%", (level * 100.0).round()),
+            _ => label,
+        }
+    });
+    view! {
+        <BareProgress value={value} label={said}>|_handle: ProgressHandle| {
+            view! {
+                <Frame width=BAR_WIDTH height=BAR_HEIGHT fill=ColorRole::Track radius=Radius::Full>
+                    <List direction=Direction::Horizontal spacing=Space::None>
+                        <Frame @sizing={percent(|spans| spans.0)} fill radius=Radius::Full />
+                        <Frame @sizing={percent(|spans| spans.1)} fill=ColorRole::Warning radius=Radius::Full />
+                        <Spacer @sizing={percent(|spans| spans.2)} />
+                    </List>
+                </Frame>
+            }
+        }</BareProgress>
     }
 }

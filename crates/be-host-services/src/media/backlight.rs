@@ -77,6 +77,7 @@ pub(super) fn stepped(brightness: u32, max: u32, by: f32) -> u32 {
 
 async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
     let mut session = None;
+    let mut told = false;
     if let Some(device) = find(Path::new(DEVICES)) {
         events.send(MediaEvent::Brightness(
             device.brightness as f32 / device.max as f32,
@@ -84,9 +85,12 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
     }
     while let Some(by) = steps.recv().await {
         let Some(device) = find(Path::new(DEVICES)) else {
-            eprintln!("be-host: there is no backlight in {DEVICES} to brighten or dim");
+            if !std::mem::replace(&mut told, true) {
+                eprintln!("be-host: there is no backlight in {DEVICES} to brighten or dim");
+            }
             continue;
         };
+        told = false;
         let target = stepped(device.brightness, device.max, by);
         if target != device.brightness {
             if session.is_none() {

@@ -33,6 +33,27 @@ fn media_keys_go_to_the_player_that_played_last() {
         "a name that is no player is ignored"
     );
 
+    players.status(":1.9", "Playing");
+    players.status(":1.5", "Paused");
+    players.first_status(":1.5", "Playing");
+    assert_eq!(
+        players.target(),
+        Some(":1.9"),
+        "a status read when a player appeared does not undo one it said since"
+    );
+    players.status(":1.5", "Playing");
+    assert_eq!(
+        players.target(),
+        Some(":1.5"),
+        "of two playing players the one that started last is told"
+    );
+    players.status(":1.5", "Paused");
+    assert_eq!(
+        players.target(),
+        Some(":1.9"),
+        "a player still playing comes before one that paused"
+    );
+
     players.vanished("org.mpris.MediaPlayer2.vlc");
     assert_eq!(
         players.target(),

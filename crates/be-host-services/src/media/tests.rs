@@ -5,8 +5,10 @@ use super::*;
 
 mod brightness_steps_stop_at_the_ends_of_the_backlight;
 mod media_keys_go_to_the_player_that_played_last;
+mod media_keys_on_a_private_bus_go_to_the_player_that_is_playing;
 mod requests_from_the_desktop_reach_their_backends_within_bounds;
 mod the_backlight_is_the_firmware_device_when_there_are_several;
+mod the_default_output_is_the_one_the_server_names_or_else_the_first;
 mod the_levels_follow_what_the_backends_report;
 mod volume_steps_stop_at_full_and_at_silence;
 

@@ -272,8 +272,10 @@ The desktop app binds the volume, mute, mic mute, brightness and media transport
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`root/osd.rs`), an icon and
-a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
-(`editor.watch::<MediaWatch>()`). The Status bar's status button shows
+a level bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
+(`editor.watch::<MediaWatch>()`). A volume past 100% stretches the bar to 150% (or the level) and draws
+the part past full in `ColorRole::Warning`; a level the host does not report shows its icon and
+"No audio device", "No microphone" or "No backlight" instead of a bar. The Status bar's status button shows
 the output's volume icon while the host reports one, and Quick settings (`root/volume.rs`) sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
@@ -282,13 +284,17 @@ be-host-services does what an app cannot: `src/media.rs` starts its backends onc
 the levels or the shell asks for something, carries out the shell's requests only, and reports
 the levels back. The backends run as tasks on the D-Bus thread:
 - `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
-  and source, the list of sinks and choosing the default one, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  and source (named by `GetServerInfo` and looked up in the sink and source lists, falling back to
+  the first sink or the first source that is not a monitor while the server's default names none of them), the list of sinks and choosing the default one, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
   which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
-  sink, source and server events and reports every change.
+  sink, source and server events and reports every change. A server it cannot reach is logged once
+  per distinct error, not on every key.
 - `media/backlight.rs`: brightness steps through logind's `Session.SetBrightness` on
   `/sys/class/backlight`'s device (firmware before platform before raw).
-- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
-  recently started playing, or the first one listed, on the session bus.
+- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that is playing
+  (of several, the one that started last), else the one that played last, else the first one
+  listed, on the session bus. It reads each player's `PlaybackStatus` when it appears and follows
+  every player's `PropertiesChanged`; `run_on` takes any connection, so tests run it on a private bus.
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for be-host, and press them with

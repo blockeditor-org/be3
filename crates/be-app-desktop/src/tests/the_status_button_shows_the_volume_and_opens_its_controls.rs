@@ -37,8 +37,9 @@ fn the_status_button_shows_the_volume_and_opens_its_controls() {
 
     fixture.hear(0.7, true, HEADPHONES);
     assert!(
-        fixture.status_label().contains("70%"),
-        "a change made by the volume keys or another program shows in the bar"
+        fixture.status_label().contains("Volume: muted"),
+        "a change made by the volume keys or another program shows in the bar, and a muted volume says so: {}",
+        fixture.status_label()
     );
     let document = fixture.test.document();
     let slider = document.find_test_id("desktop.volume.level").unwrap();

@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::io::Cursor;
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
@@ -9,9 +9,9 @@ use futures_util::future::{Either, select};
 use futures_util::io::{AsyncReadExt, AsyncWriteExt};
 use futures_util::pin_mut;
 use pulseaudio::protocol::{
-    self, AuthParams, AuthReply, ChannelVolume, Command, CommandReply, GetSinkInfo, GetSourceInfo,
-    Prop, Props, PulseError, SetClientNameReply, SetDeviceMuteParams, SetDeviceVolumeParams,
-    SinkInfo, SinkInfoList, SourceInfo, SubscriptionMask, Volume,
+    self, AuthParams, AuthReply, ChannelVolume, Command, CommandReply, Prop, Props, PulseError,
+    ServerInfo, SetClientNameReply, SetDeviceMuteParams, SetDeviceVolumeParams, SinkInfo,
+    SinkInfoList, SourceInfo, SourceInfoList, SubscriptionMask, Volume,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
@@ -84,6 +84,46 @@ pub(super) fn output_of(sink: &SinkInfo) -> AudioOutput {
     AudioOutput { id, name }
 }
 
+pub(super) fn default_sink(sinks: SinkInfoList, named: Option<&CStr>) -> Option<SinkInfo> {
+    let at = named
+        .and_then(|named| sinks.iter().position(|sink| sink.name.as_c_str() == named))
+        .unwrap_or_default();
+    sinks.into_iter().nth(at)
+}
+
+pub(super) fn default_source(sources: SourceInfoList, named: Option<&CStr>) -> Option<SourceInfo> {
+    let at = named
+        .and_then(|named| {
+            sources
+                .iter()
+                .position(|source| source.name.as_c_str() == named)
+        })
+        .or_else(|| {
+            sources
+                .iter()
+                .position(|source| source.monitor_of_sink_index.is_none())
+        })?;
+    sources.into_iter().nth(at)
+}
+
+pub(super) struct Unreachable(Option<String>);
+
+impl Unreachable {
+    pub(super) fn new() -> Self {
+        Self(None)
+    }
+
+    pub(super) fn first(&mut self, error: &str) -> bool {
+        let first = self.0.as_deref() != Some(error);
+        self.0 = Some(error.to_owned());
+        first
+    }
+
+    pub(super) fn reached(&mut self) {
+        self.0 = None;
+    }
+}
+
 pub(super) fn level(channels: &[u32], muted: bool) -> MediaLevel {
     let loudest = channels.iter().copied().max().unwrap_or_default();
     MediaLevel {
@@ -95,19 +135,27 @@ pub(super) fn level(channels: &[u32], muted: bool) -> MediaLevel {
 async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: Post<MediaEvent>) {
     let mut pending = None;
     let mut reconnect = true;
+    let mut unreachable = Unreachable::new();
     loop {
         match Connection::open().await {
-            Ok(mut connection) => match connection.serve(&mut requested, &events, pending).await {
-                Ok(()) => return,
-                Err(error) => {
-                    eprintln!("be-host: the PulseAudio connection ended: {error}");
-                    pending = None;
-                    if std::mem::take(&mut reconnect) {
-                        continue;
+            Ok(mut connection) => {
+                unreachable.reached();
+                match connection.serve(&mut requested, &events, pending).await {
+                    Ok(()) => return,
+                    Err(error) => {
+                        eprintln!("be-host: the PulseAudio connection ended: {error}");
+                        pending = None;
+                        if std::mem::take(&mut reconnect) {
+                            continue;
+                        }
                     }
                 }
-            },
-            Err(error) => eprintln!("be-host: PulseAudio is not reachable: {error}"),
+            }
+            Err(error) => {
+                if unreachable.first(&error) {
+                    eprintln!("be-host: PulseAudio is not reachable: {error}");
+                }
+            }
         }
         events.send(MediaEvent::Audio(AudioState::default()));
         match requested.recv().await {
@@ -299,11 +347,10 @@ impl Connection {
     }
 
     async fn publish(&mut self, events: &Post<MediaEvent>) -> Result<(), String> {
-        let sinks: SinkInfoList = self
-            .reply(Command::GetSinkInfoList)
-            .await?
-            .unwrap_or_default();
-        let sink = self.sink().await?;
+        let sinks = self.sinks().await?;
+        let outputs = sinks.iter().map(output_of).collect();
+        let named = self.server().await?.and_then(|server| server.default_sink_name);
+        let sink = default_sink(sinks, named.as_deref());
         let output = sink.as_ref().map(|sink| {
             let channels: Vec<u32> = sink.cvolume.channels().iter().map(Volume::as_u32).collect();
             level(&channels, sink.muted)
@@ -321,26 +368,39 @@ impl Connection {
         events.send(MediaEvent::Audio(AudioState {
             output,
             input,
-            outputs: sinks.iter().map(output_of).collect(),
+            outputs,
             default_output,
         }));
         Ok(())
     }
 
+    async fn server(&mut self) -> Result<Option<ServerInfo>, String> {
+        Ok(self.reply(Command::GetServerInfo).await?.ok())
+    }
+
+    async fn sinks(&mut self) -> Result<SinkInfoList, String> {
+        Ok(self
+            .reply(Command::GetSinkInfoList)
+            .await?
+            .unwrap_or_default())
+    }
+
     async fn sink(&mut self) -> Result<Option<SinkInfo>, String> {
-        let asked = Command::GetSinkInfo(GetSinkInfo {
-            index: None,
-            name: Some(CString::from(protocol::DEFAULT_SINK)),
-        });
-        Ok(self.reply(asked).await?.ok())
+        let named = self.server().await?.and_then(|server| server.default_sink_name);
+        let sinks = self.sinks().await?;
+        Ok(default_sink(sinks, named.as_deref()))
     }
 
     async fn source(&mut self) -> Result<Option<SourceInfo>, String> {
-        let asked = Command::GetSourceInfo(GetSourceInfo {
-            index: None,
-            name: Some(CString::from(protocol::DEFAULT_SOURCE)),
-        });
-        Ok(self.reply(asked).await?.ok())
+        let named = self
+            .server()
+            .await?
+            .and_then(|server| server.default_source_name);
+        let sources: SourceInfoList = self
+            .reply(Command::GetSourceInfoList)
+            .await?
+            .unwrap_or_default();
+        Ok(default_source(sources, named.as_deref()))
     }
 
     async fn reply<T: CommandReply>(
