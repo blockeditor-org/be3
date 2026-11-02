@@ -2678,6 +2678,10 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let closable = dock.all_closable(contents);
+    let lone_tab = create_memo(move || {
+        !icons_only.get() && state.with(|state| matches!(state.entries(leaf)[..], [Entry::Tab(_)]))
+    });
+    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
     let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -2722,7 +2726,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         }),
                         title: create_memo(String::new),
                         vacant,
-                        closable,
+                        closable: bar_closable,
                         menu,
                         close,
                         test_prefix: dock.pane_test_id("dock", leaf),

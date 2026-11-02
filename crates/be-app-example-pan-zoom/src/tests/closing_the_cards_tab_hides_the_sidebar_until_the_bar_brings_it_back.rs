@@ -9,6 +9,10 @@ fn closing_the_cards_tab_hides_the_sidebar_until_the_bar_brings_it_back() {
     assert!(test.shown("pan_zoom.title"));
     assert!(!test.shown("pan_zoom.show_sidebar"));
 
+    assert!(
+        !test.shown("dock.sidebar.close"),
+        "the sidebar's lone tab carries the only close button"
+    );
     test.click("dock.tab.cards.close");
     test.run();
 
