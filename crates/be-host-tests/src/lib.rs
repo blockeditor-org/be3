@@ -125,7 +125,7 @@ impl HostTest {
         };
         let editors = match &self.editors {
             Some(editors) => format!(
-                "its host stages only the editors {editors}: add {} to this test's editors in crates/be-host-tests/BUCK",
+                "its host stages only the apps {editors}: add {} to this test's apps in crates/be-host-tests/BUCK",
                 needle
                     .as_deref()
                     .map_or_else(Vec::new, editors_naming)
@@ -284,7 +284,7 @@ impl HostTest {
             .unwrap_or_default();
         let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
             format!(
-                "\n\nThis test's host stages only the editors {editors}. If it fails for want of another, or a painting changes because the add menu offers fewer types, add the editor to this test's editors in crates/be-host-tests/BUCK, or remove the test from there to stage every editor."
+                "\n\nThis test's host stages only the apps {editors}. If it fails for want of another, or a painting changes because the add menu offers fewer types, add the app to this test's apps in crates/be-host-tests/BUCK, or remove the test from there to stage every app."
             )
         });
         format!(
