@@ -99,4 +99,7 @@ pub(crate) fn end(context: &beui::native::Context) {
     if output.close {
         context.close_window();
     }
+    if output.raise {
+        context.raise_window();
+    }
 }

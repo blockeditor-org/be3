@@ -198,6 +198,7 @@ pub struct Output {
     pub repaint_after: Option<Duration>,
     pub animating: bool,
     pub close: bool,
+    pub raise: bool,
 }
 
 struct Host {
@@ -408,6 +409,10 @@ pub fn request_repaint_after(delay: Duration) {
 
 pub fn close_window() {
     with(|host| host.output.close = true);
+}
+
+pub fn raise_window() {
+    with(|host| host.output.raise = true);
 }
 
 pub fn note_animating() {

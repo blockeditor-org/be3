@@ -21,6 +21,14 @@ The bundle’s `build-info.json` selects be-host's identity: local builds use
 `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
 They keep separate accounts, workspaces and caches, including for local release builds.
 
+One be-host runs on a data directory at a time: it holds an advisory lock on `instance.lock` there
+(`src/instance.rs`), which the OS drops when it exits or crashes, and listens on localhost for a
+second be-host, whose port and token it writes to `instance`. A second be-host on the same data
+hands over to it (the running one opens the dev workspace if `--dev-workspace` asked and raises its
+window, beui's `Context::raise_window`) and exits; a second `--desktop` or login session refuses
+with an error instead. To run two, give each its own `XDG_DATA_HOME`, as `drive` and the host
+tests do.
+
 ## In a window
 
 A change to the platform layer - beui-platform-winit's translation of keys, the pointer and

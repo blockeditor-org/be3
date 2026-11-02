@@ -137,6 +137,8 @@ pub trait PlatformServices {
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
 
+    fn raise_window(&mut self) {}
+
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 }
 
@@ -687,6 +689,9 @@ impl Runner {
             && fullscreen != self.context.fullscreen()
         {
             services(&mut self.layers, platform).set_fullscreen(fullscreen);
+        }
+        if output.raise_requested {
+            services(&mut self.layers, platform).raise_window();
         }
 
         let background = self.background;
