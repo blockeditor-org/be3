@@ -1859,6 +1859,16 @@ where
         let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
+    let tab_key = Func::new(move |tab: TabId| {
+        let foreign = found.with(|found| found.foreign.get(&tab).cloned());
+        if let Some((joined, inner)) = foreign {
+            let declaration = joined.declaration.borrow();
+            let declared = declaration.as_ref()?.tab(inner)?;
+            let (host, _) = layout.inner().registry.foreign.borrow().inner(tab)?;
+            return layout.path(host, &declared.key);
+        }
+        layout.key_of(tab).map(|key| key.key())
+    });
     let hosts = create_memo(move || {
         found.with(|found| {
             found
@@ -1924,6 +1934,7 @@ where
                 area: layout.area,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key: Func::new(move |bar: TabId| found.with(|found| found.bar_key(bar))),
+                tab_key,
             }}
         />
     }

@@ -17,7 +17,7 @@ fn a_narrow_image_stacks_its_panel_behind_the_picture() {
 
     editor.click("dock.switch");
     editor.settle();
-    editor.click("dock.switcher.tab.2");
+    editor.click("dock.switcher.tab.panel");
     editor.settle();
     editor.record();
 

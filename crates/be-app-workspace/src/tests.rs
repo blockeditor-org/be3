@@ -93,7 +93,6 @@ mod the_share_dialog_lists_again_when_a_contact_is_made;
 mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
-const MAX_TAB: u64 = 64;
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
@@ -185,8 +184,18 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
 
     fn tab_closes(&self) -> Vec<Rect> {
         let document = self.test.document();
-        (0..MAX_TAB)
-            .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
+        let mut closes: Vec<String> = self
+            .test
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| id.starts_with("dock.tab.") && id.ends_with(".close"))
+            .map(str::to_owned)
+            .collect();
+        closes.sort_by(|a, b| (a.len(), a).cmp(&(b.len(), b)));
+        closes
+            .iter()
+            .filter_map(|id| document.find_test_id(id))
             .filter_map(|close| document.node_rect(close))
             .collect()
     }

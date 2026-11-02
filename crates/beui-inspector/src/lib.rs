@@ -26,7 +26,7 @@ use beui_components_styled::Theme;
 use beui_core::current::{with_document, with_reactive_scope};
 use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::screen_simulation::ScreenSimulation;
-use beui_dock::unstyled::{DockMode, DockingLayout};
+use beui_dock::unstyled::{DockKey, DockMode, DockingLayout};
 use beui_types::LayerPolicy;
 use beui_types::NodeId;
 use beui_types::PreferenceLayer;
@@ -462,8 +462,7 @@ impl Inspector {
 
     pub fn tab_node(&self, tab: InspectorTab) -> NodeId {
         if self.tools_stacked() {
-            let id = self.tools.tab_of(&tab).expect("every tool is a tab");
-            return self.find(&format!("dock.switcher.tab.{}", id.value()));
+            return self.find(&format!("dock.switcher.tab.{}", tab.key()));
         }
         let root = self.document.root().expect("the inspector has a root");
         placed_text(&self.document, root, tab.title())

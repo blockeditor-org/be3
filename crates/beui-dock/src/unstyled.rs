@@ -122,6 +122,7 @@ pub struct DockTabHandle {
     pub closable: Memo<bool>,
     pub waiting: Memo<bool>,
     pub host: Option<TabId>,
+    pub test_key: Option<String>,
     pub grouped: bool,
     pub notice: Memo<Option<String>>,
     pub close: ClickCallback,
@@ -204,6 +205,7 @@ pub struct DockSwitcherHandle {
 
 pub struct DockSwitcherCardHandle {
     pub tab: TabId,
+    pub test_key: String,
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub current: Memo<bool>,
@@ -600,6 +602,7 @@ struct State {
     bar_windows: Stored<RefCell<HashMap<String, WindowHandle>>>,
     bar_placements: Signal<HashMap<String, WindowPlacement>>,
     bar_key: Func<TabId, Option<String>>,
+    tab_key: Func<TabId, Option<String>>,
     bar_grab: StoredCell<(Vec2, Vec2)>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
@@ -643,6 +646,10 @@ impl State {
                 }
             });
         });
+    }
+
+    fn test_key(&self, tab: TabId) -> String {
+        untrack(|| self.tab_key.call(tab)).unwrap_or_else(|| tab.value().to_string())
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -1708,6 +1715,7 @@ pub(crate) struct DockConfig {
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
     pub(crate) bar_key: Func<TabId, Option<String>>,
+    pub(crate) tab_key: Func<TabId, Option<String>>,
 }
 
 #[component]
@@ -1766,6 +1774,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         area: dock_rect_held,
         bars_away,
         bar_key,
+        tab_key,
     } = config;
     let dock_rect = dock_rect_held.read_only();
     let outer_held = create_signal(Rect::ZERO);
@@ -1830,6 +1839,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_windows: store(RefCell::default()),
         bar_placements: create_signal(HashMap::default()),
         bar_key,
+        tab_key,
         bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
         bar_margin,
         covers,
@@ -2284,6 +2294,7 @@ fn switcher_handle(
         fixed,
         card: Func::new(move |tab: TabId| DockSwitcherCardHandle {
             tab,
+            test_key: dock.test_key(tab),
             title: create_memo(move || dock.title(tab)),
             icon: create_memo(move || dock.icon(tab)),
             current: create_memo(move || shown.get() == Some(tab)),
@@ -3040,6 +3051,10 @@ fn DockTabView(
         closable,
         waiting,
         host,
+        test_key: match entry {
+            Entry::Tab(tab) => Some(dock.test_key(tab)),
+            Entry::Group(_) => host.map(|host| dock.test_key(host)),
+        },
         grouped,
         notice,
         close,
@@ -3062,7 +3077,7 @@ fn DockTabView(
         false => Direction::Vertical,
     };
     let tab_test_id = match entry {
-        Entry::Tab(tab) => format!("dock.tab.{}", tab.value()),
+        Entry::Tab(tab) => format!("dock.tab.{}", dock.test_key(tab)),
         Entry::Group(_) => String::new(),
     };
     let handle = NodeRef::new();

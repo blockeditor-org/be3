@@ -109,7 +109,6 @@ mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod windows_that_close_as_the_session_ends_are_kept;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
-const MAX_TAB: u64 = 64;
 const PROGRAMS_BAR: u64 = 0;
 const WINDOWS_BAR: u64 = 1;
 const STATUS_BAR: u64 = 2;
@@ -497,8 +496,18 @@ impl Fixture {
 
     fn close_a_tab(&mut self) {
         let document = self.test.document();
-        let cross = (0..MAX_TAB)
-            .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
+        let mut closes: Vec<String> = self
+            .test
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| id.starts_with("dock.tab.") && id.ends_with(".close"))
+            .map(str::to_owned)
+            .collect();
+        closes.sort_by(|a, b| (a.len(), a).cmp(&(b.len(), b)));
+        let cross = closes
+            .iter()
+            .filter_map(|id| document.find_test_id(id))
             .find_map(|close| document.node_rect(close))
             .expect("an open tab can be closed");
         drop(document);

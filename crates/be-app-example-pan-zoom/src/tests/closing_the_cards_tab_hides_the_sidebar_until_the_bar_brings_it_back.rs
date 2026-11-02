@@ -9,14 +9,7 @@ fn closing_the_cards_tab_hides_the_sidebar_until_the_bar_brings_it_back() {
     assert!(test.shown("pan_zoom.title"));
     assert!(!test.shown("pan_zoom.show_sidebar"));
 
-    let close = {
-        let document = test.document();
-        (0..16)
-            .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
-            .find_map(|close| document.node_rect(close))
-            .expect("the cards tab can be closed")
-    };
-    test.click(close.center());
+    test.click("dock.tab.cards.close");
     test.run();
 
     assert!(!test.shown("pan_zoom.title"));

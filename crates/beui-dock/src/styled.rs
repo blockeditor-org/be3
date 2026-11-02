@@ -224,7 +224,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         close,
         vertical,
         icons_only,
-        host,
+        test_key,
         grouped,
         ..
     } = handle;
@@ -264,8 +264,8 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                             closable
                             waiting
                             noticed
-                            waiting_test_id={waiting_test_id(entry)}
-                            close_test_id={close_test_id(entry, host)}
+                            waiting_test_id={waiting_test_id(entry, test_key.as_deref())}
+                            close_test_id={close_test_id(test_key.as_deref())}
                             close={close}
                         />
                     },
@@ -1097,20 +1097,15 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     }
 }
 
-fn waiting_test_id(entry: Entry) -> String {
-    match entry {
-        Entry::Tab(tab) => format!("dock.tab.{}.waiting", tab.value()),
-        Entry::Group(_) => String::new(),
+fn waiting_test_id(entry: Entry, key: Option<&str>) -> String {
+    match (entry, key) {
+        (Entry::Tab(_), Some(key)) => format!("dock.tab.{key}.waiting"),
+        _ => String::new(),
     }
 }
 
-fn close_test_id(entry: Entry, host: Option<TabId>) -> String {
-    match (entry, host) {
-        (Entry::Tab(tab), _) | (Entry::Group(_), Some(tab)) => {
-            format!("dock.tab.{}.close", tab.value())
-        }
-        (Entry::Group(_), None) => String::new(),
-    }
+fn close_test_id(key: Option<&str>) -> String {
+    key.map_or_else(String::new, |key| format!("dock.tab.{key}.close"))
 }
 
 fn bar_fill(vacant: Memo<bool>) -> Memo<ColorRole> {

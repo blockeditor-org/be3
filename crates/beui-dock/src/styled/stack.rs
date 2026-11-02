@@ -267,7 +267,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
 #[component]
 fn DockSwitcherRow(handle: DockSwitcherCardHandle) -> NodeId {
     let DockSwitcherCardHandle {
-        tab,
+        test_key,
         title,
         icon,
         pick,
@@ -275,7 +275,7 @@ fn DockSwitcherRow(handle: DockSwitcherCardHandle) -> NodeId {
     } = handle;
     view! {
         <ActionRow
-            @test_id={format!("dock.switcher.tab.{}", tab.value())}
+            @test_id={format!("dock.switcher.tab.{test_key}")}
             label={title}
             glyph={icon}
             on_click={pick}
@@ -286,7 +286,7 @@ fn DockSwitcherRow(handle: DockSwitcherCardHandle) -> NodeId {
 #[component]
 fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
     let DockSwitcherCardHandle {
-        tab,
+        test_key: id,
         title,
         icon,
         current,
@@ -294,8 +294,11 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         menu,
         pick,
         close,
+        ..
     } = handle;
     let offered = create_memo(move || menu.with(|items| !items.is_empty()));
+    let close_id = format!("dock.switcher.close.{id}");
+    let menu_id = format!("dock.switcher.menu.{id}");
     let outline = create_memo(move || {
         let color = match current.get() {
             true => ColorRole::Accent,
@@ -303,7 +306,6 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         };
         Some(Border::new(color).width(CARD_OUTLINE))
     });
-    let id = tab.value();
     view! {
         <Frame
             height=CARD_HEIGHT
@@ -333,7 +335,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     <Show condition={closable}>
                         <Button
                             icon_only=true
-                            @test_id={format!("dock.switcher.close.{id}")}
+                            @test_id={close_id.clone()}
                             glyph=ICON_X
                             label="Close tab"
                             variant=ButtonVariant::Ghost
@@ -344,13 +346,13 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                         <MenuButton
                             icon_only=true
                             variant=ButtonVariant::Ghost
-                            @test_id={format!("dock.switcher.menu.{id}")}
+                            @test_id={menu_id.clone()}
                             label="More"
                             glyph=ICON_ELLIPSIS_VERTICAL
                             items={view! {
                                 <unstyled::MenuNodes
                                     nodes={menu}
-                                    test_prefix={format!("dock.switcher.menu.{id}")}
+                                    test_prefix={menu_id.clone()}
                                 />
                             }}
                         />
