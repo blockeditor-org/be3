@@ -2,11 +2,13 @@ use be_sdk_beui::Fit;
 use be_type_map::MapContent;
 
 use be_sdk_beui::Loaded;
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::beui::dock::styled::{DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout};
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::{Creation, Editor, Sidebar, narrow_chrome};
 use uuid::Uuid;
 

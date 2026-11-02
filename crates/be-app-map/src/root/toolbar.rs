@@ -1,19 +1,16 @@
+use be_sdk_beui::Fitting;
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::icons::{
     ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::Fitting;
-use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 
 use super::state::{MapState, ZOOM_STEP};
 
 #[component]
-pub(crate) fn MapToolbar(
-    state: MapState,
-    fitting: Fitting,
-) -> NodeId {
+pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
     let regionless = create_memo(move || state.preview_region.get().is_none());
     let error = state.last_error;
     let failed = create_memo(move || error.get().is_some());
