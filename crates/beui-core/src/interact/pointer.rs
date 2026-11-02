@@ -1514,7 +1514,7 @@ fn frame_drags(doc: &mut Document, frame: &Frame) {
     }
 }
 
-pub(crate) fn hover_moved_under(doc: &mut Document, ctx: &Context, rects: &Rects) -> bool {
+pub(crate) fn rehover(doc: &mut Document, ctx: &Context, rects: &Rects) -> bool {
     let Some((window, pos)) =
         ctx.input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)))
     else {
@@ -1525,7 +1525,12 @@ pub(crate) fn hover_moved_under(doc: &mut Document, ctx: &Context, rects: &Rects
         .into_iter()
         .filter(|id| over(rects, *id, pos))
         .collect();
-    path != doc.pointers.hovered
+    if path == doc.pointers.hovered {
+        return false;
+    }
+    doc.pointers.hits.clear();
+    hover(doc, &Frame::new(ctx, rects), Some((window, pos)));
+    true
 }
 
 fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {

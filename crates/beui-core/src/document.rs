@@ -1593,12 +1593,6 @@ impl Document {
             }
             self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
-        if measurement.layout_passes > 0 || measurement.painted {
-            let rects = Rc::clone(&self.rects);
-            if crate::interact::pointer::hover_moved_under(self, ctx, &rects) {
-                ctx.request_repaint();
-            }
-        }
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
@@ -2744,7 +2738,16 @@ impl Document {
         if std::mem::take(&mut self.measure_pending) {
             self.publish_measurements();
         }
-        let passes = self.lay_out_until_settled(ctx, rect);
+        let mut passes = self.lay_out_until_settled(ctx, rect);
+        if passes > 0 {
+            let rects = Rc::clone(&self.rects);
+            let rehovered = crate::current::run_in(self, |document| {
+                crate::interact::pointer::rehover(document, ctx, &rects)
+            });
+            if rehovered && self.needs_layout() {
+                passes += self.lay_out_until_settled(ctx, rect);
+            }
+        }
         if self.measure_pending {
             ctx.request_repaint();
         }
