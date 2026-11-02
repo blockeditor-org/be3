@@ -25,7 +25,11 @@ not running: the power actions start only when the DRM seat provides its `Displa
 ## Program windows
 
 be-host-wayland (`crates/be-host-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
-forwarding catcher the shell places like any other node. A floating window (every window under
+forwarding catcher the shell places like any other node. The catcher's focus is the window's keyboard
+focus (`Windows::focus`), and so the desktop app's `WindowsWatch` `focused`. A view built again
+elsewhere, as when the desktop moves a window into or out of fullscreen in another of its windows,
+takes the focus back if the view it replaces had it (`Windows::unmounted_focused`, answered through
+the same `asks` as a raise) and no other window has been focused in between. A floating window (every window under
 the desktop shell) and every dialog own their size: a new one is configured 0×0,
 `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
 size the compositor asked for), a floating window follows that size through

@@ -1268,7 +1268,6 @@ impl Instances {
             .get(&instance)
             .and_then(|entry| entry.screens.get(&region))
             .filter(|screen| announced.contains(&screen.request.screen))
-            .filter(|screen| !screen.input.focused())
         else {
             return Vec::new();
         };
@@ -1281,6 +1280,13 @@ impl Instances {
             events: vec![be_sdk_api::Input::InterceptedTap(key).into()],
             dismissed: Vec::new(),
         })]
+    }
+
+    pub(super) fn has_keyboard(&self, instance: EditorInstanceId, region: ViewId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .is_some_and(|screen| screen.input.focused())
     }
 
     pub(super) fn mounted(&self, instance: EditorInstanceId, region: ViewId) -> bool {

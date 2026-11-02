@@ -130,8 +130,8 @@ do they show the focus ring or end autoscroll, and the runners drop their repeat
 Something that reacts to the modifier key rather
 than to the state, such as tapping Super alone, is a global action with a
 `Chord::tap(Key::Logo)` rather than code reading events: the document counts a
-modifier pressed and let go with no other key, press, scroll or loss of focus
-between as a tap, judged from the key events alone (the runners do not agree on
+modifier pressed and let go with no other key (handled or not, and an
+`Event::InterceptedKey` too), press, scroll or loss of focus between as a tap, judged from the key events alone (the runners do not agree on
 whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
 offers it on the release to the host and window capture listeners as a
@@ -267,9 +267,11 @@ modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how the desktop app's
 Alt+Tab works over any window. be-host takes intercepted keys only from the
 shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
-chord goes the same way as `Input::InterceptedTap`, but only while the
-view does not have the keyboard itself, since it then hears the key and
-counts the tap on its own; the release still reaches whatever had the focus.
+chord goes the same way as `Input::InterceptedTap`. Neither is intercepted while
+the view has the keyboard itself (`be_host_runtime::view_has_keyboard`): it then
+hears the key in order with the rest of its input and counts the tap on its own,
+where an intercepted key, sent at once, would reach it ahead of the Super it was
+pressed under. The release of a tap still reaches whatever had the focus.
 
 A document with a layer open that traps focus
 (`Layers::takes_keyboard`, such as a dialog, a popover or the command palette) reports `WindowRequests::wants_keyboard`, which the
