@@ -22,6 +22,9 @@ use beui_types::{Rect, Vec2};
 
 pub mod filter;
 pub mod present;
+mod resources;
+
+pub use resources::Resources;
 
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
 pub mod canvas;
@@ -66,7 +69,7 @@ const GLYPH_PADDING: u32 = 1;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct Instance {
+pub(crate) struct Instance {
     rect: [f32; 4],
     clip: [f32; 4],
     uv: [f32; 4],
@@ -85,7 +88,7 @@ impl Instance {
         5 => Float32x4
     ];
 
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
+    pub(crate) fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -96,24 +99,24 @@ impl Instance {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct Uniforms {
+pub(crate) struct Uniforms {
     screen: [f32; 2],
     origin: [f32; 2],
 }
 
-struct Atlas {
+pub(crate) struct Atlas {
     texture: wgpu::Texture,
     texel: u32,
-    view: wgpu::TextureView,
+    pub(crate) view: wgpu::TextureView,
     entries: HashMap<GlyphId, [f32; 4]>,
     row_y: u32,
     row_height: u32,
     cursor_x: u32,
-    full: bool,
+    pub(crate) full: bool,
 }
 
 impl Atlas {
-    fn new(device: &wgpu::Device, label: &str, format: wgpu::TextureFormat) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, label: &str, format: wgpu::TextureFormat) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
             size: wgpu::Extent3d {
@@ -141,15 +144,12 @@ impl Atlas {
         }
     }
 
-    fn reset(&mut self) {
-        self.entries.clear();
-        self.row_y = 0;
-        self.row_height = 0;
-        self.cursor_x = 0;
-        self.full = false;
-    }
-
-    fn insert(&mut self, queue: &wgpu::Queue, id: GlyphId, image: &GlyphImage) -> Option<[f32; 4]> {
+    pub(crate) fn insert(
+        &mut self,
+        queue: &wgpu::Queue,
+        id: GlyphId,
+        image: &GlyphImage,
+    ) -> Option<[f32; 4]> {
         if let Some(uv) = self.entries.get(&id) {
             return Some(*uv);
         }
@@ -262,14 +262,9 @@ impl Repainting for WindowOutput {
     }
 }
 
-struct Picture {
-    bind_groups: [wgpu::BindGroup; 2],
-    used: bool,
-}
-
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct Space {
+pub(crate) struct Space {
     translation: [f32; 2],
     opacity: f32,
     padding: f32,
@@ -285,16 +280,13 @@ const REACH: f32 = 2.0;
 
 pub struct Renderer {
     id: u64,
+    resources: Resources,
     srgb: bool,
     format: wgpu::TextureFormat,
-    pipeline: wgpu::RenderPipeline,
-    punch_pipeline: wgpu::RenderPipeline,
-    bind_group_layout: wgpu::BindGroupLayout,
-    bind_group: wgpu::BindGroup,
+    uniforms: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_capacity: usize,
-    space_layout: wgpu::BindGroupLayout,
     space_buffer: wgpu::Buffer,
     space_group: wgpu::BindGroup,
     space_capacity: usize,
@@ -307,20 +299,23 @@ pub struct Renderer {
     drawn: stable_hash::HashSet<ListKey>,
     frames: u64,
     live: usize,
-    atlas_epoch: u64,
     pub encoded: usize,
     steps: Vec<Step>,
     scissors: Option<Vec<[u32; 4]>>,
     origin: Vec2,
-    atlas: Atlas,
-    colors: Atlas,
-    pictures: HashMap<ImageId, Picture>,
-    samplers: [wgpu::Sampler; 2],
+    held: stable_hash::HashSet<ImageId>,
+    using: stable_hash::HashSet<ImageId>,
+    bound: Bound,
     filters: Vec<filter::Prepared>,
     effects: Vec<filter::Effects>,
     bounds: Option<[u32; 4]>,
     whole: bool,
     scratch: Option<wgpu::Texture>,
+}
+
+struct Bound {
+    glyphs: wgpu::BindGroup,
+    pictures: HashMap<ImageId, [wgpu::BindGroup; 2]>,
 }
 
 #[derive(Clone)]
@@ -521,7 +516,6 @@ impl Walk {
 }
 
 struct Frame<'a> {
-    device: &'a wgpu::Device,
     queue: &'a wgpu::Queue,
     damaged: Option<&'a [[f32; 4]]>,
     screen: Vec2,
@@ -625,139 +619,42 @@ fn translated(rect: [f32; 4], origin: [f32; 2]) -> [f32; 4] {
 }
 
 impl Renderer {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("ui.wgsl"));
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("beui bind group layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let space_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("beui space layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: true,
-                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<Space>() as u64),
-                },
-                count: None,
-            }],
-        });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("beui pipeline layout"),
-            bind_group_layouts: &[Some(&bind_group_layout), Some(&space_layout)],
-            immediate_size: 0,
-        });
-        let erase = wgpu::BlendComponent {
-            src_factor: wgpu::BlendFactor::Zero,
-            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-            operation: wgpu::BlendOperation::Add,
-        };
-        let punch_pipeline = pipeline(
-            device,
-            &layout,
-            &shader,
-            format,
-            "beui punch pipeline",
-            wgpu::BlendState {
-                color: erase,
-                alpha: erase,
-            },
-        );
-        let pipeline = pipeline(
-            device,
-            &layout,
-            &shader,
-            format,
-            "beui pipeline",
-            wgpu::BlendState::ALPHA_BLENDING,
-        );
-
+    pub fn new(resources: &Resources) -> Self {
+        let shared = resources.0.borrow();
+        let device = &shared.device;
+        let format = shared.format;
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("beui uniforms"),
             size: std::mem::size_of::<Uniforms>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let uniforms = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("beui uniforms"),
+            layout: &shared.uniform_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+        });
         let instance_capacity = 1024;
         let instance_buffer = vertex_buffer(device, "beui instances", instance_capacity);
         let alignment = u64::from(device.limits().min_uniform_buffer_offset_alignment);
         let space_stride = (std::mem::size_of::<Space>() as u64).div_ceil(alignment) * alignment;
-        let (space_buffer, space_group) = space_buffer(device, &space_layout, space_stride, SPACES);
+        let (space_buffer, space_group) =
+            space_buffer(device, &shared.space_layout, space_stride, SPACES);
         let list_buffer = vertex_buffer(device, "beui listed instances", LISTED);
-        let atlas = Atlas::new(device, "beui glyph atlas", wgpu::TextureFormat::R8Unorm);
-        let colors = Atlas::new(device, "beui colour glyph atlas", rgba(format.is_srgb()));
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("beui smooth sampler"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-        let nearest = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("beui sharp sampler"),
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-        let bind_group = bind_group(
-            device,
-            &bind_group_layout,
-            &uniform_buffer,
-            &atlas.view,
-            &sampler,
-            &colors.view,
-        );
-
+        let glyphs = shared.glyphs.clone();
+        drop(shared);
         Self {
             id: RENDERERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            resources: resources.clone(),
             srgb: format.is_srgb(),
             format,
-            pipeline,
-            punch_pipeline,
-            bind_group_layout,
-            bind_group,
+            uniforms,
             uniform_buffer,
             instance_buffer,
             instance_capacity,
-            space_layout,
             space_buffer,
             space_group,
             space_capacity: SPACES,
@@ -770,15 +667,16 @@ impl Renderer {
             drawn: stable_hash::HashSet::default(),
             frames: 0,
             live: 0,
-            atlas_epoch: 0,
             encoded: 0,
             steps: Vec::new(),
             scissors: None,
             origin: Vec2::ZERO,
-            atlas,
-            colors,
-            pictures: HashMap::default(),
-            samplers: [nearest, sampler],
+            held: stable_hash::HashSet::default(),
+            using: stable_hash::HashSet::default(),
+            bound: Bound {
+                glyphs: glyphs.clone(),
+                pictures: HashMap::default(),
+            },
             filters: Vec::new(),
             effects: Vec::new(),
             bounds: None,
@@ -787,68 +685,38 @@ impl Renderer {
         }
     }
 
-    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, image: &Image) {
-        if let Some(picture) = self.pictures.get_mut(&image.id()) {
-            picture.used = true;
-            return;
+    pub fn resources(&self) -> &Resources {
+        &self.resources
+    }
+
+    fn upload(&mut self, queue: &wgpu::Queue, image: &Image) {
+        self.resources.0.borrow_mut().upload(queue, image);
+        self.using.insert(image.id());
+    }
+
+    fn settle_pictures(&mut self) {
+        let mut shared = self.resources.0.borrow_mut();
+        for id in self.using.difference(&self.held) {
+            shared.hold(*id);
         }
-        let format = rgba(self.srgb);
-        let size = wgpu::Extent3d {
-            width: image.width(),
-            height: image.height(),
-            depth_or_array_layers: 1,
+        for id in self.held.difference(&self.using) {
+            shared.release(*id);
+        }
+        self.bound = Bound {
+            glyphs: shared.glyphs.clone(),
+            pictures: self
+                .using
+                .iter()
+                .filter_map(|id| {
+                    shared
+                        .pictures
+                        .get(id)
+                        .map(|picture| (*id, picture.bind_groups.clone()))
+                })
+                .collect(),
         };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("beui image"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            image.pixels(),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(image.width() * 4),
-                rows_per_image: Some(image.height()),
-            },
-            size,
-        );
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind_groups = [
-            bind_group(
-                device,
-                &self.bind_group_layout,
-                &self.uniform_buffer,
-                &view,
-                &self.samplers[0],
-                &self.colors.view,
-            ),
-            bind_group(
-                device,
-                &self.bind_group_layout,
-                &self.uniform_buffer,
-                &view,
-                &self.samplers[1],
-                &self.colors.view,
-            ),
-        ];
-        self.pictures.insert(
-            image.id(),
-            Picture {
-                bind_groups,
-                used: true,
-            },
-        );
+        drop(shared);
+        self.held = std::mem::take(&mut self.using);
     }
 
     pub fn shift(
@@ -945,10 +813,11 @@ impl Renderer {
         pixels_per_point: f32,
         repaint: Repaint,
     ) -> Repaint {
-        if self.atlas.full || self.colors.full {
-            self.atlas.reset();
-            self.colors.reset();
-            self.atlas_epoch += 1;
+        {
+            let mut shared = self.resources.0.borrow_mut();
+            if shared.full() {
+                shared.renew();
+            }
         }
         queue.write_buffer(
             &self.uniform_buffer,
@@ -998,7 +867,6 @@ impl Renderer {
         };
         let (instances, steps, frame) = loop {
             let mut frame = Frame {
-                device,
                 queue,
                 damaged: damaged.as_deref(),
                 screen,
@@ -1032,7 +900,7 @@ impl Renderer {
             self.space_capacity = frame.spaces.len().next_power_of_two();
             (self.space_buffer, self.space_group) = space_buffer(
                 device,
-                &self.space_layout,
+                &self.resources.0.borrow().space_layout,
                 self.space_stride,
                 self.space_capacity,
             );
@@ -1050,11 +918,7 @@ impl Renderer {
             self.sweep(output, pixels_per_point);
         }
 
-        self.pictures.retain(|_, picture| {
-            let used = picture.used;
-            picture.used = false;
-            used
-        });
+        self.settle_pictures();
         let origin = self.origin;
         self.whole = damaged.is_none();
         let scissors = damaged.map(|damaged| {
@@ -1179,7 +1043,7 @@ impl Renderer {
                                 instance,
                             }) => {
                                 if let Some((image, _)) = &picture {
-                                    self.upload(frame.device, frame.queue, image);
+                                    self.upload(frame.queue, image);
                                 }
                                 let picture = picture.map(|(image, smooth)| (image.id(), smooth));
                                 push_run(
@@ -1241,7 +1105,7 @@ impl Renderer {
         }
         let key = at.key(display);
         let mut encoded = match self.lists.remove(&key) {
-            Some(encoded) if encoded.atlas == self.atlas_epoch => encoded,
+            Some(encoded) if encoded.atlas == self.resources.0.borrow().epoch => encoded,
             _ => self.encode_list(frame.queue, display, &at),
         };
         encoded.seen = self.frames;
@@ -1300,7 +1164,7 @@ impl Renderer {
                                 count,
                             } => {
                                 if let Some((image, _)) = picture {
-                                    self.upload(frame.device, frame.queue, image);
+                                    self.upload(frame.queue, image);
                                 }
                                 push_run(
                                     steps,
@@ -1394,7 +1258,7 @@ impl Renderer {
             runs: Vec::new(),
             parts: Vec::new(),
             placed: None,
-            atlas: self.atlas_epoch,
+            atlas: self.resources.0.borrow().epoch,
             seen: self.frames,
         };
         self.encode_parts(queue, display, &display.parts, *at, &mut encoded);
@@ -1536,11 +1400,15 @@ impl Renderer {
                 turn: rotation,
             } => {
                 let image = glyph.image()?;
-                let (atlas, colored) = match image.color {
-                    true => (&mut self.colors, 1.0),
-                    false => (&mut self.atlas, 0.0),
+                let colored = match image.color {
+                    true => 1.0,
+                    false => 0.0,
                 };
-                let uv = atlas.insert(queue, glyph.id, image)?;
+                let uv = self
+                    .resources
+                    .0
+                    .borrow_mut()
+                    .glyph(queue, glyph.id, image)?;
                 plain(Instance {
                     rect,
                     clip,
@@ -1821,6 +1689,11 @@ impl Renderer {
         if runs.is_empty() {
             return;
         }
+        let (pipeline, punch_pipeline) = {
+            let shared = self.resources.0.borrow();
+            (shared.pipeline.clone(), shared.punch_pipeline.clone())
+        };
+        pass.set_bind_group(0, &self.uniforms, &[]);
         let mut bound = None;
         let mut buffer = None;
         let mut space = None;
@@ -1834,6 +1707,7 @@ impl Renderer {
                         draw.paint(pass, at);
                     }
                     clip(pass, bounds);
+                    pass.set_bind_group(0, &self.uniforms, &[]);
                     bound = None;
                     buffer = None;
                     space = None;
@@ -1841,9 +1715,10 @@ impl Renderer {
                 continue;
             }
             let group = run.picture.and_then(|(id, smooth)| {
-                self.pictures
+                self.bound
+                    .pictures
                     .get(&id)
-                    .map(|picture| &picture.bind_groups[usize::from(smooth)])
+                    .map(|groups| &groups[usize::from(smooth)])
             });
             if run.picture.is_some() && group.is_none() {
                 continue;
@@ -1857,7 +1732,7 @@ impl Renderer {
                 buffer = Some(run.listed);
             }
             if bound != Some(run.picture) {
-                pass.set_bind_group(0, group.unwrap_or(&self.bind_group), &[]);
+                pass.set_bind_group(2, group.unwrap_or(&self.bound.glyphs), &[]);
                 bound = Some(run.picture);
             }
             if space != Some(run.space) {
@@ -1866,8 +1741,8 @@ impl Renderer {
                 space = Some(run.space);
             }
             pass.set_pipeline(match run.punch {
-                true => &self.punch_pipeline,
-                false => &self.pipeline,
+                true => &punch_pipeline,
+                false => &pipeline,
             });
             pass.draw(0..6, run.start..run.start + run.count);
         }
@@ -2052,74 +1927,7 @@ fn space_buffer(
     (buffer, group)
 }
 
-fn pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::PipelineLayout,
-    shader: &wgpu::ShaderModule,
-    format: wgpu::TextureFormat,
-    label: &str,
-    blend: wgpu::BlendState,
-) -> wgpu::RenderPipeline {
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some(label),
-        layout: Some(layout),
-        vertex: wgpu::VertexState {
-            module: shader,
-            entry_point: Some("vertex"),
-            compilation_options: Default::default(),
-            buffers: &[Instance::layout()],
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: shader,
-            entry_point: Some("fragment"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(blend),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        multiview_mask: None,
-        cache: None,
-    })
-}
-
-fn bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    uniforms: &wgpu::Buffer,
-    view: &wgpu::TextureView,
-    sampler: &wgpu::Sampler,
-    colors: &wgpu::TextureView,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("beui bind group"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniforms.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::TextureView(view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::Sampler(sampler),
-            },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: wgpu::BindingResource::TextureView(colors),
-            },
-        ],
-    })
-}
-
-fn rgba(srgb: bool) -> wgpu::TextureFormat {
+pub(crate) fn rgba(srgb: bool) -> wgpu::TextureFormat {
     match srgb {
         true => wgpu::TextureFormat::Rgba8UnormSrgb,
         false => wgpu::TextureFormat::Rgba8Unorm,
@@ -2128,3 +1936,12 @@ fn rgba(srgb: bool) -> wgpu::TextureFormat {
 
 #[cfg(test)]
 mod tests;
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        let mut shared = self.resources.0.borrow_mut();
+        for id in self.held.drain() {
+            shared.release(id);
+        }
+    }
+}

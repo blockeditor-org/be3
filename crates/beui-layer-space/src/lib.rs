@@ -14,6 +14,7 @@ mod render;
 pub mod resize;
 pub mod scale;
 mod space;
+pub mod tuning;
 
 pub use space::{
     Both, CURSOR_LIFT, Composed, FLASH_SECONDS, Held, KEYBOARD_GAP, LayerTarget, OPEN_DISTANCE,

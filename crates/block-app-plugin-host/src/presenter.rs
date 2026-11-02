@@ -832,6 +832,18 @@ pub(super) fn stop() {
     drop(presenter);
 }
 
+pub(super) fn keep(slot: u32, surfaces: &[u32]) {
+    PRESENTER.with(|presenter| {
+        if let Some(platform) = presenter
+            .borrow_mut()
+            .as_mut()
+            .and_then(|presenter| presenter.platform.as_mut())
+        {
+            platform.retain(slot, surfaces);
+        }
+    });
+}
+
 pub(super) fn release(slot: u32, status: &PresenterStatus) {
     PRESENTER.with(|presenter| {
         if let Some(platform) = presenter

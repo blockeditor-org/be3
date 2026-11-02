@@ -605,6 +605,20 @@ hooks the higher crates fill in:
   `Runner::rendering`. A renderer is told where to draw with `attach` (a
   raw-window-handle `WindowHandle`) or is made with its element, and draws a
   frame in two steps, `prepare` and then `present`.
+- The wgpu renderer is two types. `beui_renderer_wgpu::Resources` is what every
+  target on one device and surface format can share: the pipelines, the
+  samplers, the glyph atlas (2048 by 2048, R8), the colour glyph atlas (the same
+  size in RGBA, made only once a colour glyph is drawn) and the uploaded images,
+  each kept while any renderer drew it in its last frame. A
+  `beui_renderer_wgpu::Renderer` (`Renderer::new(&resources)`) is one target's:
+  its uniform, instance and space buffers, its cache of encoded display lists,
+  its filters and its scratch texture. Give every window or panel drawn on one
+  device a renderer over the same `Resources`: beui-platform-plugin keeps one
+  per plugin module for all its views, beui-layer-space one for all its panels
+  and beui-platform-drm one for all its displays. A full atlas is replaced by a
+  new texture rather than cleared, and a renderer draws with the atlas and
+  images it was prepared against, so renderers sharing `Resources` may prepare
+  and render in any order and submit whenever they like.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -4250,14 +4264,21 @@ it, and all its 3D (`glam`) stays in the crate.
   panel, the point of the curved surface the ray meets). A press's own
   position is ignored. An absolute position, a `PointerMoved` in pixels or in a
   window's points (a driver's, mapped onto that window's panel), puts the
-  cursor where its ray hits; `PointerMotion` swings its ray about the eye,
-  gravity-aligned whatever the head's pitch and roll (`Head::swing`): motion
-  across turns it about the vertical, keeping its height, and motion up raises
-  it toward the sky along its line to the zenith, short of
-  `head::MOST_ELEVATION`, both at a fixed angle per pixel
+  cursor where its ray hits; `PointerMotion` swings its ray about the eye
+  around an up (`Head::swing`): motion across turns it about that up, keeping
+  its height, and motion up raises it toward that up along its line to it,
+  short of `head::MOST_ELEVATION`, both at a fixed angle per pixel
   (`Head::pixels_per_radian`, so near the middle of an unrolled view a pixel
-  of motion is a pixel on screen), the same in the simulator and under a
-  headset. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  of motion is a pixel on screen). Which up is a temporary setting while the
+  right rule is found (`tuning::Tuning`, one rule for the simulator and one
+  for a headset, both the sky by default): the sky (gravity-aligned whatever
+  the head's pitch and roll, which degenerates looking straight down), the
+  view's up (rolls with the head, works at any pitch), or a blend that turns
+  from the sky to the view's up as the head pitches between two angles
+  (`tuning::Up`). Ctrl+Alt+M cycles the rule for where space is running,
+  Ctrl+Alt+Left/Right moves the blend's start and Ctrl+Alt+Down/Up its end by
+  5°, none reaching the app, and each change shows the rule in a label beside
+  the cursor for `tuning::SHOWN_FOR`. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
   it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
   hit). Turning the head and walking leave it at its point, so it slides
   across the view, and nothing holds it inside the view: motion or a turn can
@@ -4524,11 +4545,11 @@ it, and all its 3D (`glam`) stays in the crate.
   to the region's window as its `WindowReport::Rastered`, so plugin content
   in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
-  `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
+  `beui_renderer_wgpu::Renderer`, over the compositor's one `Resources`, into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only
   its damage after copying its `moved` scroll inside the texture. A window that
-  changes size gets a new texture but keeps its renderer, whose pipelines and
-  glyph atlases cost far more to build than a resize step's whole frame. It is sampled with
+  changes size gets a new texture but keeps its renderer, whose buffers and
+  encoded display lists cost far more to build than a resize step's whole frame. It is sampled with
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;

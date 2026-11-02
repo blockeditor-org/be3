@@ -71,6 +71,8 @@ pub trait ViewHandler: std::any::Any {
 
     fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame>;
 
+    fn laid_out(&mut self, _views: &[ViewRef]) {}
+
     fn frame_opened(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         regions.iter().map(|_| Frame::default()).collect()
     }

@@ -259,14 +259,16 @@ impl Head {
         screen.y.max(1.0) / 2.0 / (FOV_Y / 2.0).tan()
     }
 
-    pub fn swing(&self, direction: Vec3, angles: glam::Vec2) -> Vec3 {
-        let from = direction.y.clamp(-1.0, 1.0).asin();
+    pub fn swing(&self, direction: Vec3, angles: glam::Vec2, up: Vec3) -> Vec3 {
+        let from = direction.dot(up).clamp(-1.0, 1.0).asin();
         let to = (from + angles.y).clamp(-MOST_ELEVATION, MOST_ELEVATION);
-        let level =
-            Vec3::new(direction.x, 0.0, direction.z).normalize_or(self.facing() * Vec3::NEG_Z);
+        let fallback = (self.rotation() * Vec3::NEG_Z)
+            .reject_from_normalized(up)
+            .normalize_or(up.any_orthonormal_vector());
+        let level = direction.reject_from_normalized(up).normalize_or(fallback);
         let across = angles.x / ((from + to) / 2.0).cos().max(MOST_ELEVATION.cos());
-        let level = Quat::from_rotation_y(-across) * level;
-        level * to.cos() + Vec3::Y * to.sin()
+        let level = Quat::from_axis_angle(up, -across) * level;
+        level * to.cos() + up * to.sin()
     }
 
     pub fn ray(&self, screen: Vec2, at: Vec2) -> Ray {

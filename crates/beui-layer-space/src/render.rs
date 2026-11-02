@@ -228,6 +228,7 @@ struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     format: wgpu::TextureFormat,
+    resources: beui_renderer_wgpu::Resources,
     shader: wgpu::ShaderModule,
     sampler: wgpu::Sampler,
     linear: wgpu::Sampler,
@@ -603,10 +604,12 @@ impl Gpu {
                 blend: None,
             },
         );
+        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format);
         Self {
             device,
             queue: setup.queue.clone(),
             format: setup.format,
+            resources,
             shader,
             sampler,
             linear,
@@ -915,7 +918,7 @@ impl Gpu {
         let (renderer, uniform) = match self.sheets(chrome).remove(&window) {
             Some(panel) => (panel.renderer, panel.uniform),
             None => (
-                beui_renderer_wgpu::Renderer::new(&self.device, self.format),
+                beui_renderer_wgpu::Renderer::new(&self.resources),
                 uniform_buffer(&self.device, "space panel", size_of::<PanelUniform>()),
             ),
         };

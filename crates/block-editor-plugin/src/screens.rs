@@ -744,6 +744,16 @@ impl Screens {
                 &requests,
             );
         }
+        let views: Vec<ViewRef> = self
+            .layout
+            .screens
+            .iter()
+            .map(|placement| ViewRef {
+                instance: placement.instance,
+                view: placement.view,
+            })
+            .collect();
+        self.module.with_handler(|handler| handler.laid_out(&views));
     }
 }
 

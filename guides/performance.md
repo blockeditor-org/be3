@@ -262,7 +262,10 @@ session left, with every step that can overlap running at once. What keeps it th
   the Files pane from about 0.92 s to 0.76 s locally (October 2026). Most of a plugin's
   start is `Plugin::new` linking its libraries (about 0.3 s each, the two at once);
   deserializing its mapped `.cwasm` takes a few milliseconds. A plugin with no editors open
-  idles once it has loaded.
+  idles once it has loaded, and is stopped to free its memory and threads once it has had none
+  for `IDLE_TIMEOUT` (30 s by the host's clock, `Host::stop_idle` in
+  block-app-plugin-host/src/runtime.rs, run from `poll`); a warmed plugin nothing opens is stopped
+  the same way. Opening one of its editors again starts it afresh.
 - On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
   `Module::deserialize_file`) rather than read into memory and copied: the app's
   plugins, libraries and type modules come to about 400 MB, and mapping them took about a

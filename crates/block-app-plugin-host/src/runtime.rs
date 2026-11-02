@@ -46,6 +46,7 @@ const REMEMBERED_COMPOSITES: usize = 16;
 const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 use block_app_base::performance::PACING;
 const REMEMBERED_PRESENTS: usize = 16;
+const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
@@ -203,6 +204,29 @@ impl Host {
             .expect("fewer runtimes than surface ids")
     }
 
+    fn stop_idle(&mut self, now: Duration) -> Option<Duration> {
+        let mut wake: Option<Duration> = None;
+        let mut idle = Vec::new();
+        for (plugin_id, runtime) in &mut self.runtimes {
+            if !runtime.instances.is_empty() {
+                runtime.idle_since = None;
+                continue;
+            }
+            let since = *runtime.idle_since.get_or_insert(now);
+            match (since + IDLE_TIMEOUT).checked_sub(now) {
+                Some(left) if !left.is_zero() => {
+                    wake = Some(wake.map_or(left, |wake| wake.min(left)));
+                }
+                _ => idle.push(plugin_id.clone()),
+            }
+        }
+        for plugin_id in idle {
+            self.shutdown(&plugin_id);
+            mark(&plugin_id);
+        }
+        wake
+    }
+
     fn shutdown(&mut self, plugin_id: &str) {
         let Some(mut runtime) = self.runtimes.remove(plugin_id) else {
             return;
@@ -247,6 +271,7 @@ pub(super) struct Runtime {
     awaiting_input: bool,
     drawn: HashMap<ScreenId, (u32, u32)>,
     placers: HashMap<(EditorInstanceId, ViewId), Placer>,
+    idle_since: Option<Duration>,
 }
 
 enum Answer {
@@ -476,6 +501,7 @@ impl Runtime {
             awaiting_input: false,
             drawn: HashMap::default(),
             placers: HashMap::default(),
+            idle_since: None,
         }
     }
 
@@ -1056,6 +1082,12 @@ impl Runtime {
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
+        let surfaces: Vec<u32> = layout
+            .screens
+            .iter()
+            .map(|placement| placement.surface)
+            .collect();
+        presenter::keep(self.surface, &surfaces);
         self.layout = layout;
     }
 
@@ -1668,6 +1700,9 @@ pub fn poll() {
         if host.grabbed != grabbed {
             host.grabbed = grabbed;
             block_app_base::host::set_grab(grabbed);
+        }
+        if let Some(wake) = host.stop_idle(host::now()) {
+            host::request_repaint_after(wake);
         }
     });
 }

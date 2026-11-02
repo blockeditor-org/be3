@@ -73,7 +73,7 @@ impl CanvasSurface {
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
         let info = renderer_info(&adapter.get_info(), format);
-        let renderer = Renderer::new(&device, format);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format));
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,

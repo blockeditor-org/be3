@@ -27,7 +27,7 @@ pub use beui_renderer_wgpu::present::read_texture;
 pub use beui_renderer_wgpu::present::{
     GpuSetup, OpenDevice, OpenGpu, browser_features, open_vulkan_device,
 };
-pub use beui_renderer_wgpu::{Renderer, Repaint, Repainting, renderer_info, wgpu_color};
+pub use beui_renderer_wgpu::{Renderer, Repaint, Repainting, Resources, renderer_info, wgpu_color};
 pub use beui_runner::environment;
 pub use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,
