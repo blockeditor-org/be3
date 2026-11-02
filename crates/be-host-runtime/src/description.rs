@@ -65,7 +65,9 @@ pub fn describe(context: &beui::native::Context) {
                     .instances
                     .anchored_views(*instance, *region)
                     .into_iter()
-                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, Some(*region), *inert))
+                    .map(|(view, rect, bounds)| {
+                        (*instance, view, rect, bounds, 1.0, Some(*region), *inert)
+                    })
             })
             .collect();
         for (instance, region, rect, clip, zoom, owner, inert) in

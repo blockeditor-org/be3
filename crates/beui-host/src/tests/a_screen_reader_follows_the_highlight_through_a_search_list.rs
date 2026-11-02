@@ -42,11 +42,9 @@ fn a_screen_reader_follows_the_highlight_through_a_search_list() {
                     .is_some_and(|row| row.is_selected() == Some(true))
             })
             .collect();
-        let active = list
-            .get()
-            .shown()
-            .into_iter()
-            .find(|key| field.active_descendant() == Some(view.id_of(list.get().row(key).unwrap())));
+        let active = list.get().shown().into_iter().find(|key| {
+            field.active_descendant() == Some(view.id_of(list.get().row(key).unwrap()))
+        });
         (view.focus() == Some(search), selected, active)
     };
 
