@@ -1499,6 +1499,21 @@ impl Instances {
             .collect()
     }
 
+    fn view_focused(&self, instance: EditorInstanceId, view: ViewId) -> bool {
+        let Some(entry) = self.entries.get(&instance) else {
+            return false;
+        };
+        if let Some(screen) = entry.screens.get(&view) {
+            return screen.input.focused();
+        }
+        entry
+            .anchored
+            .iter()
+            .find(|held| held.view == view)
+            .and_then(|held| entry.screens.get(&held.root))
+            .is_some_and(|root| root.input.focused())
+    }
+
     fn is_anchored_screen(&self, screen: ScreenId) -> bool {
         self.entries.values().any(|entry| {
             entry
@@ -2998,12 +3013,13 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
     ) -> Option<Described<'_>> {
+        let focused = self.view_focused(instance, region);
         let screen = self.any_screen_mut(instance, region)?;
         let description = screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
             actions: &description.actions,
-            focused: screen.input.focused(),
+            focused,
             tree: &mut screen.accessibility,
         })
     }

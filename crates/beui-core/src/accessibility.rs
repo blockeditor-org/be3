@@ -45,6 +45,7 @@ pub struct Fragment {
     pub windows: Vec<(AccessNodeId, WindowId)>,
     pub window_roots: Vec<(WindowId, AccessNodeId)>,
     pub focus_window: Option<WindowId>,
+    pub focus_layer: Option<u64>,
     pub escaped: Vec<(AccessNodeId, u64)>,
     pub escaped_roots: Vec<(u64, AccessNodeId, SpaceTransform)>,
 }
@@ -144,9 +145,8 @@ pub fn window_tree_update(
     root.set_children(roots);
     let focus = fragments
         .iter()
-        .filter(|fragment| fragment.focus_window == Some(window))
+        .filter(|fragment| fragment.focus_window == Some(window) && fragment.focus_layer.is_none())
         .find_map(|fragment| fragment.focus)
-        .filter(|focus| !escaped.contains(focus))
         .unwrap_or(WINDOW_NODE);
     let escaped_roots: HashSet<AccessNodeId> = fragments
         .iter()
@@ -237,8 +237,8 @@ pub fn escaped_tree_update(
     };
     let focus = fragments
         .iter()
-        .filter_map(|fragment| fragment.focus.filter(|focus| inside(fragment, *focus)))
-        .next()
+        .filter(|fragment| fragment.focus_layer == Some(layer))
+        .find_map(|fragment| fragment.focus)
         .unwrap_or(WINDOW_NODE);
     let mut nodes = vec![(WINDOW_NODE, window)];
     for fragment in fragments {
@@ -921,9 +921,11 @@ impl Document {
         };
         let (escaped, escaped_roots) = self.escaped_access(&nodes);
         let focus = self.accessibility_tree.borrow().focus;
-        let focus_window = focus
-            .and_then(|focus| self.local_key(focus))
-            .map(|focus| self.window_of(focus.node()));
+        let focused = focus.and_then(|focus| self.local_key(focus));
+        let focus_window = focused.map(|focus| self.window_of(focus.node()));
+        let focus_layer = focused
+            .filter(|_| self.escapes.any())
+            .and_then(|focus| self.escape_holding(focus.node()));
         Some(Fragment {
             nodes,
             root,
@@ -931,6 +933,7 @@ impl Document {
             windows,
             window_roots,
             focus_window,
+            focus_layer,
             escaped,
             escaped_roots,
         })

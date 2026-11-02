@@ -585,8 +585,9 @@ fn nearby() -> WifiStatus {
         link: WifiLink::Connected("Home".to_owned()),
         networks: vec![
             network("Home", 82, WifiSecurity::Password, true),
-            network("Office", 60, WifiSecurity::Unsupported, false),
+            network("Office", 60, WifiSecurity::Enterprise, false),
             network("Cafe", 48, WifiSecurity::Open, false),
+            network("Old", 40, WifiSecurity::Wep, false),
             network("Flat", 25, WifiSecurity::Password, false),
         ],
         failed: None,

@@ -19,6 +19,18 @@ fn wifi_messages_round_trip() {
                 security: WifiSecurity::Open,
                 saved: false,
             },
+            WifiNetwork {
+                ssid: "Old".to_owned(),
+                strength: 30,
+                security: WifiSecurity::Wep,
+                saved: false,
+            },
+            WifiNetwork {
+                ssid: "Office".to_owned(),
+                strength: 20,
+                security: WifiSecurity::Enterprise,
+                saved: false,
+            },
         ],
         failed: Some("Office".to_owned()),
     };
@@ -34,6 +46,11 @@ fn wifi_messages_round_trip() {
         WifiRequest::Connect {
             ssid: "Cafe".to_owned(),
             password: None,
+        },
+        WifiRequest::JoinHidden {
+            ssid: "Attic".to_owned(),
+            security: WifiSecurity::Wep,
+            password: Some("abcde".to_owned()),
         },
         WifiRequest::Disconnect,
     ] {

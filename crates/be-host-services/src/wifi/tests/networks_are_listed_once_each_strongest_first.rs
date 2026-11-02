@@ -30,7 +30,7 @@ fn networks_are_listed_once_each_strongest_first() {
             WifiNetwork {
                 ssid: "Office".to_owned(),
                 strength: 60,
-                security: WifiSecurity::Unsupported,
+                security: WifiSecurity::Enterprise,
                 saved: false,
             },
             WifiNetwork {
@@ -48,19 +48,37 @@ fn networks_are_listed_once_each_strongest_first() {
             WifiNetwork {
                 ssid: "Old".to_owned(),
                 strength: 10,
-                security: WifiSecurity::Unsupported,
+                security: WifiSecurity::Wep,
                 saved: false,
             },
         ],
-        "a hidden network is left out, enterprise and WEP networks are marked unsupported, and a name seen twice is listed at its strongest"
+        "a hidden network is left out, enterprise and WEP networks are told apart, and a name seen twice is listed at its strongest"
+    );
+    let password = || Some("correct horse".to_owned());
+    assert_eq!(
+        point("Home", 40, PSK | SAE).key(password()),
+        Some(Key::Psk("correct horse".to_owned()))
     );
     assert_eq!(
-        point("Home", 40, PSK | SAE).key_management(),
-        Some("wpa-psk")
+        point("Flat", 40, SAE).key(password()),
+        Some(Key::Sae("correct horse".to_owned()))
     );
-    assert_eq!(point("Flat", 40, SAE).key_management(), Some("sae"));
-    assert_eq!(point("Cafe", 40, 0).key_management(), None);
-    assert_eq!(point("Cafe", 40, 0x800).key_management(), Some("owe"));
+    assert_eq!(point("Cafe", 40, 0).key(None), Some(Key::Open));
+    assert_eq!(point("Cafe", 40, 0x800).key(None), Some(Key::Owe));
+    assert_eq!(point("Office", 40, EAP).key(password()), None);
+
+    let mut points = [point("", 90, PSK), point("", 30, 0)];
+    name_hidden(&mut points, Some(0), Some(b"Attic"));
+    assert_eq!(
+        networks(&points, &[b"Attic".to_vec()]),
+        vec![WifiNetwork {
+            ssid: "Attic".to_owned(),
+            strength: 90,
+            security: WifiSecurity::Password,
+            saved: true,
+        }],
+        "the hidden network joined is listed under the name it was joined by"
+    );
     assert_eq!(
         link(ACTIVATED, Some("Home".to_owned())),
         WifiLink::Connected("Home".to_owned())

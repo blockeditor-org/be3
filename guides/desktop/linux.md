@@ -317,23 +317,34 @@ The Status bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi ti
 reports a Wi-Fi device (`WifiStatus::available` in `WifiWatch`'s value): the icon is the joined
 network's strength, and the tile opens the network list (the desktop app's `root/wifi.rs`),
 which turns Wi-Fi on and off, lists the networks in range and joins or leaves one with
-`WifiRequest`s. Opening the list asks for a scan. A saved or open network is joined at
-once; a protected one asks for its password first, and asks again when the host reports that
-joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
-from a connection saved elsewhere.
+`WifiRequest`s. Opening the list asks for a scan. The list keeps one height whether Wi-Fi is on or
+off, so the switch stays under the pointer, and puts the network joined or being joined first.
+Each row shows its strength, a lock when the network is protected, and is named for screen
+readers by all of it. A saved or open network is joined at once; a WPA one asks for its password
+first and a WEP one for its key (`WifiSecurity::Wep`), and asks again when the host reports that
+joining it `failed`. An enterprise network (`WifiSecurity::Enterprise`) can only be joined from a
+connection saved elsewhere. "Other network…" joins a hidden network by its name, security and
+password (`WifiRequest::JoinHidden`).
 
 be-host-services' `src/wifi/` starts once an app watches `Wifi` and talks to NetworkManager on the
 system bus (`network_manager.rs`, a task on the D-Bus thread). It reads the first Wi-Fi device,
 its access points and the saved Wi-Fi connections again after every signal NetworkManager sends,
 so a change made elsewhere (`nmcli`, another program) shows at once. A saved network is joined
-with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it. A new
-connection that fails to come up is deleted again, and one made with a new password replaces the
-saved ones for that network once it is up. `model.rs` is the pure part and where to test it:
-security from the access point's flags, the list (hidden networks left out, each name once at its
-strongest), how a network is joined, and when an attempt has connected or failed. The test
-`wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private bus.
+with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it (a hidden
+one with `hidden` set). A new connection that fails to come up is deleted again, and one made with
+a new password replaces the saved ones for that network once it is up. `model.rs` is the pure
+part and where to test it: security from the access point's flags, which passwords and keys each
+takes, the list (hidden networks left out unless joined, then named by the connection; each name
+once at its strongest), how a network is joined, and when an attempt has connected or failed. The
+test `wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private
+bus.
 
-The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows.
+The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows. To see
+them, run python-dbusmock's NetworkManager template on a bus of its own (`python3 -m dbusmock
+--system --template networkmanager` with `DBUS_SYSTEM_BUS_ADDRESS` set to a `dbus-daemon` you
+started), add a device and access points through its `AddWiFiDevice` and `AddAccessPoint`, and
+start `:dev` with the same `DBUS_SYSTEM_BUS_ADDRESS`. The mock does not signal a property it sets,
+so after the switch is flipped call its `EmitSignal` for the list to catch up.
 
 ## The on-screen keyboard
 

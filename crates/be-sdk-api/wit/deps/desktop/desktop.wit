@@ -260,8 +260,12 @@ interface media {
 interface wifi {
     enum wifi-security {
         open,
+        /// WPA or WPA3, joined with a password.
         password,
-        unsupported,
+        /// The old WEP, joined with a key.
+        wep,
+        /// WPA Enterprise (802.1X), which needs a sign-in only a saved connection has.
+        enterprise,
     }
 
     record wifi-network {
@@ -291,10 +295,18 @@ interface wifi {
         password: option<string>,
     }
 
+    /// A network that does not broadcast its name.
+    record wifi-hidden {
+        ssid: string,
+        security: wifi-security,
+        password: option<string>,
+    }
+
     variant wifi-request {
         set-enabled(bool),
         scan,
         connect(wifi-connect),
+        join-hidden(wifi-hidden),
         disconnect,
     }
 

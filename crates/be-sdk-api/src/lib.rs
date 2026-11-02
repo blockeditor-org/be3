@@ -44,7 +44,7 @@ be_wasm_ops_bindgen::generate!({
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "block-child", "creation-child", "artifact-settings-child", "picker-child",
-        "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
+        "window-fullscreen", "wifi-connect", "wifi-hidden", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     ordered: ["child-content", "dock-tab-path", "block-filter"],
