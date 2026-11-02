@@ -166,18 +166,20 @@ fn PaletteTile(handle: CommandRowHandle) -> NodeId {
     view! {
         <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
             <List align=Align::Center spacing=TILE_SPACING>
-                <Frame width=TILE_ICON height=TILE_ICON>
-                    <List align=Align::Center spacing=Space::None>
-                        <Show condition={pictured}>
-                            <Picture image />
-                        </Show>
-                        <Show condition={plain}>
+                <Show condition={pictured}>
+                    <Frame width=TILE_ICON height=TILE_ICON>
+                        <Picture image />
+                    </Frame>
+                </Show>
+                <Show condition={plain}>
+                    <Frame width=TILE_ICON height=TILE_ICON>
+                        <List align=Align::Center spacing=Space::None>
                             <Text size=TextSize::Xl color align=TextAlign::Center>
                                 <Icon glyph />
                             </Text>
-                        </Show>
-                    </List>
-                </Frame>
+                        </List>
+                    </Frame>
+                </Show>
                 <Text size=TextSize::Sm color align=TextAlign::Center overflow=Overflow::Ellipsis>
                     {label}
                 </Text>
