@@ -11,7 +11,8 @@ fn a_shown_dmabuf_is_released_once_a_newer_one_is_painted() {
     let (mut harness, device, queue) = Harness::with_gpu();
     let (window, _) = harness.open();
     let format = wgpu::TextureFormat::Bgra8Unorm;
-    let mut renderer = beui_host::native::Renderer::new(&device, format);
+    let mut renderer =
+        beui_host::native::Renderer::new(&beui_host::native::Resources::new(&device, format));
     let size = (SCREEN.x as u32, SCREEN.y as u32);
     let target = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("screen"),

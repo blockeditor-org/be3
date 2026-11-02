@@ -594,6 +594,20 @@ hooks the higher crates fill in:
   `Runner::rendering`. A renderer is told where to draw with `attach` (a
   raw-window-handle `WindowHandle`) or is made with its element, and draws a
   frame in two steps, `prepare` and then `present`.
+- The wgpu renderer is two types. `beui_renderer_wgpu::Resources` is what every
+  target on one device and surface format can share: the pipelines, the
+  samplers, the glyph atlas (2048 by 2048, R8), the colour glyph atlas (the same
+  size in RGBA, made only once a colour glyph is drawn) and the uploaded images,
+  each kept while any renderer drew it in its last frame. A
+  `beui_renderer_wgpu::Renderer` (`Renderer::new(&resources)`) is one target's:
+  its uniform, instance and space buffers, its cache of encoded display lists,
+  its filters and its scratch texture. Give every window or panel drawn on one
+  device a renderer over the same `Resources`: beui-platform-plugin keeps one
+  per plugin module for all its views, beui-layer-space one for all its panels
+  and beui-platform-drm one for all its displays. A full atlas is replaced by a
+  new texture rather than cleared, and a renderer draws with the atlas and
+  images it was prepared against, so renderers sharing `Resources` may prepare
+  and render in any order and submit whenever they like.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -4520,11 +4534,11 @@ it, and all its 3D (`glam`) stays in the crate.
   to the region's window as its `WindowReport::Rastered`, so plugin content
   in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
-  `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
+  `beui_renderer_wgpu::Renderer`, over the compositor's one `Resources`, into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only
   its damage after copying its `moved` scroll inside the texture. A window that
-  changes size gets a new texture but keeps its renderer, whose pipelines and
-  glyph atlases cost far more to build than a resize step's whole frame. It is sampled with
+  changes size gets a new texture but keeps its renderer, whose buffers and
+  encoded display lists cost far more to build than a resize step's whole frame. It is sampled with
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;

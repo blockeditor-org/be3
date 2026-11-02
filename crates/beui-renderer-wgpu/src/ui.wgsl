@@ -13,10 +13,10 @@ struct Space {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var atlas: texture_2d<f32>;
-@group(0) @binding(2) var atlas_sampler: sampler;
-@group(0) @binding(3) var colors: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> space: Space;
+@group(2) @binding(0) var atlas: texture_2d<f32>;
+@group(2) @binding(1) var atlas_sampler: sampler;
+@group(2) @binding(2) var colors: texture_2d<f32>;
 
 struct Instance {
     @location(0) rect: vec4<f32>,

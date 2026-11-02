@@ -165,6 +165,10 @@ impl<R: Regions> ViewHandler for Driver<R> {
         self.regions.node_action(region, request);
     }
 
+    fn laid_out(&mut self, views: &[ViewRef]) {
+        self.surfaces.retain(|id| views.contains(&id));
+    }
+
     fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         let shown: HashSet<ViewRef> = regions.iter().map(ShownView::id).collect();
         self.surfaces.retain(|id| shown.contains(&id));
