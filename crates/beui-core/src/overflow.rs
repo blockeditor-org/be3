@@ -143,7 +143,25 @@ impl Document {
             }
             bounds = bounds.intersect(clip);
         }
+        if let Some(mut window) = self.window_bounds(id) {
+            if free_x {
+                window.min.x = f32::NEG_INFINITY;
+                window.max.x = f32::INFINITY;
+            }
+            if free_y {
+                window.min.y = f32::NEG_INFINITY;
+                window.max.y = f32::INFINITY;
+            }
+            bounds = bounds.intersect(window);
+        }
         bounds
+    }
+
+    fn window_bounds(&self, id: NodeId) -> Option<Rect> {
+        if !self.window_of(id).is_main() || self.escape_holding(id).is_some() {
+            return None;
+        }
+        self.viewport.as_ref().map(|(_, rect, _)| *rect)
     }
 
     fn scrolls(&self, space: SpaceId) -> (bool, bool) {
