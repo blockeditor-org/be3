@@ -1,15 +1,15 @@
 use beui::Overflow;
 use uuid::Uuid;
 
-use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
-use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::dock::styled::{
     DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
 use beui::{Align, Direction, ItemSize, Justify};
@@ -164,29 +164,29 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             </Show>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
                                 <Frame padding=PADDING>
-                                <List spacing=Space::None>
-                                <Dynamic value={mode}>|shown: FolderView| {
-                                    match shown {
-                                        FolderView::List => view! {
-                                            <EntryRows cells={cells} />
-                                        },
-                                        FolderView::LargeGrid => view! {
-                                            <EntryTiles
-                                                cells={cells}
-                                                tile=LARGE_TILE
-                                                icon_size=LARGE_ICON
-                                            />
-                                        },
-                                        FolderView::SmallGrid => view! {
-                                            <EntryTiles
-                                                cells={cells}
-                                                tile=SMALL_TILE
-                                                icon_size=SMALL_ICON
-                                            />
-                                        },
-                                    }
-                                }</Dynamic>
-                                </List>
+                                    <List spacing=Space::None>
+                                        <Dynamic value={mode}>|shown: FolderView| {
+                                            match shown {
+                                                FolderView::List => view! {
+                                                    <EntryRows cells={cells} />
+                                                },
+                                                FolderView::LargeGrid => view! {
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=LARGE_TILE
+                                                        icon_size=LARGE_ICON
+                                                    />
+                                                },
+                                                FolderView::SmallGrid => view! {
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=SMALL_TILE
+                                                        icon_size=SMALL_ICON
+                                                    />
+                                                },
+                                            }
+                                        }</Dynamic>
+                                    </List>
                                 </Frame>
                             </Scroll>
                         </List>

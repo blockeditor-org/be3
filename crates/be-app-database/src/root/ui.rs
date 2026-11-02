@@ -1,9 +1,9 @@
 use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery};
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar, narrow_chrome};
 use be_type_database::DatabaseSchemaContent;
 use be_type_database::database::DatabaseContent;
