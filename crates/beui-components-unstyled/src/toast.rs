@@ -86,7 +86,8 @@ pub fn Toasts(
     let open = create_memo(move || all.with(|toasts| !toasts.is_empty()));
     let hidden = create_memo(move || all.with(|toasts| toasts.len().saturating_sub(limit.get())));
     let toasts = create_memo(move || all.with(|toasts| toasts[hidden.get()..].to_vec()));
-    let bottom = edge.map(|edge| matches!(edge, Edge::Bottom | Edge::BottomStart | Edge::BottomEnd));
+    let bottom =
+        edge.map(|edge| matches!(edge, Edge::Bottom | Edge::BottomStart | Edge::BottomEnd));
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
         Edge::TopStart => Placement::InsideTopStart,

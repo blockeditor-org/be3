@@ -7,7 +7,6 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
-mod too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
 mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
@@ -99,6 +98,7 @@ mod the_window_sample_floats_beside_its_button_where_nothing_opens_windows;
 mod the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows;
 mod tile_buttons_pick_one_of_a_row_of_pictures;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
+mod too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short;
 mod two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
 mod waiting_for_data_shows_progress_until_it_arrives;

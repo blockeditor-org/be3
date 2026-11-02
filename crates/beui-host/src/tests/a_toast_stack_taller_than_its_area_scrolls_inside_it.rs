@@ -23,8 +23,12 @@ fn a_toast_stack_taller_than_its_area_scrolls_inside_it() {
     });
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
-    let first = output.test_id_rect("toast.1").expect("the oldest toast is laid out");
-    let newest = output.test_id_rect("toast.3").expect("the newest toast shows");
+    let first = output
+        .test_id_rect("toast.1")
+        .expect("the oldest toast is laid out");
+    let newest = output
+        .test_id_rect("toast.3")
+        .expect("the newest toast shows");
     assert!(
         first.top() < 0.0,
         "the stack is taller than its area, so its start scrolls out of view: {first:?}"
