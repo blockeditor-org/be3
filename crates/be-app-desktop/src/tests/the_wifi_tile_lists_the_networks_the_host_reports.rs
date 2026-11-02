@@ -39,15 +39,53 @@ fn the_wifi_tile_lists_the_networks_the_host_reports() {
     );
     assert!(fixture.test.shown("desktop.wifi.network.Home.disconnect"));
     assert!(fixture.says("Connected"));
-    assert!(fixture.says("Needs a sign-in this desktop cannot do"));
+    assert!(fixture.says("Needs a work or school sign-in this desktop cannot set up"));
+    assert!(fixture.says("Uses WEP, an old and easily broken security"));
+    assert_eq!(
+        fixture.test.accessible_label("desktop.wifi.network.Home").as_deref(),
+        Some("Home, signal 82%, secured, Connected"),
+        "a network's row is named for what it shows"
+    );
+    assert_eq!(
+        fixture.test.accessible_label("desktop.wifi.network.Cafe").as_deref(),
+        Some("Cafe, signal 48%, open")
+    );
+    assert!(
+        fixture.test.shown("desktop.wifi.network.Home.lock")
+            && fixture.test.shown("desktop.wifi.network.Old.lock")
+            && !fixture.test.shown("desktop.wifi.network.Cafe.lock"),
+        "a protected network is marked with a lock beside its strength"
+    );
     fixture.test.snapshot("the_wifi_networks");
 
     fixture.wifi(WifiStatus {
-        link: WifiLink::Connecting("Cafe".to_owned()),
+        link: WifiLink::Connecting("Flat".to_owned()),
         ..nearby()
     });
     assert!(fixture.says("Connecting…"));
     assert!(!fixture.test.shown("desktop.wifi.network.Home.disconnect"));
+    let top = |fixture: &Fixture, ssid: &str| {
+        fixture
+            .test
+            .rect_of(&format!("desktop.wifi.network.{ssid}"))
+            .min
+            .y
+    };
+    assert!(
+        top(&fixture, "Flat") < top(&fixture, "Home"),
+        "the network being joined is listed first"
+    );
+    fixture.wifi(WifiStatus {
+        link: WifiLink::Connected("Flat".to_owned()),
+        ..nearby()
+    });
+    assert!(
+        top(&fixture, "Flat") < top(&fixture, "Home"),
+        "the network joined is listed first"
+    );
+    assert!(fixture.test.shown("desktop.wifi.network.Flat.disconnect"));
+
+    let switch = fixture.test.rect_of("desktop.wifi.enabled");
 
     fixture.wifi(WifiStatus {
         enabled: false,
@@ -56,6 +94,13 @@ fn the_wifi_tile_lists_the_networks_the_host_reports() {
         ..nearby()
     });
     assert!(fixture.says("Wi-Fi is off."));
+    assert_eq!(
+        fixture.test.rect_of("desktop.wifi.enabled"),
+        switch,
+        "the switch stays under the pointer when Wi-Fi goes off"
+    );
+    assert!(!fixture.test.shown("desktop.wifi.other"));
+    fixture.test.snapshot("the_wifi_turned_off");
     assert!(
         fixture
             .test

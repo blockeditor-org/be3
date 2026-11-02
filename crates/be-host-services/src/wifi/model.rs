@@ -31,7 +31,7 @@ impl AccessPoint {
     pub fn security(&self) -> WifiSecurity {
         let managed = self.wpa | self.rsn;
         if managed & (KEY_MGMT_802_1X | KEY_MGMT_EAP_SUITE_B_192) != 0 {
-            return WifiSecurity::Unsupported;
+            return WifiSecurity::Enterprise;
         }
         if managed & (KEY_MGMT_PSK | KEY_MGMT_SAE) != 0 {
             return WifiSecurity::Password;
@@ -40,19 +40,78 @@ impl AccessPoint {
             return WifiSecurity::Open;
         }
         match self.flags & PRIVACY != 0 {
-            true => WifiSecurity::Unsupported,
+            true => WifiSecurity::Wep,
             false => WifiSecurity::Open,
         }
     }
 
-    pub fn key_management(&self) -> Option<&'static str> {
+    pub fn key(&self, password: Option<String>) -> Option<Key> {
         let managed = self.wpa | self.rsn;
-        match self.security() {
-            WifiSecurity::Password if managed & KEY_MGMT_PSK != 0 => Some("wpa-psk"),
-            WifiSecurity::Password => Some("sae"),
-            WifiSecurity::Open if managed & (KEY_MGMT_OWE | KEY_MGMT_OWE_TM) != 0 => Some("owe"),
+        match (self.security(), password) {
+            (WifiSecurity::Open, _) if managed & (KEY_MGMT_OWE | KEY_MGMT_OWE_TM) != 0 => {
+                Some(Key::Owe)
+            }
+            (WifiSecurity::Open, _) => Some(Key::Open),
+            (WifiSecurity::Password, Some(password)) if passphrase(&password) => {
+                match managed & KEY_MGMT_PSK != 0 {
+                    true => Some(Key::Psk(password)),
+                    false => Some(Key::Sae(password)),
+                }
+            }
+            (WifiSecurity::Wep, Some(key)) if wep_key(&key) => Some(Key::Wep(key)),
             _ => None,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Key {
+    Open,
+    Owe,
+    Psk(String),
+    Sae(String),
+    Wep(String),
+}
+
+impl Key {
+    pub fn hidden(security: WifiSecurity, password: Option<String>) -> Option<Key> {
+        match (security, password) {
+            (WifiSecurity::Open, None) => Some(Key::Open),
+            (WifiSecurity::Password, Some(password)) if passphrase(&password) => {
+                Some(Key::Psk(password))
+            }
+            (WifiSecurity::Wep, Some(key)) if wep_key(&key) => Some(Key::Wep(key)),
+            _ => None,
+        }
+    }
+}
+
+const PASSPHRASE_BYTES: std::ops::RangeInclusive<usize> = 8..=63;
+const HEX_KEY_LENGTH: usize = 64;
+const WEP_TEXT_LENGTHS: [usize; 2] = [5, 13];
+const WEP_HEX_LENGTHS: [usize; 2] = [10, 26];
+
+pub fn passphrase(password: &str) -> bool {
+    let printable = password.chars().all(|letter| !letter.is_control());
+    let hex = password.len() == HEX_KEY_LENGTH
+        && password.chars().all(|letter| letter.is_ascii_hexdigit());
+    printable && (PASSPHRASE_BYTES.contains(&password.len()) || hex)
+}
+
+pub fn wep_key(key: &str) -> bool {
+    let text = WEP_TEXT_LENGTHS.contains(&key.len())
+        && key.chars().all(|letter| letter.is_ascii() && !letter.is_control());
+    let hex = WEP_HEX_LENGTHS.contains(&key.len())
+        && key.chars().all(|letter| letter.is_ascii_hexdigit());
+    text || hex
+}
+
+pub fn name_hidden(points: &mut [AccessPoint], active: Option<usize>, ssid: Option<&[u8]>) {
+    if let Some(point) = active.and_then(|index| points.get_mut(index))
+        && point.ssid.is_empty()
+        && let Some(ssid) = ssid
+    {
+        point.ssid = ssid.to_vec();
     }
 }
 
@@ -107,8 +166,8 @@ pub enum Plan {
     },
     Add {
         ssid: Vec<u8>,
-        key_management: Option<&'static str>,
-        password: Option<String>,
+        key: Key,
+        hidden: bool,
         point: Option<usize>,
         replaces: Vec<usize>,
     },
@@ -150,22 +209,40 @@ pub fn plan(
     let Some(found) = found else {
         return Plan::Refuse;
     };
-    match (found.security(), password) {
-        (WifiSecurity::Open, _) => Plan::Add {
+    match found.key(password) {
+        Some(key) => Plan::Add {
             ssid,
-            key_management: found.key_management(),
-            password: None,
+            key,
+            hidden: false,
             point,
             replaces: same,
         },
-        (WifiSecurity::Password, Some(password)) => Plan::Add {
-            ssid,
-            key_management: found.key_management(),
-            password: Some(password),
-            point,
-            replaces: same,
-        },
-        _ => Plan::Refuse,
+        None => Plan::Refuse,
+    }
+}
+
+pub fn plan_hidden(
+    name: &str,
+    security: WifiSecurity,
+    password: Option<String>,
+    saved: &[Vec<u8>],
+) -> Plan {
+    let ssid = name.as_bytes().to_vec();
+    let Some(key) = Key::hidden(security, password) else {
+        return Plan::Refuse;
+    };
+    let replaces = saved
+        .iter()
+        .enumerate()
+        .filter(|(_, bytes)| **bytes == ssid)
+        .map(|(index, _)| index)
+        .collect();
+    Plan::Add {
+        ssid,
+        key,
+        hidden: true,
+        point: None,
+        replaces,
     }
 }
 
