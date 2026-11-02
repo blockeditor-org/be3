@@ -97,8 +97,11 @@ pub(crate) fn prepare_socket_dir(dir: &Path) -> Result<(), StartError> {
         }
         Err(error) => return Err(StartError::SocketDirUnwritable(dir.to_owned(), error)),
     }
-    rustix::fs::access(dir, rustix::fs::Access::WRITE_OK | rustix::fs::Access::EXEC_OK)
-        .map_err(|error| StartError::SocketDirUnwritable(dir.to_owned(), error.into()))
+    rustix::fs::access(
+        dir,
+        rustix::fs::Access::WRITE_OK | rustix::fs::Access::EXEC_OK,
+    )
+    .map_err(|error| StartError::SocketDirUnwritable(dir.to_owned(), error.into()))
 }
 
 fn preflight(path: Option<&OsStr>, socket_dir: &Path) -> Result<(), StartError> {
@@ -204,10 +207,7 @@ impl State {
     }
 
     fn spawn_xwayland(&mut self) -> Result<u32, StartError> {
-        preflight(
-            std::env::var_os("PATH").as_deref(),
-            Path::new(SOCKET_DIR),
-        )?;
+        preflight(std::env::var_os("PATH").as_deref(), Path::new(SOCKET_DIR))?;
         let wanted = self.xwayland.display;
         let (xwayland, client) = XWayland::spawn(
             &self.handle,

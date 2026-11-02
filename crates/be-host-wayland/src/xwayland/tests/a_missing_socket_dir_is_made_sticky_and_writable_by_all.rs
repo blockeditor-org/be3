@@ -8,7 +8,11 @@ fn a_missing_socket_dir_is_made_sticky_and_writable_by_all() {
     let dir = temp.join(".X11-unix");
 
     prepare_socket_dir(&dir).expect("the missing directory is made");
-    let mode = dir.metadata().expect("the directory exists").permissions().mode();
+    let mode = dir
+        .metadata()
+        .expect("the directory exists")
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o7777, 0o1777);
 
     prepare_socket_dir(&dir).expect("an existing directory is kept");
