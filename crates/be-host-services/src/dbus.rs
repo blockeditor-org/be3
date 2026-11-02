@@ -49,7 +49,10 @@ pub async fn session() -> Option<Connection> {
 }
 
 pub async fn build(builder: Builder<'_>) -> zbus::Result<Connection> {
-    builder.serve_at("/", zbus::fdo::ObjectManager)?.build().await
+    builder
+        .serve_at("/", zbus::fdo::ObjectManager)?
+        .build()
+        .await
 }
 
 async fn connect(
