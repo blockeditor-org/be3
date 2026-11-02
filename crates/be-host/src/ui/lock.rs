@@ -157,24 +157,24 @@ pub(crate) fn LockScreen(
             let height = create_memo(move || Length::Extent(Extent::at_least(viewport.get().y)));
             view! {
                 <Scroll>
-                <Layers>
-                <Interactive press_focus=false />
-                <Frame height padding={Padding::all(EDGE)} align={Align2::CENTER}>
-                    <LockCard
-                        time
-                        date
-                        user
-                        error
-                        busy
-                        actions
-                        password
-                        focused
-                        id={id.clone()}
-                        on_submit={move |typed: String| submit(typed)}
-                        on_action
-                    />
-                </Frame>
-                </Layers>
+                    <Layers>
+                        <Interactive press_focus=false />
+                        <Frame height padding={Padding::all(EDGE)} align={Align2::CENTER}>
+                            <LockCard
+                                time
+                                date
+                                user
+                                error
+                                busy
+                                actions
+                                password
+                                focused
+                                id={id.clone()}
+                                on_submit={move |typed: String| submit(typed)}
+                                on_action
+                            />
+                        </Frame>
+                    </Layers>
                 </Scroll>
             }
         }</Modal>

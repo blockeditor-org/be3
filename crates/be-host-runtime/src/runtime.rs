@@ -2448,6 +2448,29 @@ pub fn unplace_view(app_id: &str, instance: EditorInstanceId, region: ViewId, mo
     host::request_repaint();
 }
 
+pub fn set_view_inert(
+    app_id: &str,
+    instance: EditorInstanceId,
+    region: ViewId,
+    mount: u64,
+    inert: bool,
+) {
+    with(app_id, |runtime| {
+        let key = (instance, region);
+        let Some(offers) = runtime.offers.get_mut(&key) else {
+            return;
+        };
+        if let Some(offer) = offers.iter_mut().find(|offer| offer.mount == mount) {
+            offer.inert = inert;
+        }
+        let inert = offers.iter().all(|offer| offer.inert);
+        if let Some(placed) = runtime.placements.get_mut(&key) {
+            placed.inert = inert;
+        }
+    });
+    host::request_repaint();
+}
+
 fn withdraw(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewId, mount: u64) {
     let key = (instance, region);
     let remaining = runtime.offers.get_mut(&key).map_or(0, |offers| {
@@ -2475,7 +2498,6 @@ pub struct ViewPlace {
     pub origin: Option<Pos2>,
     pub anchor_bounds: Option<Rect>,
     pub fit: Option<Vec2>,
-    pub inert: bool,
 }
 
 pub(super) struct Offer {
@@ -2483,6 +2505,7 @@ pub(super) struct Offer {
     placement: ViewPlace,
     frame: Option<FrameSpec>,
     view: Option<EditorView>,
+    inert: bool,
 }
 
 pub fn place_view(
@@ -2499,11 +2522,16 @@ pub fn place_view(
             return;
         }
         let offers = runtime.offers.entry((instance, region)).or_default();
+        let inert = offers
+            .iter()
+            .find(|held| held.mount == mount)
+            .is_some_and(|held| held.inert);
         let offer = Offer {
             mount,
             placement,
             frame,
             view,
+            inert,
         };
         match offers.iter_mut().find(|held| held.mount == mount) {
             Some(held) => *held = offer,
@@ -2547,7 +2575,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .placement
         .fit
         .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
-    let inert = offers.iter().all(|offer| offer.placement.inert);
+    let inert = offers.iter().all(|offer| offer.inert);
     let frame = chosen.frame;
     let view = chosen.view;
     let ViewPlace {

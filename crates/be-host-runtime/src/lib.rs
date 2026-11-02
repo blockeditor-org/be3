@@ -47,7 +47,8 @@ pub use runtime::place_screens;
 pub use runtime::{
     PlacedView, ViewPlace, ViewPlacer, ViewSlot, anchored_blits, anchored_drawing, back_view,
     dismiss_anchored_views, drag_over_view, forward_anchored, forward_view, frames, intercept_tap,
-    intercept_view, mount_view, place_view, placed_view, pressed_outside_view, take_block_drags,
+    intercept_view, mount_view, place_view, placed_view, pressed_outside_view, set_view_inert,
+    take_block_drags,
     take_changed, take_focus_request, take_view_actions, unmount_view, unplace_view, view_damage,
     view_drawing, view_has_keyboard, view_placed, view_published,
 };
