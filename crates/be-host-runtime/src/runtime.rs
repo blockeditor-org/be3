@@ -2715,7 +2715,10 @@ pub fn intercept_view(
 }
 
 pub fn view_has_keyboard(app_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
-    with(app_id, |runtime| runtime.instances.has_keyboard(instance, region)).unwrap_or(false)
+    with(app_id, |runtime| {
+        runtime.instances.has_keyboard(instance, region)
+    })
+    .unwrap_or(false)
 }
 
 pub fn intercept_tap(app_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
