@@ -497,6 +497,17 @@ impl State {
     }
 
     pub fn parent(&self, id: WindowId) -> Option<WindowId> {
+        let mut parent = self.set_parent(id)?;
+        for _ in 0..self.windows.len() {
+            if self.mapped_size(parent).is_some() {
+                return Some(parent);
+            }
+            parent = self.set_parent(parent)?;
+        }
+        None
+    }
+
+    fn set_parent(&self, id: WindowId) -> Option<WindowId> {
         if let Some(surface) = self.find(id)?.window.x11_surface() {
             return self.x11_window(surface.is_transient_for()?);
         }

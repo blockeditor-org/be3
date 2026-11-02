@@ -148,7 +148,12 @@ window (`FloatingWindow`) instead of a tab, as the desktop app always does. A pr
 window) is never a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
 `DockDialog` of its parent's tab, which the dock draws as the same anchored card as be-host's
 own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
-the parent dialog's header), escaping its pane as a layer, in space and outside it alike. Its
+the parent dialog's header), escaping its pane as a layer, in space and outside it alike. A
+parent can come and go after the window shows (GTK 3 sets it after the first commit), and the
+dialog moves between being a window and a card with it. A parent that is not listed (a toplevel
+that never drew, such as `gtk3-demo --run`'s hidden main window) does not count: be-host-wayland
+reports the nearest shown ancestor (`State::parent`), and `shown_windows` drops a parent missing
+from the list, so such a window is a window of its own. Its
 header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, the one way to name
 a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
 program id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
