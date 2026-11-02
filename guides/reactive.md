@@ -975,7 +975,7 @@ that returns a plain node fits a list, a `scroll` or anything else that takes
 one child per row without saying so.
 
 ```rust
-<ForEach spacing=0.0 keys>
+<ForEach keys>
     |key: Uuid| <ItemRow @sizing={row_size(key)} key />
 </ForEach>
 ```

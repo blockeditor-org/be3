@@ -113,6 +113,8 @@ members = [
     "crates/be-type-checklist",
     "crates/be-app-example-counter",
     "crates/be-type-example-counter",
+    "crates/be-app-example-scoreboard",
+    "crates/be-type-example-scoreboard",
     "crates/be-app-database",
     "crates/be-type-database",
     "crates/be-app-deterministic-game",
