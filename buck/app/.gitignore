@@ -1,4 +1,0 @@
-# Holds the build-info.json the pinned bootstrap still writes here. Delete this
-# directory once scripts/internal/pins names a bootstrap that writes only
-# buck/program/build-info.json.
-build-info.json
