@@ -718,6 +718,19 @@ impl Compositor {
                     }
                     state.key(*code, press.pressed);
                 }
+                Forwarded::Input(Event::Key {
+                    press,
+                    evdev: None,
+                    text,
+                }) if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
+                        state.ping(id, now);
+                    }
+                    let keyed = state.placeless_key(press.key, text.as_deref(), press.pressed);
+                    if let (false, Some(text)) = (keyed, text) {
+                        state.text_inputs.commit_text(text);
+                    }
+                }
                 Forwarded::Input(Event::Text(text)) if state.keyboard_window() == Some(id) => {
                     state.text_inputs.commit_text(text);
                 }

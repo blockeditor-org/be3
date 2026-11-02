@@ -180,7 +180,7 @@ unmodified character and key code. Web and winit share `Key::from_value`, which
 reads a W3C key value. `evdev` on `Keystroke` and `Event::Key` is where the key
 sits, as a Linux evdev code (`KEY_A` is 30), on every platform: winit and the
 web map their W3C physical codes with `Key::evdev_from_code`, Android passes
-its scan code and drm its evdev code, and drive sends `Key::evdev`;
+its scan code and drm its evdev code;
 `Key::from_evdev` names the key in that place. It is `None` for a key with no
 physical place, such as one from an on-screen keyboard. It is for programs that
 apply a layout of their own, such as be-host-wayland's Wayland clients; shortcuts

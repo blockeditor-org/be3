@@ -9,6 +9,7 @@ mod gtk_settings;
 mod heads;
 mod held_view;
 mod idle;
+mod layout;
 mod presentation;
 pub mod programs;
 mod render;

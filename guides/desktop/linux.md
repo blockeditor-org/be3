@@ -334,9 +334,17 @@ method protocol, since the keyboard is the compositor's own): a text input is en
 with the keyboard focus, and while one of the focused window's is enabled the window's
 `WindowView` is a field that takes text (`ime`) with the number of enables so far as its
 `keyboard` (`SoftKeyboard::Shown { asks }`), so a program enabling its field again, as GTK does when a focused entry is tapped,
-asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
-(é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
-gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
+asks for the keyboard again. Its keys have no physical place (`Event::Key`'s `evdev` is `None`, as
+drive's are), so be-host-wayland types each one with the key that makes it in the active keymap
+(`layout.rs`): the character the key typed, or for a shortcut its letter, is looked up on every key
+of the active layout at each of its Shift, AltGr and level-5 levels, and sent from the first key that
+makes it, with a `wl_keyboard.modifiers` of that level just around the press, so a German layout's
+y comes from the key a US layout calls z and @ from AltGr+Q, and the caps stay QWERTY whatever the
+layout. A shortcut whose letter no key makes (Ctrl+C on a Russian layout) is
+sent from its US place, as programs match Latin shortcuts there; a modifier or a named key (Enter,
+the arrows) always is. Text no key of the layout types (é on a US layout, a Latin letter on a Russian
+one, π, an emoji) reaches the program as `commit_string`, and a program without an enabled text
+input never gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
 but never open it by themselves, so a button is how it comes up over them: the Status bar's
 (`desktop.keyboard`, there while the display settings' `keyboard_in_bar` is on, by default on the
 Tablet and E-paper tablet classes), which leaves the focus where it was, or the Quick settings
@@ -465,7 +473,8 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_host_wayland::WindowView`, a forwarding catcher like an app's view (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
+`wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`; a key with none, from the
+on-screen keyboard or drive, by the key that makes it in the active layout) and buttons by theirs: a
 button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM platform
 reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the view's
