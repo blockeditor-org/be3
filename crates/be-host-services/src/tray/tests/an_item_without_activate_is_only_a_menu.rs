@@ -43,7 +43,9 @@ impl Bare {
     }
 
     fn activate(&self, _x: i32, _y: i32) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::UnknownMethod("no Activate here".to_owned()))
+        Err(zbus::fdo::Error::UnknownMethod(
+            "no Activate here".to_owned(),
+        ))
     }
 
     fn context_menu(&self, x: i32, y: i32) {

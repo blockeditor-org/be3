@@ -629,7 +629,13 @@ fn unknown_method(error: &zbus::Error) -> bool {
 
 async fn activates(connection: &Connection, destination: &str, path: &str) -> bool {
     let xml = connection
-        .call_method(Some(destination), path, Some(INTROSPECTABLE), "Introspect", &())
+        .call_method(
+            Some(destination),
+            path,
+            Some(INTROSPECTABLE),
+            "Introspect",
+            &(),
+        )
         .await
         .and_then(|reply| reply.body().deserialize::<String>());
     match xml {

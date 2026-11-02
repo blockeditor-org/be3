@@ -1,7 +1,7 @@
 use be_sdk_beui::beui::icons::ICON_BLOCKS;
+use be_sdk_beui::beui::native::last_pointer;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::native::last_pointer;
 use be_sdk_beui::beui::{Image, NodeId, Pos2, ScrollGesture, window_origin};
 use be_sdk_beui::desktop;
 use beui::{Align, Direction};
@@ -201,7 +201,12 @@ fn TrayEntries(
             entries
                 .iter()
                 .filter(|entry| !entry.item.separator)
-                .map(|entry| (entry.item.id, matches!(entry.item.toggle, TrayToggle::Radio(_))))
+                .map(|entry| {
+                    (
+                        entry.item.id,
+                        matches!(entry.item.toggle, TrayToggle::Radio(_)),
+                    )
+                })
                 .collect::<Vec<(i32, bool)>>()
         })
     });
@@ -248,7 +253,15 @@ fn TrayEntry(
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
     view! {
-        <MenuItem label checked radio disabled separated row_test_id on_click={move || chosen.call(id)}>
+        <MenuItem
+            label
+            checked
+            radio
+            disabled
+            separated
+            row_test_id
+            on_click={move || chosen.call(id)}
+        >
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }
