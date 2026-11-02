@@ -6,8 +6,8 @@ use crate::theme::{knob_border, use_theme};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
-use beui_view::reactive::NodeId;
 use beui_view::primitives::Layers;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Align2, Direction, ItemSize};
 
@@ -86,27 +86,27 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
                         <Spacer @sizing={rest_size(mark.unwrap_or_default())} />
                     </List>
                 </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                <Frame
-                    @sizing={filled_percent}
-                    height=TRACK_HEIGHT
-                    fill={filled_color}
-                    radius=Radius::Full
-                />
-                <Frame
-                    width=KNOB_SIZE
-                    height=KNOB_SIZE
-                    fill={knob_color}
-                    border={knob_border(&theme)}
-                    radius=Radius::Full
-                />
-                <Frame
-                    @sizing={rest_percent}
-                    height=TRACK_HEIGHT
-                    fill=ColorRole::Track
-                    radius=Radius::Full
-                />
-            </List>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                    <Frame
+                        @sizing={filled_percent}
+                        height=TRACK_HEIGHT
+                        fill={filled_color}
+                        radius=Radius::Full
+                    />
+                    <Frame
+                        width=KNOB_SIZE
+                        height=KNOB_SIZE
+                        fill={knob_color}
+                        border={knob_border(&theme)}
+                        radius=Radius::Full
+                    />
+                    <Frame
+                        @sizing={rest_percent}
+                        height=TRACK_HEIGHT
+                        fill=ColorRole::Track
+                        radius=Radius::Full
+                    />
+                </List>
             </Layers>
         </Frame>
     }
