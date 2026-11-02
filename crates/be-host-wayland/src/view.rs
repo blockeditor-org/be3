@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use beui::KeyAt;
 use beui::native::with_document;
 use beui::reactive::*;
@@ -5,21 +7,31 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{ForwardedInput, Key, NodeId, Rect, Vec2, WindowPlacement, WindowReport, WindowRole};
 
-use crate::state::WindowId;
+use crate::state::{Grab, WindowId};
 use crate::windows::Windows;
 use beui::native::draw_gpu;
+
+#[derive(Clone)]
+pub struct Carrier {
+    pub begin: Rc<dyn Fn(Grab) -> bool>,
+    pub steer: Rc<dyn Fn(ForwardedInput) -> ForwardedInput>,
+}
 
 #[component]
 pub fn WindowView(
     windows: Windows,
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
+    #[prop(default = None)] carrier: Option<Carrier>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {
             <Frame />
         };
     };
+    let (begin, steer) = carrier.map_or((None, None), |carrier| {
+        (Some(carrier.begin), Some(carrier.steer))
+    });
     let rect_held = create_signal(Rect::ZERO);
     let rect = rect_held.read_only();
     let catcher = NodeRef::new();
@@ -106,7 +118,15 @@ pub fn WindowView(
                 @test_id={format!("wayland.window.{}", id.0)}
                 on_focus_change={move |focused: bool| windows.focus(id, focused)}
                 cursor
-                on_forward={move |input: ForwardedInput| windows.forward(id, input)}
+                on_forward={move |input: ForwardedInput| {
+                    let input = match &steer {
+                        Some(steer) => steer(input),
+                        None => input,
+                    };
+                    if !input.events.is_empty() {
+                        windows.forward(id, input);
+                    }
+                }}
                 inhibits_shortcuts={inhibits}
                 ime={typing}
                 keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
@@ -163,7 +183,18 @@ pub fn WindowView(
             }</ForEach>
         </Layers>
     };
-    let asks = signals.asks;
+    let grabs = signals.grabs;
+    let carried = StoredCell::new(grabs.get_untracked().0);
+    create_effect(move || {
+        let (asked, grab) = grabs.get();
+        if carried.replace(asked) == asked {
+            return;
+        }
+        if let (Some(begin), Some(grab)) = (&begin, grab) {
+            begin(grab);
+        }
+    });
+        let asks = signals.asks;
     let answered = signals.answered.clone();
     create_effect(move || {
         let asked = asks.get();

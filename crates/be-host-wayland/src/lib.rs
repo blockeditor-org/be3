@@ -30,8 +30,8 @@ mod xwayland;
 pub use compositor::{Compositor, CursorImage, Monitor};
 pub use presentation::Presented;
 pub use server::Server;
-pub use state::{KeyboardConfig, WindowId};
-pub use view::{WindowView, register_restore_shortcuts};
+pub use state::{Grab, KeyboardConfig, WindowId};
+pub use view::{Carrier, WindowView, register_restore_shortcuts};
 pub use windows::{Launch, Popups, WindowInfo, Windows};
 
 #[cfg(test)]

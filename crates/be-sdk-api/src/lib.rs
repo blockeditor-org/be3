@@ -110,7 +110,7 @@ pub use desktop::{
     tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
-    windows::{HostWindow, WindowAction, WindowKind, WindowOrigin},
+    windows::{HostWindow, WindowAction, WindowKind, WindowMenu, WindowOrigin},
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};

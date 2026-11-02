@@ -1265,6 +1265,7 @@ pub fn WindowTab(
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || info.get().map(|info| info.size));
     let note = create_memo(move || info.get()?.note);
+    let menu = create_memo(move || info.get()?.menu);
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
     let editor = workspace.editor();
     let tab = window_tab(key);
@@ -1290,6 +1291,7 @@ pub fn WindowTab(
                                 focused={focused}
                                 size={size}
                                 note={note}
+                                menu
                             />
                         },
                         (None, Some(placeholder)) => placeholder.call(key),
@@ -1362,6 +1364,7 @@ pub fn WindowDialog(
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let note = create_memo(move || info.get()?.note);
+    let menu = create_memo(move || info.get()?.menu);
     let fullscreen = create_memo(|| None);
     let editor = workspace.editor();
     view! {
@@ -1383,6 +1386,7 @@ pub fn WindowDialog(
                 focused={focused}
                 size={followed}
                 note={note}
+                menu
             />
         </DockDialog>
     }

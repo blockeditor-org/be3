@@ -1,3 +1,4 @@
+pub mod carrier;
 pub mod desktop_host;
 pub mod host_item;
 pub mod occlusion;

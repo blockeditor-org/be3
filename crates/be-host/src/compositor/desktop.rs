@@ -382,18 +382,8 @@ pub(crate) fn apply() {
         else {
             continue;
         };
-        let window = &mut windows[index];
-        match (&mut window.panel, kind) {
-            (Some(panel), Kind::Move) => panel.moves += 1,
-            (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
-            (None, kind) => {
-                gesture = Some(Gesture {
-                    key: window.key.clone(),
-                    kind,
-                    began_on: None,
-                    start: pressed_on(&window.key),
-                });
-            }
+        if let Some(began) = begin_on(&mut windows[index], kind) {
+            gesture = Some(began);
         }
     }
     let moving = gesture
@@ -411,6 +401,42 @@ pub(crate) fn apply() {
         gesture.began_on = owner_index(&gesture.key);
         gesture_signal().set(Some(gesture));
     }
+}
+
+fn begin_on(window: &mut Floated, kind: Kind) -> Option<Gesture> {
+    match (&mut window.panel, kind) {
+        (Some(panel), Kind::Move) => panel.moves += 1,
+        (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
+        (None, kind) => {
+            return Some(Gesture {
+                key: window.key.clone(),
+                kind,
+                began_on: None,
+                start: pressed_on(&window.key),
+            });
+        }
+    }
+    None
+}
+
+pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
+    if FLOATED.get().is_none() {
+        return false;
+    }
+    let floated = floated_signal();
+    let mut windows = floated.get_untracked();
+    let Some(window) = windows.iter_mut().find(|window| window.key == *key) else {
+        return false;
+    };
+    let gesture = begin_on(window, kind);
+    if floated.with_untracked(|held| *held != windows) {
+        floated.set(windows);
+    }
+    if let Some(mut gesture) = gesture {
+        gesture.began_on = owner_index(&gesture.key);
+        gesture_signal().set(Some(gesture));
+    }
+    true
 }
 
 struct Opener<'a>(&'a str);

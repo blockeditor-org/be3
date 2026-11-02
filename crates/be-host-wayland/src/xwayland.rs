@@ -14,7 +14,7 @@ use smithay::wayland::xwayland_shell::{XWaylandShellHandler, XWaylandShellState}
 use smithay::xwayland::xwm::{Reorder, ResizeEdge, WmWindowProperty, X11Window, XwmId};
 use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler};
 
-use crate::state::{ClientWindow, Layer, ServerEvent, State, WindowId, collect_layers};
+use crate::state::{ClientWindow, Grab, Layer, ServerEvent, State, WindowId, collect_layers};
 
 const MAX_RESTARTS: u32 = 3;
 const MAX_TRANSIENTS: usize = 32;
@@ -352,6 +352,15 @@ impl State {
         self.events.push(ServerEvent::Fullscreen(id, fullscreen));
     }
 
+    fn x11_grab(&mut self, surface: &X11Surface, grab: Grab) {
+        if !self.buttons_held() {
+            return;
+        }
+        if let Some(id) = self.x11_window_of(surface) {
+            self.events.push(ServerEvent::Grabbed(id, grab));
+        }
+    }
+
     fn x11_maximized(&mut self, surface: &X11Surface, maximized: bool) {
         let Some(id) = self.x11_window_of(surface) else {
             return;
@@ -523,19 +532,36 @@ impl XwmHandler for State {
         self.x11_maximized(&window, false);
     }
 
-    fn resize_request(
-        &mut self,
-        _xwm: XwmId,
-        _window: X11Surface,
-        _button: u32,
-        _edge: ResizeEdge,
-    ) {
+    fn resize_request(&mut self, _xwm: XwmId, window: X11Surface, _button: u32, edge: ResizeEdge) {
+        self.x11_grab(&window, Grab::Resize(x11_edge(edge)));
     }
 
-    fn move_request(&mut self, _xwm: XwmId, _window: X11Surface, _button: u32) {}
+    fn move_request(&mut self, _xwm: XwmId, window: X11Surface, _button: u32) {
+        self.x11_grab(&window, Grab::Move);
+    }
+
+    fn minimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if let Some(id) = self.x11_window_of(&window) {
+            self.events.push(ServerEvent::Minimized(id));
+        }
+    }
 
     fn disconnected(&mut self, _xwm: XwmId) {
         self.xwayland.stopped = true;
+    }
+}
+
+fn x11_edge(edge: ResizeEdge) -> beui::WindowEdge {
+    use beui::WindowEdge;
+    match edge {
+        ResizeEdge::Top => WindowEdge::Top,
+        ResizeEdge::Bottom => WindowEdge::Bottom,
+        ResizeEdge::Left => WindowEdge::Left,
+        ResizeEdge::Right => WindowEdge::Right,
+        ResizeEdge::TopLeft => WindowEdge::TopLeft,
+        ResizeEdge::TopRight => WindowEdge::TopRight,
+        ResizeEdge::BottomLeft => WindowEdge::BottomLeft,
+        ResizeEdge::BottomRight => WindowEdge::BottomRight,
     }
 }
 

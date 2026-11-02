@@ -24,6 +24,7 @@ use super::anchored::AnchoredViews;
 use crate::surfaces::CrashNotice;
 use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
+use be_host_desktop::carrier::{Carried, Carrier, Carry};
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
@@ -336,6 +337,23 @@ pub(crate) fn AppView(
     });
     provide_context(super::anchored::AnchorBounds(anchor_bounds));
     let stored_key = store(floated_key.clone());
+    provide_context(Carried(floated_key.is_some().then(|| Carrier {
+        begin: Rc::new(move |carry: Carry| {
+            stored_key.with(|key| {
+                key.as_ref()
+                    .is_some_and(|key| super::desktop::begin(key, gesture_of(carry)))
+            })
+        }),
+        steer: Rc::new(move |input: ForwardedInput| {
+            let origin = place.map_or(beui::Vec2::ZERO, |place| {
+                place.display.get_untracked().min.to_vec2()
+            });
+            match stored_key.with(Clone::clone) {
+                Some(key) => super::desktop::follow(&key, input, origin),
+                None => input,
+            }
+        }),
+    })));
     let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => be_host_runtime::place_view(
@@ -1370,6 +1388,24 @@ fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle:
             }
         });
     });
+}
+
+fn gesture_of(carry: Carry) -> be_sdk_window_stack::Gesture {
+    use be_sdk_api::WindowEdge as Edge;
+    use beui::WindowEdge;
+    match carry {
+        Carry::Move => be_sdk_window_stack::Gesture::Move,
+        Carry::Resize(edge) => be_sdk_window_stack::Gesture::Resize(match edge {
+            WindowEdge::Top => Edge::Top,
+            WindowEdge::Bottom => Edge::Bottom,
+            WindowEdge::Left => Edge::Left,
+            WindowEdge::Right => Edge::Right,
+            WindowEdge::TopLeft => Edge::TopLeft,
+            WindowEdge::TopRight => Edge::TopRight,
+            WindowEdge::BottomLeft => Edge::BottomLeft,
+            WindowEdge::BottomRight => Edge::BottomRight,
+        }),
+    }
 }
 
 fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {

@@ -41,6 +41,13 @@ interface windows {
         display,
     }
 
+    /// The program asked for its window menu, `at` this point of the window.
+    /// `asked` counts up with each ask.
+    record window-menu {
+        asked: u64,
+        at: vec2,
+    }
+
     record host-window {
         id: host-window-id,
         kind: window-kind,
@@ -67,6 +74,8 @@ interface windows {
         /// to come back from it; the shell shows it with the window's title
         /// while it is set.
         note: option<string>,
+        /// The program's last ask for its window menu.
+        menu: option<window-menu>,
     }
 
     record window-fullscreen {

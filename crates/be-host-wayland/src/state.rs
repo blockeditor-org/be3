@@ -85,7 +85,7 @@ struct Ping {
     sent: Instant,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ServerEvent {
     Opened(WindowId),
     Closed(WindowId),
@@ -94,6 +94,15 @@ pub enum ServerEvent {
     Committed(WindowId),
     Fullscreen(WindowId, bool),
     Activated(WindowId),
+    Grabbed(WindowId, Grab),
+    Menu(WindowId, beui::Vec2),
+    Minimized(WindowId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Grab {
+    Move,
+    Resize(beui::WindowEdge),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -198,7 +207,11 @@ impl State {
         let compositor = CompositorState::new::<Self>(handle);
         let xdg_shell = XdgShellState::new_with_capabilities::<Self>(
             handle,
-            [xdg_toplevel::WmCapabilities::Fullscreen],
+            [
+                xdg_toplevel::WmCapabilities::Fullscreen,
+                xdg_toplevel::WmCapabilities::Minimize,
+                xdg_toplevel::WmCapabilities::WindowMenu,
+            ],
         );
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let selection = Selection::new(handle);
@@ -1394,9 +1407,71 @@ impl XdgShellHandler for State {
     fn unmaximize_request(&mut self, surface: ToplevelSurface) {
         self.request_maximized(&surface, false);
     }
+
+    fn move_request(&mut self, surface: ToplevelSurface, _seat: WlSeat, serial: Serial) {
+        self.grab_from(&surface, serial, Grab::Move);
+    }
+
+    fn resize_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _seat: WlSeat,
+        serial: Serial,
+        edges: xdg_toplevel::ResizeEdge,
+    ) {
+        if let Some(edge) = xdg_edge(edges) {
+            self.grab_from(&surface, serial, Grab::Resize(edge));
+        }
+    }
+
+    fn show_window_menu(
+        &mut self,
+        surface: ToplevelSurface,
+        _seat: WlSeat,
+        _serial: Serial,
+        location: Point<i32, Logical>,
+    ) {
+        let Some(window) = self.window_of(&surface) else {
+            return;
+        };
+        let (id, at) = (window.id, location - window.window.geometry().loc);
+        let at = beui::Vec2::new(at.x as f32, at.y as f32);
+        self.events.push(ServerEvent::Menu(id, at));
+    }
+
+    fn minimize_request(&mut self, surface: ToplevelSurface) {
+        if let Some(id) = self.window_of(&surface).map(|window| window.id) {
+            self.events.push(ServerEvent::Minimized(id));
+        }
+    }
+}
+
+fn xdg_edge(edges: xdg_toplevel::ResizeEdge) -> Option<beui::WindowEdge> {
+    use beui::WindowEdge;
+    use xdg_toplevel::ResizeEdge;
+    Some(match edges {
+        ResizeEdge::Top => WindowEdge::Top,
+        ResizeEdge::Bottom => WindowEdge::Bottom,
+        ResizeEdge::Left => WindowEdge::Left,
+        ResizeEdge::Right => WindowEdge::Right,
+        ResizeEdge::TopLeft => WindowEdge::TopLeft,
+        ResizeEdge::TopRight => WindowEdge::TopRight,
+        ResizeEdge::BottomLeft => WindowEdge::BottomLeft,
+        ResizeEdge::BottomRight => WindowEdge::BottomRight,
+        _ => return None,
+    })
 }
 
 impl State {
+    fn grab_from(&mut self, surface: &ToplevelSurface, serial: Serial, grab: Grab) {
+        if !self.pointer().has_grab(serial) {
+            return;
+        }
+        if let Some(id) = self.window_of(surface).map(|window| window.id) {
+            self.events.push(ServerEvent::Grabbed(id, grab));
+        }
+    }
+
     fn constrained(
         &self,
         popup: &PopupSurface,

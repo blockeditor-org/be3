@@ -53,6 +53,7 @@ mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
 mod a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab;
 mod a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it;
 mod a_programs_window_given_a_parent_later_becomes_its_dialog_and_back;
+mod a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it;
 mod a_query_no_program_matches_runs_as_a_command;
 mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
 mod a_session_opened_over_program_windows_opens_in_front_of_them;
@@ -612,6 +613,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         raised: 0,
         origin: Default::default(),
         note: None,
+        menu: None,
     }
 }
 

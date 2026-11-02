@@ -7,10 +7,11 @@ use be_sdk_beui::beui::dock::styled::WINDOW_CHROME;
 use be_sdk_beui::beui::dock::styled::{TabId, use_dock_tab};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
+use be_sdk_beui::beui::icons::{ICON_EYE_OFF, ICON_FULLSCREEN, ICON_X};
+use be_sdk_beui::beui::{Image, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
-    WindowAction,
+    WindowAction, WindowMenu,
 };
 use beui::{Align, Direction};
 
@@ -185,6 +186,7 @@ pub(crate) fn WindowPanel(
     focused: Memo<bool>,
     size: Memo<Option<Vec2>>,
     note: Memo<Option<String>>,
+    menu: Memo<Option<WindowMenu>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
         tab.show_notice(note);
@@ -244,6 +246,23 @@ pub(crate) fn WindowPanel(
         });
     }
     let panel = NodeRef::new();
+    let menu_at = create_signal(None::<Pos2>);
+    let seen = Cell::new(menu.get_untracked().map(|menu| menu.asked));
+    create_effect(move || {
+        let Some(asked) = menu.get() else {
+            return;
+        };
+        if seen.replace(Some(asked.asked)) == Some(asked.asked) {
+            return;
+        }
+        let shown = untrack(|| {
+            let node = panel.try_get()?;
+            measure(node).get_untracked()
+        });
+        if let Some(shown) = shown {
+            menu_at.set(Some(shown.rect.min + asked.at));
+        }
+    });
     let waited = create_signal(false);
     create_effect(move || {
         if responding.get() {
@@ -255,8 +274,53 @@ pub(crate) fn WindowPanel(
     let force_close = ClickCallback::new(move || {
         host.act(move || desktop::windows::request(WindowAction::Close(window)).detach())
     });
+    let act = move |action: WindowAction| {
+        let host = editor.host();
+        move || host.act(move || desktop::windows::request(action).detach())
+    };
+    let fullscreen_label = create_memo(move || match fullscreen.get() {
+        Some(_) => "Leave full screen".to_owned(),
+        None => "Full screen".to_owned(),
+    });
+    let host = editor.host();
+    let make_fullscreen = ClickCallback::new(move || {
+        let action = WindowAction::Fullscreen {
+            window,
+            fullscreen: fullscreen.get_untracked().is_none(),
+        };
+        host.act(move || desktop::windows::request(action).detach())
+    });
     view! {
         <Layers>
+            <ContextMenu
+                disabled=true
+                open_at={menu_at}
+                on_close={move || menu_at.set(None)}
+                items={view! {
+                    <Show condition={offers_fullscreen}>
+                        <MenuItem
+                            label="Hide"
+                            glyph=ICON_EYE_OFF
+                            row_test_id="workspace.window.menu.hide"
+                            on_click={act(WindowAction::Hide(window))}
+                        />
+                        <MenuItem
+                            label={fullscreen_label}
+                            glyph=ICON_FULLSCREEN
+                            row_test_id="workspace.window.menu.fullscreen"
+                            on_click={make_fullscreen}
+                        />
+                    </Show>
+                    <MenuItem
+                        label="Close"
+                        glyph=ICON_X
+                        row_test_id="workspace.window.menu.close"
+                        on_click={act(WindowAction::Close(window))}
+                    />
+                }}
+            >
+                <Frame />
+            </ContextMenu>
             <Subregion
                 editor={editor}
                 placed={Some(SubregionContent::Window(window))}

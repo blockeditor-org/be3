@@ -329,6 +329,7 @@ pub fn host_window(
             launch: entry.origin.launch,
         },
         note: notes.note(entry),
+        menu: None,
     }
 }
 
