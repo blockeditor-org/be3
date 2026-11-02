@@ -5,7 +5,7 @@ use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
