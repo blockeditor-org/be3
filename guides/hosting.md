@@ -255,6 +255,9 @@ custom servers. The deployment command validates that its bundles carry the
 deployed identity and default server. Saved accounts retain their own URLs.
 
 The embedded server alone enables local profiles. Their UI asks only for a
-display name, and saved tokens reopen them from the account picker. Closing a
-local account keeps it in the picker. Browser-origin requests cannot access
+display name, and saved tokens reopen them from the account picker. A saved
+token is a local account's only credential, so the picker offers "Remove
+account…" where a server account offers "Log out": it asks first, saying the
+account's blocks and settings are lost, then logs the session out and forgets
+the account as logging out does. Browser-origin requests cannot access
 the embedded server's account protocol.

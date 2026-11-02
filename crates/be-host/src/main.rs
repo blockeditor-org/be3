@@ -506,6 +506,7 @@ struct HostCore {
     organization_error: Option<String>,
 
     reauth: Option<ReauthState>,
+    removing_account: Option<Account>,
     invite_open: bool,
     invite_sent: u64,
     invite_link: Option<String>,
@@ -786,6 +787,7 @@ impl HostCore {
             organization_created: 0,
             organization_error: None,
             reauth: None,
+            removing_account: None,
             invite_open: false,
             invite_sent: 0,
             invite_link: None,
@@ -1257,9 +1259,13 @@ impl HostCore {
 
     fn log_out_account(&mut self, account: &Account) {
         if account.server == ServerLocation::Local {
-            self.close_reauth();
+            self.removing_account = Some(account.clone());
             return;
         }
+        self.forget_account(account);
+    }
+
+    fn forget_account(&mut self, account: &Account) {
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
@@ -3050,6 +3056,12 @@ impl HostCore {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
+            UiCommand::ConfirmRemoveAccount => {
+                if let Some(account) = self.removing_account.take() {
+                    self.forget_account(&account);
+                }
+            }
+            UiCommand::CancelRemoveAccount => self.removing_account = None,
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => {
                 self.invite_open = true;
@@ -3316,6 +3328,10 @@ impl HostCore {
                 error: self.organization_error.clone(),
                 created: self.organization_created,
             },
+            removing_account: self
+                .removing_account
+                .as_ref()
+                .map(|account| account.name.clone()),
             reauth: self.reauth.as_ref().map(|reauth| ui::ReauthView {
                 name: reauth.account.name.clone(),
                 busy: self.pending_account_request.is_some(),
