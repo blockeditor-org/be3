@@ -552,7 +552,10 @@ impl Compositor {
         })
     }
 
-    fn client_cursor(&self, surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface) -> Option<beui::CursorImage> {
+    fn client_cursor(
+        &self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) -> Option<beui::CursorImage> {
         let image = self.cursor_pixels.clone()?;
         let size = with_renderer_surface_state(surface, |state| state.surface_size()).flatten()?;
         let hotspot = with_states(surface, |states| {
@@ -880,7 +883,9 @@ impl Compositor {
         let (cursor, image) = match self.server.state.cursor() {
             CursorImageStatus::Hidden => (CursorIcon::None, None),
             CursorImageStatus::Named(icon) => (cursor_icon(*icon), None),
-            CursorImageStatus::Surface(surface) => (CursorIcon::Default, self.client_cursor(surface)),
+            CursorImageStatus::Surface(surface) => {
+                (CursorIcon::Default, self.client_cursor(surface))
+            }
         };
         let windows = self.windows;
         windows.set_cursor(cursor, image);

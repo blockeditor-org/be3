@@ -36,5 +36,8 @@ fn hovering_an_interactive_with_a_cursor_image_shows_the_picture() {
     let output = harness.frame(vec![Input::PointerMoved(over)]);
     let window = &output.main().window;
     assert_eq!(window.requests.cursor, CursorIcon::Touch);
-    assert_eq!(window.cursor_image, None, "touch emulation shows the finger");
+    assert_eq!(
+        window.cursor_image, None,
+        "touch emulation shows the finger"
+    );
 }

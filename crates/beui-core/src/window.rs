@@ -62,8 +62,6 @@ pub enum Resize {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
     pub requests: WindowRequests,
-    /// A picture shown in place of `requests.cursor` where the platform can
-    /// show one; `requests.cursor` stays what the others show.
     pub cursor_image: Option<beui_types::CursorImage>,
     pub typed: u64,
     pub appearance: Appearance,

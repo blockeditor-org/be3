@@ -528,6 +528,7 @@ fn unpremultiplied([r, g, b, a]: [u8; 4]) -> [u8; 4] {
     if a == 0 || a == 255 {
         return [r, g, b, a];
     }
-    let channel = |value: u8| ((u32::from(value) * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8;
+    let channel =
+        |value: u8| ((u32::from(value) * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8;
     [channel(r), channel(g), channel(b), a]
 }

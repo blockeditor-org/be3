@@ -1666,7 +1666,11 @@ impl Session {
         match &window.cursor_image {
             Some(image) => text.push_str(&format!(
                 "cursor image {}x{}, hotspot {},{} (else {:?})\n",
-                image.size.x, image.size.y, image.hotspot.x, image.hotspot.y, window.requests.cursor
+                image.size.x,
+                image.size.y,
+                image.hotspot.x,
+                image.hotspot.y,
+                window.requests.cursor
             )),
             None => text.push_str(&format!("cursor {:?}\n", window.requests.cursor)),
         }

@@ -47,7 +47,9 @@ fn a_client_cursor_surface_reaches_the_platform_as_a_cursor_image() {
 
     harness.client.attach_surface(&cursor, 16, 16);
     harness.settle();
-    let redrawn = shown(&harness).1.expect("the client's cursor is still shown");
+    let redrawn = shown(&harness)
+        .1
+        .expect("the client's cursor is still shown");
     assert_eq!(redrawn.size, Vec2::new(16.0, 16.0));
     assert_eq!(&redrawn.image.pixels()[..4], &[255, 255, 255, 255]);
 
