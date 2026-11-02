@@ -7,6 +7,7 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
+mod too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
 mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;

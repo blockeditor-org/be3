@@ -151,7 +151,7 @@ pub use text_area::{
 pub use text_input::{InputKind, TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
-pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
+pub use toast::{TOAST_DURATION, TOAST_LIMIT, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{

@@ -2496,9 +2496,12 @@ corner of a display above its bar. A toast goes after its `duration` unless it i
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
 toast's timer on the frame clock, and a live region (a `Log`, with each toast a `Status`,
-or an assertive `Alert` when it is `danger`); the styled one passes its width, margin and
-spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activate` and
-`act`).
+or an assertive `Alert` when it is `danger`). It shows only the newest `limit` toasts
+(`TOAST_LIMIT`, 3) and draws `more` with the count of the rest in their place; a hidden toast's
+timer starts once it shows. The stack scrolls inside its anchor when it is still taller. The
+styled one passes its width, margin and spacing, draws the count, and draws each card from a
+`ToastHandle` (the `Toast`, `dismiss`, `activate` and `act`), cutting the title to two lines and
+the message to four; the desktop's notification list shows them whole.
 be-host's keep-changes prompt and lock screen are one card in a `Modal` that
 fills (or centres in) its window; be-host puts one in each display's window.
 The desktop app's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
