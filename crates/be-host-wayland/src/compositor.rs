@@ -374,6 +374,7 @@ impl Compositor {
             self.textures.borrow_mut().upload(&surface);
             cursor_changed |= cursor.as_ref() == Some(&surface);
         }
+        self.textures.borrow_mut().submit();
         if cursor_changed {
             self.cursor_pixels = cursor.as_ref().and_then(crate::render::pixels);
             self.cursor_surface = cursor;

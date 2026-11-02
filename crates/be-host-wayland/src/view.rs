@@ -29,6 +29,8 @@ pub fn WindowView(
             <Frame />
         };
     };
+    let owner = signals.owner.clone();
+    on_cleanup(move || drop(owner));
     let (begin, steer) = carrier.map_or((None, None), |carrier| {
         (Some(carrier.begin), Some(carrier.steer))
     });

@@ -57,6 +57,7 @@ pub struct WindowSignals {
     pub(crate) typing: Signal<Option<u32>>,
     pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
+    pub(crate) owner: Rc<Scope>,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -273,23 +274,20 @@ impl Windows {
 
     pub(crate) fn open(&self, id: WindowId) {
         let inner = self.0.value();
-        let signals = inner.scope.run(|| {
-            let drawing = create_signal(None);
-            let popups = create_signal(None);
-            let focused = create_signal(false);
-            let asks = create_signal(1);
-            let grabs = create_signal((0, None));
-            let typing = create_signal(None);
-            WindowSignals {
-                drawing,
-                popups,
-                focused,
-                asks,
-                grabs,
-                typing,
-                answered: Rc::new(Cell::new(0)),
-                painted: Rc::new(Cell::new(false)),
-            }
+        let Some(owner) = inner.scope.child() else {
+            return;
+        };
+        let owner = Rc::new(owner);
+        let signals = owner.run(|| WindowSignals {
+            drawing: create_signal(None),
+            popups: create_signal(None),
+            focused: create_signal(false),
+            asks: create_signal(1),
+            grabs: create_signal((0, None)),
+            typing: create_signal(None),
+            answered: Rc::new(Cell::new(0)),
+            painted: Rc::new(Cell::new(false)),
+            owner: owner.clone(),
         });
         inner.windows.borrow_mut().insert(id, signals);
     }
