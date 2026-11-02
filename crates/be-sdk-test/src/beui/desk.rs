@@ -36,11 +36,19 @@ struct Anchored {
     takes: Vec<Rect>,
 }
 
+#[derive(Clone, Debug)]
+struct Raised {
+    screen: ScreenId,
+    takes: Vec<Rect>,
+    paints: Vec<Rect>,
+}
+
 #[derive(Default)]
 pub(crate) struct Desk {
     displays: Vec<Display>,
     windows: Vec<Hosted>,
     anchored: Vec<Anchored>,
+    raised: Vec<Raised>,
     next_screen: u64,
     gesture: Option<(ViewId, Gesture)>,
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
@@ -79,6 +87,24 @@ impl Desk {
             else {
                 continue;
             };
+            let at = display.rect.min.to_vec2();
+            let raised = Raised {
+                screen: display.screen,
+                takes: report.floating.iter().map(|rect| rect.translate(at)).collect(),
+                paints: report
+                    .floating_painted
+                    .iter()
+                    .map(|rect| rect.translate(at))
+                    .collect(),
+            };
+            match self
+                .raised
+                .iter_mut()
+                .find(|held| held.screen == display.screen)
+            {
+                Some(held) => *held = raised,
+                None => self.raised.push(raised),
+            }
             let work = report.work_area.map(|insets| insets.inside(display.rect));
             changed |= display.work != work;
             display.work = work;
@@ -138,6 +164,12 @@ impl Desk {
             .rev()
             .find(|anchored| anchored.takes.iter().any(|rect| rect.contains(at)))
             .map(|anchored| anchored.screen)
+            .or_else(|| {
+                self.raised
+                    .iter()
+                    .find(|raised| raised.takes.iter().any(|rect| rect.contains(at)))
+                    .map(|raised| raised.screen)
+            })
             .or_else(|| {
                 self.windows
                     .iter()
@@ -651,6 +683,31 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     clip: [0.0, 0.0, shown.rect.width(), shown.rect.height()],
                     corner_radius: 0.0,
                 }));
+            for (key, pixels) in drawn.textures {
+                painting.textures.entry(key).or_insert(pixels);
+            }
+        }
+        let raised = desk
+            .raised
+            .iter()
+            .find(|raised| raised.screen == shown.screen)
+            .map_or(&[][..], |raised| &raised.paints[..]);
+        if !raised.is_empty()
+            && let Some(drawn) = painting_of(shown.screen, shown.rect.size())
+        {
+            let size = shown.rect.size();
+            for rect in raised {
+                let at = rect.translate(-shown.rect.min.to_vec2());
+                painting
+                    .frame
+                    .primitives
+                    .extend(drawn.placed(beui::native::painting::Placement {
+                        source: [0.0, 0.0, 1.0, 1.0],
+                        corners: [[0.0, 0.0], [size.x, 0.0], [size.x, size.y], [0.0, size.y]],
+                        clip: [at.min.x, at.min.y, at.max.x, at.max.y],
+                        corner_radius: 0.0,
+                    }));
+            }
             for (key, pixels) in drawn.textures {
                 painting.textures.entry(key).or_insert(pixels);
             }
