@@ -61,7 +61,8 @@ impl Tracker {
             heard: false,
             played: 0,
         });
-        self.players.sort_by(|player, other| player.name.cmp(&other.name));
+        self.players
+            .sort_by(|player, other| player.name.cmp(&other.name));
     }
 
     pub(super) fn vanished(&mut self, name: &str) {
@@ -71,7 +72,11 @@ impl Tracker {
     pub(super) fn status(&mut self, owner: &str, status: &str) {
         self.played += 1;
         let played = self.played;
-        for player in self.players.iter_mut().filter(|player| player.owner == owner) {
+        for player in self
+            .players
+            .iter_mut()
+            .filter(|player| player.owner == owner)
+        {
             let playing = status == "Playing";
             if playing && !player.playing {
                 player.played = played;

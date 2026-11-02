@@ -349,7 +349,10 @@ impl Connection {
     async fn publish(&mut self, events: &Post<MediaEvent>) -> Result<(), String> {
         let sinks = self.sinks().await?;
         let outputs = sinks.iter().map(output_of).collect();
-        let named = self.server().await?.and_then(|server| server.default_sink_name);
+        let named = self
+            .server()
+            .await?
+            .and_then(|server| server.default_sink_name);
         let sink = default_sink(sinks, named.as_deref());
         let output = sink.as_ref().map(|sink| {
             let channels: Vec<u32> = sink.cvolume.channels().iter().map(Volume::as_u32).collect();
@@ -386,7 +389,10 @@ impl Connection {
     }
 
     async fn sink(&mut self) -> Result<Option<SinkInfo>, String> {
-        let named = self.server().await?.and_then(|server| server.default_sink_name);
+        let named = self
+            .server()
+            .await?
+            .and_then(|server| server.default_sink_name);
         let sinks = self.sinks().await?;
         Ok(default_sink(sinks, named.as_deref()))
     }

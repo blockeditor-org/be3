@@ -125,7 +125,8 @@ fn OsdCard(
         false => ColorRole::Accent,
     });
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
-    let value = create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
+    let value =
+        create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
     let present = create_memo(move || value.get().is_some());
     let absent = create_memo(move || !present.get());
     let label = create_memo(move || {
@@ -180,16 +181,18 @@ fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>
         }
     });
     view! {
-        <BareProgress value={value} label={said}>|_handle: ProgressHandle| {
-            view! {
-                <Frame width=BAR_WIDTH height=BAR_HEIGHT fill=ColorRole::Track radius=Radius::Full>
-                    <List direction=Direction::Horizontal spacing=Space::None>
-                        <Frame @sizing={percent(|spans| spans.0)} fill radius=Radius::Full />
-                        <Frame @sizing={percent(|spans| spans.1)} fill=ColorRole::Warning radius=Radius::Full />
-                        <Spacer @sizing={percent(|spans| spans.2)} />
-                    </List>
-                </Frame>
-            }
-        }</BareProgress>
+        <BareProgress value={value} label={said}>|_handle: ProgressHandle|
+            <Frame width=BAR_WIDTH height=BAR_HEIGHT fill=ColorRole::Track radius=Radius::Full>
+                <List direction=Direction::Horizontal spacing=Space::None>
+                    <Frame @sizing={percent(|spans| spans.0)} fill radius=Radius::Full />
+                    <Frame
+                        @sizing={percent(|spans| spans.1)}
+                        fill=ColorRole::Warning
+                        radius=Radius::Full
+                    />
+                    <Spacer @sizing={percent(|spans| spans.2)} />
+                </List>
+            </Frame>
+        </BareProgress>
     }
 }
