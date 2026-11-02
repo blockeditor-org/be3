@@ -24,6 +24,7 @@ fn the_program_windows_reach_only_the_shell() {
         raised: 0,
         origin: WindowOrigin::default(),
         note: None,
+        menu: None,
     }];
     instances.next_screens(PASS);
 
