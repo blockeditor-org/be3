@@ -31,6 +31,7 @@ use crate::notice::{self, Notice};
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{Beam, ChromeFrame, Compositor, Frame, Outline, PanelFrame};
 use crate::resize::Resize;
+use crate::tuning::Tuning;
 
 pub const SKY: Color32 = Color32::from_rgb(22, 25, 31);
 const MOST_SECONDS: f32 = 0.1;
@@ -134,6 +135,7 @@ struct Shown {
     beams: Vec<Beam>,
     outlines: Vec<Outline>,
     notice: Option<Notice>,
+    label: Option<String>,
 }
 
 pub struct Space {
@@ -180,6 +182,7 @@ pub struct Space {
     titles: Vec<(WindowId, chrome::Title)>,
     flashes: Vec<(WindowId, Instant)>,
     notice: Option<Notice>,
+    pub tuning: Tuning,
 }
 
 impl Default for Space {
@@ -234,6 +237,7 @@ impl Space {
             titles: Vec::new(),
             flashes: Vec::new(),
             notice: None,
+            tuning: Tuning::default(),
         }
     }
 
@@ -616,13 +620,14 @@ impl Space {
         let scale = self.cursor_scale(at);
         let rotation = self.head.rotation();
         let (right, up) = (rotation * Vec3::X, rotation * Vec3::Y);
-        let centre = cursor::SIZE / 2.0 - cursor::HOTSPOT.to_vec2();
+        let size = self.sprite.size();
+        let centre = size / 2.0 - cursor::HOTSPOT.to_vec2();
         let middle = at + (right * centre.x - up * centre.y) * scale;
         PanelFrame {
             window: self.sprite.window,
             model: Mat4::from_cols(
-                (right * cursor::SIZE.x * scale).extend(0.0),
-                (up * cursor::SIZE.y * scale).extend(0.0),
+                (right * size.x * scale).extend(0.0),
+                (up * size.y * scale).extend(0.0),
                 (rotation * Vec3::Z).extend(0.0),
                 middle.extend(1.0),
             ),
@@ -779,7 +784,8 @@ impl Space {
 
     fn swung(&self, direction: Vec3, pixels: Vec2) -> Vec3 {
         let angles = glam::Vec2::new(pixels.x, -pixels.y) / Head::pixels_per_radian(self.platform);
-        self.head.swing(direction, angles)
+        let up = self.tuning.up(self.tracked.is_some()).of(&self.head);
+        self.head.swing(direction, angles, up)
     }
 
     fn move_cursor(&mut self, pixels: Vec2, out: &mut Vec<Incoming>) {
@@ -1037,6 +1043,20 @@ impl Space {
             && let Some(key) = placed
         {
             self.walking.retain(|held| *held != key);
+        }
+        if keystroke.pressed
+            && self.modifiers.ctrl
+            && self.modifiers.alt
+            && !self.modifiers.shift
+            && let Some(key) = keystroke.key
+            && self
+                .tuning
+                .key(key, keystroke.repeat, self.tracked.is_some(), self.clock)
+        {
+            if !self.swallowed.contains(&stroke) {
+                self.swallowed.push(stroke);
+            }
+            return;
         }
         if self.swallowed.contains(&stroke) {
             if !keystroke.pressed {
@@ -1792,7 +1812,10 @@ impl Space {
             || self.flashing();
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
-            false => self.settled_in().min(self.hold.due_in(self.clock)),
+            false => self
+                .settled_in()
+                .min(self.hold.due_in(self.clock))
+                .min(self.tuning.due_in(self.clock)),
         };
         self.app_locked = self.app_locks(windows);
         let main = find(windows, WindowId::MAIN).expect("the app shows its main window");
@@ -1815,10 +1838,15 @@ impl Space {
             }
         }
         let look = self.sprite_look(icon);
+        let label = self.tuning.label(self.clock);
         if let Some(look) = look
-            && self.sprite.changed(look, view.pixels_per_point)
+            && self
+                .sprite
+                .changed(look, label.as_deref(), view.pixels_per_point)
         {
-            let sprite = self.sprite.paint(look, view.pixels_per_point);
+            let sprite = self
+                .sprite
+                .paint(look, label.as_deref(), view.pixels_per_point);
             changed |= compositor.update(&sprite);
         }
         let shown = Shown {
@@ -1835,6 +1863,7 @@ impl Space {
             beams: self.beams(),
             outlines: self.outlines(),
             notice: self.notice.clone(),
+            label,
         };
         let size = view.platform / view.pixels_per_point;
         if let Some((last, window)) = &mut self.shown
@@ -2004,10 +2033,14 @@ impl Space {
     pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &LayerView) -> Frame {
         self.refresh_chrome(view.pixels_per_point);
         let look = self.sprite_look(self.icon_over(windows));
+        let label = self.tuning.label(self.clock);
         if let Some(look) = look
-            && self.sprite.changed(look, view.pixels_per_point)
+            && self
+                .sprite
+                .changed(look, label.as_deref(), view.pixels_per_point)
         {
-            self.sprite.paint(look, view.pixels_per_point);
+            self.sprite
+                .paint(look, label.as_deref(), view.pixels_per_point);
         }
         let cursor = look.and(self.sprite_at()).map(|at| self.cursor_frame(at));
         Frame {
