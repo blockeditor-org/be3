@@ -571,6 +571,7 @@ struct State {
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
+    stacked: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
     fullscreen_layer: NodeRef,
     fullscreen_window: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
@@ -812,6 +813,19 @@ impl State {
         for fullscreen in [self.fullscreen_layer, self.fullscreen_window] {
             if let Some(fullscreen) = fullscreen.try_get().filter(|_| in_front) {
                 fullscreen.raise_overlay();
+            }
+        }
+    }
+
+    fn restack(&self, from: SurfaceId) {
+        let order = self.state.with_untracked(DockState::windows);
+        let Some(at) = order.iter().position(|surface| *surface == from) else {
+            return;
+        };
+        let raised: Vec<(SurfaceId, NodeRef)> = self.stacked.value().borrow().iter().map(|(surface, overlay)| (*surface, *overlay)).collect();
+        for surface in &order[at..] {
+            if let Some((_, overlay)) = raised.iter().find(|(held, _)| held == surface) {
+                self.raise_window_of(*overlay, Some(*surface));
             }
         }
     }
@@ -1808,6 +1822,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dock = State {
         state,
         windows: store(RefCell::default()),
+        stacked: store(RefCell::default()),
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
@@ -2359,7 +2374,11 @@ fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNo
 fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
     let main = create_memo(move || current.with(DockState::main));
-    let windows = create_memo(move || current.with(DockState::windows));
+    let windows = create_memo(move || {
+        let mut windows = current.with(DockState::windows);
+        windows.sort();
+        windows
+    });
     view! {
         <DropTarget
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
@@ -3661,11 +3680,16 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let menu = dock.leaf_menu(hoisted);
     let closable = dock.all_closable(contents);
     let overlay = NodeRef::new();
+    dock.stacked.value().borrow_mut().insert(surface, overlay);
+    on_cleanup(move || {
+        dock.stacked
+            .try_with(|stacked| stacked.borrow_mut().remove(&surface));
+    });
     let shows = dock.state;
     create_effect(move || {
         shows.with(DockState::shows);
         if focused.get() {
-            untrack(|| dock.raise_window_of(overlay, Some(surface)));
+            untrack(|| dock.restack(surface));
         }
     });
     let claimed = modifier_claims(dock.drag_modifier);
@@ -3961,7 +3985,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .child()
         }</Window>
     };
-    create_effect(move || untrack(|| dock.raise_window(overlay)));
+    create_effect(move || untrack(|| dock.restack(surface)));
     view
 }
 
