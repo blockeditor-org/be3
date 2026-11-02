@@ -270,7 +270,12 @@ program, which focuses its tab); raising a window brings the windows opened over
 and popups, along in front of it, and moving one (a drag or a `place` request) moves them with it. The dock's windows clear to transparent, so the margin their
 resize grips reach into and their rounded corners show what is behind them. The shell's view on each display draws, between its own
 surface and its floating layers (menus, popovers, toasts), the windows that display holds most
-of (`desktop::shown_on`, `DesktopWindows` in `compositor/app_view.rs`), each a `AppView` of
+of (`desktop::shown_on`, `DesktopWindows` in `compositor/app_view.rs`); the dock's bands of
+bars are among those floating layers, as on other desktops, so a window carried over a bar
+passes beneath it and the bar still takes presses (beui-dock's `DockBarBand` marks its band
+`AboveEmbeds::Paints` while `bar_level` is `Raised`, so the view's frame report lists it in
+`floating` and `floating-painted`), and drop beneath a fullscreen window as `bar_level` does.
+Each window is a `AppView` of
 its window view placed at its rect less the display's corner, whose children are the program
 windows and block editors the shell placed in it. A window opens where the app asked: at a
 point of the view it opened from (`Over`, measured from that view's corner on the desktop),
@@ -310,7 +315,7 @@ popovers and dialogs escape above the windows, takes input in desktop points (`d
 step before each move so a fluid drag is followed frame by frame; `click`, `hover`, `down`, `up` and `drag` go the same
 way, a test id to the centre of the first place the desk shows it, revealed first when a scroll cuts it, a point read in desktop
 points), sends `host_tap` to whichever view holds the keyboard (the one whose window requests
-intercept the tap) and paints a display with the windows and escaped layers on it
+intercept the tap) and paints a display with the windows, the floating layers the display reports (taking their presses) and the escaped layers on it
 (`desk_snapshot`); without it an app draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the

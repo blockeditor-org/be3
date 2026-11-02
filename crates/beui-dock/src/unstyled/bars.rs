@@ -14,7 +14,8 @@ use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::window::{WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{
-    Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement, PointerPress,
+    AboveEmbeds, Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement,
+    PointerPress,
 };
 use beui_view::types::{HostTransform, Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
@@ -1483,6 +1484,12 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
     if let BarHolder::Tab { .. } = holder {
         return band;
     }
+    above_embeds(
+        band,
+        create_memo(move || {
+            (dock.bar_level() == LayerLevel::Raised).then_some(AboveEmbeds::Paints)
+        }),
+    );
     view! {
         <DropTarget
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
