@@ -713,9 +713,7 @@ impl DockState {
         let (side, share) = match site.steps.first().map(|step| (step.split, step.first)) {
             Some((
                 DockSpecNode::Split {
-                    direction,
-                    size,
-                    ..
+                    direction, size, ..
                 },
                 first,
             )) => (

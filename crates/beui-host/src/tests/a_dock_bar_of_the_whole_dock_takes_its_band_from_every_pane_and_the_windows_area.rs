@@ -1,7 +1,7 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, SplitSize, DockTab, DockWindow,
-    DockingLayout,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockWindow,
+    DockingLayout, SplitSize,
 };
 use crate::geometry::Rect;
 

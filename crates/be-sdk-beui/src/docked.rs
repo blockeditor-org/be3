@@ -6,6 +6,7 @@ use be_sdk::{EditorHost, Pushed, ViewId, ViewRef};
 use be_sdk_api as api;
 use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
+use beui::dock::unstyled::SplitSize;
 use beui::dock::unstyled::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockDeclaration,
     DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge, DockHostEvent,
@@ -14,7 +15,6 @@ use beui::dock::unstyled::{
     DockSpecPlace, DockSpecWindow, DockState, DockVisit, DockingSnapshot, TabId,
 };
 use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
-use beui::dock::unstyled::SplitSize;
 use beui::icons::Glyph;
 use beui::reactive::*;
 use beui::styled::WindowHandle;

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, SplitSize, DockTab, Docking, DockingLayout,
-    use_dock_bar,
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    SplitSize, use_dock_bar,
 };
 use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};

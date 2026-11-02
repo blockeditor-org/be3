@@ -1,6 +1,7 @@
 use beui::dock::styled::Docking;
 use beui::dock::unstyled::{
-    DockPane, DockSplit, SplitSize, DockState, DockTab, DockTree, DockTreeEntry, DockingLayout, TabId, Tree,
+    DockPane, DockSplit, DockState, DockTab, DockTree, DockTreeEntry, DockingLayout, SplitSize,
+    TabId, Tree,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -109,7 +110,11 @@ pub fn DockingFixture() -> NodeId {
             <Text>{described}</Text>
             <Frame width=Size::Custom(900.0) height=Size::Custom(520.0)>
                 <Docking layout>
-                    <DockSplit id="root" direction=Direction::Horizontal size={SplitSize::Fraction(0.5)}>
+                    <DockSplit
+                        id="root"
+                        direction=Direction::Horizontal
+                        size={SplitSize::Fraction(0.5)}
+                    >
                         <DockPane id="left">
                             <ForEach keys={open}>|tab: TabId|
                                 <DockTab id=tab title={name(tab)} on_close={move || close(tab)}>

@@ -4,8 +4,7 @@ use crate::{
     ChildId, DecodeError, DockBar, DockBarPlacement, DockDeclaration, DockGroup, DockHold,
     DockHome, DockHosted, DockItem, DockItemKind, DockLayout, DockMessage, DockOutside,
     DockOutsidePlace, DockPane, DockPlace, DockPlacedBar, DockRequest, DockSplit, DockSplitSize,
-    DockTab,
-    DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
+    DockTab, DockTabPath, DockTree, DockUpdate, DockWindow, Rect, collection, nesting, string,
 };
 
 mod splice;

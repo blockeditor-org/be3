@@ -1,7 +1,7 @@
 use super::{
     Bar, DockHome, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane,
-    DockSpecPlace, DockSpecWindow, DockState, Entry, Group, GroupId, Home, MIN_SIDEBAR_WIDTH,
-    Node, Split, SplitId, Surface, SurfaceId,
+    DockSpecPlace, DockSpecWindow, DockState, Entry, Group, GroupId, Home, MIN_SIDEBAR_WIDTH, Node,
+    Split, SplitId, Surface, SurfaceId,
 };
 
 fn named(key: &str) -> Option<String> {

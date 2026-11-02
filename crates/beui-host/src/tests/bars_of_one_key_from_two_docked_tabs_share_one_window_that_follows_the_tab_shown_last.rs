@@ -1,7 +1,7 @@
 use super::*;
 use crate::dock::unstyled::{
-    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, SplitSize, DockTab, DockingLayout,
-    TabId, use_dock_bar,
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
+    SplitSize, TabId, use_dock_bar,
 };
 
 #[component]

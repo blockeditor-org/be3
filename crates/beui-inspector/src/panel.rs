@@ -244,7 +244,11 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
         };
         let layout = match embeds_program {
             true => view! {
-                <DockSplit id="inspector" direction=Direction::Horizontal size={SplitSize::Second(DEFAULT_WIDTH)}>
+                <DockSplit
+                    id="inspector"
+                    direction=Direction::Horizontal
+                    size={SplitSize::Second(DEFAULT_WIDTH)}
+                >
                     <DockPane id="app">
                         <DockTab
                             id=InspectorTab::Program
