@@ -1,7 +1,7 @@
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::{Editor, FileChooser};
 use be_type_deterministic_game::GameModuleContent;
 use tabletop_host::Game;
@@ -85,7 +85,9 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                                     </Text>
                                 </Show>
                                 <Text align=TextAlign::Center>{source}</Text>
-                                <Text style=TextStyle::CAPTION align=TextAlign::Center>{bytes}</Text>
+                                <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                    {bytes}
+                                </Text>
                             </List>
                         </Frame>
                     </DockTab>
@@ -121,20 +123,20 @@ fn ModulePanel(editor: Editor) -> NodeId {
     view! {
         <Frame fill=ColorRole::Surface>
             <Scroll>
-            <Frame padding=PADDING>
-            <List spacing=SPACING>
-            <Button
-                label="Replace module..."
-                variant=ButtonVariant::Secondary
-                disabled={blocked}
-                @test_id={"game-module.replace"}
-                on_click={replace}
-            />
-            <Show condition={failed}>
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-            </Show>
-            </List>
-            </Frame>
+                <Frame padding=PADDING>
+                    <List spacing=SPACING>
+                        <Button
+                            label="Replace module..."
+                            variant=ButtonVariant::Secondary
+                            disabled={blocked}
+                            @test_id={"game-module.replace"}
+                            on_click={replace}
+                        />
+                        <Show condition={failed}>
+                            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+                        </Show>
+                    </List>
+                </Frame>
             </Scroll>
         </Frame>
     }
