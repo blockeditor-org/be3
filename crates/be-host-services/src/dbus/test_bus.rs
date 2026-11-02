@@ -44,10 +44,12 @@ impl Bus {
         }
     }
 
+    pub fn builder(&self) -> zbus::connection::Builder<'_> {
+        zbus::connection::Builder::address(self.address.as_str()).expect("the address parses")
+    }
+
     pub async fn connect(&self) -> Connection {
-        zbus::connection::Builder::address(self.address.as_str())
-            .expect("the address parses")
-            .build()
+        crate::dbus::build(self.builder())
             .await
             .expect("the bus takes a connection")
     }

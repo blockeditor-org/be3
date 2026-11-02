@@ -187,6 +187,12 @@ puts back what the console showed) and, last, the seat. Every D-Bus conversation
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
 nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
+Build every connection with `dbus::build`, as these two and the tests' private bus
+(`dbus::test_bus`) do. zbus starts a connection's object server only when the first object is
+served, and drops a method call that arrives before that server is listening. Serving an object
+right before taking a name, as notifications and the tray watcher do, then loses a client's first
+call now and then. `dbus::build` serves `ObjectManager` at `/` while it connects, so the server is
+listening before the connection is returned.
 
 
 ## Notifications
