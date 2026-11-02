@@ -443,7 +443,8 @@ impl Workspace {
         let layout = self.layout();
         match untrack(|| self.is_hidden(tab)) {
             true => {
-                self.hidden.update(|hidden| hidden.retain(|held| *held != tab));
+                self.hidden
+                    .update(|hidden| hidden.retain(|held| *held != tab));
                 self.showing.set(Some(tab));
             }
             false => layout.show(&tab),
@@ -1121,7 +1122,8 @@ impl Workspace {
             }
         }
         self.tabs.set(tabs);
-        self.hidden.update(|hidden| hidden.retain(|held| *held != tab));
+        self.hidden
+            .update(|hidden| hidden.retain(|held| *held != tab));
         if !still_open {
             self.forget(closed.id);
         }
