@@ -204,9 +204,11 @@ bar is hidden, it is centred over the windows' area instead (`ProgramsPanelOverl
 
 - while the host offers `ProgramsWatch`, a `styled::SearchList` of the programs (`root/launcher.rs`):
   opening the panel asks the host to list them with icons at the display's scale, an empty query
-  shows them as a grid of tiles (`desktop.apps.item.ID`) that the arrow keys walk, and typing
+  shows them as a grid of tiles (`desktop.apps.item.ID`, a tooltip giving a name cut short in
+  full) that the arrow keys walk, starting from the first each time the panel opens, and typing
   narrows them to a list by name, keywords and comment, ending with a row that runs the query as
-  a command (`desktop.apps.item.run`); choosing one launches it (`ProgramAction::Launch` or `Run`)
+  a command (`desktop.apps.item.run`), in an area of a fixed height once the host lists any
+  programs, so the search field stays put as the results narrow; choosing one launches it (`ProgramAction::Launch` or `Run`)
   and closes the panel. The watch's `ProgramCatalog::listed` is false until the host has looked for
   the programs once, so the panel says "Loading programs…" until then and "No programs found." only
   when the host found none;

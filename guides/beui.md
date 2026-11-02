@@ -915,6 +915,10 @@ alignment, `overflow`, `line_height`, `line_padding`, `marks`, `glyphs` and
 - `Ellipsis` keeps a label to one line, cut to its width with an ellipsis. A
   newline or a `Break` still starts a new line, and each line is cut on its
   own.
+
+`Text`'s `on_truncated` hears whether an `Ellipsis` or `max_lines` text is cut
+short, after the layout that changed it, so a component can show the whole
+text another way, as the tiles of `styled::SearchList` do with a tooltip.
 - `Visible` lays each line out unbroken at its natural width and paints it
   whole, for text inside something that scrolls or clips for it: a text
   area with wrapping off, a terminal's screen rows, a map label.
