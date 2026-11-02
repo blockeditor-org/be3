@@ -37,5 +37,5 @@ fn clicking_a_day_in_the_calendar_adds_a_row_on_it() {
         row.value(starts),
         Some(&DatabaseValue::Datetime(day * SECONDS_PER_DAY + 9 * 3600))
     );
-    assert!(fixture.harness.shown("database-view.detail.close"));
+    assert!(fixture.harness.shown("dock.tab.row.close"));
 }

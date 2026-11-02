@@ -29,7 +29,7 @@ use state::{VideoState, ZOOM_STEP};
 use timeline::Timeline;
 
 const DEFAULT_EDITOR_SIZE: Vec2 = Vec2::new(1000.0, 640.0);
-const EFFECTS_WIDTH: f32 = 268.0;
+const EFFECTS_WIDTH: f32 = 320.0;
 const TIMELINE_SHARE: f32 = 0.42;
 const TOOL_SEPARATOR_LENGTH: Size = Size::Sm;
 const EFFECTS_PADDING: Space = Space::Md;
@@ -306,6 +306,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                 icon_only=true
                 glyph=ICON_SCAN
                 label="Fit the whole video in the timeline"
+                @test_id={"video.fit-timeline"}
                 on_click={move || state.request_fit()}
             />
         </DockBarSurface>

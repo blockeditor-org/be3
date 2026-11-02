@@ -1890,7 +1890,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn reveal(&mut self, test_id: &str) {
         let cut = crate::document::scroll_cuts(&self.document(), test_id);
-        if !cut && (self.desk.is_some() || self.rect().contains_rect(self.rect_of(test_id))) {
+        let painted = self
+            .output
+            .as_ref()
+            .and_then(|output| output.test_id_rect(test_id));
+        if !cut
+            && painted.is_some_and(|rect| self.desk.is_some() || self.rect().contains_rect(rect))
+        {
             return;
         }
         {

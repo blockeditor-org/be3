@@ -4422,10 +4422,11 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
     let hidden = create_memo(move || BARS.iter().any(|bar| layout.is_bar_hidden(bar)));
     view! {
         <Frame @test_id="bars.stage" fill=ColorRole::Background>
-            <Frame padding=PAGE_PADDING align=Align::Center>
-                <List spacing=SECTION_SPACING>
-                    <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
-                        "This page is a Docking of its own with a bare stage with two tool bars, a side \
+            <Scroll>
+                <Frame padding=PAGE_PADDING align=Align::Center>
+                    <List spacing=SECTION_SPACING>
+                        <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                            "This page is a Docking of its own with a bare stage with two tool bars, a side \
                      pane, three status bars of the whole dock and a history bar floating over the \
                      whole dock's right edge. A bar follows its grip as it is dragged: near an edge \
                      it grows into the band along it, which opens to make room, and let go there it \
@@ -4437,21 +4438,22 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                      grip's menu moves it without dragging, or hides it: a hidden bar takes no \
                      room until the button below shows it again. Bars floating over the whole \
                      dock and popped-out bars stay above its floating windows."
-                    </Text>
-                    <Show condition={hidden}>
-                        <Button
-                            @test_id="bars.show"
-                            label="Show hidden bars"
-                            glyph={Some(beui::icons::ICON_EYE)}
-                            on_click={move || {
-                                for bar in BARS {
-                                    layout.show_bar(&bar);
-                                }
-                            }}
-                        />
-                    </Show>
-                </List>
-            </Frame>
+                        </Text>
+                        <Show condition={hidden}>
+                            <Button
+                                @test_id="bars.show"
+                                label="Show hidden bars"
+                                glyph={Some(beui::icons::ICON_EYE)}
+                                on_click={move || {
+                                    for bar in BARS {
+                                        layout.show_bar(&bar);
+                                    }
+                                }}
+                            />
+                        </Show>
+                    </List>
+                </Frame>
+            </Scroll>
         </Frame>
     }
 }

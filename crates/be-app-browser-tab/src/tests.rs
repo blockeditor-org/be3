@@ -8,6 +8,7 @@ use crate::root::BrowserTabRoot;
 
 mod a_pushed_url_becomes_the_tab_s_history;
 mod a_refused_web_view_shows_why_in_its_place;
+mod on_a_phone_the_address_bar_fits_across_the_page;
 mod the_page_is_placed_as_a_web_view_child;
 mod typing_an_address_navigates_the_web_view;
 

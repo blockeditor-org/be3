@@ -24,13 +24,14 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
             bars: Vec::new(),
             outside: Vec::new(),
             unlocked: Vec::new(),
+            compact: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
         focused: Some(side.clone()),
         shown: None,
         visible: vec![DockTabPath::own(2), side.clone()],
         fullscreen: None,
-        stacked: false,
+        mode: crate::DockMode::Tiled,
         covers: Vec::new(),
     };
     let own = hosted.own(&[(child, 3)]).unwrap();

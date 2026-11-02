@@ -25,7 +25,7 @@ fn a_hidden_bar_is_not_shown_is_kept_with_the_layout_and_shared_by_its_key() {
     state.set_bar_hidden(TabId::new(20), true);
     assert!(state.is_bar_hidden(TabId::new(20)));
     assert!(
-        !state.is_bar_shown(TabId::new(20), false),
+        !state.is_bar_shown(TabId::new(20), DockMode::Tiled),
         "a hidden dock bar shows with no tab"
     );
     assert!(
@@ -60,9 +60,9 @@ fn a_hidden_bar_is_not_shown_is_kept_with_the_layout_and_shared_by_its_key() {
         state.is_bar_hidden(TabId::new(22)),
         "hiding a bar hides every bar of its key"
     );
-    assert!(!state.is_bar_shown(TabId::new(21), false));
+    assert!(!state.is_bar_shown(TabId::new(21), DockMode::Tiled));
 
     state.set_bar_hidden(TabId::new(20), false);
-    assert!(state.is_bar_shown(TabId::new(20), false));
+    assert!(state.is_bar_shown(TabId::new(20), DockMode::Tiled));
     assert_eq!(state.dock_band_edges(), vec![DockEdge::Bottom]);
 }

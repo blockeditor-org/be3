@@ -180,7 +180,7 @@ impl DockState {
         self.bars.retain(|held| held.bar != bar);
     }
 
-    pub fn is_bar_shown(&self, bar: TabId, stacked: bool) -> bool {
+    pub fn is_bar_shown(&self, bar: TabId, mode: crate::unstyled::DockMode) -> bool {
         if self.is_bar_hidden(bar) {
             return false;
         }
@@ -188,7 +188,7 @@ impl DockState {
             return true;
         }
         self.bar_tab(bar)
-            .is_some_and(|tab| self.is_shown(tab, stacked))
+            .is_some_and(|tab| self.is_shown(tab, mode))
     }
 
     pub fn dock_band_edges(&self) -> Vec<DockEdge> {
@@ -307,7 +307,7 @@ impl DockState {
         let recent = self.recent_tabs();
         bars.iter()
             .copied()
-            .filter(|bar| self.is_bar_shown(*bar, false))
+            .filter(|bar| self.is_bar_shown(*bar, crate::unstyled::DockMode::Tiled))
             .min_by_key(|bar| {
                 self.bar_tab(*bar)
                     .and_then(|tab| recent.iter().position(|held| *held == tab))

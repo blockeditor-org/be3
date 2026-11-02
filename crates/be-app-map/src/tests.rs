@@ -1,3 +1,4 @@
+use be_sdk_beui::beui::Vec2;
 use be_sdk_test::{BeuiTest, HostCall, Reply, wire};
 use be_type_map::MapRegion;
 use be_type_map::{Map, MapContent};
@@ -5,6 +6,8 @@ use uuid::Uuid;
 
 use crate::root::MapRoot;
 
+mod a_map_on_a_phone_on_its_side_shows_its_inspector_beside_it;
+mod a_map_on_a_phone_shows_its_inspector_below_it;
 mod a_new_map_shows_the_whole_world;
 mod labels_hold_still_between_frames;
 mod labels_stay_while_deeper_tiles_load;
@@ -16,8 +19,15 @@ mod tiles_from_the_tile_source_are_drawn;
 mod zooming_in_draws_deeper_tiles_over_the_shallower_ones;
 
 fn editor() -> BeuiTest<MapRoot> {
-    let block = Uuid::new_v4();
-    let mut editor = BeuiTest::editing(block).in_viewport();
+    sized(BeuiTest::editing(Uuid::new_v4()))
+}
+
+fn phone(size: Vec2) -> BeuiTest<MapRoot> {
+    sized(BeuiTest::editing(Uuid::new_v4()).with_size(size))
+}
+
+fn sized(editor: BeuiTest<MapRoot>) -> BeuiTest<MapRoot> {
+    let mut editor = editor.in_viewport();
     editor.store().register(be_type_map::registrations());
     editor.hold(None, MapContent::default());
     editor.run();

@@ -1,5 +1,6 @@
 use beui_view::types::icons::Glyph;
 mod bars;
+mod compact;
 mod dialog;
 mod docking;
 mod documents;
@@ -55,6 +56,7 @@ use beui_view::window::{
 pub(crate) use bars::{BarCovers, BarFloats};
 use bars::{BarHolder, BarPanels, DockBarLifted, DockBarWindows, DockBarred, Lifting};
 pub use bars::{DockBarBandHandle, DockBarControl, use_dock_bar};
+use compact::DockCompactView;
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
@@ -71,11 +73,12 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
-    DockAlign, DockBarPlacement, DockDrop, DockEdge, DockFullscreen, DockHome, DockLayout,
-    DockMapping, DockOutside, DockOutsidePlace, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
-    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockSplitter, DockState, DockSwitch,
-    DockTree, DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId,
-    TabPosition, Tree, layout_surface, layout_tree,
+    COMPACT_SHARE, COMPACT_SIDE, DockAlign, DockBarPlacement, DockCompact, DockDrop, DockEdge,
+    DockFullscreen, DockHome, DockLayout, DockMapping, DockOutside, DockOutsidePlace, DockSpec,
+    DockSpecBar, DockSpecEntry, DockSpecHome, DockSpecNode, DockSpecPane, DockSpecPlace,
+    DockSpecWindow, DockSplitter, DockState, DockSwitch, DockTree, DockTreeEntry, DockVisit, Entry,
+    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, compact_length,
+    layout_surface, layout_tree,
 };
 use state::{DockShape, FLOATING_SIZE, MIN_WINDOW_SIZE, tree_shape};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SplitSize};
@@ -98,6 +101,7 @@ const WINDOW_KEEP_VISIBLE: f32 = 96.0;
 pub enum DockMode {
     #[default]
     Tiled,
+    Compact,
     Stacked,
 }
 
@@ -1674,6 +1678,8 @@ pub(crate) struct DockConfig {
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
     pub(crate) stack_below: f32,
+    pub(crate) short_below: f32,
+    pub(crate) short_narrower_than: f32,
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
@@ -1733,6 +1739,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         closable,
         menu,
         stack_below,
+        short_below,
+        short_narrower_than,
         mode: published,
         drag_modifier,
         splitter_thickness,
@@ -1780,13 +1788,21 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let outer_held = create_signal(Rect::ZERO);
     let outer = outer_held.read_only();
     let mode = create_memo(move || {
-        let width = outer.get().width();
-        let stacks = !state.with(DockState::is_one_bare_pane);
-        match stacks && width > 0.0 && width < stack_below {
-            true => DockMode::Stacked,
-            false => DockMode::Tiled,
+        let size = outer.get().size();
+        let short = size.y > 0.0 && size.y < short_below && size.x < short_narrower_than;
+        let compact = size.x > 0.0 && (size.x < stack_below || short);
+        if !compact {
+            return DockMode::Tiled;
+        }
+        let staged = state.with(|state| {
+            state.is_one_bare_pane() || state.stage_of(Tree::Surface(state.main())).is_some()
+        });
+        match staged {
+            true => DockMode::Compact,
+            false => DockMode::Stacked,
         }
     });
+    let stacks = create_memo(move || mode.get() == DockMode::Stacked);
     create_effect(move || published.set(mode.get()));
     let dialog_focus = create_signal(None);
     let attention = create_signal((0, None));
@@ -1961,12 +1977,12 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             <DockBarred dock leaf={None} holder={BarHolder::Dock} @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=inset>
                     <List spacing=0.0>
-                        <Dynamic value={mode}>|mode: DockMode| {
-                            match mode {
-                                DockMode::Tiled => view! {
+                        <Dynamic value={stacks}>|stacks: bool| {
+                            match stacks {
+                                false => view! {
                                     <DockTiles dock @sizing=ItemSize::Percent(100.0) />
                                 },
-                                DockMode::Stacked => view! {
+                                true => view! {
                                     <DockStack dock @sizing=ItemSize::Percent(100.0) />
                                 },
                             }
@@ -2125,14 +2141,24 @@ fn DockFullscreenView(dock: State) -> NodeId {
 #[component]
 fn DockStack(dock: State) -> NodeId {
     let state = dock.state;
-    let shown = create_memo(move || state.with(DockState::stacked_tab));
+    let stacked = create_memo(move || state.with(DockState::stacked_tab));
+    let staged = create_memo(move || {
+        let tab = stacked.get()?;
+        state.with(|state| state.compact_tree_of(tab))
+    });
+    let shown = create_memo(move || match staged.get() {
+        Some(tree) => state.with(|state| state.stage_tab(tree)).or(stacked.get()),
+        None => stacked.get(),
+    });
     let away = create_memo(move || {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let panel = create_signal(None);
     let previous = Cell::new(None);
     create_effect(move || {
-        let tab = shown.get().filter(|tab| away.get() != Some(*tab));
+        let tab = shown
+            .get()
+            .filter(|tab| away.get() != Some(*tab) && staged.get().is_none());
         let left = previous.replace(tab).filter(|left| Some(*left) != tab);
         let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         panel.set(tab.map(|tab| dock.panel(tab)));
@@ -2144,7 +2170,7 @@ fn DockStack(dock: State) -> NodeId {
     let occupied = create_memo(move || shown.get().is_some());
     let backward = create_memo(move || state.with(|state| state.back().is_some()));
     let switching = create_signal(false);
-    let tabs = create_memo(move || state.with(DockState::recent_tabs));
+    let tabs = create_memo(move || state.with(|state| state.switchable(state.recent_tabs())));
     let bar = dock
         .stack
         .map(|stack| stack.call(stack_handle(dock, shown, backward, tabs, switching)));
@@ -2153,8 +2179,9 @@ fn DockStack(dock: State) -> NodeId {
         .map(|switcher| switcher.call(switcher_handle(dock, shown, tabs, switching)));
     let barred = create_memo(move || bar.is_some() && occupied.get());
     let gone = dock.away_from(shown);
-    let left = create_memo(move || gone.get().is_some());
-    let here = create_memo(move || occupied.get() && gone.get().is_none());
+    let left = create_memo(move || gone.get().is_some() && staged.get().is_none());
+    let here =
+        create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
     let empty = dock.empty;
     view! {
         <BackSlide
@@ -2188,6 +2215,17 @@ fn DockStack(dock: State) -> NodeId {
                 <Show condition={left}>
                     <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
                 </Show>
+                <Dynamic value={staged}>|staged: Option<Tree>| {
+                    let dock = dock;
+                    match staged {
+                        Some(tree) => view! {
+                            <DockCompactView dock tree @sizing=ItemSize::Percent(100.0) />
+                        },
+                        None => view! {
+                            <List spacing=0.0 @sizing=ItemSize::Fixed(0.0) />
+                        },
+                    }
+                }</Dynamic>
                 {switcher}
             </List>
         </BackSlide>
@@ -2278,7 +2316,7 @@ fn switcher_handle(
     let fixed = create_memo(move || {
         state.with(|state| {
             state
-                .all_tabs()
+                .switchable(state.all_tabs())
                 .into_iter()
                 .filter(|tab| !closable.call(*tab))
                 .collect::<Vec<_>>()
@@ -2477,7 +2515,31 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
 }
 
 #[component]
-fn DockTreeView(
+fn DockTreeView(dock: State, tree: Tree) -> NodeId {
+    let state = dock.state;
+    let mode = dock.mode;
+    let staged = create_memo(move || {
+        mode.get() != DockMode::Tiled && state.with(|state| state.stage_of(tree).is_some())
+    });
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={staged}>|staged: bool| {
+                let dock = dock;
+                match staged {
+                    true => view! {
+                        <DockCompactView dock tree @sizing=ItemSize::Percent(100.0) />
+                    },
+                    false => view! {
+                        <DockTreeCanvas dock tree @sizing=ItemSize::Percent(100.0) />
+                    },
+                }
+            }</Dynamic>
+        </List>
+    }
+}
+
+#[component]
+fn DockTreeCanvas(
     dock: State,
     tree: Tree,
     #[prop(default = None)] hoisted: Prop<Option<LeafId>>,
@@ -2834,6 +2896,22 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
 fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let state = dock.state;
     let shown = create_memo(move || state.with(|state| state.active_tab(leaf)));
+    let vacant = create_memo(move || shown.get().is_none());
+    let occupied = create_memo(move || shown.get().is_some());
+    let empty = dock.empty;
+    view! {
+        <List spacing=0.0>
+            <Show condition={vacant}>{empty.call(leaf)} @sizing=ItemSize::Percent(100.0)</Show>
+            <Show condition={occupied}>
+                <DockShownBody dock leaf={Some(leaf)} shown @sizing=ItemSize::Percent(100.0) />
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) -> NodeId {
+    let state = dock.state;
     let away = create_memo(move || {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
@@ -2848,18 +2926,15 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
             untrack(|| dock.give_keyboard(tab));
         }
     });
-    let vacant = create_memo(move || shown.get().is_none());
     let gone = dock.away_from(shown);
     let left = create_memo(move || gone.get().is_some());
     let occupied = create_memo(move || shown.get().is_some() && gone.get().is_none());
-    let empty = dock.empty;
     view! {
         <List spacing=0.0>
-            <Show condition={vacant}>{empty.call(leaf)} @sizing=ItemSize::Percent(100.0)</Show>
             <Show condition={occupied}>
                 <DockBarred
                     dock
-                    leaf={Some(leaf)}
+                    leaf
                     holder={BarHolder::Tab { tab: shown, stacked: false }}
                     @sizing=ItemSize::Percent(100.0)
                 >
@@ -3837,7 +3912,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 }
                                                             });
                                                             let pane = view! {
-                                                                <DockTreeView
+                                                                <DockTreeCanvas
                                                                     dock={dock}
                                                                     tree={Tree::Surface(surface)}
                                                                     hoisted

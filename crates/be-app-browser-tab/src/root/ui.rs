@@ -13,7 +13,7 @@ use beui::{Align, ItemSize, Justify};
 
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
-const ADDRESS_WIDTH: Size = Size::Custom(360.0);
+const ADDRESS_WIDTH: f32 = 360.0;
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
@@ -172,16 +172,15 @@ fn AddressBar(bar: Bar) -> NodeId {
                 @test_id={"browser.reload"}
                 on_click={move || reload.call(())}
             />
-            <Frame width=ADDRESS_WIDTH>
-                <TextInput
-                    value={Binding::new(address, move |value: String| typed.call(value))}
-                    label="Address"
-                    placeholder="Search or enter address"
-                    @test_id={"browser.address"}
-                    on_submit={move |value: String| submit.call(value)}
-                    on_focus_change={move |focused: bool| focus.call(focused)}
-                />
-            </Frame>
+            <TextInput
+                @sizing={ItemSize::Fixed(ADDRESS_WIDTH).shrink(1.0)}
+                value={Binding::new(address, move |value: String| typed.call(value))}
+                label="Address"
+                placeholder="Search or enter address"
+                @test_id={"browser.address"}
+                on_submit={move |value: String| submit.call(value)}
+                on_focus_change={move |focused: bool| focus.call(focused)}
+            />
             <Button
                 label="Go"
                 variant=ButtonVariant::Primary

@@ -186,6 +186,7 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_first_fit_moves_on_when_the_child_it_shows_grows_too_wide;
 mod a_first_fit_sized_by_its_row_shows_its_first_child_again_when_the_row_widens;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
+mod a_fixed_child_that_shrinks_gives_way_inside_a_shrinking_row;
 mod a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes;
 mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
@@ -226,6 +227,7 @@ mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
 mod a_fuzzy_command_palette_filters_as_it_is_typed_and_chooses_with_enter;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
 mod a_gap_in_rich_text_takes_room_but_no_bytes;
+mod a_gathered_pane_folds_to_its_tabs_and_unfolds_for_a_tab;
 mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
 mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
 mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
@@ -285,6 +287,7 @@ mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
 mod a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing;
 mod a_mouse_away_from_a_held_finger_still_moves_the_pointer;
 mod a_multi_root_view_fills_a_children_prop_in_order;
+mod a_narrow_dock_gathers_the_panes_beside_its_stage_below_it;
 mod a_narrow_inspector_covering_the_program_unplaces_its_embeds;
 mod a_narrow_text_input_keeps_its_text_and_placeholder_inside_it;
 mod a_narrow_window_stacks_the_program_and_the_inspector;
@@ -402,6 +405,8 @@ mod a_sheet_is_never_taller_than_what_it_holds;
 mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
 mod a_shifted_child_in_a_scrolled_view_still_paints;
+mod a_short_dock_without_a_stage_stacks_its_tabs;
+mod a_short_wide_dock_gathers_the_panes_beside_its_stage_to_its_right;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
@@ -428,6 +433,7 @@ mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
+mod a_stacked_dock_gathers_the_panes_beside_a_joined_docks_stage;
 mod a_stacked_dock_shows_a_nested_docks_tabs_as_its_own;
 mod a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks;
 mod a_stopped_clock_lets_an_animating_program_settle_and_pause_moves_it;
@@ -665,6 +671,7 @@ mod dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window;
 mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
 mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
 mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
+mod dragging_a_gathered_panes_splitter_resizes_the_stage;
 mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
@@ -3101,4 +3108,102 @@ pub(crate) fn press_secondary(harness: &mut Harness, pos: Pos2) {
         pressed: false,
     }]);
     harness.frame(Vec::new());
+}
+
+pub(crate) const PHONE_VIEWPORT: Vec2 = Vec2::new(390.0, 844.0);
+pub(crate) const LANDSCAPE_PHONE_VIEWPORT: Vec2 = Vec2::new(844.0, 390.0);
+pub(crate) const STAGED_SIDE_WIDTH: f32 = 240.0;
+
+pub(crate) fn staged_dock() -> (Document, dock::unstyled::DockingLayout<u64>) {
+    use dock::unstyled::{
+        DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab,
+        DockingLayout, SplitSize,
+    };
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let layout = DockingLayout::new();
+        handle.set(Some(layout));
+        view! {
+            <dock::styled::Docking layout focus=1u64>
+                <DockSplit id="root" size={SplitSize::Second(STAGED_SIDE_WIDTH)}>
+                    <DockPane id="stage" locked=true bare=true>
+                        <DockTab id=1u64 title="Stage">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                    </DockPane>
+                    <DockSplit id="sides" direction=Direction::Vertical>
+                        <DockPane id="inspector" locked=true>
+                            <DockTab id=2u64 title="Inspector">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                            <DockTab id=3u64 title="Layers">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="history" locked=true>
+                            <DockTab id=4u64 title="History">
+                                <Frame @test_id="content.4" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </DockSplit>
+                <DockBar
+                    id=9u64
+                    parent=1u64
+                    placement={DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center)}
+                >
+                    <TestToolBar />
+                </DockBar>
+            </dock::styled::Docking>
+        }
+    });
+    (document, built.get().expect("the dock was built"))
+}
+
+pub(crate) struct StagedNestedDock {
+    pub(crate) outer: dock::unstyled::DockingLayout<u64>,
+    pub(crate) inner: dock::unstyled::DockingLayout<u64>,
+}
+
+pub(crate) fn staged_nested_dock() -> (Document, StagedNestedDock) {
+    use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let outer = DockingLayout::new();
+        let inner = DockingLayout::new();
+        handle.set(Some((outer, inner)));
+        view! {
+            <dock::styled::Docking layout=outer focus=2u64>
+                <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
+                    <DockPane id="files">
+                        <DockTab id=1u64 title="Files">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="editors">
+                        <DockTab id=2u64 title="Editor">
+                            <dock::styled::Docking layout=inner>
+                                <DockSplit id="editor" size={SplitSize::Second(STAGED_SIDE_WIDTH)}>
+                                    <DockPane id="stage" locked=true bare=true>
+                                        <DockTab id=10u64 title="Stage">
+                                            <Frame @test_id="content.10" />
+                                        </DockTab>
+                                    </DockPane>
+                                    <DockPane id="inspector" locked=true>
+                                        <DockTab id=11u64 title="Inspector">
+                                            <Frame @test_id="content.11" />
+                                        </DockTab>
+                                    </DockPane>
+                                </DockSplit>
+                            </dock::styled::Docking>
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+            </dock::styled::Docking>
+        }
+    });
+    let (outer, inner) = built.get().expect("the dock was built");
+    (document, StagedNestedDock { outer, inner })
 }
