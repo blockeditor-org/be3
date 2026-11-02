@@ -1,5 +1,5 @@
 use super::*;
 mod a_missing_socket_dir_is_made_sticky_and_writable_by_all;
+mod a_missing_xwayland_names_its_package;
 mod a_socket_dir_that_is_a_file_is_named;
 mod xwayland_is_found_only_as_an_executable_on_path;
-mod a_missing_xwayland_names_its_package;
