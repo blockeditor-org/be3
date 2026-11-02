@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use be_commit::CommitId;
-use be_model::{Document, List, Map, Model, ObjectId};
+use be_block_commit::CommitId;
+use be_block_model::{Document, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

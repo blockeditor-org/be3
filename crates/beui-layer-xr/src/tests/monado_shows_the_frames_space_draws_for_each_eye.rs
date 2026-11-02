@@ -21,7 +21,7 @@ fn monado_shows_the_frames_space_draws_for_each_eye() {
     let mut host = XrSpace::new(Space::new(), link);
     setup(&mut host, &gpu, Waker::new(|| {}));
     assert!(host.headset().is_some(), "the device opened through Monado");
-    let output = app();
+    let output = program();
     let layered = show_frames(&mut host, &output);
     assert_eq!(
         host.space.notice(),

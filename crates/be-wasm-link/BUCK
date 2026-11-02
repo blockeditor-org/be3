@@ -1,0 +1,11 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+# rust-lld for every wasm link, and the links that make apps share one copy
+# of what they have in common: a library's and an app's linked against
+# libraries (guides/app_libraries.md).
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary(visibility = ["PUBLIC"])

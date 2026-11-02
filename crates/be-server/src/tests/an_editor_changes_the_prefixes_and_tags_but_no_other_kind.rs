@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::{ANYONE_INSIDE, Access, PREFIXES_TYPE, SETTINGS_TYPE, TAGS_TYPE};
+use be_block_graph::{ANYONE_INSIDE, Access, PREFIXES_TYPE, SETTINGS_TYPE, TAGS_TYPE};
 
 async fn create_under(
     client: &mut TestClient,
@@ -61,7 +61,10 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         let (commit, chunks) = author.compose(b"kind", 1, None);
         let published = editor.publish(&author, kind, commit, chunks, None, 1).await;
         assert!(
-            matches!(published, Ok(be_protocol::PublishOutcome::Published(_))),
+            matches!(
+                published,
+                Ok(be_block_protocol::PublishOutcome::Published(_))
+            ),
             "an editor could not change a kind it may: {published:?}"
         );
         let opened = editor.grant(kind, ANYONE_INSIDE, Access::View).await;

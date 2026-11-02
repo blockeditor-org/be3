@@ -1,7 +1,7 @@
+use be_host_accounts_ui::{AccountRow, AccountsScreen};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{ItemSize, primitives};
-use block_accounts_ui::{AccountRow, AccountsScreen};
 
 #[cfg(target_arch = "wasm32")]
 mod web;

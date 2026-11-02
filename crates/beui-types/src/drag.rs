@@ -1,4 +1,4 @@
-use geometry::{Pos2, Rect, Vec2};
+use be_lib_geometry::{Pos2, Rect, Vec2};
 
 use crate::input::{Modifiers, PointerPress};
 use crate::window::WindowId;

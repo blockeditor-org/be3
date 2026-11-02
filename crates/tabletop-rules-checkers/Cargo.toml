@@ -1,0 +1,19 @@
+[package]
+name = "tabletop-rules-checkers"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tabletop-api = { path = "../tabletop-api" }
+tabletop-pieces = { path = "../tabletop-pieces" }
+
+[dev-dependencies]
+tabletop-host = { path = "../tabletop-host" }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

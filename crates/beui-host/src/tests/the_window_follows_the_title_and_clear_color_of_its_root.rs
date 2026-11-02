@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::window::WindowState;
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
@@ -60,7 +60,7 @@ fn the_window_follows_the_title_and_clear_color_of_its_root() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(crate::native::testing::Showing(document)),
+        program: Box::new(crate::native::testing::Showing(document)),
         layers: Vec::new(),
     });
     let loaded = Loaded {

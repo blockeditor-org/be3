@@ -1,0 +1,7 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    extra_deps = ["root//third-party/pdfium:pdfium"],
+    module = "pdf",
+    types = "//crates/be-type-pdf:module",
+)

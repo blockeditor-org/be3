@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn modifiers_are_functions_on_built_values() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let page = view! {
         <Element tag="div">

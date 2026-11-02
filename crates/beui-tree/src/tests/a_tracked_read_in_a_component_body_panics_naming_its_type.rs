@@ -10,7 +10,7 @@ fn ReadsInItsBody(count: Signal<usize>) -> DomNode {
 #[cfg(debug_assertions)]
 #[test]
 fn a_tracked_read_in_a_component_body_panics_naming_its_type() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     let scope = Scope::new();
     let count = create_signal(1_usize);
     let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

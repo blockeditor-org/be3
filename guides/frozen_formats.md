@@ -39,7 +39,7 @@ else may still change freely.
   - what is sealed with an invite or contact link code (`InviteCode`: contact
     cards by role, a pending grant's key, an invitation's escrow key), whose
     lookup id names the row, and key changes (`seal_key_change`).
-- **A block file** (`be_client::transfer`, version 1, what `be download` and
+- **A block file** (`be_block_client::transfer`, version 1, what `be download` and
   the file tree's Export as write): plaintext ids, types, parents, encoded
   `BlockMetadata`, references and content bytes. It is how data moves from one
   server to another, so it is read forever, and it is what carried data
@@ -51,7 +51,7 @@ else may still change freely.
 The server's data, its backups and the sealed objects broke with the old ones
 once, on purpose, when workspaces became organizations and keys moved to
 blocks (a clean break agreed with the user: data moved across in block
-files). What `crates/be-frozen`'s snapshots hold, from 2026-10-16 on, is read
+files). What `crates/be-block-frozen`'s snapshots hold, from 2026-10-16 on, is read
 forever.
 
 Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
@@ -60,15 +60,15 @@ its source; the access model; settings blocks, their `SETTINGS` metadata and
 the `ANYONE_INSIDE` grant on a kind) land together, and then the one
 server with data is wiped and its content re-imported once from a block file.
 Until then they may change other saved data incompatibly, but not what
-`crates/be-frozen`'s snapshots and fixture hold (none of it carries
-`ARTIFACT` metadata, which only the app writes), so those stay read forever
+`crates/be-block-frozen`'s snapshots and fixture hold (none of it carries
+`ARTIFACT` metadata, which only the host writes), so those stay read forever
 throughout; afterwards the rules below hold again for everything.
 
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
-the local plugin API, live-session state (operations,
-`LiveEdit::session_state`, relayed messages, presence), and the app's own
-files on a device (`app.sqlite3`, the refs database, caches).
+the local app API, live-session state (operations,
+`LiveEdit::session_state`, relayed messages, presence), and the host's own
+files on a device (`host.sqlite3`, the refs database, caches).
 
 Remote human session credentials from before the account portal are intentionally invalidated
 when session metadata is introduced; users sign in again. Account data, password hashes,
@@ -79,7 +79,7 @@ encryption keys, local profiles and agent credentials remain readable.
 Only add:
 
 - **SQLite.** Add tables, indexes and columns with a default;
-  `sqlite_schema::ensure` adds them to an existing database on open. Never
+  `be_block_sqlite_schema::ensure` adds them to an existing database on open. Never
   drop, rename or retype a column, or change how a value in one is written.
 - **CBOR values** (commits, manifests, metadata, registers). Add fields with
   `#[serde(default)]` and add enum variants; never rename or remove one.
@@ -91,23 +91,23 @@ Only add:
 
 ## The tests
 
-- The `tests/frozen_*.rs` of the crate that holds a frozen block type (`crates/editors/database/types`
-  for the database types, `crates/editors/text-block/types` for text,
-  `crates/editors/workspace-ui/types` for the folder and the workspace) hold its registry and a document it saved, checked
-  by `be_model::schema::check_frozen` (the stack guide's "Freezing a
+- The `tests/frozen_*.rs` of the crate that holds a frozen block type (`crates/be-type-database`
+  for the database types, `crates/be-type-text` for text,
+  `crates/be-type-workspace` for the folder and the workspace) hold its registry and a document it saved, checked
+  by `be_block_model::schema::check_frozen` (the stack guide's "Freezing a
   version"), and a test there checks its registers read without any one field.
-  Moving a type into its plugin moves these with it.
-- `crates/be-frozen` holds `src/fixtures/tracker.block`, a block file the
+  Moving a type into its app moves these with it.
+- `crates/be-block-frozen` holds `src/fixtures/tracker.block`, a block file the
   `block-file` example wrote with the code of 2026-10-16: a folder holding a
   text block and a tracker database (view, database, schema, two rows linked to
   each other, a row's page). Its test uploads it into a new server the way `be
   upload` does and reads the folder, the text and the rows back.
-- `crates/be-frozen` is also where snapshots of a whole server go: a data
+- `crates/be-block-frozen` is also where snapshots of a whole server go: a data
   directory (`data/`) and a backup of it (`backup/`, whose `objects/` are the
   data directory's), zipped in `src/snapshots/NAME.zip`, with the tokens,
   recovery phrases, link and invite codes and keys to open them in
   `src/snapshots/sNAME.rs`. The `freeze` example makes one by running a real
-  server and writing `scene.rs`'s accounts and blocks through `be_client` and
+  server and writing `scene.rs`'s accounts and blocks through `be_block_client` and
   `be`'s tracker: a company organization (My files with notes, a Team
   workspace holding the tracker database shared with an agent, an
   administrator demoted so the escrow key rotated, a grant revoked so Team's
@@ -116,7 +116,7 @@ Only add:
   enforces) and the personal organization (a
   folder shared with a contact made by link, a pending link carrying a grant,
   and that contact's change of recovery phrase). The test serves each
-  snapshot and reads it the way the app and `be` do: signing in by password,
+  snapshot and reads it the way the host and `be` do: signing in by password,
   token and phrase, opening the keys, names, content and history, writing on
   an old commit, the contacts, the escrow chain, accepting the link and the
   invitation, and restoring the backup.
@@ -132,7 +132,7 @@ take a new snapshot and list it in `SNAPSHOTS` (`src/snapshots.rs`, with the
 test that serves them):
 
 ```
-./scripts/buck run //crates/be-frozen:example-freeze -- $PWD/crates/be-frozen/src/snapshots 2026_10_16
+./scripts/buck run //crates/be-block-frozen:example-freeze -- $PWD/crates/be-block-frozen/src/snapshots 2026_10_16
 ```
 
 with the day's date as the name. The test then checks the new part only in

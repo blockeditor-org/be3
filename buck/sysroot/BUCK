@@ -19,7 +19,7 @@ wanted = [
     # What third-party crates link.
     "libasound2-dev",
     "libxkbcommon-dev",
-    # beui-platform-drm, which block-app's login session (BEUI_PLATFORM=drm) runs on: displays through GBM, input through
+    # beui-platform-drm, which be-host's login session (BEUI_PLATFORM=drm) runs on: displays through GBM, input through
     # libinput, a seat through libseat, and devices found through udev.
     "libgbm-dev",
     "libinput-dev",
@@ -112,7 +112,7 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-# What a program run here from :amd64 loads, for `:dev` (buck/app/drive.bzl) to
+# What a program run here from :amd64 loads, for `:dev` (buck/program/drive.bzl) to
 # download: its shared libraries, without the headers, static libraries and
 # sanitizer runtimes only a link needs: 258 MB of its 361.
 genrule(

@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant};
 
-use geometry::{Pos2, Vec2};
+use be_lib_geometry::{Pos2, Vec2};
 
 use crate::layout::Direction;
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
-pub use ui_types::input::{
+pub use be_lib_ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Queued, ScrollDelta, TouchId, TouchPhase,
     enqueue,
@@ -172,7 +172,7 @@ pub enum WheelInput {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
-    pub window: ui_types::window::WindowId,
+    pub window: be_lib_ui_types::window::WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
@@ -188,7 +188,7 @@ pub struct PointerPress {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerSample {
     pub pos: Pos2,
-    pub window: ui_types::window::WindowId,
+    pub window: be_lib_ui_types::window::WindowId,
     pub touch: bool,
 }
 
@@ -295,7 +295,7 @@ pub enum Event {
     Scroll(Vec2),
     ScrollEnded,
     Text(String),
-    Paste(ui_types::clipboard::Pasted),
+    Paste(be_lib_ui_types::clipboard::Pasted),
     Touch {
         id: TouchId,
         phase: TouchPhase,

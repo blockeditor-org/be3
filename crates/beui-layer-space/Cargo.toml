@@ -13,16 +13,16 @@ beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-types = { path = "../beui-types" }
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.30"
-stable-hash = { path = "../stable-hash" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [dev-dependencies]
 beui-components-styled = { path = "../beui-components-styled" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
+beui-macros = { path = "../beui-macros" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-keyboard = { path = "../beui-keyboard" }
-paint-snapshot = { path = "../paint-snapshot" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 pollster = "0.4"
 
 [lints]

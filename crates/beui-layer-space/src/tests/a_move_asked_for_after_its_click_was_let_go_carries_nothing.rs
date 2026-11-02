@@ -18,7 +18,7 @@ fn a_move_asked_for_after_its_click_was_let_go_carries_nothing() {
     space.request(&WindowRequest::BeginMove(window));
     assert_eq!(
         space.mouse.carry, None,
-        "a plugin's move request that arrives after the click it answers starts no carry"
+        "an app's move request that arrives after the click it answers starts no carry"
     );
 
     let pose = space.panel(window).unwrap().pose;

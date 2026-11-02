@@ -41,7 +41,10 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             })
             .await;
         assert!(
-            matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+            matches!(
+                response,
+                Ok(be_block_protocol::PublishOutcome::Published(_))
+            ),
             "{response:?}"
         );
         assert_eq!(

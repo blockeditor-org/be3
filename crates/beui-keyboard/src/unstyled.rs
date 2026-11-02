@@ -7,10 +7,10 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use beui_macros::{component, view};
+use beui_reactive::{Stored, store};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::{ForwardedInput, PointerButton, PointerPhase, vec2};
-use reactive::{Stored, store};
 
 use beui_view::types::{Direction, ItemSize};
 pub use compose::{Preview, preview};

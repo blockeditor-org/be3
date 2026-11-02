@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 use std::rc::Rc;
@@ -108,7 +108,7 @@ pub struct Painter {
 
 impl Painter {
     pub fn pixel_grid(&self) -> PixelGrid {
-        PixelGrid::new(reactive::Get::get(&crate::page::pixels_per_point()))
+        PixelGrid::new(beui_reactive::Get::get(&crate::page::pixels_per_point()))
     }
 
     pub fn resolve_color(&self, color: Color) -> Color32 {

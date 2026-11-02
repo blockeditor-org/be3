@@ -1,0 +1,63 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/program:drive.bzl", "page_test")
+
+cargo_library()
+
+cargo_test(
+    env = {
+        "COUNTER_TYPES_WASM": "$(location //crates/be-type-example-counter:module)",
+        "GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)",
+        "TLS_DIAMOND_APP_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
+        "TLS_DIAMOND_BASE_WASM": "$(location //crates/be-tool-tls-diamond-base:module)",
+        "TLS_DIAMOND_LEFT_WASM": "$(location //crates/be-tool-tls-diamond-left:module)",
+        "TLS_DIAMOND_RIGHT_WASM": "$(location //crates/be-tool-tls-diamond-right:module)",
+    }
+)
+
+cargo_binary()
+
+# The examples: `./scripts/buck run //crates/be-wasm-host:example-<example>`.
+
+cargo_example("gpu-calls")
+
+cargo_example("instantiate")
+
+# The standalone guest (src/tests/standalone.wat, which the tests above run on
+# wasmtime) in Chromium: assembled into a module, and run by be-wasm-guest-host's
+# guest.js with be-host's app.js against be-wasm-gpu-shim, which
+# wasm-bindgen prepares as the web bundle does, in a page that checks what it
+# painted (web/standalone.js).
+genrule(
+    name = "standalone.wasm",
+    cmd = "$(exe //buck/tools:wasm-as) --enable-bulk-memory $SRCS -o $OUT",
+    out = "standalone.wasm",
+    srcs = ["src/tests/standalone.wat"],
+)
+
+program(
+    name = "standalone-bundle",
+    bindgen = ["//crates/be-wasm-gpu-shim:module"],
+    files = [
+        "//crates/be-host:dylink.js",
+        "//crates/be-wasm-guest-host:guest.js",
+        "//crates/be-host:env.js",
+        "//crates/be-host:app.js",
+        "//crates/be-host:thread.js",
+        "//crates/be-host:threads.js",
+        "//crates/be-host:wasi.js",
+    ],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+page_test(
+    name = "standalone-web-test",
+    files = {
+        "bundle": ":standalone-bundle",
+        "index.html": "web/index.html",
+        "standalone.js": "web/standalone.js",
+        "standalone.wasm": ":standalone.wasm",
+    },
+)

@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use accesskit::{Node as AccessNode, NodeId as AccessNodeId, TreeUpdate};
 

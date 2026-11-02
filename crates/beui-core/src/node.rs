@@ -14,7 +14,7 @@ use beui_types::NodeId;
 #[derive(Default)]
 struct Removals(RefCell<Vec<NodeId>>);
 
-impl ::reactive::Release for Removals {
+impl ::beui_reactive::Release for Removals {
     fn release(&self, key: u64) {
         self.0.borrow_mut().push(NodeId::from_key(key));
     }
@@ -636,7 +636,7 @@ pub struct Arena {
     generations: Vec<u32>,
     kinds: Vec<std::any::TypeId>,
     parents: RefCell<Vec<Option<NodeId>>>,
-    owners: Vec<Option<::reactive::ScopeContext>>,
+    owners: Vec<Option<::beui_reactive::ScopeContext>>,
     removed: Vec<bool>,
     removals: std::rc::Rc<Removals>,
     fence: Option<NodeId>,
@@ -713,10 +713,10 @@ impl Arena {
     }
 
     fn own(&mut self, id: NodeId) {
-        let Some(owner) = ::reactive::current_scope() else {
+        let Some(owner) = ::beui_reactive::current_scope() else {
             return;
         };
-        ::reactive::on_release(self.removals.clone(), id.key());
+        ::beui_reactive::on_release(self.removals.clone(), id.key());
         self.owners[id.index() as usize] = Some(owner);
     }
 
@@ -736,7 +736,7 @@ impl Arena {
         !self.removals.0.borrow().is_empty()
     }
 
-    pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
+    pub fn owner(&self, id: NodeId) -> Option<::beui_reactive::ScopeContext> {
         self.owners[self.slot(id)?].clone()
     }
 

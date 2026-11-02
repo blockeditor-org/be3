@@ -23,7 +23,7 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
     let page = browser.get(&harness, &format!("/auth?code={code}")).await;
     let page = page_of(&page);
     assert_eq!(page.account.unwrap().email, "first@example.com");
-    assert_eq!(page.screen, be_portal::Screen::Approve);
+    assert_eq!(page.screen, be_server_portal::Screen::Approve);
     let previous = browser.cookie.clone();
     assert_eq!(
         browser

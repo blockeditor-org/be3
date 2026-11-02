@@ -29,7 +29,7 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     assert_eq!(filter.vision, ColorVision::Protanopia);
 
     assert!(
-        filter.region.right() <= harness.app_rect().right(),
+        filter.region.right() <= harness.program_rect().right(),
         "the filter reached into the inspector panel"
     );
 }

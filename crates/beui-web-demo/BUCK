@@ -1,39 +1,39 @@
-load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
 
 # beui's demo (crates/beui-demo) in a browser, drawn with wgpu:
 # `./scripts/buck run //crates/beui-web-demo:web`, which serves it with Caddy
 # on http://127.0.0.1:8070, or on the address after `--`.
 cargo_library(
-    rustc_flags = wasi_app_flags,
+    rustc_flags = wasi_program_flags,
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
 )
 
-wasi_app_module(
+wasi_program_module(
     name = "web-module",
     library = ":beui-web-demo",
     module = "beui_web_demo",
 )
 
-app(
+program(
     name = "web",
     bindgen = [":web-module"],
     files = [
-        "//crates/local-tools:demo-index",
-        "//crates/block-app:wasi.js",
-        "//crates/block-app:threads.js",
-        "//crates/block-app:thread.js",
-        "//crates/block-app:dylink.js",
-        "//crates/block-app:env.js",
+        "//crates/be-tool-local:demo-index",
+        "//crates/be-host:wasi.js",
+        "//crates/be-host:threads.js",
+        "//crates/be-host:thread.js",
+        "//crates/be-host:dylink.js",
+        "//crates/be-host:env.js",
     ],
     manifests = [],
     modules = [],
     run_with = [
         "sh",
-        "$(location //buck/app:serve-bundle.sh)",
+        "$(location //buck/program:serve-bundle.sh)",
         "$(location //buck/tools:caddy)",
-        "$(location //buck/app:bundle.Caddyfile)",
+        "$(location //buck/program:bundle.Caddyfile)",
         "127.0.0.1:8070",
     ],
     wasm_bindgen = "//buck/cargo:wasm-bindgen",

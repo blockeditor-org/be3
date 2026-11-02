@@ -1,0 +1,144 @@
+[package]
+name = "be-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+autobins = false
+
+[lib]
+name = "be_host"
+path = "src/main.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "be-host"
+path = "src/desktop.rs"
+
+[package.metadata.android]
+package = "com.be3.block"
+apk_name = "be-host"
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.sdk]
+min_sdk_version = 23
+target_sdk_version = 35
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[package.metadata.android.signing.dev]
+path = "../../target/android-debug.keystore"
+keystore_password = "android"
+
+[package.metadata.android.application]
+label = "Block"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
+exported = true
+
+[dependencies]
+# The block stack. The app is a peer of it on every platform: be-block-client's socket
+# and executor come from its own transport/.
+be-block = { path = "../be-block" }
+be-block-client = { path = "../be-block-client" }
+be-block-keys = { path = "../be-block-keys" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-session = { path = "../be-block-session" }
+beui = { path = "../beui" }
+be-host-base = { path = "../be-host-base" }
+be-host-desktop = { path = "../be-host-desktop" }
+be-host-runtime = { path = "../be-host-runtime" }
+be-host-stack = { path = "../be-host-stack" }
+be-host-accounts-ui = { path = "../be-host-accounts-ui" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-block-type-host = { path = "../be-block-type-host" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+futures-util = { version = "0.3", features = ["io"] }
+beui-reactive = { path = "../beui-reactive" }
+serde_json = "1"
+# Only the synchronisation primitives are shared with the browser build; the
+# new block stack's worker gets its executor and its timer from be/ instead.
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+be-wasm-threads = { path = "../be-wasm-threads" }
+be-sdk-window-stack = { path = "../be-sdk-window-stack" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+beui-host = { path = "../beui-host" }
+directories-next = "2"
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
+# Desktop only: Android has no embedded browser, and the browser sandbox has
+# none either.
+[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The block stack with the apps' type modules in process.
+be-host-testing = { path = "../be-host-testing" }
+be-sdk-test = { path = "../be-sdk-test" }
+
+# Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the
+# displays and input devices themselves rather than in a window.
+[target.'cfg(target_os = "linux")'.dependencies]
+be-host-services = { path = "../be-host-services" }
+be-host-dmabuf = { path = "../be-host-dmabuf" }
+be-host-wayland = { path = "../be-host-wayland" }
+beui-platform-drm = { path = "../beui-platform-drm" }
+zbus = { version = "5", default-features = false, features = ["async-io"] }
+
+# Windows's monitors and windows are captured onto the app's own Vulkan device.
+[target.'cfg(windows)'.dependencies]
+be-host-win32-capture = { path = "../be-host-win32-capture" }
+
+[target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "AbortController",
+    "AbortSignal",
+    "Blob",
+    "BlobPropertyBag",
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "EventTarget",
+    "File",
+    "FileList",
+    "Headers",
+    "HtmlAudioElement",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlMediaElement",
+    "ImageBitmap",
+    "Location",
+    "MessageEvent",
+    "Node",
+    "OffscreenCanvas",
+    "Performance",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Url",
+    "UrlSearchParams",
+    "Window",
+    "Worker",
+    "WorkerGlobalScope",
+    "WorkerOptions",
+    "WorkerType",
+    "console",
+] }
+
+[lints]
+workspace = true

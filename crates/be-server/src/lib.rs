@@ -15,8 +15,8 @@ use std::{
     time::Duration,
 };
 
-use be_ops::Incoming;
-use be_protocol::{ErrorCode, MAX_FRAME_BYTES, embed, hello, read_hello};
+use be_block_protocol::{ErrorCode, MAX_FRAME_BYTES, embed, hello, read_hello};
+use be_wasm_ops::Incoming;
 use futures_util::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -60,8 +60,8 @@ pub enum ServerError {
     Corrupt,
     Io(io::Error),
     Database(rusqlite::Error),
-    Store(be_store::StoreError),
-    Schema(sqlite_schema::SchemaError),
+    Store(be_block_store::StoreError),
+    Schema(be_block_sqlite_schema::SchemaError),
     Socket(String),
 }
 
@@ -105,14 +105,14 @@ impl From<rusqlite::Error> for ServerError {
     }
 }
 
-impl From<sqlite_schema::SchemaError> for ServerError {
-    fn from(error: sqlite_schema::SchemaError) -> Self {
+impl From<be_block_sqlite_schema::SchemaError> for ServerError {
+    fn from(error: be_block_sqlite_schema::SchemaError) -> Self {
         Self::Schema(error)
     }
 }
 
-impl From<be_store::StoreError> for ServerError {
-    fn from(error: be_store::StoreError) -> Self {
+impl From<be_block_store::StoreError> for ServerError {
+    fn from(error: be_block_store::StoreError) -> Self {
         Self::Store(error)
     }
 }
@@ -130,7 +130,7 @@ pub struct ServerConfig {
     pub local_profiles: bool,
     pub auth_origin: Option<String>,
     pub lease: Duration,
-    pub portal: Option<be_portal::Portal>,
+    pub portal: Option<be_server_portal::Portal>,
 }
 
 impl ServerConfig {
@@ -139,7 +139,7 @@ impl ServerConfig {
         allow_login: false,
         local_profiles: false,
         auth_origin: None,
-        lease: Duration::from_millis(be_session::LEASE_MILLISECONDS.unsigned_abs()),
+        lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,
     };
 
@@ -168,8 +168,8 @@ const PING_FRAME_BYTES: usize = 32;
 fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
-            be_ops::decode_frame::<be_ops::Frame>(frame),
-            Ok(be_ops::Frame::Start { method, .. }) if method == be_protocol::__args::CONNECTION_PING
+            be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
         )
 }
 
@@ -178,7 +178,7 @@ enum Arrived {
     Events(Vec<Incoming>),
 }
 
-fn pong(peer: &be_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
+fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
     let Ok(events) = peer.receive(frame) else {
         return Vec::new();
     };
@@ -343,8 +343,8 @@ async fn handle_connection(
 }
 
 pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
-    let ours = build_id::current().map_err(ServerError::Socket)?;
-    let compatible = theirs.is_some_and(|theirs| build_id::compatible(ours, theirs));
+    let ours = be_lib_build_id::current().map_err(ServerError::Socket)?;
+    let compatible = theirs.is_some_and(|theirs| be_lib_build_id::compatible(ours, theirs));
     if !compatible {
         tracing::info!(
             ours,

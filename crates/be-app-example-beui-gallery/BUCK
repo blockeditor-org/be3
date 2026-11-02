@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "beui_gallery",
+    types = "//crates/be-type-example-beui-gallery:module",
+)

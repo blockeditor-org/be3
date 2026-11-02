@@ -1,9 +1,9 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanup, store};
+use beui_reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanup, store};
 
 use crate::node::NodeId;
 
@@ -258,7 +258,7 @@ fn lay_out() {
 
 fn flush_in_frame() {
     WOKEN_IN_FRAME.with(|woken| woken.set(false));
-    reactive::flush();
+    beui_reactive::flush();
 }
 
 fn wake() {
@@ -295,7 +295,7 @@ pub fn started() -> bool {
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub(crate) fn start() {
     STARTED.with(|started| started.set(true));
-    reactive::wake_with(wake);
+    beui_reactive::wake_with(wake);
     request_frame();
 }
 

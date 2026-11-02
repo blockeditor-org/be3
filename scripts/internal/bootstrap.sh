@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# What every script in scripts/ runs: crates/bootstrap's release for this
+# What every script in scripts/ runs: crates/be-tool-bootstrap's release for this
 # machine, as scripts/internal/pins names it, downloaded into
 # target/tools/bootstrap-<sha256>/ and checked against that hash the first
 # time, then run with the script's arguments (guides/bootstrap.md). This is

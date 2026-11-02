@@ -1,0 +1,16 @@
+[package]
+name = "be-tool-verify"
+description = "What ./scripts/verify and ./scripts/ci run after their buck2 command: writes the fixes, paintings, generated files and pins it built into the checkout"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "verify"
+path = "src/main.rs"
+
+[dependencies]
+sha2 = "0.10"
+
+[lints]
+workspace = true

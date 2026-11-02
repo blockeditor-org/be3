@@ -42,7 +42,7 @@ fn ctrl_alt_keys_tune_the_mouse_s_up_and_show_it_by_the_cursor() {
     assert_eq!(
         keys(&delivered),
         0,
-        "the app sees neither the press nor the release"
+        "the program sees neither the press nor the release"
     );
 
     tune(&mut space, now, Key::M, M);

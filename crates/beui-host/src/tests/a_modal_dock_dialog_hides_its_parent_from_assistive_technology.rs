@@ -1,7 +1,7 @@
 use super::*;
 
 fn hidden_ids(harness: &Harness) -> (Vec<String>, Vec<String>) {
-    ::reactive::flush();
+    ::beui_reactive::flush();
     let document = harness.document();
     let view = document
         .accessibility_view()

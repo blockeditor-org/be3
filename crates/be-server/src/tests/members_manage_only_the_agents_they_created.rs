@@ -27,7 +27,7 @@ async fn members_manage_only_the_agents_they_created() {
                 )
             })
             .await;
-        let Ok(be_protocol::CreatedAgent { agent, token }) = response else {
+        let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
             panic!("a member could not create an agent: {response:?}");
         };
         let listed = owner

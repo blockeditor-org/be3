@@ -46,10 +46,10 @@ fn a_ray_hits_a_curved_panel_on_its_bent_surface() {
     let at = screen(&space, main(&space).world(pos));
     let got = delivered(&send(&mut space, now, [Input::PointerMoved(at)]));
     let [(WindowId::MAIN, Input::PointerMoved(moved))] = got.as_slice() else {
-        panic!("the app gets the move, not {got:?}");
+        panic!("the program gets the move, not {got:?}");
     };
     assert!(
         (*moved - pos).length() < 0.5,
-        "the app is told where on the curve the cursor is: {moved:?}"
+        "the program is told where on the curve the cursor is: {moved:?}"
     );
 }

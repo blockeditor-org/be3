@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
     let response = client

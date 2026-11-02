@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
 
-use be_model::{BlockRef, Stored, from_cbor, to_cbor};
+use be_block_model::{BlockRef, Stored, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -138,7 +138,7 @@ pub struct BlockMetadata {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Thumbhash {
-    #[serde(with = "be_model::bytes")]
+    #[serde(with = "be_block_model::bytes")]
     pub hash: Vec<u8>,
     pub width: u32,
     pub height: u32,
@@ -148,7 +148,7 @@ pub struct Thumbhash {
 pub struct Artifact {
     pub source: BlockRef,
     pub source_type: Uuid,
-    #[serde(with = "be_model::bytes")]
+    #[serde(with = "be_block_model::bytes")]
     pub settings: Vec<u8>,
 }
 
@@ -224,7 +224,7 @@ impl BlockMetadata {
         let mut found = Vec::new();
         for value in self.defined.values().chain(self.derived.values()) {
             if let Some(value) = from_cbor::<Stored>(value) {
-                be_model::references::walk(&value, &mut found);
+                be_block_model::references::walk(&value, &mut found);
             }
         }
         let mut seen = std::collections::HashSet::new();
@@ -337,7 +337,7 @@ impl Serialize for BlockMetadata {
 
 impl<'de> Deserialize<'de> for BlockMetadata {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = be_model::bytes::deserialize(deserializer)?;
+        let bytes = be_block_model::bytes::deserialize(deserializer)?;
         Self::decode(&bytes).map_err(serde::de::Error::custom)
     }
 }

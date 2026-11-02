@@ -1,5 +1,7 @@
 use beui_macros::{component, view};
 
+use beui_text_editor_core::schema::basic;
+use beui_text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight, TableRow};
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -8,8 +10,6 @@ use beui_view::types::Align;
 use beui_view::types::Color;
 use beui_view::types::Corners;
 use beui_view::types::{SpanBackground, SpanStyle};
-use text_editor_core::schema::basic;
-use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight, TableRow};
 
 use super::rows::RowTable;
 use super::state::TextAreaState;

@@ -1,0 +1,28 @@
+[package]
+name = "be-sdk-test"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-session = { path = "../be-block-session" }
+be-block-store = { path = "../be-block-store" }
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false }
+beui-core = { path = "../beui-core" }
+be-sdk-beui-platform = { path = "../be-sdk-beui-platform" }
+be-sdk-beui-platform-api = { path = "../be-sdk-beui-platform-api" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+be-sdk-type-host = { path = "../be-sdk-type-host" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+serde = "1"
+uuid = "1"
+be-sdk-window-stack = { path = "../be-sdk-window-stack" }
+
+[dev-dependencies]
+be-type-text = { path = "../be-type-text" }
+
+[lints]
+workspace = true

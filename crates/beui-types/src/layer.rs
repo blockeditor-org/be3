@@ -1,4 +1,4 @@
-use geometry::{Pos2, Rect, Vec2, pos2};
+use be_lib_geometry::{Pos2, Rect, Vec2, pos2};
 
 use crate::color::Color32;
 use crate::window::WindowId;
@@ -370,7 +370,7 @@ pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> O
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
     Node(crate::node::NodeRef),
-    Point(geometry::Pos2),
+    Point(be_lib_geometry::Pos2),
     Rect(Rect),
     Pinned {
         node: crate::node::NodeRef,
@@ -431,6 +431,6 @@ impl beui_tree::reactive::IntoProp<OverlayAnchor> for crate::node::NodeRef {
 
 impl Default for OverlayAnchor {
     fn default() -> Self {
-        OverlayAnchor::Point(geometry::Pos2::ZERO)
+        OverlayAnchor::Point(be_lib_geometry::Pos2::ZERO)
     }
 }

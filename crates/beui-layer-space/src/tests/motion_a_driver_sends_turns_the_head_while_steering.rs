@@ -16,7 +16,7 @@ fn motion_a_driver_sends_turns_the_head_while_steering() {
     driven.input(&mut held, &view(now));
     let mut moved = vec![Incoming::points(motion.clone())];
     driven.input(&mut moved, &view(now));
-    assert_eq!(delivered(&moved), [], "the app does not see the motion");
+    assert_eq!(delivered(&moved), [], "the program does not see the motion");
 
     let (mut platform, now) = space();
     send(&mut platform, now, steer(true));

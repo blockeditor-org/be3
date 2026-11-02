@@ -1,6 +1,6 @@
 # The PineNote
 
-block-app runs as the desktop in a login session (`BEUI_PLATFORM=drm block-app --desktop`, guides/desktop/linux.md) on a Pine64 PineNote with
+be-host runs as the desktop in a login session (`BEUI_PLATFORM=drm be-host --desktop`, guides/desktop/linux.md) on a Pine64 PineNote with
 hrdl's Arch Linux (https://git.sr.ht/~hrdl/pinenote-dist): hrdl's kernel with its `rockchip_ebc`
 e-paper driver, greetd with gtkgreet as the login screen, and sway as the session it ships.
 
@@ -42,13 +42,13 @@ nothing is held or animating and nothing has been drawn for 100 ms, so that an a
 lift starts (a fling) is drawn fast rather than settled first, it switches back and sends a
 frame whose damage is everything drawn in black and white (`Screen::hurry` and
 `Screen::settle`), which the driver redraws in four greys. beui reports animating while an
-`Animation` runs (scroll flings included, `FrameOutput::animating`), and a plugin reports it
+`Animation` runs (scroll flings included, `FrameOutput::animating`), and an app reports it
 in `PresentCommit::animating`. A Wayland window counts as still.
 
 Fast waveforms leave ghosts. The platform provides `beui_platform_drm::Epaper`, whose `refresh()`
-runs the driver's global refresh, a full redraw that clears them. block-app publishes the
+runs the driver's global refresh, a full redraw that clears them. be-host publishes the
 `Epaper` host value (`true`) when the platform provides one and turns each `EpaperRequest::Refresh`
-into a refresh (`display/linux.rs`); the desktop plugin shows a refresh button (`desktop.refresh`)
+into a refresh (`display/linux.rs`); the desktop app shows a refresh button (`desktop.refresh`)
 on the Status bar, and a Refresh tile in Quick settings, while the value is true.
 
 ## Input
@@ -58,7 +58,7 @@ gives it the calibration matrix that matches the panel unturned. The stylus is a
 tool, which the platform turns into beui pen events (`Event::Pen`). Keep both matrices lined up with
 the panel's own orientation: the platform turns touch, the pen and its tilt by the screen's rotation
 itself, so a matrix that also turned them would turn them twice. The panel is the one display, so
-block-app opens one window for it (guides/desktop/linux.md, Displays), and touch, the pen and the
+be-host opens one window for it (guides/desktop/linux.md, Displays), and touch, the pen and the
 on-screen keyboard all land in that window. No input device has letter keys, so the on-screen keyboard
 opens by itself when a field is tapped, along the foot of the panel's window. With no keyboard for Ctrl+Alt+Backspace, holding four
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
@@ -76,14 +76,14 @@ too, with KOReader's own settings.
 
 ## Building and installing
 
-Build the app with its plugins for arm64 here, copy the directory to the PineNote, and install
+Build be-host with its apps for arm64 here, copy the directory to the PineNote, and install
 it there as a session:
 
-    ./scripts/buck build -m release //crates/block-app:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
-    DIR/block-app --install-login-session
+    ./scripts/buck build -m release //crates/be-host:native --target-platforms root//buck/platforms:linux_arm64 --out DIR
+    DIR/be-host --install-login-session
 
 `--install-login-session` also lists the login session in `/etc/greetd/environments`, which gtkgreet offers
-on its session menu. The first time the app signs in on the PineNote it finds the e-paper panel, so
+on its session menu. The first time be-host signs in on the PineNote it finds the e-paper panel, so
 the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
 the Status bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 
@@ -95,7 +95,7 @@ panvk refuses the G52 (Bifrost, v7) unless
 `PAN_I_WANT_A_BROKEN_VULKAN_DRIVER` is set, so the package also installs
 `/etc/profile.d/panvk.sh`, which greetd reads before it starts a session. Mesa 26.3.0-rc1 still
 reports conformance 0.0.0.0 for the G52, so also set
-`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching block-app; every renderer, the
+`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching be-host; every renderer, the
 session's included, reads wgpu's instance environment settings. Allowing the adapter does not
 guarantee correct rendering with either Mesa version. Move `_tag` to the
 release once Mesa 26.3.0 is out, and drop the package once Arch's `vulkan-panfrost` is 26.3 or

@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "infinite_canvas",
+    types = "//crates/be-type-infinite-canvas:module",
+)

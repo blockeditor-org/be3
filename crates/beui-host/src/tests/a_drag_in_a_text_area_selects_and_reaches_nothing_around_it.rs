@@ -3,8 +3,8 @@ use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaApi, TextAreaState};
 use beui::PointerPress;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
@@ -14,7 +14,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
     let disabled = create_signal(false);
     let document = build_node(move || {
         let document =
-            Arc::new(TextBuffer::new(b"Hello world")) as Arc<dyn text_editor_core::Document>;
+            Arc::new(TextBuffer::new(b"Hello world")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <Interactive

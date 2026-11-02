@@ -53,7 +53,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Rejected(head)) if head == Some(base)),
+        matches!(response, Ok(be_block_protocol::PublishOutcome::Rejected(head)) if head == Some(base)),
         "{response:?}"
     );
     assert_eq!(client.read_block(block).await.head, Some(base));
@@ -76,7 +76,10 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
 

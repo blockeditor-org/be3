@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use beui_core::app::Setup;
 use beui_core::context::{RendererInfo, WindowOutput};
+use beui_core::program::Setup;
 use beui_runner::renderer;
 use beui_types::Color32;
 use beui_types::Vec2;

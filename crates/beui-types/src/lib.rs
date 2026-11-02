@@ -21,15 +21,15 @@ pub mod tree;
 pub mod window;
 
 pub mod icons {
-    pub use lucide::*;
+    pub use beui_lucide::*;
 }
 
-pub use geometry;
-pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
-pub use ui_types::clipboard::{PasteKind, Pasted};
-pub use ui_types::files;
-pub use ui_types::files::{FileFilter, FilePick, FileSave, PickedFile, SavedFile};
-pub use ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
+pub use be_lib_geometry as geometry;
+pub use be_lib_geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
+pub use be_lib_ui_types::clipboard::{PasteKind, Pasted};
+pub use be_lib_ui_types::files;
+pub use be_lib_ui_types::files::{FileFilter, FilePick, FileSave, PickedFile, SavedFile};
+pub use be_lib_ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 
 pub use action::{ActionGroup, ActionInfo};
 pub use animation::{Easing, Fling, Spring, Velocity, tween};

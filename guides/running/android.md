@@ -1,4 +1,4 @@
-# Running the app on Android
+# Running be-host on Android
 
 The Android emulator needs KVM. Check before anything else:
 
@@ -25,25 +25,25 @@ storage. These variants install side by side:
 
 Deploy can override its id and label with `--android-id` and `--android-label`.
 The Java activity remains `com.be3.block.MainActivity` in all variants; it is
-independent of the installed package id. The bundle's JSON `app_id` does not
+independent of the installed package id. The bundle's JSON `program_id` does not
 select the Android package or storage directory.
 
 ## Starting it
 
-    ./scripts/buck run //crates/block-app:android
+    ./scripts/buck run //crates/be-host:android
     ./scripts/android-emulator
 
-The first command builds the APK into `target/android/block-app.apk`. The second boots the
-emulator if it is not running, installs the APK if it changed, launches the app, waits
-`--wait` seconds (20 by default) and prints the app's log and whether it is still running.
-It exits non-zero if the app died. It writes `logcat.txt`, `app.log` and `screen.png` to
+The first command builds the APK into `target/android/be-host.apk`. The second boots the
+emulator if it is not running, installs the APK if it changed, launches be-host, waits
+`--wait` seconds (20 by default) and prints its log and whether it is still running.
+It exits non-zero if be-host died. It writes `logcat.txt`, `app.log` and `screen.png` to
 `/tmp/be3-android`. `--apk PATH` installs a different APK, which is how to compare a
 branch against main. The runner defaults to the dev package; for a CI or
 deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`. `./scripts/android-emulator stop` shuts the emulator down.
 
-The APK only carries arm64 code, and the emulator is x86_64, so the app runs under
+The APK only carries arm64 code, and the emulator is x86_64, so be-host runs under
 Android's arm64 translation. A native crash's backtrace stops at the translation layer
-and does not show the app's frames. The app's stdout and stderr, where Rust's panic
+and does not show be-host's frames. Its stdout and stderr, where Rust's panic
 messages go, are in logcat under the tag `RustStdoutStderr`, and are the way to find out
 why it aborted.
 
@@ -58,11 +58,11 @@ every coordinate below is in them.
     adb shell input keyevent 67        # backspace; 4 is back, 3 is home
 
 `adb shell uiautomator dump /sdcard/ui.xml && adb shell cat /sdcard/ui.xml` is the
-accessibility tree the app gives Android, with each node's class, text and bounds on
+accessibility tree be-host gives Android, with each node's class, text and bounds on
 screen, which is how to find what to tap.
 
 Tap a text field before typing into it. The keyboard takes the bottom of the screen, and
-the app's area shrinks to what is left.
+be-host's area shrinks to what is left.
 
 ## TalkBack
 
@@ -70,7 +70,7 @@ the app's area shrinks to what is left.
     adb shell settings put secure enabled_accessibility_services '""'    # off
 
 The first time it is turned on, TalkBack opens its own tutorial and permission prompts
-over the app; relaunch the app with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
+over be-host; relaunch it with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
 
 `input tap` is injected past TalkBack's touch exploration, so under TalkBack it still
 clicks. To touch the screen the way a finger does, write to the touchscreen's device with
@@ -94,10 +94,10 @@ signed with APK Signature Scheme v2 alone: v2 covers every version from API 24,
 and v3 only adds key rotation. `target_sdk` remains 35. Buck builds aligned,
 unsigned templates without build metadata for every Android variant. `buck run`
 adds `assets/build-info.json` and signs locally, writing
-`target/android/block-app.apk` or `target/android/be-launcher.apk`.
+`target/android/be-host.apk` or `target/android/be-launcher.apk`.
 `buck build --out` copies an unsigned template, not an installable APK.
 
-The finalizer is `local-tools apk-sign` (`crates/local-tools/src/apk_sign.rs`),
+The finalizer is `be-tool-local apk-sign` (`crates/be-tool-local/src/apk_sign.rs`),
 shared by local runs, the build helper (guides/build_server.md), and
 `./scripts/deploy` before hashing and uploading the release APK. It writes the
 v2 signing block itself, with RSA keys read through `p12-keystore` and `jks`.
@@ -116,7 +116,7 @@ set), asking at a terminal to generate or import a key when missing. Existing
 keys and certificates must be retained so installed apps accept updates.
 No key is a Buck attribute or action input.
 
-`./scripts/buck run //crates/local-tools:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
+`./scripts/buck run //crates/be-tool-local:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
 finalizes a template directly. `--build-info FILE` appends metadata before
 signing and requires an APK without `assets/build-info.json`. Appending
 preserves existing entries' offsets, including 16 KB native library

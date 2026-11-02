@@ -33,8 +33,8 @@ beui-layer-drive = { path = "../beui-layer-drive" }
 beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
-stable-hash = { path = "../stable-hash" }
+beui-macros = { path = "../beui-macros" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-layer-space = { path = "../beui-layer-space", optional = true }
@@ -63,10 +63,10 @@ web-sys = { version = "0.3", optional = true, features = [
 
 [dev-dependencies]
 accesskit = "0.24.1"
-bench = { path = "../bench" }
+be-tool-bench = { path = "../be-tool-bench" }
 raw-window-handle = "0.6"
-reactive = { path = "../reactive" }
-text-editor-core = { path = "../text-editor-core" }
+beui-reactive = { path = "../beui-reactive" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
 wgpu = { version = "29", default-features = false }
 
 [lints]

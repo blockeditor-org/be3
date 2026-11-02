@@ -1,6 +1,6 @@
-use reactive::Get;
-use reactive::Set;
-use stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
+use beui_reactive::Get;
+use beui_reactive::Set;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -70,7 +70,7 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    touched: ::reactive::OwnedSignal<bool>,
+    touched: ::beui_reactive::OwnedSignal<bool>,
     pub(crate) finger_pressed: bool,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
@@ -84,7 +84,8 @@ pub struct Document {
     work_areas: HashMap<WindowId, Rect>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub portal_holders:
+        be_lib_stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
     pub(crate) focus_scopes: crate::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
@@ -93,12 +94,12 @@ pub struct Document {
     pub(crate) back_handlers: crate::back::BackHandlers,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: Rc<RefCell<crate::timer::Timers>>,
-    scale: ::reactive::OwnedSignal<f32>,
-    attached: ::reactive::OwnedSignal<u64>,
-    focus_visible: ::reactive::OwnedSignal<bool>,
-    focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
-    fullscreen: ::reactive::OwnedSignal<bool>,
-    viewport_size: ::reactive::OwnedSignal<Vec2>,
+    scale: ::beui_reactive::OwnedSignal<f32>,
+    attached: ::beui_reactive::OwnedSignal<u64>,
+    focus_visible: ::beui_reactive::OwnedSignal<bool>,
+    focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
+    fullscreen: ::beui_reactive::OwnedSignal<bool>,
+    viewport_size: ::beui_reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
     pub(crate) pointer_locked: Cell<bool>,
@@ -106,10 +107,10 @@ pub struct Document {
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     pub(crate) tapping: Option<Key>,
-    keyboard: ::reactive::OwnedSignal<bool>,
+    keyboard: ::beui_reactive::OwnedSignal<bool>,
     input_frames: u64,
-    modifiers: ::reactive::OwnedSignal<Modifiers>,
-    intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
+    modifiers: ::beui_reactive::OwnedSignal<Modifiers>,
+    intercepted_keys: ::beui_reactive::OwnedSignal<Vec<KeyChord>>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
@@ -164,12 +165,12 @@ pub struct Document {
     pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
     now: Instant,
-    reactive_scope: ::reactive::Scope,
+    reactive_scope: ::beui_reactive::Scope,
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    measured: NodeMap<::reactive::OwnedSignal<Option<beui_types::Measured>>>,
-    measured_text: NodeMap<::reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
+    measured: NodeMap<::beui_reactive::OwnedSignal<Option<beui_types::Measured>>>,
+    measured_text: NodeMap<::beui_reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
     measure_pending: bool,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
@@ -183,11 +184,11 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
-    motion: ::reactive::OwnedSignal<beui_types::Motion>,
-    theme: ::reactive::OwnedSignal<beui_types::ThemeKind>,
+    motion: ::beui_reactive::OwnedSignal<beui_types::Motion>,
+    theme: ::beui_reactive::OwnedSignal<beui_types::ThemeKind>,
     colors: std::rc::Rc<beui_types::ColorDefinitions>,
-    canvas_touch: ::reactive::OwnedSignal<beui_types::CanvasTouch>,
-    preference_layers: ::reactive::OwnedSignal<beui_types::PreferenceLayers>,
+    canvas_touch: ::beui_reactive::OwnedSignal<beui_types::CanvasTouch>,
+    preference_layers: ::beui_reactive::OwnedSignal<beui_types::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
     pub(crate) windows: crate::window::hosted::Windows,
@@ -313,7 +314,7 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            touched: ::reactive::OwnedSignal::new(false),
+            touched: ::beui_reactive::OwnedSignal::new(false),
             finger_pressed: false,
             keyboard_asks: 0,
             activated: None,
@@ -328,7 +329,7 @@ impl Document {
             work_areas: HashMap::default(),
             acted: Acted::Nothing,
             placement: None,
-            portal_holders: stable_hash::HashMap::default(),
+            portal_holders: be_lib_stable_hash::HashMap::default(),
             layer_state: Default::default(),
             focus_scopes: Default::default(),
             focus_dirty: false,
@@ -337,12 +338,12 @@ impl Document {
             back_handlers: crate::back::BackHandlers::default(),
             back_gesture: None,
             timers: Rc::default(),
-            scale: ::reactive::OwnedSignal::new(1.0),
-            attached: ::reactive::OwnedSignal::new(0),
-            focus_visible: ::reactive::OwnedSignal::new(false),
-            focus_watched: ::reactive::OwnedSignal::new(None),
-            fullscreen: ::reactive::OwnedSignal::new(false),
-            viewport_size: ::reactive::OwnedSignal::new(Vec2::ZERO),
+            scale: ::beui_reactive::OwnedSignal::new(1.0),
+            attached: ::beui_reactive::OwnedSignal::new(0),
+            focus_visible: ::beui_reactive::OwnedSignal::new(false),
+            focus_watched: ::beui_reactive::OwnedSignal::new(None),
+            fullscreen: ::beui_reactive::OwnedSignal::new(false),
+            viewport_size: ::beui_reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
             pointer_locked: Cell::new(false),
@@ -350,10 +351,10 @@ impl Document {
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
             tapping: None,
-            keyboard: ::reactive::OwnedSignal::new(true),
+            keyboard: ::beui_reactive::OwnedSignal::new(true),
             input_frames: 0,
-            modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
-            intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
+            modifiers: ::beui_reactive::OwnedSignal::new(Modifiers::NONE),
+            intercepted_keys: ::beui_reactive::OwnedSignal::new(Vec::new()),
             press_claimants: HashSet::default(),
             drawing_surfaces: HashSet::default(),
             every_sample_surfaces: HashSet::default(),
@@ -407,7 +408,7 @@ impl Document {
             copied_image: None,
             next_paint: None,
             now: crate::timer::frame_clock(),
-            reactive_scope: ::reactive::Scope::new(),
+            reactive_scope: ::beui_reactive::Scope::new(),
             zone,
             extensions: HashMap::default(),
             node_refs: HashMap::default(),
@@ -426,11 +427,11 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
-            motion: ::reactive::OwnedSignal::new(beui_types::Motion::default()),
-            theme: ::reactive::OwnedSignal::new(beui_types::ThemeKind::default()),
+            motion: ::beui_reactive::OwnedSignal::new(beui_types::Motion::default()),
+            theme: ::beui_reactive::OwnedSignal::new(beui_types::ThemeKind::default()),
             colors: std::rc::Rc::default(),
-            canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
-            preference_layers: ::reactive::OwnedSignal::new(Default::default()),
+            canvas_touch: ::beui_reactive::OwnedSignal::new(Default::default()),
+            preference_layers: ::beui_reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
             windows: Default::default(),
@@ -480,7 +481,7 @@ impl Document {
         }
     }
 
-    pub fn reactive_scope(&self) -> &::reactive::Scope {
+    pub fn reactive_scope(&self) -> &::beui_reactive::Scope {
         &self.reactive_scope
     }
 
@@ -489,9 +490,9 @@ impl Document {
     }
 
     pub fn dispose(&mut self) {
-        let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
+        let scope = std::mem::replace(&mut self.reactive_scope, ::beui_reactive::Scope::detached());
         crate::current::with_reactive_scope(self, || scope.dispose());
-        ::reactive::forget_zone(self.zone);
+        ::beui_reactive::forget_zone(self.zone);
     }
 
     pub fn dragging(&self) -> bool {
@@ -532,23 +533,23 @@ impl Document {
         Rc::clone(&self.timers)
     }
 
-    pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
+    pub fn watch_context(&self) -> ::beui_reactive::ReadSignal<u64> {
         self.attached.read_only()
     }
 
-    pub fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
+    pub fn watch_pixels_per_point(&self) -> ::beui_reactive::ReadSignal<f32> {
         self.scale.read_only()
     }
 
-    pub fn watch_viewport_size(&self) -> ::reactive::ReadSignal<Vec2> {
+    pub fn watch_viewport_size(&self) -> ::beui_reactive::ReadSignal<Vec2> {
         self.viewport_size.read_only()
     }
 
-    pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_fullscreen(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
     }
 
-    pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
+    pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
         self.focus_watched.read_only()
     }
 
@@ -563,7 +564,7 @@ impl Document {
         }
     }
 
-    pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_focus_visible(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.focus_visible.read_only()
     }
 
@@ -575,7 +576,7 @@ impl Document {
         self.keyboard.get_untracked()
     }
 
-    pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_keyboard(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.keyboard.read_only()
     }
 
@@ -657,11 +658,11 @@ impl Document {
         self.input_frames += 1;
     }
 
-    pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
+    pub fn watch_modifiers(&self) -> ::beui_reactive::ReadSignal<Modifiers> {
         self.modifiers.read_only()
     }
 
-    pub fn intercepted_keys_writer(&self) -> ::reactive::Signal<Vec<KeyChord>> {
+    pub fn intercepted_keys_writer(&self) -> ::beui_reactive::Signal<Vec<KeyChord>> {
         self.intercepted_keys.handle()
     }
 
@@ -885,7 +886,7 @@ impl Document {
         Rc::clone(&self.animations)
     }
 
-    pub fn watch_motion(&self) -> ::reactive::ReadSignal<beui_types::Motion> {
+    pub fn watch_motion(&self) -> ::beui_reactive::ReadSignal<beui_types::Motion> {
         self.motion.read_only()
     }
 
@@ -897,7 +898,7 @@ impl Document {
         }
     }
 
-    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<beui_types::CanvasTouch> {
+    pub fn watch_canvas_touch(&self) -> ::beui_reactive::ReadSignal<beui_types::CanvasTouch> {
         self.canvas_touch.read_only()
     }
 
@@ -927,11 +928,13 @@ impl Document {
         }
     }
 
-    pub fn watch_theme(&self) -> ::reactive::ReadSignal<beui_types::ThemeKind> {
+    pub fn watch_theme(&self) -> ::beui_reactive::ReadSignal<beui_types::ThemeKind> {
         self.theme.read_only()
     }
 
-    pub fn watch_preference_layers(&self) -> ::reactive::ReadSignal<beui_types::PreferenceLayers> {
+    pub fn watch_preference_layers(
+        &self,
+    ) -> ::beui_reactive::ReadSignal<beui_types::PreferenceLayers> {
         self.preference_layers.read_only()
     }
 
@@ -1395,7 +1398,7 @@ impl Document {
                 .as_ref()
                 .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx))
             {
-                ::reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
+                ::beui_reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
             }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
@@ -2305,7 +2308,7 @@ impl Document {
     pub fn watch_measure(
         &mut self,
         id: NodeId,
-    ) -> ::reactive::ReadSignal<Option<beui_types::Measured>> {
+    ) -> ::beui_reactive::ReadSignal<Option<beui_types::Measured>> {
         if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
@@ -2316,7 +2319,7 @@ impl Document {
             }
             false => self.measure_now(id),
         };
-        let watched = ::reactive::OwnedSignal::new(initial);
+        let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured.insert(id, watched);
         read
@@ -2325,7 +2328,7 @@ impl Document {
     pub fn watch_measure_text(
         &mut self,
         id: NodeId,
-    ) -> ::reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
+    ) -> ::beui_reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
         if let Some(watched) = self.measured_text.get(&id) {
             return watched.read_only();
         }
@@ -2336,7 +2339,7 @@ impl Document {
             }
             false => self.measure_text_now(id),
         };
-        let watched = ::reactive::OwnedSignal::new(initial);
+        let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured_text.insert(id, watched);
         read
@@ -2357,7 +2360,7 @@ impl Document {
 
     fn publish_measurements(&mut self) -> bool {
         type Boxes = Vec<(
-            ::reactive::Signal<Option<beui_types::Measured>>,
+            ::beui_reactive::Signal<Option<beui_types::Measured>>,
             Option<beui_types::Measured>,
         )>;
         let moved: Boxes = self
@@ -2368,7 +2371,7 @@ impl Document {
             .map(|(rect, watched)| (watched.handle(), rect))
             .collect();
         type Texts = Vec<(
-            ::reactive::Signal<Option<crate::base::text::TextGeometry>>,
+            ::beui_reactive::Signal<Option<crate::base::text::TextGeometry>>,
             Option<crate::base::text::TextGeometry>,
         )>;
         let texts: Texts = self
@@ -2946,7 +2949,7 @@ impl Default for Document {
     }
 }
 
-impl crate::app::App for Document {
+impl crate::program::Program for Document {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.show(context, rect);
     }

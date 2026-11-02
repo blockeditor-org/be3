@@ -1,15 +1,15 @@
 use std::{path::PathBuf, time::Duration};
 
-use be_commit::{Commit, CommitId, CommitStore};
-use be_graph::BlockParent;
-use be_ops::net::{Peer, Pending, Stream};
-use be_protocol::{
+use be_block_commit::{Commit, CommitId, CommitStore};
+use be_block_graph::BlockParent;
+use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
     KeyKind, KeyRow, KeySet, Listing, OrganizationRole, PairingMessage, SessionEvent, SessionState,
     WrappedBy, WrappedKey, client,
 };
-use be_session::{Resume, resume, takeover_needs_merge};
-use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
+use be_block_session::{Resume, resume, takeover_needs_merge};
+use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
+use be_wasm_ops::net::{Peer, Pending, Stream};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::oneshot;
 use tokio_tungstenite::{
@@ -130,7 +130,7 @@ impl Harness {
     }
 
     async fn serve(directory: PathBuf, config: ServerConfig) -> Self {
-        build_id::install(BUILD);
+        be_lib_build_id::install(BUILD);
         let mail = Arc::new(CapturedMail::default());
         let server = Running::with_mail(directory, config, mail.clone()).await;
         Self { mail, server }
@@ -311,7 +311,7 @@ impl TestClient {
 
     fn over(socket: Socket) -> Self {
         let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
-        let peer = Peer::new(be_ops::Side::Guest, move |frame| {
+        let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
             let _ = sending.send(frame);
         });
         let (closing, closed) = oneshot::channel();
@@ -347,7 +347,7 @@ impl TestClient {
         }
     }
 
-    async fn call<T, E: be_ops::wire::Decode<Result<T, Error>>>(
+    async fn call<T, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
         &mut self,
         start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
     ) -> Result<T, Error> {
@@ -580,7 +580,7 @@ impl TestClient {
         chunks: Vec<Hash>,
         expected: Option<CommitId>,
         time: i64,
-    ) -> Result<be_protocol::PublishOutcome, Error> {
+    ) -> Result<be_block_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
         self.call(|peer| {
@@ -676,7 +676,10 @@ impl TestClient {
             })
             .await;
         assert!(
-            matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+            matches!(
+                response,
+                Ok(be_block_protocol::PublishOutcome::Published(_))
+            ),
             "{response:?}"
         );
     }
@@ -801,14 +804,14 @@ impl TestClient {
             .expect("listing organizations failed");
         let personal = organizations
             .iter()
-            .find(|organization| organization.kind == be_protocol::OrganizationKind::Personal)
+            .find(|organization| organization.kind == be_block_protocol::OrganizationKind::Personal)
             .expect("registering joined the personal organization")
             .id;
         self.open(personal).await;
         personal
     }
 
-    async fn link(&mut self, grant: Option<be_protocol::PendingGrant>) -> Uuid {
+    async fn link(&mut self, grant: Option<be_block_protocol::PendingGrant>) -> Uuid {
         let link = Uuid::new_v4();
         let response = self
             .call(|peer| {
@@ -838,7 +841,7 @@ impl TestClient {
         .await
     }
 
-    async fn contacts(&mut self) -> Vec<be_protocol::ContactRow> {
+    async fn contacts(&mut self) -> Vec<be_block_protocol::ContactRow> {
         self.call(|peer| client::contacts::list_contacts(peer))
             .await
             .expect("listing contacts failed")
@@ -853,7 +856,7 @@ impl TestClient {
         &mut self,
         block: Uuid,
         account: Uuid,
-        access: be_graph::Access,
+        access: be_block_graph::Access,
     ) -> Result<(), Error> {
         self.call(|peer| client::blocks::set_access(peer, block, account, access))
             .await
@@ -999,8 +1002,8 @@ impl Browser {
         assert!(!self.cookie.is_empty());
     }
 }
-fn page_of(response: &str) -> be_portal::Page {
-    be_portal::Page::from_json(response.split("\r\n\r\n").nth(1).unwrap()).unwrap()
+fn page_of(response: &str) -> be_server_portal::Page {
+    be_server_portal::Page::from_json(response.split("\r\n\r\n").nth(1).unwrap()).unwrap()
 }
 fn csrf(page: &str) -> String {
     page.split("\"csrf\":\"")

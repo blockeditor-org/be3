@@ -1,4 +1,4 @@
-use be_model::{Document, Edit, LatestMap, Model, ObjectId, Stamp};
+use be_block_model::{Document, Edit, LatestMap, Model, ObjectId, Stamp};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -12,7 +12,7 @@ pub struct EditorView {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ViewState {
-    #[serde(with = "be_model::bytes")]
+    #[serde(with = "be_block_model::bytes")]
     pub bytes: Vec<u8>,
     pub refs: Vec<Uuid>,
 }

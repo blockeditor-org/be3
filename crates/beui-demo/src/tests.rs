@@ -1,8 +1,8 @@
+use be_sdk_test::DocumentTest;
 use beui::datetime::Date;
 use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use beui_host::native::build;
-use block_ui_test::DocumentTest;
 
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
@@ -133,7 +133,7 @@ fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
     let mut test = DocumentTest::new(demo_document(Date::new(year, month, day)), size);
     test.context().set_preference_layer(
-        beui::PreferenceSource::App,
+        beui::PreferenceSource::Program,
         beui::PreferenceLayer {
             theme: Some(theme),
             ..beui::PreferenceLayer::EMPTY

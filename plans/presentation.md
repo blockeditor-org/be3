@@ -2,8 +2,8 @@
 
 Recommendations only, not implemented. Based on the current state of
 `crates/be-block/src/presentation.rs`,
-`crates/editors/presentation/src`, and
-`crates/block-app/src/slide_templates.rs`.
+`crates/be-app-presentation/src`, and
+`crates/be-host/src/slide_templates.rs`.
 
 Current state: a filmstrip with drag-reorder, add-slide (template or link an
 existing block via the picker), detach/delete, fullscreen playback with

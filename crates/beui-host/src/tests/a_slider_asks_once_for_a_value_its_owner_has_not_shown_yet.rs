@@ -17,9 +17,9 @@ fn a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet() {
             />
         }
     });
-    let mut app = headless(Showing(document));
+    let mut program = headless(Showing(document));
 
-    app.click("volume");
+    program.click("volume");
     assert_eq!(
         asked.get_untracked().len(),
         1,
@@ -28,9 +28,9 @@ fn a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet() {
     );
 
     asked.set(Vec::new());
-    app.run(&["down", "#volume+10,5"]);
-    app.run(&["pause", "100"]);
-    app.run(&["up"]);
+    program.run(&["down", "#volume+10,5"]);
+    program.run(&["pause", "100"]);
+    program.run(&["up"]);
     assert_eq!(
         asked.get_untracked().len(),
         1,

@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
+use be_lib_stable_hash::HashMap;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     CommandRowHandle, PaletteItem, PaletteScore, SearchListApi, SearchRowHandle,
@@ -9,7 +10,6 @@ use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Overflow, TextAlign};
-use stable_hash::HashMap;
 
 use crate::command_palette::{PaletteRow, PaletteSearch};
 use crate::frame::{ColorRole, Frame, Radius};

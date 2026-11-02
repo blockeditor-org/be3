@@ -8,7 +8,7 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
     state.reconcile(&declared);
     assert!(
         state.is_tab_locked(TabId::new(2)),
-        "an editor starts locked in its area"
+        "a editor starts locked in its area"
     );
 
     let mut bare = pane_spec("joined:2/canvas");

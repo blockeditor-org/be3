@@ -8,7 +8,7 @@ items are removed as they land.
 
 Editors are woken only when the host pushes a change, but each frame an
 editor still compares the host's change counter before re-reading host state
-and pumping projections (`block-editor-beui/src/editor.rs`). Make it fully
+and pumping projections (`be-sdk-beui/src/editor.rs`). Make it fully
 push-based: each piece of host state (projections, the block graph, focus,
 drag, files, chrome, editable, presenting) notifies its own subscribers, so a
 frame does no checking at all.

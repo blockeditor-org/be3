@@ -2,8 +2,8 @@ use super::*;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::TextAreaState;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 const SCALE: f32 = 2.0;
 
@@ -13,7 +13,7 @@ fn a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for() {
     let area = NodeRef::new();
     let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"first line\nsecond line\n"))
-            as Arc<dyn text_editor_core::Document>;
+            as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <Canvas view={Some(CanvasView::new(pos2(40.0, 30.0), SCALE))}>

@@ -32,7 +32,7 @@ fn a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step() 
     assert!(nearer > held);
     assert!(
         rescaled(&sent) == [(window, nearer)],
-        "walking up to the panel reports its new pixels per point to the app"
+        "walking up to the panel reports its new pixels per point to the program"
     );
 
     space.head.yaw = std::f32::consts::PI;

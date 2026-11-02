@@ -19,7 +19,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
             )
         })
         .await;
-    let Ok(be_protocol::CreatedAgent { agent, token }) = response else {
+    let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
     assert_eq!(agent.name, "Claude");
@@ -34,7 +34,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     assert_eq!(account, agent.account);
     bot.open(organization).await;
     let response = bot.call(|peer| client::keys::get_recovery_key(peer)).await;
-    let Ok(be_protocol::RecoveryKey { public, sealed, .. }) = response else {
+    let Ok(be_block_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
     assert_eq!(public, Some([7; 32]));

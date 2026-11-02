@@ -51,7 +51,10 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         })
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
 

@@ -56,7 +56,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     );
 
     harness.context().set_preference_layer(
-        PreferenceSource::App,
+        PreferenceSource::Program,
         PreferenceLayer {
             canvas_touch: Some(CanvasTouch::Off),
             ..PreferenceLayer::EMPTY

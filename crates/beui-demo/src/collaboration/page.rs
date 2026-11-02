@@ -11,8 +11,8 @@ use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
-use text_editor_core::schema::basic::{self, Basic};
-use text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
+use beui_text_editor_core::schema::basic::{self, Basic};
+use beui_text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
 use crate::rich_text::{GLYPHS, render_marker};

@@ -1,22 +1,22 @@
-load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "plugin_tests")
+load("@root//buck/program:drive.bzl", "headless")
+load("@root//buck/wasm:defs.bzl", "app_tests")
 
 cargo_library()
 
 # The demo in a window: `./scripts/buck run //crates/beui-demo:native`.
 cargo_binary(name = "native")
 
-# The demo's tests paint its pages the way a plugin's tests do: compiled to
+# The demo's tests paint its pages the way an app's tests do: compiled to
 # wasm with the fonts beui carries, and run here so they can read and write
 # snapshots/.
-plugin_tests()
+app_tests()
 
 # Headless for an agent to drive: guides/running/drive.md.
 headless(
     name = "dev",
-    app_name = "beui-demo",
     program = "$(location :native)",
+    program_name = "beui-demo",
 )
 
 # Times opening each page: `./scripts/buck run -m release //crates/beui-demo:example-open-bench`.

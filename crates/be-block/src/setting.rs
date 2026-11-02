@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use be_model::{Edit, FieldRef, ObjectId, Register};
+use be_block_model::{Edit, FieldRef, ObjectId, Register};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

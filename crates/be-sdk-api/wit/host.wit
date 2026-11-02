@@ -1,0 +1,51 @@
+package be3:app@0.1.0;
+
+/// What an app asks of its host.
+interface host {
+    use types.{fonts, hello, hello-accepted, input-batch, layout-commit, screen-layout};
+    use be3:preferences/types@0.1.0.{preferences};
+
+    /// The app's first call. Nothing else reaches it before the answer.
+    connect: async func(hello: hello) -> hello-accepted;
+
+    /// Where each screen the host asked for is drawn, after the screens changed.
+    layout: async func(layout: screen-layout);
+
+    /// What the frame `draw` asked for laid out, sent before the app paints
+    /// it, so the host can place children and resize their apps while it
+    /// paints. Every draw sends exactly one, before its answer.
+    laid-out: async func(commit: layout-commit);
+
+    /// Something changed that the next frame shows; the host answers with `draw`.
+    frame-needed: async func();
+
+    /// Characters no face the app has can draw; the host answers with fonts.
+    missing-characters: async func(characters: list<char>);
+
+    /// The user's preferences. `next` answers with the latest once they differ
+    /// from what it last answered, so the first answer is the current value.
+    resource preferences-watch {
+        constructor();
+        next: async func() -> preferences;
+    }
+
+    /// The local time's offset from UTC in seconds, watched like preferences.
+    resource utc-offset-watch {
+        constructor();
+        next: async func() -> s32;
+    }
+
+    /// Faces the app draws with. `next` answers with every change since the
+    /// last answer, merged: faces to add, or with `replace` the whole set.
+    resource fonts-watch {
+        constructor();
+        next: async func() -> fonts;
+    }
+
+    /// Input for the app's screens. `next` answers with the batches that
+    /// arrived since the last answer, merged as `input-batch` says.
+    resource input {
+        constructor();
+        next: async func() -> list<input-batch>;
+    }
+}

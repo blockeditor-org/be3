@@ -1,14 +1,14 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::ops::Range;
 use std::rc::Rc;
 
 use beui_html::Node;
+use beui_reactive::{Get, Set, Signal, create_signal, on_cleanup};
 use beui_tree::reactive::Prop;
 use beui_tree::reactive::{ChildList, IntoSlotHost, SlotHost, SlotId};
 use beui_types::Color;
 use beui_types::text::{FontId, TextCaret, TextGlyph, TextMark};
-use reactive::{Get, Set, Signal, create_signal, on_cleanup};
 
 use crate::document::element;
 use crate::node::NodeId;
@@ -299,7 +299,7 @@ impl TextModel {
 
     pub fn insert(&self, node: NodeId, piece: Piece) {
         if let Piece::Item(slot) = &piece
-            && let TextSlot::Anchored(_) = reactive::untrack(|| slot.get())
+            && let TextSlot::Anchored(_) = beui_reactive::untrack(|| slot.get())
         {
             self.anchor(node);
         }
@@ -356,7 +356,7 @@ impl TextModel {
         if let Some(mirror) = mirror {
             let mut order = self.order.borrow_mut();
             order.fill(mirror, nodes.clone());
-            let kept: stable_hash::HashSet<NodeId> = order.iter().copied().collect();
+            let kept: be_lib_stable_hash::HashSet<NodeId> = order.iter().copied().collect();
             self.pieces
                 .borrow_mut()
                 .retain(|node, _| kept.contains(node));

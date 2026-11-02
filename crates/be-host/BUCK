@@ -1,0 +1,292 @@
+load("@root//buck/android:defs.bzl", "android_apk")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
+load("@root//buck/program:drive.bzl", "headless")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
+
+# On Android be-host is this library, loaded by MainActivity under cargo's
+# name for it; on the web it is the module :web runs wasm-bindgen over.
+cargo_library(
+    rustc_flags = select({
+        "DEFAULT": [],
+        "root//buck/platforms:wasi_setting": wasi_program_flags,
+    }),
+    soname = "libbe_host.so",
+)
+
+# be-host links system libraries the worker's image does not have, such as
+# ALSA, so its tests load them from the
+# sysroot it was linked against. The app surface presenter's tests draw
+# through lavapipe, as the renderer's do, and the Wayland compositor's build a
+# keyboard from the test runtime's keymaps, as be-host-wayland's do. The tray's run a
+# private D-Bus bus with the test runtime's daemon.
+test_environment = {
+    "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
+    "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+    "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+}
+
+cargo_test(
+    env = test_environment,
+    paints = True,
+    run_env = test_environment,
+)
+
+# ./scripts/deploy sets be3.lto: fat LTO over one codegen unit takes a tenth off
+# be-host's code and two thirds off its symbols (159 MB to 113 in October 2026),
+# but its link takes ten minutes, which every other release build, such as the
+# build helper's for be-launcher, would wait on.
+cargo_binary(
+    rustc_flags = ["-Clto=fat", "-Ccodegen-units=1"] if read_config("be3", "lto", "false") == "true" else [],
+)
+
+# Every editor's modules precompiled for the platform be-host is built for,
+# once, for :native, :dev-host and the hosts crates/be-host-tests stages per test.
+precompiled_apps(
+    name = "precompiled",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/be-sdk-test-runner:precompiler",
+    visibility = ["//crates/be-host-tests:"],
+)
+
+# be-host with every app beside it: `./scripts/buck run //crates/be-host:native`
+# runs it. buck/program says how it is laid out.
+program(
+    name = "native",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
+    binary = ":bin",
+    data = ["//{}:data".format(package) for package in app_packages()],
+    executable_name = "be-host",
+    files = ["//buck/program:build-info.json"],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
+    precompiled = ":precompiled",
+    visibility = ["//crates/be-tool-bench:", "//crates/be-tool-local:"],
+)
+
+# The apps alone: every editor's manifest and module, for CI to ship once
+# beside every platform's be-host. Not precompiled, since a .cwasm is only good for
+# the machine it was compiled for.
+program(
+    name = "apps",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
+    data = ["//{}:data".format(package) for package in app_packages()],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
+)
+
+# What CI ships per platform: be-host under cargo's name; the apps ship
+# once, from :apps, and the server from //crates/be-server-bin:dist.
+program(
+    name = "native-dist",
+    binary = ":bin",
+    executable_name = "be-host",
+    files = ["//buck/program:build-info.json"],
+    manifests = [],
+    modules = [],
+)
+
+# The web bundle: be-host for wasi and the gpu shim for wasm32, each through
+# wasm-bindgen, the generated HTML page, shims in web/, and the apps. :web-dist is CI's,
+# without them. `./scripts/buck run //crates/be-host:web` serves it here with
+# Caddy, with be-server behind it (web/serve.sh).
+wasi_program_module(
+    name = "web-module",
+    library = ":be-host",
+    module = "be_host",
+)
+
+web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:block-index"] + ["//buck/program:build-info.json"]
+
+# The WASI and be-wasm-threads shims, which beui-web-demo and be-tool-paint-review-web
+# need too, with what thread.js imports, and app.js, which boots an app
+# in its worker (be-wasm-host's :standalone-web-test boots one with it).
+[
+    export_file(
+        name = shim,
+        src = "web/" + shim,
+        visibility = [
+            "//crates/be-server-portal-ui:",
+            "//crates/be-tool-paint-review-web:",
+            "//crates/be-tool-tls-diamond-app:",
+            "//crates/be-wasm-host:",
+            "//crates/beui-demo-html:",
+            "//crates/beui-html-spike:",
+            "//crates/beui-tests:",
+            "//crates/beui-web-demo:",
+        ],
+    )
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js", "app.js"]
+]
+
+program(
+    name = "web",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
+    bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
+    data = ["//{}:data".format(package) for package in app_packages()],
+    files = web_files,
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
+    run_with = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location //crates/be-server-bin:bin)",
+    ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["//crates/be-tool-local:"],
+)
+
+# What CI publishes: the bundle without the apps, which :apps builds once
+# for every platform, and with an index of none, since a bundle whose
+# apps.json cannot be fetched is an error where one with no apps is not.
+program(
+    name = "web-dist",
+    bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
+    files = web_files,
+    index = True,
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# The host's web build served here and open in a headless Chromium for an agent to
+# drive, signed in with a workspace open: guides/running/web.md.
+command_alias(
+    name = "web-dev",
+    args = [
+        "sh",
+        "$(location //buck/program:web-dev.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location :web)",
+        "$(location //crates/be-server-bin:bin)",
+        "$(location //buck/program:drive-browser)/web-drive.mjs",
+    ],
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
+)
+
+export_file(
+    name = "serve.sh",
+    src = "web/serve.sh",
+)
+
+# The Android app: the APK is built unsigned locally, with the apps
+# precompiled for the device, and `./scripts/buck run :android` signs it here
+# into target/android/be-host.apk (`-- --install` installs and starts it).
+# The build helper's APK carries the same apps, since an APK has nowhere else to find
+# them, and has an id and label of its own, so that it installs beside a local
+# build rather than colliding with it: sharing the package name, it would
+# either overwrite a local install signed with the same key or fail to install
+# over one signed with another.
+program(
+    name = "android-assets",
+    app_types = ["//{}:types".format(package) for package in app_packages()],
+    compiled_only = True,
+    data = ["//{}:data".format(package) for package in app_packages()],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in app_packages()],
+    modules = ["//{}:module".format(package) for package in app_packages()],
+    precompile_target = "aarch64-linux-android",
+    precompiler = "//crates/be-sdk-test-runner:precompiler",
+)
+
+# The build helper finalizes :android-dist with CI's key; deploy finalizes :android-release
+# locally. Buck outputs are unsigned templates without build metadata.
+# What ./scripts/deploy uploads is :android-release, signed with the release
+# keystore, under the id and label its --android-id and --android-label give
+# (be3.android_id and be3.android_label), so that it can install beside CI's.
+[
+    android_apk(
+        name = name,
+        activity = "com.be3.block.MainActivity",
+        application_id = application_id,
+        assets = ":android-assets",
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-platform-android:android-java"],
+        label = label,
+        library = ":be-host",
+        manifest = "android/AndroidManifest.xml",
+        min_sdk = 24,
+        package = "com.be3.block",
+        resources = "android/res",
+        signing = signing,
+        target_sdk = 35,
+        version_code = 1,
+        version_name = "0.1.0",
+        visibility = ["//crates/be-tool-local:"],
+    )
+    for name, application_id, label, signing in [
+        ("android", "com.be3.block.dev", "Block (Dev)", "dev"),
+        ("android-dist", "com.be3.block.ci", "Block (CI)", "ci"),
+        (
+            "android-release",
+            read_config("be3", "android_id", "com.be3.block"),
+            read_config("be3", "android_label", "Block"),
+            "release",
+        ),
+    ]
+]
+
+export_file(
+    name = "android-res",
+    src = "android/res",
+    visibility = ["//crates/be-tool-launcher:"],
+)
+
+# be-host with its apps installed under /usr/local (or the prefix given after
+# `--`), with a wayland-sessions entry that runs it as a login session
+# (BEUI_PLATFORM=drm and --desktop), for a display manager to offer on its login
+# screen: guides/desktop/linux.md.
+command_alias(
+    name = "install-login-session",
+    args = [
+        "$(location :native)/be-host",
+        "--install-login-session",
+    ],
+)
+
+# The host headless for an agent to drive, signed in with a workspace open:
+# guides/running/drive.md. Each app is its precompiled module alone, half
+# of what :native downloads, and `-c be3.apps=checklist,file-tree` stages
+# only the editors it names, each crates/be-app-NAME by its NAME, and
+# workspace, which draws the workspace itself.
+dev_apps = [
+    package
+    for package in app_packages()
+    if read_config("be3", "apps", "") == "" or package.removeprefix("crates/be-app-") in ["workspace"] + read_config("be3", "apps", "").split(",")
+]
+
+program(
+    name = "dev-host",
+    app_types = ["//{}:types".format(package) for package in dev_apps],
+    binary = ":bin",
+    compiled_only = True,
+    data = ["//{}:data".format(package) for package in dev_apps],
+    executable_name = "be-host",
+    files = ["//buck/program:build-info.json"],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in dev_apps],
+    modules = ["//{}:module".format(package) for package in dev_apps],
+    precompiled = ":precompiled",
+)
+
+headless(
+    name = "dev",
+    archive = "$(location :dev-host[archive])",
+    args = ["--dev-workspace"],
+    data = True,
+    program = "be-host",
+    program_name = "dev",
+)

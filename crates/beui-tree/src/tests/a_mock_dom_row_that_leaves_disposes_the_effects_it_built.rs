@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let texts = create_signal(0);

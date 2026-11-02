@@ -1,0 +1,16 @@
+[package]
+name = "be-app-example-triangle"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-sdk = { path = "../be-sdk" }
+be-type-example-triangle = { path = "../be-type-example-triangle" }
+uuid = "1"
+
+[lints]
+workspace = true

@@ -2,7 +2,7 @@ use std::error::Error;
 use std::ffi::CStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
-use beui_core::app::Waker;
+use beui_core::program::Waker;
 use beui_renderer_wgpu::present::{OpenDevice, OpenGpu, plain_instance};
 
 use crate::Status;

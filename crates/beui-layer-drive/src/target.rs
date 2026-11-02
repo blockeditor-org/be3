@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use beui_core::app::accessibility_dump::Line;
+use beui_core::program::accessibility_dump::Line;
 use beui_types::target::{line_with, shown_at};
 use beui_types::{Pos2, Rect, pos2};
 

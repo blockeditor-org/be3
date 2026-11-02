@@ -1,6 +1,6 @@
 # Running parallel subagents
 
-How a coordinating agent splits a large task across subagents, and what goes wrong. Run each subagent as its own cloud session: each has its own VM, so they don't compete for memory, disk, the buck2 daemon or the headless app, and they cost no more than subagents on one VM. Learned from the canvas PR (plans/canvas.md steps 1-4) and the HTML core PR (plans/html_core.md), which ran agents in worktrees on one VM, and the code-removal PR, which ran over thirty tasks as cloud sessions, up to fifteen at once.
+How a coordinating agent splits a large task across subagents, and what goes wrong. Run each subagent as its own cloud session: each has its own VM, so they don't compete for memory, disk, the buck2 daemon or the headless be-host, and they cost no more than subagents on one VM. Learned from the canvas PR (plans/canvas.md steps 1-4) and the HTML core PR (plans/html_core.md), which ran agents in worktrees on one VM, and the code-removal PR, which ran over thirty tasks as cloud sessions, up to fifteen at once.
 
 ## Starting a session
 
@@ -36,6 +36,6 @@ Agents in worktrees on one VM work too, but share its limits. Each makes its own
 
 - Memory: the VM has 15G and each worktree's buck2 daemon takes about 1.5G; verify runs got OOM-killed with six worktrees building at once, so five is about the most. Each agent runs `./scripts/buck kill` in its worktree when it finishes.
 - Disk: a worktree's `buck-out` can reach 11G after verify. Delete it when space runs low, after `./scripts/buck kill`; everything is cached on the build server.
-- Never run `pkill -x buck2`, `pkill -x block-app` or anything that kills processes by name: it kills every agent's build or app.
-- Every worktree's `:dev` uses the same `~/.cache/be3/dev` unless `BE_DRIVE_DIR` says otherwise. Give each agent that drives the app its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`).
+- Never run `pkill -x buck2`, `pkill -x be-host` or anything that kills processes by name: it kills every agent's build or be-host.
+- Every worktree's `:dev` uses the same `~/.cache/be3/dev` unless `BE_DRIVE_DIR` says otherwise. Give each agent that drives be-host its own short `BE_DRIVE_DIR` (`/tmp/be3-<task>`).
 - Give each agent its own log directory in the scratchpad and forbid shared names like `check.log`.

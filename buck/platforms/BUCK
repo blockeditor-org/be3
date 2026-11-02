@@ -55,8 +55,8 @@ platform(
     visibility = ["PUBLIC"],
 )
 
-# The same triple as above, and what tells the two apart. A plugin is built for
-# this one; block-app's web bundle is built for the one above.
+# The same triple as above, and what tells the two apart. An app is built for
+# this one; be-host's web bundle is built for the one above.
 platform(
     name = "wasi_guest",
     constraint_values = [

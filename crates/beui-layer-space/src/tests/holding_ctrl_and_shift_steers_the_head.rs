@@ -10,7 +10,7 @@ fn holding_ctrl_and_shift_steers_the_head() {
     assert_eq!(
         got,
         [(WindowId::MAIN, ctrl), (WindowId::MAIN, ctrl_held)],
-        "Ctrl alone is the app's"
+        "Ctrl alone is the program's"
     );
     assert!(!space.steering());
 
@@ -24,7 +24,7 @@ fn holding_ctrl_and_shift_steers_the_head() {
             (WindowId::MAIN, key(Key::Shift, SHIFT, false)),
             (WindowId::MAIN, Input::Modifiers(Modifiers::NONE)),
         ],
-        "when Shift joins Ctrl the app sees both let go"
+        "when Shift joins Ctrl the program sees both let go"
     );
     assert_eq!(
         delivered(&send(
@@ -33,12 +33,16 @@ fn holding_ctrl_and_shift_steers_the_head() {
             [key(Key::Z, 44, true), key(Key::Z, 44, false)]
         )),
         [],
-        "other keys do not reach the app while steering"
+        "other keys do not reach the program while steering"
     );
 
     let yaw = space.head.yaw;
     let turned = send(&mut space, now, [Input::PointerMotion(vec2(100.0, -40.0))]);
-    assert_eq!(delivered(&turned), [], "motion turns the head, not the app");
+    assert_eq!(
+        delivered(&turned),
+        [],
+        "motion turns the head, not the program"
+    );
     assert!(space.head.yaw > yaw, "moving right turns right");
     assert!(space.head.pitch > 0.0, "moving up looks up");
     send(
@@ -63,7 +67,7 @@ fn holding_ctrl_and_shift_steers_the_head() {
     assert_eq!(
         delivered(&pressed),
         [],
-        "W walks and does not reach the app"
+        "W walks and does not reach the program"
     );
     let mut at = now;
     for _ in 0..5 {
@@ -91,7 +95,7 @@ fn holding_ctrl_and_shift_steers_the_head() {
         delivered(&released)
             .iter()
             .all(|(_, input)| matches!(input, Input::Modifiers(_))),
-        "the modifiers' release does not reach the app as keys"
+        "the modifiers' release does not reach the program as keys"
     );
     assert_eq!(
         delivered(&send(&mut space, later(at, 0.3), [key(Key::W, 17, false)])),

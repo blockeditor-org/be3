@@ -11,7 +11,7 @@ struct Echo {
 
 #[test]
 fn a_tree_local_outlives_and_ignores_the_scope_that_first_asked_for_it() {
-    let first = ::reactive::Scope::detached().pausable();
+    let first = ::beui_reactive::Scope::detached().pausable();
     first.pause();
     let made = first.run(|| {
         tree_local(|| {
@@ -23,12 +23,12 @@ fn a_tree_local_outlives_and_ignores_the_scope_that_first_asked_for_it() {
         })
     });
     first.dispose();
-    ::reactive::flush();
+    ::beui_reactive::flush();
 
     let later: Echo = tree_local(|| unreachable!("the first value is kept"));
     assert!(Rc::ptr_eq(&made.seen, &later.seen));
     assert!(later.source.is_alive());
     later.source.set(5);
-    ::reactive::flush();
+    ::beui_reactive::flush();
     assert_eq!(later.seen.get(), 5);
 }

@@ -1,6 +1,6 @@
 use super::*;
-use be_graph::Access;
-use be_protocol::AccessList;
+use be_block_graph::Access;
+use be_block_protocol::AccessList;
 
 async fn join(
     owner: &mut TestClient,

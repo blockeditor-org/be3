@@ -10,12 +10,12 @@ use std::time::{Duration, Instant};
 use accesskit::TreeUpdate;
 
 use crate::renderer::{Capture, Loaded, Rendering};
-use beui_core::app::accessibility_dump::AccessibilityDump;
-use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use beui_core::clipboard::{PasteAnswer, PasteRequest};
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
+use beui_core::program::accessibility_dump::AccessibilityDump;
+use beui_core::program::{Program, SafeArea, Setup, Waker, next_batch, safe_rect};
 use beui_core::window::{Resize, WindowReports, WindowState};
 use beui_types::Event;
 use beui_types::FilePick;
@@ -40,7 +40,7 @@ type Answered = (FilePickId, FilePick);
 type Saved = (FileSaveId, FileSave);
 
 pub struct RunOptions {
-    pub app_id: Option<String>,
+    pub program_id: Option<String>,
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub saved_preferences: Option<std::path::PathBuf>,
@@ -51,7 +51,7 @@ pub struct RunOptions {
 impl Default for RunOptions {
     fn default() -> Self {
         Self {
-            app_id: None,
+            program_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
             saved_preferences: None,
@@ -62,9 +62,9 @@ impl Default for RunOptions {
 }
 
 impl RunOptions {
-    pub fn saving_preferences(mut self, app: &str) -> Self {
+    pub fn saving_preferences(mut self, program: &str) -> Self {
         self.saved_preferences =
-            config_directory().map(|directory| directory.join(app).join("preferences.json"));
+            config_directory().map(|directory| directory.join(program).join("preferences.json"));
         self
     }
 }
@@ -87,7 +87,7 @@ fn config_directory() -> Option<std::path::PathBuf> {
 pub struct Launch {
     pub options: RunOptions,
     pub context: Context,
-    pub app: Box<dyn App>,
+    pub program: Box<dyn Program>,
     pub layers: Vec<Box<dyn Layer>>,
 }
 
@@ -132,7 +132,7 @@ pub trait PlatformServices {
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
     fn resize(&mut self, _resize: Resize) -> Result<(), String> {
-        Err("this window cannot be resized from here; run the app headless".to_owned())
+        Err("this window cannot be resized from here; run the program headless".to_owned())
     }
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
@@ -171,12 +171,12 @@ impl Frame {
 
 struct Exited;
 
-impl App for Exited {
+impl Program for Exited {
     fn update(&mut self, _context: &Context, _rect: beui_types::Rect) {}
 }
 
 pub struct Runner {
-    app: Box<dyn App>,
+    program: Box<dyn Program>,
     layers: Vec<Box<dyn Layer>>,
     shown: Option<Shown>,
     context: Context,
@@ -225,7 +225,7 @@ impl Runner {
         let Launch {
             options,
             context,
-            app,
+            program,
             mut layers,
         } = launch;
         context.set_window_hosting(beui_core::window::WindowHosting::None);
@@ -234,7 +234,7 @@ impl Runner {
             layer.attach(&context);
         }
         Self {
-            app,
+            program,
             layers,
             shown: None,
             context,
@@ -269,12 +269,12 @@ impl Runner {
         &self.context
     }
 
-    pub fn app(&self) -> &dyn App {
-        &*self.app
+    pub fn program(&self) -> &dyn Program {
+        &*self.program
     }
 
-    pub fn app_mut(&mut self) -> &mut dyn App {
-        &mut *self.app
+    pub fn program_mut(&mut self) -> &mut dyn Program {
+        &mut *self.program
     }
 
     pub fn start(&mut self, loaded: Loaded, mut setup: Setup) -> Result<(), Box<dyn Error>> {
@@ -284,7 +284,7 @@ impl Runner {
         self.rendering = Some(rendering);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
-        self.app.setup(&setup);
+        self.program.setup(&setup);
         for layer in &mut self.layers {
             layer.setup(&setup);
         }
@@ -368,7 +368,7 @@ impl Runner {
 
     pub fn os_close(&mut self) -> bool {
         let accepted = self
-            .contain(|runner| runner.app.close_requested())
+            .contain(|runner| runner.program.close_requested())
             .unwrap_or(true);
         if accepted {
             self.exit();
@@ -376,21 +376,21 @@ impl Runner {
         accepted
     }
 
-    pub fn lifecycle(&mut self, change: beui_core::app::Lifecycle) {
+    pub fn lifecycle(&mut self, change: beui_core::program::Lifecycle) {
         if !self.exited {
-            self.contain(|runner| runner.app.lifecycle(change));
+            self.contain(|runner| runner.program.lifecycle(change));
         }
     }
 
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;
-            let app = &mut self.app;
-            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| app.exiting())) {
+            let program = &mut self.program;
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| program.exiting())) {
                 self.failure
                     .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
             }
-            self.app = Box::new(Exited);
+            self.program = Box::new(Exited);
         }
     }
 
@@ -409,7 +409,7 @@ impl Runner {
     pub fn outcome(&mut self) -> Result<(), String> {
         self.exit();
         match self.failure.take() {
-            Some(failure) => Err(format!("the app stopped after a panic: {failure}")),
+            Some(failure) => Err(format!("the program stopped after a panic: {failure}")),
             None => Ok(()),
         }
     }
@@ -451,7 +451,7 @@ impl Runner {
                     let mut setup = Setup::new(waker.clone());
                     rendering.provide(&mut setup);
                     setup.provide(self.context.clone());
-                    self.app.renderer_replaced(&setup);
+                    self.program.renderer_replaced(&setup);
                     for layer in &mut self.layers {
                         layer.setup(&setup);
                     }
@@ -537,7 +537,7 @@ impl Runner {
             layers: &mut self.layers,
             platform: &mut *platform,
             context: &self.context,
-            app: &mut *self.app,
+            program: &mut *self.program,
             view,
             started,
             closing: &mut self.closing,
@@ -598,9 +598,9 @@ impl Runner {
             || self.layers.iter().any(|layer| layer.wants_sight());
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
-        let app = &mut self.app;
+        let program = &mut self.program;
         let mut output = self.context.run_with(events, view.now, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
+            program.update(context, safe_rect(screen, safe_area, scale));
         });
         self.intake.every_sample = output
             .windows
@@ -664,7 +664,7 @@ impl Runner {
                 layers: &mut self.layers,
                 platform: &mut *platform,
                 context: &self.context,
-                app: &mut *self.app,
+                program: &mut *self.program,
                 view,
                 started,
                 closing: &mut self.closing,
@@ -712,7 +712,7 @@ impl Runner {
             layers: &mut self.layers,
             platform: &mut *platform,
             context: &self.context,
-            app: &mut *self.app,
+            program: &mut *self.program,
             view,
             started,
             closing: &mut self.closing,
@@ -785,7 +785,7 @@ struct Visit<'a> {
     layers: &'a mut [Box<dyn Layer>],
     platform: &'a mut dyn PlatformServices,
     context: &'a Context,
-    app: &'a mut dyn App,
+    program: &'a mut dyn Program,
     view: LayerView,
     started: Instant,
     closing: &'a mut bool,
@@ -815,7 +815,7 @@ impl Visit<'_> {
             let mut frame = LayerFrame {
                 view: self.view,
                 context: self.context,
-                app: &mut *self.app,
+                program: &mut *self.program,
                 below: Below {
                     layers: below,
                     platform: &mut *self.platform,

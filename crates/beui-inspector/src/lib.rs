@@ -7,7 +7,7 @@ pub mod responsive;
 pub mod screen_reader;
 pub mod tree;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -45,7 +45,7 @@ const HANDLE_CORNER: f32 = 14.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Debug)]
 pub enum InspectorTab {
-    App,
+    Program,
     #[default]
     Beui,
     Components,
@@ -63,7 +63,7 @@ impl InspectorTab {
 
     pub fn title(self) -> &'static str {
         match self {
-            InspectorTab::App => "App",
+            InspectorTab::Program => "Program",
             InspectorTab::Beui => "Beui",
             InspectorTab::Components => "Comp",
             InspectorTab::AccessKit => "A11y",
@@ -110,7 +110,7 @@ pub struct State {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Reveal {
-    App,
+    Program,
     Tool,
 }
 
@@ -293,7 +293,7 @@ impl State {
             return;
         }
         self.picking.set(true);
-        self.reveal.set(Some(Reveal::App));
+        self.reveal.set(Some(Reveal::Program));
         self.touch();
     }
 
@@ -317,23 +317,23 @@ pub struct Layout {
     pub toolbar: Rect,
     pub content: Rect,
     pub readout: Rect,
-    pub app_visible: bool,
+    pub program_visible: bool,
 }
 
 impl Layout {
-    pub fn app(rect: Rect) -> Self {
+    pub fn program(rect: Rect) -> Self {
         Self {
             toolbar: Rect::NOTHING,
             content: rect,
             readout: Rect::NOTHING,
-            app_visible: true,
+            program_visible: true,
         }
     }
 
     fn hidden() -> Self {
         Self {
-            app_visible: false,
-            ..Self::app(Rect::NOTHING)
+            program_visible: false,
+            ..Self::program(Rect::NOTHING)
         }
     }
 }
@@ -389,7 +389,7 @@ pub struct Inspector {
     summary: Signal<Summary>,
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
-    app: EmbedSlot,
+    program: EmbedSlot,
     width: Signal<f32>,
     last_tool: InspectorTab,
     toolbar: responsive::Toolbar,
@@ -402,17 +402,17 @@ pub struct Inspector {
     parked: bool,
     seen: u64,
     overlay_bounds: Cell<Rect>,
-    embeds_app: bool,
+    embeds_program: bool,
     over: Option<(WindowId, Rect)>,
-    _panel_scope: ::reactive::Scope,
+    _panel_scope: ::beui_reactive::Scope,
     state: OwnedStored<State>,
 }
 
 impl Inspector {
     pub fn new(ctx: &Context, rect: Rect) -> Self {
         let state = OwnedStored::new(State::new(ctx));
-        let embeds_app = ctx.shows_main();
-        let panel = panel::build(state.handle(), rect.width() / scale(ctx), embeds_app);
+        let embeds_program = ctx.shows_main();
+        let panel = panel::build(state.handle(), rect.width() / scale(ctx), embeds_program);
         let toolbar = responsive::build(state.handle());
         Self {
             toolbar,
@@ -431,7 +431,7 @@ impl Inspector {
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,
-            app: panel.app,
+            program: panel.program,
             width: panel.width,
             last_tool: InspectorTab::default(),
             held: false,
@@ -439,7 +439,7 @@ impl Inspector {
             parked: false,
             seen: 0,
             overlay_bounds: Cell::new(Rect::NOTHING),
-            embeds_app,
+            embeds_program,
             over: None,
         }
     }
@@ -483,12 +483,12 @@ impl Inspector {
             .and_then(|root| self.document.node_rect(root))
     }
 
-    pub fn app_visible(&self) -> bool {
-        self.app.placement().is_some()
+    pub fn program_visible(&self) -> bool {
+        self.program.placement().is_some()
     }
 
-    pub fn app_rect(&self) -> Option<Rect> {
-        self.app.placement().map(|placement| placement.rect)
+    pub fn program_rect(&self) -> Option<Rect> {
+        self.program.placement().map(|placement| placement.rect)
     }
 
     pub fn reader(&self) -> &ScreenReader {
@@ -542,11 +542,15 @@ impl Inspector {
         if self.width.get_untracked() != width {
             self.width.set(width);
         }
-        if let Some(tab) = self.tools.focused().filter(|tab| *tab != InspectorTab::App) {
+        if let Some(tab) = self
+            .tools
+            .focused()
+            .filter(|tab| *tab != InspectorTab::Program)
+        {
             self.last_tool = tab;
         }
         let revealed = self.state().reveal.get().map(|reveal| match reveal {
-            Reveal::App => InspectorTab::App,
+            Reveal::Program => InspectorTab::Program,
             Reveal::Tool => self.last_tool,
         });
         if let Some(tab) = revealed.filter(|tab| self.tools.tab_of(tab).is_some()) {
@@ -566,16 +570,16 @@ impl Inspector {
         if self.tools_shown() != self.synced_shown {
             ctx.request_repaint();
         }
-        let Some(content) = self.app_rect().map(|app| app.scaled(scale)) else {
+        let Some(content) = self.program_rect().map(|program| program.scaled(scale)) else {
             return Layout::hidden();
         };
         if self.state().screen_simulation.get().is_none() {
-            return Layout::app(content);
+            return Layout::program(content);
         }
         let (toolbar, content) = trim_top(content, responsive::HEIGHT * scale);
         Layout {
             toolbar,
-            ..Layout::app(content)
+            ..Layout::program(content)
         }
     }
 
@@ -676,7 +680,7 @@ impl Inspector {
             toolbar,
             content,
             readout,
-            app_visible,
+            program_visible,
         } = *layout;
         if self.state().release_keyboard.take() {
             self.blur();
@@ -697,12 +701,12 @@ impl Inspector {
         target.track_changes(self.state().flash_changes.get());
         target.track_damage(self.state().flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state().simulated_pixels_per_point.get());
-        if app_visible {
+        if program_visible {
             self.resize(target, ctx, content);
             self.pick(target, ctx, content);
         }
         self.release_focus(ctx);
-        if app_visible {
+        if program_visible {
             self.read(target, ctx, content, keyboard_interactive);
             self.paint(target, ctx, content);
             let covering = self.reader.painting();
@@ -1087,7 +1091,9 @@ impl Inspector {
                 tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::App | InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
+            InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => {
+                Vec::new()
+            }
         }
     }
 
@@ -1206,7 +1212,7 @@ fn total(target: &Document, tab: InspectorTab) -> usize {
         InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
         InspectorTab::Components => tree::component_count(target),
         InspectorTab::AccessKit => tree::accesskit_count(target),
-        InspectorTab::App | InspectorTab::Performance | InspectorTab::Simulation => 0,
+        InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => 0,
     }
 }
 
@@ -1302,13 +1308,13 @@ impl Tools for InspectorTools {
             .as_ref()
             .is_some_and(|inspector| inspector.has_focus());
         let (mut layout, panel) = match &mut self.inspector {
-            Some(inspector) if inspector.embeds_app => {
+            Some(inspector) if inspector.embeds_program => {
                 ctx.set_aside(|| inspector.show_panel(document, ctx, rect, inspector_has_focus))
             }
-            Some(_) | None => (Layout::app(rect), Vec::new()),
+            Some(_) | None => (Layout::program(rect), Vec::new()),
         };
         let reserved = match &self.inspector {
-            Some(inspector) if layout.app_visible => inspector.readout_height(ctx),
+            Some(inspector) if layout.program_visible => inspector.readout_height(ctx),
             _ => 0.0,
         };
         (layout.content, layout.readout) = trim_bottom(layout.content, reserved);
@@ -1335,7 +1341,7 @@ impl Tools for InspectorTools {
                 });
             }
         }
-        if layout.app_visible {
+        if layout.program_visible {
             let inspector = self.inspector.as_deref();
             let given = |input: &InputState| {
                 let input = match withheld.pointer {
@@ -1368,13 +1374,13 @@ impl Tools for InspectorTools {
         if let Some(inspector) = self
             .inspector
             .as_mut()
-            .filter(|inspector| !inspector.embeds_app)
+            .filter(|inspector| !inspector.embeds_program)
         {
             inspector.show_over(document, ctx, inspector_has_focus);
         }
         if let Some(mut inspector) = self.inspector.take() {
             let layout = Layout {
-                app_visible: layout.app_visible && inspector.embeds_app,
+                program_visible: layout.program_visible && inspector.embeds_program,
                 ..layout
             };
             inspector.show(document, ctx, &layout, inspector_has_focus);

@@ -1,4 +1,4 @@
-use stable_hash::HashSet;
+use be_lib_stable_hash::HashSet;
 
 use crate::base::embed::EmbedNode;
 use crate::base::interactive::{InteractiveNode, local_in};

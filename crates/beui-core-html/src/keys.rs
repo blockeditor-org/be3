@@ -3,16 +3,16 @@ use std::rc::Rc;
 pub use beui_types::input::KeyPhase;
 
 thread_local! {
-    static HELD: reactive::Signal<beui_types::Modifiers> = crate::global_signal(beui_types::Modifiers::default());
+    static HELD: beui_reactive::Signal<beui_types::Modifiers> = crate::global_signal(beui_types::Modifiers::default());
 }
 
-pub fn held_modifiers() -> reactive::ReadSignal<beui_types::Modifiers> {
+pub fn held_modifiers() -> beui_reactive::ReadSignal<beui_types::Modifiers> {
     HELD.with(|held| held.read_only())
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::Listener> {
-    use reactive::{Get, Set};
+    use beui_reactive::{Get, Set};
 
     let update = |event: &web_sys::KeyboardEvent| {
         let held = beui_web_input::keys::modifiers(
@@ -24,7 +24,7 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
         let signal = HELD.with(|held| *held);
         if signal.get_untracked() != held {
             signal.set(held);
-            reactive::flush();
+            beui_reactive::flush();
         }
     };
     let mut listeners: Vec<crate::dom::Listener> = ["keydown", "keyup"]
@@ -47,7 +47,7 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
                 let signal = HELD.with(|held| *held);
                 if signal.get_untracked() != beui_types::Modifiers::default() {
                     signal.set(beui_types::Modifiers::default());
-                    reactive::flush();
+                    beui_reactive::flush();
                 }
             },
         ));
@@ -199,14 +199,14 @@ mod web {
             target: KeyTarget {
                 node,
                 typing,
-                app: false,
+                program: false,
             },
         });
         if handled {
             event.prevent_default();
             event.stop_propagation();
         }
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     pub(super) fn listen(at: KeyAt, phase: KeyPhase, handler: Rc<KeyHandler>) {

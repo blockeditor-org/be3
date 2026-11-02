@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use be_model::Edit;
+use be_block_model::Edit;
 use serde::{Deserialize, Serialize};
 
 use crate::display_settings::{DisplaySettings, Motion, ThemeKind};

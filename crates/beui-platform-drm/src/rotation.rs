@@ -1,6 +1,6 @@
 use beui::{Pos2, Vec2, pos2, vec2};
 
-pub use ui_types::Rotation;
+pub use be_lib_ui_types::Rotation;
 
 pub(crate) trait Turn {
     fn turned(self, size: (u32, u32)) -> (u32, u32);

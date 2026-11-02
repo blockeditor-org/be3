@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::{Access, SETTINGS_TYPE};
+use be_block_graph::{Access, SETTINGS_TYPE};
 
 async fn set_references(
     client: &mut TestClient,

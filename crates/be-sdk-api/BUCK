@@ -1,0 +1,17 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+WIT = {
+    "foreign_resources": {
+        "//crates/be-lib-ui-keys:wit": "crates/be-lib-ui-keys",
+        "//crates/be-lib-ui-preferences:wit": "crates/be-lib-ui-preferences",
+        "//crates/be-lib-ui-types:wit": "crates/be-lib-ui-types",
+        "//crates/be-sdk-manifest:wit": "crates/be-sdk-manifest",
+        "//crates/be-wasm-gpu-abi:wit": "crates/be-wasm-gpu-abi",
+        "//crates/be-wasm-ops:wit": "crates/be-wasm-ops",
+    },
+    "resources": glob(["wit/*.wit", "wit/deps/**/*.wit"]),
+}
+
+cargo_library(**WIT)
+
+cargo_test(**WIT)

@@ -2,7 +2,7 @@ use super::*;
 
 struct Recording(Signal<Vec<String>>);
 
-impl App for Recording {
+impl Program for Recording {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.input(|input| {
             for event in &input.events {

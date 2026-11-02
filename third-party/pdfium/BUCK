@@ -1,13 +1,13 @@
 load(":sources.bzl", "libraries", "repositories")
 
-# PDFium, which the PDF plugin renders pages with, built from source for the
-# plugins' platform like the rest of their C and C++, so it is position-
-# independent and the plugin links against the plugin SDK. sources.bzl is
+# PDFium, which the PDF app renders pages with, built from source for the
+# apps' platform like the rest of their C and C++, so it is position-
+# independent and the app links against the app SDK. sources.bzl is
 # PDFium's GN build read into data, from `./scripts/buck run //:pdfium --
-# REVISION` (crates/buck-tools/src/pdfium.rs): the repositories PDFium's DEPS
+# REVISION` (crates/be-tool-buck/src/pdfium.rs): the repositories PDFium's DEPS
 # pins, and one library per GN target under //:pdfium that compiles anything,
 # with its sources, defines and include directories. Everything else about how
-# they compile is the plugins' toolchain's.
+# they compile is the apps' toolchain's.
 #
 # Googlesource makes its tarballs afresh on every download, so no hash can pin
 # them: :source fetches each repository by commit on a worker, the one action

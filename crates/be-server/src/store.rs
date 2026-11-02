@@ -10,12 +10,12 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
-use be_commit::CommitId;
-use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
-use be_protocol::{
+use be_block_commit::CommitId;
+use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
+use be_block_protocol::{
     Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
-use be_store::{FileStore, Hash, ObjectStore};
+use be_block_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
@@ -714,7 +714,7 @@ impl ServerStore {
             transaction.execute(
                 "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
                 [crate::keys::encode_wrapped_by(
-                    be_protocol::WrappedBy::Account(agent),
+                    be_block_protocol::WrappedBy::Account(agent),
                 )],
             )?;
             transaction.commit()?;
@@ -726,7 +726,7 @@ impl ServerStore {
     pub async fn list_members(
         &self,
         identity: Identity,
-    ) -> Result<Vec<be_protocol::Member>, ServerError> {
+    ) -> Result<Vec<be_block_protocol::Member>, ServerError> {
         require_administrator(identity)?;
         let database = self.database.lock().await;
         let contacts = crate::contacts::contacts_of(&database, identity.account)?;
@@ -753,7 +753,7 @@ impl ServerStore {
         for row in rows {
             let (account, email, display_name, role, agent) = row?;
             let account = parse_uuid(&account)?;
-            members.push(be_protocol::Member {
+            members.push(be_block_protocol::Member {
                 account,
                 email,
                 display_name,
@@ -823,7 +823,7 @@ impl ServerStore {
         &self,
         account: Uuid,
         organization: Uuid,
-    ) -> Result<(OrganizationKind, Vec<be_protocol::EscrowKey>, Vec<u8>), ServerError> {
+    ) -> Result<(OrganizationKind, Vec<be_block_protocol::EscrowKey>, Vec<u8>), ServerError> {
         let database = self.database.lock().await;
         Ok((
             crate::keys::organization_kind(&database, organization)?,
@@ -1137,7 +1137,7 @@ impl ServerStore {
         &self.server
     }
 
-    pub fn server_account(&self) -> be_protocol::ServerAccount {
+    pub fn server_account(&self) -> be_block_protocol::ServerAccount {
         self.server.described()
     }
 
@@ -1243,7 +1243,7 @@ fn remove_from(
         "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND wrapped_by = ?2",
         params![
             organization.to_string(),
-            crate::keys::encode_wrapped_by(be_protocol::WrappedBy::Account(account))
+            crate::keys::encode_wrapped_by(be_block_protocol::WrappedBy::Account(account))
         ],
     )?;
     if role == Some(OrganizationRole::Administrator) {

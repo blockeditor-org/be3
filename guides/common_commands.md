@@ -5,35 +5,35 @@ a person at a machine with displays, a device or a headset, and an agent in a co
 none of them. AGENTS.md's Commands section has the everyday ones (`./scripts/verify`,
 `./scripts/test`, `:dev`, `rasterize`); guides/running/ says how to run and drive each platform.
 `./scripts/buck run` passes the environment on to the program, so a `BEUI_*` variable before it
-reaches the app.
+reaches the program.
 
 ## For a person
 
 ```
-# the app in a window, with every plugin beside it
-./scripts/buck run //crates/block-app:native
+# the host in a window, with every app beside it
+./scripts/buck run //crates/be-host:native
 
 # the desktop shell in a window
-./scripts/buck run //crates/block-app:native -- --desktop
+./scripts/buck run //crates/be-host:native -- --desktop
 
-# the app in the VR simulator: its windows as panels in a 3D scene, in a window
-BEUI_LAYERS=space ./scripts/buck run //crates/block-app:native
+# the host in the VR simulator: its windows as panels in a 3D scene, in a window
+BEUI_LAYERS=space ./scripts/buck run //crates/be-host:native
 
-# the app on an OpenXR headset (SteamVR or Monado running); the window is the headset's mirror
-BEUI_LAYERS=xr ./scripts/buck run //crates/block-app:native
+# the host on an OpenXR headset (SteamVR or Monado running); the window is the headset's mirror
+BEUI_LAYERS=xr ./scripts/buck run //crates/be-host:native
 
 # the desktop as a login session on this machine's displays, from a virtual terminal with no
 # other display server on it (Linux)
-BEUI_PLATFORM=drm ./scripts/buck run //crates/block-app:native -- --desktop
+BEUI_PLATFORM=drm ./scripts/buck run //crates/be-host:native -- --desktop
 
 # install it as a login session the login screen offers, under /usr/local or PREFIX (Linux)
-./scripts/buck run //crates/block-app:install-login-session [-- PREFIX]
+./scripts/buck run //crates/be-host:install-login-session [-- PREFIX]
 
 # build the APK, install it on the connected device and start it
-./scripts/buck run //crates/block-app:android -- --install
+./scripts/buck run //crates/be-host:android -- --install
 
-# the web app and be-server, on http://127.0.0.1:8080
-./scripts/buck run //crates/block-app:web
+# the host's web build and be-server, on http://127.0.0.1:8080
+./scripts/buck run //crates/be-host:web
 
 # beui's demo in a window; any beui program takes BEUI_LAYERS too
 ./scripts/buck run //crates/beui-demo:native
@@ -51,26 +51,26 @@ An agent cannot use the displays (`drm`), a headset, an Android device or the em
 a cloud container, guides/running/android.md); it runs everything headless and drives it.
 
 ```
-# the app headless, signed in with a workspace open, for `drive` (guides/running/drive.md)
-./scripts/buck run //crates/block-app:dev [-- --fresh | --stop]
+# the host headless, signed in with a workspace open, for `drive` (guides/running/drive.md)
+./scripts/buck run //crates/be-host:dev [-- --fresh | --stop]
 source ~/.cache/be3/dev/env
 
 # the desktop shell headless
-./scripts/buck run //crates/block-app:dev -- --desktop
+./scripts/buck run //crates/be-host:dev -- --desktop
 
-# the VR simulator headless, with drive taps under space and the app: `drive --into=space ...`
+# the VR simulator headless, with drive taps under space and the host: `drive --into=space ...`
 # walks and clicks through space, `drive xr left|right ...` works a headset's controllers
-BEUI_LAYERS=space ./scripts/buck run //crates/block-app:dev
+BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 
-# the web app in a headless Chromium (guides/running/web.md)
-./scripts/buck run //crates/block-app:web-dev
+# the host's web build in a headless Chromium (guides/running/web.md)
+./scripts/buck run //crates/be-host:web-dev
 
 # beui's demo and the launcher, headless
 ./scripts/buck run //crates/beui-demo:dev
-./scripts/buck run //crates/be-launcher:dev
+./scripts/buck run //crates/be-tool-launcher:dev
 
 # build the APK without a device
-./scripts/buck run //crates/block-app:android
+./scripts/buck run //crates/be-host:android
 ```
 
 Tests and paintings are how an agent shows a visual change: `./scripts/test NAME --update` and
@@ -80,25 +80,25 @@ Tests and paintings are how an agent shows a visual change: `./scripts/test NAME
 
 | Command | What it does |
 |---|---|
-| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the plugins' `wasi_guest`, autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
-| `./scripts/ci` | what CI runs: `./scripts/verify` and crates/bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
-| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs block-app's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
-| `./scripts/test //crates/editors/desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
-| `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/test //crates/app-tests:test [--update]` | the app tests: block-app headless with the editors each test names, driven and painted as a whole |
-| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server-bin:dist` is the server's |
-| `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
-| `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
-| `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
+| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the apps' `wasi_guest`, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part |
+| `./scripts/ci` | what CI runs: `./scripts/verify` and crates/be-tool-bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
+| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs be-host's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
+| `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
+| `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
+| `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: be-host headless with the editors each test names, driven and painted as a whole |
+| `./scripts/buck build //crates/be-host:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
+| `./scripts/buck build //crates/be-host:apps --out DIR` | the apps alone, shared by every platform |
+| `./scripts/buck build //crates/be-host:web --out DIR` | the web bundle with every app (`:web-dist` without) |
+| `./scripts/buck run //crates/be-host:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/be-host:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
 | `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
 | `./scripts/buck run -m release //crates/beui-host:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
 | `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
-| `./scripts/buck run //crates/paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.png` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
+| `./scripts/buck run //crates/be-tool-paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.png` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
-| `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
+| `./scripts/buck run //crates/be-lib-sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |

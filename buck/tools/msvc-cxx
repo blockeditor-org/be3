@@ -4,7 +4,7 @@
 #
 # MSVC's standard library is C++14 at the least, and says so with a
 # static_assert rather than by working: a build script that asks for C++11 -
-# harfbuzz-sys's, which is how a plugin host gets HarfBuzz on Windows - would
+# harfbuzz-sys's, which is how an app host gets HarfBuzz on Windows - would
 # fail to compile against it. Nothing C++17 removed is anything these libraries
 # use, so the newer standard is the one they get.
 #

@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "counter",
+    types = "//crates/be-type-example-counter:module",
+)

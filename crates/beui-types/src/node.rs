@@ -136,5 +136,5 @@ impl BuildsNode for NodeId {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ImeCursor {
     pub node: NodeId,
-    pub rect: Option<geometry::Rect>,
+    pub rect: Option<be_lib_geometry::Rect>,
 }

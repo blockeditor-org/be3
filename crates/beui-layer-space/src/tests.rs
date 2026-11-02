@@ -22,7 +22,7 @@ mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn;
 mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
-mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
+mod a_click_on_the_panel_reaches_the_program_where_the_ray_hits;
 mod a_cursor_turned_out_of_view_shows_a_mouse_at_the_edge_pointing_at_it;
 mod a_driver_pointing_at_a_window_shows_its_icon;
 mod a_laser_drags_once_it_turns_past_where_the_trigger_froze_it;
@@ -99,7 +99,7 @@ mod squeezing_a_panel_carries_it_along_the_laser;
 mod squeezing_a_panel_with_both_hands_scales_and_turns_it;
 mod steering_with_a_headset_moves_the_body_the_views_are_tracked_in;
 mod switching_the_cursor_icon_keeps_the_cursor_renderer;
-mod tapping_escape_reaches_the_app_and_keeps_the_grab;
+mod tapping_escape_reaches_the_program_and_keeps_the_grab;
 mod the_chrome_around_a_curved_panel;
 mod the_chrome_keeps_its_size_to_the_eye_at_any_distance;
 mod the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster;
@@ -322,7 +322,7 @@ fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
         .pos
 }
 
-fn app_frame(cursor: CursorIcon) -> FrameOutput {
+fn program_frame(cursor: CursorIcon) -> FrameOutput {
     let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
         beui_font_freetype::FontSources::default(),
     ));
@@ -476,7 +476,7 @@ fn off_ray(point: Vec3, origin: Vec3, toward: Vec3) -> f32 {
 fn painted_space() -> (Space, Instant, Context) {
     let (mut space, now) = space();
     let context = Context::new(beui_font_freetype::FreetypeFonts::default());
-    let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));
+    let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);
     (space, now, context)
@@ -491,5 +491,5 @@ fn assert_scene(
     let frame = space.scene(windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    paint_snapshot::assert_painting(name, painting);
+    beui_paint_snapshot::assert_painting(name, painting);
 }

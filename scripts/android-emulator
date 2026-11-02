@@ -11,7 +11,7 @@
 #   ./scripts/android-emulator boot     # just boot the emulator
 #   ./scripts/android-emulator stop     # shut the emulator down cleanly
 #
-# Build the APK first with: ./scripts/buck run //crates/block-app:android
+# Build the APK first with: ./scripts/buck run //crates/be-host:android
 # Output goes to $OUT_DIR (default /tmp/be3-android): logcat.txt, app.log, screen.png.
 set -euo pipefail
 
@@ -22,7 +22,7 @@ PACKAGE=com.be3.block.dev
 ACTIVITY=com.be3.block.MainActivity
 OUT_DIR="${OUT_DIR:-/tmp/be3-android}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-APK="$REPO/target/android/block-app.apk"
+APK="$REPO/target/android/be-host.apk"
 WAIT=20
 INSTALL=true
 CMD=run
@@ -139,7 +139,7 @@ boot() {
 }
 
 install_apk() {
-    [ -f "$APK" ] || { log "no APK at $APK; build it with ./scripts/buck run //crates/block-app:android"; exit 1; }
+    [ -f "$APK" ] || { log "no APK at $APK; build it with ./scripts/buck run //crates/be-host:android"; exit 1; }
     local sum installed
     sum="$(sha256sum "$APK" | cut -d' ' -f1)"
     installed="$("$ADB" shell cat /data/local/tmp/be3-apk.sha256 2>/dev/null | tr -d '\r' || true)"

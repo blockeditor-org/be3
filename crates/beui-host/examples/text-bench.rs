@@ -10,7 +10,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::TextAreaState;
 use beui::{Input, PointerButton, Pos2, Vec2, native::Setup, native::Waker, pos2};
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_host::native::Document;
 use beui_host::native::build;
 use beui_host::native::enter;
@@ -18,7 +18,7 @@ use beui_host::native::testing::{Screen, Showing};
 use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
 use beui_runner::Runner;
 use beui_runner::renderer::Loaded;
-use text_editor_core::TextBuffer;
+use beui_text_editor_core::TextBuffer;
 
 const VIEWPORT: Vec2 = Vec2::new(1000.0, 800.0);
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
@@ -43,7 +43,7 @@ impl Bench {
                 ..RunOptions::default()
             },
             context: beui_host::native::context(),
-            app: Box::new(Showing(document)),
+            program: Box::new(Showing(document)),
             layers: Vec::new(),
         });
         runner
@@ -74,8 +74,8 @@ impl Bench {
     }
 
     fn update(&mut self, change: impl FnOnce()) {
-        let app: &mut dyn Any = self.runner.app_mut();
-        let Showing(document) = app.downcast_mut().expect("the bench shows a document");
+        let program: &mut dyn Any = self.runner.program_mut();
+        let Showing(document) = program.downcast_mut().expect("the bench shows a document");
         enter(document, change);
     }
 
@@ -111,9 +111,9 @@ impl Report {
         let count = self.frames.len();
         let total: Duration = self.frames.iter().sum();
         let at = |share: f64| self.frames[((count - 1) as f64 * share) as usize];
-        bench::time(&format!("{}.first", self.name), self.first);
-        bench::time(&format!("{}.median", self.name), at(0.5));
-        bench::time(&format!("{}.p90", self.name), at(0.9));
+        be_tool_bench::time(&format!("{}.first", self.name), self.first);
+        be_tool_bench::time(&format!("{}.median", self.name), at(0.5));
+        be_tool_bench::time(&format!("{}.p90", self.name), at(0.9));
         println!(
             "{:<24} first {:>9.1?}  mean {:>9.1?}  median {:>9.1?}  p90 {:>9.1?}  ({count} frames)",
             self.name,
@@ -336,7 +336,7 @@ fn type_in_text_area(frames: usize) -> Report {
         let held = held.clone();
         move || {
             let buffer = Arc::new(TextBuffer::new(markdown(3000).as_bytes()))
-                as Arc<dyn text_editor_core::Document>;
+                as Arc<dyn beui_text_editor_core::Document>;
             let state = TextAreaState::new(buffer);
             *held.borrow_mut() = Some(state);
             view! {

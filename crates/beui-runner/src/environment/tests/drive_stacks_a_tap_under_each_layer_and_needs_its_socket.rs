@@ -18,7 +18,7 @@ fn drive_stacks_a_tap_under_each_layer_and_needs_its_socket() {
     assert_eq!(
         drive_taps(&[Stacked::Drive, Stacked::Space, Stacked::Drive]),
         vec![Some(Stacked::Space), None],
-        "each tap is named by the layer just above it, and the top one is the app's"
+        "each tap is named by the layer just above it, and the top one is the program's"
     );
     assert!(
         choose(&["winit"], with(&[(LAYERS, "drive")]))

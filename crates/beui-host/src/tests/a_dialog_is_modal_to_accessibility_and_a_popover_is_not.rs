@@ -50,6 +50,6 @@ fn a_dialog_is_modal_to_accessibility_and_a_popover_is_not() {
     assert_eq!(
         modal(&harness, "Discard"),
         Some(true),
-        "a dialog blocks the whole app"
+        "a dialog blocks the whole program"
     );
 }

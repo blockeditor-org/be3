@@ -1,0 +1,17 @@
+[package]
+name = "be-lib-ui-types"
+description = "Framework-free vocabulary that beui and the app protocol share: keys, pointers, input and windows, with the preferences of be-lib-ui-preferences"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+serde = { version = "1", features = ["derive", "rc"] }
+be-lib-ui-keys = { path = "../be-lib-ui-keys" }
+be-lib-ui-preferences = { path = "../be-lib-ui-preferences" }
+
+[lints]
+workspace = true

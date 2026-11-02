@@ -1,0 +1,22 @@
+[package]
+name = "be-sdk-api"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+accesskit = { version = "0.24.1", features = ["serde"] }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+be-lib-ui-keys = { path = "../be-lib-ui-keys" }
+be-lib-ui-preferences = { path = "../be-lib-ui-preferences" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+uuid = "1"
+
+[lints]
+workspace = true

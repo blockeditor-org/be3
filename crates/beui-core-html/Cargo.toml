@@ -13,8 +13,8 @@ beui-html = { path = "../beui-html" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
 png = "0.18"
-reactive = { path = "../reactive" }
-stable-hash = { path = "../stable-hash" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ttf-parser = "0.25"

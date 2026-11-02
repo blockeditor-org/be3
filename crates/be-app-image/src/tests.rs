@@ -1,0 +1,37 @@
+use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::{BlockInfo, BlockParent, EditorHost};
+use be_sdk_test::BeuiTest;
+use image::ImageEncoder;
+use uuid::Uuid;
+
+use crate::root::ImageRoot;
+use be_type_image::{ImageContent, ImageFile};
+
+mod a_decoded_image_is_painted_at_its_shape;
+mod a_narrow_image_folds_its_sidebar_under_the_picture;
+mod a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes;
+mod a_new_images_dialog_is_modal_while_its_host_blocks_everything;
+mod an_image_still_loading_shows_its_thumbhash;
+mod an_image_that_will_not_decode_says_so;
+
+fn editor(data: Vec<u8>) -> BeuiTest<ImageRoot> {
+    let block = Uuid::new_v4();
+    let mut editor = BeuiTest::editing(block);
+    editor.hold(None, ImageFile::from_file("picture.png", data));
+    editor.run();
+    editor
+}
+
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    let pixels: Vec<u8> = (0..width * height)
+        .flat_map(|index| {
+            let shade = (index % 256) as u8;
+            [shade, 255 - shade, 128, 255]
+        })
+        .collect();
+    image::codecs::png::PngEncoder::new(&mut buffer)
+        .write_image(&pixels, width, height, image::ExtendedColorType::Rgba8)
+        .expect("the test image encodes");
+    buffer
+}

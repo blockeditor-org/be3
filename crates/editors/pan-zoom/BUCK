@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "pan_zoom",
-    types = "//crates/editors/pan-zoom/types:module",
-)

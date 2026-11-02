@@ -1,4 +1,4 @@
-use paint_snapshot::BrowserSnapshot;
+use beui_paint_snapshot::BrowserSnapshot;
 
 mod the_prerendered_accounts_page;
 mod the_prerendered_accounts_page_in_a_chosen_dark_theme;

@@ -1,6 +1,6 @@
 # Reactive core
 
-`crates/reactive` provides a dependency-free, single-threaded reactive graph. It
+`crates/beui-reactive` provides a dependency-free, single-threaded reactive graph. It
 is intended for retained UI bindings: create a node once, then use an effect to
 update its properties when the values it reads change. `beui::reactive` (in
 `crates/beui-tree` and `crates/beui-view/src/reactive.rs`) is the glue that
@@ -9,7 +9,7 @@ connects it to beui's components and `Document`; see "beui integration" below.
 ## Example
 
 ```rust
-use reactive::{create_effect, create_memo, create_signal, Get, Scope, Set};
+use beui_reactive::{create_effect, create_memo, create_signal, Get, Scope, Set};
 
 let scope = Scope::new();
 let count = scope.run(|| create_signal(0));
@@ -26,7 +26,7 @@ count.update(|count| *count += 1);
 Keep the scope alive for as long as the view exists. Dropping it or calling
 `scope.dispose()` stops its computations, runs their cleanup callbacks, and
 frees the signals and memos created in it.
-Run `./scripts/buck run //crates/reactive:example-retained` for a complete example that
+Run `./scripts/buck run //crates/beui-reactive:example-retained` for a complete example that
 updates retained state while it holds a mutable borrow, then flushes.
 
 ## Signals and memos
@@ -41,7 +41,7 @@ Creating one with no current scope panics. Reading a freed signal panics;
 value they would write, and `is_alive()` asks whether it is still there.
 Handles and scopes cannot cross threads.
 
-Reading and writing are two traits, which `reactive` and `beui::reactive`
+Reading and writing are two traits, which `beui-reactive` and `beui::reactive`
 export: `Get<T>` (`get`, `with`, `get_untracked`, `with_untracked`) is
 implemented by `Signal`, `ReadSignal`, `Memo`, `Prop` and stores, and `Set<T>`
 (`set`, `update`) by `Signal` and stores. A file that calls them imports the
@@ -272,16 +272,16 @@ when it repeats one.
 
 ## Blocks
 
-A plugin editor reads its block's content through a `ContentProjection`
-(`block_editor_beui`). `editor.block_content::<C>()` is the one for the
+An editor reads its block's content through a `ContentProjection`
+(`be_sdk_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
-follows; both are pumped by the plugin framework once at the top of every frame,
+follows; both are pumped by the app framework once at the top of every frame,
 so an editor never pumps by hand. A
 projection is a `Copy` handle that the `Editor` owns and frees with itself, so
 closures take it with `move`. One made outside an editor, as an artifact's
 regeneration makes one from `host.content_of::<C>(source).into()`, is an
 `OwnedContentProjection`, which frees it when it drops and derefs to the handle.
-Both are block-editor-beui's signals over block-editor-plugin's `LiveContent`,
+Both are be-sdk-beui's signals over be-sdk's `LiveContent`,
 which has no signals of its own (guides/the_new_block_stack.md, "State and
 change callbacks"); the graph's `Blocks` and `BlockList` are the same over
 `BlockGraph` and `BlockWatch`, and `Blocks::of(&host)` is the handle for code
@@ -306,7 +306,7 @@ operation describes.
 A projection also only runs when something it watches was touched. Applying an
 operation reports what it touched, and `project` watches everything,
 `project_on(key, ...)` one key, and `project_keyed` fills a `KeyedStore`. On a
-`be-model` document the projection can be narrower still: `field(object, FIELD)`
+`be-block-model` document the projection can be narrower still: `field(object, FIELD)`
 runs for one field of one object, `ids(owner, LIST)` for the order of one list,
 `object::<T>(id)` for one object and everything inside it, and
 `objects(owner, LIST)` for every object of one list, each behind an `Rc` that an
@@ -319,7 +319,7 @@ Keep a projection cheap and pure; it must not operate. Write through
 `ContentProjection::operate`, which applies the operation to what the view
 sees straight away, so a local edit is visible in the frame that made it, and
 queues it for the block's replica (a `FromEditor::Operate` frame; the projection is
-`block_type_guest::editor::EditorMirror` plus the watchers). It is already held behind whether the host says the
+`be_sdk_type_guest::editor::EditorMirror` plus the watchers). It is already held behind whether the host says the
 block may be edited, and dropped until the host has sent the content once, since
 an edit made against content that has not arrived would land in the wrong place.
 `read` answers the content outside a projection, `Err(Pending::Loading)` until
@@ -327,7 +327,7 @@ the host has sent it once, and `ready()` is that state on its own.
 
 An editor shows nothing it would have to correct a moment later: not an empty
 or editable view before its content arrives, and not a placeholder ("no rows")
-that the next answer replaces. Every `BeuiApp::View` and `Preview` wraps
+that the next answer replaces. Every `BeuiRoot::View` and `Preview` wraps
 its component in `<Loaded label="...">`, the editor's `Loading` boundary (see
 Loading, below): it waits for whatever its content reads. The sources that
 wait are the editor's own: a projection of a block's content
@@ -346,7 +346,7 @@ it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(i
 is a memo of the host's answer to that query: `Err(Pending::Loading)` until the
 first answer arrives, `Err(Pending::Failed(..))` when the host could not answer
 it, and it changes whenever the host's answer does. A query nobody watches
-keeps its last answer for a while (the plugin keeps the last 64), so watching
+keeps its last answer for a while (the app keeps the last 64), so watching
 it again shows that at once while the host answers again.
 
 ## Loading
@@ -572,7 +572,7 @@ A component body runs once with no computation observing it, so `get` or
 In debug builds such a read panics, naming the type read: on any signal, memo,
 store, selector key or `Prop`, including a `Prop` that holds a plain value,
 since the same component may later be handed a signal. `component()` marks the
-body with `reactive::component_body`, and the mark is lifted inside `untrack`
+body with `beui_reactive::component_body`, and the mark is lifted inside `untrack`
 and inside every effect, memo and binding, so reads there track as usual.
 Event handlers, timers, host code and tests run outside any body. Fix a read by:
 
@@ -1086,7 +1086,7 @@ Measuring a node whose size depends on its own content — an intrinsically size
 container whose children react to its width — can oscillate. Give containers a
 width that comes from their parent.
 
-Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`).
+Each `Document` owns a root `beui_reactive::Scope` (`Document::reactive_scope`).
 Every node belongs to the scope that was current when it was created, just as an
 effect does, and disposing that scope removes the nodes it still owns: a scope's
 nodes, effects and `on_cleanup` callbacks go together. Every `#[component]`

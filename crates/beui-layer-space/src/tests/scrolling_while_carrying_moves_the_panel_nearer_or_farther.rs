@@ -20,7 +20,7 @@ fn scrolling_while_carrying_moves_the_panel_nearer_or_farther() {
     assert_eq!(
         delivered(&scrolled),
         [],
-        "the app gets no scroll during a carry"
+        "the program gets no scroll during a carry"
     );
     let farther = space.mouse.carry.as_ref().unwrap().distance;
     assert!(farther > start, "scrolling forward pushes it away");
@@ -46,6 +46,6 @@ fn scrolling_while_carrying_moves_the_panel_nearer_or_farther() {
     assert_eq!(
         delivered(&send(&mut space, now, [scroll(1.0)])),
         [(WindowId::MAIN, scroll(1.0))],
-        "afterwards scrolling reaches the app again"
+        "afterwards scrolling reaches the program again"
     );
 }

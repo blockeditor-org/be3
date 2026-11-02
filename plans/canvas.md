@@ -1,6 +1,6 @@
 # Canvas
 
-A plan to make the infinite canvas (`crates/editors/infinite-canvas`, model in
+A plan to make the infinite canvas (`crates/be-app-infinite-canvas`, model in
 `crates/be-block/src/canvas.rs`) a general 2D vector and raster image editor,
 starting with a prototyping profile as quick to reach for as Excalidraw. Each
 step says what "done" looks like. Items marked **(ask)** need a decision from
@@ -35,7 +35,7 @@ It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
 pressure-aware pen tools; resize, rotate, group, lock, layers, align and
 distribute; peers' cursors and selections; child blocks edited in place; and a
 phone dock and selection bar. A viewer picks a profile from the mode dock (a
-dock bar of radio buttons at the top-left of the stage, `app/mode.rs`; on a
+dock bar of radio buttons at the top-left of the stage, `root/mode.rs`; on a
 narrow frame it folds into a menu button at the start of the tool dock, since
 it would not fit beside the zoom pill), the frame's menu, the context menu or
 the palette: Prototyping (the default: a style popover in the selection bar,
@@ -49,7 +49,7 @@ letter picks a different tool per profile: R, O, L, E and P draw pixel
 rectangles, ellipses, lines, erase pixels and draw with the pencil in Raster,
 and shapes, lines, the eraser and the pen elsewhere.
 
-The Raster profile (`app/raster.rs`, with the rasterization pixel-art had in
+The Raster profile (`root/raster.rs`, with the rasterization pixel-art had in
 `src/raster.rs`) has pencil (B or P), pixel eraser (E), fill (G), eyedropper
 (I), replace colour (C), and pixel line, rectangle and ellipse (L, R, O), with
 a brush size (`[` and `]`), a square or round brush, filled shapes (X), mirror
@@ -77,7 +77,7 @@ is on, moving, nudging, resizing and drawing any shape (not freehand
 strokes) put its corners on whole world units. Export embeds a layer as
 a PNG `<image>` with `image-rendering="pixelated"` in SVG and upscales it
 nearest before the CPU rasterizer in PNG, which samples bilinearly. Paintings
-show raster layers blurred for the same reason: `paint_format` has no nearest
+show raster layers blurred for the same reason: `beui_paint_format` has no nearest
 sampling.
 
 The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
@@ -86,20 +86,20 @@ freehand, text, image, block, editor, frame, raster) and decides only how the ge
 fields are read: `points` is a path or stroke in the unit square of the
 entity's transform, each point with optional bezier handles; `pressures` go
 with a freehand stroke's points; `block` and `scale` hold an embed; `text` is
-rich text (`be_model::RichText`): a text shape's text, a shape's or line's
+rich text (`be_block_model::RichText`): a text shape's text, a shape's or line's
 label, and a frame's name, which stays plain. Text and labels are drawn as
 read-only rich text areas the renderer scales, and the one being edited syncs
 live with peers through the shared `LiveText`. Every part of the style is its
 own field, so concurrent restyles merge.
 
 A raster layer (`CanvasShape::Raster`, model in
-`crates/editors/infinite-canvas/types/src/raster.rs`) keeps its pixels in the
-entity's `pixels` field, a `be_model::Grid<[u8; 4]>` that merges concurrent
+`crates/be-type-infinite-canvas/src/raster.rs`) keeps its pixels in the
+entity's `pixels` field, a `be_block_model::Grid<[u8; 4]>` that merges concurrent
 edits per pixel; its bounds may start anywhere, so a paint made during a
 resize lands where it was painted, and one cropped away by the other side
 counts as a conflict. The pixels are not in `CanvasEntity`: read them with
 `Canvas::raster(content, id)` or `Entity::raster`, which share the grid's bytes
-(`be_model::Cells` holds them copy-on-write) rather than copy them. The canvas
+(`be_block_model::Cells` holds them copy-on-write) rather than copy them. The canvas
 root holds the raster `palette`. A layer is never rotated, and its transform
 may be any size, which scales its pixels: a blank `Add` derives the pixel
 count from the transform's size, one pixel a world unit, and puts the corner on
@@ -129,15 +129,15 @@ or dragging an end keeps that end free. Turning it off leaves lines already
 bound as they are.
 
 Shapes, lines and arrows have a clean look and a hand-drawn one: `rough.rs`
-ports rough.js, seeded by the shape's stored `seed`, and `app/sketch.rs` turns
+ports rough.js, seeded by the shape's stored `seed`, and `root/sketch.rs` turns
 an entity into the paths it draws in either look (strokes, solid and hatched
 fills, freehand outlines), kept per entity until its geometry or style
-changes. Export (`app/export.rs`) reads the same sketches: Copy as PNG / SVG
+changes. Export (`root/export.rs`) reads the same sketches: Copy as PNG / SVG
 and Export as PNG / SVG… take the selection, a selected frame (clipped to it),
 or the whole canvas. SVG writes each sketch's paths, text and labels as SVG text with a
 `<tspan>` per formatted run, and images embedded; PNG paints the entities into an offscreen beui context and
-rasterizes that painting on the CPU (`paint_format::rasterize`), since a
-plugin cannot read pixels back from the GPU. Both lay text out as the
+rasterizes that painting on the CPU (`beui_paint_format::rasterize`), since an
+app cannot read pixels back from the GPU. Both lay text out as the
 canvas's text area does (`TextAreaState::lay_out_prose`), and turn a text
 shape, and the label of a box shape, by its rotation as the canvas does
 (`text::text_turn`; the canvas draws it upright only while it is edited,
@@ -200,7 +200,7 @@ can change freely until step 8.
   simulates pressure.
 - Geometry general enough for the vector profile's bezier paths, so that
   profile adds tools, not a second model.
-- Text is rich text. A be-model type stores rich text, so block-app can hold
+- Text is rich text. A be-block-model type stores rich text, so be-host can hold
   the rich text beui's editor already edits, and text shapes and labels use
   it. One document provider serves both the text editor and the canvas, so
   the canvas does not reimplement it (as the first attempt, PR #519, had to).
@@ -244,14 +244,14 @@ can change freely until step 8.
 
 ## 5. As quick to open as a URL
 
-- Visiting the web app with no account opens a blank canvas at once, kept in a
+- Visiting the host on the web with no account opens a blank canvas at once, kept in a
   local-only workspace in the browser (its origin private file system; see
   `plans/public_release.md`, Web offline). Local-only workspaces are permanent, not a testing aid.
 - Signing in later can move the canvas into a remote workspace and share it by
   link.
-- Load only the canvas plugin to start, and cache the app so it opens offline
+- Load only the canvas app to start, and cache the host so it opens offline
   and installs to a home screen. Done: the service worker that opens it
-  offline (`crates/block-app/web/sw.js`).
+  offline (`crates/be-host/web/sw.js`).
 - A cold-start target on a mid-range phone, measured in CI. **(ask)** the
   target.
 

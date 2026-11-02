@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use beui_core::app::App;
+use beui_core::program::Program;
 use beui_platform_web::Web;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, Layer, Platform, RunOptions};
@@ -9,12 +9,12 @@ pub async fn run_web(
     element_id: &str,
     options: RunOptions,
     layers: Vec<Box<dyn Layer>>,
-    app: impl App + 'static,
+    program: impl Program + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context: crate::native::context(),
-        app: Box::new(app),
+        program: Box::new(program),
         layers,
     };
     web_platform(element_id).run(launch).await

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use geometry::Vec2;
+use be_lib_geometry::Vec2;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -160,7 +160,7 @@ impl std::fmt::Debug for Image {
 }
 
 impl ImageFit {
-    pub fn place(self, into: geometry::Rect, source: Vec2) -> geometry::Rect {
+    pub fn place(self, into: be_lib_geometry::Rect, source: Vec2) -> be_lib_geometry::Rect {
         if source.x <= 0.0 || source.y <= 0.0 || !into.is_positive() {
             return into;
         }
@@ -173,8 +173,8 @@ impl ImageFit {
                 .min(1.0),
         };
         let size = Vec2::new(source.x * scale, source.y * scale);
-        geometry::Rect::from_min_size(
-            geometry::Pos2::new(
+        be_lib_geometry::Rect::from_min_size(
+            be_lib_geometry::Pos2::new(
                 into.left() + (into.width() - size.x) / 2.0,
                 into.top() + (into.height() - size.y) / 2.0,
             ),

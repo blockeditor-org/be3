@@ -21,7 +21,7 @@ fn Optional(visible: bool) -> Option<DomNode> {
 
 #[test]
 fn components_can_return_and_collect_child_runs() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let label = create_signal("one".to_string());

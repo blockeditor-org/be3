@@ -1,11 +1,11 @@
 use super::*;
-use be_protocol::SealedKey;
+use be_block_protocol::SealedKey;
 
 async fn recovery(client: &mut TestClient) -> (Option<[u8; 32]>, Vec<SealedKey>) {
     let response = client
         .call(|peer| client::keys::get_recovery_key(peer))
         .await;
-    let Ok(be_protocol::RecoveryKey { public, sealed, .. }) = response else {
+    let Ok(be_block_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
     (public, sealed)

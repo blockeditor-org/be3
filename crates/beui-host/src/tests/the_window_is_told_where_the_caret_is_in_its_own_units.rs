@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::window::WindowState;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
@@ -15,7 +15,7 @@ impl PlatformServices for Window {
 
 struct Field;
 
-impl App for Field {
+impl Program for Field {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.set_ime_area(Some(ImeArea {
             rect: Rect::from_min_max(pos2(10.0, 10.0), pos2(30.0, 20.0)),
@@ -31,7 +31,7 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(Field),
+        program: Box::new(Field),
         layers: Vec::new(),
     });
     runner
@@ -66,6 +66,6 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
     assert_eq!(
         std::mem::take(&mut window.0),
         [Some(Rect::from_min_max(pos2(12.0, 10.0), pos2(13.0, 20.0)))],
-        "zooming moves the caret in the window although the app's points stayed put"
+        "zooming moves the caret in the window although the program's points stayed put"
     );
 }

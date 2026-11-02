@@ -1077,7 +1077,7 @@ fn AnimationSample() -> NodeId {
         },
     );
     let preferences = use_preferences();
-    let app_layer = use_preference_layer(PreferenceSource::App);
+    let program_layer = use_preference_layer(PreferenceSource::Program);
     view! {
         <List spacing={SECTION_SPACING.px()}>
             <Checkbox
@@ -1085,7 +1085,7 @@ fn AnimationSample() -> NodeId {
                 label="Disable animations"
                 checked={Binding::new(create_memo(move || !preferences.get().motion.animates()), move |disabled: bool| {
                     let motion = disabled.then_some(Motion::Instant);
-                    app_layer.set(PreferenceLayer { motion, ..app_layer.get_untracked() });
+                    program_layer.set(PreferenceLayer { motion, ..program_layer.get_untracked() });
                 })}
             />
             <Button

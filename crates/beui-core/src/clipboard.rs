@@ -9,11 +9,14 @@ pub enum PasteRequest {
 
 pub struct PasteAnswer {
     sender: std::sync::mpsc::Sender<Pasted>,
-    waker: Option<crate::app::Waker>,
+    waker: Option<crate::program::Waker>,
 }
 
 impl PasteAnswer {
-    pub fn new(sender: std::sync::mpsc::Sender<Pasted>, waker: Option<crate::app::Waker>) -> Self {
+    pub fn new(
+        sender: std::sync::mpsc::Sender<Pasted>,
+        waker: Option<crate::program::Waker>,
+    ) -> Self {
         Self { sender, waker }
     }
 

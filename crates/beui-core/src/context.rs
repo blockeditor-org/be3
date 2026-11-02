@@ -1,5 +1,5 @@
+use be_lib_stable_hash::HashSet;
 use beui_types::ActionGroup;
-use stable_hash::HashSet;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
@@ -8,8 +8,6 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::app::Waker;
-use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::PasteRequest;
 use crate::damage;
 use crate::display::{Display, Group, Layer};
@@ -20,6 +18,8 @@ use crate::font::{FontBackend, Fonts, Galley};
 use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
+use crate::program::Waker;
+use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::screen_simulation::ScreenSimulation;
 use crate::window::{Appearance, WindowHosting, WindowState};
 use beui_types::Event;
@@ -91,7 +91,7 @@ struct Inner {
     next_file_save: Cell<u64>,
     window: RefCell<WindowState>,
     window_requests: RefCell<Vec<WindowRequest>>,
-    windows: RefCell<stable_hash::HashMap<WindowId, KnownWindow>>,
+    windows: RefCell<be_lib_stable_hash::HashMap<WindowId, KnownWindow>>,
     window_reports: RefCell<Vec<WindowReport>>,
     shown_windows: RefCell<Vec<ShownWindow>>,
     drawing_into: Cell<WindowId>,
@@ -100,7 +100,7 @@ struct Inner {
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
     hosts_scrims: Cell<bool>,
-    layer_spaces: RefCell<stable_hash::HashMap<WindowId, LayerSpace>>,
+    layer_spaces: RefCell<be_lib_stable_hash::HashMap<WindowId, LayerSpace>>,
     layer_dismissals: RefCell<Vec<u64>>,
     escaped: RefCell<Vec<EscapedOutput>>,
     escaped_targets: RefCell<Vec<(u64, WindowId, HostTransform)>>,
@@ -380,7 +380,7 @@ impl Context {
                 next_file_save: Cell::new(0),
                 window: RefCell::new(WindowState::default()),
                 window_requests: RefCell::new(Vec::new()),
-                windows: RefCell::new(stable_hash::HashMap::default()),
+                windows: RefCell::new(be_lib_stable_hash::HashMap::default()),
                 window_reports: RefCell::new(Vec::new()),
                 shown_windows: RefCell::new(Vec::new()),
                 drawing_into: Cell::new(WindowId::MAIN),
@@ -389,7 +389,7 @@ impl Context {
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
                 hosts_scrims: Cell::new(false),
-                layer_spaces: RefCell::new(stable_hash::HashMap::default()),
+                layer_spaces: RefCell::new(be_lib_stable_hash::HashMap::default()),
                 layer_dismissals: RefCell::new(Vec::new()),
                 escaped: RefCell::new(Vec::new()),
                 escaped_targets: RefCell::new(Vec::new()),
@@ -716,14 +716,14 @@ impl Context {
         self.inner.overflows.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
-        ::reactive::flush();
+        ::beui_reactive::flush();
     }
 
     fn end_frame(&self) -> FrameOutput {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.inner.in_frame.set(false);
         let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
-        if woken.into_iter().any(::reactive::zone_pending) {
+        if woken.into_iter().any(::beui_reactive::zone_pending) {
             self.request_repaint();
         }
         if let Some(viewport) = self.inner.mouse_viewport.take() {
@@ -1127,7 +1127,7 @@ impl Context {
         self.inner.layer_spaces.borrow().get(&window).copied()
     }
 
-    pub(crate) fn layer_spaces(&self) -> stable_hash::HashMap<WindowId, LayerSpace> {
+    pub(crate) fn layer_spaces(&self) -> be_lib_stable_hash::HashMap<WindowId, LayerSpace> {
         self.inner.layer_spaces.borrow().clone()
     }
 
@@ -1487,7 +1487,7 @@ impl Context {
     pub fn set_waker(&self, waker: Waker) {
         *self.inner.waker.borrow_mut() = Some(waker);
         let inner = Rc::downgrade(&self.inner);
-        ::reactive::wake_with(move || {
+        ::beui_reactive::wake_with(move || {
             if let Some(inner) = inner.upgrade()
                 && !inner.in_frame.get()
             {

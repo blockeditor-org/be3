@@ -6,7 +6,7 @@ fn clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked
     assert_eq!(
         space.focused(),
         Some(WindowId::MAIN),
-        "the app starts focused"
+        "the program starts focused"
     );
     let over = open_ahead(&mut space, now, 0.4);
     let lit = |space: &Space, window| space.chrome_opacity(window) == 1.0;

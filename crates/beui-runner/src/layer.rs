@@ -3,11 +3,11 @@ use std::time::Instant;
 use accesskit::TreeUpdate;
 
 use crate::renderer::Capture;
-use beui_core::app::{App, Setup};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_core::program::{Program, Setup};
 use beui_core::window::{Resize, WindowState};
 use beui_types::PasteKind;
 use beui_types::{Pos2, Vec2};
@@ -298,13 +298,13 @@ pub struct Above<'a> {
 }
 
 impl Above<'_> {
-    pub fn to_app(&self, window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
+    pub fn to_program(&self, window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
         self.layers
             .iter()
             .try_fold((window, at), |(window, at), layer| layer.up(window, at))
     }
 
-    pub fn from_app(&self, window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
+    pub fn from_program(&self, window: WindowId, at: Pos2) -> Option<(WindowId, Pos2)> {
         self.layers
             .iter()
             .rev()
@@ -315,7 +315,7 @@ impl Above<'_> {
 pub struct LayerFrame<'a> {
     pub view: LayerView,
     pub context: &'a Context,
-    pub app: &'a mut dyn App,
+    pub program: &'a mut dyn Program,
     pub below: Below<'a>,
     pub above: Above<'a>,
     pub started: Instant,

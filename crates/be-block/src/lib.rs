@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use be_commit::MergeResult;
+use be_block_commit::MergeResult;
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -26,9 +26,9 @@ pub mod streamed;
 pub mod version_control;
 pub mod workspace_settings;
 
-pub use be_graph::ANYONE_INSIDE;
-pub use be_model;
-pub use be_model::{Edit, Item, ObjectId, Touched};
+pub use be_block_graph::ANYONE_INSIDE;
+pub use be_block_model;
+pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
@@ -117,7 +117,7 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 }
 
 pub fn schema_fingerprint<C: BlockContent>() -> String {
-    be_store::Hash::of(C::schema().as_bytes()).to_hex()[..16].to_owned()
+    be_block_store::Hash::of(C::schema().as_bytes()).to_hex()[..16].to_owned()
 }
 
 pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {

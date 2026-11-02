@@ -13,7 +13,11 @@ fn the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve() {
             button(bend, false),
         ],
     );
-    assert_eq!(delivered(&sent), [], "the app sees nothing of the button");
+    assert_eq!(
+        delivered(&sent),
+        [],
+        "the program sees nothing of the button"
+    );
     assert_eq!(
         space.chrome.slider,
         Some(WindowId::MAIN),

@@ -79,7 +79,7 @@ pub(super) struct Posted {
 impl Posted {
     pub(super) fn new() -> Self {
         let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
-        let peer = Peer::new(be_ops::Side::Guest, move |frame| {
+        let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
             let _ = sending.send(frame);
         });
         Self { peer, outbound }
@@ -131,12 +131,14 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let mut again = client::organizations::list_organizations(&posted.peer);
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
-    let answered: Vec<be_ops::OpId> = frames
+    let answered: Vec<be_wasm_ops::OpId> = frames
         .iter()
-        .filter_map(|frame| match be_ops::decode_frame::<be_ops::Frame>(frame) {
-            Ok(be_ops::Frame::Complete { op, .. }) => Some(op),
-            _ => None,
-        })
+        .filter_map(
+            |frame| match be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame) {
+                Ok(be_wasm_ops::Frame::Complete { op, .. }) => Some(op),
+                _ => None,
+            },
+        )
         .collect();
     assert_eq!(
         answered,

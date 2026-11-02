@@ -1,0 +1,60 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/platforms:profile.bzl", "released")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
+
+# The paintings a pull request changed (crates/be-tool-paint-review) in a browser,
+# drawn with wgpu like beui's web demo. The page lives at
+# ROOT/site/HASH/index.html and reads ROOT/CHANGES.json, where CHANGES is its
+# `changes` query parameter, and each image as ROOT/IMAGE.png.
+# `./scripts/buck run //crates/be-tool-paint-review-web:web` serves the bundle with
+# Caddy on http://127.0.0.1:8075, or on the address after `--`.
+cargo_library(
+    rustc_flags = wasi_program_flags,
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasi_program_module(
+    name = "web-module",
+    library = ":be-tool-paint-review-web",
+    module = "paint_review_web",
+)
+
+program(
+    name = "web",
+    bindgen = [":web-module"],
+    files = [
+        "//crates/be-tool-local:paint-review-index",
+        "//crates/be-host:wasi.js",
+        "//crates/be-host:threads.js",
+        "//crates/be-host:thread.js",
+        "//crates/be-host:dylink.js",
+        "//crates/be-host:env.js",
+    ],
+    manifests = [],
+    modules = [],
+    run_with = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+    ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+export_file(
+    name = "serve.sh",
+    src = "web/serve.sh",
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
+)
+
+# What CI uploads for a pull request's paint previews (buck/dev/verify.bxl).
+released(
+    name = "web-release",
+    actual = ":web",
+    visibility = ["PUBLIC"],
+)

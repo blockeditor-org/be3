@@ -1,7 +1,7 @@
 #[cfg(test)]
 extern crate beui_view as beui;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
@@ -296,15 +296,15 @@ pub struct Renderer {
     list_top: usize,
     generation: u64,
     lists: HashMap<ListKey, Encoded>,
-    drawn: stable_hash::HashSet<ListKey>,
+    drawn: be_lib_stable_hash::HashSet<ListKey>,
     frames: u64,
     live: usize,
     pub encoded: usize,
     steps: Vec<Step>,
     scissors: Option<Vec<[u32; 4]>>,
     origin: Vec2,
-    held: stable_hash::HashSet<ImageId>,
-    using: stable_hash::HashSet<ImageId>,
+    held: be_lib_stable_hash::HashSet<ImageId>,
+    using: be_lib_stable_hash::HashSet<ImageId>,
     bound: Bound,
     filters: Vec<filter::Prepared>,
     effects: Vec<filter::Effects>,
@@ -664,15 +664,15 @@ impl Renderer {
             list_top: 0,
             generation: 0,
             lists: HashMap::default(),
-            drawn: stable_hash::HashSet::default(),
+            drawn: be_lib_stable_hash::HashSet::default(),
             frames: 0,
             live: 0,
             encoded: 0,
             steps: Vec::new(),
             scissors: None,
             origin: Vec2::ZERO,
-            held: stable_hash::HashSet::default(),
-            using: stable_hash::HashSet::default(),
+            held: be_lib_stable_hash::HashSet::default(),
+            using: be_lib_stable_hash::HashSet::default(),
             bound: Bound {
                 glyphs: glyphs.clone(),
                 pictures: HashMap::default(),
@@ -1355,7 +1355,7 @@ impl Renderer {
     }
 
     fn sweep(&mut self, output: &WindowOutput, pixels_per_point: f32) {
-        let mut live = stable_hash::HashSet::default();
+        let mut live = be_lib_stable_hash::HashSet::default();
         let at = Walk {
             factor: pixels_per_point,
             space: 0,
@@ -1761,7 +1761,7 @@ fn frame_run(punch: bool, picture: Option<(ImageId, bool)>, space: u32, at: usiz
     }
 }
 
-fn mark(display: &Display, at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
+fn mark(display: &Display, at: Walk, live: &mut be_lib_stable_hash::HashSet<ListKey>) {
     let reach = at.reach(display);
     if reach[0] >= reach[2] || reach[1] >= reach[3] {
         return;
@@ -1770,7 +1770,7 @@ fn mark(display: &Display, at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
     mark_parts(&display.parts, at, live);
 }
 
-fn mark_parts(parts: &[Part], at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
+fn mark_parts(parts: &[Part], at: Walk, live: &mut be_lib_stable_hash::HashSet<ListKey>) {
     for part in parts {
         match part {
             Part::Shapes { .. } => {}
@@ -1780,7 +1780,7 @@ fn mark_parts(parts: &[Part], at: Walk, live: &mut stable_hash::HashSet<ListKey>
     }
 }
 
-fn mark_layers(layers: &[Layer], at: Walk, live: &mut stable_hash::HashSet<ListKey>) {
+fn mark_layers(layers: &[Layer], at: Walk, live: &mut be_lib_stable_hash::HashSet<ListKey>) {
     for layer in layers {
         match layer {
             Layer::Shape(_) => {}

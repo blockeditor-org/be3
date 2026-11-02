@@ -13,14 +13,14 @@ pub struct FilePickRequest {
 pub struct FilePickAnswer {
     id: FilePickId,
     sender: std::sync::mpsc::Sender<(FilePickId, FilePick)>,
-    waker: Option<crate::app::Waker>,
+    waker: Option<crate::program::Waker>,
 }
 
 impl FilePickAnswer {
     pub fn new(
         id: FilePickId,
         sender: std::sync::mpsc::Sender<(FilePickId, FilePick)>,
-        waker: Option<crate::app::Waker>,
+        waker: Option<crate::program::Waker>,
     ) -> Self {
         Self { id, sender, waker }
     }

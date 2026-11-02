@@ -14,7 +14,7 @@ fn the_platform_dropping_the_lock_lets_the_pointer_go() {
         !space.grabbed(),
         "a browser that let go of the lock on Escape lets the host's grab go too"
     );
-    let output = app_frame(CursorIcon::Default);
+    let output = program_frame(CursorIcon::Default);
     assert!(
         !space
             .frame(&output, &view(now))

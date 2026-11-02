@@ -1,4 +1,4 @@
-use be_model::{Change, Document, Edit, Map, Model, ObjectId};
+use be_block_model::{Change, Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
 use crate::device_class::DeviceClass;
@@ -201,7 +201,7 @@ impl Settings {
 }
 
 impl Root for Settings {
-    const CONTENT_TYPE: Uuid = be_graph::SETTINGS_TYPE;
+    const CONTENT_TYPE: Uuid = be_block_graph::SETTINGS_TYPE;
 
     fn references(&self) -> Vec<Uuid> {
         let mut references: Vec<Uuid> = self

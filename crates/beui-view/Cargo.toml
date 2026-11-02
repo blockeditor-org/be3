@@ -9,19 +9,19 @@ accesskit = "0.24.1"
 beui-html = { path = "../beui-html" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
-beui_macros = { path = "../beui-macros" }
-reactive = { path = "../reactive" }
-stable-hash = { path = "../stable-hash" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(beui_html)'.dependencies]
 beui-core-html = { path = "../beui-core-html" }
 
 [target.'cfg(not(beui_html))'.dependencies]
 beui-core = { path = "../beui-core" }
-grapheme-segmentation = { path = "../grapheme-segmentation" }
+be-lib-graphemes = { path = "../be-lib-graphemes" }
 
 [dev-dependencies]
-paint-snapshot = { path = "../paint-snapshot" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]
 workspace = true

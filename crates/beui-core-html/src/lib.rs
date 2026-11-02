@@ -30,8 +30,8 @@ pub mod typing;
 pub use beui_html;
 pub use node::{NodeId, NodeRef};
 
-fn global_signal<T: 'static>(value: T) -> reactive::Signal<T> {
-    let owned = reactive::OwnedSignal::new(value);
+fn global_signal<T: 'static>(value: T) -> beui_reactive::Signal<T> {
+    let owned = beui_reactive::OwnedSignal::new(value);
     let handle = owned.handle();
     std::mem::forget(owned);
     handle

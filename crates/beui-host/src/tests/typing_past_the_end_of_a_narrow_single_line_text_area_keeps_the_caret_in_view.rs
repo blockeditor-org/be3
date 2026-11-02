@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 #[test]
 fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view() {
@@ -11,7 +11,7 @@ fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
     let document = build_node(move || {
-        let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
+        let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {

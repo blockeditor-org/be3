@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use beui_core::app::{Setup, Waker};
 use beui_core::context::{Context, WindowOutput};
 use beui_core::display::Layer;
 use beui_core::icons::{ICON_FOLDER, ICON_SEARCH, ICON_SETTINGS};
 use beui_core::painter::Shape;
+use beui_core::program::{Setup, Waker};
 use beui_core::window::WindowState;
 use beui_font_freetype::FreetypeFonts;
 use beui_types::Color32;
@@ -136,5 +136,5 @@ fn the_chrome_around_a_curved_panel() {
     let frame = space.scene(&windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    paint_snapshot::assert_painting("the_chrome_around_a_curved_panel", painting);
+    beui_paint_snapshot::assert_painting("the_chrome_around_a_curved_panel", painting);
 }

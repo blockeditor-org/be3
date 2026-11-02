@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "pan_zoom",
+    types = "//crates/be-type-example-pan-zoom:module",
+)

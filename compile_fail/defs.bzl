@@ -28,7 +28,7 @@ _compile_fail_test = rule(
         "cases": attrs.dep(),
         "labels": attrs.list(attrs.string(), default = []),
         "srcs": attrs.list(attrs.source()),
-        "_checker": attrs.default_only(attrs.exec_dep(default = "//crates/buck-tools:bin", providers = [RunInfo])),
+        "_checker": attrs.default_only(attrs.exec_dep(default = "//crates/be-tool-buck:bin", providers = [RunInfo])),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },
     impl = _compile_fail_test_impl,

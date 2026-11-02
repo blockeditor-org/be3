@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use be_commit::MergeResult;
+use be_block_commit::MergeResult;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 

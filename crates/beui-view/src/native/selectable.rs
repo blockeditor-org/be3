@@ -1,5 +1,5 @@
-use grapheme_segmentation::word_around;
-use stable_hash::HashMap;
+use be_lib_graphemes::word_around;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::ops::Range;
 use std::rc::Rc;

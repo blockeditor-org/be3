@@ -1,0 +1,17 @@
+use be_sdk_beui::be_block::presence::{PresenceColor, PresenceKind};
+use be_sdk_text::SharedCaret;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+const TEXT_CURSOR: Uuid = Uuid::from_u128(0x7465_7874_5f63_7572_736f_725f_5f5f_5f5f);
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct TextCursor {
+    #[serde(flatten)]
+    pub caret: SharedCaret,
+    pub color: PresenceColor,
+}
+
+impl PresenceKind for TextCursor {
+    const ID: Uuid = TEXT_CURSOR;
+}

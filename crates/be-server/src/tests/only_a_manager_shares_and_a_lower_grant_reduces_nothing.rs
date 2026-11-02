@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 #[tokio::test]
 async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {

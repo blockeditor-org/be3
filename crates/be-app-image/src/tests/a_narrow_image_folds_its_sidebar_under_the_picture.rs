@@ -1,0 +1,28 @@
+use super::*;
+use be_sdk_beui::beui::Vec2;
+use be_type_image::ImageFile;
+
+#[test]
+fn a_narrow_image_folds_its_sidebar_under_the_picture() {
+    let block = Uuid::new_v4();
+    let mut editor = BeuiTest::<ImageRoot>::editing(block).with_size(Vec2::new(390.0, 760.0));
+    editor.hold(None, ImageFile::from_file("picture.png", png(8, 4)));
+    editor.run();
+
+    assert!(
+        !editor.shown("image.replace"),
+        "a narrow editor gives the picture the whole width"
+    );
+    assert!(editor.shown("chrome.sidebar"));
+    editor.record();
+
+    editor.click("chrome.sidebar");
+    editor.settle();
+    editor.record();
+
+    assert!(
+        editor.shown("image.replace"),
+        "the sidebar opens under the picture"
+    );
+    editor.snapshot("a_narrow_image_folds_its_sidebar_under_the_picture");
+}

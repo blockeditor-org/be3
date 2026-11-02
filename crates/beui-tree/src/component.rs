@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use reactive::{ScopeContext, Stored, child_scope, component_body, store};
+use beui_reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
 use crate::children::IntoChild;
 

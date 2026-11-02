@@ -1,7 +1,7 @@
 use crate::frame::{ColorRole, Frame};
 use beui_macros::{component, view};
 
-use text_editor_core::FindDirection;
+use beui_text_editor_core::FindDirection;
 
 use crate::Button;
 use crate::ButtonVariant;

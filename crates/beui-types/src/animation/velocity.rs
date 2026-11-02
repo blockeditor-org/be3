@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use geometry::{Pos2, Vec2};
+use be_lib_geometry::{Pos2, Vec2};
 
 use crate::input::{MAX_TOUCH_VELOCITY, TOUCH_VELOCITY_WINDOW};
 

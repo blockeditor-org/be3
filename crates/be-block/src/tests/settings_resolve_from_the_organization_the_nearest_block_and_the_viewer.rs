@@ -1,4 +1,4 @@
-use be_model::Model;
+use be_block_model::Model;
 
 use super::*;
 use crate::settings::{Follows, KindRule, Layered};

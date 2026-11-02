@@ -1814,7 +1814,7 @@ fn GlobalActions() -> NodeId {
             <Text style=TextStyle::PARAGRAPH>
                 "A global action answers its chord wherever the focus is, even in a text \
                  field or under an open menu; Super chords count like Ctrl and Alt. While a \
-                 program's window or a plugin editor has the focus, its keys are its own, unless \
+                 program's window or an editor has the focus, its keys are its own, unless \
                  the action intercepts them."
             </Text>
             <Shortcut
@@ -1906,7 +1906,7 @@ fn ActionMenu() -> NodeId {
                 <Card @test_id="demo.actions">
                     <Text style=TextStyle::PARAGRAPH>
                         "One description of actions, separators and submenus fills this menu, a \
-                         plugin's frame menu and the command palette. Each row shows its action's \
+                         app's frame menu and the command palette. Each row shows its action's \
                          shortcut. A checkable action shows its tick where its icon would be, and a \
                          radio group ticks the chosen one."
                     </Text>
@@ -2436,7 +2436,7 @@ fn RunButtons() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <SplitButton
-                    label="Run the app"
+                    label="Run the program"
                     glyph=ICON_PLAY
                     variant=ButtonVariant::Primary
                     menu_label="More ways to run it"
@@ -2444,13 +2444,13 @@ fn RunButtons() -> NodeId {
                         <MenuItem label="Run with fresh data" />
                         <MenuItem label="Run on the web" />
                     }}
-                    on_click={move || run_text.set("Running the app".to_owned())}
+                    on_click={move || run_text.set("Running the program".to_owned())}
                     on_select={move |path: Vec<usize>| {
                         let how = match path.as_slice() {
                             [0] => "with fresh data",
                             _ => "on the web",
                         };
-                        run_text.set(format!("Running the app {how}"));
+                        run_text.set(format!("Running the program {how}"));
                     }}
                 />
                 <SplitButton
@@ -4050,7 +4050,8 @@ pub(crate) fn EditorPage() -> NodeId {
 #[sample]
 #[component]
 fn MarkdownEditor() -> NodeId {
-    let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let document =
+        Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
     view! {
@@ -4077,7 +4078,7 @@ fn MarkdownEditor() -> NodeId {
 #[sample]
 #[component]
 fn ReadOnlyNote() -> NodeId {
-    let document = Arc::new(TextBuffer::new(NOTE_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let document = Arc::new(TextBuffer::new(NOTE_TEXT)) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     view! {
         <List spacing=Space::None>

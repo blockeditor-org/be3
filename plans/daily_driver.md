@@ -1,6 +1,6 @@
 # Daily driver
 
-A plan to get the app to the point where the user keeps their own notes in it.
+A plan to get the host to the point where the user keeps their own notes in it.
 Each phase lists what "done" looks like.
 
 Real notes live in one remote workspace on a server running on a single VPS.
@@ -9,7 +9,7 @@ signs in keeps their work in one. Offline support on web waits until before a
 public release.
 
 From the freeze on (phase 8):
-- Data written by the app must keep working in later versions.
+- Data written by the host must keep working in later versions.
   - That holds for the text and folder blocks and everything they sit on:
     objects, commits, metadata, keys and the server's database.
   - Other block types may keep breaking.
@@ -45,11 +45,11 @@ positional.
 
 - **Sealed objects.**
   - Add a one-byte format/algorithm prefix before `nonce || ciphertext`
-    (`be-store/src/vault.rs:38-62`).
+    (`be-block-store/src/vault.rs:38-62`).
   - A future cipher, nonce scheme or key epoch can then be told apart from
     corruption.
   - The prefix also carries the key epoch (phase 3).
-- **`Commit`, `Manifest`, `be_vcs::Tree`.**
+- **`Commit`, `Manifest`, `be_block_vcs::Tree`.**
   - `CommitId` is the hash of their exact bytes, so they must never be
     re-encoded.
   - Wrap each in a versioned enum (`enum CommitV { V1(Commit) }`), so a new
@@ -59,12 +59,12 @@ positional.
   - Put a version before the postcard header.
   - Text stays raw UTF-8 after the header. That part is already the right
     long-term format.
-- **be-model documents** (folder, settings, profile and the rest).
+- **be-block-model documents** (folder, settings, profile and the rest).
   - Prefix `Tree::encode` with a magic and a version.
   - Freeze the order of the `Value` and `Change` variants: append only, and
     say so in a test.
   - `Tree::upgrade` replaces a field whose kind changed with a blank, and
-    that blank is written out on the next seal (`be-model/src/tree.rs:47-60`).
+    that blank is written out on the next seal (`be-block-model/src/tree.rs:47-60`).
     Make a kind mismatch keep the stored value and refuse writes to it.
   - `merge_fields` drops trailing fields that only the other side has
     (`merge.rs:149-182`). Keep them.
@@ -72,7 +72,7 @@ positional.
   - When a frame does not decode, reply with its request id.
 - **SQLite.**
   - The server (`be-server/src/schema.rs`) and the client
-    (`block-app/src/app_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
+    (`be-host/src/host_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
     with no migrations.
   - Done: `PRAGMA user_version`, ordered migrations, and a test that opens
     every older schema.
@@ -109,7 +109,7 @@ Landed:
   zone, with the database sealed by a backup key and old snapshots thinned.
 - Deployment and hosting are described in `guides/hosting.md`.
 
-Garbage collection stays off: the app never sends `CollectDetached` or
+Garbage collection stays off: the host never sends `CollectDetached` or
 `PruneHistory`, and unpublished objects are never collected, until trash and
 history (phase 7) define what may be reclaimed. Token expiry, changing a
 password, per-IP limits, storage quotas, a health endpoint and a config file
@@ -117,15 +117,15 @@ wait for a public release (`plans/public_release.md`).
 
 ## Phase 5: Offline and flaky connections
 
-Done so far: the app is offline-first natively (refs database, cached peer,
+Done so far: the host is offline-first natively (refs database, cached peer,
 local sealing, outbox drain and merge on reconnect, timeouts and pings). What
 is left is marked below.
 
 ### Local-first client
 
 - **A local refs database** beside `be-objects` (SQLite on native) holds
-  (done: `be_client::refs`, `Peer::cached`/`attach`, the outbox and
-  `Peer::drain`; the app keeps `be-refs.sqlite3` in its data directory, on
+  (done: `be_block_client::refs`, `Peer::cached`/`attach`, the outbox and
+  `Peer::drain`; the host keeps `be-refs.sqlite3` in its data directory, on
   web in the origin private file system):
   - each block's local head and last-known remote head;
   - the graph, with its metadata;
@@ -179,7 +179,7 @@ is left is marked below.
 
 - Done: seal locally on Android `onPause`, on desktop occlusion and on a
   hidden or left browser tab (`beui::App::lifecycle`, `Lifecycle::Background`,
-  which block-app answers with the non-blocking `be::backgrounded`), and
+  which be-host answers with the non-blocking `be::backgrounded`), and
   `be::retry_now` on foreground, focus and network changes (browser `online`,
   Android's default network callback).
 - Done: `status().unsaved` counts what closing would lose (unsealed replicas,
@@ -198,7 +198,7 @@ is left is marked below.
 
 ### Status UI
 
-- Done: the app menu's status (`app.menu.status`, `ui::SyncState`) shows one
+- Done: the host menu's status (`host.menu.status`, `ui::SyncState`) shows one
   of connecting (until the first attempt resolves), offline (n changes kept on
   this device), syncing, saved, or error, from
   `be::Status { connected, waiting, syncing, error }`. `Status.waiting`
@@ -208,8 +208,8 @@ is left is marked below.
   and "See both versions" opens both sides as revision previews side by side
   (`be::conflicts`, `compositor::ConflictSurface`) to keep the merge or go
   back to either side; either clears the block's conflicts.
-- Done: unsent edits (settings step 16) are listed from the app menu
-  ("Unsent edits", `app.unsent`) with Restore, when offerable, and Discard
+- Done: unsent edits (settings step 16) are listed from the host menu
+  ("Unsent edits", `host.unsent`) with Restore, when offerable, and Discard
   after a confirmation (`be::unsent`, `restore_unsent`, `discard_unsent`).
   The worker must refresh `Shared.unsent` from `Peer::unsent()` after a
   drain.
@@ -217,7 +217,7 @@ is left is marked below.
 ### Testing
 
 - Done: a test transport that drops, stalls and half-opens connections on
-  demand (`crates/fault-relay`), with tests that a half-open connection is
+  demand (`crates/be-block-fault-relay`), with tests that a half-open connection is
   noticed and reconnected, and that a request and a connect time out.
 - Done: tests that an edit made offline survives a restart and reaches the
   server, that two devices' offline edits merge (cleanly and with a
@@ -237,9 +237,9 @@ each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
 
 **Profile before guessing.** The list below comes from reading the code. Before
-working through items 3-8, profile the real app with a document of 10,000
+working through items 3-8, profile the real be-host with a document of 10,000
 lines of 200 words each (about 12 MB):
-- Generate it as a text block, open it in the native app, and also measure on
+- Generate it as a text block, open it in native be-host, and also measure on
   Android.
 - Record a CPU profile (`perf` with frame pointers on Linux, or the
   `performance` module's frame timings) for each of: typing a character,
@@ -250,18 +250,18 @@ lines of 200 words each (about 12 MB):
 - Profile again after each item lands.
 
 **Profile** (8.7 MB, 10,000 lines of 200 words, release build, Linux VM with
-llvmpipe, `perf` with `BE3_PERF_MAP=1` for the plugin's wasm):
+llvmpipe, `perf` with `BE3_PERF_MAP=1` for the app's wasm):
 
 | Scenario | First profile | Now |
 |---|---|---|
-| Pasting the document | plugin trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
+| Pasting the document | app trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
 | Idle, caret blinking | about 0 CPU | unchanged |
 | Holding an arrow key | 53 ms per move | 4.5 ms |
 | Page down | 28 ms per page | not re-measured |
-| Typing near the top, plugin CPU per key | 440 ms | 27 ms |
+| Typing near the top, app CPU per key | 440 ms | 27 ms |
 
 What the 27 ms per key is now:
-- about 6.5 ms in the plugin framework's frame;
+- about 6.5 ms in the app framework's frame;
 - about 6 ms parsing the edited markdown window (about 3 KB here, since the
   test document has no blank lines);
 - about 2 ms splicing the block content's flat `Vec<u8>` (item 1);
@@ -273,14 +273,14 @@ with it costs as much as a fresh parse, because its external scanners
 produce nearly every token. So the cost of an edit is the size of the
 window parsed, and windows are kept small instead.
 
-Outside the plugin, per key:
+Outside the app, per key:
 - the be worker spends about 100 ms, mostly SHA-256 over the whole document
   when it seals (item 6);
 - the host's main thread spends about 140 ms, mostly llvmpipe, which a real
   GPU won't have.
 
 1. **Anchors (done).** Anchors exist only for positions in use
-   (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
+   (`beui_text_editor_core::AnchorTable`), so finding one no longer scans the text.
    The bytes are still a flat `Vec<u8>`, spliced in O(n) at several layers. A
    rope or piece table is worth it once items 3-5 stop the whole-document
    copies, and measuring says the splice matters.
@@ -320,10 +320,10 @@ Outside the plugin, per key:
    - Done: debounce sealing on idle, with a max interval. Reuse the chunks
      before the first edited byte, since content-defined chunking
      resynchronises after the edit.
-7. **Scrolling in plugins.** It repaints the whole viewport, because the
-   plugin path unions the moved region into its damage
-   (`block-editor-beui/src/instance.rs:83-96`). Carry the native presenter's
-   GPU move copy across the plugin surface.
+7. **Scrolling in apps.** It repaints the whole viewport, because the
+   app path unions the moved region into its damage
+   (`be-sdk-beui/src/instance.rs:83-96`). Carry the native presenter's
+   GPU move copy across the app surface.
 8. **Idle.**
    - Stop the caret blink after a few seconds without input, as most editors
      do.
@@ -331,7 +331,7 @@ Outside the plugin, per key:
    - Done when a test confirms a focused, idle editor requests no frames.
 
 Add a frame-time benchmark that types into a generated 10 MB markdown file
-through the plugin host and prints p50 and p99 frame times. Run it in CI as a
+through the app host and prints p50 and p99 frame times. Run it in CI as a
 work-count budget rather than a timing assertion.
 
 ## Phase 7: The notes app itself
@@ -341,7 +341,7 @@ Needed before daily use:
 - **Move to… on touch.**
   - A folder picker sheet from the ⋮ menu on phone and from the context menu
     on desktop.
-  - Today phone has only "Move to the top level" (`file-tree/src/app/phone.rs:776-781`).
+  - Today phone has only "Move to the top level" (`file-tree/src/root/phone.rs:776-781`).
   - Also add Duplicate.
 - **Search.**
   - A `BlockQuery::Search` that searches names and text content on the
@@ -360,12 +360,12 @@ Needed before daily use:
   - Export a folder or the whole workspace to a directory of `.md` files,
     with links between notes rewritten as relative paths.
   - Import a directory of `.md` files.
-  - Being able to leave is part of trusting the app with notes, and this is
+  - Being able to leave is part of trusting the host with notes, and this is
     also a second, plaintext backup.
   - `be sync` (guides/sync.md) already writes a folder as a directory and
     reads it back on native, with `be_block::plain` as the one mapping between
     a block and a file. Build export and import on those; what is left is the
-    app's side (a directory picker, the web's download as a zip) and rewriting
+    host's side (a directory picker, the web's download as a zip) and rewriting
     links between notes as relative paths.
 - **Created and modified times** on `BlockInfo`, for sorting and recents.
 - **Linking.** `[[` autocomplete to link a note while typing.
@@ -384,8 +384,8 @@ and deleting a database stops being a fix.
 
 - **Golden fixtures.**
   - Check in bytes that the current code writes: a sealed text block, a
-    folder, metadata, a commit, a snapshot tree, a server database, and an
-    app-state database.
+    folder, metadata, a commit, a snapshot tree, a server database, and the
+    host's state database.
   - The fixtures live under `snapshots/formats/`, and `./scripts/verify` decodes
     them.
   - A test fails if a frozen type's encoding of a known value changes.

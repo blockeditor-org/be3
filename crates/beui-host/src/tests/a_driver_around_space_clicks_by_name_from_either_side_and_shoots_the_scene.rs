@@ -3,7 +3,7 @@ use crate::native::drive::{Drive, Inbox, Reply, ask};
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, RunOptions, Runner};
 use std::future::Future;
@@ -40,16 +40,16 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     });
     let inbox = Inbox::default();
     let mut taps = Drive::taps(inbox.clone(), &[Some("space"), None]);
-    let app = taps.pop().expect("the tap under the app");
+    let program = taps.pop().expect("the tap under the program");
     let screen = taps.pop().expect("the tap under space");
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(crate::native::testing::Showing(document)),
+        program: Box::new(crate::native::testing::Showing(document)),
         layers: vec![
             Box::new(screen),
             Box::new(beui_layer_space::Space::new()),
-            Box::new(app),
+            Box::new(program),
         ],
     });
     runner.set_occluded(true);
@@ -89,7 +89,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
                 return reply;
             }
         }
-        panic!("the app never answered {words:?}");
+        panic!("the program never answered {words:?}");
     };
     let text = |reply: Reply| match reply {
         Reply::Text(text) => text,
@@ -101,7 +101,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     let changed = text(drive(&["click", "\"Press me\""]));
     assert!(
         changed.contains("Label value=\"Pressed\""),
-        "input reaches the app by default, by name in the app's own tree:\n{changed}"
+        "input reaches the program by default, by name in the program's own tree:\n{changed}"
     );
 
     let changed = text(drive(&["--into=space", "click", "\"Then me\""]));
@@ -116,7 +116,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     }
     match drive(&["--into=space", "tree"]) {
         Reply::Error(error) => assert!(error.contains("--into"), "{error}"),
-        _ => panic!("reading the app goes nowhere but the app"),
+        _ => panic!("reading the program goes nowhere but the program"),
     }
 
     let Reply::Image { width, .. } = drive(&["shot", "\"Press me\""]) else {
@@ -147,7 +147,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
             .iter()
             .zip(sky.to_array())
             .all(|(shot, sky)| shot.abs_diff(sky) <= 4),
-        "the corner of the shot is space's sky {sky:?}, not the app: {corner:?}"
+        "the corner of the shot is space's sky {sky:?}, not the program: {corner:?}"
     );
 
     assert_eq!(text(drive(&["close"])), "The window closed.\n");

@@ -123,14 +123,14 @@ _wasi_flags = [
     "-O2",
     "-w",
 ] + select({
-    # A plugin's C and C++ is linked into position-independent modules
-    # (guides/plugin_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
+    # An app's C and C++ is linked into position-independent modules
+    # (guides/app_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
     # build scripts' FreeType and HarfBuzz ask for it here.
     "DEFAULT": [],
     "root//buck/constraints:guest": ["-fPIC"],
 })
 
-# Two of them, because only one of the wasm platforms has C in it. A plugin's
+# Two of them, because only one of the wasm platforms has C in it. An app's
 # freetype and harfbuzz are compiled against the WASI sysroot; a game module is
 # pure Rust on a target that has no libc to compile against at all.
 cxx_tools_info_toolchain(
@@ -190,13 +190,13 @@ pinned_rust_toolchain(
     # then fails with E0460. third-party/rust/fixups.bzl overlays the crates that
     # did.
     nightly_features = True,
-    # Cargo's dev profile on the host, and its plugin profile on wasm, since
+    # Cargo's dev profile on the host, and its app profile on wasm, since
     # cranelift is far slower at an unoptimised module; the opt level is also what
     # tells build scripts OPT_LEVEL. rustc turns debug assertions and overflow
-    # checks off above opt-level 0, so wasm names them, as the plugin profile
+    # checks off above opt-level 0, so wasm names them, as the app profile
     # inherits them from dev. Outside a release build, buck/cargo/defs.bzl
-    # compiles workspace crates for wasm at 1 and editor() in
-    # buck/wasm/defs.bzl a plugin's own crate at 0.
+    # compiles workspace crates for wasm at 1 and app() in
+    # buck/wasm/defs.bzl an app's own crate at 0.
     # buck/constraints:release, which `-m release` adds, is cargo's release
     # profile.
     rustc_flags = select({
@@ -220,7 +220,7 @@ pinned_rust_toolchain(
     })
     + select({
         "DEFAULT": [],
-        # Plugins only: a game runs in wasmi, which takes no SIMD.
+        # Apps only: a game runs in wasmi, which takes no SIMD.
         "prelude//os:wasi": ["-Ctarget-feature=+simd128"],
     }),
     rustc_target_triple = per_cross_platform(

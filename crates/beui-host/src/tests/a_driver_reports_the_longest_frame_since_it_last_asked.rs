@@ -6,14 +6,14 @@ use std::time::Duration;
 
 struct Hosting(Document);
 
-impl App for Hosting {
+impl Program for Hosting {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.0.show(context, rect);
     }
 
     fn other_frames(&mut self) -> Vec<(String, FrameTimes)> {
         vec![(
-            "plugin".to_owned(),
+            "app".to_owned(),
             FrameTimes {
                 count: 1,
                 longest: Duration::from_millis(40),
@@ -43,12 +43,12 @@ fn a_driver_reports_the_longest_frame_since_it_last_asked() {
 
     let frames = driven.ask(&["frames"]).expect("the frames are read");
     let lines: Vec<(String, u64, f64)> = frames.lines().filter_map(counted).collect();
-    let [(window, ran, longest), (plugin, stepped, slowest)] = &lines[..] else {
-        panic!("frames answers a line for the window and one for the plugin:\n{frames}");
+    let [(window, ran, longest), (app, stepped, slowest)] = &lines[..] else {
+        panic!("frames answers a line for the window and one for the app:\n{frames}");
     };
     assert_eq!(
-        (window.as_str(), plugin.as_str()),
-        ("window", "plugin"),
+        (window.as_str(), app.as_str()),
+        ("window", "app"),
         "{frames}"
     );
     assert!(
@@ -59,6 +59,6 @@ fn a_driver_reports_the_longest_frame_since_it_last_asked() {
     assert_eq!(
         (*stepped, *slowest),
         (*ran, 40.0),
-        "what the app ran elsewhere is counted with the window's frames, and its longest kept:\n{frames}"
+        "what the program ran elsewhere is counted with the window's frames, and its longest kept:\n{frames}"
     );
 }

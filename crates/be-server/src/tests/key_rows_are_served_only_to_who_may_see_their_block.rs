@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 fn ids(keys: &KeySet) -> Vec<Uuid> {
     let mut ids: Vec<Uuid> = keys.keys.iter().map(|row| row.id).collect();
@@ -147,7 +147,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let response = guest
         .call(|peer| client::keys::get_recovery_key(peer))
         .await;
-    let Ok(be_protocol::RecoveryKey { sealed, .. }) = response else {
+    let Ok(be_block_protocol::RecoveryKey { sealed, .. }) = response else {
         panic!("{response:?}");
     };
     assert_eq!(sealed.len(), 1);
@@ -161,7 +161,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         .call(|peer| client::keys::get_recovery_key(peer))
         .await;
     assert!(
-        matches!(&response, Ok(be_protocol::RecoveryKey { sealed, .. }) if sealed.is_empty()),
+        matches!(&response, Ok(be_block_protocol::RecoveryKey { sealed, .. }) if sealed.is_empty()),
         "a revoked guest was still served what was sealed to it: {response:?}"
     );
 
@@ -176,7 +176,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         .call(|peer| client::blocks::collect_detached(peer))
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::Collected { .. })),
+        matches!(response, Ok(be_block_protocol::Collected { .. })),
         "{response:?}"
     );
     let left = owner.keys(None).await;

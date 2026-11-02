@@ -1,5 +1,5 @@
 # The releases the scripts download, each checked against its SHA-256 by the
-# triple it runs on. Lines are name='value', which crates/bootstrap and
+# triple it runs on. Lines are name='value', which crates/be-tool-bootstrap and
 # scripts/internal/bootstrap.sh both read; an empty hash is a platform with no
 # release.
 
@@ -34,13 +34,13 @@ nsc_version='0.0.587'
 nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
 nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
 
-# crates/bootstrap, which every script runs: the SHA-256 of each platform's
+# crates/be-tool-bootstrap, which every script runs: the SHA-256 of each platform's
 # binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
 # CI uploads and pins a new release when the binaries built from the checkout
 # are not these (guides/bootstrap.md).
-bootstrap_sha256_x86_64_unknown_linux_gnu='c1df7b18600d4623b235704b9d1881f14e52dd10856d3900473938f907b5187f'
-bootstrap_sha256_aarch64_unknown_linux_gnu='bc80864ba0e178d1a31a21d91b5fbe69a4bc05eaa8966549021c716e1d5701a3'
-bootstrap_sha256_x86_64_apple_darwin='84117a738dfc3398ad889b8859cd1a2023c3a22c96addd22bf8405fc3dcda15f'
-bootstrap_sha256_aarch64_apple_darwin='861edef15ee2a3c22cc1166fd5da5ff07d863911fb5b3120632ccb8f2d844d6b'
-bootstrap_sha256_x86_64_pc_windows_msvc='e5c51f4b61901fc7c9acb46f5a7f391a5092b9c1cabae70f8803e9a885f00f06'
-bootstrap_sha256_aarch64_pc_windows_msvc='eb9ffe791be03f9a29033e416c542a802423ed0a2047f07d93ed7c7e869b4beb'
+bootstrap_sha256_x86_64_unknown_linux_gnu='185e834433957738d9e59706781eb4ccdbaad5590c58cd9be77c1bad9f3c12c9'
+bootstrap_sha256_aarch64_unknown_linux_gnu='6ddf51f8dd80e6c4509daae14c33a14ce9725c5fc0040b25ac0fecbb9b71ad51'
+bootstrap_sha256_x86_64_apple_darwin='63be814e81ed9d2c211076346ec31e437544aef84aceabe6b53aeccc82dfb6c6'
+bootstrap_sha256_aarch64_apple_darwin='aff6a6614b27059b6eee9cd9209b553df9d204fa5edd49104a017698a5b71b82'
+bootstrap_sha256_x86_64_pc_windows_msvc='ca8c41fda58e6af2be43f647611116fec2cd543da33feb1fad0f8a6e7e877d71'
+bootstrap_sha256_aarch64_pc_windows_msvc='1157b56ea170fc2dc97da7ae4fd6ba21d9fa3786c82650db345caeb41e798cbe'

@@ -57,7 +57,7 @@ fn panels_through_each_other_are_painted_nearest_first_at_every_pixel() {
             painting.textures.get(&key)
         })
         .expect("the painting rasterises");
-    paint_snapshot::assert_painting(
+    beui_paint_snapshot::assert_painting(
         "panels_through_each_other_are_painted_nearest_first_at_every_pixel",
         painting.clone(),
     );

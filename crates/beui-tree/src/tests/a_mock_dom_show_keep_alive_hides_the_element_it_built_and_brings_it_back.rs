@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let open = create_signal(true);

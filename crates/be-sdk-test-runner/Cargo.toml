@@ -1,0 +1,17 @@
+[package]
+name = "be-sdk-test-runner"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "app-test-runner"
+path = "src/main.rs"
+
+[dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+pollster = "0.4"
+wgpu = "29"
+
+[lints]
+workspace = true

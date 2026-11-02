@@ -58,13 +58,13 @@ server through `scripts/internal/re-relay`, whose errors are in
   action an `Execute` asked for keeps running. The relay then makes the same
   `Execute` again, which joins the running action or reads its cached result,
   and logs `broke off ..., making it again`; buck2 sees nothing.
-- **A test that hangs**: a test run (`:test-run`, a painting or plugin test
+- **A test that hangs**: a test run (`:test-run`, a painting or app test
   run) is stopped after `TEST_TIME_LIMIT` (`buck/cargo/defs.bzl`) and says it
   hangs; libtest's `has been running for over 60 seconds` line above names the
   test. Build its binary with `./scripts/buck build
   //crates/X:test --show-full-output` and run the printed path here with a name
   filter and `CARGO_MANIFEST_DIR=$PWD/crates/X` set (painting tests find their
-  snapshots through it, and fail in paint-snapshot without it). A hang that
+  snapshots through it, and fail in beui-paint-snapshot without it). A hang that
   depends on timing can take dozens of runs to show; several copies at once,
   in a loop, find it sooner. `gdb -p PID -batch -ex 'thread apply all bt'`
   shows what a hung one waits on.
@@ -88,7 +88,7 @@ that holds the action cache and the CAS (`storageh-…`).
 Namespace shuts the cluster down when it has been idle for a while, and its
 hosts then answer 404. So no host is checked in: `./scripts/buck` asks
 `https://api.be3.pfg.pw/build/namespace` (`NAMESPACE_URL` in
-`crates/bootstrap/src/server.rs`) through the API gateway, and gets back
+`crates/be-tool-bootstrap/src/server.rs`) through the API gateway, and gets back
 the buck2 configuration that names the executor, the storage and the
 `x-nsc-ingress-auth` header that authenticates to them. It asks on every
 run, keeps nothing, and writes the answer into `.buckconfig.local`. The waker
@@ -96,7 +96,7 @@ answers quickly from its own cache, so the only slow request is one that
 finds the cluster asleep, and after two seconds of waiting `./scripts/buck`
 says it is waking it. Builds never run `nsc`.
 
-Behind that URL, the build helper (`crates/build-helper`, below), when given
+Behind that URL, the build helper (`crates/be-tool-build-helper`, below), when given
 `--token`, runs
 `nsc reapi setup buck2 --token FILE --key buildserver`, which starts the
 cluster if it is down, and answers with the configuration it writes. It hands
@@ -158,15 +158,15 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
   asks for. A test that needs its own (the ones that draw through lavapipe)
   carries it as `BE3_LD_LIBRARY_PATH`, and the shell that starts the test puts
   it back: `library_path_test` in `buck/cargo/defs.bzl`, which `cargo_test`
-  makes for a test whose `env` names `LD_LIBRARY_PATH`, and `plugin_test_run`
+  makes for a test whose `env` names `LD_LIBRARY_PATH`, and `app_test_run`
   in `buck/wasm/defs.bzl`.
 
 ## The build helper
 
-`crates/build-helper` builds named products of a commit on request, so that
+`crates/be-tool-build-helper` builds named products of a commit on request, so that
 the build server's outputs are downloaded once, by one long-lived host whose
 `buck-out` persists, and devices download from the Bunny CDN instead. It is
-what be-launcher asks for Android APKs and the native app.
+what be-launcher asks for Android APKs and native be-host builds.
 
 - `POST /build/products/PRODUCT/COMMIT` asks for a build and answers its
   status as JSON: `queued` (with `position`, the builds ahead of it, the
@@ -181,11 +181,11 @@ what be-launcher asks for Android APKs and the native app.
   seconds for more while the build is queued or running.
 - Products are a fixed table: `android` and `launcher-android` (the
   `:android-dist` APK, signed with CI's keystore), and `native-PLATFORM`
-  (`//crates/block-app:native`) and `beui-demo-PLATFORM`
+  (`//crates/be-host:native`) and `beui-demo-PLATFORM`
   (`//crates/beui-demo:native`), built with `-m release --target-platforms
   root//buck/platforms:PLATFORM` for `linux_x86_64`, `linux_arm64`,
   `macos_x86_64`, `macos_arm64`, `windows_x86_64` and `windows_arm64`. The
-  executables are named `block-app` and `beui-demo` (`.exe` on Windows).
+  executables are named `be-host` and `beui-demo` (`.exe` on Windows).
 - Every file is uploaded to the be3-ci storage zone as `files/SHA256`, once:
   the helper remembers what it uploaded and otherwise checks the CDN. Then the
   manifest, `builds/PRODUCT/COMMIT.json`, listing each file's path, SHA-256,
@@ -199,8 +199,8 @@ what be-launcher asks for Android APKs and the native app.
   `target/` and the credential files at its root, and builds with
   `./scripts/buck`, so the build server is the service environment's
   (`BE3_BUILD_SERVER` and its key). An APK is built with
-  `//buck/app:build-info.json` and `//crates/local-tools:release`, and signed
-  by that local-tools `apk-sign` with `--keystore`, so the key never becomes an
+  `//buck/program:build-info.json` and `//crates/be-tool-local:release`, and signed
+  by that be-tool-local `apk-sign` with `--keystore`, so the key never becomes an
   action input.
 
 ### Hosting the build helper
@@ -208,11 +208,11 @@ what be-launcher asks for Android APKs and the native app.
 It checks no credentials, so it listens on localhost behind the API host's
 Caddy, which routes `/build/*` to it after the gateway's check of
 `Be3-Gateway-Authorization`, like every other API path (guides/hosting.md).
-`./scripts/buck build //crates/build-helper:bin` builds it, and it runs as a
+`./scripts/buck build //crates/be-tool-build-helper:bin` builds it, and it runs as a
 service with `git`, `curl` and what `./scripts/buck` needs on the host:
 
 ```
-BUNNY_STORAGE_KEY=... build-helper --checkout /srv/build-helper/checkout \
+BUNNY_STORAGE_KEY=... be-tool-build-helper --checkout /srv/build-helper/checkout \
   --state /srv/build-helper/state --keystore /srv/build-helper/ci-keystore.base64 \
   [--addr 127.0.0.1:9091] [--public https://be3-ci.b-cdn.net] [--max-buck-out-gb 40] \
   [--token ns-token.json --nsc ./nsc]
@@ -235,7 +235,7 @@ BUNNY_STORAGE_KEY=... build-helper --checkout /srv/build-helper/checkout \
 ## CI's Android keystore
 
 The build helper signs its `android` and `launcher-android` builds with CI's
-keystore, the file its `--keystore` names, through `local-tools apk-sign`
+keystore, the file its `--keystore` names, through `be-tool-local apk-sign`
 after the build, so the key never becomes an action input. CI itself no
 longer builds or signs an APK. Keep the same keystore so each build installs
 as an update over the last. Keys are JKS/PKCS12 or base64 of one, with

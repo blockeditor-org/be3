@@ -1,0 +1,58 @@
+use super::*;
+use crate::styled::Text;
+use crate::styled::*;
+use crate::{PreferenceLayer, PreferenceSource};
+
+#[test]
+fn the_inspectors_theme_overrides_the_programs_until_it_is_cleared() {
+    let (document, [_card]) = toolbar_of(|| {
+        [view! {
+            <Card>
+                <Text style=TextStyle::CAPTION>"Themed"</Text>
+            </Card>
+        }]
+    });
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
+    let program = PreferenceLayer {
+        theme: Some(ThemeKind::Light),
+        ..PreferenceLayer::EMPTY
+    };
+    harness
+        .context()
+        .set_preference_layer(PreferenceSource::Program, program);
+    let captions = |output: &crate::native::FrameOutput, theme: Theme| {
+        output
+            .main().shapes()
+            .iter()
+            .filter(|shape| {
+                matches!(shape, crate::native::Shape::Text { color, .. } if *color == theme.text_muted)
+            })
+            .count()
+    };
+    assert_eq!(captions(&harness.frame(vec![]), Theme::LIGHT), 1);
+
+    harness.toggle_inspector();
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
+    harness.frame(vec![]);
+    harness.choose_in_simulation("theme", 4);
+    let restyled = harness.frame(vec![]);
+    assert_eq!(
+        Theme::of(harness.document().preferences().theme),
+        Theme::EPAPER
+    );
+    assert_eq!(captions(&restyled, Theme::EPAPER), 1);
+    assert_eq!(
+        harness
+            .context()
+            .preference_layer(PreferenceSource::Program),
+        program,
+        "the override is not the program's own preference"
+    );
+
+    harness.choose_in_simulation("theme", 0);
+    harness.frame(vec![]);
+    assert_eq!(
+        Theme::of(harness.document().preferences().theme),
+        Theme::LIGHT
+    );
+}

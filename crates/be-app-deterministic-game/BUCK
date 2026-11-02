@@ -1,0 +1,19 @@
+load("@root//buck/cargo:defs.bzl", "game_packages")
+load("@root//buck/wasm:defs.bzl", "app")
+
+# The tests play real games, so they are compiled against the modules those
+# games build. Every game is staged beside the app as this app's data,
+# games/<game>.wasm, which the creation dialog offers to copy into the
+# workspace.
+app(
+    data = {
+        "games/{}.wasm".format(package.removeprefix("crates/tabletop-rules-").replace("-", "_")): "//{}:module".format(package) for package in game_packages()
+    },
+    module = "deterministic_game",
+    test_env = {
+        "CHESS_WASM": "$(location //crates/tabletop-rules-chess:module)",
+        "CRAZY_8S_WASM": "$(location //crates/tabletop-rules-crazy-8s:module)",
+        "TIC_TAC_TOE_WASM": "$(location //crates/tabletop-rules-tic-tac-toe:module)",
+    },
+    types = "//crates/be-type-deterministic-game:module",
+)

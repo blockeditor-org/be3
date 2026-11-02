@@ -9,7 +9,7 @@ pub mod look;
 pub mod rows;
 pub mod state;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use accesskit::{Node, Role};
 
-use text_editor_core::{
+use beui_text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
     ImeCommand, LRDirection, MoveMode, TextLanguage, UDDirection, VerticalMoveMode,
 };
@@ -43,11 +43,11 @@ use beui_view::types::{ItemSize, ScrollPosition};
 use beui_view::types::{PasteKind, Pasted};
 use beui_view::types::{Pos2, Rect, Vec2};
 
+use beui_text_editor_core::ListMarker;
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, line_of};
 use state::{AreaGeometry, Grab};
-use text_editor_core::ListMarker;
 
 use beui_view::types::{Extent, Sides};
 pub use colors::{SyntaxColors, TextAreaColors};

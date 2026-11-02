@@ -11,8 +11,8 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
+use be_lib_stable_hash::HashMap;
 use beui_view::types::{AboveEmbeds, LayerPolicy};
-use stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

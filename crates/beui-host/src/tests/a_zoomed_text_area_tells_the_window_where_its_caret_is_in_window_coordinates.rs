@@ -2,13 +2,14 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-use text_editor_core::TextBuffer;
 
 fn caret_at(origin: Pos2, scale: f32) -> (Rect, Rect) {
     let area = NodeRef::new();
     let document = build_node(move || {
-        let text = Arc::new(TextBuffer::new(b"Hello there")) as Arc<dyn text_editor_core::Document>;
+        let text =
+            Arc::new(TextBuffer::new(b"Hello there")) as Arc<dyn beui_text_editor_core::Document>;
         let state = TextAreaState::new(text);
         view! {
             <Canvas view={Some(CanvasView::new(origin, scale))}>

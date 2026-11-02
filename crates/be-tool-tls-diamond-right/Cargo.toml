@@ -1,0 +1,14 @@
+[package]
+name = "be-tool-tls-diamond-right"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-tool-tls-diamond-base = { path = "../be-tool-tls-diamond-base" }
+
+[lints]
+workspace = true

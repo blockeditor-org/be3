@@ -1,7 +1,7 @@
 # be sync
 
 `be sync` keeps a folder or workspace and a directory on disk in step, both
-ways. It is how code that lives in block-app reaches the tools that need real
+ways. It is how code that lives in be-host reaches the tools that need real
 files: buck2, editors, CI runners and cloud agents. It runs natively only;
 the web has no file system to sync.
 
@@ -11,11 +11,11 @@ be sync ~/code                      again, with the block ~/code was synced with
 be sync ~/code --watch [SECONDS]    keep going: on every change on disk, and every SECONDS (10)
 ```
 
-The code is `crates/be-sync`, used by `be` (`crates/be-cli`). It knows no block
+The code is `crates/be-block-sync`, used by `be` (`crates/be-tool-cli`). It knows no block
 format: every block's file form comes from its type module
-(guides/type_modules.md), through the `be_types_host::Modules` its caller hands
-`sync` and `watch`. A folder export in the app (plans/daily_driver.md, phase 7)
-should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
+(guides/type_modules.md), through the `be_block_type_host::Modules` its caller hands
+`sync` and `watch`. A folder export in the host (plans/daily_driver.md, phase 7)
+should use the same requests rather than writing another mapping, as be-host's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
 
 ## What becomes what
 
@@ -37,16 +37,16 @@ should use the same requests rather than writing another mapping, as block-app's
   `directory`, a folder), its children added with `Change::Child`, and a
   directory's entries change the same way.
 - `be sync` never joins a live session. Every change it makes is a commit
-  published against the head it read (step 5 below). A session open in block-app
+  published against the head it read (step 5 below). A session open in be-host
   takes that in as it does any publish from elsewhere (its replica's
   `Head { Moved }`, guides/type_modules.md): it merges the new head with what was
   typed but not yet sealed, line by line, so the person keeps typing. Lines both
   changed, or changed next to each other, come out between conflict markers
-  (block-type-guest's `an_external_publish_merges_into_a_live_replica`).
+  (be-sdk-type-guest's `an_external_publish_merges_into_a_live_replica`).
 - The executable bit is the `EXECUTABLE` metadata key, so `scripts/` stays
   runnable.
 - Any other block (a canvas, a database) has no plain-file form. It and what
-  is inside it stay only in block-app, listed in `.be/unexported.txt`.
+  is inside it stay only in be-host, listed in `.be/unexported.txt`.
 
 ## The index
 
@@ -66,9 +66,9 @@ A pass:
    same path, a vanished file with the same bytes, or the vanished directory most
    of its children came from. Anything else is a new block. This is what makes a
    rename or move on disk a move of the same block.
-3. Builds three `be_vcs::Tree`s keyed by block id, base (the index), ours (the
+3. Builds three `be_block_vcs::Tree`s keyed by block id, base (the index), ours (the
    disk) and theirs (the server), with each file's content standing for the hash of
-   its bytes, and merges them with `be_vcs::merge`. A file whose size, time and
+   its bytes, and merges them with `be_block_vcs::merge`. A file whose size, time and
    inode match the index is not read again, and a block whose head matches it is
    not fetched.
 4. Merges a file both sides changed with its type's `Merge3`: the base is the
@@ -118,12 +118,12 @@ both sides. Symbolic links are left alone and reported.
 `--watch` takes the lock and runs a pass, then waits for a change under the
 directory (inotify through the `notify` crate, ignoring `.be`, `.git`,
 `target` and `buck-out`), quiet for 200 ms, or for the interval to pass. `be`
-speaks HTTP posts, which carry no pushes from the server, so changes in block-app
+speaks HTTP posts, which carry no pushes from the server, so changes in be-host
 are seen by listing again each interval.
 
 ## Scale
 
-`./scripts/buck run -m release //crates/be-sync:example-scale -- COPY WORK`
+`./scripts/buck run -m release //crates/be-block-sync:example-scale -- COPY WORK`
 starts a server on this machine and times a sync of COPY (which gets a `.be`).
 On this repository (5,784 files, 32 MB, 6,552 blocks with the directories) on a
 4-core cloud VM:

@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::window::WindowState;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
@@ -14,7 +14,7 @@ impl PlatformServices for Window {
 
 struct Rejecting;
 
-impl App for Rejecting {
+impl Program for Rejecting {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.set_ime_area(Some(ImeArea {
             rect: Rect::from_min_max(pos2(10.0, 10.0), pos2(30.0, 20.0)),
@@ -30,7 +30,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(Rejecting),
+        program: Box::new(Rejecting),
         layers: Vec::new(),
     });
     runner
@@ -58,7 +58,7 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     assert_eq!(
         std::mem::take(&mut window.0),
         1,
-        "text the app turned away leaves the window as it was, but the platform's copy of the field moved, so it is shown again"
+        "text the program turned away leaves the window as it was, but the platform's copy of the field moved, so it is shown again"
     );
     runner.frame(&mut window, SafeArea::default());
     assert_eq!(std::mem::take(&mut window.0), 0);

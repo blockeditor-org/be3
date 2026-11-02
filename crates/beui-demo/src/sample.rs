@@ -65,7 +65,7 @@ fn CodeBlock(source: String) -> NodeId {
 }
 
 pub(crate) fn code_tokens(source: &str, colors: SyntaxColors) -> Vec<(usize, usize, Color)> {
-    let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;
+    let document = Arc::new(TextBuffer::new(source)) as Arc<dyn beui_text_editor_core::Document>;
     let highlight = Highlighter::new(document, Language::Rust).highlight();
     let mut tokens: Vec<(usize, usize, Color)> = Vec::new();
     for (start, character) in source.char_indices() {

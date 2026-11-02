@@ -1,8 +1,8 @@
-use beui_core::app::{Setup, Waker};
 use beui_core::context::Context;
 use beui_core::display::Layer;
 use beui_core::painter::Shape;
 use beui_core::painting::{self, Punches};
+use beui_core::program::{Setup, Waker};
 use beui_font_freetype::FreetypeFonts;
 use beui_types::Color32;
 
@@ -73,7 +73,7 @@ fn the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster() {
         [pill.min.x, pill.min.y, pill.max.x, pill.max.y]
             .map(|metres| metres * crate::panel::POINTS_PER_METRE),
     );
-    paint_snapshot::assert_painting(
+    beui_paint_snapshot::assert_painting(
         "the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster",
         painting,
     );

@@ -16,7 +16,11 @@ fn dragging_the_rotate_control_turns_the_panel_until_it_is_carried() {
             button(to, false),
         ],
     );
-    assert_eq!(delivered(&sent), [], "the app sees nothing of the control");
+    assert_eq!(
+        delivered(&sent),
+        [],
+        "the program sees nothing of the control"
+    );
     assert_eq!(placed(&sent).len(), 1);
     let panel = *main(&space);
     assert!(

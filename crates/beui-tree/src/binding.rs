@@ -1,4 +1,4 @@
-use reactive::{Get, Set, Signal, check_tracked_read, create_signal, untrack};
+use beui_reactive::{Get, Set, Signal, check_tracked_read, create_signal, untrack};
 
 use crate::callback::{Callback, IntoCallback};
 use crate::prop::{Getter, IntoProp, Prop};

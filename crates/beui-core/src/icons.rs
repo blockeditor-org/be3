@@ -1,1 +1,1 @@
-pub use lucide::*;
+pub use beui_lucide::*;

@@ -51,8 +51,8 @@ mod bench {
         Color32, Input, PointerButton, Pos2, Rect, ScrollDelta, Vec2, native::Context,
         native::Setup, native::Waker, native::WindowOutput,
     };
-    use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;
+    use beui_core::program::SafeArea;
     use beui_demo::DemoRoot;
     use beui_host::native::testing::Screen;
     use beui_host::native::{Incoming, Launch, PlatformServices, RunOptions};
@@ -159,7 +159,7 @@ mod bench {
                     ..RunOptions::default()
                 },
                 context,
-                app: Box::new(beui_host::native::build(|| {
+                program: Box::new(beui_host::native::build(|| {
                     view! {
                         <DemoRoot today={Date::today()} />
                     }
@@ -187,9 +187,9 @@ mod bench {
             }
         }
 
-        fn app(&self) -> &Document {
-            let app: &dyn Any = self.runner.app();
-            app.downcast_ref().expect("the bench runs the demo")
+        fn program(&self) -> &Document {
+            let program: &dyn Any = self.runner.program();
+            program.downcast_ref().expect("the bench runs the demo")
         }
 
         fn frame(&mut self, inputs: Vec<Input>) -> Timed {
@@ -222,7 +222,7 @@ mod bench {
                 prepare,
                 present,
                 repaint,
-                perf: self.app().performance(),
+                perf: self.program().performance(),
             }
         }
 
@@ -240,7 +240,7 @@ mod bench {
         }
 
         fn row(&self, title: &str) -> Rect {
-            let document = self.app();
+            let document = self.program();
             let node = document
                 .find_test_id(&format!("demo.catalog.{title}"))
                 .unwrap_or_else(|| panic!("no catalog row for {title}"));
@@ -289,9 +289,9 @@ mod bench {
             frames.extend(self.settle());
             let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
-                let document = self.app();
+                let document = self.program();
                 let mut stack: Vec<_> = document.root().into_iter().collect();
-                let mut found = stable_hash::HashMap::<String, (usize, usize)>::default();
+                let mut found = be_lib_stable_hash::HashMap::<String, (usize, usize)>::default();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
                     1 + document
                         .children(node)
@@ -446,10 +446,10 @@ mod bench {
                 *log += ms(duration).max(1e-3).ln();
             }
             let page = title.to_lowercase().replace(' ', "-");
-            ::bench::time(&format!("{page}.cold"), cold);
-            ::bench::time(&format!("{page}.warm-fastest"), min);
-            ::bench::time(&format!("{page}.warm-median"), median);
-            ::bench::count(&format!("{page}.allocations"), allocations);
+            ::be_tool_bench::time(&format!("{page}.cold"), cold);
+            ::be_tool_bench::time(&format!("{page}.warm-fastest"), min);
+            ::be_tool_bench::time(&format!("{page}.warm-median"), median);
+            ::be_tool_bench::count(&format!("{page}.allocations"), allocations);
             println!(
                 "{title:<16} {:>9.2} {:>9.2} {:>9.2} {:>9.2} {allocations:>12}",
                 ms(cold),
@@ -459,9 +459,9 @@ mod bench {
             );
         }
         let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
-        ::bench::record("mean.cold", cold, "ms");
-        ::bench::record("mean.warm-fastest", min, "ms");
-        ::bench::record("mean.warm-median", median, "ms");
+        ::be_tool_bench::record("mean.cold", cold, "ms");
+        ::be_tool_bench::record("mean.warm-fastest", min, "ms");
+        ::be_tool_bench::record("mean.warm-median", median, "ms");
         println!(
             "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
             "geomean"

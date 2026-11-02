@@ -1,0 +1,17 @@
+[package]
+name = "be-sdk-ui-database"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-components-unstyled = { path = "../beui-components-unstyled" }
+be-sdk-ui = { path = "../be-sdk-ui" }
+be-type-database = { path = "../be-type-database" }
+uuid = "1"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

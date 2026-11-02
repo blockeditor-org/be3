@@ -1,12 +1,12 @@
-load("@root//buck/app:defs.bzl", "app", "html_host_program")
 load("@root//buck/cargo:defs.bzl", "cargo_binary")
+load("@root//buck/program:defs.bzl", "html_host_program", "program")
 
 # The executable renders the account portal on beui's HTML core and embeds
-# be-portal-ui's hydration bundle, which it serves under /auth/assets/.
+# be-server-portal-ui's hydration bundle, which it serves under /auth/assets/.
 cargo_binary(
     name = "html-bin",
     default_target_platform = "root//buck/platforms:linux_x86_64_html",
-    env = {"BE_PORTAL_ASSETS": "$(location //crates/be-portal-ui:assets)"},
+    env = {"BE_PORTAL_ASSETS": "$(location //crates/be-server-portal-ui:assets)"},
     target_compatible_with = ["root//buck/constraints:html"],
 )
 
@@ -18,11 +18,11 @@ html_host_program(
 
 # What CI and a host ship: the executable as be-server, with the build-info.json
 # it refuses clients of any other build by (guides/hosting.md).
-app(
+program(
     name = "dist",
     binary = ":bin",
     executable_name = "be-server",
-    files = ["//buck/app:build-info.json"],
+    files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
 )

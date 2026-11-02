@@ -1,5 +1,5 @@
 use super::*;
-use be_graph::Access;
+use be_block_graph::Access;
 
 #[tokio::test]
 async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
@@ -10,7 +10,7 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let other_root = owner.scope_root(owner_id, BlockParent::Root).await;
 
-    let pending = |key| be_protocol::PendingGrant {
+    let pending = |key| be_block_protocol::PendingGrant {
         organization: personal,
         block: shared.block,
         access: Access::View,

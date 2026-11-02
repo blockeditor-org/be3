@@ -35,7 +35,7 @@ RUST_LOG sets what is logged (default: info).";
 
 macro_rules! assets {
     ($($name:literal: $content_type:literal),* $(,)?) => {
-        &[$(be_portal::Asset {
+        &[$(be_server_portal::Asset {
             name: $name,
             content_type: $content_type,
             bytes: include_bytes!(concat!(env!("BE_PORTAL_ASSETS"), "/", $name)),
@@ -43,7 +43,7 @@ macro_rules! assets {
     };
 }
 
-const PORTAL: be_portal::Portal = be_portal::Portal {
+const PORTAL: be_server_portal::Portal = be_server_portal::Portal {
     assets: assets! {
         "start.js": "text/javascript",
         "be_portal_ui.js": "text/javascript",
@@ -58,7 +58,7 @@ const PORTAL: be_portal::Portal = be_portal::Portal {
         "NotoEmoji-Regular.ttf": "font/ttf",
         "lucide.ttf": "font/ttf",
     },
-    ..be_portal_ui::PORTAL
+    ..be_server_portal_ui::PORTAL
 };
 
 #[tokio::main]
@@ -114,7 +114,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
             "--allow-registration" => config.allow_registration = true,
             "--allow-login" => config.allow_login = true,
             "--build-info-file" => {
-                build_id::install_from(&PathBuf::from(
+                be_lib_build_id::install_from(&PathBuf::from(
                     arguments.next().ok_or("--build-info-file needs a value")?,
                 ))?;
             }
@@ -131,7 +131,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let build = build_id::current()?;
+    let build = be_lib_build_id::current()?;
     let listener = TcpListener::bind(address).await?;
     tracing::info!(
         address = %listener.local_addr()?,

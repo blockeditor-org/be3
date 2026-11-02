@@ -1,4 +1,4 @@
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::os::fd::OwnedFd;
 
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
@@ -13,7 +13,7 @@ use smithay::reexports::drm::control::{
 use smithay::reexports::drm::{Device as _, DriverCapability};
 
 use super::screen::{Damage, Frame, Screen};
-use be_dmabuf::{Usage, Vulkan};
+use be_host_dmabuf::{Usage, Vulkan};
 
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};

@@ -53,7 +53,10 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
         .publish(&author, block, commit, chunks.clone(), None, 1_000)
         .await;
     assert!(
-        matches!(response, Ok(be_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
     let (unpublished, loose) = author.compose(b"never published\n", 2_000, Some(commit));
@@ -87,7 +90,9 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     };
     guest.open(organization).await;
     let response = owner
-        .call(|peer| client::blocks::set_access(peer, block, guest_account, be_graph::Access::View))
+        .call(|peer| {
+            client::blocks::set_access(peer, block, guest_account, be_block_graph::Access::View)
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(read(&mut guest, commit.hash()).await.is_some());

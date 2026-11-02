@@ -56,7 +56,7 @@ fn typing_in(context: &Context, field: Rect) -> WindowOutput {
 
 fn open_keyboard(space: &mut Space, now: Instant, windows: Vec<WindowOutput>) -> WindowId {
     let window = WindowId::next();
-    let mut output = app_frame(CursorIcon::Default);
+    let mut output = program_frame(CursorIcon::Default);
     output.windows = windows;
     output.window_requests = vec![WindowRequest::Open {
         window,

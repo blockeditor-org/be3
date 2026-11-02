@@ -52,14 +52,14 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    # The arm64 backend beside the host's own. The plugins beside an arm64 app
+    # The arm64 backend beside the host's own. The apps beside an arm64 host
     # (Android's APK, the Macs, Windows and Linux on arm64) are compiled for its
-    # wasmtime ahead of time, on the workers - crates/block-app's app and
+    # wasmtime ahead of time, on the workers - crates/be-host's app and
     # android-assets - with the one wasmtime built for them, so it is this one
     # that has to know arm64.
     "cranelift-codegen": {"features": {"linux-x86_64": ["arm64"]}},
     # The overlay's build script always compiles the FreeType the crate vendors,
-    # which a plugin paints with too, and compiles libpng and zlib beside it
+    # which an app paints with too, and compiles libpng and zlib beside it
     # for FreeType to load the colour glyphs emoji fonts keep as PNG images.
     "freetype-sys": {
         "build_script_env": {
@@ -74,7 +74,7 @@ FIXUPS = {
     "gdkx11-sys": _PKG_CONFIG,
     # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
     # type-module library seeds a generator from its host and is getrandom's
-    # custom backend (crates/block-type-guest/src/entropy.rs).
+    # custom backend (crates/be-sdk-type-guest/src/entropy.rs).
     "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
     "gio-sys": _PKG_CONFIG,
     "glib-sys": _PKG_CONFIG,
@@ -130,13 +130,13 @@ FIXUPS = {
     # disagree. The overlay leaves the includes out.
     "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
     "webkit2gtk-sys": _PKG_CONFIG,
-    # What the plugin GPU API needs of wgpu 29. It cannot finish a custom backend's
+    # What the app GPU API needs of wgpu 29. It cannot finish a custom backend's
     # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
     # encoder cannot be called with, and the custom arm is `unimplemented!()`.
     # The overlay adds `finish_custom(&mut self)` to the encoder's interface,
-    # which a plugin's backend (crates/block-gpu-guest) implements. And wgpu-core's
+    # which an app's backend (crates/be-wasm-gpu-guest) implements. And wgpu-core's
     # backend panics on a bundle that fails validation, where the host must
-    # report a plugin's mistake as WebGPU does: the overlay sends it to the
+    # report an app's mistake as WebGPU does: the overlay sends it to the
     # device's error sink. And wgpu's WebGPU backend leaves a render pass's
     # occlusion query set out of the pass it begins in a browser. Drop each
     # change once wgpu has it.

@@ -1,44 +1,44 @@
 [workspace]
 members = [
-    "crates/app-archive",
-    "crates/app-bench",
-    "crates/app-tests",
+    "crates/be-host-archive",
+    "crates/be-host-bench",
+    "crates/be-host-tests",
     "crates/be-block",
-    "crates/be-cli",
-    "crates/be-client",
-    "crates/be-commit",
-    "crates/be-dmabuf",
-    "crates/be-drive",
-    "crates/be-frozen",
-    "crates/be-graph",
-    "crates/be-keys",
-    "crates/be-launcher",
-    "crates/be-model",
-    "crates/be-model-derive",
-    "crates/be-ops",
-    "crates/be-ops-bindgen",
-    "crates/be-protocol",
-    "crates/be-portal",
-    "crates/be-portal-ui",
+    "crates/be-tool-cli",
+    "crates/be-block-client",
+    "crates/be-block-commit",
+    "crates/be-host-dmabuf",
+    "crates/be-tool-drive",
+    "crates/be-block-frozen",
+    "crates/be-block-graph",
+    "crates/be-block-keys",
+    "crates/be-tool-launcher",
+    "crates/be-block-model",
+    "crates/be-block-model-derive",
+    "crates/be-wasm-ops",
+    "crates/be-wasm-ops-bindgen",
+    "crates/be-block-protocol",
+    "crates/be-server-portal",
+    "crates/be-server-portal-ui",
     "crates/be-server",
     "crates/be-server-bin",
-    "crates/be-session",
-    "crates/be-sync",
-    "crates/be-types-host",
-    "crates/be-store",
-    "crates/be-vcs",
-    "crates/be-wayland",
-    "crates/be-win32",
-    "crates/be-win32-capture",
-    "crates/be-win32-input",
-    "crates/bench",
+    "crates/be-block-session",
+    "crates/be-block-sync",
+    "crates/be-block-type-host",
+    "crates/be-block-store",
+    "crates/be-block-vcs",
+    "crates/be-host-wayland",
+    "crates/be-host-win32",
+    "crates/be-host-win32-capture",
+    "crates/be-host-win32-input",
+    "crates/be-tool-bench",
     "crates/beui",
     "crates/beui-host",
     "crates/beui-platform-android",
     "crates/beui-platform-drm",
     "crates/beui-platform-headless",
-    "crates/beui-platform-plugin",
-    "crates/beui-platform-plugin-api",
+    "crates/be-sdk-beui-platform",
+    "crates/be-sdk-beui-platform-api",
     "crates/beui-layer-space",
     "crates/beui-layer-drive",
     "crates/beui-platform-web",
@@ -64,142 +64,142 @@ members = [
     "crates/beui-types",
     "crates/beui-html",
     "crates/beui-html-spike",
-    "crates/beui-shared-tests",
+    "crates/beui-tests",
     "crates/beui-view",
     "crates/beui-web-input",
     "crates/beui-web-demo",
-    "crates/block-accounts-ui",
-    "crates/block-app",
-    "crates/block-app-base",
-    "crates/block-app-desktop",
-    "crates/block-app-plugin-host",
-    "crates/block-app-services",
-    "crates/block-app-stack",
-    "crates/block-app-testing",
-    "crates/block-editor-beui",
-    "crates/block-editor-database",
-    "crates/block-editor-plugin",
-    "crates/block-editor-text",
-    "crates/block-gpu-abi",
-    "crates/block-gpu-guest",
-    "crates/block-gpu-host",
-    "crates/block-gpu-shim",
-    "crates/block-guest-abi",
-    "crates/block-guest-echo",
-    "crates/block-guest-host",
-    "crates/block-plugin-api",
-    "crates/block-plugin-manifest",
-    "crates/block-shell",
-    "crates/block-type-api",
-    "crates/block-type-guest",
-    "crates/block-ui",
-    "crates/block-ui-database",
-    "crates/block-ui-test",
-    "crates/block-wasm-host",
-    "crates/buck-tools",
-    "crates/build-helper",
-    "crates/build-id",
-    "crates/bootstrap",
-    "crates/browser-rasterizer",
+    "crates/be-host-accounts-ui",
+    "crates/be-host",
+    "crates/be-host-base",
+    "crates/be-host-desktop",
+    "crates/be-host-runtime",
+    "crates/be-host-services",
+    "crates/be-host-stack",
+    "crates/be-host-testing",
+    "crates/be-sdk-beui",
+    "crates/be-sdk-database",
+    "crates/be-sdk",
+    "crates/be-sdk-text",
+    "crates/be-wasm-gpu-abi",
+    "crates/be-wasm-gpu-guest",
+    "crates/be-wasm-gpu-host",
+    "crates/be-wasm-gpu-shim",
+    "crates/be-wasm-guest-abi",
+    "crates/be-wasm-guest-echo",
+    "crates/be-wasm-guest-host",
+    "crates/be-sdk-api",
+    "crates/be-sdk-manifest",
+    "crates/be-sdk-shell",
+    "crates/be-sdk-type-api",
+    "crates/be-sdk-type-guest",
+    "crates/be-sdk-ui",
+    "crates/be-sdk-ui-database",
+    "crates/be-sdk-test",
+    "crates/be-wasm-host",
+    "crates/be-tool-buck",
+    "crates/be-tool-build-helper",
+    "crates/be-lib-build-id",
+    "crates/be-tool-bootstrap",
+    "crates/be-tool-browser-rasterizer",
     "crates/cvl2",
-    "crates/editors/audio-block",
-    "crates/editors/audio-block/types",
-    "crates/editors/beui-gallery",
-    "crates/editors/beui-gallery/types",
-    "crates/editors/block-debug",
-    "crates/editors/browser-tab",
-    "crates/editors/browser-tab/types",
-    "crates/editors/checklist",
-    "crates/editors/checklist/types",
-    "crates/editors/counter",
-    "crates/editors/counter/types",
-    "crates/editors/database",
-    "crates/editors/database/types",
-    "crates/editors/deterministic-game",
-    "crates/editors/deterministic-game/types",
-    "crates/editors/file-tree",
-    "crates/editors/image-block",
-    "crates/editors/image-block/types",
-    "crates/editors/infinite-canvas",
-    "crates/editors/infinite-canvas/types",
-    "crates/editors/desktop",
-    "crates/editors/logic-grid",
-    "crates/editors/logic-grid/types",
-    "crates/editors/map",
-    "crates/editors/map/types",
-    "crates/editors/pan-zoom",
-    "crates/editors/pan-zoom/types",
-    "crates/editors/pdf",
-    "crates/editors/pdf/types",
-    "crates/editors/presentation",
-    "crates/editors/presentation/types",
-    "crates/editors/scene-3d",
-    "crates/editors/scene-3d/types",
-    "crates/editors/settings",
-    "crates/editors/settings/types",
-    "crates/editors/terminal",
-    "crates/editors/terminal/types",
-    "crates/editors/text-block",
-    "crates/editors/text-block/types",
-    "crates/editors/triangle",
-    "crates/editors/triangle/types",
-    "crates/editors/version-control",
-    "crates/editors/video-block",
-    "crates/editors/video-block/types",
-    "crates/editors/workspace-index",
-    "crates/editors/workspace-ui",
-    "crates/editors/workspace-ui/types",
-    "crates/fault-relay",
-    "crates/first-party-types",
-    "crates/fix-rust-source",
-    "crates/geometry",
-    "crates/grapheme-segmentation",
-    "crates/ghostty-vt",
-    "crates/host-types",
-    "crates/local-tools",
+    "crates/be-app-audio",
+    "crates/be-type-audio",
+    "crates/be-app-example-beui-gallery",
+    "crates/be-type-example-beui-gallery",
+    "crates/be-app-example-block-debug",
+    "crates/be-app-browser-tab",
+    "crates/be-type-browser-tab",
+    "crates/be-app-checklist",
+    "crates/be-type-checklist",
+    "crates/be-app-example-counter",
+    "crates/be-type-example-counter",
+    "crates/be-app-database",
+    "crates/be-type-database",
+    "crates/be-app-deterministic-game",
+    "crates/be-type-deterministic-game",
+    "crates/be-app-file-tree",
+    "crates/be-app-image",
+    "crates/be-type-image",
+    "crates/be-app-infinite-canvas",
+    "crates/be-type-infinite-canvas",
+    "crates/be-app-desktop",
+    "crates/be-app-logic-grid",
+    "crates/be-type-logic-grid",
+    "crates/be-app-map",
+    "crates/be-type-map",
+    "crates/be-app-example-pan-zoom",
+    "crates/be-type-example-pan-zoom",
+    "crates/be-app-pdf",
+    "crates/be-type-pdf",
+    "crates/be-app-presentation",
+    "crates/be-type-presentation",
+    "crates/be-app-scene-3d",
+    "crates/be-type-scene-3d",
+    "crates/be-app-settings",
+    "crates/be-type-settings",
+    "crates/be-app-terminal",
+    "crates/be-type-terminal",
+    "crates/be-app-text",
+    "crates/be-type-text",
+    "crates/be-app-example-triangle",
+    "crates/be-type-example-triangle",
+    "crates/be-app-version-control",
+    "crates/be-app-video",
+    "crates/be-type-video",
+    "crates/be-app-workspace-index",
+    "crates/be-app-workspace",
+    "crates/be-type-workspace",
+    "crates/be-block-fault-relay",
+    "crates/be-type-bundle",
+    "crates/be-tool-fix-rust-source",
+    "crates/be-lib-geometry",
+    "crates/be-lib-graphemes",
+    "crates/be-lib-ghostty-vt",
+    "crates/be-sdk-type-host",
+    "crates/be-tool-local",
     "crates/logicgame",
-    "crates/lucide",
-    "crates/paint-format",
-    "crates/paint-review",
-    "crates/paint-review-manifest",
-    "crates/paint-review-web",
-    "crates/paint-snapshot",
-    "crates/plugin-library-base",
-    "crates/plugin-library-beui",
-    "crates/plugin-test-runner",
-    "crates/prompt",
-    "crates/reactive",
-    "crates/remap/host",
-    "crates/remap/module",
-    "crates/remap/rules",
-    "crates/reactive-macros",
-    "crates/sequence",
-    "crates/sqlite-schema",
-    "crates/stable-hash",
-    "crates/tabletop-games/api",
-    "crates/tabletop-games/host",
-    "crates/tabletop-games/pieces",
-    "crates/tabletop-games/rules/checkers",
-    "crates/tabletop-games/rules/chess",
-    "crates/tabletop-games/rules/chess-vs-checkers",
-    "crates/tabletop-games/rules/connect-four",
-    "crates/tabletop-games/rules/crazy-8s",
-    "crates/tabletop-games/rules/tic-tac-toe",
-    "crates/terminal-emulator",
-    "crates/terminal-view",
-    "crates/text-editor-core",
-    "crates/tls-diamond/base",
-    "crates/tls-diamond/left",
-    "crates/tls-diamond/plugin",
-    "crates/tls-diamond/right",
-    "crates/ui-keys",
-    "crates/ui-preferences",
-    "crates/ui-types",
-    "crates/verify",
-    "crates/wasi-threads",
-    "crates/wasm-dylink",
-    "crates/wasm-link",
-    "crates/window-stack",
+    "crates/beui-lucide",
+    "crates/beui-paint-format",
+    "crates/be-tool-paint-review",
+    "crates/be-tool-paint-review-manifest",
+    "crates/be-tool-paint-review-web",
+    "crates/beui-paint-snapshot",
+    "crates/be-sdk-library-base",
+    "crates/be-sdk-library-beui",
+    "crates/be-sdk-test-runner",
+    "crates/be-lib-prompt",
+    "crates/beui-reactive",
+    "crates/be-host-remap-host",
+    "crates/be-host-remap-module",
+    "crates/be-host-remap",
+    "crates/beui-reactive-macros",
+    "crates/be-lib-sequence",
+    "crates/be-block-sqlite-schema",
+    "crates/be-lib-stable-hash",
+    "crates/tabletop-api",
+    "crates/tabletop-host",
+    "crates/tabletop-pieces",
+    "crates/tabletop-rules-checkers",
+    "crates/tabletop-rules-chess",
+    "crates/tabletop-rules-chess-vs-checkers",
+    "crates/tabletop-rules-connect-four",
+    "crates/tabletop-rules-crazy-8s",
+    "crates/tabletop-rules-tic-tac-toe",
+    "crates/be-lib-terminal-emulator",
+    "crates/beui-terminal-view",
+    "crates/beui-text-editor-core",
+    "crates/be-tool-tls-diamond-base",
+    "crates/be-tool-tls-diamond-left",
+    "crates/be-tool-tls-diamond-app",
+    "crates/be-tool-tls-diamond-right",
+    "crates/be-lib-ui-keys",
+    "crates/be-lib-ui-preferences",
+    "crates/be-lib-ui-types",
+    "crates/be-tool-verify",
+    "crates/be-wasm-threads",
+    "crates/be-wasm-dylink",
+    "crates/be-wasm-link",
+    "crates/be-sdk-window-stack",
 ]
 resolver = "3"
 
@@ -240,14 +240,14 @@ overflow-checks = false
 debug = false
 incremental = false
 
-[profile.plugin]
+[profile.app]
 inherits = "dev"
 opt-level = 2
 debug = false
 strip = "debuginfo"
 incremental = false
 
-[profile.plugin-release]
+[profile.app-release]
 inherits = "release"
 strip = "debuginfo"
 
@@ -255,7 +255,7 @@ strip = "debuginfo"
 # names it by its SHA-256, and unoptimised those are most of what saving or
 # opening a file costs: eight megabytes took three and a half seconds to save
 # and two and a half to open in a debug build. Optimising the cipher, the hash
-# and be-store, which instantiates both, brings that to a third of a second.
+# and be-block-store, which instantiates both, brings that to a third of a second.
 # The websocket they travel over masks every byte a client sends, which is the
 # same kind of loop.
 
@@ -264,7 +264,7 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
-[profile.dev.package.be-store]
+[profile.dev.package.be-block-store]
 opt-level = 2
 debug-assertions = false
 overflow-checks = false
@@ -331,7 +331,7 @@ overflow-checks = false
 
 # The server hashes every password it registers or checks with Argon2, which
 # unoptimised took half a second: most of what starting a test's server and
-# account cost, paid by every block-app and app test.
+# account cost, paid by every be-host and app test.
 
 [profile.dev.package.argon2]
 opt-level = 2
@@ -343,22 +343,22 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
-# Cranelift is what compiles a plugin, both in the app when an artifact is
-# missing and in the compiler the build hands every plugin to, and unoptimised
-# it is an order of magnitude slower at it: the plugins a debug build ships take
+# Cranelift is what compiles an app, both in the app when an artifact is
+# missing and in the compiler the build hands every app to, and unoptimised
+# it is an order of magnitude slower at it: the apps a debug build ships take
 # minutes rather than seconds. Optimising the compiler where it is built is what
 # lets it be built in the same profile, and so the same cargo call, as the app.
 #
 # The checks a debug build adds cost it a fifth of its speed on top of that,
 # and they are checks on someone else's code rather than on ours, so they come
-# off with the optimisation going on. Compiling the plugin test modules is a
-# minute of every verify, and the app pays the same price whenever it opens a
-# plugin it has no artifact for.
+# off with the optimisation going on. Compiling the app test modules is a
+# minute of every verify, and the app pays the same price whenever it opens an
+# app it has no artifact for.
 #
 # opt-level 1 was measured against this and is a worse trade, not a cheaper one:
-# cranelift-codegen compiles 44 seconds faster, and compiling six plugin modules
+# cranelift-codegen compiles 44 seconds faster, and compiling six app modules
 # with the result goes from 22 seconds to 34. A verify compiles closer to seventy
-# of them, so what the build saves the plugins pay back three times over.
+# of them, so what the build saves the apps pay back three times over.
 
 [profile.dev.package.cranelift-assembler-x64]
 opt-level = 2
@@ -434,7 +434,7 @@ overflow-checks = false
 # and unoptimised the parser took 8 seconds of it; optimised, about one. These
 # crates are its alone, so optimising them changes nothing else.
 
-[profile.dev.package.fix-rust-source]
+[profile.dev.package.be-tool-fix-rust-source]
 opt-level = 2
 debug-assertions = false
 overflow-checks = false

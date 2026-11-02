@@ -1,0 +1,33 @@
+[package]
+name = "be-wasm-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[features]
+all-arch = ["wasmtime/all-arch"]
+
+[dependencies]
+be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-gpu-host = { path = "../be-wasm-gpu-host" }
+bytes = "1"
+rustc-demangle = "0.1"
+tokio = { version = "1", default-features = false }
+wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "demangle", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
+wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
+be-wasm-dylink = { path = "../be-wasm-dylink" }
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-type-api = { path = "../be-sdk-type-api" }
+uuid = "1"
+wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
+wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

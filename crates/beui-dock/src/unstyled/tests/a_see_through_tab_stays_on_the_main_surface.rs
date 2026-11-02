@@ -16,14 +16,14 @@ fn a_see_through_tab_stays_on_the_main_surface() {
     let window = DockDrop::Window {
         pos: Pos2::new(40.0, 40.0),
     };
-    let [app, tools] = state.leaves(state.main())[..] else {
+    let [program, tools] = state.leaves(state.main())[..] else {
         panic!("the spec declares two panes");
     };
 
-    assert!(state.shows_see_through(app));
+    assert!(state.shows_see_through(program));
     assert!(!state.shows_see_through(tools));
     assert!(!state.admits(Entry::Tab(TabId::new(1)), window));
-    assert!(!state.admits_leaf(app, window));
+    assert!(!state.admits_leaf(program, window));
     assert!(state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: tools }));
     state.drop_tab(TabId::new(1), window);
     assert!(
@@ -39,9 +39,9 @@ fn a_see_through_tab_stays_on_the_main_surface() {
         "nor dropped into a window another tab floated into"
     );
 
-    state.drop_tab(TabId::new(2), DockDrop::Pane { leaf: app });
+    state.drop_tab(TabId::new(2), DockDrop::Pane { leaf: program });
     assert!(
-        !state.shows_see_through(app),
+        !state.shows_see_through(program),
         "a pane shows through only while it shows the see-through tab"
     );
 }

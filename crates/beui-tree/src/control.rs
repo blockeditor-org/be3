@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::hash::Hash;
 
 use beui_macros::component;
-use reactive::{
+use beui_reactive::{
     Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, create_binding,
     create_signal, store,
 };

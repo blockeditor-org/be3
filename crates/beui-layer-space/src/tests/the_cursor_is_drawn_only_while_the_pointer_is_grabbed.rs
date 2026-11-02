@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn the_cursor_is_drawn_only_while_the_pointer_is_grabbed() {
     let (mut space, now, context) = painted_space();
-    let output = app_frame(CursorIcon::Text);
+    let output = program_frame(CursorIcon::Text);
     let windows = [window(&context, WindowId::MAIN, PLATFORM, "Main")];
     send(&mut space, now, [Input::PointerMoved(centre())]);
     assert!(

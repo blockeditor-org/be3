@@ -10,8 +10,8 @@ beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-dock = { path = "../beui-dock" }
 beui-keyboard = { path = "../beui-keyboard" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
-reactive = { path = "../reactive" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
 
 [target.'cfg(beui_html)'.dependencies]
 beui-components-styled = { path = "../beui-components-styled" }
@@ -22,7 +22,7 @@ beui-core = { path = "../beui-core" }
 beui-draw = { path = "../beui-draw" }
 
 [target.'cfg(beui_html)'.dev-dependencies]
-paint-snapshot = { path = "../paint-snapshot" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]
 workspace = true

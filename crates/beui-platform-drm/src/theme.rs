@@ -1,4 +1,4 @@
-use stable_hash::HashSet;
+use be_lib_stable_hash::HashSet;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_SIZE: u32 = 24;

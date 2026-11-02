@@ -1,0 +1,174 @@
+use be_sdk::{Anchored, Frame};
+use be_sdk_api::accessibility::Color;
+use be_sdk_api::{AnchoredPlacement, Scrim, ViewAnchor, ViewEdge, ViewId};
+use be_sdk_beui_platform_api::anchored_view;
+use beui_core::context::{Context, EscapedOutput};
+use beui_types::Input;
+use beui_types::Pos2;
+use beui_types::WindowId;
+use beui_types::layer::{HostTransform, LayerEdge, LayerPlacement, LayerSpace};
+
+use be_sdk::driver::Surface;
+
+use crate::surface::{Painter, note};
+
+pub(crate) struct Shown {
+    pub(crate) escaped: EscapedOutput,
+    pub(crate) surface: Surface<Painter>,
+    pub(crate) changed: bool,
+}
+
+pub(crate) fn set_space(
+    context: &Context,
+    window: WindowId,
+    space: Option<be_sdk_api::AnchorSpace>,
+    ratio: f32,
+) {
+    let space = space.map(|space| LayerSpace {
+        to_host: HostTransform {
+            origin: space.to_host.origin,
+            scale: space.to_host.scale / ratio,
+        },
+        bounds: space.bounds,
+    });
+    if context.layer_space(window) != space {
+        context.set_layer_space(window, space);
+    }
+}
+
+pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: WindowId) {
+    let mut next = Vec::new();
+    for escaped in escaped
+        .iter()
+        .filter(|escaped| escaped.layer.window == window)
+    {
+        let at = held
+            .iter()
+            .position(|shown| shown.escaped.layer.id == escaped.layer.id);
+        let mut shown = match at {
+            Some(at) => held.remove(at),
+            None => Shown {
+                escaped: escaped.clone(),
+                surface: Surface::default(),
+                changed: true,
+            },
+        };
+        shown.changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
+        note(&mut shown.surface, &escaped.output, beui_types::Vec2::ZERO);
+        shown.escaped = escaped.clone();
+        next.push(shown);
+    }
+    *held = next;
+}
+
+pub(crate) fn report(held: &[Shown], owner: ViewId, ratio: f32) -> Vec<Anchored> {
+    held.iter()
+        .map(|shown| {
+            let layer = &shown.escaped.layer;
+            Anchored {
+                view: anchored_view(layer.id),
+                placement: AnchoredPlacement {
+                    parent: layer.parent.map_or(owner, anchored_view),
+                    anchor: match layer.placement {
+                        LayerPlacement::Anchored(rect) => ViewAnchor::Rect(match layer.parent {
+                            Some(_) => rect,
+                            None => rect.scaled(ratio.recip()),
+                        }),
+                        LayerPlacement::Edge(edge) => ViewAnchor::Edge(edge_of(edge)),
+                    },
+                    rect: layer.rect,
+                    dismiss_on_outside_press: layer.dismiss_on_outside_press,
+                    trigger: layer.trigger,
+                    keyboard: layer.keyboard,
+                    blocks_owner: layer.blocks_owner,
+                },
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn framed(shown: &mut Shown, description: Option<be_sdk::Description>) -> Frame {
+    let layer = &shown.escaped.layer;
+    let from = layer.rect.min.to_vec2();
+    let own = |rects: &[beui_types::Rect]| -> Vec<beui_types::Rect> {
+        rects.iter().map(|rect| rect.translate(-from)).collect()
+    };
+    Frame {
+        changed: std::mem::take(&mut shown.changed),
+        painted: own(&layer.painted),
+        floating: own(&layer.floating),
+        scrims: layer
+            .scrims
+            .iter()
+            .map(|shown| {
+                scrim(beui_types::layer::Scrim {
+                    rect: shown.rect.translate(-from),
+                    ..*shown
+                })
+            })
+            .collect(),
+        description,
+        ..Frame::default()
+    }
+}
+
+pub(crate) fn scrim(shown: beui_types::layer::Scrim) -> Scrim {
+    let [red, green, blue, alpha] = shown.color.to_array();
+    Scrim {
+        rect: shown.rect,
+        color: Color {
+            red,
+            green,
+            blue,
+            alpha,
+        },
+        radius: shown.radius,
+    }
+}
+
+fn edge_of(edge: LayerEdge) -> ViewEdge {
+    match edge {
+        LayerEdge::Top => ViewEdge::Top,
+        LayerEdge::Bottom => ViewEdge::Bottom,
+        LayerEdge::Left => ViewEdge::Left,
+        LayerEdge::Right => ViewEdge::Right,
+    }
+}
+
+pub(crate) fn to_host(input: Input, to_host: be_sdk_api::HostTransform) -> Input {
+    let at = |pos: Pos2| to_host.point(pos);
+    match input {
+        Input::PointerMoved(pos) => Input::PointerMoved(at(pos)),
+        Input::PointerButton {
+            pos,
+            button,
+            pressed,
+        } => Input::PointerButton {
+            pos: at(pos),
+            button,
+            pressed,
+        },
+        Input::PointerMotion(delta) => Input::PointerMotion(beui_types::vec2(
+            delta.x * to_host.scale.x,
+            delta.y * to_host.scale.y,
+        )),
+        Input::Touch {
+            id,
+            phase,
+            pos,
+            force,
+        } => Input::Touch {
+            id,
+            phase,
+            pos: at(pos),
+            force,
+        },
+        Input::Pen { phase, pos, pen } => Input::Pen {
+            phase,
+            pos: at(pos),
+            pen,
+        },
+        Input::Predicted(pos) => Input::Predicted(at(pos)),
+        other => other,
+    }
+}

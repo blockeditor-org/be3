@@ -1,4 +1,4 @@
-use reactive::Get;
+use beui_reactive::Get;
 use std::cell::Cell;
 
 use beui_view::types::Direction;

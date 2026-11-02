@@ -11,10 +11,12 @@ use beui::styled::*;
 use beui::unstyled::{MarkerKind, TextAreaState, TextMarker};
 use beui::{Direction, ItemSize, NodeId, TextAlign};
 use beui_macros::{component, sample};
-use text_editor_core::schema::basic::{
+use beui_text_editor_core::schema::basic::{
     self, Basic, CHECK, CHECKED, CODE_BLOCK, LIST, MENTION, NUMBER, QUOTE,
 };
-use text_editor_core::{EditorCommand, MarkSet, Name, Seed, TextBuffer, Transform, VOID, Value};
+use beui_text_editor_core::{
+    EditorCommand, MarkSet, Name, Seed, TextBuffer, Transform, VOID, Value,
+};
 
 use crate::ROW_SPACING;
 use crate::collaboration::ConcurrentEditing;

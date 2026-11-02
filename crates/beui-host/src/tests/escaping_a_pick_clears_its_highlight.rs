@@ -9,7 +9,7 @@ fn escaping_a_pick_clears_its_highlight() {
     harness.toggle_inspector();
     harness.toggle_picking();
     harness.settle();
-    let inside = harness.app_rect().min + vec2(4.0, 4.0);
+    let inside = harness.program_rect().min + vec2(4.0, 4.0);
     harness.frame(vec![Input::PointerMoved(inside)]);
     assert!(harness.inspector().state().hovered.get().is_some());
 

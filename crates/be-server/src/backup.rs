@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use be_store::{FileStore, Hash, ObjectStore};
+use be_block_store::{FileStore, Hash, ObjectStore};
 use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
     aead::{Aead, KeyInit},
@@ -28,7 +28,7 @@ const KEEP_MONTHLY: u64 = 365 * DAY;
 pub enum BackupError {
     Io(io::Error),
     Database(rusqlite::Error),
-    Store(be_store::StoreError),
+    Store(be_block_store::StoreError),
     Key,
     Remote(String),
     Missing(String),
@@ -68,8 +68,8 @@ impl From<rusqlite::Error> for BackupError {
     }
 }
 
-impl From<be_store::StoreError> for BackupError {
-    fn from(error: be_store::StoreError) -> Self {
+impl From<be_block_store::StoreError> for BackupError {
+    fn from(error: be_block_store::StoreError) -> Self {
         Self::Store(error)
     }
 }

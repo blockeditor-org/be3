@@ -1,5 +1,5 @@
-use be_commit::MergeResult;
-use be_model::{Change, Document, Edit, Model, Step, Touched};
+use be_block_commit::MergeResult;
+use be_block_model::{Change, Document, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};

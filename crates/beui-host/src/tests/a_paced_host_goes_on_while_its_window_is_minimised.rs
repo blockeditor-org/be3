@@ -1,6 +1,6 @@
 use super::*;
-use beui_core::app::SafeArea;
 use beui_core::context::FrameOutput;
+use beui_core::program::SafeArea;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Frame, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner};
 use std::time::Instant;
@@ -27,7 +27,7 @@ impl Layer for Paced {
 
 struct Still;
 
-impl App for Still {
+impl Program for Still {
     fn update(&mut self, _context: &Context, _rect: Rect) {}
 }
 
@@ -36,7 +36,7 @@ fn frames_while_minimised(paces: bool) -> Vec<Vec2> {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(Still),
+        program: Box::new(Still),
         layers: vec![Box::new(Paced {
             paces,
             framed: framed.clone(),

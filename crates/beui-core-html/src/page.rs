@@ -1,8 +1,8 @@
+use beui_reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 use beui_types::Vec2;
 use beui_types::{
     Motion, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
 };
-use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 
 #[derive(Clone, Copy)]
 struct PageSignals {
@@ -44,16 +44,16 @@ fn signals() -> PageSignals {
 pub fn choose_theme(theme: Option<ThemeKind>) {
     let layers = signals().layers.get_untracked();
     set_preference_layer(
-        PreferenceSource::App,
+        PreferenceSource::Program,
         PreferenceLayer {
             theme,
-            ..layers.layer(PreferenceSource::App)
+            ..layers.layer(PreferenceSource::Program)
         },
     );
 }
 
 pub fn set_preference_layer(source: PreferenceSource, layer: PreferenceLayer) {
-    use reactive::Set;
+    use beui_reactive::Set;
 
     let layers = signals().layers;
     let mut changed = layers.get_untracked();
@@ -69,7 +69,7 @@ pub fn chosen_theme() -> Memo<Option<ThemeKind>> {
         let layers = layers.get();
         layers
             .layer(PreferenceSource::Developer)
-            .over(layers.layer(PreferenceSource::App))
+            .over(layers.layer(PreferenceSource::Program))
             .theme
     })
 }
@@ -114,7 +114,7 @@ pub fn use_preferences() -> Memo<Preferences> {
 }
 
 pub fn motion() -> Motion {
-    reactive::untrack(resolved).motion
+    beui_reactive::untrack(resolved).motion
 }
 
 pub fn watch_motion() -> Memo<Motion> {
@@ -145,7 +145,7 @@ pub fn copy_text(text: String) {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
-    use reactive::Set;
+    use beui_reactive::Set;
 
     let signals = signals();
     let mut listeners = Vec::new();

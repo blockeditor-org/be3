@@ -1,7 +1,5 @@
 pub use crate::geometry::Region;
 pub use beui_core::accessibility;
-pub use beui_core::app::accessibility_dump;
-pub use beui_core::app::{App, FrameTimes, Lifecycle, NativeWindow, Setup, Waker};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::clipboard::{PasteAnswer, PasteRequest};
 pub use beui_core::context::{
@@ -35,6 +33,8 @@ pub use beui_core::path::PathPaint;
 pub use beui_core::performance::{
     FramePerformance, FrameWork, PerformanceSnapshot, PerformanceTimings,
 };
+pub use beui_core::program::accessibility_dump;
+pub use beui_core::program::{FrameTimes, Lifecycle, NativeWindow, Program, Setup, Waker};
 pub use beui_core::rich;
 pub use beui_core::touch_cursor;
 pub use beui_core::window::{Resize, WindowFit, WindowHosting, WindowSize};

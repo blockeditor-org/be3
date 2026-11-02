@@ -1,7 +1,7 @@
 use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
-use geometry::{Rect, Vec2, pos2, vec2};
+use be_lib_geometry::{Rect, Vec2, pos2, vec2};
 
 use crate::color::Color;
 use crate::layout::Corners;

@@ -1,0 +1,26 @@
+[package]
+name = "be-type-infinite-canvas"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-block-model = { path = "../be-block-model" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+be-type-database = { path = "../be-type-database" }
+serde = { version = "1", features = ["derive"] }
+uuid = "1"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+be-block-commit = { path = "../be-block-commit", default-features = false }
+
+[features]
+module = []
+
+[lints]
+workspace = true

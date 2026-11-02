@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# How an app is linked to its libraries when it is loaded (guides/app_libraries.md): the
+# names the link and the loaders agree on, and the plan both loaders follow.
+
+cargo_library()
+
+cargo_test()

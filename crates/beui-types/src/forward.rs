@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use geometry::{Pos2, Rect};
+use be_lib_geometry::{Pos2, Rect};
 
 use crate::input::{
     Event, Input, KeyPress, Keystroke, Modifiers, PenPhase, PointerEvent, PointerId, PointerPhase,

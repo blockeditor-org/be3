@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::time::{Duration, Instant};
 
-use beui_core::app::Waker;
+use beui_core::program::Waker;
 use beui_renderer_wgpu::present::OpenDevice;
 
 use crate::{Fill, Frame, Quad, Status, Target, View};

@@ -1,0 +1,54 @@
+package be3:app@0.1.0;
+
+/// What the host tells an editor instance about the docks it declares and
+/// the docks of the children it placed. What the instance says back travels
+/// in its frames, as `dock-message`s.
+interface dock {
+    use types.{child-id, dock-declaration, dock-hosted, dock-request, dock-tab-path, editor-instance-id, view-id};
+
+    record dock-hosted-view {
+        view: view-id,
+        hosted: option<dock-hosted>,
+    }
+
+    record dock-closed-tab {
+        view: view-id,
+        tab: dock-tab-path,
+    }
+
+    record dock-declared-child {
+        child: child-id,
+        declaration: option<dock-declaration>,
+    }
+
+    /// `owner` leads from the child to the instance that asked, whose
+    /// spliced group a `restore` replaces; the request's paths and keys are
+    /// the child's.
+    record dock-child-request {
+        child: child-id,
+        owner: list<child-id>,
+        request: dock-request,
+    }
+
+    /// For a docked view of the instance: what the root shows of its own
+    /// tabs (`none` until the root hosts it, and again once it lets go) and
+    /// the user closing one of them. A pick from a tab's menu arrives as the
+    /// editor's `menu-pick` of the tab's view. For the root, of each docked child it
+    /// placed: the child's latest declaration with its descendants' spliced
+    /// in (`none` once it withdrew it or closed), and what the child or a
+    /// descendant asks of the dock.
+    variant dock-update {
+        hosted(dock-hosted-view),
+        close(dock-closed-tab),
+        child(dock-declared-child),
+        child-request(dock-child-request),
+    }
+
+    /// The dock updates of an instance. `next` answers with every update
+    /// since the last answer, in order, except that a `hosted` for a view
+    /// or a `child` for a child replaces one still waiting, at the end.
+    resource dock-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> list<dock-update>;
+    }
+}

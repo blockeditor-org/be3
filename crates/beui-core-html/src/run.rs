@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 use beui_html::Node;
 
+use beui_reactive::{Get, Set, Signal, create_binding};
 use beui_types::{Color, ColorScheme};
-use reactive::{Get, Set, Signal, create_binding};
 
 use crate::document::{append, create, element, set_attribute, set_style};
 use crate::node::NodeId;

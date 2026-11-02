@@ -3,7 +3,7 @@ pub mod grab;
 pub mod hit;
 pub mod pointer;
 
-use stable_hash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::base::overlay::OverlayNode;
@@ -26,7 +26,7 @@ pub const TOUCH_REACH: f32 = 12.0;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fate {
     Taken,
-    App,
+    Program,
     Handled { reveal: bool },
     Unheard,
 }
@@ -126,11 +126,11 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         Event::PointerUnlocked if ctx.pointer_locked() => doc.update_focus(None),
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
-            from_app(doc, KeyInput::Press(*press));
+            from_program(doc, KeyInput::Press(*press));
             return Ok(false);
         }
         Event::InterceptedTap(key) => {
-            from_app(doc, KeyInput::Tap(*key));
+            from_program(doc, KeyInput::Tap(*key));
             return Ok(false);
         }
         Event::Key { press, .. } => {
@@ -146,7 +146,8 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             }
             let asked = doc.paste_requested();
             let fate = key_press(doc, *press);
-            let asks = matches!(fate, Fate::App | Fate::Unheard) || doc.paste_requested() && !asked;
+            let asks =
+                matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
             if asks && pastes(*press) {
                 ctx.paste_shortcut();
             }
@@ -195,7 +196,7 @@ fn key_pressed(doc: &mut Document, event: &Event, fate: Fate, tap: bool) -> bool
             let _ = answer(outer(doc, &route, KeyPhase::Capture), event);
         }
     }
-    fate == Fate::App
+    fate == Fate::Program
 }
 
 impl Fate {
@@ -214,9 +215,9 @@ struct Route {
 fn route(doc: &Document, key: Key) -> Route {
     let layers = doc.layers();
     let focused = doc.focused.filter(|focused| doc.contains(*focused));
-    let app = forward::takes_keys(doc);
-    let inhibited = app && forward::shortcuts_inhibited(doc);
-    let typing = app || doc.focus_types();
+    let program = forward::takes_keys(doc);
+    let inhibited = program && forward::shortcuts_inhibited(doc);
+    let typing = program || doc.focus_types();
     let start = focused.or_else(|| layers[layers.keyboard()].content);
     let mut nodes = Vec::new();
     let mut current = start;
@@ -238,7 +239,7 @@ fn route(doc: &Document, key: Key) -> Route {
         target: KeyTarget {
             node: focused,
             typing,
-            app,
+            program,
         },
         nodes,
         window: !layers.locked() || key.is_media(),
@@ -381,8 +382,8 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         hold(doc, press, placed.handler, true);
         return Fate::Taken;
     }
-    if route.target.app {
-        return Fate::App;
+    if route.target.program {
+        return Fate::Program;
     }
     if press.key.is_modifier() || press.key == Key::Unidentified {
         return Fate::Unheard;
@@ -517,13 +518,13 @@ fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {
     }
 }
 
-fn from_app(doc: &mut Document, input: KeyInput) {
+fn from_program(doc: &mut Document, input: KeyInput) {
     let media = matches!(input, KeyInput::Press(press) if press.key.is_media());
     let route = Route {
         target: KeyTarget {
             node: None,
             typing: true,
-            app: true,
+            program: true,
         },
         nodes: Vec::new(),
         window: !doc.layers().locked() || media,

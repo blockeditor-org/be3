@@ -1,0 +1,22 @@
+[package]
+name = "be-app-terminal"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-type-terminal = { path = "../be-type-terminal" }
+beui-terminal-view = { path = "../beui-terminal-view" }
+uuid = "1"
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+serde_json = "1"
+
+[lints]
+workspace = true

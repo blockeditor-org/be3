@@ -44,7 +44,7 @@ fn resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size() {
     assert_eq!(
         space.output().main().size,
         size,
-        "the app lays its main window out at the panel's new size"
+        "the program lays its main window out at the panel's new size"
     );
     let shown = space
         .space

@@ -4,7 +4,7 @@ name: Tracker
 # BE-7K3Q2M in its branch, title or body (the database is the full id in the
 # BE3_TRACKER_DATABASE variable): opening it sets them to In review and
 # links it on each row's page, and merging it sets them to Done. It is the be
-# command line tool's `be pull-request` (crates/be-cli), signed in as the agent
+# command line tool's `be pull-request` (crates/be-tool-cli), signed in as the agent
 # whose credentials are the BE3_TRACKER_CREDENTIALS JSON secret. A
 # gateway in front of the server that wants a Be3-Gateway-Authorization header gets the
 # BE3_TRACKER_AUTHORIZATION secret.

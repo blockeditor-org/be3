@@ -1,6 +1,6 @@
 use super::*;
 use crate::{PasteKind, Pasted, native::PasteAnswer};
-use beui_core::app::SafeArea;
+use beui_core::program::SafeArea;
 use beui_core::window::WindowState;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices, RunOptions, Runner};
@@ -36,7 +36,7 @@ struct Typing {
     typed: Log,
 }
 
-impl App for Typing {
+impl Program for Typing {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.set_cursor_icon(CursorIcon::Text);
         if self.frames == 0 {
@@ -63,7 +63,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(Typing { frames: 0, typed }),
+        program: Box::new(Typing { frames: 0, typed }),
         layers: Vec::new(),
     });
     let mut platform = Recording(log);

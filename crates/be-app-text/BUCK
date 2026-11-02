@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "text_block",
+    types = "//crates/be-type-text:module",
+)

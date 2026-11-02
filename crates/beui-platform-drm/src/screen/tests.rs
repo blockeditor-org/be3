@@ -7,7 +7,7 @@ mod the_display_is_told_only_what_changed;
 
 use beui::{Color32, pos2};
 
-use be_dmabuf::testing::{read, vulkan_device};
+use be_host_dmabuf::testing::{read, vulkan_device};
 
 const WIDTH: u32 = 32;
 const HEIGHT: u32 = 24;

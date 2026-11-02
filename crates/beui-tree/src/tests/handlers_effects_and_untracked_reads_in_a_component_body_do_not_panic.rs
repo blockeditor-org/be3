@@ -23,7 +23,7 @@ fn ReadsWhereItMay(count: Signal<usize>, label: Prop<String>, seen: Rc<Cell<usiz
 
 #[test]
 fn handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let count = create_signal(1_usize);

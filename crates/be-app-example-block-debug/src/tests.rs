@@ -1,0 +1,36 @@
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::native::Document;
+use be_sdk_test::BeuiTest;
+use be_type_example_counter::{Counter, CounterContent};
+use uuid::Uuid;
+
+use crate::root::BlockDebugRoot;
+
+mod an_edit_to_the_block_shows_in_its_debug_view;
+mod the_debug_view_shows_what_the_block_holds;
+
+fn editor() -> BeuiTest<BlockDebugRoot> {
+    let mut test = BeuiTest::editing(Uuid::from_u128(1));
+    test.hold(None, CounterContent::default());
+    test.edit::<CounterContent>(None, &Counter::add(3));
+    test.run();
+    test
+}
+
+fn says(test: &BeuiTest<BlockDebugRoot>, words: &str) -> bool {
+    let document = test.document();
+    document
+        .root()
+        .is_some_and(|root| says_within(&document, root, words))
+}
+
+fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
+    document
+        .arena
+        .kind_of(node)
+        .is_some_and(|text| document.text(text).contains(words))
+        || document
+            .children(node)
+            .into_iter()
+            .any(|child| says_within(&document, child, words))
+}

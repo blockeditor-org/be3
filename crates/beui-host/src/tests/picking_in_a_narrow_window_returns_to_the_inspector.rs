@@ -9,14 +9,17 @@ fn picking_in_a_narrow_window_returns_to_the_inspector() {
     harness.toggle_inspector();
     harness.toggle_picking();
     harness.settle();
-    assert!(harness.inspector().app_visible(), "picking shows the app");
+    assert!(
+        harness.inspector().program_visible(),
+        "picking shows the program"
+    );
 
     harness.click(harness.center(text));
     harness.settle();
 
     assert_eq!(harness.inspector().state().selected.get(), Some(text));
     assert!(
-        !harness.inspector().app_visible(),
+        !harness.inspector().program_visible(),
         "a pick returns to the tool it came from"
     );
 }

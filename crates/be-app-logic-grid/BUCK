@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "logic_grid",
+    types = "//crates/be-type-logic-grid:module",
+)

@@ -28,7 +28,7 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     assert_eq!(
         delivered(&send(&mut space, now, [Input::PointerMoved(moved)])),
         [],
-        "the app sees no moves while its window is carried"
+        "the program sees no moves while its window is carried"
     );
     let under = main(&space)
         .hit(space.head.ray(PLATFORM, moved.to_vec2()))
@@ -73,7 +73,7 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         ),
     ] = got.as_slice()
     else {
-        panic!("the app gets the release, not {got:?}");
+        panic!("the program gets the release, not {got:?}");
     };
     assert_eq!(*window, WindowId::MAIN);
     assert!(

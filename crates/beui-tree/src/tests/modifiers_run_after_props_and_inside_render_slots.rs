@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn modifiers_run_after_props_and_inside_render_slots() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let order = Rc::new(RefCell::new(Vec::new()));
     let record = |event| {

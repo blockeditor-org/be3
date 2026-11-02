@@ -6,8 +6,8 @@ Guides:
 - VISION.md: what the project is for, why it has the parts it has, and where each editor is headed
 - guides/adding_a_block.md
 - guides/adding_a_game.md
-- guides/adding_a_plugin_editor.md
-- guides/bootstrap.md: crates/bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
+- guides/adding_an_app.md
+- guides/bootstrap.md: crates/be-tool-bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md
@@ -15,18 +15,18 @@ Guides:
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
-- guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
-- guides/desktop/linux.md: the Linux host: be-wayland, the login session on the displays under DRM (`BEUI_PLATFORM=drm`), installing it, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
-- guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
-- guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
+- guides/desktop.md: be-host as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
+- guides/desktop/linux.md: the Linux host: be-host-wayland, the login session on the displays under DRM (`BEUI_PLATFORM=drm`), installing it, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
+- guides/desktop/windows.md: the Windows host, its crates (be-host-win32, be-host-win32-capture, be-host-win32-input) and its design
+- guides/pan_and_zoom.md: the camera an editor is handed by its host
 - guides/parallel_agents.md: coordinating subagents, each in its own cloud session: starting them, landing their branches, verify and build server outages
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
-- guides/plugin_libraries.md: the libraries plugins are linked against, how they are linked and loaded, and the raw plugin interface
-- guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
+- guides/app_libraries.md: the libraries apps are linked against, how they are linked and loaded, and the raw app interface
+- guides/pinenote.md: be-host's session on the PineNote: e-paper, a display device that cannot draw, building for it
 - guides/pinenote_ebc.md: hrdl's `rockchip_ebc` e-paper driver: where its sources are, its hints and waveforms, its ioctl header
 - guides/reactive.md: the reactive graph under beui
 - guides/repository.md: which crates are the product, tooling, examples, separate projects or unrelated
-- guides/running/drive.md: how to run and test any app; read this first
+- guides/running/drive.md: how to run and test any program; read this first
 - guides/running/native.md
 - guides/running/web.md
 - guides/running/android.md
@@ -34,19 +34,19 @@ Guides:
 - guides/terminal.md: the terminal block, whose shell runs on a machine `be TARGET terminal-host` signs in from
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
-- guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
-- guides/type_modules.md: block types as plugin wasm modules: the host-to-type protocol (`block-type-api`) and the replica library types link (`block-type-guest`)
+- guides/tracker.md: the issue tracker in be-host, and `be`, the command line tool agents use to read and change it
+- guides/type_modules.md: block types as app wasm modules: the host-to-type protocol (`be-sdk-type-api`) and the replica library types link (`be-sdk-type-guest`)
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
-- `./scripts/verify`: the check, and the compile check: always run it before you finish. It compiles every first-party target on Linux and the plugins' wasm, applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use it instead of cargo, which no longer builds the workspace. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
+- `./scripts/verify`: the check, and the compile check: always run it before you finish. It compiles every first-party target on Linux and the apps' wasm, applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use it instead of cargo, which no longer builds the workspace. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
-- `./scripts/buck run //crates/local-tools:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
-- `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.plugins=checklist,file-tree` before the target stages only those editors and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
-- `./scripts/buck run //crates/block-app:native`: build and run the native app in a window.
-- `./scripts/test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with the editors it names in crates/app-tests/BUCK and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
-- `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
-- `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
+- `./scripts/buck run //crates/be-tool-local:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
+- `./scripts/buck run //crates/be-host:dev`: run be-host headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.apps=checklist,file-tree` before the target stages only those apps and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
+- `./scripts/buck run //crates/be-host:native`: build and run be-host natively in a window.
+- `./scripts/test //crates/be-host-tests:test`: the host tests, which `./scripts/verify` runs too. Each starts be-host natively and headless with the apps it names in crates/be-host-tests/BUCK and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless be-host exits cleanly (guides/testing_a_gui.md, 6).
+- `./scripts/buck build //crates/be-host:web`: for web-specific changes; `./scripts/buck run //crates/be-host:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
+- `./scripts/buck run //crates/be-host:android`: for Android-specific changes; builds the APK (guides/running/android.md).
 - `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/be` fetches on first use.
 
 Do:
@@ -77,9 +77,9 @@ Design principles:
   - Derive damage from the retained tree by identity, never by comparing paint output.
   - Add new beui components to beui-demo too.
   - Give styled components design tokens (a text size, a weight, a color role), never raw pixels or colors. Base components take concrete values and know nothing about the theme.
-- Plugins:
-  - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
-  - Pass textures through the plugin protocol without them leaving the GPU.
+- Apps:
+  - Keep the app protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
+  - Pass textures through the app protocol without them leaving the GPU.
 - GUI:
   - Use icons from the icon library in `beui_core::icons`. Where no icon fits or the library isn't usable, use no icon. Never use emoji or other Unicode symbols as icons. If the user gives you a Unicode icon, that is for illustration, don't use it directly. This rule only applies within the repository, so it doesn't apply to a claude artifact for example.
   - Make a scroll view fill its area edge to edge, and put padding inside it, around the content: `scroll(padding(content))`, not `padding(scroll(content))`.

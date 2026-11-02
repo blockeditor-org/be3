@@ -40,10 +40,10 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::app::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
 use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_core::program::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
 use beui_core::window::WindowState;
 use beui_runner::renderer::{Loaded, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
@@ -94,13 +94,13 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     event_loop.set_control_flow(ControlFlow::Wait);
     let size = launch.options.size;
     #[cfg(all(unix, not(target_os = "macos")))]
-    let app_id = launch.options.app_id.clone();
+    let program_id = launch.options.program_id.clone();
     let outcome = Outcome::default();
     let runner = Runner {
         runner: beui_runner::Runner::new(launch),
         size,
         #[cfg(all(unix, not(target_os = "macos")))]
-        app_id,
+        program_id,
         load: Some(load),
         surface: None,
         pointer: Pos2::ZERO,
@@ -134,7 +134,7 @@ struct Runner {
     runner: beui_runner::Runner,
     size: Vec2,
     #[cfg(all(unix, not(target_os = "macos")))]
-    app_id: Option<String>,
+    program_id: Option<String>,
     load: Option<Load>,
     surface: Option<Surface>,
     pointer: Pos2,
@@ -545,10 +545,10 @@ impl ApplicationHandler for Runner {
             .with_visible(false)
             .with_surface_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]
-        let attributes = match &self.app_id {
-            Some(app_id) => attributes.with_platform_attributes(Box::new(
+        let attributes = match &self.program_id {
+            Some(program_id) => attributes.with_platform_attributes(Box::new(
                 winit::platform::wayland::WindowAttributesWayland::default()
-                    .with_name(app_id, app_id),
+                    .with_name(program_id, program_id),
             )),
             None => attributes,
         };

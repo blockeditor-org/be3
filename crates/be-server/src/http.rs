@@ -7,7 +7,7 @@ use std::{
     time::Instant,
 };
 
-use be_protocol::{MAX_FRAME_BYTES, read_hello};
+use be_block_protocol::{MAX_FRAME_BYTES, read_hello};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::TcpStream,

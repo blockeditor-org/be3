@@ -1,12 +1,12 @@
-use be_commit::CommitId;
-use be_graph::{
+use be_block_commit::CommitId;
+use be_block_graph::{
     ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
 };
-use be_protocol::{
+use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet,
     OrganizationRole,
 };
-use be_store::{Hash, ObjectStore};
+use be_block_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use uuid::Uuid;
@@ -494,7 +494,7 @@ impl ServerStore {
                         encode_parents(&parents),
                         time,
                         pinned,
-                        be_commit::now_milliseconds()
+                        be_block_commit::now_milliseconds()
                     ],
                 )?;
                 let mut refs = self.object_refs();
@@ -833,7 +833,7 @@ impl ServerStore {
             let history = read_history(&transaction, identity.organization, block)?;
             if kept_for > 0
                 && newest_version(&transaction, identity.organization, block, Some(&drop))?
-                    > be_commit::now_milliseconds() - kept_for
+                    > be_block_commit::now_milliseconds() - kept_for
             {
                 return Err(crate::organization::refused(
                     "this organization keeps every version for longer than that",
@@ -882,7 +882,7 @@ impl ServerStore {
             let kept_for = self
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
-            let since = be_commit::now_milliseconds() - kept_for;
+            let since = be_block_commit::now_milliseconds() - kept_for;
             let mut detached = Vec::new();
             for block in graph.detached() {
                 if !seen.inherited(graph, block).can_edit() {
@@ -1034,7 +1034,7 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             require_manage(graph, &visibility(identity), block)?;
             let company = crate::keys::organization_kind(database, identity.organization)?
-                == be_protocol::OrganizationKind::Company;
+                == be_block_protocol::OrganizationKind::Company;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let contacts = crate::contacts::contacts_of(database, identity.account)?;
             let mut listed: BTreeSet<Uuid> = node.grants.keys().copied().collect();
@@ -1146,7 +1146,7 @@ pub(crate) fn revoke_or_grant(
     account: Uuid,
     access: Access,
 ) -> Result<(), ServerError> {
-    if account == be_graph::ANYONE_INSIDE {
+    if account == be_block_graph::ANYONE_INSIDE {
         return open_or_close_inside(graph, database, organization, block, access);
     }
     let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
@@ -1178,7 +1178,7 @@ fn open_or_close_inside(
         database,
         organization,
         kind,
-        be_graph::ANYONE_INSIDE,
+        be_block_graph::ANYONE_INSIDE,
         access,
     )?;
     if access > Access::None {
@@ -1376,7 +1376,7 @@ fn release_held(
     Ok(freed)
 }
 
-fn remove_objects(objects: &be_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {
+fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {
     for hash in freed {
         objects.remove(*hash)?;
     }

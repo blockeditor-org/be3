@@ -11,7 +11,7 @@ pub enum KeyInput {
 pub struct KeyTarget {
     pub node: Option<NodeId>,
     pub typing: bool,
-    pub app: bool,
+    pub program: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -103,7 +103,7 @@ genrule(
     visibility = ["PUBLIC"],
 )
 
-# wasm-opt, which a release build runs over every plugin and game module
+# wasm-opt, which a release build runs over every app and game module
 # (buck/wasm/defs.bzl), and wasm-as.
 binaryen_version = "133"
 
@@ -122,7 +122,7 @@ command_alias(
 )
 
 # Binaryen's assembler, which turns a test's hand-written WebAssembly text
-# into a module (block-wasm-host's standalone guest).
+# into a module (be-wasm-host's standalone guest).
 command_alias(
     name = "wasm-as",
     args = ["$(location :binaryen)/bin/wasm-as"],
@@ -235,7 +235,7 @@ llvm_tree(
 
 # libFuzzer from the same LLVM, which a coverage-guided fuzz target links for
 # its main: it reads the coverage rustc's sancov pass compiles into the code
-# under test (crates/sequence's :fuzz). Its own package, so the tree above and
+# under test (crates/be-lib-sequence's :fuzz). Its own package, so the tree above and
 # everything compiled with it are unchanged.
 http_file(
     name = "libclang-rt-20-dev.deb",
@@ -418,14 +418,14 @@ command_alias(
     visibility = ["PUBLIC"],
 )
 
-# Every wasm link: rust-lld, through crates/wasm-link, which drops the
+# Every wasm link: rust-lld, through crates/be-wasm-link, which drops the
 # -fuse-ld=lld prelude//os_lookup adds (it has no case for WebAssembly and falls
-# back to linux) and makes the links of the libraries plugins share and of the
-# plugins linked against them (guides/plugin_libraries.md).
+# back to linux) and makes the links of the libraries apps share and of the
+# apps linked against them (guides/app_libraries.md).
 command_alias(
     name = "wasm-ld",
     args = [
-        "$(exe //crates/wasm-link:bin)",
+        "$(exe //crates/be-wasm-link:bin)",
         "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
     ],
     visibility = ["PUBLIC"],
@@ -440,7 +440,7 @@ script(
     visibility = ["PUBLIC"],
 )
 
-# Caddy, which //crates/block-app:web runs on this machine, so the release
+# Caddy, which //crates/be-host:web runs on this machine, so the release
 # is this machine's. The same bytes as upstream's GitHub releases, mirrored.
 caddy_version = "2.11.4"
 

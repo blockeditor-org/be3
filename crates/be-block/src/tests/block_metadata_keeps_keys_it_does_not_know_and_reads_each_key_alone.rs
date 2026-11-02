@@ -10,7 +10,7 @@ fn block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone() {
     metadata.insert(&unknown, &vec!["kept".to_owned()]);
     metadata
         .derived
-        .insert(THUMBHASH.id, be_model::to_cbor(&"not a thumbhash"));
+        .insert(THUMBHASH.id, be_block_model::to_cbor(&"not a thumbhash"));
 
     let read = BlockMetadata::decode(&metadata.encode()).expect("the metadata decodes");
 

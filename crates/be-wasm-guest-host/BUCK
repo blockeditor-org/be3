@@ -1,0 +1,16 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# The worker runtime every guest runs in in a browser (src/guest.js), which the
+# crate embeds; the app web tests run it with be-host's app.js.
+export_file(
+    name = "guest.js",
+    src = "src/guest.js",
+    visibility = [
+        "//crates/be-tool-tls-diamond-app:",
+        "//crates/be-wasm-host:",
+    ],
+)
