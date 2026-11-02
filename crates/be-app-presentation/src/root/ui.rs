@@ -358,20 +358,35 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
 
     view! {
         <Frame fill=ColorRole::Surface>
-            <List spacing=Space::None>
-                <Show condition={empty}>
-                    <Frame padding=FILMSTRIP_PADDING>
-                        <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
-                    </Frame>
-                </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
-                    <Frame padding=FILMSTRIP_PADDING>
-                        <List spacing=TILE_SPACING>
-                            <ForEach keys={keys} view={tiles} />
-                        </List>
-                    </Frame>
-                </Scroll>
-            </List>
+            <Container>|area: ReadSignal<Vec2>| {
+                let direction = create_memo(move || {
+                    let area = area.get();
+                    match area.x > area.y {
+                        true => Direction::Horizontal,
+                        false => Direction::Vertical,
+                    }
+                });
+                view! {
+                    <List spacing=Space::None>
+                        <Show condition={empty}>
+                            <Frame padding=FILMSTRIP_PADDING>
+                                <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
+                            </Frame>
+                        </Show>
+                        <Scroll
+                            @sizing=ItemSize::Percent(100.0)
+                            direction={direction}
+                            @test_id={"presentation.filmstrip"}
+                        >
+                            <Frame padding=FILMSTRIP_PADDING>
+                                <List direction={direction} align=Align::Start spacing=TILE_SPACING>
+                                    <ForEach keys={keys} view={tiles} />
+                                </List>
+                            </Frame>
+                        </Scroll>
+                    </List>
+                }
+            }</Container>
         </Frame>
     }
 }
@@ -436,9 +451,21 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
         }
     };
     let remove = move || slides.remove(id);
+    let tile = NodeRef::new();
+    let area = be_sdk_beui::beui::unstyled::container_size();
+    create_effect(move || {
+        if let Some(area) = area {
+            area.get();
+        }
+        if selected.get()
+            && let Some(node) = tile.try_get()
+        {
+            node.reveal();
+        }
+    });
 
     view! {
-        <Frame padding=TILE_INSET>
+        <Frame @node_ref=&tile padding=TILE_INSET>
             <Frame
                 fill=ColorRole::SurfaceRaised
                 border={create_memo(move || Some(outline.get()))}
