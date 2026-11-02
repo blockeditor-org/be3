@@ -90,7 +90,11 @@ impl Desk {
             let at = display.rect.min.to_vec2();
             let raised = Raised {
                 screen: display.screen,
-                takes: report.floating.iter().map(|rect| rect.translate(at)).collect(),
+                takes: report
+                    .floating
+                    .iter()
+                    .map(|rect| rect.translate(at))
+                    .collect(),
                 paints: report
                     .floating_painted
                     .iter()
