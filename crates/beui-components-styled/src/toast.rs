@@ -4,6 +4,7 @@ use beui_macros::{component, view};
 use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
 use crate::list::List;
+use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::tokens::{Padding, Size, Space, use_space};
 use beui_components_unstyled as unstyled;
@@ -16,6 +17,7 @@ use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::Justify;
 use beui_view::types::TextAlign;
+use beui_view::types::{Overflow, WrapAt};
 use beui_view::types::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
 use beui_view::types::{Align, Direction, ItemSize};
 use std::time::Duration;
@@ -26,6 +28,15 @@ const SPACING: Space = Space::Md;
 const PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
 const PICTURE_SIZE: Size = Size::Lg;
 const TEXT_SPACING: Space = Space::Xs2;
+const TITLE_LINES: u32 = 2;
+const MESSAGE_LINES: u32 = 4;
+
+fn clamped(lines: u32) -> Overflow {
+    Overflow::Wrap {
+        at: WrapAt::Words,
+        max_lines: Some(lines),
+    }
+}
 
 #[component]
 pub fn Toasts(
@@ -46,12 +57,32 @@ pub fn Toasts(
             width={WIDTH.px()}
             margin={use_space(MARGIN)}
             spacing={use_space(SPACING)}
+            scrollbar={scrollbar_style()}
             on_dismiss
             on_action
             on_activate
+            more={|hidden: Memo<usize>| view! {
+                <ToastsHidden hidden />
+            }}
         >|handle: ToastHandle|
             <ToastCard handle />
         </unstyled::Toasts>
+    }
+}
+
+#[component]
+fn ToastsHidden(hidden: Memo<usize>) -> NodeId {
+    let label = create_memo(move || format!("{} more", hidden.get()));
+    view! {
+        <Frame
+            @test_id="toasts.more"
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding=PADDING
+        >
+            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>{label}</Text>
+        </Frame>
     }
 }
 
@@ -99,12 +130,24 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
                 <Show condition={titled}>|| {
                     let title = title.clone(); view! {
-                        <Text color={title_color} weight=Weight::Bold>{title}</Text>
+                        <Text
+                            color={title_color}
+                            weight=Weight::Bold
+                            overflow={clamped(TITLE_LINES)}
+                        >
+                            {title}
+                        </Text>
                     }
                 }</Show>
                 <Show condition={said}>|| {
                     let message = message.clone(); view! {
-                        <Text size={message_size} color={message_color}>{message}</Text>
+                        <Text
+                            size={message_size}
+                            color={message_color}
+                            overflow={clamped(MESSAGE_LINES)}
+                        >
+                            {message}
+                        </Text>
                     }
                 }</Show>
             </List>
