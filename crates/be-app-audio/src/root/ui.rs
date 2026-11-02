@@ -3,10 +3,10 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::{AudioStatus, Editor, FileChooser};
 
 use super::{decode, filter, format_micros};
@@ -144,36 +144,28 @@ fn Track(editor: Editor) -> NodeId {
 
     view! {
         <Frame padding=PADDING>
-                        <List spacing=SPACING>
-                            <Text size=TextSize::Xl4 align=TextAlign::Center>
-                                <Icon glyph=ICON_FILE_HEADPHONE />
-                            </Text>
-                            <Text align=TextAlign::Center>{source}</Text>
-                            <Button
-                                icon_only=true
-                                @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                                glyph={glyph}
-                                label={action}
-                                @test_id={"audio.play"}
-                                on_click={toggle}
-                            />
-                            <Text
-                                style=TextStyle::CAPTION
-                                align=TextAlign::Center
-                                @test_id={"audio.position"}
-                            >
-                                {elapsed}
-                            </Text>
-                            <Show condition={failed}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    align=TextAlign::Center
-                                    color=TextColor::Danger
-                                >
-                                    {reason}
-                                </Text>
-                            </Show>
-                        </List>
+            <List spacing=SPACING>
+                <Text size=TextSize::Xl4 align=TextAlign::Center>
+                    <Icon glyph=ICON_FILE_HEADPHONE />
+                </Text>
+                <Text align=TextAlign::Center>{source}</Text>
+                <Button
+                    icon_only=true
+                    @sizing={ItemSize::Intrinsic.align(Align::Center)}
+                    glyph={glyph}
+                    label={action}
+                    @test_id={"audio.play"}
+                    on_click={toggle}
+                />
+                <Text style=TextStyle::CAPTION align=TextAlign::Center @test_id={"audio.position"}>
+                    {elapsed}
+                </Text>
+                <Show condition={failed}>
+                    <Text style=TextStyle::CAPTION align=TextAlign::Center color=TextColor::Danger>
+                        {reason}
+                    </Text>
+                </Show>
+            </List>
         </Frame>
     }
 }
@@ -200,16 +192,16 @@ fn AudioPanel(editor: Editor) -> NodeId {
             <Scroll @test_id={"audio.panel"}>
                 <Frame padding=PADDING>
                     <List spacing=SPACING>
-            <Button
-                label="Replace audio..."
-                variant=ButtonVariant::Secondary
-                disabled={blocked}
-                @test_id={"audio.replace"}
-                on_click={replace}
-            />
-            <Show condition={failed}>
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-            </Show>
+                        <Button
+                            label="Replace audio..."
+                            variant=ButtonVariant::Secondary
+                            disabled={blocked}
+                            @test_id={"audio.replace"}
+                            on_click={replace}
+                        />
+                        <Show condition={failed}>
+                            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+                        </Show>
                     </List>
                 </Frame>
             </Scroll>

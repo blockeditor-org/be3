@@ -1,8 +1,8 @@
 use be_sdk_beui::Fit;
+use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
-use be_sdk_beui::beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
 use be_sdk_beui::{Editor, FileChooser, fit_content};
 
 use super::picture::{thumbhash, watch};
@@ -95,7 +95,12 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                                                 on_click={choose}
                                             />
                                             <Show condition={refused}>
-                                                <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
+                                                <Text
+                                                    style=TextStyle::CAPTION
+                                                    color=TextColor::Danger
+                                                >
+                                                    {refusal}
+                                                </Text>
                                             </Show>
                                         </List>
                                     </Frame>

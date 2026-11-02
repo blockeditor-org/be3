@@ -1,5 +1,7 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::unstyled::{
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
+};
 
 #[component]
 fn CountingBar() -> NodeId {

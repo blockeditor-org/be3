@@ -1,6 +1,11 @@
 use be_type_video::VideoContent;
 
 use be_sdk_beui::Loaded;
+use be_sdk_beui::beui::dock::styled::{
+    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
+    use_dock_bar,
+};
+use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{
     ICON_CORNER_DOWN_RIGHT, ICON_PAUSE, ICON_PLAY, ICON_PLUS, ICON_SCAN, ICON_SCISSORS,
     ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_TRASH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
@@ -8,11 +13,6 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
-    use_dock_bar,
-};
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::{Creation, Editor};
 use be_type_video::{VideoFrameRate, VideoOperation};
 use uuid::Uuid;
@@ -214,27 +214,27 @@ fn PlaybackBar(state: VideoState) -> NodeId {
             <Frame @test_id={"video.playback.grip"}>
                 <DockBarGrip />
             </Frame>
-                <Button
-                    icon_only=true
-                    glyph=ICON_SKIP_BACK
-                    label="Go to the start"
-                    on_click={move || state.seek(0)}
-                />
-                <Button
-                    icon_only=true
-                    glyph={glyph}
-                    label="Play"
-                    disabled={empty}
-                    @test_id={"video.play"}
-                    on_click={move || state.toggle_playback()}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_SKIP_FORWARD
-                    label="Go to the end"
-                    on_click={move || state.seek(state.duration.get_untracked())}
-                />
-                <Text style=TextStyle::CAPTION>{position}</Text>
+            <Button
+                icon_only=true
+                glyph=ICON_SKIP_BACK
+                label="Go to the start"
+                on_click={move || state.seek(0)}
+            />
+            <Button
+                icon_only=true
+                glyph={glyph}
+                label="Play"
+                disabled={empty}
+                @test_id={"video.play"}
+                on_click={move || state.toggle_playback()}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_SKIP_FORWARD
+                label="Go to the end"
+                on_click={move || state.seek(state.duration.get_untracked())}
+            />
+            <Text style=TextStyle::CAPTION>{position}</Text>
         </DockBarSurface>
     }
 }
@@ -252,58 +252,58 @@ fn TimelineTools(state: VideoState) -> NodeId {
             <Frame @test_id={"video.timeline-tools.grip"}>
                 <DockBarGrip />
             </Frame>
-                <Button
-                    icon_only=true
-                    glyph=ICON_PLUS
-                    label="Add a clip to the end of the base track"
-                    @test_id={"video.add-clip"}
-                    on_click={move || state.open_picker(None)}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_CORNER_DOWN_RIGHT
-                    label="Attach a clip to the selected clip at the playhead"
-                    disabled={none}
-                    on_click={move || {
-                        let selected = state.selected.get_untracked();
-                        state.open_picker(selected);
-                    }}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_SCISSORS
-                    label="Split the selected clip in two at the playhead"
-                    disabled={none}
-                    @test_id={"video.split"}
-                    on_click={move || state.split_selected()}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_TRASH
-                    label="Delete the selected clip and everything attached to it"
-                    disabled={none}
-                    @test_id={"video.delete"}
-                    on_click={move || state.remove_selected()}
-                />
-                <Separator direction={across} length=TOOL_SEPARATOR_LENGTH />
-                <Button
-                    icon_only=true
-                    glyph=ICON_ZOOM_OUT
-                    label="Zoom the timeline out"
-                    on_click={move || state.zoom_timeline(1.0 / ZOOM_STEP)}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_ZOOM_IN
-                    label="Zoom the timeline in"
-                    on_click={move || state.zoom_timeline(ZOOM_STEP)}
-                />
-                <Button
-                    icon_only=true
-                    glyph=ICON_SCAN
-                    label="Fit the whole video in the timeline"
-                    on_click={move || state.request_fit()}
-                />
+            <Button
+                icon_only=true
+                glyph=ICON_PLUS
+                label="Add a clip to the end of the base track"
+                @test_id={"video.add-clip"}
+                on_click={move || state.open_picker(None)}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_CORNER_DOWN_RIGHT
+                label="Attach a clip to the selected clip at the playhead"
+                disabled={none}
+                on_click={move || {
+                    let selected = state.selected.get_untracked();
+                    state.open_picker(selected);
+                }}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_SCISSORS
+                label="Split the selected clip in two at the playhead"
+                disabled={none}
+                @test_id={"video.split"}
+                on_click={move || state.split_selected()}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_TRASH
+                label="Delete the selected clip and everything attached to it"
+                disabled={none}
+                @test_id={"video.delete"}
+                on_click={move || state.remove_selected()}
+            />
+            <Separator direction={across} length=TOOL_SEPARATOR_LENGTH />
+            <Button
+                icon_only=true
+                glyph=ICON_ZOOM_OUT
+                label="Zoom the timeline out"
+                on_click={move || state.zoom_timeline(1.0 / ZOOM_STEP)}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_ZOOM_IN
+                label="Zoom the timeline in"
+                on_click={move || state.zoom_timeline(ZOOM_STEP)}
+            />
+            <Button
+                icon_only=true
+                glyph=ICON_SCAN
+                label="Fit the whole video in the timeline"
+                on_click={move || state.request_fit()}
+            />
         </DockBarSurface>
     }
 }
