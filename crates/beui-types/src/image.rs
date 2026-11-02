@@ -183,9 +183,6 @@ impl ImageFit {
     }
 }
 
-/// A picture the pointer shows in place of a named cursor: straight-alpha
-/// RGBA pixels covering `size` points, with the pointer's tip `hotspot`
-/// points from their top-left corner.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CursorImage {
     pub image: Image,
@@ -194,7 +191,6 @@ pub struct CursorImage {
 }
 
 impl CursorImage {
-    /// The hotspot in the image's pixels.
     pub fn hotspot_pixels(&self) -> (u32, u32) {
         let pixel = |at: f32, points: f32, pixels: u32| {
             let at = (at * pixels as f32 / points.max(1.0)).round().max(0.0) as u32;
