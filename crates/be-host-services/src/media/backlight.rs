@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use zbus::Proxy;
 
 use super::{Backlight, MediaEvent};
 use be_host_base::host::Post;
@@ -76,7 +75,6 @@ pub(super) fn stepped(brightness: u32, max: u32, by: f32) -> u32 {
 }
 
 async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
-    let mut session = None;
     let mut told = false;
     if let Some(device) = find(Path::new(DEVICES)) {
         events.send(MediaEvent::Brightness(
@@ -93,14 +91,14 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
         told = false;
         let target = stepped(device.brightness, device.max, by);
         if target != device.brightness {
-            if session.is_none() {
-                session = connect().await;
-            }
-            let Some(proxy) = &session else {
+            let Some(connection) = crate::dbus::SYSTEM.connection().await else {
                 continue;
             };
-            let set = proxy
-                .call::<_, _, ()>(
+            let set = connection
+                .call_method(
+                    Some(DESTINATION),
+                    SESSION,
+                    Some(INTERFACE),
                     "SetBrightness",
                     &("backlight", device.name.as_str(), target),
                 )
@@ -111,16 +109,5 @@ async fn run(mut steps: UnboundedReceiver<f32>, events: Post<MediaEvent>) {
             }
         }
         events.send(MediaEvent::Brightness(target as f32 / device.max as f32));
-    }
-}
-
-async fn connect() -> Option<Proxy<'static>> {
-    let connection = crate::dbus::system().await?;
-    match Proxy::new(&connection, DESTINATION, SESSION, INTERFACE).await {
-        Ok(proxy) => Some(proxy),
-        Err(error) => {
-            eprintln!("be-host: logind's session is not reachable: {error}");
-            None
-        }
     }
 }

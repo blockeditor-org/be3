@@ -202,15 +202,40 @@ later close start a new one. `src/login_session/logind.rs` talks to `org.freedes
 signal. Logging out closes be-host the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops be-host, the outputs, the input devices, the DRM device (which
 puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
-future there and `dbus::system()` is the shared system bus connection. A task hands what it
-learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
-nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
-Build every connection with `dbus::build`, as these two and the tests' private bus
-(`dbus::test_bus`) do. zbus starts a connection's object server only when the first object is
-served, and drops a method call that arrives before that server is listening. Serving an object
-right before taking a name, as notifications and the tray watcher do, then loses a client's first
-call now and then. `dbus::build` serves `ObjectManager` at `/` while it connects, so the server is
-listening before the connection is returned.
+future there. A task hands what it learns back through a `host::mailbox` (guides/desktop.md),
+which wakes the event loop, so nothing on the UI thread waits on the bus.
+
+`dbus::SYSTEM` and `dbus::SESSION` are the two buses, each a `dbus::Bus` that shares one
+connection and opens a new one once that closes. Either bus can go away and come back while
+be-host runs (the session bus is restarted, the system bus was not up yet at login), so every
+service runs once per connection: `bus.connected()` waits for an open connection, and
+`dbus::until_closed(&connection, service)` runs the service until it ends or the connection
+closes, then the loop takes the next connection. The service returns `ControlFlow::Break` only
+when the desktop no longer wants it (its request channel closed), and `Continue` when it cannot
+work on this connection (another notification server owns the name), which waits for the next
+one. State that outlives a connection, such as the request channel, notification ids or logind's
+sleep inhibitor, lives outside the per-connection future; what a service showed from the bus
+(tray items, Wi-Fi) is cleared by a guard dropped with that future. Notifications, the tray,
+media players and the session environment use the session bus; Wi-Fi, the backlight and logind
+(be-host's `src/login_session/logind.rs`, which answers power requests with an error while the
+bus is away) use the system bus. While a bus is unreachable `connected()` watches the directory
+of its socket with inotify and tries again once something is created there, and also after a
+backoff from 1 to 30 seconds, because the socket can exist before the daemon listens on it and an
+address can name no socket file at all (an abstract socket, TCP).
+
+Build every connection with `dbus::build`, as the buses and the tests' private bus
+(`dbus::test_bus`) do. It sets `dbus::METHOD_TIMEOUT` (10 s), so a peer that never answers fails
+its call instead of holding the task that waits for it; calls to programs that can be slow, like
+tray items, run in their own `dbus::spawn` task, and media keys are sent without waiting for a
+reply. zbus starts a connection's object server only when the first object is served, and drops a
+method call that arrives before that server is listening. Serving an object right before taking a
+name, as notifications and the tray watcher do, then loses a client's first call now and then.
+`dbus::build` serves `ObjectManager` at `/` while it connects, so the server is listening before
+the connection is returned.
+
+Tests run services on a private bus, `dbus::test_bus::PrivateBus`, whose `kill` and
+`start_again` restart it at the same address to check that services come back, and wait with
+`test_bus::next` and `test_bus::within`, which fail after 30 seconds instead of hanging.
 
 
 ## Notifications

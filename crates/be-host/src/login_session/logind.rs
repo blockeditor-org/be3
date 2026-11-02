@@ -1,9 +1,10 @@
-use std::future::pending;
+use std::future::{Future, pending};
+use std::ops::ControlFlow;
 
 use futures_util::future::{Either, select};
 use futures_util::{StreamExt, pin_mut};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use zbus::Proxy;
+use zbus::{Connection, Proxy};
 use zbus::proxy::SignalStream;
 use zbus::zvariant::{OwnedFd, OwnedObjectPath};
 
@@ -71,15 +72,83 @@ enum Next {
     Lock(Option<()>),
 }
 
+#[derive(Default)]
+struct Held {
+    inhibitor: Option<OwnedFd>,
+    inhibiting: bool,
+    locked_hint: Option<bool>,
+}
+
 async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent>) {
-    let Some(connection) = be_host_services::dbus::system().await else {
-        return;
-    };
-    let manager = match Proxy::new(&connection, DESTINATION, PATH, MANAGER).await {
+    let bus = &be_host_services::dbus::SYSTEM;
+    let mut held = Held::default();
+    loop {
+        let Some(connection) = offline(&mut requested, &events, &mut held, bus.connected()).await
+        else {
+            return;
+        };
+        let flow = {
+            let serving = online(&connection, &mut requested, &events, &mut held);
+            let closed = connection.closed();
+            pin_mut!(serving, closed);
+            match select(serving, closed).await {
+                Either::Left((flow, _)) => flow,
+                Either::Right(((), _)) => ControlFlow::Continue(()),
+            }
+        };
+        if flow.is_break() {
+            return;
+        }
+        let closed = connection.closed();
+        if offline(&mut requested, &events, &mut held, closed)
+            .await
+            .is_none()
+        {
+            return;
+        }
+    }
+}
+
+async fn offline<T>(
+    requested: &mut UnboundedReceiver<Request>,
+    events: &Post<LogindEvent>,
+    held: &mut Held,
+    until: impl Future<Output = T>,
+) -> Option<T> {
+    pin_mut!(until);
+    loop {
+        let request = requested.recv();
+        pin_mut!(request);
+        match select(until.as_mut(), request).await {
+            Either::Left((value, _)) => return Some(value),
+            Either::Right((None, _)) => return None,
+            Either::Right((Some(request), _)) => match request {
+                Request::Call(call) => events.send(LogindEvent::Called(
+                    call,
+                    Err("logind is not reachable".to_owned()),
+                )),
+                Request::Inhibit => held.inhibiting = true,
+                Request::Release => {
+                    held.inhibiting = false;
+                    held.inhibitor = None;
+                }
+                Request::LockedHint(locked) => held.locked_hint = Some(locked),
+            },
+        }
+    }
+}
+
+async fn online(
+    connection: &Connection,
+    requested: &mut UnboundedReceiver<Request>,
+    events: &Post<LogindEvent>,
+    held: &mut Held,
+) -> ControlFlow<()> {
+    let manager = match Proxy::new(connection, DESTINATION, PATH, MANAGER).await {
         Ok(manager) => manager,
         Err(error) => {
             eprintln!("be-host: logind is not reachable: {error}");
-            return;
+            return ControlFlow::Continue(());
         }
     };
     let abilities = LogindAbilities {
@@ -106,7 +175,12 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
         },
         None => None,
     };
-    let mut inhibitor: Option<OwnedFd> = None;
+    if held.inhibiting && held.inhibitor.is_none() {
+        held.inhibitor = inhibit(&manager).await;
+    }
+    if let (Some(session), Some(locked)) = (&session, held.locked_hint) {
+        set_locked_hint(session, locked).await;
+    }
     loop {
         let next = {
             let request = requested.recv();
@@ -128,19 +202,22 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
                 events.send(LogindEvent::Called(call, result));
             }
             Next::Request(Some(Request::Inhibit)) => {
-                if inhibitor.is_none() {
-                    inhibitor = inhibit(&manager).await;
+                held.inhibiting = true;
+                if held.inhibitor.is_none() {
+                    held.inhibitor = inhibit(&manager).await;
                 }
             }
-            Next::Request(Some(Request::Release)) => inhibitor = None,
+            Next::Request(Some(Request::Release)) => {
+                held.inhibiting = false;
+                held.inhibitor = None;
+            }
             Next::Request(Some(Request::LockedHint(locked))) => {
-                if let Some(session) = &session
-                    && let Err(error) = session.call::<_, _, ()>("SetLockedHint", &(locked,)).await
-                {
-                    eprintln!("be-host: logind did not take the locked hint: {error}");
+                held.locked_hint = Some(locked);
+                if let Some(session) = &session {
+                    set_locked_hint(session, locked).await;
                 }
             }
-            Next::Request(None) => return,
+            Next::Request(None) => return ControlFlow::Break(()),
             Next::Sleep(Some(starting)) => {
                 events.send(LogindEvent::PrepareForSleep(starting));
             }
@@ -150,6 +227,12 @@ async fn run(mut requested: UnboundedReceiver<Request>, events: Post<LogindEvent
             }
             Next::Lock(None) => locks = None,
         }
+    }
+}
+
+async fn set_locked_hint(session: &Proxy<'_>, locked: bool) {
+    if let Err(error) = session.call::<_, _, ()>("SetLockedHint", &(locked,)).await {
+        eprintln!("be-host: logind did not take the locked hint: {error}");
     }
 }
 

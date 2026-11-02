@@ -1,15 +1,17 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 
 use futures_util::future::{Either, select};
 use futures_util::{StreamExt, pin_mut};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use zbus::message::Type;
+use zbus::message::{Flags, Type};
 use zbus::zvariant::OwnedValue;
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
 use be_sdk_api::PlayerCommand;
 
 use super::Players;
+use crate::dbus::Bus;
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PATH: &str = "/org/mpris/MediaPlayer2";
@@ -25,7 +27,9 @@ pub struct Mpris {
 impl Mpris {
     pub fn start() -> Self {
         let (requests, requested) = unbounded_channel();
-        crate::dbus::spawn(run(requested));
+        crate::dbus::spawn(async move {
+            serve(&crate::dbus::SESSION, requested, |_| {}).await;
+        });
         Self { requests }
     }
 }
@@ -105,18 +109,28 @@ impl Tracker {
     }
 }
 
-async fn run(requested: UnboundedReceiver<PlayerCommand>) {
-    let Some(connection) = crate::dbus::session().await else {
-        return;
-    };
-    run_on(connection, requested, |_| {}).await;
-}
-
-pub(super) async fn run_on(
-    connection: Connection,
+pub(super) async fn serve(
+    bus: &Bus,
     mut requested: UnboundedReceiver<PlayerCommand>,
     mut targeted: impl FnMut(Option<&str>) + Send + 'static,
 ) {
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(connection.clone(), &mut requested, &mut targeted);
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    requested: &mut UnboundedReceiver<PlayerCommand>,
+    targeted: &mut (impl FnMut(Option<&str>) + Send),
+) -> ControlFlow<()> {
     let mut signals = match watch(&connection).await {
         Ok((owners, statuses)) => Some(futures_util::stream::select(owners, statuses)),
         Err(error) => {
@@ -149,7 +163,7 @@ pub(super) async fn run_on(
         };
         match next {
             Next::Request(Some(request)) => send(&connection, &tracker, request).await,
-            Next::Request(None) => return,
+            Next::Request(None) => return ControlFlow::Break(()),
             Next::Signal(Some(Ok(message))) => {
                 if let Some(owner) = observe(&mut tracker, &message) {
                     read_status(&connection, owner, &read_sender);
@@ -287,11 +301,17 @@ async fn send(connection: &Connection, tracker: &Tracker, request: PlayerCommand
     let Some(player) = tracker.target() else {
         return;
     };
-    let sent = connection
-        .call_method(Some(player), PATH, Some(PLAYER), method(request), &())
-        .await;
+    let call = Message::method_call(PATH, method(request))
+        .and_then(|call| call.destination(player))
+        .and_then(|call| call.interface(PLAYER))
+        .and_then(|call| call.with_flags(Flags::NoReplyExpected))
+        .and_then(|call| call.build(&()));
+    let sent = match call {
+        Ok(call) => connection.send(&call).await,
+        Err(error) => Err(error),
+    };
     if let Err(error) = sent {
-        eprintln!("be-host: the media player did not take {request:?}: {error}");
+        eprintln!("be-host: the media player was not sent {request:?}: {error}");
     }
 }
 

@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::mpsc::unbounded_channel;
 
 use super::*;
-use crate::dbus::test_bus::Bus;
+use crate::dbus::test_bus::{PrivateBus, next};
 
 struct FakePlayer {
     name: &'static str,
@@ -47,7 +47,7 @@ impl FakePlayer {
 }
 
 async fn player(
-    bus: &Bus,
+    bus: &PrivateBus,
     name: &'static str,
     status: &str,
     heard: &Sender<String>,
@@ -73,21 +73,24 @@ async fn player(
 }
 
 fn until(targets: &Receiver<Option<String>>, owner: &str) {
-    while targets.recv().expect("the host keeps choosing a player") != Some(owner.to_owned()) {}
+    while next(targets, "the host chooses a player") != Some(owner.to_owned()) {}
 }
 
 #[test]
 fn media_keys_on_a_private_bus_go_to_the_player_that_is_playing() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     let (heard_sender, heard) = channel();
     let (target_sender, targets) = channel();
     let (requests, requested) = unbounded_channel();
     zbus::block_on(async {
         let alpha = player(&bus, "alpha", "Paused", &heard_sender).await;
-        let host = bus.connect().await;
-        crate::dbus::spawn(players::run_on(host, requested, move |target| {
-            let _ = target_sender.send(target.map(str::to_owned));
-        }));
+        let shared = bus.shared();
+        crate::dbus::spawn(async move {
+            players::serve(&shared, requested, move |target| {
+                let _ = target_sender.send(target.map(str::to_owned));
+            })
+            .await;
+        });
         let alpha_owner = alpha.unique_name().expect("a name").to_string();
         until(&targets, &alpha_owner);
 
@@ -104,7 +107,7 @@ fn media_keys_on_a_private_bus_go_to_the_player_that_is_playing() {
         }
         for method in ["PlayPause", "Next", "Previous", "Stop"] {
             assert_eq!(
-                heard.recv().expect("a player hears the key"),
+                next(&heard, "a player hears the key"),
                 format!("beta {method}"),
                 "the player that already played when it appeared is told"
             );
@@ -125,7 +128,7 @@ fn media_keys_on_a_private_bus_go_to_the_player_that_is_playing() {
         until(&targets, &alpha_owner);
         let _ = requests.send(PlayerCommand::PlayPause);
         assert_eq!(
-            heard.recv().expect("a player hears the key"),
+            next(&heard, "a player hears the key"),
             "alpha PlayPause",
             "the player that started playing last is told"
         );
