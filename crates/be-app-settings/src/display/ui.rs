@@ -30,6 +30,10 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let bar = editor.offered::<DesktopBarWatch>();
     let rotate_shown = create_memo(move || bar.get() && offered.get());
     let screens = create_memo(move || bar.get() || offered.get());
+    let screens_title = create_memo(move || match offered.get() {
+        true => "Screens".to_owned(),
+        false => "Desktop bar".to_owned(),
+    });
     let after_rotate = create_memo(move || none.get() || rotate_shown.get());
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
@@ -45,7 +49,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
             <Show condition={screens}>
-                <SettingsSection title="Screens">
+                <SettingsSection title={screens_title}>
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
