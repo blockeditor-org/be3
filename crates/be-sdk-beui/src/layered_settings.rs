@@ -1,6 +1,6 @@
 use be_block::be_block_model::Document;
 use be_block::{
-    BlockContent, Layered, Layers, LiveEdit, Resolution, Setting, SettingsLayer, SettingsSource,
+    BlockContent, Layered, LiveEdit, Resolution, Setting, SettingsLayer, SettingsSource,
 };
 use beui::NodeId;
 use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::root_settings::{SettingsGraph, own_settings_blocks};
 use crate::{
-    Editor, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget as Target,
+    Editor, KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget as Target,
     Subscription,
 };
 
@@ -22,15 +22,14 @@ const ORGANIZATION: &str = "Set by your organization";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";
 
-struct ChangeLog {
-    log: SettingsChangeLog,
+struct ChangeLog<R> {
+    log: SettingsChangeLog<R>,
     _changed: Subscription,
 }
 
 pub struct LayeredSettings<R: 'static> {
     editor: Editor,
     target: Memo<Target>,
-    layers: Memo<Layers>,
     every: Memo<R>,
     here: Memo<R>,
     own: Memo<R>,
@@ -39,7 +38,7 @@ pub struct LayeredSettings<R: 'static> {
     resolved: Memo<Resolution<R>>,
     ready: Memo<bool>,
     blocks: Stored<SettingsLayers<R>>,
-    changes: Stored<ChangeLog>,
+    changes: Stored<ChangeLog<R>>,
     changed: Signal<u64>,
 }
 
@@ -128,7 +127,6 @@ where
         Self {
             editor,
             target,
-            layers,
             every,
             here,
             own,
@@ -316,7 +314,7 @@ where
     }
 
     pub fn changes(&self) -> SettingsChanges {
-        let (changes, changed) = (self.changes, self.changed);
+        let (this, changes, changed) = (*self, self.changes, self.changed);
         let toasts = create_memo(move || {
             changed.get();
             let (message, round) =
@@ -350,7 +348,7 @@ where
                     _ => None,
                 };
                 changes.with(|changes| match answer {
-                    Some(answer) => changes.log.answer(answer),
+                    Some(answer) => changes.log.answer(answer, |kept| this.keep_here(kept)),
                     None => changes.log.dismiss(),
                 });
             }),
@@ -364,31 +362,32 @@ where
             let (setting, old) = (setting.clone(), old.clone());
             move || this.write(SettingsLayer::EveryDevice, &setting, old.clone())
         };
-        let keep = {
+        let here = {
             let setting = setting.clone();
-            move || {
+            move |own: &R| {
                 let now = this.every.with_untracked(|every| setting.get(every));
-                this.write(SettingsLayer::ThisDevice, &setting, now);
-                this.write(SettingsLayer::EveryDevice, &setting, old.clone());
+                setting.set(own, now)
             }
         };
         self.changes
-            .with(|changes| changes.log.note(setting.key(), setting.name(), undo, keep));
+            .with(|changes| changes.log.note(setting.key(), setting.name(), undo, here));
+    }
+
+    fn keep_here(&self, kept: &[KeptEdit<R>]) {
+        untrack(|| {
+            self.blocks
+                .with(|blocks| blocks.write_all(&self.editor, SettingsLayer::ThisDevice, kept))
+        });
     }
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
-        let layers = self.layers.get_untracked();
-        untrack(|| {
-            self.blocks
-                .with(|blocks| blocks.ensure(&self.editor, layers, layer))
-        })
+        untrack(|| self.blocks.with(|blocks| blocks.ensure(&self.editor, layer)))
     }
 
-    fn write<V: Clone>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
-        let layers = self.layers.get_untracked();
+    fn write<V: Clone + 'static>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
         untrack(|| {
             self.blocks
-                .with(|blocks| blocks.write(&self.editor, layers, layer, setting, value))
+                .with(|blocks| blocks.write(&self.editor, layer, setting, value))
         });
     }
 
