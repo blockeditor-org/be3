@@ -194,7 +194,7 @@ pub fn WindowView(
             begin(grab);
         }
     });
-        let asks = signals.asks;
+    let asks = signals.asks;
     let answered = signals.answered.clone();
     create_effect(move || {
         let asked = asks.get();

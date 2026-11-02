@@ -5,9 +5,9 @@ use std::cell::Cell;
 
 use be_sdk_beui::beui::dock::styled::WINDOW_CHROME;
 use be_sdk_beui::beui::dock::styled::{TabId, use_dock_tab};
+use be_sdk_beui::beui::icons::{ICON_EYE_OFF, ICON_FULLSCREEN, ICON_X};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::icons::{ICON_EYE_OFF, ICON_FULLSCREEN, ICON_X};
 use be_sdk_beui::beui::{Image, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
