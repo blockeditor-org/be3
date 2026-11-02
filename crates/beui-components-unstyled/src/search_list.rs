@@ -148,6 +148,7 @@ pub fn SearchList<K>(
     search_accessibility: Option<Prop<Node>>,
     field: RenderFn<TextInputHandle>,
     list_height: Prop<f32>,
+    #[prop(default = false)] fill_height: Prop<bool>,
     spacing: f32,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Func<K, Node>,
@@ -177,13 +178,18 @@ where
     };
     api.fill(SearchListApi(state));
 
+    let searched = store(RefCell::new(query.get_untracked()));
     create_effect(move || {
         let shown = shown.get();
-        let empty = query.with(|query| query.trim().is_empty());
+        let requeried = query.with(|query| *searched.value().borrow() != *query);
+        let empty = query.with(|query| {
+            *searched.value().borrow_mut() = query.clone();
+            query.trim().is_empty()
+        });
         let current = highlighted.get();
         untrack(|| {
             let choosable = |key: &K| shown.contains(key) && enabled.call(key.clone());
-            if current.as_ref().is_some_and(choosable) {
+            if current.as_ref().is_some_and(choosable) && !(requeried && highlight_first) {
                 return;
             }
             if current.is_none() && empty && !highlight_first {
@@ -219,7 +225,14 @@ where
                 on_submit={move |_: String| state.submit()}
             />
             <Scroll
-                @sizing={list_height.map(|height| ItemSize::Intrinsic.max(height).shrink(1.0))}
+                @sizing={create_memo(move || {
+                    let height = list_height.get();
+                    let size = match fill_height.get() {
+                        true => ItemSize::Fixed(height),
+                        false => ItemSize::Intrinsic,
+                    };
+                    size.max(height).shrink(1.0)
+                })}
                 fit=true
                 scrollbar
             >

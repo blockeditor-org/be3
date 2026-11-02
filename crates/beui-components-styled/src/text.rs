@@ -339,6 +339,7 @@ pub fn Text(
     #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     let theme = use_theme();
@@ -362,7 +363,7 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text font color underline align vertical_align overflow marks carets>
+        <primitives::Text font color underline align vertical_align overflow marks carets on_truncated>
             {children}
         </primitives::Text>
     }

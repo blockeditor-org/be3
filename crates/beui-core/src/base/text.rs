@@ -16,6 +16,7 @@ use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects, SpaceTransform};
 use crate::rich::{OBJECT, RichLayout, Shaper};
+use beui_tree::callback::Callback;
 use beui_tree::child_list::ChildList;
 use beui_types::Direction;
 use beui_types::LineBox;
@@ -287,6 +288,8 @@ pub struct TextNode {
     galleys: RefCell<Galleys>,
     shapings: Cell<u64>,
     fitted: RefCell<Option<Fitted>>,
+    truncated: Cell<bool>,
+    on_truncated: Callback<bool>,
 }
 
 impl ChildHost for TextNode {
@@ -543,6 +546,18 @@ impl TextNode {
         layout
     }
 
+    fn report_truncated(&self, doc: &mut Document, layout: &RichLayout, width: f32) {
+        let truncated = (self.overflow == Overflow::Ellipsis && layout.size.x > width)
+            || self
+                .max_lines()
+                .is_some_and(|lines| layout.lines.len() > lines);
+        if self.truncated.replace(truncated) == truncated || self.on_truncated.is_empty() {
+            return;
+        }
+        let on_truncated = self.on_truncated;
+        doc.report_after_layout(move || on_truncated.call(truncated));
+    }
+
     fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, width: f32) -> Rc<RichLayout> {
         let truncate = self.overflow == Overflow::Ellipsis && layout.size.x > width;
         let clamp = self.max_lines().filter(|lines| layout.lines.len() > *lines);
@@ -586,11 +601,9 @@ impl TextNode {
     }
 
     fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let layout = self.fitted(
-            painter,
-            self.rich_layout(doc, painter, rect.width()),
-            rect.width(),
-        );
+        let laid = self.rich_layout(doc, painter, rect.width());
+        self.report_truncated(doc, &laid, rect.width());
+        let layout = self.fitted(painter, laid, rect.width());
         let previous = self.placed.borrow().clone();
         let top = match self.vertical {
             TextAlign::Start => rect.top(),
@@ -983,7 +996,15 @@ impl Document {
             galleys: RefCell::new(Galleys::default()),
             shapings: Cell::new(0),
             fitted: RefCell::new(None),
+            truncated: Cell::new(false),
+            on_truncated: Callback::empty(),
         })
+    }
+
+    pub fn set_text_on_truncated(&mut self, text: NodeOf<TextNode>, on_truncated: Callback<bool>) {
+        let node = self.arena.touch_mut_as::<TextNode>(text);
+        node.on_truncated = on_truncated;
+        node.truncated.set(false);
     }
 
     pub fn set_text(&mut self, id: NodeOf<TextNode>, content: impl Into<String>) {

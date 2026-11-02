@@ -1,3 +1,4 @@
+use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ChildSegment;
 use crate::reactive::Children;
@@ -56,6 +57,7 @@ pub(crate) fn text(
     marks: Prop<Vec<TextMark>>,
     glyphs: Prop<Vec<TextGlyph>>,
     carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     let node = create("Text", "div");
@@ -158,6 +160,9 @@ pub(crate) fn text(
     }
     let rendered = model.clone();
     create_binding(move || rendered.render(&glyphs.get()));
+    if !on_truncated.is_empty() {
+        beui_core_html::text::report_truncated(node, on_truncated);
+    }
     if decorated(&hang) || decorated(&marks) || decorated(&carets) {
         set_style(node, "position", Some("relative".to_owned()));
         set_style(node, "z-index", Some("0".to_owned()));
