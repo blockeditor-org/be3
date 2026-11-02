@@ -709,6 +709,19 @@ impl EditorSession {
         sizes
     }
 
+    fn fitted(&mut self, view: ViewId, fitted: Vec2) {
+        let Some(state) = self.views.get_mut(&view) else {
+            return;
+        };
+        let raster = state.metrics.as_ref().map_or(1.0, |metrics| metrics.raster);
+        let raster = match raster.is_finite() && raster > 0.0 {
+            true => raster,
+            false => 1.0,
+        };
+        let (width, height) = crate::plugin::fitted_pixels(fitted, raster);
+        state.used = Some(vec2(width as f32 / raster, height as f32 / raster));
+    }
+
     fn used(&mut self, view: ViewId, content: Rect) {
         let Some(state) = self.views.get_mut(&view) else {
             return;
@@ -935,7 +948,7 @@ impl EditorSession {
         let screen = self.placement(view).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
         match frame.fitted {
-            Some(fitted) => self.used(view, Rect::from_min_size(Pos2::ZERO, fitted)),
+            Some(fitted) => self.fitted(view, fitted),
             None => self.used(view, content),
         }
         let reported_content = self

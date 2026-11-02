@@ -601,14 +601,7 @@ impl ModuleRunner {
             .filter(|_| region.fit)
             .map(|fitted| fitted / ratio);
         if let Some(fitted) = fitted {
-            let raster = match region.raster.is_finite() && region.raster > 0.0 {
-                true => region.raster,
-                false => 1.0,
-            };
-            surfaces.of(id).size = (
-                ((fitted.x * raster).ceil() as u32).max(1),
-                ((fitted.y * raster).ceil() as u32).max(1),
-            );
+            surfaces.of(id).size = block_editor_plugin::fitted_pixels(fitted, region.raster);
         }
         Frame {
             content: report.content.map(to_region),

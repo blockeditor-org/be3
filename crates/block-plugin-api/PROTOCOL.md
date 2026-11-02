@@ -978,7 +978,10 @@ most room it may take. The host asks the child's view for that room with
 `screen-request.fit` set, and the child lays the view out once at the smaller
 of the room and its content, lists its screen at that size in its layout,
 draws it, and reports the size it took as the view's `view-size` in its
-layout commit. The host takes that size as the child's intrinsic size at once
+layout commit. The child's pixels decide: it sizes its surface at that size
+times the raster, rounded up, and reports the size as those pixels over the
+raster, and the host takes the surface the child lists as the size it asked
+for, so a fractional scale never leaves the two a pixel apart. The host takes that size as the child's intrinsic size at once
 and shows the child's painting at its own size from the placed rectangle's
 top-left, clipped to that rectangle, never stretched. Size flows from whoever
 owns it: for such a child the hold is reversed, so while the child is drawing

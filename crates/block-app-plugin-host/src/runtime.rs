@@ -757,28 +757,15 @@ impl Runtime {
 
     fn requested_size(&self, screen: ScreenId) -> Option<(u32, u32)> {
         let request = self.instances.request_of(screen)?;
-        let mut metrics = request.metrics.clone();
-        if request.fit
-            && let Some(placed) = self.placements.get(&(request.instance, request.view))
-        {
-            let zoom = placed.zoom.max(f32::EPSILON);
-            let scale = |pixels: u32, logical: f32, shown: f32| match logical > 0.0 {
-                true => (pixels as f32 / logical * shown / zoom).round() as u32,
-                false => 0,
-            };
-            metrics.pixel_width = scale(
-                metrics.pixel_width,
-                metrics.logical.width,
-                placed.rect.width(),
-            );
-            metrics.pixel_height = scale(
-                metrics.pixel_height,
-                metrics.logical.height,
-                placed.rect.height(),
-            );
+        if request.fit {
+            return self
+                .layout
+                .placement(screen)
+                .map(|placement| (placement.width, placement.height));
         }
+        let metrics = &request.metrics;
         Some(match self.layout.placement(screen) {
-            Some(placement) => super::input::requested_at(&metrics, super::input::finer(placement)),
+            Some(placement) => super::input::requested_at(metrics, super::input::finer(placement)),
             None => (metrics.pixel_width, metrics.pixel_height),
         })
     }

@@ -159,13 +159,7 @@ impl Screens {
         let Some(fitted) = fitted else {
             return false;
         };
-        let metrics = &request.metrics;
-        let raster = match metrics.raster.is_finite() && metrics.raster > 0.0 {
-            true => metrics.raster,
-            false => 1.0,
-        };
-        let pixels = |size: f32| ((size * raster).ceil() as u32).max(1);
-        let size = (pixels(fitted.x), pixels(fitted.y));
+        let size = crate::plugin::fitted_pixels(fitted, request.metrics.raster);
         self.fitted.insert(screen, size) != Some(size)
     }
 

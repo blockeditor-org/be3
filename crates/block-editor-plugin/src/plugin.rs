@@ -130,6 +130,15 @@ impl ShownView {
     }
 }
 
+pub fn fitted_pixels(fitted: geometry::Vec2, raster: f32) -> (u32, u32) {
+    let raster = match raster.is_finite() && raster > 0.0 {
+        true => raster,
+        false => 1.0,
+    };
+    let pixels = |size: f32| ((size * raster).ceil() as u32).max(1);
+    (pixels(fitted.x), pixels(fitted.y))
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Frame {
     pub changed: bool,
