@@ -13,7 +13,7 @@ use be_sdk_shell::Workspace;
 use be_type_database::database::{Database, DatabaseContent, DatabaseValue};
 use be_type_database::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction, Extent, ItemSize};
 use uuid::Uuid;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
@@ -21,6 +21,7 @@ pub(crate) const CALENDAR_WIDTH: f32 = GRID_WIDTH;
 const SPACING: Space = Space::Md;
 const EVENT_SPACING: Space = Space::Xs2;
 const UNTITLED: &str = "Untitled";
+const TIME_WIDTH: Size = Size::Xl;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct DayEvent {
@@ -58,8 +59,9 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
         }
     };
     view! {
+        <Frame width={Extent::at_most(CALENDAR_WIDTH)}>
         <List spacing=SPACING @test_id={"desktop.calendar"}>
-            <Calendar selected={picked} today={Some(today)} />
+            <Calendar selected={picked} today={Some(today)} width={Length::FILL} />
             <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
                 <Text weight=Weight::Bold>{heading}</Text>
                 <Show condition={none}>
@@ -80,6 +82,7 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
                 on_click={open}
             />
         </List>
+        </Frame>
     }
 }
 
@@ -88,8 +91,10 @@ fn EventRow(event: DayEvent) -> NodeId {
     let minutes = event.starts.rem_euclid(SECONDS_PER_DAY) / 60;
     let at = Time::from_minutes(u32::try_from(minutes).unwrap_or(0)).format(HourCycle::H24);
     view! {
-        <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-            <Text style=TextStyle::CAPTION>{at}</Text>
+        <List direction=Direction::Horizontal align=Align::Baseline spacing=SPACING>
+            <Frame width=TIME_WIDTH>
+                <Text style=TextStyle::CAPTION>{at}</Text>
+            </Frame>
             <Text @sizing={ItemSize::Intrinsic.shrink(1.0)}>{event.title}</Text>
         </List>
     }

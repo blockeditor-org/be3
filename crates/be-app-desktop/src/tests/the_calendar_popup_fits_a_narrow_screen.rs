@@ -27,5 +27,7 @@ fn the_calendar_popup_fits_a_narrow_screen() {
         rect.max.y <= clock.min.y,
         "the calendar leaves the clock that opened it uncovered, at {rect:?}"
     );
-    fixture.test.snapshot("the_calendar_popup_on_a_narrow_screen");
+    fixture
+        .test
+        .snapshot("the_calendar_popup_on_a_narrow_screen");
 }
