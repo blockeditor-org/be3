@@ -21,14 +21,14 @@ one build can hold both, and every transition keeps it. Every other build is car
 crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
-`//buck/program:build-info.json` is the JSON file `buck/program/build-info.json`, and every bundle
+`//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-tool-cli's
 `:native`, be-server-bin's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and block-app shows the id
-as its build. The metadata contains `id` (the compatibility identity) and `program_id` (`BlockDev`
-by default, `Block` for deploy). block-app reads `program_id` at startup for its window
-and data directory, so deployment identity changes only packaging. `BE3_PROGRAM_ID`
+as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
+by default, `Block` for deploy). block-app reads `app_id` at startup for its window
+and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
 selects it when generating the file. `./scripts/deploy` also includes an optional
 `default_server` descriptor (public name, API and authentication URLs, and whether
 native clients need a gateway token); ordinary local and CI builds omit it. The id is the hash of the tree, not of a commit, so two commits
@@ -69,8 +69,8 @@ buck2:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
 - **The build id.** Every command that builds or queries first writes the
-  working tree's hash into the `id` field of `buck/program/build-info.json`, which git ignores, if it
-  changed. The `program_id` field comes from `BE3_PROGRAM_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
+  working tree's hash into the `id` field of `buck/app/build-info.json`, which git ignores, if it
+  changed. The `app_id` field comes from `BE3_APP_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
   count and the same tree always gives the same id. As a source file, a new id
   invalidates only what reads it. `BE3_BUILD_ID` overrides it.
 - **Retries.** buck2 exits with 2 for an infrastructure error, such as a

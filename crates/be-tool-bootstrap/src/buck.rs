@@ -234,7 +234,7 @@ fn attempt_once(
 }
 
 pub fn write_build_id() -> Result<()> {
-    let path = repository().join("buck/program/build-info.json");
+    let path = repository().join("buck/app/build-info.json");
     let id = match std::env::var("BE3_BUILD_ID") {
         Ok(id) if !id.is_empty() => id,
         _ => build_id(),
@@ -245,19 +245,19 @@ pub fn write_build_id() -> Result<()> {
     {
         return Err("Invalid BE3_BUILD_ID".to_owned());
     }
-    let program_id = std::env::var("BE3_PROGRAM_ID")
+    let program_id = std::env::var("BE3_APP_ID")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "BlockDev".to_owned());
     if program_id != "Block" && program_id != "BlockDev" {
-        return Err("Invalid BE3_PROGRAM_ID".to_owned());
+        return Err("Invalid BE3_APP_ID".to_owned());
     }
     let text = if std::env::var("BE3_DEPLOY_DEFAULT_SERVER").is_ok_and(|value| value == "true") {
         format!(
-            "{{\"id\":\"{id}\",\"program_id\":\"{program_id}\",\"default_server\":{{\"name\":\"Block\",\"api_url\":\"https://api.be3.pfg.pw\",\"auth_url\":\"https://api.be3.pfg.pw/auth\",\"gateway_required\":true}}}}\n"
+            "{{\"id\":\"{id}\",\"app_id\":\"{program_id}\",\"default_server\":{{\"name\":\"Block\",\"api_url\":\"https://api.be3.pfg.pw\",\"auth_url\":\"https://api.be3.pfg.pw/auth\",\"gateway_required\":true}}}}\n"
         )
     } else {
-        format!("{{\"id\":\"{id}\",\"program_id\":\"{program_id}\"}}\n")
+        format!("{{\"id\":\"{id}\",\"app_id\":\"{program_id}\"}}\n")
     };
     write_if_changed(&path, text.as_bytes())?;
     Ok(())

@@ -3,7 +3,7 @@
 # The full check, in one buck2 command (guides/buck2.md).
 #
 # Usage:
-#   ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]
+#   ./scripts/verify [--check] [--lint] [--tests] [--plugin-tests] [--verbose]
 #
 # guides/bootstrap.md says what runs it.
 

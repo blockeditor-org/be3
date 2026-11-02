@@ -217,12 +217,12 @@ impl Host {
                     log,
                     &[
                         target,
-                        "//buck/program:build-info.json",
+                        "//buck/app:build-info.json",
                         "//crates/be-tool-local:release",
                     ],
                 )?;
                 let template = output(&outputs, target)?;
-                let info = output(&outputs, "//buck/program:build-info.json")?;
+                let info = output(&outputs, "//buck/app:build-info.json")?;
                 let tool = output(&outputs, "//crates/be-tool-local:release")?;
                 let signed = self.state.join("work").join(apk);
                 let _ = fs::remove_file(&signed);

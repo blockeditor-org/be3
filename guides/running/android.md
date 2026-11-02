@@ -25,7 +25,7 @@ storage. These variants install side by side:
 
 Deploy can override its id and label with `--android-id` and `--android-label`.
 The Java activity remains `com.be3.block.MainActivity` in all variants; it is
-independent of the installed package id. The bundle's JSON `program_id` does not
+independent of the installed package id. The bundle's JSON `app_id` does not
 select the Android package or storage directory.
 
 ## Starting it

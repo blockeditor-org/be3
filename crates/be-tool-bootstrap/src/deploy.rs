@@ -38,7 +38,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     }
     // unsafe(env)
     unsafe {
-        std::env::set_var("BE3_PROGRAM_ID", "Block");
+        std::env::set_var("BE3_APP_ID", "Block");
         std::env::set_var("BE3_DEPLOY_DEFAULT_SERVER", "true");
     }
     let mut command = vec![

@@ -192,7 +192,7 @@ def _impl(ctx: bxl.Context):
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
         built.extend(_cross_checks(ctx))
         built.extend(_workspace_checks(ctx))
-    if args.app_tests:
+    if args.plugin_tests:
         targets = ctx.cquery().kind("^(app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
         printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])
     if args.previews:
@@ -209,7 +209,7 @@ main = bxl_main(
         # Ignored: the bootstrap a pull request's CI runs is the one main pins,
         # which may be older than this file and still pass it.
         "android": cli_args.bool(False),
-        "app_tests": cli_args.bool(False),
+        "plugin_tests": cli_args.bool(False),
         "bootstrap": cli_args.bool(False),
         "host": cli_args.string("linux_x86_64"),
         "lint": cli_args.bool(False),

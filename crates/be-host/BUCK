@@ -61,7 +61,7 @@ program(
     binary = ":bin",
     data = ["//{}:data".format(package) for package in app_packages()],
     executable_name = "block-app",
-    files = ["//buck/program:build-info.json"],
+    files = ["//buck/app:build-info.json"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
@@ -87,7 +87,7 @@ program(
     name = "native-dist",
     binary = ":bin",
     executable_name = "block-app",
-    files = ["//buck/program:build-info.json"],
+    files = ["//buck/app:build-info.json"],
     manifests = [],
     modules = [],
 )
@@ -102,7 +102,7 @@ wasi_program_module(
     module = "block_app_lib",
 )
 
-web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:block-index"] + ["//buck/program:build-info.json"]
+web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:block-index"] + ["//buck/app:build-info.json"]
 
 # The WASI and be-wasm-threads shims, which beui-web-demo and be-tool-paint-review-web
 # need too, with what thread.js imports, and app.js, which boots an app
@@ -275,7 +275,7 @@ program(
     compiled_only = True,
     data = ["//{}:data".format(package) for package in dev_apps],
     executable_name = "block-app",
-    files = ["//buck/program:build-info.json"],
+    files = ["//buck/app:build-info.json"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in dev_apps],
     modules = ["//{}:module".format(package) for package in dev_apps],

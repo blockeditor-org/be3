@@ -61,7 +61,7 @@ pub fn ensure(pins: &Pins) -> Result<std::path::PathBuf> {
     let metadata = if metadata_file == "build-id" {
         format!("{release}\n")
     } else {
-        format!("{{\"id\":\"{release}\",\"program_id\":\"Block\"}}\n")
+        format!("{{\"id\":\"{release}\",\"app_id\":\"Block\"}}\n")
     };
     std::fs::write(directory.join(metadata_file), metadata)
         .map_err(|error| format!("could not write {}: {error}", directory.display()))?;
