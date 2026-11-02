@@ -343,7 +343,11 @@ fn entry(raw: &RawEntry, depth: u32) -> Option<TrayMenuItem> {
 }
 
 pub(super) fn introspected_activates(xml: &str) -> Option<bool> {
-    let document = roxmltree::Document::parse(xml).ok()?;
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        ..roxmltree::ParsingOptions::default()
+    };
+    let document = roxmltree::Document::parse_with_options(xml, options).ok()?;
     let named = |node: &roxmltree::Node<'_, '_>, tag: &str, name: &str| {
         node.has_tag_name(tag) && node.attribute("name") == Some(name)
     };
