@@ -153,7 +153,7 @@ pub struct State {
     pub(crate) activation: Activation,
     pub(crate) text_inputs: crate::text_input::TextInputs,
     pub(crate) placeless: crate::layout::Placeless,
-    start: Instant,
+    pub(crate) start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
     shm: ShmState,
@@ -179,6 +179,7 @@ pub struct State {
     pub(crate) xwayland: XWaylandState,
     pub(crate) tablet: crate::tablet::Tablet,
     pub(crate) touch: crate::touch::Touch,
+    pub(crate) constraints: crate::pointer::Constraints,
 }
 
 pub(crate) type SurfaceAt = (WlSurface, Point<f64, Logical>);
@@ -223,6 +224,7 @@ impl State {
         crate::single_pixel::create(handle);
         crate::tearing::create(handle);
         crate::text_input::create(handle);
+        crate::pointer::create(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
@@ -277,6 +279,7 @@ impl State {
             xwayland,
             tablet: crate::tablet::Tablet::new(handle),
             touch: crate::touch::Touch::default(),
+            constraints: crate::pointer::Constraints::default(),
         };
         state.set_heads(vec![crate::heads::HeadSpec {
             id: "be-wayland".to_owned(),
@@ -916,14 +919,21 @@ impl State {
     }
 
     pub fn pointer_motion(&mut self, target: Option<(WindowId, Point<f64, Logical>)>) {
+        if self.holds_pointer_from(target) {
+            return;
+        }
         self.pointer_target = target;
         let focus = self.under(target);
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
+        let (was_on, was_at) = (pointer.current_focus(), pointer.current_location());
         match focus {
             Some((id, location, under)) => {
                 self.pointer_window = Some(id);
+                let stays = under
+                    .as_ref()
+                    .is_some_and(|(surface, _)| was_on.as_ref() == Some(surface));
                 pointer.motion(
                     self,
                     under,
@@ -933,6 +943,9 @@ impl State {
                         time,
                     },
                 );
+                if stays && location != was_at {
+                    self.moved_by(location - was_at, location - was_at);
+                }
             }
             None => {
                 self.pointer_window = None;
@@ -949,6 +962,7 @@ impl State {
             }
         }
         pointer.frame(self);
+        self.settle_constraints();
     }
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
@@ -1014,6 +1028,7 @@ impl State {
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
         self.settle_inhibitors();
+        self.settle_constraints();
         if let Some(id) = id {
             self.raise_x11(id);
         }

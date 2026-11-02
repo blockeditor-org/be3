@@ -63,6 +63,13 @@ pub fn WindowView(
                 .any(|info| info.id == id && info.inhibits_shortcuts)
         })
     });
+    let pointer_locked = create_memo(move || {
+        list.with(|list| {
+            list.iter().any(|info| {
+                info.id == id && info.pointer == Some(crate::pointer::HeldPointer::Locked)
+            })
+        })
+    });
     let dim = create_memo(move || {
         let responding = list.with(|list| {
             list.iter()
@@ -139,6 +146,7 @@ pub fn WindowView(
                     }
                 }}
                 inhibits_shortcuts={inhibits}
+                pointer_locked
                 ime={typing}
                 keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
                 hit_area={takes}
@@ -235,7 +243,7 @@ pub fn register_restore_shortcuts(windows: Windows) {
     let inhibiting = create_memo(move || {
         list.with(|list| {
             list.iter().any(|info| {
-                info.inhibits_shortcuts
+                (info.inhibits_shortcuts || info.pointer.is_some())
                     && windows
                         .signals(info.id)
                         .is_some_and(|signals| signals.focused.get())
@@ -244,7 +252,7 @@ pub fn register_restore_shortcuts(windows: Windows) {
     });
     Action::new(
         "wayland.restore_shortcuts",
-        "Restore keyboard shortcuts",
+        "Take back the keyboard shortcuts and the pointer",
         move || windows.restore_shortcuts(),
     )
     .shortcut(RESTORE_SHORTCUTS)

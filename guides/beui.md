@@ -501,7 +501,14 @@ hooks the higher crates fill in:
   `PINCH_SPEED` per pixel) or Safari's `gesturechange`, whose scale over the last one's
   is the factor; the web platform ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
-  so the browser never zooms the page. Fingers touching a trackpad push
+  so the browser never zooms the page. Touchpad gestures also arrive whole as
+  `Input::Touchpad` (`TouchpadGesture`: a swipe, pinch or hold beginning with
+  its number of fingers, updating and ending, cancelled or not), from libinput
+  under drm and from winit's `PinchGesture`, `PanGesture`, `RotationGesture`
+  and `HoldGesture` (`beui-platform-winit`'s `touchpad.rs`; winit reports no
+  swipes). The document routes each to the forwarding node under the pointer,
+  as it does the wheel, and no other node reads them: they are for whatever a
+  node forwards to, a Wayland window in be-host-wayland. Fingers touching a trackpad push
   `Input::ScrollStarted` and lifting them `Input::ScrollEnded`, which an app's
   host forwards unchanged. Between the two,
   `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
@@ -3554,7 +3561,8 @@ Beui does not hold the pointer itself - it asks. `PointerLock` sets
 `Interactive` in it asks as `WindowRequests::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and an app region passes
 it to the host in its `WindowRequests` (guides/adding_an_app.md). A
-platform reads raw motion only while `Runner::window()`, the state it was
+platform reads raw, unaccelerated motion (winit's `DeviceEvent::PointerMotion`, libinput's
+unaccelerated deltas under drm) only while `Runner::window()`, the state it was
 shown, holds the pointer, and while it does sends no absolute `PointerMoved`
 (winit, web and drm alike), since a held pointer's position means nothing.
 The winit platform lets the grab go itself the moment its window loses focus

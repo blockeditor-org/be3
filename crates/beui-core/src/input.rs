@@ -65,6 +65,7 @@ impl InputState {
                 | Event::Pen { pos, .. }
                 | Event::Predicted(pos) => *pos = scale(*pos),
                 Event::Scroll(delta) => *delta *= factor,
+                Event::Touchpad(gesture) => *gesture = gesture.scaled(factor),
                 _ => {}
             }
         }
@@ -75,6 +76,7 @@ impl InputState {
                 PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
                     *delta *= factor;
                 }
+                PointerPhase::Touchpad(gesture) => *gesture = gesture.scaled(factor),
                 _ => {}
             }
         }
@@ -250,6 +252,7 @@ impl InputState {
                     self.wheel(PointerPhase::ScrollEnded { fling });
                 }
                 Event::Zoom(factor) => self.wheel(PointerPhase::Zoom(*factor)),
+                Event::Touchpad(gesture) => self.wheel(PointerPhase::Touchpad(*gesture)),
                 Event::Touch {
                     id,
                     phase,

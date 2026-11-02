@@ -10,6 +10,7 @@ mod heads;
 mod held_view;
 mod idle;
 mod layout;
+mod pointer;
 mod presentation;
 pub mod programs;
 mod render;
@@ -29,6 +30,7 @@ mod windows;
 mod xwayland;
 
 pub use compositor::{Compositor, CursorImage, Monitor};
+pub use pointer::HeldPointer;
 pub use presentation::Presented;
 pub use server::Server;
 pub use state::{Grab, KeyboardConfig, WindowId};

@@ -368,6 +368,7 @@ impl Intake {
             Input::ScrollStarted => events.push(Event::ScrollStarted),
             Input::ScrollEnded => events.push(Event::ScrollEnded),
             Input::Zoom(factor) => events.push(Event::Zoom(factor)),
+            Input::Touchpad(gesture) => events.push(Event::Touchpad(gesture.scaled(1.0 / scale))),
             Input::Back(gesture) => events.push(Event::Back(gesture)),
         }
     }
@@ -500,6 +501,7 @@ fn points_into_window(input: &Input) -> bool {
             | Input::ScrollStarted
             | Input::ScrollEnded
             | Input::Zoom(_)
+            | Input::Touchpad(_)
     )
 }
 

@@ -21,6 +21,7 @@ pub struct WindowInfo {
     pub responding: bool,
     pub icon: Option<Image>,
     pub inhibits_shortcuts: bool,
+    pub pointer: Option<crate::pointer::HeldPointer>,
     pub launch: Option<u64>,
     pub command: Vec<String>,
 }

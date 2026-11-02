@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
+    TouchpadGesture,
     native::Setup, native::Waker, vec2,
 };
 use beui_core::clipboard::PasteAnswer;
@@ -28,7 +29,8 @@ use smithay::backend::drm::{
 };
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
-    AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
+    AbsolutePositionEvent, Axis, ButtonState, GestureBeginEvent, GestureEndEvent,
+    GesturePinchUpdateEvent, GestureSwipeUpdateEvent, InputEvent, KeyState, KeyboardKeyEvent,
     PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, ProximityState,
     TabletToolButtonEvent, TabletToolEvent, TabletToolProximityEvent, TabletToolTipEvent,
     TabletToolTipState, TabletToolType, TouchEvent,
@@ -1028,6 +1030,11 @@ impl Session {
         self.push_sample(Incoming::points(beui::Input::Scroll(delta)).in_window(window));
     }
 
+    fn touchpad(&mut self, gesture: TouchpadGesture) {
+        let (window, _) = self.at(self.pointer());
+        self.push_sample(Incoming::points(beui::Input::Touchpad(gesture)).in_window(window));
+    }
+
     fn pressed_at(&mut self, position: Pos2) {
         let (window, _) = self.at(position);
         if !window.is_main() {
@@ -1224,12 +1231,51 @@ impl Session {
                 });
             }
             InputEvent::PointerMotion { event } => {
-                let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 if self.platform.locked {
-                    self.push(Incoming::points(beui::Input::PointerMotion(delta)));
+                    let raw = vec2(
+                        event.delta_x_unaccel() as f32,
+                        event.delta_y_unaccel() as f32,
+                    );
+                    self.push(Incoming::points(beui::Input::PointerMotion(raw)));
                     return;
                 }
+                let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 self.point(moved(self.pointer(), delta, &self.rects()));
+            }
+            InputEvent::GestureSwipeBegin { event } => {
+                self.touchpad(TouchpadGesture::SwipeBegan(event.fingers()));
+            }
+            InputEvent::GestureSwipeUpdate { event } => {
+                let delta = vec2(
+                    GestureSwipeUpdateEvent::delta_x(&event) as f32,
+                    GestureSwipeUpdateEvent::delta_y(&event) as f32,
+                );
+                self.touchpad(TouchpadGesture::Swiped(delta));
+            }
+            InputEvent::GestureSwipeEnd { event } => {
+                self.touchpad(TouchpadGesture::SwipeEnded(event.cancelled()));
+            }
+            InputEvent::GesturePinchBegin { event } => {
+                self.touchpad(TouchpadGesture::PinchBegan(event.fingers()));
+            }
+            InputEvent::GesturePinchUpdate { event } => {
+                self.touchpad(TouchpadGesture::Pinched {
+                    delta: vec2(
+                        GesturePinchUpdateEvent::delta_x(&event) as f32,
+                        GesturePinchUpdateEvent::delta_y(&event) as f32,
+                    ),
+                    scale: event.scale() as f32,
+                    rotation: event.rotation() as f32,
+                });
+            }
+            InputEvent::GesturePinchEnd { event } => {
+                self.touchpad(TouchpadGesture::PinchEnded(event.cancelled()));
+            }
+            InputEvent::GestureHoldBegin { event } => {
+                self.touchpad(TouchpadGesture::HoldBegan(event.fingers()));
+            }
+            InputEvent::GestureHoldEnd { event } => {
+                self.touchpad(TouchpadGesture::HoldEnded(event.cancelled()));
             }
             InputEvent::PointerMotionAbsolute { event } => {
                 let position = self.absolute_position(&event);
@@ -1605,6 +1651,14 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
         InputEvent::PointerMotion { event } => (Input::Other, event.time()),
         InputEvent::PointerMotionAbsolute { event } => (Input::Other, event.time()),
         InputEvent::PointerAxis { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeBegin { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeUpdate { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeEnd { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchBegin { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchUpdate { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchEnd { event } => (Input::Other, event.time()),
+        InputEvent::GestureHoldBegin { event } => (Input::Other, event.time()),
+        InputEvent::GestureHoldEnd { event } => (Input::Other, event.time()),
         InputEvent::TouchDown { event } => (Input::Press(touch_held(event.slot())), event.time()),
         InputEvent::TouchMotion { event } => {
             (Input::Continue(touch_held(event.slot())), event.time())

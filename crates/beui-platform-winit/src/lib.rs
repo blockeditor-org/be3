@@ -7,6 +7,7 @@ mod file_saver;
 mod preferences;
 #[cfg(test)]
 mod tests;
+mod touchpad;
 mod wheel;
 
 pub use winit;
@@ -56,6 +57,7 @@ use beui_types::{PasteKind, Pasted};
 use beui_types::{Pos2, Vec2, pos2, vec2};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
+use touchpad::{Gesture, Touchpad};
 use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
@@ -108,6 +110,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         wayland: false,
         fingers: Vec::new(),
         wheel: Wheel::new(cfg!(target_os = "macos")),
+        touchpad: Touchpad::default(),
         dropping: None,
         error: None,
         next_update: None,
@@ -143,6 +146,7 @@ struct Runner {
     wayland: bool,
     fingers: Vec<TouchId>,
     wheel: Wheel,
+    touchpad: Touchpad,
     dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
@@ -293,6 +297,12 @@ impl Runner {
 
     fn push(&mut self, input: impl Into<Incoming>) {
         self.runner.push(input);
+    }
+
+    fn gesture(&mut self, gesture: Gesture, phase: winit::event::TouchPhase) {
+        if let Some(gesture) = self.touchpad.event(gesture, phase) {
+            self.push(Input::Touchpad(gesture));
+        }
     }
 
     fn locked(&self) -> bool {
@@ -765,9 +775,19 @@ impl ApplicationHandler for Runner {
                     self.push(Input::ScrollEnded);
                 }
             }
-            WindowEvent::PinchGesture { delta, .. } => {
-                self.push(Input::Zoom(1.0 + delta as f32));
+            WindowEvent::PinchGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pinch(delta), phase);
+                if delta.is_finite() {
+                    self.push(Input::Zoom(1.0 + delta as f32));
+                }
             }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pan(vec2(delta.x, delta.y)), phase);
+            }
+            WindowEvent::RotationGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Rotation(delta), phase);
+            }
+            WindowEvent::HoldGesture { phase, .. } => self.gesture(Gesture::Hold, phase),
             WindowEvent::KeyboardInput {
                 is_synthetic: true,
                 event,

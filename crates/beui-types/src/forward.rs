@@ -231,6 +231,9 @@ impl Replay {
                 PointerPhase::ScrollStarted => out.push(Input::ScrollStarted.into()),
                 PointerPhase::ScrollEnded { .. } => out.push(Input::ScrollEnded.into()),
                 PointerPhase::Zoom(factor) => out.push(Input::Zoom(factor).into()),
+                PointerPhase::Touchpad(gesture) => {
+                    out.push(Input::Touchpad(gesture.scaled(1.0 / zoom)).into())
+                }
                 PointerPhase::Cancel | PointerPhase::Gone => {
                     if std::mem::take(&mut self.pressed) > 0 {
                         out.push(timed(Input::PointersCancelled));

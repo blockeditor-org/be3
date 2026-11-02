@@ -503,6 +503,19 @@ click, decided when the pen comes over it and kept while the tip is down. In a l
 DRM platform reads libinput's tablet tools over the area of every display, as it does an absolute
 pointer, and moves the cursor with them; with one display both turn with its rotation (below).
 
+A program can hold the pointer (`zwp_pointer_constraints_v1`, `src/pointer.rs`): a locked or
+confined pointer is honoured only while its surface has the pointer and its window has the
+keyboard, and is let go the moment either moves. A lock sets `pointer_locked` on the window's
+`WindowView`, so the platform holds the cursor still and hides it (winit grabs the outer
+window's cursor; guides/beui.md) and its raw motion reaches the window as relative motion;
+letting go of the lock moves the program's pointer to the cursor position hint it set. A
+confined pointer keeps moving on the host, but the window hears it only inside its region and
+never hears it leave; a press on another window lets it go. Super+Escape lets go of either too,
+until the window is pressed again. `zwp_relative_pointer_manager_v1` reports a lock's raw motion
+and, otherwise, each move of the pointer over a surface as one relative move, and
+`zwp_pointer_gestures_v1` carries `Input::Touchpad` gestures (guides/beui.md) to the window under
+the pointer.
+
 A finger (`Event::Touch`) reaches a window as a `wl_touch` point (`src/touch.rs`), in the
 coordinates of the surface, sub-surface or popup it went down on, where it stays until it lifts,
 as a press does; each finger goes down on the window under it, so two windows can each hold
@@ -585,7 +598,7 @@ keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps ev
 window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
 be-host's `WindowActions`) takes the shortcuts back from the focused window until it
-loses the keyboard and gets it again. The inhibitor is told it is active only while its
+loses the keyboard and gets it again, and lets go of a pointer it holds (`zwp_pointer_constraints_v1`, above). The inhibitor is told it is active only while its
 window has the keyboard.
 
 In a login session the DRM platform draws the pointer into each output's frame, redrawing only the

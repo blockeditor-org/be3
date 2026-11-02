@@ -144,6 +144,7 @@ impl Compositor {
             return;
         }
         self.server.state.dismiss_popups();
+        self.server.state.release_all_pointers();
         self.server.state.release_buttons();
         if self.server.state.pointer_window().is_some() {
             self.server.state.pointer_motion(None);
@@ -511,6 +512,7 @@ impl Compositor {
                     responding: state.responding(id),
                     icon: state.icon(id),
                     inhibits_shortcuts: state.inhibits_shortcuts(id),
+                    pointer: state.held_pointer(id),
                     launch: origin.launch,
                     command: origin.command,
                 })
@@ -732,6 +734,11 @@ impl Compositor {
                         state.text_inputs.commit_text(text);
                     }
                 }
+                Forwarded::Input(Event::PointerMotion(delta))
+                    if state.keyboard_window() == Some(id) =>
+                {
+                    state.pointer_relative(*delta);
+                }
                 Forwarded::Input(Event::Text(text)) if state.keyboard_window() == Some(id) => {
                     state.text_inputs.commit_text(text);
                 }
@@ -747,6 +754,9 @@ impl Compositor {
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
                             let target = at(over, event.pos);
+                            if pressed {
+                                state.pressed_on(target.map(|(target, _)| target));
+                            }
                             state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
@@ -761,6 +771,12 @@ impl Compositor {
                                 state.pointer_motion(at(over, event.pos));
                             }
                             state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                        }
+                        PointerPhase::Touchpad(gesture) => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(over, event.pos));
+                            }
+                            state.touchpad(gesture);
                         }
                         _ => {}
                     }
@@ -897,6 +913,7 @@ impl Compositor {
                 Command::Close(id) => self.force_close(id),
                 Command::RestoreShortcuts(id) => {
                     self.server.state.restore_shortcuts(id);
+                    self.server.state.release_pointer(id);
                     self.forced = true;
                 }
                 Command::Launch(launch) => self.launch(&launch, now),
@@ -1106,6 +1123,10 @@ impl Compositor {
             self.carry_files(context);
         }
         self.apply(now);
+        self.server.state.settle_constraints();
+        if !self.server.state.events.is_empty() {
+            context.request_repaint();
+        }
         let typing = self
             .server
             .state
