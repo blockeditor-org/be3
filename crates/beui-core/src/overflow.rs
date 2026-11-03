@@ -9,7 +9,6 @@ use crate::node::{Rects, SpaceId};
 use beui_types::Direction;
 use beui_types::NodeId;
 use beui_types::Rect;
-use beui_types::Vec2;
 
 const TOLERANCE: f32 = 1.0;
 const EXACT: f32 = 0.01;
@@ -68,7 +67,6 @@ impl Document {
             if !self.arena.contains(id) {
                 continue;
             }
-            let viewport = viewport.filter(|_| !self.leaves_viewport(id));
             let Some(rect) = self.rects.get(&id) else {
                 continue;
             };
@@ -94,6 +92,7 @@ impl Document {
                     found.push(self.overflow(id, OverflowKind::Spills, ink, rect));
                 }
             }
+            let viewport = self.viewport_inside(id, viewport);
             for child in self.arena.get(id).live_children() {
                 pending.push((child, cut, viewport));
             }
@@ -130,12 +129,20 @@ impl Document {
         Some(extent)
     }
 
-    fn leaves_viewport(&self, id: NodeId) -> bool {
-        self.arena.kind_of::<OverlayNode>(id).is_some()
-            || self
-                .arena
-                .kind_of::<FrameNode>(id)
-                .is_some_and(|frame| self.arena.get_as::<FrameNode>(frame).translate != Vec2::ZERO)
+    fn viewport_inside(&self, id: NodeId, viewport: Option<Rect>) -> Option<Rect> {
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
+            return self.arena.get_as::<OverlayNode>(overlay).placed_in;
+        }
+        match self.arena.kind_of::<FrameNode>(id) {
+            Some(frame) => {
+                let moved = self
+                    .arena
+                    .get_as::<FrameNode>(frame)
+                    .moved(self.pixel_grid());
+                viewport.map(|viewport| viewport.translate(moved))
+            }
+            None => viewport,
+        }
     }
 
     fn reachable(&self, id: NodeId, viewport: Option<Rect>) -> Rect {

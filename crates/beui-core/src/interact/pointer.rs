@@ -733,9 +733,17 @@ fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) ->
     {
         return doc.focused_node();
     }
-    reached.iter().copied().find(|id| {
+    let target = reached.iter().copied().find(|id| {
         interactive(doc, *id).is_some_and(|node| node.focus.is_some()) && over(rects, *id, pos)
-    })
+    });
+    let yields = target
+        .and_then(|id| interactive(doc, id))
+        .and_then(|node| node.focus.as_ref())
+        .is_some_and(|focus| focus.yields_tab_stop && !focus.tab_stop);
+    match yields {
+        true => doc.focused_node(),
+        false => target,
+    }
 }
 
 fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
