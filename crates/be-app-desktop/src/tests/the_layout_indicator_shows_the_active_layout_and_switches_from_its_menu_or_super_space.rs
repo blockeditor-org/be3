@@ -15,10 +15,12 @@ fn layouts(active: u32) -> KeyboardLayouts {
 fn the_layout_indicator_shows_the_active_layout_and_switches_from_its_menu_or_super_space() {
     let mut fixture = Fixture::with_windows(&[1]);
     let space = KeyChord::new(Key::Space, Modifiers::LOGO);
-    fixture.test.set_watched::<KeyboardLayoutsWatch>(&KeyboardLayouts {
-        layouts: layouts(0).layouts[..1].to_vec(),
-        active: 0,
-    });
+    fixture
+        .test
+        .set_watched::<KeyboardLayoutsWatch>(&KeyboardLayouts {
+            layouts: layouts(0).layouts[..1].to_vec(),
+            active: 0,
+        });
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.layout"),

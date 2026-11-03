@@ -9,12 +9,11 @@ use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
     HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
-    KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
-    MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
-    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, WifiLink,
-    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowKind,
-    WindowOrigin, WindowsWatch,
+    KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel, MediaLevels, MediaRequest,
+    MediaWatch, NotificationInbox, NotificationRequest, NotificationSignal, NotificationsWatch,
+    OwnedEditor, PlayerCommand, PowerAction, PowerAvailability, PowerWatch, ProgramAction,
+    ProgramCatalog, ProgramsWatch, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WifiWatch, WindowAction, WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
@@ -109,6 +108,7 @@ mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_desktops_three_bars_share_one_band_along_its_foot;
 mod the_keyboard_button_shows_when_the_display_settings_ask_for_it;
+mod the_layout_indicator_shows_the_active_layout_and_switches_from_its_menu_or_super_space;
 mod the_layout_notice_shows_above_the_desktops_windows;
 mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
@@ -119,7 +119,6 @@ mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
 mod the_restore_chip_leads_the_windows_bar_while_windows_from_last_time_wait;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_status_button_shows_the_volume_and_opens_its_controls;
-mod the_layout_indicator_shows_the_active_layout_and_switches_from_its_menu_or_super_space;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;

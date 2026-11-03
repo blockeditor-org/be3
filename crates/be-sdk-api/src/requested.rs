@@ -1,9 +1,10 @@
 use crate::__args::{
-    DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT, DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT,
-    DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
-    DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs,
-    DesktopNotificationsReportArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
-    DesktopTrayRequestArgs, DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
+    DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT, DESKTOP_MEDIA_REQUEST,
+    DESKTOP_NOTIFICATIONS_REPORT, DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST,
+    DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST, DESKTOP_WINDOWS_REQUEST, DesktopEpaperRefreshArgs,
+    DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs, DesktopNotificationsReportArgs,
+    DesktopPowerRequestArgs, DesktopProgramsRequestArgs, DesktopTrayRequestArgs,
+    DesktopWifiRequestArgs, DesktopWindowsRequestArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
@@ -38,7 +39,8 @@ pub fn epaper_refresh(started: &Started) -> Option<()> {
 }
 
 pub fn switch_layout(started: &Started) -> Option<u32> {
-    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT).map(|args| args.index)
+    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT)
+        .map(|args| args.index)
 }
 
 pub fn notification_report(started: &Started) -> Option<NotificationReport> {

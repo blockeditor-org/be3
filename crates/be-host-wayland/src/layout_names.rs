@@ -71,9 +71,7 @@ fn numbered(labels: &[String], index: usize) -> String {
 pub(crate) fn short_label(rules: &str, code: &str, variant: &str) -> String {
     let fallback = || code.chars().take(3).collect::<String>();
     let described = rules.split("<layout>").skip(1).find_map(|layout| {
-        let (own, variants) = layout
-            .split_once("<variantList>")
-            .unwrap_or((layout, ""));
+        let (own, variants) = layout.split_once("<variantList>").unwrap_or((layout, ""));
         if item_tag(own, "name") != Some(code) {
             return None;
         }
