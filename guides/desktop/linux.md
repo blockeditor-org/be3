@@ -630,9 +630,17 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`), before beui or a window sees it: touch onto the first display, an absolute pointer or a pen onto the
-one display when there is one and across all of them unturned otherwise, and a pen's tilt
-with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
+back (`layout::absolute`) onto the display the device belongs to, before beui or a window sees
+it, and a pen's tilt with it. `pointing.rs` picks that display for each touchscreen and tablet
+when it is added and whenever the displays or the settings change: the one chosen for it in
+Settings > Input (`InputSettings::displays`, keyed by `InputDevice` and holding the display's
+id), else the connector or id in the device's udev `WL_OUTPUT` property, else the only display,
+else the display whose physical size (EDID millimetres) matches the device's (libinput's
+`size`, either way round, a built-in panel first among equals); else a touchscreen goes to the
+built-in panel (eDP, LVDS or DSI) or the first display, and a tablet with no screen spans every
+display unturned, as an absolute pointer does. The host reports each such device with the
+display it picks by itself (`HostInputDevice::pointing`), which the Display choice names as
+Automatic. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `be_sdk_beui::RotationPicker`, which both the Display page

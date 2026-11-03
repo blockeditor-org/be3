@@ -16,6 +16,7 @@ use super::screen::{Damage, Frame, Screen};
 use be_host_dmabuf::{Usage, Vulkan};
 
 use crate::density::natural_scale;
+use crate::pointing;
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
 use crate::modes::{
@@ -255,6 +256,16 @@ impl Output {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn pointed(&self) -> pointing::Screen {
+        pointing::Screen {
+            id: self.id.clone(),
+            connector: self.connector_name.clone(),
+            size: self.millimetres,
+            rect: self.screen.rect,
+            rotation: self.screen.rotation(),
+        }
     }
 
     pub fn monitor(&self) -> Monitor {

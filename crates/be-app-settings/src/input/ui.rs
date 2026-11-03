@@ -7,7 +7,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::{
-    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings,
+    ChangesToast, DisplaysWatch, Editor, HostDisplay, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings,
     LayeredSettingsRow, SettingHandle,
 };
 
@@ -23,6 +23,7 @@ type DeviceKey = (String, u32, u32);
 pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let read_only = editor.read_only();
     let devices = editor.watch::<InputDevicesWatch>();
+    let displays = editor.watch::<DisplaysWatch>();
     let effective = settings.effective();
     let layout = text_field(settings, InputSettings::layout_setting());
     let variant = text_field(settings, InputSettings::variant_setting());
@@ -115,7 +116,12 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                 </SettingsSection>
             </Show>
             <Show condition={pointers}>
-                <Pointers settings={settings} devices={devices} read_only={read_only} />
+                <Pointers
+                    settings={settings}
+                    devices={devices}
+                    displays={displays}
+                    read_only={read_only}
+                />
             </Show>
             <Show condition={pasting}>
                 <SettingsSection title="Programs">
@@ -208,6 +214,7 @@ fn field_state<T: Copy + PartialEq>(
 fn Pointers(
     settings: Settings,
     devices: Memo<Vec<HostInputDevice>>,
+    displays: Memo<Vec<HostDisplay>>,
     read_only: Memo<bool>,
 ) -> NodeId {
     let keys = create_memo(move || {
@@ -257,6 +264,7 @@ fn Pointers(
                 <PointerRows
                     settings={settings}
                     devices={devices}
+                    displays={displays}
                     scope={scope}
                     read_only={read_only}
                 />
@@ -269,10 +277,27 @@ fn Pointers(
 fn PointerRows(
     settings: Settings,
     devices: Memo<Vec<HostInputDevice>>,
+    displays: Memo<Vec<HostDisplay>>,
     scope: Option<DeviceKey>,
     read_only: Memo<bool>,
 ) -> NodeId {
     let effective = settings.effective();
+    let pointed = create_memo({
+        let scope = scope.clone();
+        move || {
+            devices.with(|devices| {
+                scope
+                    .iter()
+                    .filter(|key| {
+                        devices
+                            .iter()
+                            .any(|device| device_key(device) == **key && device.pointing.is_some())
+                    })
+                    .cloned()
+                    .collect::<Vec<DeviceKey>>()
+            })
+        }
+    });
     let device = scope.as_ref().map(identity);
     let speed_setting = InputSettings::pointer_setting(device.clone(), PointerField::Speed);
     let tap_setting = InputSettings::pointer_setting(device.clone(), PointerField::TapToClick);
@@ -331,6 +356,15 @@ fn PointerRows(
     );
     view! {
         <List spacing=Space::None>
+            <ForEach keys={pointed}>|key: DeviceKey|
+                <DisplayChoice
+                    settings={settings}
+                    devices={devices}
+                    displays={displays}
+                    key={key}
+                    read_only={read_only}
+                />
+            </ForEach>
             <Show condition={has_speed}>
                 <SliderSetting
                     label="Speed"
@@ -376,6 +410,88 @@ fn PointerRows(
                 />
             </Show>
         </List>
+    }
+}
+
+#[component]
+fn DisplayChoice(
+    settings: Settings,
+    devices: Memo<Vec<HostInputDevice>>,
+    displays: Memo<Vec<HostDisplay>>,
+    key: DeviceKey,
+    read_only: Memo<bool>,
+) -> NodeId {
+    let effective = settings.effective();
+    let device = identity(&key);
+    let setting = InputSettings::display_setting(device.clone());
+    let row = settings.row(&setting);
+    let set = settings.setter(&setting);
+    let shown = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .map(|display| (display.id.clone(), display.name.clone()))
+                .collect::<Vec<(String, String)>>()
+        })
+    });
+    let name_of = move |id: &str| {
+        shown.with(|shown| {
+            shown
+                .iter()
+                .find(|(known, _)| known == id)
+                .map(|(_, name)| name.clone())
+        })
+    };
+    let automatic = create_memo(move || {
+        let lands = devices.with(|devices| {
+            devices
+                .iter()
+                .find(|device| device_key(device) == key)
+                .and_then(|device| device.pointing.clone())
+                .and_then(|pointing| pointing.automatic)
+        });
+        let place = lands
+            .and_then(|id| name_of(&id))
+            .unwrap_or_else(|| "every display".to_owned());
+        format!("Automatic ({place})")
+    });
+    let selected = create_memo(move || {
+        let chosen = effective.with(|effective| effective.display(&device).map(str::to_owned));
+        let index = chosen.and_then(|id| shown.with(|shown| shown.iter().position(|(known, _)| *known == id)));
+        Some(index.map_or(0, |index| index + 1))
+    });
+    view! {
+        <LayeredSettingsRow
+            setting={row}
+            label="Display"
+            description="Where its touches land. Automatic picks the display it is built into or matches in size."
+            separated=true
+            locked={read_only}
+            id={"input.pointer.display".to_owned()}
+        >
+            <Select
+                @sizing=ItemSize::Percent(100.0)
+                width={Extent::fraction(1.0)}
+                options={view! {
+                    <ChoiceOption label={automatic} />
+                    <ForEach keys={shown}>|display: (String, String)|
+                        <ChoiceOption label={display.1} />
+                    </ForEach>
+                }}
+                selected={Binding::new(selected, move |index: Option<usize>| {
+                    let Some(index) = index else {
+                        return;
+                    };
+                    let chosen = index
+                        .checked_sub(1)
+                        .and_then(|index| shown.with_untracked(|shown| shown.get(index).map(|(id, _)| id.clone())));
+                    set.call(chosen);
+                })}
+                label="Display"
+                disabled={read_only}
+                @test_id={"input.pointer.display"}
+            />
+        </LayeredSettingsRow>
     }
 }
 

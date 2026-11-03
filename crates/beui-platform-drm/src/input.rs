@@ -10,6 +10,12 @@ pub use be_lib_ui_types::{InputDevice, PointerSettings, PointerSpeed};
 pub struct PointerDevice {
     pub id: InputDevice,
     pub defaults: PointerSettings,
+    pub pointing: Option<Pointing>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pointing {
+    pub automatic: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,6 +28,7 @@ pub struct InputConfig {
     pub repeat_interval: Duration,
     pub every_pointer: PointerSettings,
     pub pointers: Vec<(InputDevice, PointerSettings)>,
+    pub displays: Vec<(InputDevice, String)>,
 }
 
 impl Default for InputConfig {
@@ -35,6 +42,7 @@ impl Default for InputConfig {
             repeat_interval: Duration::from_millis(40),
             every_pointer: PointerSettings::default(),
             pointers: Vec::new(),
+            displays: Vec::new(),
         }
     }
 }
@@ -44,6 +52,13 @@ impl InputConfig {
         self.layout == other.layout
             && self.variant == other.variant
             && self.options == other.options
+    }
+
+    pub(crate) fn display(&self, id: &InputDevice) -> Option<&str> {
+        self.displays
+            .iter()
+            .find(|(device, _)| device == id)
+            .map(|(_, display)| display.as_str())
     }
 
     pub(crate) fn pointer(&self, id: &InputDevice) -> PointerSettings {

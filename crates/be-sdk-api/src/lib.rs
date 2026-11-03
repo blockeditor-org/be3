@@ -99,7 +99,7 @@ pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
     displays::HostDisplay,
-    input::{HostInputDevice, InputReach, KeyboardLayout, KeyboardLayouts, RemapState},
+    input::{HostInputDevice, InputReach, KeyboardLayout, KeyboardLayouts, Pointing, RemapState},
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
     notifications::{
         HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,

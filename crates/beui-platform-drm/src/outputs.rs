@@ -9,6 +9,8 @@ use beui::{
 use beui_host::{native::GpuSetup, native::Repainting};
 use beui_runner::renderer::Renderer;
 
+use crate::pointing;
+use crate::rotation::Rotation;
 use crate::cursors::{Cursors, Shape};
 use crate::flips::Flips;
 use crate::gpu::{Gpu, SoftwareCursor};
@@ -82,6 +84,17 @@ impl Outputs {
         self.outputs
             .iter()
             .map(|output| output.screen.rect)
+            .collect()
+    }
+
+    pub fn pointed(&self) -> Vec<pointing::Screen> {
+        self.outputs.iter().map(Output::pointed).collect()
+    }
+
+    pub fn areas(&self) -> Vec<(Rect, Rotation)> {
+        self.outputs
+            .iter()
+            .map(|output| (output.screen.rect, output.screen.rotation()))
             .collect()
     }
 
