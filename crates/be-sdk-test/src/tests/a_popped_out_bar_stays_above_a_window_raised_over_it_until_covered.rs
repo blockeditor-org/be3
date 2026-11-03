@@ -56,7 +56,9 @@ fn on_top(test: &BeuiTest<PoppedOverRoot>, shown: Rect) -> bool {
         .iter()
         .enumerate()
         .filter(|(_, window)| window.contains_rect(shown))
-        .min_by(|(_, left), (_, right)| (left.width() * left.height()).total_cmp(&(right.width() * right.height())))
+        .min_by(|(_, left), (_, right)| {
+            (left.width() * left.height()).total_cmp(&(right.width() * right.height()))
+        })
         .map(|(index, _)| index);
     own.is_some() && own == windows.len().checked_sub(1)
 }

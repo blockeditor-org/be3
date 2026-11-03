@@ -70,6 +70,6 @@ pub use text::{
     WrapAt, handle_center, toolbar_anchor,
 };
 pub use window::{
-    HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport,
-    WindowRequest, WindowRole, WindowSpec,
+    HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowLevel, WindowPlacement,
+    WindowReport, WindowRequest, WindowRole, WindowSpec,
 };

@@ -14,6 +14,7 @@ fn popups_have_no_chrome() {
             },
             size: SMALL,
             role,
+            level: beui_types::WindowLevel::Normal,
         });
         send(&mut space, now, []);
         opened.push(window);
