@@ -533,8 +533,8 @@ diverged session refuses to edit or seal.
 
 ## Adding a content type
 
-Describe the content as structs and derive `be_block_model::Model`; do not write a
-merge, a rebase or an undo.
+Describe the content as structs and derive `be_block_model::Model`. The derive
+supplies merge, rebase and undo, so a type built this way writes none of them.
 
 ```rust
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -556,62 +556,68 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of ten things. A `Count` is a counter whose concurrent changes
-add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
-coordinates, for pixel data: its bounds are part of its value, so a resize moves
-the bounds and keeps every cell at its coordinates, `paint` sets cells and
-`reshape` sets the bounds. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
-values by key, each key its own register: two people setting different keys
-both keep theirs, which is how a database row holds a cell per schema field.
-`Latest<T>` and `LatestMap<K, V>` are last-write-wins: every write carries a
-`Stamp` (a time and the writing client), a write only replaces an older stamp,
-and a merge keeps the later stamp per key, so they never conflict and never
-undo. `next(time, origin)` stamps a write past the one it replaces, so a client
-with a slow clock still overwrites what it last read. View state uses them.
-A `Text` is bytes edited in place: it saves only its bytes, and a live session
-gives every byte a position (`Sequence`, in the `be-lib-sequence` crate) that edits anchor to,
-so concurrent typing and deleting never need rebasing. Positions and tombstones
-are session state (positions only: the receiver fills the visible bytes in from
-its own copy, and an undelete carries the bytes it brings back), and an offline
-merge is a line diff3. The text block is `Document<TextBlock>`, its body a
-`Text` (see `plans/text.md`). A `RichText` is a `Text` with formatting, the
-marks beui's rich text editor makes (`be_lib_sequence::marks`, re-exported as
-`be_block_model::marks` and by `beui_text_editor_core`): each mark is a key and value
-(bold, a link, a heading level) over a range, inline or over whole lines,
-anchored to positions, so its edits are `Change::Text` for the bytes and
-`Change::Mark` and `Change::Unmark` for the formatting. A mark has an id
-(a clock and the client), the later id wins where marks overlap, and
-concurrent formatting and typing converge like typing does. It saves its
-bytes and its formatting as byte ranges, resolved so no two ranges of one
-key overlap, and reloads them as fresh marks; the session state carries the
-live marks with the positions. Undoing a format removes that mark only. An
-offline merge is a line diff3 where a line is its bytes and its formatting
-together, so formatting a line on one side and typing in it on the other
-conflicts and is rendered with the same markers as text.
-A `Series<T>` is a list of register values on the same `Sequence`, for data
-that grows at its end, like a stroke's points: `update` diffs what is wanted
-against what is held and sends only what changed after the common start
-(`Change::Series`), so appending costs the new items, not the whole list. It
-saves as an array of its values, the same as a `Vec<T>` register, so a
-register that becomes a series keeps reading what was saved; an offline merge
-keeps both sides' appends and otherwise picks one side as a register does.
-An object projection re-reads with `Model::reread`, which hands a `Series`
-what it read last: it decodes only past the fragments that are unchanged.
+`Root` names the content type and, optionally, the block's name and the blocks
+it references. A field is one of ten things:
 
-Client `0` (`be_lib_sequence::LOADED`) belongs to the initial buffer; edits cannot
-allocate positions under it. The text editor anchors each boundary before one
-byte, including deleted bytes through their tombstones. Its end anchor is
-`Pos { client: 0, offset: sequence.next_offset(0) }`, the position just past the
-initial buffer. This virtual sentinel resolves to the current visible length
-without adding a byte to the sequence or its saved text. `Position` wraps only
-that `Pos`; construct the end through the document rather than a global constant.
-IME composition tracks its last byte separately so text inserted after that
-byte stays outside the composition.
+- A **register**: anything that is `Serialize + DeserializeOwned + Clone +
+  PartialEq + Default` and none of the below. It is set as a whole, and setting
+  it on both sides of an offline merge is a conflict.
+- A **`Count`**, a counter whose concurrent changes add up.
+- A **`Grid<T>`**, a dense block of fixed-size cells addressed by coordinates,
+  for pixel data. Its bounds are part of its value, so a resize moves the
+  bounds and keeps every cell at its coordinates; `paint` sets cells and
+  `reshape` sets the bounds.
+- A **`List<T>`** of objects of a `Model` type `T`.
+- A **`Map<K, V>`**, values by key, each key its own register: two people
+  setting different keys both keep theirs, which is how a database row holds a
+  cell per schema field.
+- **`Latest<T>`** and **`LatestMap<K, V>`**, last-write-wins: every write
+  carries a `Stamp` (a time and the writing client), a write only replaces an
+  older stamp, and a merge keeps the later stamp per key, so they never
+  conflict and never undo. `next(time, origin)` stamps a write past the one it
+  replaces, so a client with a slow clock still overwrites what it last read.
+  View state uses them.
+- A **`Text`**, bytes edited in place. It saves only its bytes, and a live
+  session gives every byte a position (`Sequence`, in the `be-lib-sequence`
+  crate) that edits anchor to, so concurrent typing and deleting never need
+  rebasing. Positions and tombstones are session state (positions only: the
+  receiver fills the visible bytes in from its own copy, and an undelete
+  carries the bytes it brings back), and an offline merge is a line diff3. The
+  text block is `Document<TextBlock>`, its body a `Text` (see `plans/text.md`).
+- A **`RichText`**, a `Text` with formatting: the marks beui's rich text editor
+  makes (`be_lib_sequence::marks`, re-exported as `be_block_model::marks` and by
+  `beui_text_editor_core`). Each mark is a key and value (bold, a link, a
+  heading level) over a range, inline or over whole lines, anchored to
+  positions, so its edits are `Change::Text` for the bytes and `Change::Mark`
+  and `Change::Unmark` for the formatting. A mark has an id (a clock and the
+  client), the later id wins where marks overlap, and concurrent formatting and
+  typing converge like typing does. It saves its bytes and its formatting as
+  byte ranges, resolved so no two ranges of one key overlap, and reloads them
+  as fresh marks; the session state carries the live marks with the positions.
+  Undoing a format removes that mark only. An offline merge is a line diff3
+  where a line is its bytes and its formatting together, so formatting a line
+  on one side and typing in it on the other conflicts and is rendered with the
+  same markers as text.
+- A **`Series<T>`**, a list of register values on the same `Sequence`, for data
+  that grows at its end, like a stroke's points. `update` diffs what is wanted
+  against what is held and sends only what changed after the common start
+  (`Change::Series`), so appending costs the new items, not the whole list. It
+  saves as an array of its values, the same as a `Vec<T>` register, so a
+  register that becomes a series keeps reading what was saved; an offline merge
+  keeps both sides' appends and otherwise picks one side as a register does.
+  An object projection re-reads with `Model::reread`, which hands a `Series`
+  what it read last, so it decodes only past the fragments that are unchanged.
 
-Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
-Default` is a register: it is set as a whole, and setting it on both sides of an
-offline merge is a conflict. `Root` names the content type and, optionally, the
-block's name and the blocks it references.
+Text positions: client `0` (`be_lib_sequence::LOADED`) belongs to the initial
+buffer, and edits cannot allocate positions under it. The text editor anchors
+each boundary before one byte, including deleted bytes through their
+tombstones. Its end anchor is `Pos { client: 0, offset: sequence.next_offset(0) }`,
+the position just past the initial buffer, a virtual sentinel that resolves to
+the current visible length without adding a byte to the sequence or its saved
+text. `Position` wraps only that `Pos`, and the end depends on the sequence, so
+it is built through the document; there is no constant for it. IME composition
+tracks its last byte separately so text inserted after that byte stays outside
+the composition.
 
 ### The stored form
 
@@ -627,11 +633,11 @@ only UTF-8), a `List` is an array of objects, and a `Map` an array of
 `[key, value]` pairs. The same CBOR is what registers hold in memory and what
 `set` sends, so a value read back is byte-for-byte what was saved.
 
-The format is meant to change without migrations:
+The format changes without migrations:
 
 - **Adding is free.** A new field, a new field inside a register's struct, a
   new enum variant or a new kind needs nothing: a missing property reads as its
-  default. Give every struct a register holds `#[serde(default)]` (and every
+  default. A struct a register holds needs `#[serde(default)]` (and every
   field of an enum's struct variant `#[serde(default)]`), or a document saved
   before a field was added loses the whole register;
   `Kind::registers_accept_missing_fields` lists the ones that would.
@@ -643,7 +649,7 @@ The format is meant to change without migrations:
   Rust name changes, `#[model(alias = "old")]` reads an old name as well, and
   `#[model(from_old("old", convert))]` reads an old name through
   `fn convert(Old) -> New`, for a field whose meaning changed. Old names are
-  read, never written.
+  read but not written.
 - **Critical fields.** `#[critical]` on a field means an older build must not
   edit an object it cannot read fully. A critical field set to something other
   than its default is saved inside tag `CRITICAL`; a build that does not know
@@ -655,23 +661,26 @@ The format is meant to change without migrations:
   rewrites the stored root before it is read. A build refuses a format newer
   than its own.
 - **Block references.** A block id stored as `BlockRef` (or a `Uuid` field
-  with `#[serde(with = "be_block_model::references::block_ref")]`, `::option` for an
-  `Option`) is saved under tag `BLOCK_REF`, and `Document::block_refs` finds
-  every one, including those inside properties this build does not know. The
-  content's references are those plus `Root::references`.
+  with `#[serde(with = "be_block_model::references::block_ref")]`, `::option`
+  for an `Option`) is saved under tag `BLOCK_REF`, and `Document::block_refs`
+  finds every one, including those inside properties this build does not know.
+  The content's references are those plus `Root::references`.
 
 Freezing a version: set `Root::FROZEN` (or `BlobKind::FROZEN`), which turns off
-the stale-block handling below for the type. `be_block_model::schema::freeze(&document)` returns Rust source
-holding the type's registry (`Kind::describe`: every kind, property, shape,
-register default and old name) and the document's bytes. Keep it as a module
-of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
+the stale-block handling below for the type.
+`be_block_model::schema::freeze(&document)` returns Rust source holding the
+type's registry (`Kind::describe`: every kind, property, shape, register
+default and old name) and the document's bytes. Keep it as a module of the
+block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
 DOCUMENT)`, which fails when a frozen property is gone or retyped, a register
 default changed, the document no longer loads, or anything in it is no longer
 understood. guides/frozen_formats.md lists what is frozen and the end-to-end
 snapshots of a server that hold it.
 
-`be-block-model` stores a document as a table of objects with ids, not as a tree of
-values, and every algorithm is written once against that table:
+### The model
+
+`be-block-model` stores a document as a table of objects with ids, not as a
+tree of values, and every algorithm is written once against that table:
 
 - **Identity.** Every object in a `List` has an `ObjectId` (the `id` of the
   `Item` the list reads back as), and edits name the object, not a position.
@@ -679,145 +688,157 @@ values, and every algorithm is written once against that table:
   it, and a `move_into` carries an object and everything under it from one list
   to another of the same kind (by the schema's kind name); a move into a list
   of another kind changes nothing, since saving would retype the object.
-- **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
-  that builds the changes an `Edit` is made of: `set` for a register, `add` for a
-  `Count`, `put` for a key of a `Map`, `insert` and `move_into` for a `List`, and
-  `Change::remove` for any object. A content type usually wraps these in helpers the editor calls, like
-  `Calendar::update`, which only writes the fields that changed.
-- **Live editing.** Edits address objects by id and anchor inserts to a sibling,
-  so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase. A list is a `Sequence` of ids (`Items`) that remembers each
-  object's slot in it. An insert, or a move into a list the object was never
-  in, takes the next offset of the client that made it (`local_client`, carried
-  in the change), so every replica gives it the same slot. Removing an object
-  leaves a tombstone, an insert anchored after a removed or moved-away object
-  lands where it was, and an object that comes back to a list reuses its slot.
-  A move within a list keeps the slot; a move to another list leaves a tombstone
-  behind. Tombstones and text positions live only
-  in the session: they are never saved, the owner hands them to a joining
-  follower in `Snapshot` and to reloading followers in `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the
-  owner's last seal, because the follower opens the sealed head and applies the
-  operations since onto it; adopting state rebuilds a follower's view from
-  `confirmed` and its pending edits rather than adopting into it. Anything two peers may
-  create at once for the same purpose (a database row past the end, a canvas
-  component for a schema, a logic game solution) takes an id derived from what
-  it is for, so the second insert is refused and its edits land on the first.
+- **Edits.** The derive gives each field a typed constant,
+  `CalendarEvent::TITLE`, that builds the changes an `Edit` is made of: `set`
+  for a register, `add` for a `Count`, `put` for a key of a `Map`, `insert` and
+  `move_into` for a `List`, and `Change::remove` for any object. A content type
+  usually wraps these in helpers the editor calls, like `Calendar::update`,
+  which only writes the fields that changed.
+- **Live editing.** Edits address objects by id and anchor inserts to a
+  sibling, so they mean the same thing whatever the sequencer put before them:
+  there is nothing to rebase. A list is a `Sequence` of ids (`Items`) that
+  remembers each object's slot in it. An insert, or a move into a list the
+  object was never in, takes the next offset of the client that made it
+  (`local_client`, carried in the change), so every replica gives it the same
+  slot. Removing an object leaves a tombstone, an insert anchored after a
+  removed or moved-away object lands where it was, and an object that comes
+  back to a list reuses its slot. A move within a list keeps the slot; a move
+  to another list leaves a tombstone behind.
+- **Session state.** Tombstones and text positions live only in the session:
+  they are never saved, the owner hands them to a joining follower in
+  `Snapshot` and to reloading followers in `Sealed`
+  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot`
+  carries the state as of the owner's last seal, because the follower opens the
+  sealed head and applies the operations since onto it; adopting state rebuilds
+  a follower's view from `confirmed` and its pending edits rather than adopting
+  into it.
+- **Derived ids.** Anything two peers may create at once for the same purpose
+  (a database row past the end, a canvas component for a schema, a logic game
+  solution) takes an id derived from what it is for, so the second insert is
+  refused and its edits land on the first.
 - **Offline merge.** `Document::merge` matches objects by id across the three
   versions and merges each field on its own: registers take whichever side
-  changed, counts add both sides, lists merge their order the way `merge_slices`
-  merges lines once the items either side moved are taken out and put back after
-  the sibling they followed on that side, and an object that moved on one side
-  and was edited on the other keeps both. You delete what you saw: deleting an
-  object (or map key) the other side edited deletes it and counts a conflict.
-  What the other side moved or inserted into a removed container, which the
-  deleting side never saw there, survives: a moved object goes back to the list
-  it came from (or the first sibling container), a new one brings its container
-  back, and either counts a conflict.
-- **Undo.** `Document::step` records, for each change, the change that undoes it
-  and the one that redoes it, both taken against the state before the edit. A
-  register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
-  key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A move's undo puts the object back after what preceded
-  it, even if someone moved it since, and its redo moves it to where the move
-  put it. A removed object is put back with everything under it, in its old
-  slot. `Change::RemoveIf` removes
-  an object only if it still holds what the remover expected, for cleanups like
-  a database dropping a row it emptied. Consecutive sets of the same fields
+  changed, counts add both sides, lists merge their order the way
+  `merge_slices` merges lines once the items either side moved are taken out
+  and put back after the sibling they followed on that side, and an object that
+  moved on one side and was edited on the other keeps both. You delete what you
+  saw: deleting an object (or map key) the other side edited deletes it and
+  counts a conflict. What the other side moved or inserted into a removed
+  container, which the deleting side never saw there, survives: a moved object
+  goes back to the list it came from (or the first sibling container), a new
+  one brings its container back, and either counts a conflict.
+- **Undo.** `Document::step` records, for each change, the change that undoes
+  it and the one that redoes it, both taken against the state before the edit.
+  A register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a
+  map key): it only puts the old value back if nobody has changed it since,
+  which is how undo leaves other people's edits alone. A move's undo puts the
+  object back after what preceded it, even if someone moved it since, and its
+  redo moves it to where the move put it. A removed object is put back with
+  everything under it, in its old slot. `Change::RemoveIf` removes an object
+  only if it still holds what the remover expected, for cleanups like a
+  database dropping a row it emptied. Consecutive sets of the same fields
   absorb into one step.
-- **Grids.** A paint is a list of cells, each optionally conditional on what the
-  cell held, so a paint's undo repaints only the cells nobody has painted since,
-  and a burst of paints into one grid undoes as one stroke. An offline merge
-  takes the bounds the way it takes a register and then merges each coordinate
-  on its own, so a paint made during a resize lands where it was painted, and a
-  crop's undo repaints what the crop dropped.
+- **Grids.** A paint is a list of cells, each optionally conditional on what
+  the cell held, so a paint's undo repaints only the cells nobody has painted
+  since, and a burst of paints into one grid undoes as one stroke. An offline
+  merge takes the bounds the way it takes a register and then merges each
+  coordinate on its own, so a paint made during a resize lands where it was
+  painted, and a crop's undo repaints what the crop dropped.
 
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
-`be-block` (`model.rs`), so a type built this way is registered with
-`undo` in `be_block_types!` and has undo from the start. Almost every content type is
-built this way: the counter, the checklist (the one first-party type already in
-its app's types crate, `crates/be-type-checklist`), the browser
-tab, the UI settings, the three database types, the presentation, the hotbar,
-the deterministic game, the map, the video, the logic game, the logic grid,
-compiled logic, the infinite canvas and text. Implementing the
-traits by hand remains possible for content that does not fit. The browser tab shows a register holding an
-`Option<ObjectId>`: its current page is an object in its history, not an index,
-so a push and a navigation made at the same time still agree on which page is
-current. The video shows what identity buys a tree: a clip attached to another
-is an object in that clip's list, so reattaching it is a move, a move that
-would make a cycle is refused by the model, and removing a clip takes what is
-attached to it. Its editor still speaks in `VideoOperation`s, which
-`VideoProject::edit_for` turns into edits against the content it is shown, and
-reads a flattened `Video` for its timeline. The logic game, the logic grid and the
-canvas work the same way: the editor speaks in an operation enum
-as a command, and `edit_for` on the content turns a command into an edit
-against the content as it is now. The logic grid computes that by applying the
-command to the grid it reads back and writing the fields that differ, so its
-components merge field by field and its wires, stored as a set of unit-length
-segments and a set of wire ends, merge segment by segment, so a cut, an
-extension and a branch made at once all survive; they are joined back into
-wires, split at the stored ends, when read. Two components given the same id at
-once are both kept, the later one read with a fresh id. The canvas keeps its
-layering as the order of its entity list, so bringing an entity to the front is
-a move. Its entities keep their style field by field and their geometry
-in general fields rather than a variant per tool, and an arrow end bound to a
-shape is stored as the shape's id and an anchor and resolved when the canvas is
-read (stopping a gap short of its outline), so it follows a shape a peer moved
-without anyone rewriting the arrow
-(`plans/canvas.md`, Where it stands). The database schema shows the other direction: its fields and enum
-options are objects, and their ids are the ids a database's cells and enum values
-store, so renaming a field or an option changes nothing that points at it.
+`be-block` (`model.rs`), so a type built this way is registered with `undo` in
+`be_block_types!` and has undo from the start. Almost every content type is
+built this way: the counter, the checklist (the one first-party type already
+in its app's types crate, `crates/be-type-checklist`), the browser tab, the UI
+settings, the three database types, the presentation, the hotbar, the
+deterministic game, the map, the video, the logic game, the logic grid,
+compiled logic, the infinite canvas and text. Content that does not fit can
+still implement the traits by hand.
+
+How existing types use identity:
+
+- **Browser tab.** A register holds an `Option<ObjectId>`: its current page is
+  an object in its history, not an index, so a push and a navigation made at
+  the same time still agree on which page is current.
+- **Video.** A clip attached to another is an object in that clip's list, so
+  reattaching it is a move, a move that would make a cycle is refused by the
+  model, and removing a clip takes what is attached to it. Its editor speaks in
+  `VideoOperation`s, which `VideoProject::edit_for` turns into edits against
+  the content it is shown, and reads a flattened `Video` for its timeline.
+- **Commands.** The logic game, the logic grid and the canvas work the same
+  way: the editor speaks in an operation enum as a command, and `edit_for` on
+  the content turns a command into an edit against the content as it is now.
+- **Logic grid.** `edit_for` applies the command to the grid it reads back and
+  writes the fields that differ, so its components merge field by field, and
+  its wires, stored as a set of unit-length segments and a set of wire ends,
+  merge segment by segment: a cut, an extension and a branch made at once all
+  survive. They are joined back into wires, split at the stored ends, when
+  read. Two components given the same id at once are both kept, the later one
+  read with a fresh id.
+- **Canvas.** Its layering is the order of its entity list, so bringing an
+  entity to the front is a move. Entities keep their style field by field and
+  their geometry in general fields rather than a variant per tool, and an arrow
+  end bound to a shape is stored as the shape's id and an anchor and resolved
+  when the canvas is read (stopping a gap short of its outline), so it follows
+  a shape a peer moved without anyone rewriting the arrow (`plans/canvas.md`,
+  Where it stands).
+- **Database schema.** Its fields and enum options are objects, and their ids
+  are what a database's cells and enum values store, so renaming a field or an
+  option changes nothing that points at it.
+
+### Files: `Blob<K>`
 
 A file is the other shape that does not fit a document: a small header and a
 payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
 that names a content type and a header: `ImageContent`, `AudioContent`,
-`PdfContent` and `GameModuleContent` are each a `Blob`
-of their own kind. It encodes as a `Streamed`
-type, its only live edit is `BlobOp::SetHeader` (the image editor records what
-it decoded that way), and an offline merge takes whichever side changed it.
-The payload never travels as an operation, because a session relays operations
-in frames of at most 8 MB. It arrives as a commit instead, which be-block-store has
-already cut into chunks: a new block's first content comes from `write-content`
-seeding it, and a new file for an existing block from `write-content` with
-`replace` (below).
+`PdfContent` and `GameModuleContent` are each a `Blob` of their own kind. It
+encodes as a `Streamed` type, its only live edit is `BlobOp::SetHeader` (the
+image editor records what it decoded that way), and an offline merge takes
+whichever side changed it. The payload never travels as an operation, because
+a session relays operations in frames of at most 8 MB. It arrives as a commit
+instead, which be-block-store has already cut into chunks: a new block's first
+content comes from `write-content` seeding it, and a new file for an existing
+block from `write-content` with `replace` (below).
+
+### Testing a type
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
-tested in `crates/be-block-model/src/tests/`, and the round trip through a real server
-in `crates/be-block-client/src/tests/`. An editor's tests stand in for the host with
-`be_sdk_test::BeuiTest`, whose `ContentStore` hosts every block a test holds
-through one in-process `be_sdk_type_guest::Module` (every be-block type is
-registered, and `hold::<C>` registers a type it does not know): one replica per
-block, owned by this device, a store of commits that takes every publish, the test's
-frame clock as the replica's time, and editors attached as endpoints on their first
-frame through a `replica` resource, the way the host does. `BeuiTest` plays
-the host's side of the `be3:app/blocks` interface over a be-wasm-ops connection to the
-headless app's executor (`be-sdk-test/src/link.rs`), so a test runs the same
-calls and watches the host does. `edit` and `apply_elsewhere` are edits
-submitted by another participant, `set_peers` and `receive_from_peer` are presence and
-channel messages from one; `store()` hands a test fixture the same `ContentStore` to
-read or write between runs.
+tested in `crates/be-block-model/src/tests/`, and the round trip through a real
+server in `crates/be-block-client/src/tests/`. An editor's tests stand in for
+the host with `be_sdk_test::BeuiTest`, whose `ContentStore` hosts every block a
+test holds through one in-process `be_sdk_type_guest::Module` (every be-block
+type is registered, and `hold::<C>` registers a type it does not know): one
+replica per block, owned by this device, a store of commits that takes every
+publish, the test's frame clock as the replica's time, and editors attached as
+endpoints on their first frame through a `replica` resource, the way the host
+does. `BeuiTest` plays the host's side of the `be3:app/blocks` interface over a
+be-wasm-ops connection to the headless app's executor
+(`be-sdk-test/src/link.rs`), so a test runs the same calls and watches the host
+does. `edit` and `apply_elsewhere` are edits submitted by another participant,
+`set_peers` and `receive_from_peer` are presence and channel messages from one;
+`store()` hands a test fixture the same `ContentStore` to read or write between
+runs.
 
 ## Version control
 
 Version control is two content types and a peer-side operation set, not a
-store of its own: history is be-block-store objects and be-block-commit commits.
-
-The model is jj's (Jujutsu's): the working copy is a commit, a change keeps its
-identity when it is rewritten, conflicts are data, and every operation can be
-undone.
+store of its own: history is be-block-store objects and be-block-commit
+commits. The model is jj's (Jujutsu's): the working copy is a commit, a change
+keeps its identity when it is rewritten, conflicts are data, and every
+operation can be undone.
 
 - A **repository** (`be_block::Repository`) holds branch heads, an optional
   upstream repository in the same organization, and the operation log. It
   holds its history with `Peer::hold` (`HoldObjects`): a block that holds
   objects keeps them alive whatever its own commits' retention does, until it
   is collected.
-- A **snapshot** is a `be_block_commit::Commit` of kind `Snapshot(description)` whose
-  manifest is a `be_block_vcs::Tree`: one entry per block of the versioned subtree,
-  keyed by local id, with its content type, parent, metadata, references and
-  content manifest, and the tree's unresolved conflicts. The manifest is the
-  block's own, so a snapshot of unchanged content stores nothing new, and a
-  checkout publishes a block's first commit with that manifest without
-  downloading it.
+- A **snapshot** is a `be_block_commit::Commit` of kind `Snapshot(description)`
+  whose manifest is a `be_block_vcs::Tree`: one entry per block of the
+  versioned subtree, keyed by local id, with its content type, parent,
+  metadata, references and content manifest, and the tree's unresolved
+  conflicts. The manifest is the block's own, so a snapshot of unchanged
+  content stores nothing new, and a checkout publishes a block's first commit
+  with that manifest without downloading it.
 - A **change** is the line of snapshots that share a `ChangeId`
   (`Commit::change`). Rewriting a change (new edits, bringing the branch in,
   resolving) writes a new commit with the same change id; the commit id is the
@@ -834,13 +855,13 @@ undone.
   are the working change, and every operation first snapshots it (amends it).
   Saving a change (`Finish`) describes the working change, moves the branch to
   it with a compare-and-swap, and starts a new empty working change on top.
-- **Conflicts are data.** `be_block_vcs::merge` records every conflict in the merged
-  tree's `conflicts` with the entry each side had, and carries conflicts the
-  sides already recorded until one side resolves them. Bringing changes in,
+- **Conflicts are data.** `be_block_vcs::merge` records every conflict in the
+  merged tree's `conflicts` with the entry each side had, and carries conflicts
+  the sides already recorded until one side resolves them. Bringing changes in,
   switching branch (the working change is rebased onto the other branch) and
   combining a branch (the working change gains a second parent) never refuse
-  because of conflicts and never leave anything in progress: the result is
-  the new working change, conflicts and all, which can be saved as it is.
+  because of conflicts and never leave anything in progress: the result is the
+  new working change, conflicts and all, which can be saved as it is.
   Resolving (`Tree::resolve`) is an ordinary rewrite of the working change.
 - **The operation log** (`Repository::operations`, the latest
   `OPERATION_LIMIT`) records every operation: its action, the checkout it ran
@@ -851,31 +872,34 @@ undone.
   base), so edits made since stay. Undoing an undo redoes.
 - **Scopes.** A block's content stores the ids of the blocks it names, and
   those have to mean the same thing in every checkout, so they are *local* ids.
-  A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
-  and carries the `LOCAL_ID` metadata key; a block created inside a checkout, or
-  one that was adopted into it, keeps its own id as its local id. The host
-  translates every block id that crosses the app protocol for an instance
-  whose block is inside a checkout (`Instances::translate`, over
-  the `BlockIds` of what crosses, in be-host-runtime/src/calls.rs), and the peer resolves the references it
+  A block copied into a checkout is created as
+  `masked(local, scope_mask(checkout))` and carries the `LOCAL_ID` metadata
+  key; a block created inside a checkout, or one that was adopted into it,
+  keeps its own id as its local id. The host translates every block id that
+  crosses the app protocol for an instance whose block is inside a checkout
+  (`Instances::translate`, over the `BlockIds` of what crosses, in
+  be-host-runtime/src/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
   know about checkouts. Resolution looks in the instance's own checkout first
   and falls back to the block with that id, which is how a reference out of the
   tree keeps working.
-- `crates/be-host-stack/src/version.rs` runs the operations in the worker:
-  adopting a block into a new checkout, saving a change, making a checkout,
-  switching, branching, combining a branch, bringing the branch's changes in
-  (`be_block_vcs::merge` over the trees, then each content type's `Merge::merge3`
-  for a block both sides changed, with `before`, `yours` and `incoming` copies
-  of a conflicted block left under the checkout), resolving, undoing,
-  forking, pulling and pushing. It answers a `version-watch` with the
-  `version-status` of every repository and checkout an editor is showing, recomputed when the mirror
-  changes; it watches the checkout's blocks and holds each followed checkout's
-  tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
-  before each operation so every head is current.
-- A replica's owner reconciles when someone publishes past it (the block's
-  `watch` stream's `moved`, `Event::HeadChanged` → `head-moved`), which is what lets a checkout replace the content of a
-  block that someone has open; the worker calls `head-moved` with `from-this-device`
-  for what it publishes itself.
+- **Operations.** `crates/be-host-stack/src/version.rs` runs them in the
+  worker: adopting a block into a new checkout, saving a change, making a
+  checkout, switching, branching, combining a branch, bringing the branch's
+  changes in (`be_block_vcs::merge` over the trees, then each content type's
+  `Merge::merge3` for a block both sides changed, with `before`, `yours` and
+  `incoming` copies of a conflicted block left under the checkout), resolving,
+  undoing, forking, pulling and pushing. It answers a `version-watch` with the
+  `version-status` of every repository and checkout an editor is showing,
+  recomputed when the mirror changes; it watches the checkout's blocks and
+  holds each followed checkout's tree in the mirror (`Query::Subtree` under
+  `Owner::Version`), re-listing it before each operation so every head is
+  current.
+- **Replacing open content.** A replica's owner reconciles when someone
+  publishes past it (the block's `watch` stream's `moved`,
+  `Event::HeadChanged` → `head-moved`), which is what lets a checkout replace
+  the content of a block that someone has open; the worker calls `head-moved`
+  with `from-this-device` for what it publishes itself.
 
 ## Running it
 
@@ -883,31 +907,32 @@ undone.
 ./scripts/buck run //crates/be-server-bin:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
 ```
 
-Open `http://127.0.0.1:9090/auth` to register. Until email delivery is connected,
-verification messages are printed in the server log. Deployments also configure
-`--auth-origin` with the public HTTPS origin (guides/hosting.md).
+Open `http://127.0.0.1:9090/auth` to register. Until email delivery is
+connected, verification messages are printed in the server log. Deployments
+also configure `--auth-origin` with the public HTTPS origin
+(guides/hosting.md). `--addr` (or `--address`) defaults to `127.0.0.1:9090` and
+`--data-dir` to `be-server-data`.
 
-`--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
-`be-server-data`. The native host does not need a server of its own for a local
-account: it embeds be-server (`crates/be-host-stack/src/embedded_server.rs`) on an
+The native host does not need a server of its own for a local account: it
+embeds be-server (`crates/be-host-stack/src/embedded_server.rs`) on an
 ephemeral port with a data directory under the host's, and signs in to it like
 any other server. An account on another server connects to that server's URL
-instead, and the web build always does (`./scripts/buck run
-//crates/be-host:web` starts be-server beside it, closed to new
-accounts).
+instead, and the web build always does (`./scripts/buck run //crates/be-host:web`
+starts be-server beside it, closed to new accounts).
 
 Tests and examples start their own server on an ephemeral port with
 `be_server::Running`, which serves a fresh temporary directory (or one it is
 given) on a task of the current runtime, registers accounts, and stops and
 removes the directory when dropped; see `Harness` in
-`crates/be-block-client/src/tests.rs` and `crates/be-server/src/tests.rs`. be-host-stack's
-own tests do the same through the embedded server, register an account and
-create an organization, and then start the host's peer against it the way the host
-does: `Harness` in `crates/be-host-stack/src/tests.rs`. The crates above the
-stack (the app host, be-host) test against it through `be-host-testing`'s
-`Harness`, which turns on be-host-stack's `testing` feature and serves the
-first-party types in process (`be_host_stack::testing::serve_in_process`), as
-the stack's own tests do under `cfg(test)`.
+`crates/be-block-client/src/tests.rs` and `crates/be-server/src/tests.rs`.
+be-host-stack's own tests do the same through the embedded server, register an
+account and create an organization, and then start the host's peer against it
+the way the host does: `Harness` in `crates/be-host-stack/src/tests.rs`. The
+crates above the stack (the app host, be-host) test against it through
+`be-host-testing`'s `Harness`, which turns on be-host-stack's `testing` feature
+and serves the first-party types in process
+(`be_host_stack::testing::serve_in_process`), as the stack's own tests do under
+`cfg(test)`.
 
 ## How the host holds content
 
