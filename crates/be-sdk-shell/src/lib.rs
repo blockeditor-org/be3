@@ -6,27 +6,20 @@ mod host_panel;
 mod linked;
 mod menu;
 mod panel;
-mod phone;
-mod picker;
-mod picker_view;
-mod picking;
+mod parts;
 mod program;
-mod rename;
-mod revisions;
 mod saved;
-pub use revisions::RevisionHistoryPanel;
 mod share;
 mod tab;
 mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
-pub use picker_view::PickerView;
-pub use picking::Picker;
+pub use menu::{BlockAction, Permissions, apply, permissions};
+pub use panel::{Deleted, Refs, TabInfo, Watched, read_info};
+pub use parts::TabParts;
 pub use program::{
     ProgramRecord, ProgramTab, ProgramWindow, WindowDialog, dialog_tab, picture_image,
 };
-pub use rename::RenameView;
 pub use saved::{SavedProgram, saved_programs};
-pub use workspace::{
-    BlockTab, FILES, Failure, PanelStatus, PanelWindow, REVISIONS, SETTINGS, SHELL_BARS, Workspace,
-};
+pub use tab::TabItem;
+pub use workspace::{BlockTab, Failure, Focus, PanelStatus, PanelWindow, SHELL_BARS, Workspace};

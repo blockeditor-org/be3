@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_E
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{AccessLevel, BlockParent, label_glyph};
 
-use super::panel::{Info, Refs};
+use super::panel::{Refs, TabInfo};
 use super::tab::TabItem;
 use super::workspace::Workspace;
 
@@ -11,7 +11,7 @@ const DETAILS: &str = "editor.details";
 
 pub(crate) fn with_block_menu(
     workspace: Workspace,
-    info: &Info,
+    info: &TabInfo,
     mut nodes: Vec<MenuNode>,
 ) -> Vec<MenuNode> {
     let mut added = vec![MenuNode::Separator];
@@ -72,7 +72,7 @@ fn related(
     Some(MenuNode::submenu(id, title, glyph, items))
 }
 
-fn access(workspace: Workspace, info: &Info) -> MenuNode {
+fn access(workspace: Workspace, info: &TabInfo) -> MenuNode {
     let id = info.item.id;
     let levels = [
         (AccessLevel::Manage, "manage", "Managing"),

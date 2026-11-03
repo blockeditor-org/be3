@@ -169,7 +169,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
 
 #[component]
 fn DesktopShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, false, true);
+    let workspace = Workspace::new(editor);
     view! {
         <Loaded label="Loading the desktop">|| {
             let _layout = editor.view_content();

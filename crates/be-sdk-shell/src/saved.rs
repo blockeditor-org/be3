@@ -16,7 +16,6 @@ pub(crate) const TITLES: &str = "titles";
 struct SavedLayout {
     dock: SavedDockLayout,
     next_tab: u64,
-    files: usize,
     tabs: Vec<SavedTab>,
     programs: Vec<SavedProgram>,
 }
@@ -39,7 +38,6 @@ struct SavedTab {
 pub(crate) struct Restored {
     pub(crate) dock: DockingSnapshot<TabId>,
     pub(crate) next_tab: u64,
-    pub(crate) files: Option<Uuid>,
     pub(crate) tabs: HashMap<TabId, (TabItem, Uuid)>,
     pub(crate) programs: Vec<(TabId, ProgramRecord)>,
 }
@@ -47,12 +45,11 @@ pub(crate) struct Restored {
 pub(crate) fn save(
     dock: &DockingSnapshot<TabId>,
     next_tab: u64,
-    files: Option<Uuid>,
     tabs: &HashMap<TabId, TabItem>,
     views: &HashMap<TabId, Uuid>,
     programs: Vec<(TabId, ProgramRecord)>,
 ) -> ViewState {
-    let mut refs = vec![files.unwrap_or_else(Uuid::nil)];
+    let mut refs = Vec::new();
     let mut open: Vec<(&TabId, &TabItem)> = tabs.iter().collect();
     open.sort_by_key(|(tab, _)| **tab);
     let tabs = open
@@ -71,7 +68,6 @@ pub(crate) fn save(
     let saved = SavedLayout {
         dock: SavedDockLayout::of(dock),
         next_tab,
-        files: 0,
         tabs,
         programs: programs
             .into_iter()
@@ -105,7 +101,6 @@ pub(crate) fn restore(state: &ViewState) -> Result<Restored, String> {
     Ok(Restored {
         dock: saved.dock.snapshot(),
         next_tab: saved.next_tab,
-        files: referenced(saved.files),
         tabs,
         programs: saved
             .programs

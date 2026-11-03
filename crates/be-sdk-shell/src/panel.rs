@@ -17,18 +17,17 @@ use super::artifact::ArtifactBar;
 use super::block_menu::with_block_menu;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
-use super::revisions::RevisionPreviewBar;
 use super::tab::TabItem;
-use super::workspace::{PanelStatus, PhoneSheet, Workspace};
+use super::workspace::{PanelStatus, Workspace};
 use beui::{Align, ItemSize};
 
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct Refs {
-    pub(crate) state: Ready<()>,
-    pub(crate) list: Vec<BlockInfo>,
+pub struct Refs {
+    pub state: Ready<()>,
+    pub list: Vec<BlockInfo>,
 }
 
 impl Default for Refs {
@@ -49,28 +48,28 @@ impl Refs {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct Info {
-    pub(crate) item: TabItem,
-    pub(crate) editor: Option<Uuid>,
-    pub(crate) view: Option<Uuid>,
-    pub(crate) access: AccessLevel,
-    pub(crate) ceiling: AccessLevel,
-    pub(crate) can_edit: bool,
-    pub(crate) dynamic_artifact: bool,
-    pub(crate) type_name: String,
-    pub(crate) parent: Option<BlockParent>,
-    pub(crate) container: Option<Uuid>,
-    pub(crate) parents: Refs,
-    pub(crate) references: Refs,
-    pub(crate) backrefs: Refs,
-    pub(crate) artifact: Option<ArtifactState>,
-    pub(crate) deleted: Option<Deleted>,
+pub struct TabInfo {
+    pub item: TabItem,
+    pub editor: Option<Uuid>,
+    pub view: Option<Uuid>,
+    pub access: AccessLevel,
+    pub ceiling: AccessLevel,
+    pub can_edit: bool,
+    pub dynamic_artifact: bool,
+    pub type_name: String,
+    pub parent: Option<BlockParent>,
+    pub container: Option<Uuid>,
+    pub parents: Refs,
+    pub references: Refs,
+    pub backrefs: Refs,
+    pub artifact: Option<ArtifactState>,
+    pub deleted: Option<Deleted>,
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct Deleted {
-    pub(crate) root: Uuid,
-    pub(crate) inside: Option<String>,
+pub struct Deleted {
+    pub root: Uuid,
+    pub inside: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -80,7 +79,7 @@ enum Content {
 }
 
 #[derive(Default)]
-pub(crate) struct Watched {
+pub struct Watched {
     id: Option<Uuid>,
     parents: Option<BlockList>,
     references: Option<BlockList>,
@@ -112,16 +111,16 @@ fn refs(list: Option<&BlockList>) -> Refs {
     })
 }
 
-pub(crate) fn read_info(
-    workspace: &Workspace,
-    tab: TabId,
-    watched: &RefCell<Watched>,
-) -> Option<Info> {
+pub fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> Option<TabInfo> {
     let item = workspace.tab(tab)?;
     read_item_info(workspace, item, workspace.view_of(tab), watched)
 }
 
-fn read_owner_info(workspace: &Workspace, block: Uuid, watched: &RefCell<Watched>) -> Option<Info> {
+fn read_owner_info(
+    workspace: &Workspace,
+    block: Uuid,
+    watched: &RefCell<Watched>,
+) -> Option<TabInfo> {
     let block_type = workspace.known_type(block)?;
     read_item_info(workspace, TabItem::new(block, block_type), None, watched)
 }
@@ -131,7 +130,7 @@ fn read_item_info(
     item: TabItem,
     view: Option<Uuid>,
     watched: &RefCell<Watched>,
-) -> Option<Info> {
+) -> Option<TabInfo> {
     workspace.record_type(item.id, item.block_type);
     let mut watched = watched.borrow_mut();
     watched.follow(&workspace.blocks(), item.id);
@@ -163,7 +162,7 @@ fn read_item_info(
     let type_name = types
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
-    Some(Info {
+    Some(TabInfo {
         editor: workspace.editor_of(&item),
         item,
         view,
@@ -189,7 +188,7 @@ fn read_item_info(
 
 #[component]
 pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
-    let info = create_signal(None::<Info>);
+    let info = create_signal(None::<TabInfo>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
         info.set(read_info(&workspace, tab, &watched));
@@ -208,7 +207,12 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         item.block_type
             == <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE
     });
-    let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
+    let parts = workspace.tab_parts();
+    let preview = create_memo(move || {
+        parts
+            .as_ref()
+            .and_then(|parts| parts.shown_instead(workspace, tab))
+    });
     let previewing = create_memo(move || preview.get().is_some());
     let live = create_memo(move || !previewing.get());
     let child_menu = create_signal(Vec::<MenuNode>::new());
@@ -239,7 +243,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
-                <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
+                <TabBar workspace tab own=true />
                 <ShowKeepAlive condition={live}>
                     <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <Dynamic value={content}>|content: Content| {
@@ -260,7 +264,9 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                                         top_bar={top_bar}
                                         on_bar={move |action: BarAction| match action {
                                             BarAction::Details => {
-                                                workspace.set_sheet(PhoneSheet::Details(tab))
+                                                if let Some(parts) = workspace.tab_parts() {
+                                                    parts.details(workspace, tab);
+                                                }
                                             }
                                         }}
                                     />
@@ -290,7 +296,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
 #[component]
 fn BlockChild(
     editor: Editor,
-    info: ReadSignal<Option<Info>>,
+    info: ReadSignal<Option<TabInfo>>,
     menu: Signal<Vec<MenuNode>>,
     docked_tab: RenderFn<ChildDockTab, NodeId>,
     top_bar: Memo<TopBar>,
@@ -335,7 +341,7 @@ fn BlockChild(
 fn DockedBlockTab(
     workspace: Workspace,
     tab: TabId,
-    info: ReadSignal<Option<Info>>,
+    info: ReadSignal<Option<TabInfo>>,
     session: bool,
     docked: ChildDockTab,
 ) -> NodeId {
@@ -344,7 +350,7 @@ fn DockedBlockTab(
     let (info, session) = match owner {
         None => (info, session),
         Some(block) => {
-            let owned = create_signal(None::<Info>);
+            let owned = create_signal(None::<TabInfo>);
             let watched = RefCell::new(Watched::default());
             create_effect(move || owned.set(read_owner_info(&workspace, block, &watched)));
             let session = untrack(|| workspace.known_type(block)) == Some(
@@ -374,16 +380,24 @@ fn DockedBlockTab(
             <Show condition={!session}>
                 <LinkedBar workspace={workspace} info={info} />
             </Show>
-            <Show condition={own}>
-                <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
-            </Show>
+            <TabBar workspace tab own />
             <Layers @sizing=ItemSize::Percent(100.0) @test_id={"workspace.block"}>{body}</Layers>
         </List>
     }
 }
 
 #[component]
-fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
+fn TabBar(workspace: Workspace, tab: TabId, own: bool) -> NodeId {
+    match workspace.tab_parts().filter(|_| own) {
+        Some(parts) => parts.bar().call(tab),
+        None => view! {
+            <List spacing=Space::None />
+        },
+    }
+}
+
+#[component]
+fn AccessDenied(info: ReadSignal<Option<TabInfo>>) -> NodeId {
     let simulated = create_memo(move || {
         info.with(|info| info.as_ref().is_some_and(|info| info.ceiling.can_view()))
     });

@@ -14,7 +14,7 @@ use be_sdk_beui::beui::{
 use be_sdk_beui::{BlockParent, ChildMode, ChildState, Subregion, SubregionContent, label_glyph};
 use uuid::Uuid;
 
-use super::picker::{
+use super::model::{
     Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
     link_rows, place_rows, slides, tile_key,
 };

@@ -10,7 +10,7 @@ use be_sdk_beui::{
 };
 use uuid::Uuid;
 
-use super::picker::{Graph, Pick, PickAction, PickOutcome, PickTree, Tree, TreeRow};
+use super::model::{Graph, Pick, PickAction, PickOutcome, PickTree, Tree, TreeRow};
 
 struct State {
     handles: RefCell<HashMap<Uuid, BlockList>>,
