@@ -156,7 +156,8 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
             "keydown",
             true,
             move |event: web_sys::KeyboardEvent| {
-                let modifier = beui_web_input::keys::key(&event).is_some_and(|key| key.is_modifier());
+                let modifier =
+                    beui_web_input::keys::key(&event).is_some_and(|key| key.is_modifier());
                 if !modifier && !event.ctrl_key() && !event.alt_key() && !event.meta_key() {
                     show_focus(true);
                 }
