@@ -9,7 +9,7 @@ use beui::{Align, Align2, TextAlign};
 
 use super::ui::Settings;
 
-pub(super) const AREA: Vec2 = vec2(440.0, 200.0);
+pub(super) const AREA: Vec2 = vec2(272.0, 160.0);
 const MARGIN: f32 = 16.0;
 
 #[derive(Clone, Debug, PartialEq)]
