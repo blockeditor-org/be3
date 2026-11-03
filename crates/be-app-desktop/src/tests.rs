@@ -9,11 +9,12 @@ use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EndingAnswer,
     EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
-    IncomingNotification, MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox,
-    NotificationRequest, NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand,
-    PowerAction, PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch,
-    SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch,
-    WindowAction, WindowKind, WindowOrigin, WindowsWatch, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
+    IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
+    MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
+    WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
