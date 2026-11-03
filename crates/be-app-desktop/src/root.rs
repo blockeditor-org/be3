@@ -7,7 +7,6 @@ mod layouts;
 pub(crate) mod media;
 mod notifications;
 pub(crate) mod osd;
-mod placeholders;
 mod popup;
 mod power;
 mod programs_panel;
@@ -26,11 +25,11 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::{DisplaysWatch, MediaWatch, WindowsWatch};
+use be_sdk_beui::MediaWatch;
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
-    BlockTab, Failure, FloatingWindow, PanelWindow, WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, Failure, PanelWindow, ProgramWindow, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -40,7 +39,6 @@ use bar::{
 use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
-use placeholders::{Placeholder, Placeholders};
 use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
 use window_keys::WindowShortcuts;
 use windows::DeskWindows;
@@ -129,7 +127,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     let editor = shell.workspace.editor();
     let main = shell.workspace.layout();
     let layout = bar::display_layout(editor, main, display);
-    cover_under_fullscreen(editor, layout, display);
+    cover_under_fullscreen(main, layout, display);
     let launches = shell.programs_panel.launches();
     let area = windows_area(layout, region_area());
     shell.windows.report_area(display, area);
@@ -192,16 +190,10 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
-    let desk = workspace.desk();
-    let placeholders = Placeholders::new(workspace);
-    let windows = DeskWindows::new(workspace, placeholders);
+    let program_windows = workspace.program_tabs();
+    let windows = DeskWindows::new(workspace);
     let block_windows = workspace.block_tabs();
     ending::keep_windows_through_ending(workspace);
-    let placeholder = RenderFn::new(move |key: HostWindowId| {
-        view! {
-            <Placeholder placeholders key />
-        }
-    });
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
@@ -238,8 +230,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={block_windows}>|tab: TabId|
                         <BlockWindow workspace tab />
                     </ForEach>
-                    <ForEach keys={desk}>|key: HostWindowId|
-                        <FloatingWindow workspace key placeholder />
+                    <ForEach keys={program_windows}>|tab: TabId|
+                        <ProgramWindow workspace tab />
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <WindowDialog workspace window parent />
@@ -278,25 +270,11 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     }
 }
 
-fn cover_under_fullscreen(editor: Editor, layout: DockingLayout<TabId>, display: u32) {
-    let displays = editor.watch::<DisplaysWatch>();
-    let windows = editor.watch::<WindowsWatch>();
-    let screen = create_memo(move || {
-        displays.with(|displays| displays.get(display as usize).map(|screen| screen.rect))
-    });
+fn cover_under_fullscreen(main: DockingLayout<TabId>, layout: DockingLayout<TabId>, display: u32) {
     let covered = create_memo(move || {
-        let Some(screen) = screen.get() else {
-            return false;
-        };
-        windows.with(|windows| {
-            windows.iter().any(|window| {
-                window.focused
-                    && window.shown
-                    && window
-                        .fullscreen
-                        .is_some_and(|area| screen.contains(area.center()))
-            })
-        })
+        main.fullscreen()
+            .and_then(|tab| main.area_of_window(&tab))
+            .is_some_and(|area| area == display as usize)
     });
     create_effect(move || {
         let covered = covered.get();

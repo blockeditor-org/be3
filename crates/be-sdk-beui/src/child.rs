@@ -290,7 +290,11 @@ fn follow_tab_keyboard(
             && placed.with(|placed| {
                 matches!(
                     placed,
-                    Some(SubregionContent::Block(_) | SubregionContent::DockTab(_))
+                    Some(
+                        SubregionContent::Block(_)
+                            | SubregionContent::DockTab(_)
+                            | SubregionContent::Window(_)
+                    )
                 )
             })
     });

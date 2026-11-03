@@ -3,7 +3,6 @@ mod block_menu;
 mod deleted;
 mod dialogs;
 mod host_panel;
-mod kept;
 mod linked;
 mod menu;
 mod panel;
@@ -13,21 +12,19 @@ mod picker_view;
 mod picking;
 mod rename;
 mod revisions;
+mod program;
 mod saved;
 pub use revisions::RevisionHistoryPanel;
 mod share;
 mod tab;
-mod window;
 mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
-pub use kept::KeptWindow;
 pub use picker_view::PickerView;
 pub use picking::Picker;
 pub use rename::RenameView;
-pub use saved::saved_windows;
-pub use window::{listed_windows, program_name, window_name, window_picture, window_tab};
+pub use program::{ProgramRecord, ProgramTab, ProgramWindow, WindowDialog, dialog_tab, picture_image};
+pub use saved::{SavedProgram, saved_programs};
 pub use workspace::{
-    BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS, SETTINGS,
-    SHELL_BARS, WindowDialog, WindowTab, Workspace,
+    BlockTab, FILES, Failure, PanelStatus, PanelWindow, REVISIONS, SETTINGS, SHELL_BARS, Workspace,
 };

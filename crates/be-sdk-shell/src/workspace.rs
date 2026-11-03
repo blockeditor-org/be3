@@ -4,7 +4,6 @@ use be_sdk_beui::be_block::{
     WORKSPACE_TYPE,
 };
 use be_sdk_beui::be_block::{EditorView, EditorViewContent, ViewState};
-use be_sdk_beui::desktop;
 use be_type_settings::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -12,31 +11,27 @@ use std::rc::Rc;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use be_sdk_beui::beui::dock::styled::{
-    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
+    DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW};
+use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW, ICON_MONITOR};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{NodeId, Pos2, Rect, Vec2};
+use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, PickAnchor, PickedBlock, Pushed, ShellDialog,
-    WindowAction, WindowsWatch,
+    HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor, PickedBlock, ProgramsWatch,
+    Pushed, ShellDialog, WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
-use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
+use super::program::{Heard, Program, Programs, listed_windows};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{
-    WindowPanel, floating_window, kept_window, listed_windows, program_name, shown_size,
-    tab_window, window_name, window_picture, window_tab,
-};
 use beui::ItemSize;
 
 pub const FILES: TabId = TabId::new(1);
@@ -68,7 +63,6 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
-    placed: RefCell<HashMap<HostWindowId, Rect>>,
 }
 
 #[derive(Clone, Copy)]
@@ -79,7 +73,7 @@ pub struct Workspace {
     with_files: bool,
     tabs: Signal<Tabs>,
     views: Signal<HashMap<TabId, Uuid>>,
-    titles: Signal<HashMap<TabId, String>>,
+    pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
     error: Signal<Option<String>>,
     files: Signal<Option<Uuid>>,
@@ -88,22 +82,18 @@ pub struct Workspace {
     pub(crate) sheet: Signal<PhoneSheet>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     pub(crate) share: Signal<Option<Share>>,
-    entries: Memo<Vec<HostWindow>>,
-    windows: Memo<Vec<HostWindow>>,
+    pub(crate) windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
-    kept: Signal<Kept>,
-    desk: Memo<kept::Desk>,
+    pub(crate) programs: Signal<Programs>,
+    pub(crate) heard: Signal<HashMap<TabId, Heard>>,
+    pub(crate) ready: Signal<bool>,
+    pub(crate) ending: Signal<bool>,
+    pub(crate) catalog: Memo<Vec<HostProgram>>,
+    pub(crate) launchable: Memo<bool>,
     unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
-    mirrored: StoredCell<HashMap<HostWindowId, Mirrored>>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct Mirrored {
-    seen: Option<bool>,
-    asked: Option<bool>,
 }
 
 impl Workspace {
@@ -122,12 +112,9 @@ impl Workspace {
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
         let entries = editor.watch::<WindowsWatch>();
-        let windows =
-            create_memo(move || entries.with(|entries| listed_windows(entries, keeps_windows)));
-        let kept = create_signal(Kept::default());
-        let desk = create_memo(move || {
-            kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
-        });
+        let windows = create_memo(move || entries.with(|entries| listed_windows(entries)));
+        let listing = editor.watch::<ProgramsWatch>();
+        let catalog = create_memo(move || listing.with(|listing| listing.programs.clone()));
         let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
             revisions: super::revisions::RevisionHistory::new(editor),
@@ -143,7 +130,6 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
-                placed: RefCell::new(HashMap::new()),
             }),
             editor,
             with_files,
@@ -159,24 +145,22 @@ impl Workspace {
             default_editors,
             dialog,
             share,
-            entries,
             windows,
             keeps_windows,
-            kept,
-            desk,
+            programs: create_signal(Programs::new()),
+            heard: create_signal(HashMap::new()),
+            ready: create_signal(false),
+            ending: create_signal(false),
+            catalog,
+            launchable: editor.offered::<ProgramsWatch>(),
             unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
-            mirrored: StoredCell::new(HashMap::new()),
         };
-        if keeps_windows {
-            create_effect(move || {
-                workspace.mirror_shown();
-            });
-        }
         create_effect(move || {
-            workspace.forget_closed_places();
+            workspace.place_windows();
         });
+        workspace.list_programs_for_placeholders();
         create_effect(move || {
             workspace.open_landing();
         });
@@ -205,79 +189,15 @@ impl Workspace {
         create_effect(move || {
             workspace.watch_artifacts();
         });
-        let seen = RefCell::new(HashMap::new());
-        create_effect(move || {
-            workspace.show_raised(&mut seen.borrow_mut());
-        });
-        create_effect(move || {
-            workspace.settle_kept();
-        });
         workspace
     }
 
-    fn settle_kept(&self) {
-        let desk = self.desk.get();
-        let kept = self.kept.get();
-        if !kept.restored {
-            return;
-        }
-        self.windows.with(|windows| {
-            for (window, key) in &desk.claims {
-                let fullscreen = kept
-                    .records
-                    .iter()
-                    .any(|record| record.key == *key && record.fullscreen);
-                if fullscreen {
-                    let window = *window;
-                    self.host().act(move || {
-                        desktop::windows::request(WindowAction::Fullscreen {
-                            window,
-                            fullscreen: true,
-                        })
-                        .detach()
-                    });
-                }
-            }
-            let next = kept::settle(&kept, &desk, windows);
-            untrack(|| self.kept.set(next));
-        });
+    pub(crate) fn next_tab(&self) -> u64 {
+        self.state.value().next_tab.get()
     }
 
-    pub fn desk(&self) -> Memo<Vec<HostWindowId>> {
-        let desk = self.desk;
-        create_memo(move || desk.with(|desk| desk.keys.clone()))
-    }
-
-    fn placed(&self, window: HostWindowId) -> Option<Rect> {
-        self.state.value().placed.borrow().get(&window).copied()
-    }
-
-    fn keep_placed(&self, window: HostWindowId, rect: Rect) {
-        self.state.value().placed.borrow_mut().insert(window, rect);
-    }
-
-    fn forget_closed_places(&self) {
-        let listed: HashSet<HostWindowId> = self
-            .entries
-            .with(|entries| entries.iter().map(|entry| entry.id).collect());
-        self.state
-            .value()
-            .placed
-            .borrow_mut()
-            .retain(|window, _| listed.contains(window));
-    }
-
-    pub fn bound(&self, key: HostWindowId) -> Memo<Option<HostWindowId>> {
-        let desk = self.desk;
-        create_memo(move || desk.with(|desk| desk.window(key)))
-    }
-
-    fn window_key(&self, window: HostWindowId) -> HostWindowId {
-        self.desk.with_untracked(|desk| desk.key(window))
-    }
-
-    pub fn window_tab_of(&self, window: HostWindowId) -> TabId {
-        window_tab(self.desk.with(|desk| desk.key(window)))
+    pub(crate) fn set_next_tab(&self, next: u64) {
+        self.state.value().next_tab.set(next);
     }
 
     pub fn tab_title(&self, tab: TabId) -> Memo<String> {
@@ -295,85 +215,16 @@ impl Workspace {
     pub fn tab_glyph(&self, tab: TabId) -> Memo<Option<Glyph>> {
         let workspace = *self;
         create_memo(move || {
+            if let Some(program) = workspace.program(tab) {
+                return Some(match program.record.display {
+                    true => ICON_MONITOR,
+                    false => ICON_APP_WINDOW,
+                });
+            }
             workspace.tab(tab).and_then(|item| {
                 be_sdk_beui::label_glyph(&workspace.label(item.id, item.block_type))
             })
         })
-    }
-
-    pub fn placeholders(&self) -> Memo<Vec<HostWindowId>> {
-        let desk = self.desk;
-        create_memo(move || desk.with(|desk| desk.placeholders.clone()))
-    }
-
-    pub fn placeholder(&self, key: HostWindowId) -> Option<KeptWindow> {
-        self.kept.with(|kept| {
-            kept.records
-                .iter()
-                .find(|record| record.key == key)
-                .cloned()
-        })
-    }
-
-    pub fn dismiss(&self, key: HostWindowId) {
-        if !self
-            .desk
-            .with_untracked(|desk| desk.placeholders.contains(&key))
-        {
-            return;
-        }
-        self.kept
-            .update(|kept| kept.records.retain(|record| record.key != key));
-    }
-
-    pub fn keep_through_ending(&self, ending: bool) {
-        if !self.keeps_windows || !self.kept.with_untracked(|kept| kept.restored) {
-            return;
-        }
-        let next = self.kept.with_untracked(|kept| {
-            self.desk.with_untracked(|desk| {
-                self.windows
-                    .with_untracked(|windows| kept::ending(kept, desk, windows, ending))
-            })
-        });
-        self.kept.set(next);
-    }
-
-    fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
-        let inner = self.state.value();
-        let (raised, parents): (
-            HashMap<HostWindowId, u64>,
-            HashMap<HostWindowId, HostWindowId>,
-        ) = self.windows.with(|windows| {
-            (
-                windows
-                    .iter()
-                    .map(|window| (window.id, window.raised))
-                    .collect(),
-                windows
-                    .iter()
-                    .filter_map(|window| Some((window.id, window.parent?)))
-                    .collect(),
-            )
-        });
-        let forward: Vec<HostWindowId> = raised
-            .iter()
-            .filter(|(window, count)| seen.get(window).copied().unwrap_or_default() < **count)
-            .map(|(window, _)| *window)
-            .collect();
-        *seen = raised;
-        untrack(|| {
-            for window in forward {
-                let mut root = window;
-                for _ in 0..parents.len() {
-                    match parents.get(&root) {
-                        Some(parent) => root = *parent,
-                        None => break,
-                    }
-                }
-                inner.layout.show(&window_tab(self.window_key(root)));
-            }
-        });
     }
 
     pub fn editor(&self) -> Editor {
@@ -410,23 +261,6 @@ impl Workspace {
         })
     }
 
-    pub fn entries(&self) -> Memo<Vec<HostWindow>> {
-        self.entries
-    }
-
-    pub fn windows(&self) -> Memo<Vec<HostWindowId>> {
-        let windows = self.windows;
-        create_memo(move || {
-            windows.with(|windows| {
-                windows
-                    .iter()
-                    .filter(|window| window.parent.is_none())
-                    .map(|window| window.id)
-                    .collect::<Vec<_>>()
-            })
-        })
-    }
-
     pub fn dialogs(&self) -> Memo<Vec<(HostWindowId, HostWindowId)>> {
         let windows = self.windows;
         create_memo(move || {
@@ -460,93 +294,11 @@ impl Workspace {
         let layout = self.layout();
         if untrack(|| layout.window_rect(&tab)).is_some() {
             layout.hide_window(&tab);
-            untrack(|| self.mirror_shown());
-            return;
-        }
-        let Some(key) = tab_window(tab) else {
-            return;
-        };
-        if let Some(window) = self.desk.with_untracked(|desk| desk.window(key)) {
-            self.host()
-                .act(move || desktop::windows::request(WindowAction::Hide(window)).detach());
         }
     }
 
     pub fn show(&self, tab: TabId) {
-        let layout = self.layout();
-        let Some(key) = tab_window(tab) else {
-            layout.show(&tab);
-            return;
-        };
-        let window = self
-            .desk
-            .with_untracked(|desk| desk.window(key))
-            .unwrap_or(key);
-        let floating = untrack(|| layout.window_rect(&tab)).is_some();
-        if floating {
-            layout.show(&tab);
-            untrack(|| self.mirror_shown());
-        }
-        let hidden = !floating
-            && self.entries.with_untracked(|entries| {
-                entries
-                    .iter()
-                    .any(|entry| entry.id == window && !entry.shown)
-            });
-        self.host().act(move || {
-            if hidden {
-                desktop::windows::request(WindowAction::Show(window)).detach();
-            }
-            desktop::windows::request(WindowAction::Focus(window)).detach();
-        });
-    }
-
-    fn mirror_shown(&self) {
-        let layout = self.layout();
-        let windows: Vec<(HostWindowId, bool)> = self.windows.with(|windows| {
-            windows
-                .iter()
-                .filter(|window| window.parent.is_none())
-                .map(|window| (window.id, window.shown))
-                .collect()
-        });
-        let mut asks = Vec::new();
-        let mut mirrored = self.mirrored.take();
-        mirrored.retain(|window, _| windows.iter().any(|(listed, _)| listed == window));
-        for (window, shown) in windows {
-            let tab = self.window_tab_of(window);
-            if layout.window_rect(&tab).is_none() {
-                continue;
-            }
-            let held = !layout.is_hidden(&tab);
-            let mirror = mirrored.entry(window).or_default();
-            if mirror.seen != Some(shown) {
-                mirror.seen = Some(shown);
-                let asked = mirror.asked.take();
-                if asked != Some(shown) && held != shown {
-                    untrack(|| match shown {
-                        true => layout.show(&tab),
-                        false => layout.hide_window(&tab),
-                    });
-                }
-                continue;
-            }
-            if held != shown && mirror.asked != Some(held) {
-                mirror.asked = Some(held);
-                asks.push(match held {
-                    true => WindowAction::Show(window),
-                    false => WindowAction::Hide(window),
-                });
-            }
-        }
-        self.mirrored.set(mirrored);
-        if !asks.is_empty() {
-            self.host().act(move || {
-                for ask in asks {
-                    desktop::windows::request(ask).detach();
-                }
-            });
-        }
+        self.layout().show(&tab);
     }
 
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
@@ -816,6 +568,7 @@ impl Workspace {
                 )));
             }
         }
+        self.ready.set(true);
     }
 
     pub fn unreadable_layout(&self) -> Memo<Option<String>> {
@@ -847,10 +600,19 @@ impl Workspace {
                 tabs.insert(tab, item);
                 views.insert(tab, view);
             }
+            let programs: Programs = match self.keeps_windows {
+                true => restored
+                    .programs
+                    .into_iter()
+                    .map(|(tab, record)| (tab, Program::restored(record)))
+                    .collect(),
+                false => Programs::new(),
+            };
             let mut next = restored
                 .next_tab
                 .max(FIRST_BLOCK_TAB)
-                .max(tabs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0));
+                .max(tabs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0))
+                .max(programs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0));
             let opened = self.tabs.get_untracked();
             let mut opened_views = self.views.get_untracked();
             for (tab, item) in opened {
@@ -870,31 +632,13 @@ impl Workspace {
             self.tabs.set(tabs);
             self.views.set(views);
             self.panels.set(panels);
-            self.keep(restored.windows);
+            self.programs.set(programs);
             inner.layout.restore(restored.dock);
-        }
-        if !self.kept.with_untracked(|kept| kept.restored) {
-            self.keep(Vec::new());
         }
         if self.with_files {
             let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
             self.files.set(files);
         }
-    }
-
-    fn keep(&self, records: Vec<KeptWindow>) {
-        if !self.keeps_windows {
-            return;
-        }
-        let seen = self
-            .windows
-            .with_untracked(|windows| windows.iter().map(|window| window.id).collect());
-        self.kept.set(Kept {
-            restored: true,
-            ending: false,
-            records,
-            seen,
-        });
     }
 
     fn save(&self) {
@@ -904,20 +648,17 @@ impl Workspace {
         let views = self.views.get();
         let titles = self.titles.get();
         let files = self.files.get();
-        let windows = match self.keeps_windows {
-            true => self.kept.with(|kept| {
-                self.desk.with(|desk| {
-                    self.windows
-                        .with(|windows| kept::saved(kept, desk, windows))
-                })
-            }),
-            false => Vec::new(),
-        };
+        let programs: Vec<(TabId, super::program::ProgramRecord)> = self.programs.with(|programs| {
+            programs
+                .iter()
+                .map(|(tab, program)| (*tab, program.record.clone()))
+                .collect()
+        });
         let unreadable = self.unreadable.with(Option::is_some);
         if !inner.restored.get() || unreadable {
             return;
         }
-        let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);
+        let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, programs);
         let titles = saved::save_titles(&titles);
         untrack(|| {
             self.editor.set_view_state(LAYOUT, Some(&state));
@@ -929,7 +670,7 @@ impl Workspace {
         let types = self.types();
         let inner = self.state.value();
         let saved = inner.saved_titles.borrow();
-        let titles = self.tabs.with(|tabs| {
+        let mut titles: HashMap<TabId, String> = self.tabs.with(|tabs| {
             tabs.iter()
                 .map(|(tab, item)| {
                     let name = match self.info(item.id) {
@@ -942,7 +683,15 @@ impl Workspace {
                 })
                 .collect()
         });
-        self.titles.set(titles);
+        let programs: Vec<TabId> = self.programs.with(|programs| programs.keys().copied().collect());
+        for tab in programs {
+            if let Some(title) = self.program_title(tab) {
+                titles.insert(tab, title);
+            }
+        }
+        if self.titles.with_untracked(|held| *held != titles) {
+            self.titles.set(titles);
+        }
     }
 
     fn report_focus(&self) {
@@ -1173,21 +922,7 @@ impl Workspace {
     }
 
     pub fn close(&self, tab: TabId) {
-        if let Some(key) = tab_window(tab) {
-            match self.desk.with_untracked(|desk| desk.window(key)) {
-                Some(window) => self
-                    .host()
-                    .act(move || desktop::windows::request(WindowAction::Close(window)).detach()),
-                None if self
-                    .desk
-                    .with_untracked(|desk| desk.placeholders.contains(&key)) =>
-                {
-                    self.dismiss(key)
-                }
-                None => self
-                    .host()
-                    .act(move || desktop::windows::request(WindowAction::Close(key)).detach()),
-            }
+        if self.close_program(tab) {
             return;
         }
         if let Some(panel) = tab_panel(tab) {
@@ -1383,191 +1118,6 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
         <DockTab id=tab title icon group on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab />
         </DockTab>
-    }
-}
-
-#[component]
-pub fn WindowTab(
-    workspace: Workspace,
-    key: HostWindowId,
-    #[prop(default = false)] offers_fullscreen: bool,
-    placeholder: Option<RenderFn<HostWindowId>>,
-) -> DockEntry<TabId> {
-    let bound = workspace.bound(key);
-    let windows = workspace.windows;
-    let info = create_memo(move || {
-        let window = bound.get()?;
-        windows.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
-    });
-    let name = create_memo(move || match info.get() {
-        Some(info) => window_name(&info, None),
-        None => workspace
-            .placeholder(key)
-            .map_or_else(|| "Window".to_owned(), |kept| kept.window_name()),
-    });
-    let program = create_memo(move || {
-        let program = info.with(|info| info.as_ref().map(|info| program_name(info, None)));
-        program
-            .filter(|program| !program.is_empty())
-            .unwrap_or_else(|| name.get())
-    });
-    let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
-    let title = create_memo(move || match responding.get() {
-        true => name.get(),
-        false => format!("{} (not responding)", name.get()),
-    });
-    let fullscreen = create_memo(move || info.get()?.fullscreen);
-    let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
-    let size = create_memo(move || info.get().map(|info| info.size));
-    let limits = create_memo(move || {
-        info.get().map_or((Vec2::ZERO, Vec2::ZERO), |info| {
-            (info.min_size, info.max_size)
-        })
-    });
-    let note = create_memo(move || info.get()?.note);
-    let menu = create_memo(move || info.get()?.menu);
-    let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
-    let group = create_memo(move || Some(format!("program:{}", info.get()?.program_id)));
-    let editor = workspace.editor();
-    let tab = window_tab(key);
-    view! {
-        <DockTab
-            id={tab}
-            title
-            icon=ICON_APP_WINDOW
-            picture
-            group
-            on_close={move || workspace.close(tab)}
-            back_closes=false
-        >
-            <Layers>
-                <Dynamic value={bound}>|bound: Option<HostWindowId>| {
-                    match (bound, placeholder) {
-                        (Some(window), _) => view! {
-                            <WindowPanel
-                                editor={editor}
-                                window
-                                offers_fullscreen
-                                fullscreen={fullscreen}
-                                name={program}
-                                responding={responding}
-                                focused={focused}
-                                size={size}
-                                limits={limits}
-                                note={note}
-                                menu
-                            />
-                        },
-                        (None, Some(placeholder)) => placeholder.call(key),
-                        (None, None) => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
-        </DockTab>
-    }
-}
-
-#[component]
-pub fn FloatingWindow(
-    workspace: Workspace,
-    key: HostWindowId,
-    placeholder: RenderFn<HostWindowId>,
-) -> DockNode<TabId> {
-    let window = workspace.bound(key).get_untracked();
-    let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
-    let layout = workspace.layout();
-    let area = untrack(|| layout.area()).size();
-    let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
-    let rect = window
-        .and_then(|window| workspace.placed(window))
-        .unwrap_or_else(|| {
-            workspace
-                .windows
-                .get_untracked()
-                .iter()
-                .find(|listed| Some(listed.id) == window)
-                .map_or_else(
-                    || kept_window(key, area),
-                    |listed| floating_window(listed, area),
-                )
-        });
-    if let Some(window) = window {
-        let tab = window_tab(key);
-        create_effect(move || {
-            if let Some(rect) = layout.window_rect(&tab) {
-                let origin = layout.area().min.to_vec2();
-                workspace.keep_placed(window, rect.translate(-origin));
-            }
-        });
-    }
-    let pane = format!("window.{}", key.0);
-    view! {
-        <DockWindow id={pane.clone()} rect>
-            <DockPane id={pane}>
-                <WindowTab workspace key offers_fullscreen=true placeholder={placeholder} />
-            </DockPane>
-        </DockWindow>
-    }
-}
-
-#[component]
-pub fn WindowDialog(
-    workspace: Workspace,
-    window: HostWindowId,
-    parent: HostWindowId,
-) -> DockNode<TabId> {
-    let listed = workspace.windows;
-    let find = move |id: HostWindowId| {
-        listed.with(|windows| windows.iter().find(|listed| listed.id == id).cloned())
-    };
-    let info = create_memo(move || find(window));
-    let title = create_memo(move || match info.get() {
-        Some(info) => window_name(&info, find(parent).as_ref()),
-        None => "Window".to_owned(),
-    });
-    let program = create_memo(move || {
-        let program = info.with(|info| {
-            info.as_ref()
-                .map(|info| program_name(info, find(parent).as_ref()))
-        });
-        program
-            .filter(|program| !program.is_empty())
-            .unwrap_or_else(|| title.get())
-    });
-    let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
-    let followed = create_memo(|| None);
-    let modal = create_memo(move || info.get().is_some_and(|info| info.modal));
-    let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
-    let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
-    let note = create_memo(move || info.get()?.note);
-    let menu = create_memo(move || info.get()?.menu);
-    let fullscreen = create_memo(|| None);
-    let editor = workspace.editor();
-    view! {
-        <DockDialog
-            id={window_tab(window)}
-            parent={create_memo(move || workspace.window_tab_of(parent))}
-            title={title}
-            size
-            modal
-            on_close={move || workspace.close(window_tab(window))}
-        >
-            <WindowPanel
-                editor={editor}
-                window
-                offers_fullscreen=false
-                fullscreen={fullscreen}
-                name={program}
-                responding={responding}
-                focused={focused}
-                size={followed}
-                limits={create_memo(|| (Vec2::ZERO, Vec2::ZERO))}
-                note={note}
-                menu
-            />
-        </DockDialog>
     }
 }
 

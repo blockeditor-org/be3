@@ -6,7 +6,7 @@ use be_sdk_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::kept::KeptWindow;
+use super::program::ProgramRecord;
 use super::tab::TabItem;
 
 pub(crate) const LAYOUT: &str = "layout";
@@ -18,7 +18,13 @@ struct SavedLayout {
     next_tab: u64,
     files: usize,
     tabs: Vec<SavedTab>,
-    windows: Vec<KeptWindow>,
+    programs: Vec<SavedProgram>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct SavedProgram {
+    pub tab: u64,
+    pub record: ProgramRecord,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -35,7 +41,7 @@ pub(crate) struct Restored {
     pub(crate) next_tab: u64,
     pub(crate) files: Option<Uuid>,
     pub(crate) tabs: HashMap<TabId, (TabItem, Uuid)>,
-    pub(crate) windows: Vec<KeptWindow>,
+    pub(crate) programs: Vec<(TabId, ProgramRecord)>,
 }
 
 pub(crate) fn save(
@@ -44,7 +50,7 @@ pub(crate) fn save(
     files: Option<Uuid>,
     tabs: &HashMap<TabId, TabItem>,
     views: &HashMap<TabId, Uuid>,
-    windows: Vec<KeptWindow>,
+    programs: Vec<(TabId, ProgramRecord)>,
 ) -> ViewState {
     let mut refs = vec![files.unwrap_or_else(Uuid::nil)];
     let mut open: Vec<(&TabId, &TabItem)> = tabs.iter().collect();
@@ -67,15 +73,21 @@ pub(crate) fn save(
         next_tab,
         files: 0,
         tabs,
-        windows,
+        programs: programs
+            .into_iter()
+            .map(|(tab, record)| SavedProgram {
+                tab: tab.value(),
+                record,
+            })
+            .collect(),
     };
     ViewState::new(&saved, refs)
 }
 
-pub fn saved_windows(state: &ViewState) -> Vec<KeptWindow> {
+pub fn saved_programs(state: &ViewState) -> Vec<SavedProgram> {
     state
         .value::<SavedLayout>()
-        .map(|saved| saved.windows)
+        .map(|saved| saved.programs)
         .unwrap_or_default()
 }
 
@@ -95,7 +107,11 @@ pub(crate) fn restore(state: &ViewState) -> Result<Restored, String> {
         next_tab: saved.next_tab,
         files: referenced(saved.files),
         tabs,
-        windows: saved.windows,
+        programs: saved
+            .programs
+            .into_iter()
+            .map(|saved| (TabId::new(saved.tab), saved.record))
+            .collect(),
     })
 }
 

@@ -15,8 +15,8 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
-    RevisionHistoryPanel, SETTINGS, WindowDialog, WindowTab, Workspace, WorkspaceDialogs,
+    BlockTab, FILES, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, REVISIONS,
+    RevisionHistoryPanel, SETTINGS, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use beui::{Align, ItemSize};
 
@@ -70,7 +70,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows();
+    let top_windows = workspace.program_tabs();
     let opens = opens_windows();
     let tabbed = create_memo(move || match opens.get() {
         true => Vec::new(),
@@ -79,11 +79,6 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let floating = create_memo(move || match opens.get() {
         true => top_windows.get(),
         false => Vec::new(),
-    });
-    let placeholder = RenderFn::new(|_: HostWindowId| {
-        view! {
-            <Frame />
-        }
     });
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
@@ -114,16 +109,16 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             <ForEach keys={block_tabs}>|tab: TabId|
                                 <BlockTab workspace tab />
                             </ForEach>
-                            <ForEach keys={tabbed}>|window: HostWindowId|
-                                <WindowTab workspace key={window} />
+                            <ForEach keys={tabbed}>|tab: TabId|
+                                <ProgramTab workspace tab />
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
                     </ForEach>
-                    <ForEach keys={floating}>|key: HostWindowId|
-                        <FloatingWindow workspace key placeholder />
+                    <ForEach keys={floating}>|tab: TabId|
+                        <ProgramWindow workspace tab />
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <WindowDialog workspace window parent />
