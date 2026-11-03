@@ -78,8 +78,9 @@ pure: writing a signal inside a memo panics, including inside `untrack`, and
 `./scripts/verify` reports a `set`, `update` or `set_unconditionally`
 written inside a `create_memo` closure outside tests.
 
-`with` holds a shared borrow for the closure; `update` holds a mutable borrow.
-Do not access the same signal incompatibly from those closures.
+`with` holds a shared borrow for the closure and `update` a mutable one, so
+writing a signal inside its own `with`, or reading it inside its own `update`,
+is a borrow conflict.
 
 ## Owning signals outside a scope
 
@@ -98,8 +99,9 @@ its signals one of three ways:
   `let _root = RootScope::new();`. A constructor that creates many signals
   starts the same way and ends with `owner.into_scope()`, which stops it being
   current and returns the `Scope` for the struct to keep. Unlike `Scope::run`,
-  it is not an entry: it flushes nothing when dropped. Drop or hand back a `RootScope` in the block
-  that made it.
+  it is not an entry: it flushes nothing when dropped. It stays current until
+  it is dropped or handed back, so that normally happens in the block that
+  made it.
 - `Scope::run` creates them in an existing scope.
 
 A long-lived scope that keeps creating signals keeps all of them until it is
@@ -315,7 +317,8 @@ when one changes. The checklist's rows each watch their own item and its list
 watches only its order, so ticking one item runs one row. Read a single field
 with `field` rather than through `root()`, which decodes the whole document. A watcher is dropped with the reactive scope that made it.
 
-Keep a projection cheap and pure; it must not operate. Write through
+A projection runs whenever what it watches is touched, so it is kept cheap
+and pure, and it does not operate. Writes go through
 `ContentProjection::operate`, which applies the operation to what the view
 sees straight away, so a local edit is visible in the frame that made it, and
 queues it for the block's replica (a `FromEditor::Operate` frame; the projection is
@@ -335,8 +338,9 @@ wait are the editor's own: a projection of a block's content
 block until its content arrives or the account turns out not to be able to
 read it), a graph query (`editor.blocks().watch(query)`, `watch_blocks`),
 `version_status()`, and the database helpers `watch_inverses` and
-`watch_row_labels`. So the sources must be made inside the boundary's
-content, not in `view` around it. One with a placeholder that is already
+`watch_row_labels`. A source waits on the boundary around the scope that makes
+it, so one made in `view` around `<Loaded>` rather than inside its content
+does not hold it back. One with a placeholder that is already
 right while loading shows that instead (an image shows its thumbhash).
 Something that loads later, inside a view that is already shown (a folder in
 the file tree being expanded), says so in its own place, from its `Ready`.
@@ -353,8 +357,9 @@ it again shows that at once while the host answers again.
 
 Data that may not have arrived is a `Ready<T>`, `Result<T, Pending>`, where
 `Pending` is `Loading` or `Failed(message)`. A memo derives from one with `?`:
-`create_memo(move || Ok(rows.get()?.len()))`. Nothing in between keeps an
-`Option` or a `loaded: bool` beside the value.
+`create_memo(move || Ok(rows.get()?.len()))`, so no `Option` or `loaded: bool`
+is needed beside the value
+(decisions/loading_state_is_ready_and_waits_at_a_boundary.md).
 
 `<Loading fallback={|pending: Pending| ...}>{content}</Loading>` turns that
 state into UI. It builds its content at once but keeps it hidden, and shows
@@ -758,9 +763,17 @@ into a single-child slot declares that arity itself.
 A `view!` with more than one root is a `Children` rather than a `NodeId`, so a
 fixed set of siblings can be written in one place and handed to a `Children`
 prop somewhere else. The number of roots decides, and nothing else: one root is
-the `NodeId` it has always been. A `Children` slot takes that lone child as a
+a `NodeId`. A `Children` slot takes that lone child as a
 run of one, so a set written in one place reads the same whether it has one
 member or several.
+
+```rust
+let toolbar = view! {
+    <Button label="Open" on_click={open} />
+    <Button label="Save" on_click={save} />
+};
+view! { <List direction=Direction::Horizontal spacing=8.0 children={toolbar} /> }
+```
 
 A `Children<T>` holds whatever kind of child its slot takes, and that kind need
 not be a node: `unstyled::MenuItem` and `unstyled::ChoiceOption` are components
@@ -800,14 +813,6 @@ fn Legend(entries: Children<Note>) -> NodeId {
 A `Run<T>` is cheap to clone and fills a `Children<T>` slot again, which is how
 one set of options reaches two controls: `styled::Tabs` hands the same run to
 its tab list and to the select it collapses into.
-
-```rust
-let toolbar = view! {
-    <Button label="Open" on_click={open} />
-    <Button label="Save" on_click={save} />
-};
-view! { <List direction=Direction::Horizontal spacing=8.0 children={toolbar} /> }
-```
 
 Roots take the same `@` sizing prefixes and `{expr}` form that children between
 tags take, and `view! {}` is the empty `Children`. A sizing prefix on a lone
@@ -927,6 +932,8 @@ that gained it.
 />
 ```
 
+## Control flow
+
 When the shape of a subtree depends on a value rather than a flag, `dynamic`
 rebuilds it: it holds one child, and every time its `value` changes it builds a
 replacement from `view` and removes the old one. Use it where a `show` would
@@ -960,8 +967,15 @@ nothing in it, so its siblings take the room because nothing is there.
 The kind of child a run builds is the kind its parent takes: `ListChild`s in a
 list, plain nodes in a `scroll`, `CanvasItem`s in a `canvas`. So a row says how
 much room it wants the way any child of a list does — `@sizing` on the root it
-returns — and a row builder that returns a plain node is intrinsic. Each row is
-free to differ from the others and to change its mind reactively.
+returns — and a row builder that returns a plain node is intrinsic, so the same
+closure fits a list, a `scroll` or anything else that takes one child per row.
+Each row is free to differ from the others and to change its mind reactively.
+
+```rust
+<ForEach spacing=0.0 keys>
+    |key: Uuid| <ItemRow @sizing={row_size(key)} key />
+</ForEach>
+```
 
 Because they build no node, `@test_id` and `@node_ref` on one of them are a
 compile error. Each is a `DynamicSegment<C>`, which fills a slot that keeps a
@@ -970,15 +984,7 @@ writing one there is a compile error, and a `List` around it is the fix. A
 component whose view is one of them returns it as it is, typed
 `-> DynamicSegment<C>`, and is written wherever a run of `C` fits.
 
-A row builder returns whatever kind of child the parent takes, so a closure
-that returns a plain node fits a list, a `scroll` or anything else that takes
-one child per row without saying so.
-
-```rust
-<ForEach spacing=0.0 keys>
-    |key: Uuid| <ItemRow @sizing={row_size(key)} key />
-</ForEach>
-```
+### Sizing children
 
 `@sizing` on a child inside `view!`, or on a root of a multi-root one, gives it
 an `ItemSize` in the `List` that lays it out, and a child without one is
@@ -1086,6 +1092,8 @@ Measuring a node whose size depends on its own content — an intrinsically size
 container whose children react to its width — can oscillate. Give containers a
 width that comes from their parent.
 
+## Nodes and scopes
+
 Each `Document` owns a root `beui_reactive::Scope` (`Document::reactive_scope`).
 Every node belongs to the scope that was current when it was created, just as an
 effect does, and disposing that scope removes the nodes it still owns: a scope's
@@ -1100,7 +1108,8 @@ scope of its own and drop that scope to drop the child: `Show` disposes its
 child's scope when it hides it, where `ShowKeepAlive` pauses it, and
 `VirtualList` keeps a released row's scope to hand the row its next key. Anything else
 that drops part of a view on its own keeps a `Scope` for it and drops that,
-as the dock does for each tab's panel; nothing removes nodes by hand. A
+as the dock does for each tab's panel, so nodes are removed only by disposing
+the scope that owns them. A
 component that returns a value rather than a node lives as long as the scope
 that built it, like one that returns a node; dropping the value does nothing.
 
@@ -1131,8 +1140,7 @@ entry is seen by effects when the outermost entry ends, with one exception:
 the queued effects owned by that scope and the scopes under it, and leaves
 every other effect queued. `KeyedItems::entry_owned` builds an entry and
 flushes its scope that way. This is what a node uses to build its own subtree
-during layout (see "One layout per frame" in the beui guide); nothing else
-should need it.
+during layout (see "One layout per frame" in the beui guide).
 
 Disposing a scope never removes its nodes on the spot. Each node's cleanup
 queues its id with the document that made it, and the document removes them
@@ -1144,8 +1152,8 @@ document is installed still removes its nodes from its own.
 `with_document` asserts when no document is installed at all; nested calls are
 fine, and reach the same installed document. Event handlers are plain `FnMut`
 closures with no document parameter, so they call ambient functions like any
-other code. Keep those calls at the leaves: a component should read and write
-node properties through props on base elements, and reach for `with_document`
-only inside a base element or to look up its own component state. Effects always
+other code. Components read and write node properties through props on base
+elements; `with_document` is for the base elements themselves and for looking
+up a component's own state. Effects always
 run after the entry that queued them has released its borrow, so ambient calls
 inside an effect body nest safely too.
