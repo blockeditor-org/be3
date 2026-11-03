@@ -1354,6 +1354,7 @@ pub fn WindowTab(
             icon=ICON_APP_WINDOW
             picture
             on_close={move || workspace.close(tab)}
+            back_closes=false
         >
             <Layers>
                 <Dynamic value={bound}>|bound: Option<HostWindowId>| {

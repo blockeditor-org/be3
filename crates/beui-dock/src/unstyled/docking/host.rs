@@ -54,6 +54,7 @@ pub struct DockDeclaredTab {
     pub icon: Option<Glyph>,
     pub picture: Option<Image>,
     pub closable: bool,
+    pub back_closes: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

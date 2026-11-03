@@ -893,6 +893,10 @@ interface types {
         title: string,
         glyph: string,
         closable: bool,
+        /// Whether Back closes the tab when it was opened from the tab Back
+        /// returns to. False for a tab whose closing can lose work, such as
+        /// a program's window: Back then returns from it and leaves it open.
+        back-closes: bool,
         /// The menu of the tab's view (`shell.menu` of that view), which the
         /// root shows on the tab's bar. The host fills it in as it splices a
         /// declaration; a declaring instance leaves it empty. A pick reaches

@@ -1117,6 +1117,7 @@ pub(crate) fn declaration_to_api(
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
                     closable: tab.closable,
+                    back_closes: tab.back_closes,
                     menu: Vec::new(),
                 })
             })
@@ -1250,6 +1251,7 @@ fn declaration_from_api(
             icon: Glyph::from_codepoint(&tab.glyph),
             picture: None,
             closable: tab.closable,
+            back_closes: tab.back_closes,
         })
         .collect();
     let dialogs = declaration
