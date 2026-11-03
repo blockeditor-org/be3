@@ -346,6 +346,7 @@ impl DesktopHost for Linux {
                         rgba: icon.pixels().to_vec(),
                     }),
                     raised: windows.raised(info.id),
+                    rung: windows.rung(info.id),
                     origin: WindowOrigin {
                         command: relaunch_command(&launched.program, info.command),
                         program: launched.program,

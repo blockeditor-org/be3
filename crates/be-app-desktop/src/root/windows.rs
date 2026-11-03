@@ -18,6 +18,7 @@ use super::placeholders::Placeholders;
 const CHIP_SPACING: Space = Space::Xs;
 const CHIP_WIDTH: Size = Size::Menu;
 const CHIP_LEAST: Size = Size::Custom(2.0 * Size::Xl2.px());
+const BELL_FLASH: std::time::Duration = std::time::Duration::from_millis(400);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ChipKey {
@@ -367,6 +368,26 @@ fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
     }
 }
 
+fn bell_flash(rung: Memo<u64>) -> ReadSignal<bool> {
+    let ringing = create_signal(false);
+    let quiet = create_timer(move || {
+        ringing.set(false);
+        None
+    });
+    let heard = StoredCell::new(rung.get_untracked());
+    create_effect(move || {
+        let count = rung.get();
+        if count > heard.get() {
+            untrack(|| {
+                ringing.set(true);
+                quiet.start(BELL_FLASH);
+            });
+        }
+        heard.set(count);
+    });
+    ringing.read_only()
+}
+
 #[component]
 fn WindowChip(
     windows: DeskWindows,
@@ -430,9 +451,13 @@ fn WindowChip(
     let running = create_memo(move || !waiting);
     let closable = create_memo(move || !waiting && !display.get());
     let unopenable = create_memo(move || kept.is_some_and(|(_, shown)| !shown.openable.get()));
-    let variant = create_memo(move || match shown.get() {
-        true => ButtonVariant::Secondary,
-        false => ButtonVariant::Ghost,
+    let ringing = bell_flash(create_memo(move || {
+        entry.with(|entry| entry.as_ref().map_or(0, |entry| entry.rung))
+    }));
+    let variant = create_memo(move || match (ringing.get(), shown.get()) {
+        (true, _) => ButtonVariant::Primary,
+        (false, true) => ButtonVariant::Secondary,
+        (false, false) => ButtonVariant::Ghost,
     });
     let visibility = create_memo(move || match shown.get() {
         true => "Hide".to_owned(),

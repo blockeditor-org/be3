@@ -23,6 +23,7 @@ fn host_window_messages_round_trip() {
             rgba: vec![1, 2, 3, 4],
         }),
         raised: 0,
+        rung: 0,
         origin: WindowOrigin {
             program: Some("foot.desktop".into()),
             command: vec!["foot".into(), "--server".into()],

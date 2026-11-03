@@ -320,6 +320,7 @@ pub fn host_window(
             rgba: icon.rgba.clone(),
         }),
         raised: entry.raised,
+        rung: 0,
         kind: match entry.kind {
             EntryKind::Window => WindowKind::Window,
             EntryKind::Display => WindowKind::Display,

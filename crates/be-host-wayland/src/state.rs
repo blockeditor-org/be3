@@ -96,6 +96,7 @@ pub enum ServerEvent {
     Grabbed(WindowId, Grab),
     Menu(WindowId, beui::Vec2),
     Minimized(WindowId),
+    Rang(WindowId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,6 +112,7 @@ pub struct Layer {
     pub source: Rectangle<f64, Logical>,
     pub buffer: Size<f64, Logical>,
     pub popup: bool,
+    pub alpha: f32,
 }
 
 pub(crate) struct ClientWindow {
@@ -147,6 +149,7 @@ pub struct State {
     decorations: Decorations,
     pub(crate) idle: Idle,
     pub(crate) foreign: XdgForeignState,
+    pub(crate) toplevel_list: crate::toplevel_list::ToplevelList,
     pub(crate) icons: ToplevelIcons,
     pub(crate) shortcuts: Shortcuts,
     pub(crate) presentation: Presentation,
@@ -223,6 +226,9 @@ impl State {
         crate::single_pixel::create(handle);
         crate::tearing::create(handle);
         crate::text_input::create(handle);
+        crate::bell::create(handle);
+        crate::alpha::create(handle);
+        crate::pacing::create(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
@@ -244,6 +250,7 @@ impl State {
             decorations,
             idle,
             foreign: XdgForeignState::new::<Self>(handle),
+            toplevel_list: crate::toplevel_list::ToplevelList::new(handle),
             icons: ToplevelIcons::new(handle),
             shortcuts: Shortcuts::new(handle),
             presentation,
@@ -1170,13 +1177,14 @@ pub(crate) fn collect_layers(
                 source: view.src,
                 buffer: buffer.to_f64(),
                 popup,
+                alpha: crate::alpha::alpha(states),
             });
         },
         |_, _, _| true,
     );
 }
 
-fn client_compositor(client: &Client) -> &CompositorClientState {
+pub(crate) fn client_compositor(client: &Client) -> &CompositorClientState {
     if let Some(data) = client.get_data::<XWaylandClientData>() {
         return &data.compositor_state;
     }
