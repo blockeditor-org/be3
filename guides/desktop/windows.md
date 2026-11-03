@@ -25,10 +25,11 @@ machine; Wine has no Windows.Graphics.Capture.
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
   lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
   (`close_window`, `resize_window`, `set_maximized`). Block's own windows are not hidden from
-  captures: a display entry shows be-host's window too, as any screen share does, so what the
-  panel shows is what a click on it reaches (Displays below).
-- Threads: no thread of ours that the UI thread may wait on (the watcher, the captures) sends a
-  message to one of our own windows, since the UI thread answers only between frames. The watcher
+  captures: a display entry shows be-host's window too, as any screen share does
+  (decisions/windows_captures_show_be_host_itself.md).
+- Threads: the UI thread answers its windows' messages only between frames, so a thread it may
+  wait on (the watcher, the captures) that sent a message to one of be-host's own windows would
+  deadlock; none does. The watcher
   reads no title or icon (`WM_GETTEXT`, `WM_GETICON`) of our own process's windows (`Desktop::title`,
   `icon` and `app_user_model_id` are only asked for other processes' windows), and moves windows
   only with `SWP_ASYNCWINDOWPOS` and `ShowWindowAsync`. The UI thread never waits on the watcher:
@@ -76,7 +77,7 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports
   `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
   `Lost::Closed` just ends it. A popup whose capture cannot start (Windows refuses some, such as
-  the system menu) is only logged, never a toast.
+  the system menu) is only logged, not toasted.
 - Popups: be-host-win32 gives each entry its live popups (menus, tooltips: owned or same-thread
   `WS_POPUP` windows), bottom first, with their frames. `WindowSurface` captures each popup's
   HWND and draws it as a `Window` of role `WindowRole::Popup` placed `Over` the window the panel
@@ -106,7 +107,9 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
   whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
   with its panel.
-- Displays: a click on a display entry does what the same click on the real monitor would. Its
+- Displays: a click on a display entry does what the same click on the real monitor would, which
+  is why captures include be-host's own window. Its
+
   release point on the monitor (`focus::display_point`) is looked up with `WindowFromPoint`
   (`GA_ROOT`, on the UI thread): when it is one of be-host's own windows (its mirror image in
   the capture), nothing happens (`FocusError::OnBlock`, no note), since the click is on Block
@@ -121,15 +124,14 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   release point and clips it there, so the physical mouse and keyboard drive it natively,
   elevated windows included. Nothing is clipped before it arrives: winit, while be-host's window
   is active, resets any clip it did not set (`ClipCursor(NULL)` on every cursor-flag refresh),
-  and a window that never arrives must not trap the cursor. The clip is put back on the events
+  and a window that never arrives cannot trap the cursor. The clip is put back on the events
   that can drop it (foreground, location, minimize end, move/size end, mouse capture changes,
   displays, desktop switches) and on each cursor move if `GetClipCursor` differs
   (`FocusMode::reclip`), except while the window is being dragged by its title bar.
 - The shell's `focus` window action (a press on a panel's title bar, the picker, a tab given the
-  keyboard) does nothing on Windows (`win32_map::shell_focus`): starting focus there trapped the
-  person again whenever Block came back and the shell refocused its panel, and broke dragging
-  panels by their title bars.
-- Ways back, each of which always ends focus, unclips and cancels a focus request still queued
+  keyboard) does nothing on Windows (`win32_map::shell_focus`;
+  decisions/windows_shell_focus_does_not_start_focus_mode.md).
+- Ways back, each of which ends focus, unclips and cancels a focus request still queued
   (`FocusMode::returns`, compared with the count a request was made at): the hotkey
   (`Hotkey::DEFAULT`, Ctrl+Alt+Space, `RegisterHotKey` on the watcher thread, `WM_HOTKEY` with no
   window in its loop), and be-host becoming the foreground by any means (Alt+Tab, a click),
@@ -149,11 +151,11 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   `WindowsWatch` is sent again. Only what must cover the content is drawn on it
   (`desktop_host/win32_overlay.rs`, `EntryOverlay`, painted on Linux): the parts of a window's
   frame outside every monitor are shaded with "Off screen: drag the window by its title bar to
-  reach this part" (`win32_map::off_screen`; the window is never moved for the person), and the
+  reach this part" (`win32_map::off_screen`; the host does not move the window for the person), and the
   secure-desktop notice over a display.
 - XR controller presses (`PointerId::is_controller`) are injected instead (press, release and
   drags), since a laser has no physical cursor to clip.
-- Every toast (`notices::report`) is also a line on stderr. Notices are never left silent: an
+- Every toast (`notices::report`) is also a line on stderr. Each refusal says something: an
   elevated window an injected press could not reach notes "run Block as administrator"; over
   every display entry while the secure desktop is up, and as a toast when it comes up, "take off
   the headset to answer it"; a toast when Windows refuses to bring be-host back.

@@ -8,20 +8,29 @@ programs' windows inside it. This guide is what every host shares; each host has
   on the displays themselves as a login session (`BEUI_PLATFORM=drm`) and installs as one.
 - guides/desktop/windows.md: the Windows host, which shows Windows' monitors and windows.
 
-`--desktop` (every native platform) starts the desktop shell in a normal window. On Linux
-programs open as windows inside it (guides/desktop/linux.md); on Windows it shows Windows'
-monitors and windows, launches Start Menu programs and offers power (guides/desktop/windows.md);
-on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
-windows, notification server, tray, media, power, lock screen or programs to launch.
-The host test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
-and closes it. Only `--desktop` hosts other programs' windows: `HostCore::desktop`, set by
-`run_as_desktop`, is what makes be-host create and start `DesktopHost` (Linux's Wayland compositor and
-Xwayland, Windows' window watcher), and `be_host_runtime::run_as_desktop` is what offers the
-package's `windows` and `programs` (`published::offers`). A run without it, on the displays (`drm`)
-or in space included, starts neither, answers those two watches `unsupported` and so lists no
-program windows, no programs to launch and no program as an editor of a block. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
-A desktop never shares its data with another be-host: started while one already runs on the same
-data directory, it stops with an error (guides/running/native.md).
+`--desktop` (every native platform, parsed in `src/arguments.rs`) starts the desktop shell in a
+normal window. On Linux programs open as windows inside it (guides/desktop/linux.md); on Windows
+it shows Windows' monitors and windows, launches Start Menu programs and offers power
+(guides/desktop/windows.md); on macOS it is the shell alone: there are no program windows,
+notification server, tray, media, power, lock screen or programs to launch. The web and Android
+apps have no `--desktop`: a desktop with none of these is only a dock of block windows, which
+their own shells already are. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's.
+
+Only `--desktop` hosts other programs' windows: `HostCore::desktop`, set by `run_as_desktop`, makes
+be-host create and start `DesktopHost` (Linux's Wayland compositor and Xwayland, Windows' window
+watcher), and `be_host_runtime::run_as_desktop` offers the package's `windows` and `programs`
+(`published::offers`). A run without it, on the displays (`drm`) or in space included, starts
+neither, answers those two watches `unsupported` and so lists no program windows, no programs to
+launch and no program as an editor of a block.
+
+A desktop does not share its data directory with another be-host: started while one already runs
+on it, it stops with an error (guides/running/native.md).
+
+`./scripts/buck run //crates/be-host:dev -- --desktop` runs the desktop shell headless, to drive
+like any other run (guides/running/drive.md). The host test
+`the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless and closes it.
+
+## The `be3:desktop` package
 
 Everything the desktop gets from the host comes through `be3:desktop`, a WIT package
 beside the core app protocol rather than in it
@@ -49,6 +58,30 @@ while `InputDevicesWatch` is (a seat of physical devices), the bar's keyboard bu
 be-host publishes `InputReachWatch` from `input::start` and `DesktopBarWatch` from
 `run_as_desktop`, so a windowed desktop sets its programs' keymap too.
 
+be-host publishes each watch as soon as the service behind it runs, even empty. It publishes the
+package on Linux, its `windows` and `programs` only under `--desktop`, and on Windows only under
+`--desktop`, its `windows`, `programs` and `power` (`be-host-runtime/src/published.rs`); a host
+that does not publish it (elsewhere, the web and Android) answers every watch of the package
+`unsupported` and drops its calls, which the desktop sees as nothing offered.
+
+be-host reaches the platform through `be_host_desktop::desktop_host::Host`, the platform's
+`DesktopHost`: a trait of associated functions (start, list and act on windows, launch) whose
+defaults do nothing, so a platform with no host (`impl DesktopHost for Host { type Source = (); }`)
+writes none of them. Its `Source` is the `ProgramSource` that lists the installed programs, their
+icons and openers and runs one; `programs/installed.rs` is the one `Programs<S>` over it that
+scans on a thread, holds launches until the list is in and publishes `ProgramsWatch`. The scan's
+results reach the UI thread through `be_host_base::host::mailbox`, whose handler runs when the
+frame starts, so nothing polls for them.
+
+Work in be-host hands its results back to the UI thread through that mailbox: a worker
+`Post::send`s a value, which wakes the event loop, and the handler runs on the thread that made
+the mailbox. Dropping the `Mailbox` cancels it: whatever is still on its way is dropped. A handler
+that needs `&mut` state its owner holds is made on a `host::Desk<C>`, and runs, given the
+`&mut C`, when the owner calls `desk.deliver(&mut c)`: `HostCore`'s account, organization, key,
+member and contact requests and logind's events go through its desk at the start of its frame
+(`request(work, handler)` in main.rs spawns one), each app's `Instances` delivers head reads,
+audio changes and service answers on its own, and so do `Programs` and `ScreenLock`.
+
 ## The bars
 
 The shell is three dock-level `DockBar`s of the desktop's own dock (`desktop.dock`), declared in
@@ -74,7 +107,7 @@ opens away from the bar's edge, toward the windows: below or above a bar along t
 (`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`). It stays inside
 its display's work area (`bar::BarArea`, the `DockingLayout::area()` the bands leave, as the
 popover's `bounds`), shifting along the bar to clear another band and scrolling when taller than
-that area, so it never covers another bar. The bar's menus do the same (`bar::bar_bounds()` as the
+that area, so it does not cover another bar. The bar's menus do the same (`bar::bar_bounds()` as the
 `bounds` of the grip's `DockBarGrip`, a window chip's `ContextMenu` and a tray item's `MenuButton`),
 their submenus too.
 
@@ -106,6 +139,8 @@ is saved over the bytes, and display 0 shows a notice (`desktop.display-bars`, w
 display is connected) with Copy report, Keep them and Reset bars. Toasts stay on display 0, in the
 corner nearest its Status bar.
 
+### Work areas and where windows open
+
 Each display's work area is that display less its own bars' bands: the dock's area
 (`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the app reports it on the view's frame report
@@ -124,6 +159,8 @@ its program asks for (`min-size` and `max-size` on `host-window`, `within_limits
 dock's area, at its origin, when the least does not fit. Only the opening size honours them: the
 person may resize the window past them, and the window does not follow a size its program commits
 that is only those limits applied to the size it was given (`followed_size`).
+
+## The Status bar
 
 The Status bar holds the tray, the keyboard layout indicator (`desktop.layout`, guides/desktop/linux.md),
 the device tools (the on-screen keyboard, `desktop.keyboard`,
@@ -144,34 +181,8 @@ login session, which `session` says, or the computer does not allow it). The clo
 events beside the notification history (`root/notifications/history.rs`), stacked on a narrow
 screen (`root/calendar.rs`). The events come from the desktop's own calendar, a database calendar
 view it creates once and remembers in its `desktop.calendar` view state; Open calendar
-(`desktop.calendar.open`) opens that view in a window of its own, the popup never embeds it; toasts make way while it is open. be-host publishes each as soon as the
-service behind it runs, even empty. be-host publishes the package on Linux, its `windows` and `programs` only under `--desktop`,
-and on Windows only under `--desktop`, its `windows`, `programs` and `power`
-(`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
-answers every watch of the package `unsupported` and drops its calls, which the desktop
-sees as nothing offered. be-host reaches the host through
-`be_host_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
-functions (start, list and act on windows, launch) whose defaults do nothing, so a platform with
-no host (`impl DesktopHost for Host { type Source = (); }`) writes none of them. Its `Source` is
-the `ProgramSource` that lists the installed programs, their icons and openers and runs one;
-`programs/installed.rs` is the one `Programs<S>` over it that scans on a thread, holds launches
-until the list is in and publishes `ProgramsWatch`. The scan's results reach the UI thread through
-`be_host_base::host::mailbox`, whose handler runs when the frame starts, so nothing polls for
-them.
-
-That mailbox is the one way any work in be-host hands a result back to the UI thread: a worker
-`Post::send`s a value, which wakes the event loop, and the handler runs on the thread that made
-the mailbox. Dropping the `Mailbox` cancels it: whatever is still on its way is dropped. A handler
-that needs `&mut` state its owner holds is made on a `host::Desk<C>`, and runs, given the
-`&mut C`, when the owner calls `desk.deliver(&mut c)`: `HostCore`'s account, organization, key,
-member and contact requests and logind's events go through its desk at the start of its frame
-(`request(work, handler)` in main.rs spawns one), each app's `Instances` delivers head reads,
-audio changes and service answers on its own, and so do `Programs` and `ScreenLock`. The web and
-Android apps have no `--desktop`: a desktop with none of
-these is only a dock of block windows, which their own shells already are.
-
-`./scripts/buck run //crates/be-host:dev -- --desktop` runs the desktop shell headless, to
-drive like any other run (guides/running/drive.md).
+(`desktop.calendar.open`) opens that view in a window of its own; the popup does not embed it.
+Toasts make way while it is open.
 
 ## Program windows
 
@@ -181,7 +192,7 @@ window and shows none of them. Where the host opens windows (`opens_windows()`, 
 window, and so a panel, of its own: be-sdk-shell's `Workspace` shows each top program window as a
 floating dock window (`FloatingWindow`) instead of a tab, as the desktop app always does. A program's dialog
 (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned
-window) is never a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
+window) is not a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
 `DockDialog` of its parent's tab, which the dock draws as the same anchored card as be-host's
 own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
 the parent dialog's header), escaping its pane as a layer, in space and outside it alike. A
@@ -190,8 +201,8 @@ dialog moves between being a window and a card with it. A parent that is not lis
 that never drew, such as `gtk3-demo --run`'s hidden main window) does not count: be-host-wayland
 reports the nearest shown ancestor (`State::parent`), and `shown_windows` drops a parent missing
 from the list, so such a window is a window of its own. Its
-header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, the one way to name
-a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
+header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, which names a
+host window everywhere it is shown: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
 program id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
 then " — " and the window's title when it says more (not the name or program id, a trailing
 " - name" cut off). Both hosts first name a window after the program the desktop launched it from
@@ -281,10 +292,11 @@ to list only the windows mostly on that display (`display_of`: the display holdi
 window's rect in the dock, which follows each window's reported `origin`, Displays below; a hidden
 window, which has no rect, is listed on the first display), and with more than one display a
 shown floating window's chip menu adds "Move to display N" for each other display (Displays,
-below). On Linux it is a window switcher too. be-host's Wayland host opens every window shown and lists no displays; `hide`
-only stops the shells drawing it (the client keeps running and connected), and the shown state
-lives in `be-host-desktop/src/desktop_host/shown.rs` for as long as be-host runs, forgotten when the window closes.
-A hidden window shown again opens at its default place, not where it was.
+below). be-host's Wayland host opens every window shown and lists no displays; `hide` only stops
+the shells drawing it (the client keeps running and connected), and the shown state lives in
+`be-host-desktop/src/desktop_host/shown.rs` for as long as be-host runs, forgotten when the window
+closes. A hidden window shown again comes back where it was: be-sdk-shell's `FloatingWindow`
+keeps the rect its dock window last had for as long as the host lists the window.
 
 ## Displays
 
@@ -381,9 +393,9 @@ of the display holding most of it; `move_to_display` keeps a snapped window snap
 display; `show_desktop` hides every shown window and, while none has been shown since, shows them
 all again; `next_of_app` focuses the next window of the same program (or block type).
 `WindowManager::actions` offers each as an `Action` with no keys, disabled while
-`ScreenLockedWatch` is set and while there is nothing to act on. Only the desktop app binds keys
-to them (`root/window_keys.rs`, at `KeyAt::Window` and capturing, so they work over programs and
-are listed in the command palette), since workspace-ui's windows are its own:
+`ScreenLockedWatch` is set and while there is nothing to act on. The desktop app binds keys to them
+(`root/window_keys.rs`, at `KeyAt::Window` and capturing, so they work over programs and are listed
+in the command palette); workspace-ui binds none, since its windows are its own:
 
 | Action | Linux | Where the system keeps Super |
 | --- | --- | --- |
@@ -400,7 +412,8 @@ The system keeps Super's chords where the host answers `SuperKeptWatch` true, as
 Windows, whose own shell takes Win+arrows and Win+D for be-host's window and where Alt+F4 closes
 be-host itself. Super+Left snapping the other way restores, as does Super+Right; a key whose
 action has nothing to do (Super+Up on a maximized window) is not taken, so it reaches the program.
-A Super chord is never a Super tap, so none opens the Apps panel.
+A Super chord is not a Super tap, so none opens the Apps panel.
+
 
 ## A shell that stops
 
