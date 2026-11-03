@@ -9,8 +9,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VkKeyScanExW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsWindow, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-    SM_YVIRTUALSCREEN, SetCursorPos,
+    GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsWindow, SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetCursorPos,
 };
 
 use crate::mapping::PixelRect;

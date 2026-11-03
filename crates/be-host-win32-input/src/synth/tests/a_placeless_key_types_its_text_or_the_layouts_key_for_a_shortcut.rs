@@ -2,9 +2,18 @@ use super::*;
 
 fn german(wanted: char) -> Option<LayoutKey> {
     match wanted {
-        'y' => Some(LayoutKey { vk: 0x59, scan: 0x2C }),
-        'z' => Some(LayoutKey { vk: 0x5A, scan: 0x15 }),
-        '-' => Some(LayoutKey { vk: 0xBD, scan: 0x35 }),
+        'y' => Some(LayoutKey {
+            vk: 0x59,
+            scan: 0x2C,
+        }),
+        'z' => Some(LayoutKey {
+            vk: 0x5A,
+            scan: 0x15,
+        }),
+        '-' => Some(LayoutKey {
+            vk: 0xBD,
+            scan: 0x35,
+        }),
         _ => None,
     }
 }
