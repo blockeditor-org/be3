@@ -1,7 +1,9 @@
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_shell::RenameView;
+mod view;
+
+use view::RenameView;
 
 pub struct RenameRoot;
 

@@ -16,6 +16,8 @@ fn application() -> App { build(|| view! { <Shell /> }) }
 fn deferred() -> RenderFn<()> { RenderFn::new(|_| view! { <Shell /> }) }
 fn stored() -> ChildView { store(Box::new(|_| view! { <Shell /> })) }
 impl Widget for App { fn view() -> Node { view! { <Shell /> } } }
+impl Widget for Held { fn view(&self) -> Node { view! { <Shell /> } } }
+impl Panel { fn bar(self) -> Node { view! { <Element /> } } }
 #[component]
 impl Widget for Marked { #[component] fn View() -> Node { view! { <Shell /> } } }
 fn mapped() -> Vec<Node> { values.map(|_| view! { <Element /> }).collect() }

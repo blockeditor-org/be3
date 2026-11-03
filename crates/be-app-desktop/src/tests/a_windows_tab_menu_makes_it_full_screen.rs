@@ -26,12 +26,9 @@ fn a_windows_tab_menu_makes_it_full_screen() {
 
     fixture.click_text("Full screen");
     assert_eq!(
-        fixture.test.host_calls(be_sdk_test::requested::window),
-        [WindowAction::Fullscreen {
-            window: HostWindowId(1),
-            fullscreen: true
-        }],
-        "the entry asks the host to make the window fullscreen"
+        fixture.fullscreen_windows(),
+        [HostWindowId(1)],
+        "the entry shows the window full screen, which the host tells its program"
     );
     assert!(fixture.test.shown("dock.fullscreen"));
 }

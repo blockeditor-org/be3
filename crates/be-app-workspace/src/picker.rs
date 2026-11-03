@@ -1,7 +1,12 @@
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_shell::{Picker, PickerView};
+mod model;
+mod picking;
+mod view;
+
+use picking::Picker;
+use view::PickerView;
 
 pub struct PickerRoot;
 

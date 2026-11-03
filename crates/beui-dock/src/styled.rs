@@ -11,8 +11,8 @@ use crate::unstyled as dock;
 pub use crate::unstyled::{
     DockAlign, DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument,
     DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode,
-    DockPane, DockSlot, DockSnap, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
-    SplitSize, TabId, dock_menu, use_dock_bar, use_dock_tab,
+    DockPane, DockSlot, DockSnap, DockSplit, DockTab, DockWindow, DockWindowActions, DockingLayout,
+    DockingSnapshot, SplitSize, TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
@@ -89,6 +89,7 @@ pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = true)] joins: bool,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -105,6 +106,7 @@ where
     view! {
         <dock::Docking
             layout
+            joins
             stack_below=NARROW_WIDTH
             short_below=SHORT_HEIGHT
             short_narrower_than=PHONE_LANDSCAPE_WIDTH

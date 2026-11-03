@@ -11,7 +11,7 @@ fn a_window_that_rings_the_bell_flashes_its_chip() {
 
     fixture.show_windows(&[
         host_window(1, true),
-        HostWindow {
+        TestWindow {
             rung: 1,
             ..host_window(2, false)
         },

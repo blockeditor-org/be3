@@ -55,7 +55,7 @@ fn a_window_dragged_over_the_bars_passes_beneath_them() {
     fixture.test.desk_release(to);
     fixture.settle();
 
-    fixture.show_windows(&[HostWindow {
+    fixture.show_windows(&[TestWindow {
         fullscreen: Some(display),
         ..host_window(1, true)
     }]);

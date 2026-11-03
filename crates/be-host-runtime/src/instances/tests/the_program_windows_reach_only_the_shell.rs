@@ -1,8 +1,6 @@
 use super::*;
 
-use be_sdk_api::{
-    HostWindow, HostWindowId, WindowAction, WindowKind, WindowOrigin, WindowsWatch, requested,
-};
+use be_sdk_api::{HostWindow, HostWindowId, WindowKind, WindowOrigin, WindowsWatch};
 
 #[test]
 fn the_program_windows_reach_only_the_shell() {
@@ -11,24 +9,10 @@ fn the_program_windows_reach_only_the_shell() {
     let windows = vec![HostWindow {
         id: HostWindowId(3),
         kind: WindowKind::Window,
-        shown: true,
-        title: "foot".to_owned(),
-        program_id: "foot".to_owned(),
-        name: "Foot".to_owned(),
         parent: None,
         modal: false,
-        size: Vec2::new(320.0, 200.0),
-        min_size: Vec2::ZERO,
-        max_size: Vec2::ZERO,
-        fullscreen: None,
-        responding: true,
-        focused: true,
-        icon: None,
-        raised: 0,
-        rung: 0,
+        program_id: "foot".to_owned(),
         origin: WindowOrigin::default(),
-        note: None,
-        menu: None,
     }];
     instances.next_screens(PASS);
 
@@ -38,11 +22,6 @@ fn the_program_windows_reach_only_the_shell() {
         "a session opened inside the desktop does not see the program windows"
     );
     assert!(watched_sent::<WindowsWatch>(&instances.next_screens(PASS).opened).is_empty());
-    let close = WindowAction::Close(HostWindowId(3));
-    assert!(
-        !host_call::<WindowsWatch, _>(&mut instances, "request", &close),
-        "nor may it act on them"
-    );
 
     assert!(instances.set_shell(Some(INSTANCE)));
     assert_eq!(
@@ -50,18 +29,4 @@ fn the_program_windows_reach_only_the_shell() {
         vec![windows],
         "the shell sees them"
     );
-    assert!(host_call::<WindowsWatch, _>(
-        &mut instances,
-        "request",
-        &close
-    ));
-    let mut taken = Vec::new();
-    instances.take_calls(&mut |called| match requested::window(called) {
-        Some(action) => {
-            taken.push(action);
-            true
-        }
-        None => false,
-    });
-    assert_eq!(taken, vec![close], "and acts on them");
 }

@@ -10,7 +10,7 @@ fn a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     fixture.test.set_size(PHONE);
     fixture.settle();
-    let long = HostWindow {
+    let long = TestWindow {
         title: LONG.to_owned(),
         ..host_window(2, true)
     };

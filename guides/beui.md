@@ -135,7 +135,8 @@ whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
 A function containing `view!` must be `#[component]`, whatever type it returns.
-The source check exempts test code, framework trait entrypoints, and views
+The source check exempts test code, framework trait entrypoints, methods
+taking `self` (a component cannot, so `#[component]` rejects a receiver), and views
 inside document/HTML rendering calls or factories storing deferred render
 callbacks. Extract other helpers into
 components and call them through `view!`, including helpers returning child
@@ -2805,7 +2806,7 @@ saved with the layout: the tab it came from, the tab it went to, and whether
 that tab was `opened` by it, which is its first time shown since it joined the
 dock. `back` is the last visit to the tab on show. Going back undoes it: a tab
 the visit opened is closed through its `on_close` when it has one, unless the
-`DockTab` says `back_closes=false` (be-sdk-shell's `WindowTab` does, since
+`DockTab` says `back_closes=false` (be-sdk-shell's `ProgramTab` does, since
 closing a program's window ends the program; the app protocol's `dock-tab`
 carries it as `back-closes`), and closing
 the tab on show, in either mode, shows the tab its last visit came from;
@@ -2829,11 +2830,12 @@ wherever the focus is (a program's window included): the overlay holds no focus
 for Escape to find it by, so the dock listens for Escape at the window while it
 is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
 outside or back does. A dock in an app only hears a key a program has the
-keyboard for when it intercepts the chord, so the desktop app also registers
-Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
-keys, usually a chord that begins or steps the switch while a modifier is held,
-and `held_modifiers()` letting go of that modifier to commit,
-as the desktop app does with Alt+Tab and the demo with Alt+Q.
+keyboard for when it intercepts the chord, so the desktop app also binds
+Alt+Escape to `dock.switch.cancel`, intercepting it. The dock binds no other key:
+`dock.switch.next` and `previous` (in `window_actions`) begin or step the switch, and commit it
+at once unless Alt, Ctrl or Super is held, in which case letting go of all of them commits it.
+Whoever binds them decides the keys, as the desktop app does with Alt+Tab; the demo binds Alt+Q
+its own way.
 
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
@@ -3038,7 +3040,9 @@ tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
 declaration: the bodies `place` gave and the `listen` callback stay with the
 link until the scope that claimed it ends, so a dock that stops declaring and
 declares again (a child editor whose `Docking` is torn down and built again) is
-hosted again with the same bodies. A `Docking` that joins no host instead
+hosted again with the same bodies. A `Docking` given `joins=false` claims
+neither a `DockJoin` nor a slot and stands alone wherever it is built, as the
+demo's Window manager page does with its floating windows. A `Docking` that joins no host instead
 claims the `DockKeeper` context if one is provided above it (one per keeper; a
 dock nested in it joins it and claims none) and hands it a `DockKept`: its own
 layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
@@ -3336,6 +3340,31 @@ left or right half of `area` (in the dock's window points, as `window_rect`), or
 `unsnap_window` puts that rect back, and `window_snap` says how it is snapped, reactively,
 for as long as it stays at the rect it was snapped to (moved or resized away, it is not snapped
 and has nothing to go back to). Snaps are not part of the saved layout.
+
+The dock is also the window manager of its floating windows, for any shell (docking/manager.rs,
+state/hidden.rs). `DockingLayout::set_areas` gives it the rects of the displays it spans, in the
+same points; with none, its own `area()` is its one area. A window belongs to the area it overlaps
+most (`area_of_window`, `holding_area`), `snap_in_area` snaps it within that area, and
+`move_to_area`/`step_area` move it to another keeping its place in proportion, inside the area,
+and keep a snapped window snapped there. A floating window can be hidden (`hide_window`,
+`is_hidden`, `DockState::hide_window`/`show_window`): it keeps its place but is not drawn, its
+tabs are not placed (`is_shown` is false for them, a tracked read on `DockingLayout` too, so its dialogs go with it), the focus goes to
+the tab shown before it, and the switcher skips it; showing or focusing any of its tabs
+(`show`, `DockState::focus`) shows it again. Hidden windows are not part of the saved layout.
+`show_desktop` hides every shown window, and pressed again while none has been shown since
+(`shows_desktop`), brings back what it hid; anything shown meanwhile ends it, so the next press
+hides again. A `DockTab`'s `group` (an optional string: which tabs are one app's) is what
+`next_of_group` cycles: the shown windows' tabs of the same group, in tab order. `close_tab`
+closes a tab through its own `on_close`, so the shell decides what closing means.
+`DockingLayout::window_actions(disabled)` returns `DockWindowActions`, a set of `ActionBuilder`s
+with ids, labels and icons but no keys, each enabled only when it has something to do and never
+while `disabled` (the shell's memo: the desktop's lock screen) is true: `dock.window.close`,
+`hide`, `snap_left`, `snap_right` (snapping the other way restores), `maximize`, `restore`,
+`fullscreen` (the focused window's tab full screen over its area), `show_desktop`, `next_area`,
+`previous_area`, `next_of_group`, and `dock.switch.next`, `previous` and `cancel` (below). They act
+on the focused window: the focused tab, or the dock dialog with the focus (whose `close` closes
+the dialog), when its window floats and is shown. The shell chooses which to bind and to which
+chords; the demo's Window manager page puts them in a menu.
 Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
 its content) raises the fullscreen overlay above the floating windows, its own pane's window
 included, so a window brought in front of it and then left goes behind it again. Where a host
@@ -6284,7 +6313,9 @@ against this one node by node, matched by id: a node's own shapes, the fades
 over it and its place among its siblings are what it shows, and every pixel a
 difference touches, rounded out to whole pixels as a renderer repaints them,
 must be damaged, or, inside a region the frame copied, must be what the copy
-brought there. Painting from scratch runs every paint again, so a test that
+brought there. Only windows still open are checked: a window that closes (even
+one whose content `keep_alive` holds) is no longer shown, and one that opens
+again is shown whole. Painting from scratch runs every paint again, so a test that
 counts paints skips the ones made while `Context::is_verifying_paint` is set.
 With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::native::detect_over_repaint(true)` on the thread that paints) they also report

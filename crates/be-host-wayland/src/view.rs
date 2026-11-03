@@ -23,6 +23,7 @@ pub fn WindowView(
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
     #[prop(default = None)] carrier: Option<Carrier>,
+    #[prop(default = 0)] focus: Prop<u64>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {
@@ -226,6 +227,16 @@ pub fn WindowView(
         };
         answered.set(asked);
         untrack(|| node.focus());
+    });
+    let focused_asks = StoredCell::new(untrack(|| focus.get()));
+    create_effect(move || {
+        let asked = focus.get();
+        if focused_asks.replace(asked) == asked {
+            return;
+        }
+        if let Some(node) = catcher.try_get() {
+            untrack(|| node.focus());
+        }
     });
     let rect_measured = measure(built);
     create_effect(move || {

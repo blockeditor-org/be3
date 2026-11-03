@@ -18,7 +18,7 @@ fn alt_tab_brings_forward_only_the_window_it_ends_on() {
     assert_eq!(fixture.focused_windows(), [HostWindowId(1)]);
 
     let windows = [1, 2, 3].map(|id| host_window(id, id == 1)).to_vec();
-    fixture.test.set_watched::<WindowsWatch>(&windows);
+    fixture.show_windows(&windows);
     fixture.settle();
     fixture.test.clear_calls();
     assert!(fixture.test.host_key(alt, Key::Tab));

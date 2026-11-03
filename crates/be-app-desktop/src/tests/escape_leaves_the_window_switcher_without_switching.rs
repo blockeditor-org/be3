@@ -17,7 +17,7 @@ fn escape_leaves_the_window_switcher_without_switching() {
     assert!(
         !fixture
             .test
-            .shown(&format!("dock.switch.{}", window_tab(2)))
+            .shown(&format!("dock.switch.{}", fixture.tab_of(2)))
     );
 
     fixture.test.hold_modifiers(Modifiers::NONE);

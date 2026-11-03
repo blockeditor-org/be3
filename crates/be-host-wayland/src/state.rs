@@ -737,10 +737,6 @@ impl State {
         }
     }
 
-    pub(crate) fn own_size(&self, id: WindowId) -> Option<Size<i32, Logical>> {
-        self.find(id)?.chosen
-    }
-
     pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
         let window = self.find(id)?;
         if self.layers(id).is_empty() {
@@ -748,6 +744,13 @@ impl State {
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
         (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+    }
+
+    pub fn drawn_size(&self, id: WindowId) -> beui::Vec2 {
+        self.find(id).map_or(beui::Vec2::ZERO, |window| {
+            let size = window.window.geometry().size;
+            beui::vec2(size.w.max(0) as f32, size.h.max(0) as f32)
+        })
     }
 
     pub fn size_limits(&self, id: WindowId) -> (beui::Vec2, beui::Vec2) {

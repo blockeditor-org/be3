@@ -4,7 +4,7 @@ use super::*;
 fn a_windows_note_shows_in_its_tab_in_place_of_its_title() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     assert!(fixture.says("todo-1.txt"));
-    let noted = HostWindow {
+    let noted = TestWindow {
         note: Some("Ctrl+Alt+Space comes back to Block".to_owned()),
         ..host_window(1, true)
     };

@@ -49,8 +49,8 @@ fn the_ending_bar_waits_for_the_programs_still_open_and_answers() {
     assert!(fixture.says("Powering off"));
     assert!(fixture.says("Power off now"));
     assert!(
-        fixture.says("Waiting for Foot, Shopping list and Kate to close."),
-        "each program is named once, by its name or else its window's title"
+        fixture.says("Waiting for Foot, Kate and Notes to close."),
+        "each program is named once, in the order of its tabs"
     );
 
     fixture.allow_power(EVERYTHING);

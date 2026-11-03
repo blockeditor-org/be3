@@ -1,5 +1,7 @@
 use super::*;
 mod a_child_asking_for_another_editor_reopens_in_it;
 mod a_conflicted_block_offers_both_versions;
+mod a_window_child_placed_hidden_is_heard_but_not_drawn;
+mod a_window_childs_status_is_its_programs;
 mod app_editors_close_with_their_owner_rather_than_when_the_thread_ends;
 mod escape_stops_a_presentation_rather_than_reaching_the_editor;

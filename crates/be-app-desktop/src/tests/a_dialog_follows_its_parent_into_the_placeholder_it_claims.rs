@@ -5,31 +5,33 @@ fn a_dialog_follows_its_parent_into_the_placeholder_it_claims() {
     let mut before = Fixture::new();
     before.settle();
     before.show_windows(&[foot(1), foot(2)]);
+    let second = before.tab_of(2);
     let mut resumed = Fixture::resumed(before.saved());
-    let settings = HostWindow {
+    let settings = TestWindow {
         parent: Some(HostWindowId(40)),
         ..foot(41)
     };
-    let dialog = HostWindow {
+    let dialog = TestWindow {
         parent: Some(HostWindowId(41)),
         modal: true,
         ..foot(42)
     };
     resumed.show_windows(&[foot(40), settings, dialog.clone()]);
     assert!(
-        resumed.placeholder_rect(2).is_some(),
+        resumed.placeholder_rect(second).is_some(),
         "the second placeholder waits while its terminal is a dialog"
     );
     resumed.show_windows(&[foot(40), foot(41), dialog]);
 
     assert!(
-        resumed.placeholder_rect(2).is_none(),
+        resumed.placeholder_rect(second).is_none(),
         "the window that stopped being a dialog claims the other placeholder"
     );
-    let header = resumed
-        .test
-        .rect_of(&format!("dock.dialog.{}.header", window_tab(42)));
-    let tab = resumed.test.rect_of(&format!("dock.tab.{}", window_tab(2)));
+    let header = resumed.test.rect_of(&format!(
+        "dock.dialog.{}.header",
+        be_sdk_shell::dialog_tab(HostWindowId(42)).value()
+    ));
+    let tab = resumed.test.rect_of(&format!("dock.tab.{second}"));
     assert!(
         header.top() > tab.bottom()
             && header.left() <= tab.center().x

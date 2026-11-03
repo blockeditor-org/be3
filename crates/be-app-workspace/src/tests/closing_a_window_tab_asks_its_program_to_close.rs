@@ -3,20 +3,14 @@ use super::*;
 #[test]
 fn closing_a_window_tab_asks_its_program_to_close() {
     let (mut fixture, _) = editor();
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(3, "Terminal", None)]);
+    fixture.show_windows(&[window(3, "Terminal", None)]);
     fixture.settle();
 
-    let tab = (1u64 << 41) + 3;
-    fixture.test.click(format!("dock.tab.{tab}.close"));
-    fixture.settle();
+    fixture.close_active_tab();
 
-    assert!(
-        fixture
-            .test
-            .host_calls(be_sdk_test::requested::window)
-            .contains(&WindowAction::Close(be_sdk_beui::HostWindowId(3))),
+    assert_eq!(
+        fixture.closed_windows(),
+        vec![3],
         "the host is asked to close the window"
     );
     assert_eq!(
@@ -28,8 +22,7 @@ fn closing_a_window_tab_asks_its_program_to_close() {
         "the tab stays while its program decides"
     );
 
-    fixture.host.set_watched::<WindowsWatch>(&Vec::new());
-    fixture.settle();
+    fixture.show_windows(&[]);
 
     assert!(
         placed_windows(&fixture).is_empty(),

@@ -62,6 +62,15 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
         dialog: Default::default(),
         picked: None,
         card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
     });
     test.run();
     for info in infos {

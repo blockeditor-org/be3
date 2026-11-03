@@ -21,6 +21,7 @@ fn rename_and_host_menu_children_round_trip() {
         dialog: None,
         docks: None,
         anchor: None,
+        fullscreen: false,
     };
     let mut message = committed(ChildPlacements {
         instance: EditorInstanceId(3),

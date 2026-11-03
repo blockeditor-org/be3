@@ -9,9 +9,9 @@ const PROGRAMS: [(&str, &str, &str); 6] = [
     ("org.inkscape.Inkscape", "Inkscape", "poster-final-v3.svg"),
 ];
 
-fn realistic(id: u64, focused: Option<u64>) -> HostWindow {
+fn realistic(id: u64, focused: Option<u64>) -> TestWindow {
     let (program_id, name, title) = PROGRAMS[(id as usize - 1) % PROGRAMS.len()];
-    HostWindow {
+    TestWindow {
         program_id: program_id.to_owned(),
         name: name.to_owned(),
         title: title.to_owned(),
@@ -20,7 +20,7 @@ fn realistic(id: u64, focused: Option<u64>) -> HostWindow {
 }
 
 fn show(fixture: &mut Fixture, count: u64, focused: Option<u64>) {
-    let windows: Vec<HostWindow> = (1..=count).map(|id| realistic(id, focused)).collect();
+    let windows: Vec<TestWindow> = (1..=count).map(|id| realistic(id, focused)).collect();
     fixture.show_windows(&windows);
 }
 

@@ -4,7 +4,7 @@ use super::*;
 fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     let (mut fixture, _) = editor();
 
-    fixture.host.set_watched::<WindowsWatch>(&vec![
+    fixture.show_windows(&[
         window(1, "Text Editor", None),
         window(2, "Save changes?", Some(1)),
     ]);
@@ -24,9 +24,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
         (320.0, 200.0),
         "the dialog is the size it drew rather than filling a pane"
     );
-    let parent_tab = fixture
-        .test
-        .rect_of(&format!("dock.tab.{}", (1u64 << 41) + 1));
+    let parent_tab = fixture.test.rect_of("dock.tab.2");
     assert!(
         dialog.top() > parent_tab.bottom()
             && dialog.left() <= parent_tab.center().x
@@ -47,7 +45,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     );
     drop(document);
 
-    fixture.host.set_watched::<WindowsWatch>(&vec![
+    fixture.show_windows(&[
         window(1, "Text Editor", None),
         window(2, "Save changes?", Some(1)),
         window(3, "Terminal", None),

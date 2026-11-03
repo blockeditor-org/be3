@@ -6,7 +6,7 @@ use be_sdk_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::kept::KeptWindow;
+use super::program::ProgramRecord;
 use super::tab::TabItem;
 
 pub(crate) const LAYOUT: &str = "layout";
@@ -16,9 +16,14 @@ pub(crate) const TITLES: &str = "titles";
 struct SavedLayout {
     dock: SavedDockLayout,
     next_tab: u64,
-    files: usize,
     tabs: Vec<SavedTab>,
-    windows: Vec<KeptWindow>,
+    programs: Vec<SavedProgram>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct SavedProgram {
+    pub tab: u64,
+    pub record: ProgramRecord,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -33,20 +38,18 @@ struct SavedTab {
 pub(crate) struct Restored {
     pub(crate) dock: DockingSnapshot<TabId>,
     pub(crate) next_tab: u64,
-    pub(crate) files: Option<Uuid>,
     pub(crate) tabs: HashMap<TabId, (TabItem, Uuid)>,
-    pub(crate) windows: Vec<KeptWindow>,
+    pub(crate) programs: Vec<(TabId, ProgramRecord)>,
 }
 
 pub(crate) fn save(
     dock: &DockingSnapshot<TabId>,
     next_tab: u64,
-    files: Option<Uuid>,
     tabs: &HashMap<TabId, TabItem>,
     views: &HashMap<TabId, Uuid>,
-    windows: Vec<KeptWindow>,
+    programs: Vec<(TabId, ProgramRecord)>,
 ) -> ViewState {
-    let mut refs = vec![files.unwrap_or_else(Uuid::nil)];
+    let mut refs = Vec::new();
     let mut open: Vec<(&TabId, &TabItem)> = tabs.iter().collect();
     open.sort_by_key(|(tab, _)| **tab);
     let tabs = open
@@ -65,17 +68,22 @@ pub(crate) fn save(
     let saved = SavedLayout {
         dock: SavedDockLayout::of(dock),
         next_tab,
-        files: 0,
         tabs,
-        windows,
+        programs: programs
+            .into_iter()
+            .map(|(tab, record)| SavedProgram {
+                tab: tab.value(),
+                record,
+            })
+            .collect(),
     };
     ViewState::new(&saved, refs)
 }
 
-pub fn saved_windows(state: &ViewState) -> Vec<KeptWindow> {
+pub fn saved_programs(state: &ViewState) -> Vec<SavedProgram> {
     state
         .value::<SavedLayout>()
-        .map(|saved| saved.windows)
+        .map(|saved| saved.programs)
         .unwrap_or_default()
 }
 
@@ -93,9 +101,12 @@ pub(crate) fn restore(state: &ViewState) -> Result<Restored, String> {
     Ok(Restored {
         dock: saved.dock.snapshot(),
         next_tab: saved.next_tab,
-        files: referenced(saved.files),
         tabs,
-        windows: saved.windows,
+        programs: saved
+            .programs
+            .into_iter()
+            .map(|saved| (TabId::new(saved.tab), saved.record))
+            .collect(),
     })
 }
 

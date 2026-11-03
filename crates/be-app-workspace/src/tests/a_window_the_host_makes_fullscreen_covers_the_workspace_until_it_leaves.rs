@@ -1,19 +1,15 @@
 use super::*;
-use be_sdk_beui::beui::{Pos2, Vec2};
 
 #[test]
 fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
     let (mut fixture, _) = editor();
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(3, "Videos", None)]);
+    fixture.show_windows(&[window(3, "Videos", None)]);
     fixture.settle();
     let docked = placed_windows(&fixture)[0].1;
 
-    let screen = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 600.0));
     let mut fullscreen = window(3, "Videos", None);
-    fullscreen.fullscreen = Some(screen);
-    fixture.host.set_watched::<WindowsWatch>(&vec![fullscreen]);
+    fullscreen.fullscreen = true;
+    fixture.show_windows(&[fullscreen]);
     fixture.settle();
     assert_eq!(
         placed_windows(&fixture),
@@ -21,20 +17,18 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
             3,
             Rect::from_min_size(be_sdk_beui::pos2(0.0, 0.0), be_sdk_beui::vec2(800.0, 600.0))
         )],
-        "the window covers the screen the host named, tab bars and all"
+        "the window its program makes full screen covers the workspace, tab bars and all"
     );
     assert!(
-        !fixture
+        fixture
             .test
-            .host_calls(be_sdk_test::requested::window)
+            .children()
             .iter()
-            .any(|action| matches!(action, WindowAction::Fullscreen { .. })),
-        "a fullscreen the host asked for is not asked for back"
+            .all(|placement| placement.fullscreen),
+        "and is placed full screen, as its program asked"
     );
 
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(3, "Videos", None)]);
+    fixture.show_windows(&[window(3, "Videos", None)]);
     fixture.settle();
     assert_eq!(
         placed_windows(&fixture),

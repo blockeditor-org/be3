@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::{ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
-use super::panel::Info;
+use super::panel::TabInfo;
 use super::workspace::Workspace;
 use beui::{Align, Direction, ItemSize, Overflow};
 
@@ -14,7 +14,7 @@ const SPACING: Space = Space::Md;
 #[component]
 pub(crate) fn DeletedBar(
     workspace: Workspace,
-    info: ReadSignal<Option<Info>>,
+    info: ReadSignal<Option<TabInfo>>,
 ) -> DynamicSegment<ListChild> {
     let deleted = create_memo(move || {
         info.with(|info| {

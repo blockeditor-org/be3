@@ -4,7 +4,7 @@ use super::*;
 fn a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    let drawing = |id: u64, title: &str| HostWindow {
+    let drawing = |id: u64, title: &str| TestWindow {
         name: "Drawing".to_owned(),
         ..program_window(
             id,
@@ -13,7 +13,7 @@ fn a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it() {
             WindowOrigin::default(),
         )
     };
-    let dialog = HostWindow {
+    let dialog = TestWindow {
         parent: Some(HostWindowId(1)),
         modal: true,
         ..drawing(2, "com.github.maoschanz.drawing")
@@ -22,8 +22,10 @@ fn a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it() {
 
     let header = fixture
         .test
-        .rect_of(&format!("dock.dialog.{}.header", window_tab(2)));
-    let tab = fixture.test.rect_of(&format!("dock.tab.{}", window_tab(1)));
+        .rect_of(&format!("dock.dialog.{}.header", dialog_tab(2)));
+    let tab = fixture
+        .test
+        .rect_of(&format!("dock.tab.{}", fixture.tab_of(1)));
     assert!(
         header.top() > tab.bottom()
             && header.left() <= tab.center().x

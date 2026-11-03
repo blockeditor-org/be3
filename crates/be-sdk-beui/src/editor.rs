@@ -86,6 +86,7 @@ struct ChildRecord {
     intrinsic: Prop<Option<Vec2>>,
     fit: Prop<Option<Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
+    fullscreen: Prop<bool>,
     placed: PlacedChild,
     zone: u64,
     dock_tab: Option<u64>,
@@ -892,6 +893,7 @@ impl Editor {
         intrinsic: Prop<Option<Vec2>>,
         fit: Prop<Option<Vec2>>,
         dialog: Prop<Option<DialogFrame>>,
+        fullscreen: Prop<bool>,
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
@@ -925,6 +927,7 @@ impl Editor {
                 intrinsic,
                 fit,
                 dialog,
+                fullscreen,
                 placed,
                 zone: document_zone(),
                 dock_tab,
@@ -1190,6 +1193,7 @@ impl Editor {
                 record.dock_tab,
                 record.docks,
                 anchor,
+                record.fullscreen.get_untracked(),
             )
         };
         Some(match escaped {

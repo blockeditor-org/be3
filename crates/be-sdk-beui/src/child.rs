@@ -62,6 +62,7 @@ pub fn ChildBlock(
         intrinsic,
         fit: Prop::Static(None),
         dialog: Prop::Static(None),
+        fullscreen: Prop::Static(false),
         on_state,
         on_bar,
         on_focus,
@@ -87,6 +88,7 @@ pub fn Subregion(
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     #[prop(default = None)] fit: Prop<Option<beui::Vec2>>,
     #[prop(default = false)] dialog: bool,
+    #[prop(default = false)] fullscreen: Prop<bool>,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
@@ -118,6 +120,7 @@ pub fn Subregion(
         intrinsic,
         fit,
         dialog,
+        fullscreen,
         on_state,
         on_bar,
         on_focus,
@@ -142,6 +145,7 @@ struct Placing {
     intrinsic: Prop<Option<beui::Vec2>>,
     fit: Prop<Option<beui::Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
+    fullscreen: Prop<bool>,
     on_state: Callback<ChildState>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
@@ -168,6 +172,7 @@ fn SubregionView(
         intrinsic,
         fit,
         dialog,
+        fullscreen,
         on_state,
         on_bar,
         on_focus,
@@ -211,6 +216,7 @@ fn SubregionView(
         intrinsic,
         fit,
         dialog,
+        fullscreen,
         on_state,
         on_bar,
         on_focus,
@@ -284,7 +290,11 @@ fn follow_tab_keyboard(
             && placed.with(|placed| {
                 matches!(
                     placed,
-                    Some(SubregionContent::Block(_) | SubregionContent::DockTab(_))
+                    Some(
+                        SubregionContent::Block(_)
+                            | SubregionContent::DockTab(_)
+                            | SubregionContent::Window(_)
+                    )
                 )
             })
     });

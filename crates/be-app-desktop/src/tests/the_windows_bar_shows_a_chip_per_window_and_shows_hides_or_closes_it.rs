@@ -2,10 +2,9 @@ use be_sdk_beui::beui::PointerButton;
 
 use super::*;
 
-fn monitor_entry(id: u64, name: &str) -> HostWindow {
-    HostWindow {
+fn monitor_entry(id: u64, name: &str) -> TestWindow {
+    TestWindow {
         kind: WindowKind::Display,
-        shown: false,
         title: name.to_owned(),
         program_id: String::new(),
         name: String::new(),
@@ -18,21 +17,17 @@ fn monitor_entry(id: u64, name: &str) -> HostWindow {
 fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    let hidden_notes = HostWindow {
-        shown: false,
-        ..notes(2)
-    };
-    let dialog = HostWindow {
+    let dialog = TestWindow {
         parent: Some(HostWindowId(1)),
         title: "Preferences".to_owned(),
         ..foot(4)
     };
     fixture.show_windows(&[
-        HostWindow {
+        TestWindow {
             focused: true,
             ..foot(1)
         },
-        hidden_notes.clone(),
+        notes(2),
         monitor_entry(3, "DELL U2720Q"),
         dialog,
     ]);
@@ -43,9 +38,18 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
         editor: None,
     });
     fixture.settle();
-    assert!(fixture.window_rect(1).is_some(), "a shown window is drawn");
-    assert!(fixture.window_rect(2).is_none(), "a hidden window is not");
-    assert!(fixture.window_rect(3).is_none(), "nor a hidden display");
+    assert!(fixture.window_rect(1).is_some(), "a window is drawn");
+    assert!(fixture.window_rect(3).is_none(), "a display opens hidden");
+    let block = fixture.test.test_ids();
+    let block = block
+        .iter()
+        .map(|(id, _)| id)
+        .find_map(|id| {
+            id.strip_prefix("desktop.windows.block.")
+                .filter(|rest| !rest.contains('.'))
+        })
+        .expect("the block has a chip")
+        .to_owned();
 
     let chip = |fixture: &Fixture, id: &str| {
         fixture
@@ -56,8 +60,8 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     assert!(
         chip(&fixture, "3") < chip(&fixture, "1")
             && chip(&fixture, "1") < chip(&fixture, "2")
-            && chip(&fixture, "2") < chip(&fixture, "block.2"),
-        "displays come first, then program windows in the host's order, then the shell's own"
+            && chip(&fixture, "2") < chip(&fixture, &format!("block.{block}")),
+        "displays come first, then program windows in the order they came, then the shell's own"
     );
     assert!(
         !fixture.test.shown("desktop.windows.4"),
@@ -69,18 +73,6 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     );
     fixture.test.snapshot("the_windows_bar");
 
-    fixture.test.clear_calls();
-    fixture.test.click("desktop.windows.2");
-    fixture.settle();
-    assert_eq!(
-        fixture.test.take_host_calls(be_sdk_test::requested::window),
-        [
-            WindowAction::Show(HostWindowId(2)),
-            WindowAction::Focus(HostWindowId(2))
-        ],
-        "a hidden window's chip shows it and gives it the keyboard"
-    );
-
     fixture
         .test
         .click_with("desktop.windows.1", PointerButton::Secondary);
@@ -90,11 +82,23 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     fixture.test.snapshot("a_window_chips_menu");
     fixture.test.click("desktop.windows.1.visibility");
     fixture.settle();
-    let calls = fixture.test.take_host_calls(be_sdk_test::requested::window);
-    assert_eq!(
-        calls.first(),
-        Some(&WindowAction::Hide(HostWindowId(1))),
-        "the menu hides the window: {calls:?}"
+    assert!(
+        fixture.window_rect(1).is_none(),
+        "the menu hides the window, which is then placed nowhere"
+    );
+    assert!(
+        fixture.test.shown("desktop.windows.1"),
+        "a hidden window keeps its chip"
+    );
+    assert!(fixture.says("Terminal 1"), "and its name");
+
+    fixture.focused_windows();
+    fixture.test.click("desktop.windows.1");
+    fixture.settle();
+    assert!(fixture.window_rect(1).is_some(), "its chip shows it again");
+    assert!(
+        fixture.focused_windows().contains(&HostWindowId(1)),
+        "and gives it the keyboard"
     );
 
     fixture
@@ -109,33 +113,38 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
 
+    fixture.test.click_with(
+        &format!("desktop.windows.block.{block}"),
+        PointerButton::Secondary,
+    );
+    fixture.settle();
     fixture
         .test
-        .click_with("desktop.windows.block.2", PointerButton::Secondary);
-    fixture.settle();
-    fixture.test.click("desktop.windows.block.2.close");
+        .click(&format!("desktop.windows.block.{block}.close"));
     fixture.settle();
     assert!(
-        !fixture.test.shown("desktop.windows.block.2"),
+        !fixture
+            .test
+            .shown(&format!("desktop.windows.block.{block}")),
         "closing a block's window from its chip closes it"
     );
     assert!(fixture.placed_blocks().is_empty());
 
-    fixture.show_windows(&[
-        HostWindow {
-            shown: false,
-            ..foot(1)
-        },
-        HostWindow {
-            shown: true,
-            ..hidden_notes
-        },
-        monitor_entry(3, "DELL U2720Q"),
-    ]);
-    assert!(fixture.window_rect(1).is_none(), "the host hid the window");
-    assert!(fixture.window_rect(2).is_some(), "and showed the other");
-    assert!(
-        fixture.test.shown("desktop.windows.1"),
-        "a hidden window keeps its chip"
+    fixture
+        .test
+        .click_with("desktop.windows.2", PointerButton::Secondary);
+    fixture.settle();
+    fixture.test.click("desktop.windows.2.close");
+    fixture.settle();
+    assert_eq!(
+        fixture.closed_windows(),
+        vec![HostWindowId(2)],
+        "a chip's Close asks the window's program to close it"
     );
+    assert!(
+        fixture.test.shown("desktop.windows.2"),
+        "and the chip stays until the window closes"
+    );
+    fixture.show_windows(&[foot(1), monitor_entry(3, "DELL U2720Q")]);
+    assert!(!fixture.test.shown("desktop.windows.2"));
 }

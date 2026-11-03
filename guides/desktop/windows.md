@@ -20,7 +20,7 @@ machine; Wine has no Windows.Graphics.Capture.
   sized as the monitor and titled with its name), then the top-level windows Alt+Tab would show
   (with owner, dialog, icon, title, program id, frame bounds, minimized and maximized, popups,
   `Control::Elevated` for a process of higher integrity), the monitors, and the input desktop (`secure_desktop()`). It
-  keeps each entry's `shown`, so a restarted shell brings back what was shown. It also lists
+  keeps nothing about whether an entry shows: that is the shell's dock (guides/desktop.md). It also lists
   the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
   lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
@@ -65,12 +65,15 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   for each rare event (the watcher's first listing, the hotkey, the capture device's adapter,
   each capture started, lost or stopped, focus mode starting and ending) and for every failure,
   toast or not, since nothing else shows what a first run on a new machine did.
-- `WindowsWatch` is the snapshot's entries (`kind`, `shown`), each window's `name` that of its Start
-  menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
+- `WindowsWatch` is the snapshot's entries (`kind`, parent, program id, origin); the rest of what
+  `win32_map::known_window` reads (each window's `name` that of its Start menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
   whose shortcut's AppUserModelID or target is its program id or first command word, ignoring case and
-  slash direction), known once the programs have been listed (the Apps panel asks for them);
-  `show` and `hide` set `shown` in be-host-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
-  shells do only for shown entries, and stops it when unmounted; a display entry draws its
+  slash direction), known once the programs have been listed (the Apps panel asks for them), its
+  title, icon, raises, minimizes and note) is its window child's status (`window_status`); a window
+  that goes from shown to minimized on its own counts up `Entry::minimizes`, the child's
+  `minimized`, and the shell hides its tab's dock window. The desktop opens a
+  tab for every window and a hidden one for every display. `WindowSurface` starts a capture of its entry when it is mounted, which the
+  shells do only for shown entries (one placed hidden mounts none), and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`beui::native::texture_quad::TextureDraw::keeping` draws it and keeps the `Frame` alive
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports
@@ -85,23 +88,27 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   and go with the snapshot; where windows are hosted (space) a popup is opened again when its
   corner moves. A press on one focuses its toplevel with the cursor at that point
   (`popup_point`); controllers do not inject into popups. Focus mode's clip already covers them.
-- Dialogs: an entry's owner is its `HostWindow::parent` and `modal` its dialog flag, so the shells
+- Dialogs: an entry's owner is its `host-window.parent` and `modal` its dialog flag, so the shells
   show an owned window as the anchored card guides/desktop.md describes (Program windows). The
-  Windows host leaves `HostWindow::name` empty, so the card's header falls back to the title.
+  Windows host leaves `KnownWindow::name` empty for them, so the card's header falls back to the title.
 - Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
-  does for floating windows: `HostWindow::size` is the size the window last chose itself (its
-  frame bounds in its monitor's points), not one it took because be-host asked, so a window
-  shown at its own size keeps following its own size. When a panel's placed size differs from
-  where the window is heading (by more than 2 px), because the person resized the panel or docked
-  it, the host asks for it: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
+  does: `KnownWindow::size` is the size the window last chose itself (its frame bounds in its
+  monitor's points), not one it took because be-host asked; it is the window child's
+  `intrinsic`. `WindowSurface` draws the capture top-left at the window's frame size
+  (`win32_map::drawn_size`, in a clipping `Canvas`, input mapped within that), and whenever its
+  panel's size or the window's frame changes and the frame differs from where the window is
+  heading (by more than 2 px), the host asks for the panel's size, so a window that resizes itself
+  is sized back to its panel: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
   points times the monitor's scale; it adds the invisible borders, the window rect less the DWM
   frame bounds, and calls `SetWindowPos` with `SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE |
   SWP_ASYNCWINDOWPOS` on a per-monitor-aware thread context). The last few sizes asked are kept,
   and a frame matching one is that answer; any other frame is the window's own choice and clears
-  them. Displays, minimized, maximized, fullscreen and elevated windows are never resized.
+  them. A window that never takes the size is drawn top-left with empty room beside it. Windows
+  has no least size to read and no suspended state: a window placed nowhere is not captured.
+  Displays, minimized, maximized, fullscreen and elevated windows are never resized.
 - Fullscreen: Windows has no request for another program's window to go fullscreen, so the
   `fullscreen` action maximizes it (`be_host_win32::set_maximized`, `ShowWindowAsync`, which also
-  activates it) and leaving restores it. `HostWindow::fullscreen` is the area the shell is shown
+  activates it) and leaving restores it. `KnownWindow::fullscreen` (the child's `fullscreen`) is the area the shell is shown
   in (the `rect` `before` is given, be-host's window, as Linux reports in a window) for a window
   the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
   whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
@@ -140,7 +147,7 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   foregrounds the window but leaves the mouse free, and the panel says why and that Alt+Tab comes
   back. That one rule also covers a display entry clipped to the monitor be-host's own window is
   on: there is always a hotkey, and Alt+Tab or a click on Block ends it.
-- The entry's `HostWindow::note` (guides/desktop.md, Notes; `win32_map::Notes`) says the way
+- The entry's `KnownWindow::note`, its child's `notice` (guides/desktop.md, Notes; `win32_map::Notes`) says the way
   back, shown in its tab's title, never over its content: while focused, "Ctrl+Alt+Space comes
   back to Block" (or Alt+Tab and why the mouse is free); else a refusal, kept until the entry is
   focused: a refused focus (`FocusError`, `FocusEvent::Refused`, or `NeverArrived`) or an

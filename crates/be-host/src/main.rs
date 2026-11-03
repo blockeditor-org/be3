@@ -2377,17 +2377,6 @@ impl HostCore {
             be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&Host::listed(&hidden));
             self.windows_sent = Some((Host::revision(), hidden));
         }
-        for action in be_host_base::watches::take_calls(be_sdk_api::requested::window) {
-            match action {
-                be_sdk_api::WindowAction::Focus(window) => Host::focus(window),
-                be_sdk_api::WindowAction::Close(window) => Host::close(window),
-                be_sdk_api::WindowAction::Show(window) => Host::show(window),
-                be_sdk_api::WindowAction::Hide(window) => Host::hide(window),
-                be_sdk_api::WindowAction::Fullscreen { window, fullscreen } => {
-                    Host::fullscreen(window, fullscreen);
-                }
-            }
-        }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {
                 open.values()
@@ -2483,6 +2472,10 @@ impl HostCore {
             }
             if !dismissed.is_empty() {
                 self.editors.dismiss_creations(*id, &dismissed);
+            }
+            let closed = be_host_runtime::take_child_closes(&source.app_id, source.instance);
+            if !closed.is_empty() {
+                self.editors.close_children(*id, &closed);
             }
         }
         self.editors.forget_hidden_settings();

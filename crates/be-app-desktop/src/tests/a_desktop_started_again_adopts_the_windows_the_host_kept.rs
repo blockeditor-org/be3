@@ -13,14 +13,14 @@ fn placed(fixture: &Fixture, window: u64) -> Option<Rect> {
         .map(|placement| placement.rect)
 }
 
-fn kept(fullscreen: bool) -> Vec<HostWindow> {
+fn kept(fullscreen: bool) -> Vec<TestWindow> {
     vec![
-        HostWindow {
+        TestWindow {
             fullscreen: fullscreen.then_some(SCREEN),
             ..host_window(1, false)
         },
         host_window(2, true),
-        HostWindow {
+        TestWindow {
             parent: Some(HostWindowId(2)),
             title: "Save as".to_owned(),
             ..host_window(3, false)
@@ -32,12 +32,12 @@ fn kept(fullscreen: bool) -> Vec<HostWindow> {
 fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let mut first = Fixture::new();
     first.settle();
-    first.test.set_watched::<WindowsWatch>(&kept(false));
+    first.show_windows(&kept(false));
     first.settle();
     let opened = placed(&first, 2).expect("the desktop shows the window");
     let tab = first
         .test
-        .point_of(&format!("dock.tab.{}.close", window_tab(2)))
+        .point_of(&format!("dock.tab.{}.close", first.tab_of(2)))
         - Vec2::new(60.0, 0.0);
     first.test.drag(tab, tab + Vec2::new(120.0, 80.0));
     first.settle();
@@ -46,7 +46,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let saved: EditorViewContent = first.test.content(None);
 
     let mut second = Fixture::holding(saved);
-    second.test.set_watched::<WindowsWatch>(&kept(true));
+    second.show_windows(&kept(true));
     second.settle();
 
     assert_eq!(
@@ -68,18 +68,12 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
         "a dialog is shown over its parent again"
     );
     assert!(
-        second
-            .test
-            .take_host_calls(be_sdk_test::requested::window)
-            .iter()
-            .all(|action| !matches!(
-                action,
-                WindowAction::Close(_)
-                    | WindowAction::Fullscreen {
-                        fullscreen: false,
-                        ..
-                    }
-            )),
-        "adopting the windows closes none and takes none out of fullscreen"
+        second.closed_windows().is_empty(),
+        "adopting the windows closes none"
+    );
+    assert_eq!(
+        second.fullscreen_windows(),
+        vec![HostWindowId(1)],
+        "and takes none out of fullscreen"
     );
 }

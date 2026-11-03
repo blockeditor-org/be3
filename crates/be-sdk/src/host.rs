@@ -518,6 +518,7 @@ pub struct EditorHost {
     dialog_closes: Rc<RefCell<Vec<DialogAnswer>>>,
     dismiss_requested: Rc<Cell<bool>>,
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
+    child_closes: Rc<RefCell<Vec<ChildId>>>,
     keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
@@ -2006,6 +2007,7 @@ impl EditorHost {
         dock_tab: Option<u64>,
         docks: bool,
         anchor: Option<Rect>,
+        fullscreen: bool,
     ) -> ChildId {
         let view = self.shown_view().unwrap_or(ViewId::MAIN);
         let placed = rect;
@@ -2046,6 +2048,7 @@ impl EditorHost {
                 dialog,
                 docks,
                 anchor,
+                fullscreen,
             });
         child
     }
@@ -2070,6 +2073,11 @@ impl EditorHost {
 
     pub fn dismiss_child(&self, child: ChildId) {
         self.child_dismissals.borrow_mut().push(child);
+        self.changed();
+    }
+
+    pub fn close_child(&self, child: ChildId) {
+        self.child_closes.borrow_mut().push(child);
         self.changed();
     }
 
@@ -2282,6 +2290,10 @@ impl EditorHost {
 
     pub(crate) fn take_child_dismissals(&self) -> Vec<ChildId> {
         std::mem::take(&mut self.child_dismissals.borrow_mut())
+    }
+
+    pub(crate) fn take_child_closes(&self) -> Vec<ChildId> {
+        std::mem::take(&mut self.child_closes.borrow_mut())
     }
 
     pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {

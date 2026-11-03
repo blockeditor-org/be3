@@ -10,7 +10,7 @@ use super::tab::TabItem;
 use super::workspace::Workspace;
 
 #[derive(Clone, Copy)]
-pub(crate) enum Action {
+pub enum BlockAction {
     Open,
     Picker,
     MoveToMyFiles,
@@ -22,16 +22,16 @@ pub(crate) enum Action {
     Settings,
 }
 
-pub(crate) struct Permissions {
-    pub(crate) add: bool,
-    pub(crate) edit: bool,
-    pub(crate) share: bool,
-    pub(crate) settings: bool,
-    pub(crate) delete: bool,
-    pub(crate) offers_delete: bool,
-    pub(crate) unlink: Result<(), &'static str>,
-    pub(crate) is_reference: bool,
-    pub(crate) source: Option<BlockParent>,
+pub struct Permissions {
+    pub add: bool,
+    pub edit: bool,
+    pub share: bool,
+    pub settings: bool,
+    pub delete: bool,
+    pub offers_delete: bool,
+    pub unlink: Result<(), &'static str>,
+    pub is_reference: bool,
+    pub source: Option<BlockParent>,
 }
 
 pub(crate) fn unlink_permission(
@@ -65,7 +65,7 @@ fn can_delete_from(workspace: &Workspace, source: BlockParent) -> bool {
     }
 }
 
-pub(crate) fn permissions(
+pub fn permissions(
     workspace: &Workspace,
     reference: &BlockInfo,
     containing: Option<Uuid>,
@@ -96,18 +96,18 @@ pub(crate) fn permissions(
     }
 }
 
-pub(crate) fn apply(
+pub fn apply(
     workspace: &Workspace,
     reference: &BlockInfo,
     containing: Option<Uuid>,
-    action: Action,
+    action: BlockAction,
     anchor: Option<Rect>,
 ) {
     let permissions = permissions(workspace, reference, containing);
     match action {
-        Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
-        Action::Picker => workspace.open_picker(reference.id, anchor),
-        Action::MoveToMyFiles => {
+        BlockAction::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
+        BlockAction::Picker => workspace.open_picker(reference.id, anchor),
+        BlockAction::MoveToMyFiles => {
             if let Some(files) = workspace.my_files()
                 && let Some(source) = permissions.source
             {
@@ -120,15 +120,15 @@ pub(crate) fn apply(
                 );
             }
         }
-        Action::Rename => workspace.open_rename(reference.id, anchor),
-        Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
-        Action::Unlink => {
+        BlockAction::Rename => workspace.open_rename(reference.id, anchor),
+        BlockAction::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
+        BlockAction::Unlink => {
             if let Some(BlockParent::Block(container)) = permissions.source {
                 workspace.host().unlink_block(reference.id, container);
             }
         }
-        Action::Restore => workspace.host().restore_block(reference.id),
-        Action::Settings => {
+        BlockAction::Restore => workspace.host().restore_block(reference.id),
+        BlockAction::Settings => {
             if let Some(settings) = workspace.editor().ensure_settings_block(reference.id) {
                 workspace.open(
                     TabItem::new(settings, SettingsContent::CONTENT_TYPE),
@@ -136,7 +136,7 @@ pub(crate) fn apply(
                 );
             }
         }
-        Action::Delete => {
+        BlockAction::Delete => {
             if let Some(source) = permissions.source {
                 workspace
                     .host()
@@ -153,7 +153,7 @@ pub(crate) fn ReferenceMenuItem(
     containing: Memo<Option<Uuid>>,
     anchor: NodeRef,
 ) -> MenuItem {
-    let act = move |action: Action| {
+    let act = move |action: BlockAction| {
         if let Some(reference) = reference.get_untracked() {
             apply(
                 &workspace,
@@ -235,29 +235,37 @@ pub(crate) fn ReferenceMenuItem(
     });
     view! {
         <MenuItem label={label} detail={detail}>
-            <MenuItem label="Open" on_click={move || act(Action::Open)} />
-            <MenuItem label="Add" disabled={add} on_click={move || act(Action::Picker)} />
+            <MenuItem label="Open" on_click={move || act(BlockAction::Open)} />
+            <MenuItem label="Add" disabled={add} on_click={move || act(BlockAction::Picker)} />
             <MenuItem label="Set parent" disabled={edit}>
                 <MenuItem
                     label="My files"
                     disabled={rooted}
-                    on_click={move || act(Action::MoveToMyFiles)}
+                    on_click={move || act(BlockAction::MoveToMyFiles)}
                 />
             </MenuItem>
-            <MenuItem label="Rename" disabled={edit} on_click={move || act(Action::Rename)} />
-            <MenuItem label="Share" disabled={share} on_click={move || act(Action::Share)} />
-            <MenuItem label="Unlink" disabled={unlink} on_click={move || act(Action::Unlink)} />
-            <MenuItem label="Restore" disabled={restore} on_click={move || act(Action::Restore)} />
+            <MenuItem label="Rename" disabled={edit} on_click={move || act(BlockAction::Rename)} />
+            <MenuItem label="Share" disabled={share} on_click={move || act(BlockAction::Share)} />
+            <MenuItem
+                label="Unlink"
+                disabled={unlink}
+                on_click={move || act(BlockAction::Unlink)}
+            />
+            <MenuItem
+                label="Restore"
+                disabled={restore}
+                on_click={move || act(BlockAction::Restore)}
+            />
             <MenuItem
                 label="Settings"
                 disabled={settings}
-                on_click={move || act(Action::Settings)}
+                on_click={move || act(BlockAction::Settings)}
             />
             <Show condition={offers_delete}>
                 <MenuItem
                     label={delete_label}
                     disabled={delete}
-                    on_click={move || act(Action::Delete)}
+                    on_click={move || act(BlockAction::Delete)}
                 />
             </Show>
         </MenuItem>

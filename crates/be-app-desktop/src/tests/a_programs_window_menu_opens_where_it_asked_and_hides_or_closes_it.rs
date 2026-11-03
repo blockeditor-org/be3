@@ -1,12 +1,10 @@
-use be_sdk_api::WindowMenu;
-
 use super::*;
 
 #[test]
 fn a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it() {
     let mut fixture = Fixture::with_windows(&[1]);
     let shown = fixture.window_rect(1).expect("the window is shown");
-    let asked = |asked: u64| HostWindow {
+    let asked = |asked: u64| TestWindow {
         menu: Some(WindowMenu {
             asked,
             at: Vec2::new(40.0, 12.0),
@@ -25,11 +23,10 @@ fn a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it() {
     fixture.test.snapshot("a_programs_window_menu");
     fixture.test.click("workspace.window.menu.hide");
     fixture.settle();
-    assert_eq!(
-        fixture.test.take_host_calls(be_sdk_test::requested::window),
-        [WindowAction::Hide(HostWindowId(1))],
-        "Hide hides the window"
-    );
+    assert!(fixture.window_rect(1).is_none(), "Hide hides the window");
+    fixture.test.click("desktop.windows.1");
+    fixture.settle();
+    assert!(fixture.window_rect(1).is_some());
 
     fixture.show_windows(&[asked(1)]);
     assert!(
@@ -40,8 +37,8 @@ fn a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it() {
     fixture.test.click("workspace.window.menu.close");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_host_calls(be_sdk_test::requested::window),
-        [WindowAction::Close(HostWindowId(1))],
+        fixture.closed_windows(),
+        [HostWindowId(1)],
         "Close asks the program to close"
     );
 }

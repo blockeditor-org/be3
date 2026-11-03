@@ -4,7 +4,7 @@ use super::*;
 fn a_closed_tab_gives_up_its_view_block() {
     let (mut fixture, opened) = profiled(None);
     show(&mut fixture, opened, None);
-    let view = profile(&fixture).state("layout").expect("saved").refs[1];
+    let view = profile(&fixture).state("layout").expect("saved").refs[0];
 
     fixture.close_active_tab();
 
@@ -19,5 +19,5 @@ fn a_closed_tab_gives_up_its_view_block() {
         "the view is deleted"
     );
     let layout = profile(&fixture).state("layout").cloned().expect("saved");
-    assert_eq!(layout.refs.len(), 1, "only the files view is referenced");
+    assert!(layout.refs.is_empty(), "no tab's view is referenced");
 }
