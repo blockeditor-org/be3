@@ -130,7 +130,7 @@ main-thread thread-local block. The loader owns everything above it: it creates 
 root's import, places every other module's static data in pages it grows the memory by, gives each
 module its table slots, and gives each module above the root a thread-local block on every thread.
 Making the root position-independent too needs std built from source (`-Zbuild-std`) and wasi-libc
-built with `-fPIC` for threads (decisions/app_library_root_is_linked_at_fixed_addresses.md).
+built with `-fPIC` for threads (decisions/app_library_base_is_a_fixed_address_root.md).
 
 ## Thread-locals
 
