@@ -24,6 +24,7 @@ fn open(window: u64, at: Pos2, size: Vec2) {
                 width: size.x,
                 height: size.y,
             },
+            level: be_sdk_api::WindowLevel::Normal,
         })],
     );
     apply();

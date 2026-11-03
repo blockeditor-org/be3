@@ -27,6 +27,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
         placement: WindowPlacement::Host(panel(under, pose).placement()),
         size: SIZE,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     send(&mut space, now, []);
 

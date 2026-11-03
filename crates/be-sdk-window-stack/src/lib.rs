@@ -16,6 +16,9 @@ pub trait Stacked {
     fn pinned(&self) -> bool {
         false
     }
+    fn above(&self) -> bool {
+        false
+    }
 }
 
 pub trait Host<W> {
@@ -70,6 +73,7 @@ pub fn ask<W: Stacked>(
                 Some(index) => windows[index] = window,
                 None => windows.push(window),
             }
+            settle(windows);
             None
         }
         WindowRequest::Place(place) => {
@@ -139,6 +143,23 @@ pub fn raise<W: Stacked>(windows: &mut Vec<W>, index: usize) {
         .into_iter()
         .enumerate()
         .partition(|(index, _)| raised.contains(index));
+    below.extend(on_top);
+    *windows = below.into_iter().map(|(_, window)| window).collect();
+    settle(windows);
+}
+
+pub fn settle<W: Stacked>(windows: &mut Vec<W>) {
+    let above: Vec<usize> = (0..windows.len())
+        .filter(|index| windows[*index].above())
+        .flat_map(|index| family(windows, index))
+        .collect();
+    if above.is_empty() {
+        return;
+    }
+    let (on_top, mut below): (Vec<_>, Vec<_>) = std::mem::take(windows)
+        .into_iter()
+        .enumerate()
+        .partition(|(index, _)| above.contains(index));
     below.extend(on_top);
     *windows = below.into_iter().map(|(_, window)| window).collect();
 }

@@ -47,6 +47,6 @@ pub use input::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 pub use window::{
-    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests, WindowRole,
+    HostPlacement, ImeArea, WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport,
+    WindowRequest, WindowRequests, WindowRole,
 };

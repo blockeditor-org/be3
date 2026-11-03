@@ -76,6 +76,7 @@ impl Carrying {
                 width: size.x,
                 height: size.y,
             },
+            level: be_sdk_api::WindowLevel::Normal,
         });
         carrying.inside(|key| {
             note_origin(&key.app, key.instance, ViewId::MAIN, Pos2::ZERO);

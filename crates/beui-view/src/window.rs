@@ -1,6 +1,7 @@
 use crate::reactive::{NodeId, OverlayAnchor};
 use crate::types::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole, WindowSpec,
+    WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+    WindowSpec,
 };
 use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
 use beui_macros::{component, view};
@@ -146,6 +147,7 @@ pub fn Window(
         None => crate::types::Extent::px(shown.get().y),
     });
     let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
+    let leveled = level.clone();
     let spec = create_memo(move || {
         Some(WindowSpec {
             id,
@@ -154,6 +156,10 @@ pub fn Window(
             title: title.get(),
             notice: notice.get(),
             role: role.get(),
+            level: match leveled.get() {
+                LayerLevel::Normal => WindowLevel::Normal,
+                LayerLevel::Raised | LayerLevel::Top | LayerLevel::Lock => WindowLevel::Above,
+            },
             fit: fit.get(),
             on_report: heard,
         })

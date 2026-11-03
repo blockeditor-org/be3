@@ -1,6 +1,6 @@
 use be_sdk_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewRef,
-    ViewportMetrics, WindowOpen, WindowRequest,
+    ViewportMetrics, WindowLevel, WindowOpen, WindowRequest,
 };
 use be_sdk_beui::{BeuiRoot, View, ViewId};
 use be_sdk_window_stack::{Gesture, Host, Stacked};
@@ -26,6 +26,7 @@ struct Hosted {
     screen: ScreenId,
     rect: Rect,
     parent: Option<ViewId>,
+    level: WindowLevel,
 }
 
 #[derive(Clone, Debug)]
@@ -309,6 +310,10 @@ impl Stacked for Hosted {
     fn opened_over(&self, other: &Self) -> bool {
         self.parent == Some(other.window)
     }
+
+    fn above(&self) -> bool {
+        self.level == WindowLevel::Above
+    }
 }
 
 impl Host<Hosted> for Desk {
@@ -335,6 +340,7 @@ impl Host<Hosted> for Desk {
         if let Some(held) = held {
             return Hosted {
                 rect,
+                level: open.level,
                 ..held.clone()
             };
         }
@@ -350,6 +356,7 @@ impl Host<Hosted> for Desk {
             screen,
             rect,
             parent: opener.map(|opener| opener.window),
+            level: open.level,
         }
     }
 }

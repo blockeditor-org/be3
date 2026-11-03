@@ -148,7 +148,7 @@ pub use be_lib_ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use be_lib_ui_types::{ImeArea, WindowRequests};
+pub use be_lib_ui_types::{ImeArea, WindowLevel, WindowRequests};
 use be_sdk_manifest::extension_of;
 pub use be_sdk_manifest::{
     AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,

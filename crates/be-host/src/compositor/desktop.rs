@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use be_sdk_api::{
     EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, ViewRef, WindowEdge,
-    WindowOpen, WindowPlacement,
+    WindowLevel, WindowOpen, WindowPlacement,
 };
 use beui::animation::{create_animation, motion};
 use beui::reactive::*;
@@ -48,6 +48,7 @@ pub(crate) struct Floated {
     pub(crate) anchor: View,
     pub(crate) parent: Option<ViewId>,
     pub(crate) grab: Option<Vec2>,
+    pub(crate) level: WindowLevel,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -102,6 +103,10 @@ impl Stacked for Floated {
 
     fn pinned(&self) -> bool {
         self.panel.is_some()
+    }
+
+    fn above(&self) -> bool {
+        self.level == WindowLevel::Above
     }
 }
 
@@ -522,6 +527,7 @@ impl Host<Floated> for Opener<'_> {
             anchor,
             parent: opener.map(|opener| opener.key.window),
             grab: None,
+            level: open.level,
         }
     }
 }

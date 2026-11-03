@@ -16,6 +16,7 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
             width: 200.0,
             height: 100.0,
         },
+        level: be_sdk_api::WindowLevel::Normal,
     });
     let (commit, presented) = rig.draw_and_present();
 
