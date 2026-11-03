@@ -371,19 +371,19 @@ and its windows open over it.
 
 ## Window keys
 
-The window manager is be-sdk-shell's `WindowManager` (`manager.rs`), over a `Workspace` and each
-display's work area in the main dock's points (`DeskWindows` gives display 0 the dock's
-`area()` and every further display its `Display` view's area, `DeskWindows::report_area`). It acts
-on program and block windows alike: the focused one is the dock's focused tab if it is a shown
-window, `close` closes it or, over a program's focused dialog, the dialog; `hide` hides it and
-focuses the next window used; `snap` and `restore` are the dock's snaps (guides/beui.md) on the area
-of the display holding most of it; `move_to_display` keeps a snapped window snapped on the new
-display; `show_desktop` hides every shown window and, while none has been shown since, shows them
-all again; `next_of_app` focuses the next window of the same program (or block type).
-`WindowManager::actions` offers each as an `Action` with no keys, disabled while
-`ScreenLockedWatch` is set and while there is nothing to act on. Only the desktop app binds keys
-to them (`root/window_keys.rs`, at `KeyAt::Window` and capturing, so they work over programs and
-are listed in the command palette), since workspace-ui's windows are its own:
+The window manager is beui-dock's (guides/beui.md, the dock's window actions), over the desktop's
+dock and each display's work area in the main dock's points: `DeskWindows` gives display 0 the
+dock's `area()` and every further display its `Display` view's area (`DeskWindows::report_area`)
+and passes them to `DockingLayout::set_areas`. It acts on program and block windows alike, as
+floating dock windows. be-sdk-shell's `BlockTab` and `WindowTab` give their tabs a `group`
+(`block:` and the block type, `program:` and the program id) for the app's next window, and
+`Workspace::hide` and `show` go through the dock. Until program windows are the host's children
+(plans/program_windows.md), the host still keeps whether a program window is shown:
+`Workspace::mirror_shown` keeps the dock's hidden windows and the host's `shown` in step both ways
+(the desktop lists hidden program windows too, `listed_windows`, so their dock windows stay). The
+desktop app binds keys to the dock's `window_actions`, disabled while `ScreenLockedWatch` is set
+(`root/window_keys.rs`, at `KeyAt::Window` and capturing, so they work over programs and are listed
+in the command palette); workspace-ui binds none, since its windows are its own:
 
 | Action | Linux | Where the system keeps Super |
 | --- | --- | --- |
@@ -394,7 +394,9 @@ are listed in the command palette), since workspace-ui's windows are its own:
 | Show desktop | Super+D | Ctrl+Alt+D |
 | Move to the next or previous display | Super+Shift+Right, Super+Shift+Left | Ctrl+Alt+Shift+Right, Ctrl+Alt+Shift+Left |
 | The program's next window | Super+` | Ctrl+Alt+` |
-| Toggle fullscreen (`desktop.fullscreen`) | Super+F | Ctrl+Alt+F |
+| Full screen (the tab's, which a program window's tab asks of the program) | Super+F | Ctrl+Alt+F |
+| Window switcher, forwards and back | Alt+Tab, Alt+Shift+Tab | the same |
+| Leave the switcher | Alt+Escape | the same |
 
 The system keeps Super's chords where the host answers `SuperKeptWatch` true, as be-host does on
 Windows, whose own shell takes Win+arrows and Win+D for be-host's window and where Alt+F4 closes
