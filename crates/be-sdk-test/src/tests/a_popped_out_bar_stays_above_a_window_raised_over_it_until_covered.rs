@@ -51,9 +51,14 @@ impl BeuiRoot for PoppedOverRoot {
 }
 
 fn on_top(test: &BeuiTest<PoppedOverRoot>, shown: Rect) -> bool {
-    test.desk_windows()
-        .last()
-        .is_some_and(|top| top.contains_rect(shown))
+    let windows = test.desk_windows();
+    let own = windows
+        .iter()
+        .enumerate()
+        .filter(|(_, window)| window.contains_rect(shown))
+        .min_by(|(_, left), (_, right)| (left.width() * left.height()).total_cmp(&(right.width() * right.height())))
+        .map(|(index, _)| index);
+    own.is_some() && own == windows.len().checked_sub(1)
 }
 
 #[test]
