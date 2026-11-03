@@ -1,5 +1,6 @@
 use be_lib_stable_hash::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use be_sdk_api::{
     ContactsWatch, EditorInstanceId, Watched as _, WindowsWatch,
@@ -28,21 +29,56 @@ pub(super) fn interface_of(started: &Started) -> Option<&'static str> {
 
 const WINDOWS_DESKTOP: [&str; 3] = ["windows", "programs", "power"];
 
+const PROGRAM_WINDOWS: [&str; 2] = ["windows", "programs"];
+
+static DESKTOP: AtomicBool = AtomicBool::new(false);
+
+pub fn run_as_desktop() {
+    DESKTOP.store(true, Ordering::Relaxed);
+}
+
 pub(super) fn offered(interface: &str) -> bool {
     if extension_of(interface) != Some("be3:desktop") {
         return false;
     }
-    cfg!(target_os = "linux") || (cfg!(windows) && windows_offers(interface))
+    offers(
+        interface,
+        Platform::current(),
+        DESKTOP.load(Ordering::Relaxed),
+    )
 }
 
-pub(super) fn windows_offers(interface: &str) -> bool {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Platform {
+    Linux,
+    Windows,
+    Other,
+}
+
+impl Platform {
+    fn current() -> Self {
+        if cfg!(target_os = "linux") {
+            Self::Linux
+        } else if cfg!(windows) {
+            Self::Windows
+        } else {
+            Self::Other
+        }
+    }
+}
+
+pub(super) fn offers(interface: &str, platform: Platform, desktop: bool) -> bool {
     let name = interface
         .split_once('/')
         .map_or(interface, |(_, name)| name)
         .split('@')
         .next()
         .unwrap_or_default();
-    WINDOWS_DESKTOP.contains(&name)
+    match platform {
+        Platform::Linux => desktop || !PROGRAM_WINDOWS.contains(&name),
+        Platform::Windows => desktop && WINDOWS_DESKTOP.contains(&name),
+        Platform::Other => false,
+    }
 }
 
 fn shell_only(open: MethodId) -> bool {

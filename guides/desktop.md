@@ -14,7 +14,12 @@ monitors and windows, launches Start Menu programs and offers power (guides/desk
 on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
 windows, notification server, tray, media, power, lock screen or programs to launch.
 The host test `the_desktop_shell_opens_and_closes_cleanly` (crates/be-host-tests) starts it headless
-and closes it. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
+and closes it. Only `--desktop` hosts other programs' windows: `HostCore::desktop`, set by
+`run_as_desktop`, is what makes be-host create and start `DesktopHost` (Linux's Wayland compositor and
+Xwayland, Windows' window watcher), and `be_host_runtime::run_as_desktop` is what offers the
+package's `windows` and `programs` (`published::offers`). A run without it, on the displays (`drm`)
+or in space included, starts neither, answers those two watches `unsupported` and so lists no
+program windows, no programs to launch and no program as an editor of a block. `BEUI_PLATFORM=drm` and `--install-login-session` are Linux's (guides/desktop/linux.md).
 A desktop never shares its data with another be-host: started while one already runs on the same
 data directory, it stops with an error (guides/running/native.md).
 
@@ -140,8 +145,9 @@ events beside the notification history (`root/notifications/history.rs`), stacke
 screen (`root/calendar.rs`). The events come from the desktop's own calendar, a database calendar
 view it creates once and remembers in its `desktop.calendar` view state; Open calendar
 (`desktop.calendar.open`) opens that view in a window of its own, the popup never embeds it; toasts make way while it is open. be-host publishes each as soon as the
-service behind it runs, even empty. be-host publishes the package on Linux, and on Windows its
-`windows`, `programs` and `power` (`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
+service behind it runs, even empty. be-host publishes the package on Linux, its `windows` and `programs` only under `--desktop`,
+and on Windows only under `--desktop`, its `windows`, `programs` and `power`
+(`be-host-runtime/src/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
 sees as nothing offered. be-host reaches the host through
 `be_host_desktop::desktop_host::Host`, the platform's `DesktopHost`: a trait of associated
@@ -172,8 +178,8 @@ drive like any other run (guides/running/drive.md).
 Only the shell sees the program windows: the host answers `WindowsWatch` and takes its
 `windows::request` only from the shell instance, so a session opened inside the desktop is a block
 window and shows none of them. Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
-window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
-window (`FloatingWindow`) instead of a tab, as the desktop app always does. A program's dialog
+window, and so a panel, of its own: be-sdk-shell's `Workspace` shows each top program window as a
+floating dock window (`FloatingWindow`) instead of a tab, as the desktop app always does. A program's dialog
 (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned
 window) is never a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
 `DockDialog` of its parent's tab, which the dock draws as the same anchored card as be-host's

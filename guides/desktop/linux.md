@@ -10,15 +10,16 @@ whose shell is the desktop app. Two ways to run it are Linux's alone:
   Without `--desktop` it runs the workspace shell on the displays: the log, logind and the power
   actions, the lock screen (which the host draws over any shell, and logind needs to lock before
   sleep) and the panic path below key off running on the displays and work there too, while
-  notifications and the tray come only with `--desktop`. Quick settings'
+  notifications, the tray and program windows come only with `--desktop`. Quick settings'
   Log out (see below) logs out, Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
   every display's default scale.
 - `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]`: see Installing it as a login session, below.
 
-Under `--desktop` on Linux programs open as windows inside the shell, as they do in any windowed
-run. What needs the displays and input devices themselves, such as display modes, pointer
+Under `--desktop` on Linux programs open as windows inside the shell, windowed or on the
+displays; without it be-host runs no Wayland server or Xwayland at all (guides/desktop.md), so no
+program window and no program editor of a block. What needs the displays and input devices themselves, such as display modes, pointer
 settings and the power row's actions other than Lock, is absent, since `beui-platform-drm` is
 not running: the power actions start only when the DRM seat provides its `DisplayControl`.
 
@@ -560,7 +561,7 @@ none can be read or acted on behind the lock; they show again once it is unlocke
 
 ## Wayland programs
 
-On Linux be-host is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
+Under `--desktop` on Linux be-host is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
 When that is unset, as it is under `:dev`, be-host-wayland (`src/runtime_dir.rs`) makes a private
 one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
 starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
@@ -571,15 +572,14 @@ was typed as a command, with the variables of `Compositor::environment` (`XDG_RU
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). The desktop app draws it; be-host only reads the
 `.desktop` files and their icons and starts the programs (`ProgramsWatch` and
 `programs::request(ProgramAction)`, guides/adding_an_app.md). The workspace shell has no Apps panel. A
-program can also be started against a driven be-host directly: it hands the same variables to
+program can also be started against a driven `--desktop` be-host directly: it hands the same variables to
 `drive env` (`Program::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A toplevel that unmaps (commits with no buffer attached) leaves the window list, and its tab or dock window with it, until it maps again, when it is listed afresh, as xdg-shell defines (be-host-wayland's `ServerEvent::Unmapped`). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A toplevel that unmaps (commits with no buffer attached) leaves the window list, and its tab or dock window with it, until it maps again, when it is listed afresh, as xdg-shell defines (be-host-wayland's `ServerEvent::Unmapped`). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
-tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
-`WindowTab` does not, since nothing there would take it back out). Under `--desktop`, Super+drag anywhere on a floating window, its bar
+tab menu offers the same (`FloatingWindow` offers fullscreen on its tab). Under `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
 or moves the split beside a docked one. The desktop shell's other window keys (Alt+F4, Super+arrows, Super+D, ...) are in guides/desktop.md, Window keys. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
@@ -812,7 +812,7 @@ a `Launch` that arrives before it has listed the programs once the list is in.
 
 ### Files opened in programs
 
-On Linux a program installed with a `.desktop` entry is an editor of every block whose type has a
+Under `--desktop` on Linux a program installed with a `.desktop` entry is an editor of every block whose type has a
 plain-file form (guides/type_modules.md) and whose file name has an extension the entry's
 `MimeType` names, so a book (an EPUB file block, the fallback type that holds any bytes; it needs
 no type of its own) opens in KOReader, and later a `.kra` in Krita or a `.blend` in Blender, as a
@@ -828,8 +828,8 @@ on the next start. be-sdk-ui's `BlockCatalog` matches such an editor by the bloc
 (`BlockInfo::file_name`: its intrinsic name, the file it came from, so a renamed book still
 matches) and only for a type with a plain-file form: `editors_for(block_type, file_name)` lists
 it after the type's own editors (the file tree's Open with), and `own_editor` falls back to the
-first one for a type with no editor of its own (the EPUB's default). Elsewhere (the web,
-Android, Windows, macOS) no program is listed, so nothing changes there.
+first one for a type with no editor of its own (the EPUB's default). Without `--desktop`, and
+elsewhere (the web, Android, Windows, macOS), no program is listed, so nothing changes there.
 
 The app side is only that editor id on a `ChildTarget`; the host does the rest. When a
 child view asks for a block in a listed program (`programs::opens`), `HostedChild` shows a

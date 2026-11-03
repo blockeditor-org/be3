@@ -42,6 +42,7 @@ pub use presenter::Pieces;
 #[cfg(target_arch = "wasm32")]
 pub use presenter::shown as shown_blits;
 pub use presenter::{AnchoredBlits, Blit};
+pub use published::run_as_desktop;
 #[cfg(target_arch = "wasm32")]
 pub use runtime::place_screens;
 pub use runtime::{
