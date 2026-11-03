@@ -41,9 +41,10 @@ fn bars_of_other_displays_that_cannot_be_read_are_kept_until_reset() {
         !status_down_the_left(&fixture),
         "the second display starts from the first display's bars"
     );
-    fixture
-        .test
-        .desk_snapshot("bars_of_other_displays_that_cannot_be_read_are_kept_until_reset", 0);
+    fixture.test.desk_snapshot(
+        "bars_of_other_displays_that_cannot_be_read_are_kept_until_reset",
+        0,
+    );
 
     fixture.test.click("desktop.display-bars.keep");
     fixture.settle();
