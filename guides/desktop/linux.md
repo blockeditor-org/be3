@@ -681,7 +681,11 @@ asks and the point, from the window's top left), where be-sdk-shell's `WindowPan
 there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
 iconify) hides the window as its chip's Hide does. A hidden window shown again comes back where
 it was: be-sdk-shell's `FloatingWindow` keeps the rect its dock window last had for as long as the
-host lists the window. GTK ignores those capabilities
+host lists the window. While hidden, the window is told so, so its program can stop drawing:
+be-host-desktop passes Hide and Show to `Windows::set_hidden`, which reconfigures it with
+`xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or, for an X11 window,
+`_NET_WM_STATE_HIDDEN`. An X11 window's `WM_STATE` stays `NormalState`: smithay writes
+`IconicState` only by unmapping the window's frame, which takes its surface away. GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
 (`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the

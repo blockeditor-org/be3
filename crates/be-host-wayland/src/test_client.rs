@@ -65,6 +65,7 @@ pub(crate) struct Received {
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
+    pub(crate) suspended: bool,
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
     pub(crate) keyboard_entered: bool,
@@ -166,7 +167,7 @@ impl TestClient {
         client.exchange(server);
         client.compositor = Some(client.bind("wl_compositor", 5));
         client.shm = Some(client.bind("wl_shm", 1));
-        client.wm_base = Some(client.bind("xdg_wm_base", 5));
+        client.wm_base = Some(client.bind("xdg_wm_base", 6));
         client.seat = Some(client.bind("wl_seat", 7));
         client.exchange(server);
         client
@@ -682,6 +683,7 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
                 .collect();
             let has = |which: xdg_toplevel::State| states.contains(&(which as u32));
             state.activated = has(xdg_toplevel::State::Activated);
+            state.suspended = has(xdg_toplevel::State::Suspended);
             state.fullscreen = has(xdg_toplevel::State::Fullscreen);
             state.maximized = has(xdg_toplevel::State::Maximized);
         } else if let xdg_toplevel::Event::WmCapabilities { capabilities } = event {

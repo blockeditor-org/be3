@@ -78,6 +78,7 @@ struct Configured {
     size: (i32, i32),
     activated: bool,
     fullscreen: bool,
+    hidden: bool,
 }
 
 impl Compositor {
@@ -881,6 +882,8 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
+                    let hidden = self.windows.hidden(id);
+                    self.server.state.set_hidden(id, hidden);
                     if let Some(rect) = self.windows.rect(id) {
                         let position = rect.min - self.area.min;
                         self.server.state.place(
@@ -912,6 +915,7 @@ impl Compositor {
                         size,
                         activated: focused == Some(id),
                         fullscreen: self.server.state.fullscreen(id),
+                        hidden,
                     };
                     if self.configured.get(&id) == Some(&configured) {
                         continue;
