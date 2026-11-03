@@ -30,6 +30,7 @@ Guides:
 - guides/running/native.md
 - guides/running/web.md
 - guides/running/android.md
+- guides/settings.md: user, block and organization settings: kinds, how they resolve, who may change and read them, where the code and tests are
 - guides/sync.md: `be sync`, which keeps a folder or workspace and a directory on disk in step both ways
 - guides/terminal.md: the terminal block, whose shell runs on a machine `be TARGET terminal-host` signs in from
 - guides/testing_a_gui.md
