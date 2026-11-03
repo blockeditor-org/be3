@@ -842,8 +842,7 @@ How existing types use identity:
   their geometry in general fields rather than a variant per tool, and an arrow
   end bound to a shape is stored as the shape's id and an anchor and resolved
   when the canvas is read (stopping a gap short of its outline), so it follows
-  a shape a peer moved without anyone rewriting the arrow (`plans/canvas.md`,
-  Where it stands).
+  a shape a peer moved without anyone rewriting the arrow (guides/canvas.md).
 - **Database schema.** Its fields and enum options are objects, and their ids
   are what a database's cells and enum values store, so renaming a field or an
   option changes nothing that points at it.
