@@ -29,43 +29,45 @@ const HINTS: [(&str, &str); 5] = [
 
 #[derive(Clone, Debug, PartialEq)]
 enum Shown {
-    Compare(Picture, Picture),
+    Compare {
+        before: Option<Picture>,
+        after: Option<Picture>,
+    },
     One(Picture),
     Missing(String),
 }
 
 impl Shown {
     fn of(frame: &Frame, status: Status, held: Option<Side>) -> Self {
-        let side = match (held, &frame.before, &frame.after) {
-            (Some(side), _, _) => side,
-            (None, Some(before), Some(after)) => {
-                return Shown::Compare(before.clone(), after.clone());
+        match held {
+            None if frame.before.is_none() && frame.after.is_none() => {
+                Shown::Missing(missing(status, Side::After).to_owned())
             }
-            (None, Some(_), None) => Side::Before,
-            (None, _, _) => Side::After,
-        };
-        match side.of(frame) {
-            Some(picture) => Shown::One(picture.clone()),
-            None => Shown::Missing(missing(status, side).to_owned()),
+            None => Shown::Compare {
+                before: frame.before.clone(),
+                after: frame.after.clone(),
+            },
+            Some(side) => match side.of(frame) {
+                Some(picture) => Shown::One(picture.clone()),
+                None => Shown::Missing(missing(status, side).to_owned()),
+            },
         }
     }
 
-    fn pictures(&self) -> Vec<&Picture> {
+    fn slots(&self) -> [Option<&Picture>; 2] {
         match self {
-            Shown::Compare(before, after) => vec![before, after],
-            Shown::One(picture) => vec![picture],
-            Shown::Missing(_) => Vec::new(),
+            Shown::Compare { before, after } => [before.as_ref(), after.as_ref()],
+            Shown::One(picture) => [Some(picture), None],
+            Shown::Missing(_) => [None, None],
         }
     }
 
     fn size(&self) -> Option<Vec2> {
-        let pictures = self.pictures();
-        if pictures.is_empty() {
-            return None;
-        }
-        Some(pictures.iter().fold(Vec2::ZERO, |size, picture| {
-            size.max(Vec2::new(picture.width as f32, picture.height as f32))
-        }))
+        self.slots()
+            .into_iter()
+            .flatten()
+            .map(|picture| Vec2::new(picture.width as f32, picture.height as f32))
+            .reduce(Vec2::max)
     }
 }
 
@@ -244,17 +246,18 @@ fn Stage(review: Review) -> NodeId {
             None => Shown::Missing(missing(status, Side::After).to_owned()),
         })
     });
-    let states = create_memo(move || {
+    let slots = create_memo(move || {
         shown.with(|shown| {
             shown
-                .pictures()
-                .into_iter()
-                .map(|picture| images.state(&picture.image).get())
-                .collect::<Vec<ImageState>>()
+                .slots()
+                .map(|picture| picture.map(|picture| images.state(&picture.image).get()))
         })
     });
+    let states = create_memo(move || {
+        slots.with(|slots| slots.iter().flatten().cloned().collect::<Vec<ImageState>>())
+    });
     let content = create_memo(move || shown.with(Shown::size));
-    let comparing = create_memo(move || matches!(shown.get(), Shown::Compare(..)));
+    let comparing = create_memo(move || matches!(shown.get(), Shown::Compare { .. }));
     let notice = create_memo(move || match shown.get() {
         Shown::Missing(notice) => notice,
         _ => String::new(),
@@ -283,34 +286,38 @@ fn Stage(review: Review) -> NodeId {
     let fit_request = create_signal(0u64);
     let centering = create_memo(move || (review.open.get(), content.get()));
 
-    let image_of = move |which: usize| {
-        create_memo(
-            move || match states.with(|states| states.get(which).cloned()) {
-                Some(ImageState::Ready(image)) => Some(image),
-                _ => None,
-            },
-        )
+    let image_of = move |slot: usize| {
+        create_memo(move || match slots.with(|slots| slots[slot].clone()) {
+            Some(ImageState::Ready(image)) => Some(image),
+            _ => None,
+        })
+    };
+    let size_of = move |slot: usize| {
+        create_memo(move || {
+            shown.with(|shown| {
+                shown.slots()[slot].map_or(Vec2::ZERO, |picture| {
+                    Vec2::new(picture.width as f32, picture.height as f32)
+                })
+            })
+        })
     };
     let first = image_of(0);
     let second = image_of(1);
-    let first_size = create_memo(move || {
-        shown.with(|shown| {
-            shown
-                .pictures()
-                .first()
-                .map_or(Vec2::ZERO, |p| Vec2::new(p.width as f32, p.height as f32))
-        })
-    });
-    let second_size = create_memo(move || {
-        shown.with(|shown| {
-            shown
-                .pictures()
-                .get(1)
-                .map_or(Vec2::ZERO, |p| Vec2::new(p.width as f32, p.height as f32))
-        })
-    });
+    let first_size = size_of(0);
+    let second_size = size_of(1);
     let split = review.split;
     let split_x = create_memo(move || split.get() * content.get().map_or(0.0, |size| size.x));
+    let first_width = create_memo(move || match comparing.get() {
+        true => split_x.get().min(first_size.get().x),
+        false => first_size.get().x,
+    });
+    let first_source = create_memo(move || {
+        let width = first_size.get().x.max(1.0);
+        Some(Rect::from_min_max(
+            pos2(0.0, 0.0),
+            pos2(first_width.get() / width, 1.0),
+        ))
+    });
     let second_x = create_memo(move || split_x.get().min(second_size.get().x));
     let second_width = create_memo(move || (second_size.get().x - second_x.get()).max(0.0));
     let second_source = create_memo(move || {
@@ -361,11 +368,12 @@ fn Stage(review: Review) -> NodeId {
                                         <CanvasItem
                                             x=0.0
                                             y=0.0
-                                            width={create_memo(move || first_size.get().x)}
+                                            width={first_width}
                                             height={create_memo(move || first_size.get().y)}
                                         >
                                             <Picture
                                                 image={first}
+                                                source={first_source}
                                                 fit=ImageFit::Fill
                                                 smooth=false
                                             />
@@ -389,22 +397,26 @@ fn Stage(review: Review) -> NodeId {
                                             width={create_memo(move || if comparing.get() { handle_width.get() } else { 0.0 })}
                                             height={height}
                                         >
-                                            <Interactive
-                                                cursor={Some(CursorIcon::ResizeColumn)}
-                                                on_press={drag}
-                                                on_drag={drag}
-                                                @test_id="paint_review.split"
-                                            >
-                                                <Frame
-                                                    align={Align2::new(Align::Center, Align::Stretch)}
-                                                >
-                                                    <Frame
-                                                        width={Size::Custom(HANDLE_LINE)}
-                                                        height=Length::FILL
-                                                        fill=ColorRole::Accent
-                                                    />
-                                                </Frame>
-                                            </Interactive>
+                                            <Layers>
+                                                <Show condition={comparing}>
+                                                    <Interactive
+                                                        cursor={Some(CursorIcon::ResizeColumn)}
+                                                        on_press={drag}
+                                                        on_drag={drag}
+                                                        @test_id="paint_review.split"
+                                                    >
+                                                        <Frame
+                                                            align={Align2::new(Align::Center, Align::Stretch)}
+                                                        >
+                                                            <Frame
+                                                                width={Size::Custom(HANDLE_LINE)}
+                                                                height=Length::FILL
+                                                                fill=ColorRole::Accent
+                                                            />
+                                                        </Frame>
+                                                    </Interactive>
+                                                </Show>
+                                            </Layers>
                                         </CanvasItem>
                                     </Canvas>
                                 </Frame>
