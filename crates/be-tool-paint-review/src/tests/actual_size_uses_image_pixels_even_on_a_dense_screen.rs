@@ -11,12 +11,8 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
     review.test.settle();
     review.test.click("paint_review.actual_size");
     review.test.settle();
-    let document = review.test.document();
-    let camera = document
-        .api::<beui::styled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
-        .view()
-        .get();
-    assert_eq!(camera.scale, 1.0);
+    let camera = review.camera();
+    assert_eq!(camera.scale, 1.0, "one image pixel to one point");
     assert_eq!(
         camera.center,
         beui::pos2(WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0)
@@ -29,23 +25,8 @@ fn actual_size_uses_image_pixels_even_on_a_dense_screen() {
         .test
         .frame(vec![Input::PointerMoved(stage.center()), Input::Zoom(2.0)]);
     review.test.settle();
-    let document = review.test.document();
-    let zoomed = document
-        .api::<beui::styled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
-        .view()
-        .get();
-    assert_eq!(zoomed.scale, 2.0);
+    assert_eq!(review.camera().scale, 2.0);
     review.test.click("paint_review.actual_size");
     review.test.settle();
-    let document = review.test.document();
-    assert_eq!(
-        document
-            .api::<beui::styled::PanZoomApi>(
-                document.find_test_id("paint_review.pan_zoom").unwrap()
-            )
-            .view()
-            .get()
-            .scale,
-        1.0
-    );
+    assert_eq!(review.camera().scale, 1.0);
 }

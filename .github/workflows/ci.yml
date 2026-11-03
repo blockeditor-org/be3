@@ -395,21 +395,24 @@ jobs:
               "https://storage.bunnycdn.com/be3-ci/bootstrap/$name"
           done
 
-  # The images go to the be3-ci Bunny storage zone as paint-previews/<hash>.png,
-  # named by the SHA-256 of their bytes, and the comment links them through the
-  # zone's CDN. A name that is its content's hash never changes what it points
-  # at, so an upload never has to replace anything a comment already links,
-  # and an image two runs both drew is stored once. The same goes for the
-  # review page's data, paint-previews/<hash>.json, and for the review page
-  # itself (crates/be-tool-paint-review-web), paint-previews/site/<hash>/, named by
-  # the hash of all of its files; a site already there is not uploaded again.
-  # The page uses shared wasm memory, so the zone must send
+  # The images go to the be-previews Bunny storage zone as <hash>.webp (or
+  # <hash>.png, from a pull request older than the switch to WebP), named by
+  # the SHA-256 of their bytes, and the comment links them through the zone's
+  # CDN, https://be-previews.b-cdn.net. A name that is its content's hash never
+  # changes what it points at, so an upload never has to replace anything a
+  # comment already links, nothing is ever purged from the CDN, and an image
+  # two runs both drew is stored once. The same goes for the review page's
+  # data, <hash>.json, and for the review page itself
+  # (crates/be-tool-paint-review-web), site/<hash>/, named by the hash of all
+  # of its files; a site already there is not uploaded again. The page uses
+  # shared wasm memory, so the pull zone must send
   # Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy:
-  # require-corp on /paint-previews/site/*, an edge rule in the pull zone's
-  # settings rather than anything an upload can set. The storage key is given
-  # to the upload step alone. What the artifact holds was made by the pull
-  # request's code, so it is only ever data here: files to upload and text to
-  # post. A run of an older pull request uploads only what it made, images.
+  # require-corp on /site/*, an edge rule in the pull zone's settings rather
+  # than anything an upload can set. The zone's password, the
+  # BUNNY_PREVIEWS_STORAGE_KEY secret, is given to the upload step alone. What
+  # the artifact holds was made by the pull request's code, so it is only ever
+  # data here: files to upload and text to post. A run of an older pull
+  # request uploads only what it made, images.
   #
   # Every pull request gets the one comment, which each run edits: the lines it
   # adds and removes by kind, and the paintings it changes, if any, with a link
@@ -431,15 +434,16 @@ jobs:
 
       - name: Upload the previews
         env:
-          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_PREVIEWS_STORAGE_KEY }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          store='https://storage.bunnycdn.com/be3-ci/paint-previews'
+          store='https://ny.storage.bunnycdn.com/be-previews'
           previews="$RUNNER_TEMP/previews"
 
           upload() {
             case "$1" in
+              *.webp) type='image/webp' ;;
               *.png) type='image/png' ;;
               *.json) type='application/json' ;;
               *.html) type='text/html' ;;
@@ -456,7 +460,7 @@ jobs:
               "$store/$1"
           }
 
-          for file in "$previews"/*.png "$previews"/*.json; do
+          for file in "$previews"/*.webp "$previews"/*.png "$previews"/*.json; do
             upload "$(basename "$file")"
           done
 
@@ -484,7 +488,7 @@ jobs:
           marker='<!-- pr-summary -->'
           {
             echo "$marker"
-            sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md"
+            sed 's|PREVIEW_ROOT|https://be-previews.b-cdn.net|g' "$previews/comment.md"
           } > "$comment"
 
           existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" |

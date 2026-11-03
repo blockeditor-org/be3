@@ -22,7 +22,7 @@ jks = { version = "0.3", default-features = false }
 p12-keystore = "0.4"
 rsa = { version = "0.9", features = ["getrandom", "sha2"] }
 x509-cert = { version = "0.2", features = ["builder"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 sha2 = { version = "0.10", features = ["oid"] }
 ureq = "2"
 zip = { version = "8", default-features = false, features = ["deflate-flate2"] }

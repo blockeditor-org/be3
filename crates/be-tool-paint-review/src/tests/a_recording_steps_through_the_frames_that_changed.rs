@@ -2,7 +2,8 @@ use super::*;
 
 #[test]
 fn a_recording_steps_through_the_frames_that_changed() {
-    let mut review = Review::with(Manifest {
+    let mut review = Review::open(Some("beui-demo.a_sheet_rises"));
+    review.load(Manifest {
         paintings: vec![recording("beui-demo.a_sheet_rises")],
     });
     review.deliver();

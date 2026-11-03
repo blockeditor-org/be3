@@ -6,7 +6,7 @@ load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
 # The paintings a pull request changed (crates/be-tool-paint-review) in a browser,
 # drawn with wgpu like beui's web demo. The page lives at
 # ROOT/site/HASH/index.html and reads ROOT/CHANGES.json, where CHANGES is its
-# `changes` query parameter, and each image as ROOT/IMAGE.png.
+# `changes` query parameter, and each image as ROOT/IMAGE.webp.
 # `./scripts/buck run //crates/be-tool-paint-review-web:web` serves the bundle with
 # Caddy on http://127.0.0.1:8075, or on the address after `--`.
 cargo_library(

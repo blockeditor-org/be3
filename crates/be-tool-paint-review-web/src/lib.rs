@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use be_tool_paint_review::{Fetch, PaintReviewProgram};
-use be_tool_paint_review_manifest::Manifest;
+use be_tool_paint_review_manifest::{IMAGE_EXTENSION, Manifest};
 use beui::reactive::Set;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
@@ -21,7 +21,7 @@ pub async fn run_review(root_id: String) -> Result<(), JsValue> {
 
     let images = root.clone();
     let app = PaintReviewProgram::new(painting, move |request| {
-        let url = format!("{images}{}.png", request.hash());
+        let url = format!("{images}{}.{IMAGE_EXTENSION}", request.hash());
         let hash = request.hash().to_owned();
         wasm_bindgen_futures::spawn_local(async move {
             let image = match is_hash(&hash) {
@@ -90,8 +90,8 @@ async fn fetch(url: &str) -> Result<Vec<u8>, String> {
 }
 
 fn decode(bytes: &[u8]) -> Result<beui::Image, String> {
-    let image = image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
-        .map_err(|error| format!("not a PNG: {error}"))?
+    let image = image::load_from_memory_with_format(bytes, image::ImageFormat::WebP)
+        .map_err(|error| format!("not a WebP image: {error}"))?
         .to_rgba8();
     let (width, height) = image.dimensions();
     Ok(beui::Image::from_rgba(width, height, image.into_raw()))

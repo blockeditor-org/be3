@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use be_tool_paint_review_manifest::{Frame, Manifest, Painting, Status};
+use be_tool_paint_review_manifest::{Frame, IMAGE_EXTENSION, Manifest, Painting, Picture, Status};
 use beui_html::{render_fragment, view};
 use beui_paint_snapshot::{BrowserSnapshot, Snapshot};
 use sha2::{Digest as _, Sha256};
@@ -15,6 +15,8 @@ const ROOT: &str = "PREVIEW_ROOT";
 const MAX_FRAMES: usize = 500;
 const MAX_LISTED: usize = 100;
 const MAX_INLINE_FRAMES: usize = 30;
+const THUMBNAIL_WIDTH: u32 = 320;
+const THUMBNAIL_HEIGHT: u32 = 240;
 
 pub fn stage<'a>(
     paths: impl IntoIterator<Item = &'a str>,
@@ -94,13 +96,16 @@ pub fn generate(
             &mut omitted,
             browser_renderer,
         )?;
+        let changed_pixels = rendered.iter().map(changed_pixels).sum();
         manifest.paintings.push(Painting {
             name: name.clone(),
             status,
             detail,
+            changed_pixels,
             frames: rendered,
         });
     }
+    Painting::sort(&mut manifest.paintings);
 
     if manifest.paintings.is_empty() {
         comment.push_str("No paintings changed.\n");
@@ -161,7 +166,12 @@ pub fn generate(
             "" => String::new(),
             detail => format!(": {}", escaped(&detail.replace('\n', " "))),
         };
-        let _ = writeln!(comment, "- {name} {status}{detail}");
+        let pixels = match painting.changed_pixels {
+            0 => String::new(),
+            1 => " (1 pixel)".to_owned(),
+            count => format!(" ({count} pixels)"),
+        };
+        let _ = writeln!(comment, "- {name} {status}{pixels}{detail}");
         if !painting.frames.is_empty() && inline_frames < MAX_INLINE_FRAMES {
             comment.push_str(
                 "\n<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>\n",
@@ -172,16 +182,17 @@ pub fn generate(
                 }
                 inline_frames += 1;
                 let _ = write!(comment, "<tr><td>{}</td>", frame.number);
-                for (label, hash) in [
+                for (label, picture) in [
                     ("Before", &frame.before),
                     ("After", &frame.after),
                     ("Changes", &frame.changes),
                 ] {
-                    match hash {
-                        Some(hash) => {
+                    match picture {
+                        Some(picture) => {
                             let _ = write!(
                                 comment,
-                                "<td><img alt=\"{label}\" src=\"{ROOT}/{hash}.png\" width=\"320\"></td>"
+                                "<td><a href=\"{ROOT}/{}.{IMAGE_EXTENSION}\"><img alt=\"{label}\" src=\"{ROOT}/{}.{IMAGE_EXTENSION}\"></a></td>",
+                                picture.image, picture.thumbnail
                             );
                         }
                         None => comment.push_str("<td></td>"),
@@ -282,13 +293,13 @@ fn differing_frames(
                 beui_paint_snapshot::frame_difference(&old.frames[index], &new.frames[index]);
             let _ = write!(line, " {what};");
         }
-        for (label, hash) in [
+        for (label, picture) in [
             ("before", &frame.before),
             ("after", &frame.after),
             ("changes", &frame.changes),
         ] {
-            if let Some(hash) = hash {
-                let _ = write!(line, " {label} {hash}.png");
+            if let Some(picture) = picture {
+                let _ = write!(line, " {label} {}.{IMAGE_EXTENSION}", picture.image);
             }
         }
         if let Some(pixels) = frame.changed_pixels {
@@ -398,12 +409,53 @@ impl ReviewSnapshot {
     }
 }
 
-fn image(image: &image::RgbaImage, output: &Path) -> Result<String, String> {
-    let mut png = Vec::new();
-    image
-        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+fn changed_pixels(frame: &Frame) -> u64 {
+    frame.changed_pixels.unwrap_or_else(|| {
+        [&frame.before, &frame.after]
+            .into_iter()
+            .flatten()
+            .map(Picture::area)
+            .max()
+            .unwrap_or(0)
+    })
+}
+
+fn image(image: &image::RgbaImage, output: &Path) -> Result<Picture, String> {
+    let (width, height) = image.dimensions();
+    let hash = write_hashed(output, IMAGE_EXTENSION, &webp(image)?)?;
+    let thumbnail = match width <= THUMBNAIL_WIDTH && height <= THUMBNAIL_HEIGHT {
+        true => hash.clone(),
+        false => {
+            let scale = (THUMBNAIL_WIDTH as f32 / width as f32)
+                .min(THUMBNAIL_HEIGHT as f32 / height as f32);
+            let small = image::imageops::resize(
+                image,
+                ((width as f32 * scale).round() as u32).max(1),
+                ((height as f32 * scale).round() as u32).max(1),
+                image::imageops::FilterType::Triangle,
+            );
+            write_hashed(output, IMAGE_EXTENSION, &webp(&small)?)?
+        }
+    };
+    Ok(Picture {
+        image: hash,
+        thumbnail,
+        width,
+        height,
+    })
+}
+
+fn webp(image: &image::RgbaImage) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    image::codecs::webp::WebPEncoder::new_lossless(&mut bytes)
+        .encode(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .map_err(|error| format!("could not encode an image: {error}"))?;
-    write_hashed(output, "png", &png)
+    Ok(bytes)
 }
 
 fn write_hashed(output: &Path, extension: &str, bytes: &[u8]) -> Result<String, String> {
