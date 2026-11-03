@@ -1,30 +1,10 @@
 # Windows input
 
-How the desktop shell on Windows (guides/desktop/windows.md) gets the person's
-mouse and keyboard into the Windows windows and monitors it shows as panels,
-and what is left for later.
-
-## Where it stands
-
-- **Focus mode is the main path.** Choosing a Windows entry (from the picker,
-  a click in its panel, a controller) raises the real window, makes it the
-  foreground window, moves the cursor into it and clips the cursor to its frame
-  bounds, or to its monitor for a display entry (`ClipCursor`, applied again on
-  foreground and location changes). The physical mouse and keyboard then drive
-  it natively; be-host sees none of that input. A `RegisterHotKey` hotkey
-  returns focus to be-host and releases the clip (be-host-win32). Elevated windows
-  work in this mode: UIPI blocks only injected input.
-- **Injection is for XR controller clicks.** `crates/be-host-win32-input` turns an
-  event at a point in an entry's panel into `SendInput` entries (absolute
-  virtual-desktop coordinates, keys by scan code, text by `KEYEVENTF_UNICODE`,
-  each tagged `INJECTED` in `dwExtraInfo`), raises and foregrounds the target
-  window first, and refuses with a typed `InjectError` when the window's
-  process runs at a higher integrity level (`SendInput` doesn't report that
-  failure) or the input desktop is the secure one, so the host can show a notice.
-- **No low-level hooks.** Nothing calls `SetWindowsHookEx` or
-  `RegisterRawInputDevices`, and nothing swallows physical input.
-
-## Deferred
+Input work left for the desktop shell on Windows. guides/desktop/windows.md
+describes what is built: focus mode (the physical mouse and keyboard drive the
+real window, the cursor clipped to it, a hotkey back), `SendInput` injection
+for XR controller presses (`crates/be-host-win32-input`), and no low-level
+hooks.
 
 - **Keeping the shell's pointer and keyboard when a window takes the foreground
   (not planned).** In VR, a real window that comes forward on its own (a dialog,
