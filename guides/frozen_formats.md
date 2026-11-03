@@ -42,41 +42,35 @@ else may still change freely.
 - **A block file** (`be_block_client::transfer`, version 1, what `be download` and
   the file tree's Export as write): plaintext ids, types, parents, encoded
   `BlockMetadata`, references and content bytes. It is how data moves from one
-  server to another, so it is read forever, and it is what carried data
-  across the clean break below.
+  server to another, so it is read forever.
 - **The content of these blocks** (`Root::FROZEN`): `TextBlock`, `Folder`,
   `Workspace`, `Database`, `DatabaseSchema` and `DatabaseView`, and their
   content type ids.
 
-The server's data, its backups and the sealed objects broke with the old ones
-once, on purpose, when workspaces became organizations and keys moved to
-blocks (a clean break agreed with the user: data moved across in block
-files). What `crates/be-block-frozen`'s snapshots hold, from 2026-10-16 on, is read
-forever.
+What is read forever starts at the data `crates/be-block-frozen`'s snapshots
+hold, from 2026-10-16 on; data saved before then is not read.
 
-Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
-its changes (metadata that points to a block, with `ARTIFACT` now pointing to
-its source; the access model; settings blocks, their `SETTINGS` metadata and
-the `ANYONE_INSIDE` grant on a kind) land together, and then the one
-server with data is wiped and its content re-imported once from a block file.
-Until then they may change other saved data incompatibly, but not what
-`crates/be-block-frozen`'s snapshots and fixture hold (none of it carries
-`ARTIFACT` metadata, which only the host writes), so those stay read forever
-throughout; afterwards the rules below hold again for everything.
+Section 1 of `plans/settings.md` is a one-time break: its changes (metadata
+that points to a block, with `ARTIFACT` now pointing to its source; the access
+model; settings blocks, their `SETTINGS` metadata and the `ANYONE_INSIDE` grant
+on a kind) land together, and then the one server with data is wiped and its
+content re-imported once from a block file. Until then they may change other
+saved data incompatibly, but not what `crates/be-block-frozen`'s snapshots and
+fixture hold (none of it carries `ARTIFACT` metadata, which only the host
+writes), so those stay read forever throughout; afterwards the rules below hold
+again for everything.
 
-Not frozen yet: every other block type, the network
-protocol (server and clients are upgraded together and refuse other builds),
-the local app API, live-session state (operations,
-`LiveEdit::session_state`, relayed messages, presence), and the host's own
-files on a device (`host.sqlite3`, the refs database, caches).
-
-Remote human session credentials from before the account portal are intentionally invalidated
-when session metadata is introduced; users sign in again. Account data, password hashes,
-encryption keys, local profiles and agent credentials remain readable.
+Not frozen yet: every other block type, the network protocol (server and
+clients are upgraded together and refuse other builds), the local app API,
+live-session state (operations, `LiveEdit::session_state`, relayed messages,
+presence), remote human session credentials (a change may sign everyone out),
+and the host's own files on a device (`host.sqlite3`, the refs database,
+caches).
 
 ## Changing a frozen format
 
-Only add:
+A frozen format changes only by adding to it, so that every earlier build's
+data still reads:
 
 - **SQLite.** Add tables, indexes and columns with a default;
   `be_block_sqlite_schema::ensure` adds them to an existing database on open. Never
@@ -121,9 +115,10 @@ Only add:
   an old commit, the contacts, the escrow chain, accepting the link and the
   invitation, and restoring the backup.
 
-Never edit or regenerate a snapshot, a fixture, a `frozen_*.rs` module or a
-value in `scene.rs`: a failure means the change broke old data, so fix the
-change. Only the test's code may follow an API that is not frozen, such as a
+A snapshot, a fixture, a `frozen_*.rs` module and the values in `scene.rs`
+are what old data looks like, so editing or regenerating one makes its test
+stop guarding that data. A failure means the change broke old data: fix the
+change. Only the test's code follows APIs that are not frozen, such as a
 protocol message.
 
 When a frozen format gains something worth guarding (a column, a field, a

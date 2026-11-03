@@ -1,45 +1,73 @@
-Measuring and profiling beui's performance, and the ideas already tried.
+# Performance
 
-1. Benchmarks
+Measuring and profiling beui's and be-host's performance. Ideas already tried and set aside
+are in `decisions/` (the files linked from "Ideas set aside" below).
 
-`//crates/be-tool-bench:suite` is every benchmark in one directory, built in release whatever the
-command asks: the runner `be-tool-bench`, each benchmark program under `programs/`, and be-host
-with its apps for the end-to-end ones. `./scripts/buck run //crates/be-tool-bench:suite -- list`
-lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
-whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
-a program that reports its metrics through the `be-tool-bench` crate (`be_tool_bench::time`, `count`,
-`record`), which appends them to the file `BENCH_METRICS` names and does nothing without
-it; adding one is a line in `BENCHMARKS` (crates/be-tool-bench/src/suite.rs) and an entry in the
-suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
-`./scripts/buck run -m release`:
+## Benchmarks
 
-- `//crates/be-host-bench:bin` (the suite's `app-canvas-and-text`) runs be-host headless,
-  driven as `drive` drives it (crates/be-tool-drive's `Driven`, guides/running/drive.md), against
-  a be-server in its own process, with `BE_LATENCY=30` (guides/running/drive.md), so every
-  round trip takes 30 ms more, and `BEUI_RENDERER=none`, so it measures the host's own work and
-  not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
-  browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
-  canvas and a text block from the files' New menu, draws a rectangle and a pen line of
-  `HOST_BENCH_POINTS` samples (10,000), pastes `HOST_BENCH_TEXT_BYTES` of text (50 MB), paints
-  and closes each, exports the folder as a .block file and closes the host. A second device,
-  with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
-  paints them and exports the folder again. It fails unless both exports are identical and
-  each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
-  after the edit shows: the seal the host would wait 750 ms for, published to the server.
-- The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
-  `canvas.line-draw`, from its first sample until the whole line shows, is the work the
-  samples cause (the canvas's edits, relaying them, the replica, the app applying them)
-  and not the cost of 10,000 frames, which a person drawing never waits on.
-  `canvas.line-longest-frame` and `canvas.line-longest-app-frame` are the longest host
-  frame and the longest canvas app step meanwhile (`drive frames`, guides/running/drive.md):
-  a frame packed with samples is where a per-sample cost that grows with the stroke shows as
-  stutter, and since a host frame waits for its apps only until its deadline (the next present less the host's own composite time, guides/adding_an_app.md), the app's own line
-  is where the canvas's share shows. The run fails unless the exported stroke holds exactly
-  the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
-  than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
-  so dropping one it would have kept moves the points after it.
-  It takes about three minutes; set the two sizes lower while working on it. It needs
-  `BE_HOST`, and `HOST_LIBRARIES` for the libraries the host loads, which the suite sets.
+### The suite
+
+`//crates/be-tool-bench:suite` is every benchmark in one directory, built in release whatever
+the command asks: the runner `be-tool-bench`, each benchmark program under `programs/`, and
+be-host with its apps for the end-to-end ones.
+
+- `./scripts/buck run //crates/be-tool-bench:suite -- list` lists them.
+- `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those whose
+  name contains it (all by default), N times (3), and prints each metric's fastest, median
+  and slowest.
+- `-- compare BASE [--rounds=N] [NAME...]` alternates them with a suite built at BASE
+  ("Comparing two builds").
+
+A benchmark is a program that reports its metrics through the `be-tool-bench` crate
+(`be_tool_bench::time`, `count`, `record`), which appends them to the file `BENCH_METRICS`
+names and does nothing without it. Adding one is a line in `BENCHMARKS`
+(crates/be-tool-bench/src/suite.rs) and an entry in the suite's `programs`
+(crates/be-tool-bench/BUCK). Each can also run alone, with `./scripts/buck run -m release`.
+
+### be-host end to end
+
+`//crates/be-host-bench:bin` (the suite's `app-canvas-and-text`) times what a person waits
+for: signing in, making, saving, closing, exporting and reopening blocks, and a second device
+recovering the account. It needs `BE_HOST`, and `HOST_LIBRARIES` for the libraries the host
+loads, which the suite sets.
+
+- It runs be-host headless, driven as `drive` drives it (crates/be-tool-drive's `Driven`,
+  guides/running/drive.md), with `BEUI_RENDERER=none`, so it measures the host's own work and
+  not a software GPU drawing it, against a be-server in a process of its own, 15 ms away each
+  way through `BE_LATENCY=30`. The server is pinned to one core and the host to the others.
+  Every wait is one the host answers (`drive wait`, `gone`, `settle`) rather than a poll, and
+  every command passes `--changes=0`.
+- A first device signs in through the portal, as a person's browser would, makes a folder
+  and zooms the files into it, then with `hurry off` adds a canvas and a text block from the
+  files' New menu, draws a rectangle and a pen line of `HOST_BENCH_POINTS` samples (10,000),
+  pastes `HOST_BENCH_TEXT_BYTES` of text (50 MB), paints and closes each, exports the folder
+  as a .block file and closes the host. A second device, with data of its own, signs in,
+  unlocks with the recovery phrase, reopens both blocks, paints them and exports the folder
+  again. It fails unless both exports are identical and each block paints the same on both
+  devices.
+- "Save" is how long `hurry on` takes to settle after the edit shows: the seal the host
+  would wait 750 ms for, published to the server.
+- The pen stroke (`drive pen draw FROM TO STEPS PER_FRAME`) sends 400 samples at the start
+  and 400 at the end at 4 a frame, as a stylus does, and the 9,200 between at 1,000 a frame
+  to get there, so `canvas.line-draw`, from its first sample until the whole line shows, is
+  the work the samples cause (the canvas's edits, relaying them, the replica, the app
+  applying them) and not the cost of 10,000 frames. Each of the two slow stretches reports
+  its longest host frame and longest canvas app step (`drive frames`,
+  guides/running/drive.md), and how long the ink takes to reach the pen after its last
+  sample (`-catch-up`). A frame packed with samples is where a per-sample cost that grows
+  with the stroke shows as stutter; since a host frame waits for its apps only until its
+  deadline (the next present less the host's own composite time, guides/adding_an_app.md),
+  the app's own figure is where the canvas's share shows.
+- The run fails unless the exported stroke holds exactly the samples the canvas keeps, where
+  they were drawn: it keeps a sample only when it is more than a point from the last one it
+  kept (667 of these 10,001, `canvas.line-points`), so dropping one it would have kept moves
+  the points after it.
+- It takes about three minutes; set the two sizes lower while working on it.
+- It does not measure drawing on a GPU, frame pacing, connection and TLS set-up, bandwidth
+  (`BE_LATENCY` delays but does not throttle), a large organization, a relaunch on warm
+  caches, or two devices editing at once.
+
+### beui
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -49,10 +77,10 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   accessibility; `UNPLACED=1` lists what each open built but never laid out, by the
   components it is in, which is what to build lazily; `GPU=1` adds the renderer's
   `prepare`, which on a machine without a GPU mostly measures lavapipe and says little
-  about a real one.
-- The open bench builds a new document for each open, so the per-node tables a document
-  keeps grow from empty every time. A long-lived document reuses the slots of the nodes
-  it removed; don't chase the growth of those tables in a profile of the bench.
+  about a real one. The target for opening a page is under 2 ms warm.
+  - Each open builds a new document, so the per-node tables a document keeps grow from empty
+    every time. A long-lived document reuses the slots of the nodes it removed, so that
+    growth in a profile of the bench is not a cost it pays.
 - `//crates/beui-demo:example-space-bench -- [cursor|resize]` (the suite's `space`) runs the
   demo in the VR simulator (`beui_layer_space::Space` as the runner's host) on an offscreen
   GPU, through the platform pixels a mouse sends, in each mode (both by default) on a runner
@@ -62,55 +90,47 @@ suite's `programs` (crates/be-tool-bench/BUCK). Each can also run alone, with
   and so measures the program's own work. On lavapipe `present` is mostly the software
   rasterizer; judge `frame`.
   - `resize` floats the Docking tab into a window of its own, and drags a corner of the
-    main panel and of that window for 60 frames each. In October 2026 a resize step's
-    `frame` was 7 to 9 ms, after 90 to 100 ms while each window built a new `Renderer`
-    (pipelines, glyph atlases) for every new size.
+    main panel and of that window for 60 frames each. A resize step's `frame` was 7 to 9 ms
+    in October 2026.
   - `cursor` finds two points of the main panel whose cursor icons differ, and moves the
     pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
-    over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
-    after 32 ms while the cursor sprite built a new `Renderer` for every icon.
+    over one icon. A switch's `frame` was about 4 ms in October 2026, as the moves' are.
 - `//crates/beui-host:example-text-bench -- [NAME]` times resizing and editing text.
-- Both beui benches run their frames through the real `Runner`, with no drive layer (so no
-  accessibility dump) and the clock stopped, and push their inputs as a platform would. A
-  frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
-  around the program's update; the open bench takes the renderer's `prepare` out of it.
+- The open and space benches run their frames through the real `Runner`, with no drive
+  layer (so no accessibility dump) and the clock stopped, and push their inputs as a platform
+  would. A frame's time is `Runner::frame`'s, so it includes the intake and the window
+  bookkeeping around the program's update; the open bench takes the renderer's `prepare` out
+  of it.
+
+### Apps and the server
+
 - `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls (set
   pipeline, viewport and scissor, draw) through wasmtime and be-wasm-gpu-host into wgpu's
-  noop device: about 130 ns a call on this machine in October 2026.
-- `//crates/be-block-graph:example-access-bench` times the server's access queries (one block,
-  what one account sees, a block's audience) on an organization of 100,000 blocks.
-- `//crates/be-app-infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
-  opens the canvas editor through be-sdk-test, the way its tests do, on 100 and on 10,000 shapes
-  (or only COUNT). It pans and zooms by the host's view, drags a shape back and forth, draws pen
-  strokes, and draws one stroke of 2,000 samples (`long`, timing its first and last 200), and
-  prints each frame's wall time (the whole host round trip, including the test host applying
-  each edit, keeping its undo history and answering the canvas's references query), beui's
-  layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
-  painted, described for accessibility and walked for it. For ink it also counts the frames between
-  a pen event's delivery and the first frame whose damage covers the pen, which should
-  always be 0. `shape()` is the one place it names the canvas model. An editor with an
-  `examples/` folder is built for the host as well (`app()` in buck/wasm/defs.bzl), which
-  is how an editor gets a benchmark.
-- `./scripts/buck run //crates/be-tool-bench:suite -- [run|compare BASE|list] [NAME...]` runs the
-  benchmarks crates/be-tool-bench/src/suite.rs lists, in release, three rounds each (`--rounds=N`).
-  `compare BASE` alternates them with a suite built at BASE
-  (`./scripts/buck build //crates/be-tool-bench:suite --out BASE` on the base) and prints each
-  metric's fastest and median from both.
-- The suite's `app-canvas-and-text` (crates/be-host-bench) drives be-host headless with no GPU
-  (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
-  through `BE_LATENCY`; the server is pinned to one core and the host to the others.
-  It times what a person waits for: signing in, making, saving, closing, exporting and
-  reopening blocks, and a second device recovering the account. Every wait is one the host
-  answers (`drive wait`, `gone`, `settle`), never a poll, and every command passes
-  `--changes=0`. Its pen stroke sends 400 samples at the start and 400 at the end at 4 a
-  frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
-  two stretches reports its longest frame and how long the ink takes to reach the pen after
-  its last sample (`-catch-up`). It does not measure drawing on a GPU, frame pacing,
-  connection and TLS set-up, bandwidth (`BE_LATENCY` delays but does not throttle), a large
-  organization, a relaunch on warm caches, or two devices editing at once.
+  noop device: about 130 ns a call in October 2026.
+- `//crates/be-block-graph:example-access-bench` times the server's access queries (one
+  block, what one account sees, a block's audience) on an organization of 100,000 blocks.
+- An editor with an `examples/` folder is built for the host as well (`app()` in
+  buck/wasm/defs.bzl), which is how an editor gets a benchmark.
 
-The target for opening a page is under 2 ms warm. The canvas bench measured, in October
-2026:
+### The canvas
+
+`//crates/be-app-infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
+opens the canvas editor through be-sdk-test, the way its tests do, on 100 and on 10,000
+shapes (or only COUNT). It pans and zooms by the host's view, drags a shape back and forth,
+draws pen strokes, and draws one stroke of 2,000 samples (`long`, timing its first and last
+200). It prints each frame's wall time (the whole host round trip, including the test host
+applying each edit, keeping its undo history and answering the canvas's references query),
+beui's layout, paint, interaction and accessibility, and the most nodes one frame measured,
+placed, painted, described for accessibility and walked for it. For ink it also counts the
+frames between a pen event's delivery and the first frame whose damage covers the pen, which
+is 0 when ink shows on the frame its event arrives.
+
+`shape()` is the one place the bench names the canvas model. `camera()` centres a world
+point in the canvas: a view is where the content sits on screen, not the world rectangle it
+shows. The test host's accessibility dump renders its text and test id rects only when
+something reads them, so the bench reads the canvas's rect once rather than every frame.
+
+Measured in October 2026:
 
 | | 100 shapes | 10,000 shapes |
 |---|---|---|
@@ -124,69 +144,61 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | long stroke, p50 wall of its first and last 200 samples | 0.37 ms, 0.53 ms | 5 to 7 ms, 5 to 7 ms |
 | frames from pen event to ink | 0 | 0 |
 
-`camera()` centres a world point in the canvas: a view is where the content sits on
-screen, not the world rectangle it shows.
+What keeps a gesture's cost independent of the document's size:
 
-Every frame of a gesture writes the document (guides/adding_an_app.md), so a drag
-or a pen move is an edit the host applies and the editor reads back. None of that walks the
-document: a be-block-model `Document` keeps its block references up to date from what each edit
-touched once they have been asked for (the test host asks after every edit, the host's
-worker on every publish), the host's worker publishes a block's operations and encodes a
-snapshot only every few hundred of them (`Content` folds the operations since its snapshot
-when something reads it), and an editor holding edits the host has not acknowledged, or a
-follower holding edits the owner has not accepted, rebases them under a peer's edit by what
-either touched (`Document::rebase`) instead of rebuilding; the follower's host tells its
-editors with a `Beneath` operation rather than a snapshot (guides/the_new_block_stack.md).
+- Every frame of a gesture writes the document (guides/adding_an_app.md), so a drag or a pen
+  move is an edit the host applies and the editor reads back. None of that walks the
+  document: a be-block-model `Document` keeps its block references up to date from what each
+  edit touched once they have been asked for (the test host asks after every edit, the
+  host's worker on every publish); the host's worker publishes a block's operations and
+  encodes a snapshot only every few hundred of them (`Content` folds the operations since its
+  snapshot when something reads it); and an editor holding edits the host has not
+  acknowledged, or a follower holding edits the owner has not accepted, rebases them under a
+  peer's edit by what either touched (`Document::rebase`) instead of rebuilding. The
+  follower's host tells its editors with a `Beneath` operation rather than a snapshot
+  (guides/the_new_block_stack.md).
+- A pan, zoom or pen move places and paints only what is in view: a canvas finds the items
+  near its view through a grid of world cells. A pen lift reads only the new stroke: the
+  editor keeps its frames, embedded blocks and content bounds in a catalog fed by the
+  entities each change touched, a keyed mapping that grows at its end builds only the new
+  rows, and the canvas files only the items that changed into its grid. The same catalog
+  files each shape's reach into a grid of world cells, which is what the eraser tests.
+- Accessibility follows the camera the way placement does. Each space a node lays children
+  into (a canvas's clipped, unclipped and scaled spaces, a scroll's content) is one
+  accessibility node whose transform is the space's translation and scale, and the nodes in
+  it are placed in the space's own coordinates, so a pan or scroll changes that one node's
+  transform and sends nothing else. A pan at scale 0.1 still walks the canvas's shown items
+  (cheaply, from what each held) when items come into view, and describes only those.
+- A pen move costs the same at the end of a long stroke as at its start. The pen writes only
+  the new points (`InfiniteCanvasOperation::Extend`, a `Series` append, a stroke keeping its
+  points as drawn in a `points_frame`), the projection re-reads only what was appended
+  (`Model::reread`), the block-ref index re-walks only the changed field, and the canvas
+  draws a stroke being drawn with `freehand::LiveStroke`: it keeps the settled outline,
+  recomputes only the end, and paints the settled part as pieces whose meshes are kept
+  (`Painter::paint_path`), joined on seams that are not antialiased
+  (`PathPaint::with_seams`) so they paint as one fill.
+- Opening still builds an item for every shape
+  (decisions/canvas_builds_every_item_on_open.md).
 
-Accessibility follows the camera the way placement does. Each space a node lays children
-into (a canvas's clipped, unclipped and scaled spaces, a scroll's content) is one
-accessibility node whose transform is the space's translation and scale, and the nodes in it
-are placed in the space's own coordinates, so a pan or scroll changes that one node's
-transform and sends nothing else. A pan at scale 0.1 still walks the canvas's shown items
-(cheaply, from what each held) when items come into view, and describes only those. The test
-host's accessibility dump renders its text and test id rects only when something reads them,
-so the bench reads the canvas's rect once rather than every frame.
+## Comparing two builds
 
-A pen move costs the same at the end of a long stroke as at its start. The pen writes only
-the new points (`InfiniteCanvasOperation::Extend`, a `Series` append, a stroke keeping its points
-as drawn in a `points_frame`), the projection re-reads only what was appended
-(`Model::reread`), the block-ref index re-walks only the changed field, and the canvas draws a
-stroke being drawn with `freehand::LiveStroke`: it keeps the settled outline, recomputes only
-the end, and paints the settled part as pieces whose meshes are kept (`Painter::paint_path`),
-joined on seams that are not antialiased (`PathPaint::with_seams`) so they paint as one fill.
-
-A pan, zoom or pen move places and paints only what is in view. A canvas
-finds the items near its view through a grid of world cells, so only what is in view costs
-anything. A pen lift reads only the new stroke:
-the editor keeps its frames, embedded blocks and content bounds in a catalog fed by the
-entities each change touched, a keyed mapping that grows at its end builds only the new
-rows, and the canvas files only the items that changed into its grid. The same catalog
-files each shape's reach into a grid of world cells, which is what the eraser tests.
-
-Opening still builds an item for every shape. Building them only once they come near the
-view would need each item's reach (stroke, hand-drawn wobble, labels and text) before the
-item exists, and would move the cost into the first pans over a dense canvas; it would at
-best halve opening 10,000 shapes, since loading the document and the test host's store
-take as long as building the items.
-
-2. Comparing two builds
-
-Time on a shared VM drifts by 10% or more between runs, which hides most single changes:
+Time on a shared VM drifts by 10% or more between runs, which hides most single changes.
 
 - Build the suite of each build first, then run them alternately, several times each:
-  `./scripts/buck build //crates/be-tool-bench:suite --out DIR/base` on the base and again with
-  `--out DIR/change`, then `DIR/change/bench compare DIR/base [--rounds=N] [NAME...]`, which
-  runs each benchmark from one suite and then the other, swapping which goes first every
-  round, and prints both suites' fastest and median of each metric and how much the
-  change's fastest differs. A suite copies everything it runs, so a later build or
-  checkout does not change it.
-- Compare each page's fastest warm open, never one run's median.
+  `./scripts/buck build //crates/be-tool-bench:suite --out DIR/base` on the base and again
+  with `--out DIR/change`, then `DIR/change/bench compare DIR/base [--rounds=N] [NAME...]`,
+  which runs each benchmark from one suite and then the other, swapping which goes first
+  every round, and prints both suites' fastest and median of each metric and how much the
+  change's fastest differs. A suite copies everything it runs, so a later build or checkout
+  does not change it.
+- A page's fastest warm open is the steadiest figure to compare; one run's median moves with
+  the VM's drift.
 - Allocation counts don't drift: the same build gives the same count to within one or two.
   A change meant to allocate less shows up there even when its time is lost in noise. They
-  are not time, though: reserving room for eight cleanups in every scope saved a
-  tenth of the allocations and made opening a page 2.5% slower.
+  are not time, though: fewer allocations can still be slower
+  (decisions/reactive_scopes_keep_their_simple_paths.md has an example).
 
-3. Profiling
+## Profiling
 
 Release builds keep frame pointers, so perf walks stacks cheaply and completely. Set up:
 
@@ -213,117 +225,109 @@ or dump stacks to fold them yourself:
 
     perf script -i perf.data --no-inline -F ip,sym | rustfilt
 
-- Always pass `--no-inline`. Without it perf runs addr2line on every frame, and a few
-  seconds of samples take over fifteen minutes to resolve.
-- Don't use `--call-graph dwarf`. It copies a fixed slice of the stack per sample, drops
-  samples it can't keep up with, and cuts off beui's deep reactive stacks, so the profile it
-  gives leans towards shallow work. One that lost samples showed tearing a page down as 43%
-  of opening it; frame pointers showed 18%.
+- Pass `--no-inline`: without it perf runs addr2line on every frame, and a few seconds of
+  samples take over fifteen minutes to resolve.
+- `--call-graph dwarf` gives a skewed profile: it copies a fixed slice of the stack per
+  sample, drops samples it can't keep up with, and cuts off beui's deep reactive stacks, so
+  it leans towards shallow work. One that lost samples showed tearing a page down as 43% of
+  opening it; frame pointers showed 18%.
 - To see where allocations come from, probe malloc:
   `perf probe -x /lib/x86_64-linux-gnu/libc.so.6 malloc`, record with
   `-e probe_libc:malloc -g`, and `perf probe -d 'probe_libc:*'` afterwards.
-- To profile be-host itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
-  -m release //crates/be-host:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
-  apps' compiled wasm has names, and record the running host with `perf record -g -p PID`
-  around the `drive` commands being measured. Each app runs on a thread named
-  `app <id>` (cut to 15 characters, such as `app be3.data`), so `perf report --sort comm`
-  splits the report by app and `--comms 'app be3.data'` keeps one app's samples.
-  Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
-  scroll's or resize's samples; leave them out when judging the host's own work.
-  The block store's worker is the thread `be-host-be`, and `:dev`'s embedded server runs on
-  `tokio-rt-worker` threads.
+
+### Profiling be-host
+
+- Start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run -m release
+  //crates/be-host:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the apps'
+  compiled wasm has names, and record the running host with `perf record -g -p PID` around
+  the `drive` commands being measured.
+- Each app runs on a thread named `app <id>` (cut to 15 characters, such as
+  `app be3.data`), so `perf report --sort comm` splits the report by app and
+  `--comms 'app be3.data'` keeps one app's samples. The block store's worker is the thread
+  `be-host-be`, and `:dev`'s embedded server runs on `tokio-rt-worker` threads. Without a
+  GPU, wgpu draws through llvmpipe on its own threads, which take most of a scroll's or
+  resize's samples; leave them out when judging the host's own work.
 - Time be-host's waits as well as its work: an import or a create that uses little CPU but
-  takes long is waiting on round trips to the server, one after another. Run `drive hurry off`
-  first (guides/running/drive.md): otherwise the host seals edits at once, and anything shown
-  only once an edit is sealed looks faster under `drive` than in a window.
+  takes long is waiting on round trips to the server, one after another. Run
+  `drive hurry off` first (guides/running/drive.md): otherwise the host seals edits at once,
+  and anything shown only once an edit is sealed looks faster under `drive` than in a window.
 - To fill an organization with data, create a company organization on the dev host's
   Organizations screen (the personal one has no agents), add an agent from the host's menu
   (Agents), share a workspace with it, and point a `be` built from the checkout at it with
   the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
   and `import` a generated CSV make a tracker of any size.
 
-4. Starting be-host
+## Starting be-host
 
-Reopening the host should go straight from the page or window to the workspace the last
-session left, with every step that can overlap running at once. What keeps it that way:
+Reopening the host goes straight from the page or window to the workspace the last session
+left, with every step that can overlap running at once
+(decisions/host_startup_overlaps_app_loading.md). What does it:
 
-- The last organization opened is kept with its account in the host's state, so a restart opens
-  it without waiting for the server's organization list and keys, which are fetched in
-  the background (`resume_organization` in crates/be-host/src/main.rs). If the list
-  no longer has it, the host falls back to the organization list.
+- The last organization opened is kept with its account in the host's state, so a restart
+  opens it without waiting for the server's organization list and keys, which are fetched in
+  the background (`resume_organization` in crates/be-host/src/main.rs). If the list no
+  longer has it, the host falls back to the organization list.
 - The apps whose editors were open are kept in the host's state too, and are started with
-  the shell's app and the apps of the editors the shell's manifest `opens`
-  (`warm_apps` in crates/be-host/src/main.rs, `be_host_runtime::warm`), before the
-  shell asks for them. The host warms them as soon as it knows it will open a workspace (an
-  account signed in or signing in), before its window and GPU are set up: an app warmed
-  before `install` loads, links and instantiates on its own thread at once, waits for the
-  host's device only when it first reaches the GPU, and becomes the runtime that `install`
-  creates for it. Starting workspace-ui and the file tree together, there, took the time to
-  the Files pane from about 0.92 s to 0.76 s locally (October 2026). Most of an app's
-  start is `App::new` linking its libraries (about 0.3 s each, the two at once);
-  deserializing its mapped `.cwasm` takes a few milliseconds. An app with no editors open
-  idles once it has loaded, and is stopped to free its memory and threads once it has had none
-  for `IDLE_TIMEOUT` (30 s by the host's clock, `Host::stop_idle` in
-  be-host-runtime/src/runtime.rs, run from `poll`); a warmed app nothing opens is stopped
-  the same way. Opening one of its editors again starts it afresh.
+  the shell's app and the apps of the editors the shell's manifest `opens` (`warm_apps` in
+  crates/be-host/src/main.rs, `be_host_runtime::warm`), before the shell asks for them. The
+  host warms them as soon as it knows it will open a workspace (an account signed in or
+  signing in), before its window and GPU are set up: an app warmed before `install` loads,
+  links and instantiates on its own thread at once, waits for the host's device only when it
+  first reaches the GPU, and becomes the runtime that `install` creates for it. Most of an
+  app's start is `App::new` linking its libraries (about 0.3 s each, the two at once);
+  deserializing its mapped `.cwasm` takes a few milliseconds.
+- An app with no editors open idles once it has loaded, and is stopped to free its memory
+  and threads once it has had none for `IDLE_TIMEOUT` (30 s by the host's clock,
+  `Host::stop_idle` in be-host-runtime/src/runtime.rs, run from `poll`); a warmed app nothing
+  opens is stopped the same way. Opening one of its editors again starts it afresh.
 - On desktop every `.cwasm` is mapped from its file (`Stored::File`, wasmtime's
-  `Module::deserialize_file`) rather than read into memory and copied: the host's
-  apps, libraries and type modules come to about 400 MB, and mapping them took about a
-  third of a second off the time to the workspace's Files pane (October 2026).
+  `Module::deserialize_file`) rather than read into memory and copied; the host's apps,
+  libraries and type modules come to about 400 MB.
 - The host prefetches the content of an editor's references (up to four) as soon as its
   block's node is known, so a database view's database loads beside the view.
-- The be worker joins every queued `Open` concurrently. Its loop still awaits listings
-  between commands, so keep each query to one listing request: a block's references
-  come in one `ListReferences`, not one `ReadBlock` each.
+- The be worker joins every queued `Open` concurrently, but its loop awaits listings between
+  commands, so a query that makes several listing requests holds up every command queued
+  behind it. A block's references come in one `ListReferences`, not one `ReadBlock` each.
 - On the web, app manifests are fetched together, before the first frame.
 - workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
   named before its block's info arrives.
 
-5. Size
+## Size
 
 What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`:
 be-host, every app and type module, the two libraries (guides/app_libraries.md), and a
 `.cwasm` of each. In October 2026 on Linux x86_64 that was 896 MB, 297 MB gzipped:
 
 - `.cwasm`, 595 MB (198 MB gzipped): Cranelift's machine code is about two and a half times
-  the wasm code it compiles, so it shrinks only as the wasm code does. Shipping without
-  it moves 95 seconds of compiling (four cores) to the first start, 42 of them the beui
-  library's.
+  the wasm code it compiles, so it shrinks only as the wasm code does.
 - `.wasm`, 198 MB: 151 MB of code, of which apps are most; each instantiates beui's and
   `beui-reactive`'s generics for its own types, which no library can hold. Type modules are
-  standalone, 1.8 MB each, mostly `be-block-model`, `be-lib-sequence` and `be-sdk-type-guest` again.
+  standalone, 1.8 MB each, mostly `be-block-model`, `be-lib-sequence` and
+  `be-sdk-type-guest` again.
 - be-host, 102 MB: 66 MB of code, 24 MB of symbols, the rest unwind tables and data.
 
 To see where it goes: `size -A` and `nm -S --size-sort -C` for be-host, twiggy
-(`cargo install twiggy`, `twiggy top -n 100000 --format csv`) for a module, and
-`size -A` on a `.cwasm`, which is an ELF file. Attribute a generic instance to the
-innermost first-party type in its name, not to `core` or `alloc`: that is what put
-`beui-reactive` first. Keep code that does not depend on a type parameter out of generic
-functions (`probe_erased`, `Computation::new`'s `parts`), since every closure type copies it.
+(`cargo install twiggy`, `twiggy top -n 100000 --format csv`) for a module, and `size -A` on
+a `.cwasm`, which is an ELF file. Attribute a generic instance to the innermost first-party
+type in its name, not to `core` or `alloc`: that is what put `beui-reactive` first. Code in
+a generic function that does not depend on its type parameter is copied for every instance,
+and every closure type makes one, so moving it out (`probe_erased`, `Computation::new`'s
+`parts`) shrinks every module.
 
-What is already in place: fat LTO with one codegen unit for the deploy only (`be3.lto`, a ten
-minute link), legacy symbol mangling in release (buck/platforms/profile.bzl) and the hashed
-export names of linked modules (guides/app_libraries.md). Thin LTO left be-host as it was,
-and `opt-level=s` for wasm took a twentieth off the apps while growing both libraries and
-beui-gallery by four fifths. Stripping be-host's symbols or the modules' name sections
-would take 24 MB and 27 MB more, but the panic guard's reports and a guest's backtrace read them.
+The release settings in place are fat LTO with one codegen unit for the deploy only
+(`be3.lto`, a ten minute link), legacy symbol mangling in release
+(buck/platforms/profile.bzl) and the hashed export names of linked modules
+(guides/app_libraries.md); the alternatives measured are in
+decisions/shipped_bundle_size_settings.md.
 
-6. Ideas tried and set aside
+## Ideas set aside
 
-Each of these helped, but works around a cost rather than removing it. Keep them for when
-nothing better is left.
+Each of these helped, but works around a cost rather than removing it; they are kept for
+when nothing better is left:
 
-- Disposing a closed page after the frame instead of during it. Teardown should be fast
-  rather than hidden; deferring it saved about 12% of opening a page.
-- Replacing the system allocator with jemalloc (about 15% faster) or mimalloc (about 6%).
-  Allocate less instead.
-- Building the accessibility tree only while a screen reader asks for it. It is wanted
-  often; make building it cheaper instead. Switching it off saved about 4%.
-- Rasterizing ASCII in idle time so a page's first open finds its glyphs ready.
+- decisions/page_teardown_runs_during_the_frame.md
+- decisions/system_allocator_over_jemalloc_or_mimalloc.md
+- decisions/accessibility_tree_always_built.md
+- decisions/no_idle_time_glyph_prerasterizing.md
 
-These were measured and changed nothing worth their code:
-
-- Skipping the reactive context a disposing scope enters when disposal is already
-  untracked: checking cost more than it saved.
-- Giving a component no scope of its own until something is created in it: only about one
-  component scope in ten ends up empty, because nearly every component probes a binding.
+Measured and not worth their code: decisions/reactive_scopes_keep_their_simple_paths.md.

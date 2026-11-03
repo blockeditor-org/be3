@@ -21,8 +21,8 @@ Where code belongs:
   downloaded to run it;
 - inside an action on a worker: a tool the action depends on, built by buck2.
 
-A command is one buck2 invocation, and the bootstrap runs it; the one
-exception is `BE3_BOOTSTRAP=source`, below.
+A command is one buck2 invocation, which the bootstrap runs;
+`BE3_BOOTSTRAP=source` (below) is the one command that takes two.
 
 Every question the bootstrap or `crates/be-tool-local` asks at a terminal goes
 through `crates/be-lib-prompt`: a menu moved with
@@ -60,20 +60,21 @@ release to it: six release builds cost every run about 600 actions, for a
 crate that seldom changes, so after changing it run `./scripts/ci` to see
 it build for every platform.
 
-Nobody publishes by hand. On a pull request from this repository, CI runs
+CI publishes the release; nothing is published by hand. On a pull request
+from this repository, CI runs
 `./scripts/ci --bootstrap DIR`, which has that comparison keep each binary
 whose hash is not pinned, so only a changed release is downloaded;
-`crates/be-tool-verify` writes those into `DIR` under their SHA-256 and rewrites their
-pins. The
-`publish-bootstrap` job uploads them to the be3-ci Bunny zone, and the
+`crates/be-tool-verify` writes those into `DIR` under their SHA-256 and
+rewrites their pins. The `publish-bootstrap` job uploads them to the be3-ci Bunny zone, and the
 autofix job, which waits for it, pushes the new pins to the pull request. A
 name that is its content's hash never changes what it points at, and nothing
 deletes them, so every commit's pins keep working.
 
 Every commit is verified with the release pinned before it, so whatever that
 release passes to, reads from or writes into the tree (verify.bxl's
-parameters, be-tool-verify's flags, the names in scripts/internal/pins, build-info.json's path and keys, env vars)
-must keep working with it. Renaming one takes steps, each landing after CI pins
+parameters, be-tool-verify's flags, the names in scripts/internal/pins,
+build-info.json's path and keys, env vars) has to keep working with it, or that
+commit's verify fails. Renaming one takes steps, each landing after CI pins
 the release built from the step before: first the bootstrap speaks the new name
 while the tree accepts both, then the tree drops the old one. A directory the
 release writes into needs a tracked file to keep it in a checkout until a
