@@ -84,6 +84,14 @@ impl Bars {
     pub(crate) fn all(self) -> [TabId; 3] {
         [self.programs, self.windows, self.status]
     }
+
+    fn as_bar_of(self, tab: TabId, display: u32) -> TabId {
+        self.all()
+            .into_iter()
+            .zip(Self::of(display).all())
+            .find(|(own, _)| *own == tab)
+            .map_or(tab, |(_, other)| other)
+    }
 }
 
 pub(crate) fn display_layout(
@@ -104,7 +112,7 @@ pub(crate) fn display_layout(
                 .ok()?
                 .into_iter()
                 .find(|(held, _)| held == monitor)
-                .map(|(_, saved)| saved.snapshot())
+                .map(|(_, saved)| saved.map_tabs(|tab| Bars::of(0).as_bar_of(tab, display)).snapshot())
         });
         layout.restore(saved.unwrap_or_else(|| untrack(|| like_the_first(first, display))));
         showing.set(monitor);
@@ -118,7 +126,8 @@ pub(crate) fn display_layout(
     });
     let readable = create_memo(move || saved_bars(editor).is_ok());
     create_effect(move || {
-        let saved = SavedDockLayout::of(&layout.snapshot());
+        let saved = SavedDockLayout::of(&layout.snapshot())
+            .map_tabs(|tab| Bars::of(display).as_bar_of(tab, 0));
         let Some(monitor) = showing.get().filter(|_| readable.get()) else {
             return;
         };
