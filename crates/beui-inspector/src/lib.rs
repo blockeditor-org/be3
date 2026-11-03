@@ -26,7 +26,7 @@ use beui_components_styled::Theme;
 use beui_core::current::{with_document, with_reactive_scope};
 use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::screen_simulation::ScreenSimulation;
-use beui_dock::unstyled::{DockKey, DockMode, DockingLayout};
+use beui_dock::{DockKey, DockMode, DockingLayout};
 use beui_types::LayerPolicy;
 use beui_types::NodeId;
 use beui_types::PreferenceLayer;
@@ -73,7 +73,7 @@ impl InspectorTab {
     }
 }
 
-impl beui_dock::unstyled::DockKey for InspectorTab {
+impl beui_dock::DockKey for InspectorTab {
     fn key(&self) -> String {
         format!("{self:?}")
     }

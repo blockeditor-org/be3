@@ -1,4 +1,5 @@
-use be_sdk_beui::beui::dock::styled::{DockingLayout, TabId};
+use be_sdk_beui::beui::dock::{DockingLayout, TabId};
+use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
 use be_sdk_beui::beui::icons::{
     ICON_BOXES, ICON_LAYOUT_GRID, ICON_MENU, ICON_PANEL_BOTTOM_OPEN, ICON_PLUS,
 };
@@ -92,7 +93,7 @@ impl ProgramsPanel {
 pub(crate) fn ProgramsPanelKey(
     programs_panel: ProgramsPanel,
     windows: DeskWindows,
-    layout: DockingLayout<TabId>,
+    host: DockHostLayout,
 ) -> NodeId {
     let pointed = move || {
         let displays = windows.displays();
@@ -101,7 +102,7 @@ pub(crate) fn ProgramsPanelKey(
             displays.iter().position(|display| display.contains(at))
         });
         let focused = || {
-            let window = layout.focused().and_then(|key| layout.window_rect(&key))?;
+            let window = host.focused().and_then(|tab| host.window_rect(tab))?;
             Some(super::windows::holder(Some(window), &displays) as usize)
         };
         pointer.or_else(focused).unwrap_or(0) as u32

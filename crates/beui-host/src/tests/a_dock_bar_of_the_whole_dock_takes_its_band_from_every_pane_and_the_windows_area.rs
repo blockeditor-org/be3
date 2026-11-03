@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockWindow,
     DockingLayout, SplitSize,
 };
@@ -14,39 +14,41 @@ fn a_dock_bar_of_the_whole_dock_takes_its_band_from_every_pane_and_the_windows_a
         let layout = DockingLayout::<u64>::new();
         handle.set(Some(layout));
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
-                    <DockPane id="stage">
-                        <DockTab id=1u64 title="One">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                        <DockTab id=3u64 title="Three">
-                            <Frame @test_id="content.3" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="side">
-                        <DockTab id=2u64 title="Side">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-                <DockWindow
-                    id="floating"
-                    rect={Rect::from_min_size(pos2(500.0, 590.0), vec2(300.0, 200.0))}
-                >
-                    <DockPane id="floating">
-                        <DockTab id=4u64 title="Floating">
-                            <Frame @test_id="content.4" />
-                        </DockTab>
-                    </DockPane>
-                </DockWindow>
-                <DockBar
-                    id=9u64
-                    placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
-                >
-                    <TestToolBar />
-                </DockBar>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
+                        <DockPane id="stage">
+                            <DockTab id=1u64 title="One">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                            <DockTab id=3u64 title="Three">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="side">
+                            <DockTab id=2u64 title="Side">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                    <DockWindow
+                        id="floating"
+                        rect={Rect::from_min_size(pos2(500.0, 590.0), vec2(300.0, 200.0))}
+                    >
+                        <DockPane id="floating">
+                            <DockTab id=4u64 title="Floating">
+                                <Frame @test_id="content.4" />
+                            </DockTab>
+                        </DockPane>
+                    </DockWindow>
+                    <DockBar
+                        id=9u64
+                        placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
+                    >
+                        <TestToolBar />
+                    </DockBar>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let layout = built.get().expect("the dock was built");

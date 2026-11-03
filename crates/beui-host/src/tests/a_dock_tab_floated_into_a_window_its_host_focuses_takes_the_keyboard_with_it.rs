@@ -8,25 +8,27 @@ fn a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it(
     let first = create_signal(String::new());
     let other = create_signal(String::new());
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::new();
+        let layout = dock::DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <dock::unstyled::DockSplit id="split">
-                    <dock::unstyled::DockPane id="left">
-                        <dock::unstyled::DockTab id=1u64 title="Tab 1">
-                            <styled::TextInput @test_id="first" value={first} label="First" />
-                        </dock::unstyled::DockTab>
-                        <dock::unstyled::DockTab id=3u64 title="Tab 3">
-                            <styled::TextInput @test_id="other" value={other} label="Other" />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                    <dock::unstyled::DockPane id="right">
-                        <dock::unstyled::DockTab id=2u64 title="Tab 2">
-                            <Frame />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                </dock::unstyled::DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <dock::DockSplit id="split">
+                        <dock::DockPane id="left">
+                            <dock::DockTab id=1u64 title="Tab 1">
+                                <styled::TextInput @test_id="first" value={first} label="First" />
+                            </dock::DockTab>
+                            <dock::DockTab id=3u64 title="Tab 3">
+                                <styled::TextInput @test_id="other" value={other} label="Other" />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                        <dock::DockPane id="right">
+                            <dock::DockTab id=2u64 title="Tab 2">
+                                <Frame />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                    </dock::DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockingLayout};
+use crate::dock::DockingLayout;
+use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
 
 #[test]
@@ -9,19 +10,21 @@ fn a_frame_of_moves_dragging_a_window_changes_the_dock_once() {
     let layout = DockingLayout::<u64>::new();
     let document = build_node(move || {
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <dock::unstyled::DockPane id="desktop" />
-                <dock::unstyled::DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
-                >
-                    <dock::unstyled::DockPane id="program">
-                        <dock::unstyled::DockTab id=1u64 title="Program">
-                            <Frame />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                </dock::unstyled::DockWindow>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <dock::DockPane id="desktop" />
+                    <dock::DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
+                    >
+                        <dock::DockPane id="program">
+                            <dock::DockTab id=1u64 title="Program">
+                                <Frame />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                    </dock::DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

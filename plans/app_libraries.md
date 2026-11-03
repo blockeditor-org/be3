@@ -4,7 +4,7 @@ Apps link any set of shared libraries (guides/app_libraries.md): Rust apps link 
 
 ## Docks and overlays below beui
 
-`be-sdk-beui`'s `docked.rs` is built on `beui::dock::unstyled`, and the floats, scrims and window requests in the `Frame` accounting (anchored views, floated windows and scrims in be-sdk-beui-platform) are the overlay API. Both were still changing, so they stayed where they are. Move them below beui once they settle, in the same change that would let a second framework use them. `related_content.rs` and the memo-based walks in `editor/settings.rs` and `editor/tags.rs` also stayed in be-sdk-beui.
+`be-sdk-beui`'s `docked.rs` is built on `beui::dock` and `beui::dock_host`, and the floats, scrims and window requests in the `Frame` accounting (anchored views, floated windows and scrims in be-sdk-beui-platform) are the overlay API. Both were still changing, so they stayed where they are. Move them below beui once they settle, in the same change that would let a second framework use them. `related_content.rs` and the memo-based walks in `editor/settings.rs` and `editor/tags.rs` also stayed in be-sdk-beui.
 
 ## External textures
 

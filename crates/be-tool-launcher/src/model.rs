@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use beui::Image;
 #[cfg(not(target_os = "android"))]
-use beui::dock::styled::{DockDocuments, DockSlot, DockingLayout};
+use beui::dock::{DockDocuments, DockSlot, DockingLayout};
 use beui::reactive::*;
 
 use crate::builds::Slot;
@@ -19,7 +19,7 @@ pub(crate) enum Tab {
 }
 
 #[cfg(not(target_os = "android"))]
-impl beui::dock::unstyled::DockKey for Tab {
+impl beui::dock::DockKey for Tab {
     fn key(&self) -> String {
         match self {
             Tab::PullRequest(slot) => format!("pull-request/{}", slot.value()),

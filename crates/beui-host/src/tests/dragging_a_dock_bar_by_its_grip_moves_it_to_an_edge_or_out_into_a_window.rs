@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window() {

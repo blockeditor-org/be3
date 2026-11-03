@@ -64,7 +64,7 @@ fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
         .expect("the app made its layout");
     let state = layout.state().get_untracked();
     assert!(state.find_group("joined:1").is_some());
-    assert!(!state.contains(beui::dock::unstyled::TabId::new(1)));
+    assert!(!state.contains(beui::dock::TabId::new(1)));
     let hosted: Vec<_> = dock_messages(&mut session)
         .into_iter()
         .filter_map(|message| match message {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockApi;
+use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
 
 #[test]
@@ -7,29 +7,31 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::new();
+        let layout = dock::DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
-                <dock::unstyled::DockPane
-                    id="desktop"
-                    empty={|| view! {
-                        <Frame />
-                    }}
-                />
-                <dock::unstyled::DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
-                >
-                    <dock::unstyled::DockPane id="program">
-                        <dock::unstyled::DockTab id=1u64 title="Program">
-                            <Frame @test_id="content" />
-                        </dock::unstyled::DockTab>
-                        <dock::unstyled::DockTab id=2u64 title="Other">
-                            <Frame @test_id="other" />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                </dock::unstyled::DockWindow>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost drag_modifier={Some(Modifiers::LOGO)} @node_ref=&dock>
+                <dock::Docking layout>
+                    <dock::DockPane
+                        id="desktop"
+                        empty={|| view! {
+                            <Frame />
+                        }}
+                    />
+                    <dock::DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
+                    >
+                        <dock::DockPane id="program">
+                            <dock::DockTab id=1u64 title="Program">
+                                <Frame @test_id="content" />
+                            </dock::DockTab>
+                            <dock::DockTab id=2u64 title="Other">
+                                <Frame @test_id="other" />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                    </dock::DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

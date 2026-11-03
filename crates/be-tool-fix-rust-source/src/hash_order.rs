@@ -1,7 +1,7 @@
 use ra_ap_syntax::ast::{self, AstNode};
 use ra_ap_syntax::{SourceFile, SyntaxNode};
 
-const STABLE_CRATES: [&str; 32] = [
+const STABLE_CRATES: [&str; 34] = [
     "beui-reactive",
     "beui-tree",
     "beui-types",
@@ -12,6 +12,8 @@ const STABLE_CRATES: [&str; 32] = [
     "beui-components-unstyled",
     "beui-components-styled",
     "beui-dock",
+    "beui-dock-host",
+    "beui-dock-state",
     "beui-host",
     "beui-inspector",
     "beui-layer-drive",

@@ -1,10 +1,10 @@
 use std::cell::Cell;
 
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
-    SplitSize,
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
 use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;

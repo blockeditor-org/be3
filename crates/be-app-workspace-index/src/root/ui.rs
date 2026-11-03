@@ -2,10 +2,9 @@ use beui::Overflow;
 use uuid::Uuid;
 
 use be_sdk_beui::Editor;
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
-};
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

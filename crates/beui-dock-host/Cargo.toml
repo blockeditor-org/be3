@@ -1,0 +1,22 @@
+[package]
+name = "beui-dock-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+accesskit = "0.24.1"
+beui-components-styled = { path = "../beui-components-styled" }
+beui-components-unstyled = { path = "../beui-components-unstyled" }
+beui-dock = { path = "../beui-dock" }
+beui-dock-state = { path = "../beui-dock-state" }
+beui-view = { path = "../beui-view" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+
+[dev-dependencies]
+beui-core = { path = "../beui-core" }
+
+[lints]
+workspace = true

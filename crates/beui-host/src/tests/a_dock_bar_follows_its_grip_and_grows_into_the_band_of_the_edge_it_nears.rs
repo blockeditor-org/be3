@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {

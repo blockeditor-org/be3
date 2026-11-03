@@ -1,8 +1,9 @@
-use beui::dock::styled::Docking;
-use beui::dock::unstyled::{
+use beui::dock::Docking;
+use beui::dock::{
     DockPane, DockSplit, DockState, DockTab, DockTree, DockTreeEntry, DockingLayout, SplitSize,
     TabId, Tree,
 };
+use beui::dock_host::styled::DockHost;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Direction, ItemSize};
@@ -109,26 +110,28 @@ pub fn DockingFixture() -> NodeId {
         <List spacing=Space::Md>
             <Text>{described}</Text>
             <Frame width=Size::Custom(900.0) height=Size::Custom(520.0)>
-                <Docking layout>
-                    <DockSplit
-                        id="root"
-                        direction=Direction::Horizontal
-                        size={SplitSize::Fraction(0.5)}
-                    >
-                        <DockPane id="left">
-                            <ForEach keys={open}>|tab: TabId|
-                                <DockTab id=tab title={name(tab)} on_close={move || close(tab)}>
-                                    <Panel tab />
+                <DockHost>
+                    <Docking layout>
+                        <DockSplit
+                            id="root"
+                            direction=Direction::Horizontal
+                            size={SplitSize::Fraction(0.5)}
+                        >
+                            <DockPane id="left">
+                                <ForEach keys={open}>|tab: TabId|
+                                    <DockTab id=tab title={name(tab)} on_close={move || close(tab)}>
+                                        <Panel tab />
+                                    </DockTab>
+                                </ForEach>
+                            </DockPane>
+                            <DockPane id="right">
+                                <DockTab id=GAMMA title="Gamma">
+                                    <Panel tab=GAMMA />
                                 </DockTab>
-                            </ForEach>
-                        </DockPane>
-                        <DockPane id="right">
-                            <DockTab id=GAMMA title="Gamma">
-                                <Panel tab=GAMMA />
-                            </DockTab>
-                        </DockPane>
-                    </DockSplit>
-                </Docking>
+                            </DockPane>
+                        </DockSplit>
+                    </Docking>
+                </DockHost>
             </Frame>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>

@@ -1,7 +1,7 @@
 use std::sync::mpsc::channel;
 
 use be_sdk_test::DocumentTest;
-use beui::dock::unstyled::DockKey;
+use beui::dock::DockKey;
 use beui::reactive::untrack;
 use beui::{Input, Modifiers, Vec2};
 

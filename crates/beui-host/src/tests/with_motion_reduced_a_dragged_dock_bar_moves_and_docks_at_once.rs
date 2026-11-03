@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 use crate::reactive::Motion;
 use crate::{PreferenceLayer, PreferenceSource};
 

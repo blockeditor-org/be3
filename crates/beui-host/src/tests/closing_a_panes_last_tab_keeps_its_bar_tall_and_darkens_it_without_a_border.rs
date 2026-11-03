@@ -6,27 +6,25 @@ use crate::styled::*;
 #[test]
 fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border() {
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::new();
+        let layout = dock::DockingLayout::new();
         let open = create_signal(true);
         view! {
-            <dock::styled::Docking layout>
-                <dock::unstyled::DockPane
-                    id="tabs"
-                    empty={move || view! {
-                        <Frame @test_id={"nothing_open"} />
-                    }}
-                >
-                    <Show condition={open}>
-                        <dock::unstyled::DockTab
-                            id=1u64
-                            title="Tab 1"
-                            on_close={move || open.set(false)}
-                        >
-                            <Frame @test_id={"content.1"} />
-                        </dock::unstyled::DockTab>
-                    </Show>
-                </dock::unstyled::DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <dock::DockPane
+                        id="tabs"
+                        empty={move || view! {
+                            <Frame @test_id={"nothing_open"} />
+                        }}
+                    >
+                        <Show condition={open}>
+                            <dock::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                                <Frame @test_id={"content.1"} />
+                            </dock::DockTab>
+                        </Show>
+                    </dock::DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

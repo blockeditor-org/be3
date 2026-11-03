@@ -202,9 +202,9 @@ thread_local! {
     static CLOSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
-    static LAYOUT: std::cell::Cell<Option<beui::dock::unstyled::DockingLayout<u64>>> =
+    static LAYOUT: std::cell::Cell<Option<beui::dock::DockingLayout<u64>>> =
         const { std::cell::Cell::new(None) };
-    static BAR: std::cell::Cell<Option<beui::dock::unstyled::DockBarControl>> =
+    static BAR: std::cell::Cell<Option<beui::dock::DockBarControl>> =
         const { std::cell::Cell::new(None) };
 }
 
@@ -226,7 +226,7 @@ fn CountedBody(editor: crate::Editor) -> beui::NodeId {
                 on_state={move |_: crate::ChildState| {}}
                 docked_tab={RenderFn::new(|docked: crate::ChildDockTab| {
                     DOCK_TABS.with(|tabs| tabs.borrow_mut().push((docked.owner, docked.menu)));
-                    beui::dock::unstyled::dock_menu(docked.menu);
+                    beui::dock::dock_menu(docked.menu);
                     docked.body
                 })}
             />
@@ -240,7 +240,7 @@ struct DockedRoot;
 impl crate::BeuiRoot for DockedRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
-        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
+        use beui::dock::{DockPane, DockTab, Docking, DockingLayout};
         use beui::reactive::*;
         let layout = DockingLayout::<u64>::new();
         LAYOUT.with(|held| held.set(Some(layout)));
@@ -275,7 +275,7 @@ fn docked_session() -> EditorSession {
 #[beui::reactive::component]
 fn BarProbe() -> beui::NodeId {
     use beui::reactive::*;
-    let bar = beui::dock::unstyled::use_dock_bar();
+    let bar = beui::dock::use_dock_bar();
     BAR.with(|held| held.set(bar));
     let vertical =
         create_memo(move || bar.is_some_and(|bar| bar.direction() == beui::Direction::Vertical));
@@ -293,8 +293,8 @@ struct BarredRoot;
 impl crate::BeuiRoot for BarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
-        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
-        use beui::dock::unstyled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::{DockPane, DockTab, Docking, DockingLayout};
         use beui::reactive::*;
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
@@ -310,7 +310,7 @@ impl crate::BeuiRoot for BarredRoot {
                     <DockBar
                         id=3u64
                         parent=1u64
-                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)
+                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::DockAlign::Center)
                     >
                         <BarProbe />
                     </DockBar>
@@ -331,8 +331,8 @@ struct DockBarredRoot;
 impl crate::BeuiRoot for DockBarredRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
-        use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
-        use beui::dock::unstyled::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::{DockPane, DockTab, Docking, DockingLayout};
         use beui::reactive::*;
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
@@ -347,7 +347,7 @@ impl crate::BeuiRoot for DockBarredRoot {
                     </DockPane>
                     <DockBar
                         id=3u64
-                        placement=DockBarPlacement::Beside(DockEdge::Bottom, beui::dock::unstyled::DockAlign::Center)
+                        placement=DockBarPlacement::Beside(DockEdge::Bottom, beui::dock::DockAlign::Center)
                     >
                         <BarProbe />
                     </DockBar>

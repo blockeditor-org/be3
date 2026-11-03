@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockDialog, DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
+use crate::dock::{DockDialog, DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 #[test]
 fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
@@ -16,40 +16,42 @@ fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
             false => vec![12u64],
         });
         view! {
-            <dock::styled::Docking layout=outer focus=2u64>
-                <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
-                    <DockPane id="side">
-                        <DockTab id=1u64 title="Side">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="main">
-                        <DockTab id=2u64 title="Nested">
-                            <dock::styled::Docking layout=inner focus=11u64>
-                                <DockPane id="inner">
-                                    <DockTab id=10u64 title="Inner 10">
-                                        <Frame @test_id="content.10" />
-                                    </DockTab>
-                                    <DockTab id=11u64 title="Inner 11">
-                                        <Frame @test_id="content.11" />
-                                    </DockTab>
-                                </DockPane>
-                                <ForEach keys={dialogs}>|id: u64|
-                                    <DockDialog
-                                        id
-                                        parent=11u64
-                                        title="Inner dialog"
-                                        size={vec2(200.0, 120.0)}
-                                        on_close={move || closed.set(true)}
-                                    >
-                                        <Frame @test_id="content.12" />
-                                    </DockDialog>
-                                </ForEach>
-                            </dock::styled::Docking>
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout=outer focus=2u64>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.3)}>
+                        <DockPane id="side">
+                            <DockTab id=1u64 title="Side">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="main">
+                            <DockTab id=2u64 title="Nested">
+                                <dock::Docking layout=inner focus=11u64>
+                                    <DockPane id="inner">
+                                        <DockTab id=10u64 title="Inner 10">
+                                            <Frame @test_id="content.10" />
+                                        </DockTab>
+                                        <DockTab id=11u64 title="Inner 11">
+                                            <Frame @test_id="content.11" />
+                                        </DockTab>
+                                    </DockPane>
+                                    <ForEach keys={dialogs}>|id: u64|
+                                        <DockDialog
+                                            id
+                                            parent=11u64
+                                            title="Inner dialog"
+                                            size={vec2(200.0, 120.0)}
+                                            on_close={move || closed.set(true)}
+                                        >
+                                            <Frame @test_id="content.12" />
+                                        </DockDialog>
+                                    </ForEach>
+                                </dock::Docking>
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let (outer, closed) = built.get().expect("the dock was built");

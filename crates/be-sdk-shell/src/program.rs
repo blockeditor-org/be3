@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use be_sdk_beui::beui::dock::styled::{
-    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, TabId, WINDOW_CHROME,
-    use_dock_tab,
+use be_sdk_beui::beui::dock::{
+    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, TabId, use_dock_tab,
 };
+use be_sdk_beui::beui::dock_host::styled::WINDOW_CHROME;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_EXTERNAL_LINK, ICON_EYE_OFF, ICON_FULLSCREEN, ICON_MONITOR, ICON_X,
 };
@@ -547,8 +547,8 @@ impl Workspace {
             .iter()
             .map(|screen| screen.translate(Pos2::ZERO - first))
             .collect();
-        let held = self.layout().window_rect(&tab)?;
-        let at = be_sdk_beui::beui::dock::unstyled::holding_area(held, &screens)?;
+        let held = self.on_dock_host(tab, |host, tab| host.window_rect(tab))??;
+        let at = be_sdk_beui::beui::dock_host::unstyled::holding_area(held, &screens)?;
         screens.get(at).copied()
     }
 
@@ -668,12 +668,15 @@ impl Workspace {
             if !workspace.ready.get() {
                 return Vec::new();
             }
-            let layout = workspace.layout();
             let windows = workspace.windows.get();
             windows
                 .iter()
                 .map(|window| (window.id, workspace.window_tab_of(window.id)))
-                .filter(|(_, tab)| !layout.is_shown(&workspace.root_tab(*tab)))
+                .filter(|(_, tab)| {
+                    !workspace
+                        .on_dock_host(workspace.root_tab(*tab), |host, tab| host.is_shown(tab))
+                        .unwrap_or(false)
+                })
                 .collect()
         })
     }
@@ -780,19 +783,20 @@ pub fn ProgramTab(
 
 #[component]
 pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
-    let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
-    let layout = workspace.layout();
-    let area = untrack(|| layout.area()).size();
+    let reach = Vec2::splat(be_sdk_beui::beui::dock_host::unstyled::HANDLE_REACH);
+    let host = workspace.dock_host();
+    let area = untrack(|| host.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
     let rect = cascaded(tab.value(), PLACEHOLDER_SIZE + WINDOW_CHROME, area);
     if untrack(|| workspace.is_display(tab)) && workspace.needs_size(tab) {
         let heard = workspace.heard_of(tab);
         let named = create_memo(move || heard.with(|heard| heard.title.is_some()));
         create_effect(move || {
-            if named.get() && layout.window_rect(&tab).is_some() {
+            let placed = workspace.on_dock_host(tab, |host, tab| host.window_rect(tab));
+            if named.get() && placed.flatten().is_some() {
                 untrack(|| {
                     workspace.sized(tab);
-                    layout.hide_window(&tab);
+                    workspace.hide(tab);
                 });
             }
         });
@@ -866,7 +870,11 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             let Some(size) = intrinsic.get().filter(|size| size.x > 1.0 && size.y > 1.0) else {
                 return;
             };
-            let placed = floating && layout.window_rect(&tab).is_some();
+            let placed = floating
+                && workspace
+                    .on_dock_host(tab, |host, tab| host.window_rect(tab))
+                    .flatten()
+                    .is_some();
             untrack(|| {
                 if !workspace.needs_size(tab) {
                     return;
@@ -879,13 +887,15 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                     return;
                 }
                 workspace.sized(tab);
-                let area = layout.area();
-                let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
+                let area = workspace.dock_host().area();
+                let reach = Vec2::splat(be_sdk_beui::beui::dock_host::unstyled::HANDLE_REACH);
                 let local =
                     Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area.size() - reach);
                 let rect = cascaded(tab.value(), size + WINDOW_CHROME, local);
                 control.resize_window(rect.size());
-                layout.move_window(&tab, rect.min + area.min.to_vec2());
+                workspace.on_dock_host(tab, |host, tab| {
+                    host.move_window(tab, rect.min + area.min.to_vec2());
+                });
             });
         });
     }
@@ -895,7 +905,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     create_effect(move || {
         let now = minimized.get();
         if now > seen_minimize.replace(now) {
-            untrack(|| layout.hide_window(&workspace.root_tab(tab)));
+            untrack(|| workspace.hide(workspace.root_tab(tab)));
         }
     });
     let raised = create_memo(move || heard.with(|heard| heard.raised));
@@ -966,7 +976,11 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                             label={fullscreen_label}
                             glyph=ICON_FULLSCREEN
                             row_test_id="workspace.window.menu.fullscreen"
-                            on_click={move || layout.toggle_window_fullscreen(&tab)}
+                            on_click={move || {
+                                workspace.on_dock_host(tab, |host, tab| {
+                                    host.toggle_window_fullscreen(tab);
+                                });
+                            }}
                         />
                     </Show>
                     <MenuItem

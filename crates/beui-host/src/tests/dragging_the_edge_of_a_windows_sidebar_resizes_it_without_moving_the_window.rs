@@ -1,7 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{
-    DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
-};
+use crate::dock::{DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use crate::dock_host::unstyled::DockApi;
 use crate::geometry::vec2;
 
 #[test]
@@ -11,23 +10,25 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                </DockPane>
-                <DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0))}
-                >
-                    <DockPane id="side" vertical=true>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @test_id="content.2" />
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
                         </DockTab>
                     </DockPane>
-                </DockWindow>
-            </dock::styled::Docking>
+                    <DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0))}
+                    >
+                        <DockPane id="side" vertical=true>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                    </DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

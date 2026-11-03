@@ -1,6 +1,7 @@
-use be_sdk_beui::beui::dock::styled::{
-    DockAlign, DockBar, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockPane,
-    DockSplit, DockTab, DockWindow, Docking, DockingLayout,
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockWindow,
+    Docking, DockingLayout,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::{Button, ButtonSize, ButtonVariant, Frame, Root};

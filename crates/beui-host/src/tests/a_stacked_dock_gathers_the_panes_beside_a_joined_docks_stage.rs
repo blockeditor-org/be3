@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockMode;
+use crate::dock::DockMode;
 
 #[test]
 fn a_stacked_dock_gathers_the_panes_beside_a_joined_docks_stage() {

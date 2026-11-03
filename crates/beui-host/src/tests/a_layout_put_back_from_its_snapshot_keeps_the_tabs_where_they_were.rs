@@ -1,19 +1,22 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::{DockPane, DockTab, DockingLayout, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[component]
 fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
     view! {
-        <dock::styled::Docking layout>
-            <DockPane id="tabs">
-                <DockTab id=1u64 title="Tab 1">
-                    <Frame @test_id="content.1" />
-                </DockTab>
-                <DockTab id=2u64 title="Tab 2">
-                    <Frame @test_id="content.2" />
-                </DockTab>
-            </DockPane>
-        </dock::styled::Docking>
+        <dock_host::styled::DockHost>
+            <dock::Docking layout>
+                <DockPane id="tabs">
+                    <DockTab id=1u64 title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <DockTab id=2u64 title="Tab 2">
+                        <Frame @test_id="content.2" />
+                    </DockTab>
+                </DockPane>
+            </dock::Docking>
+        </dock_host::styled::DockHost>
     }
 }
 

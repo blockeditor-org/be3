@@ -20,9 +20,8 @@ mod window_keys;
 mod windows;
 
 use be_sdk_beui::MediaWatch;
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockNode, DockPane, DockWindow, Docking, DockingLayout, TabId,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockNode, DockPane, DockWindow, Docking, TabId};
+use be_sdk_beui::beui::dock_host::styled::{DockHost, DockHostLayout};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
@@ -128,38 +127,41 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     let editor = shell.workspace.editor();
     let main = shell.workspace.layout();
     let layout = bar::display_layout(editor, main, display);
-    cover_under_fullscreen(main, layout, display);
+    let host = DockHostLayout::new();
+    cover_under_fullscreen(shell.workspace.dock_host(), host, display);
     let launches = shell.programs_panel.launches();
-    let area = windows_area(layout, region_area());
+    let area = windows_area(host, region_area());
     shell.windows.report_area(display, area);
     provide_context(bar::BarArea(area));
     let bars = Bars::of(display);
     view! {
         <Frame>
             <List spacing=Space::None>
-                <Docking
+                <DockHost
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={format!("desktop.dock.{display}")}
-                    layout
+                    layout=host
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
-                    <DockPane id={"desktop".to_owned()} bare=true></DockPane>
-                    <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
-                        <ProgramsBar shell display layout />
-                    </DockBar>
-                    <DockBar id={bars.windows} placement=WINDOWS_PLACE>
-                        <WindowsBar shell display />
-                    </DockBar>
-                    <DockBar id={bars.status} placement=STATUS_PLACE>
-                        <StatusBar shell display />
-                    </DockBar>
-                </Docking>
+                    <Docking layout>
+                        <DockPane id={"desktop".to_owned()} bare=true></DockPane>
+                        <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                            <ProgramsBar shell display layout />
+                        </DockBar>
+                        <DockBar id={bars.windows} placement=WINDOWS_PLACE>
+                            <WindowsBar shell display />
+                        </DockBar>
+                        <DockBar id={bars.status} placement=STATUS_PLACE>
+                            <StatusBar shell display />
+                        </DockBar>
+                    </Docking>
+                </DockHost>
                 <media::LevelDisplay osd={desktop.osd} area display />
                 <Show condition={launches}>
                     <ProgramsPanelKey
                         programs_panel={shell.programs_panel}
                         windows={shell.windows}
-                        layout={main}
+                        host={shell.workspace.dock_host()}
                     />
                 </Show>
                 <ProgramsPanelOverlay programs_panel={shell.programs_panel} display layout area />
@@ -188,6 +190,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
+    let host = workspace.dock_host();
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
@@ -203,7 +206,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
     let region = region_area();
-    let area = windows_area(layout, region);
+    let area = windows_area(host, region);
     provide_context(bar::BarArea(area));
     let bars = Bars::of(0);
     let status = create_memo(move || match layout.is_bar_hidden(&bars.status) {
@@ -211,7 +214,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         false => layout.bar_placement(&bars.status),
     });
     let corner = create_memo(move || bar::toast_corner(status.get()));
-    let toasts = create_memo(move || bar::clear_of_status(layout, status.get(), area.get()));
+    let toasts = create_memo(move || bar::clear_of_status(host, status.get(), area.get()));
     let osd = media::Osd::new(editor);
     let layouts = layouts::Layouts::new(editor);
     let several_layouts = layouts.several;
@@ -221,35 +224,39 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
-                <Docking
+                <DockHost
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={"desktop.dock"}
-                    layout
+                    layout=host
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
-                    <DockPane id={"desktop".to_owned()} bare=true></DockPane>
-                    <ForEach keys={block_windows}>|tab: TabId|
-                        <BlockWindow workspace tab />
-                    </ForEach>
-                    <ForEach keys={program_windows}>|tab: TabId|
-                        <ProgramWindow workspace tab />
-                    </ForEach>
-                    <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
-                        <WindowDialog workspace window parent />
-                    </ForEach>
-                    <ForEach keys={panels}>|panel: HostPanel|
-                        <PanelWindow workspace panel />
-                    </ForEach>
-                    <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
-                        <ProgramsBar shell display=0 layout />
-                    </DockBar>
-                    <DockBar id={bars.windows} placement=WINDOWS_PLACE>
-                        <WindowsBar shell display=0 />
-                    </DockBar>
-                    <DockBar id={bars.status} placement=STATUS_PLACE>
-                        <StatusBar shell display=0 />
-                    </DockBar>
-                </Docking>
+                    <Docking layout>
+                        <DockPane id={"desktop".to_owned()} bare=true></DockPane>
+                        <ForEach keys={block_windows}>|tab: TabId|
+                            <BlockWindow workspace tab />
+                        </ForEach>
+                        <ForEach keys={program_windows}>|tab: TabId|
+                            <ProgramWindow workspace tab />
+                        </ForEach>
+                        <ForEach
+                            keys={dialog_windows}
+                        >|(window, parent): (HostWindowId, HostWindowId)|
+                            <WindowDialog workspace window parent />
+                        </ForEach>
+                        <ForEach keys={panels}>|panel: HostPanel|
+                            <PanelWindow workspace panel />
+                        </ForEach>
+                        <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                            <ProgramsBar shell display=0 layout />
+                        </DockBar>
+                        <DockBar id={bars.windows} placement=WINDOWS_PLACE>
+                            <WindowsBar shell display=0 />
+                        </DockBar>
+                        <DockBar id={bars.status} placement=STATUS_PLACE>
+                            <StatusBar shell display=0 />
+                        </DockBar>
+                    </Docking>
+                </DockHost>
                 <WorkspaceDialogs workspace />
                 <UnshownWindows workspace />
                 <bar::UnreadableBarsDialog editor />
@@ -259,10 +266,10 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <Show condition={several_layouts}>
                     <layouts::LayoutKey layouts />
                 </Show>
-                <WindowShortcuts editor layout />
+                <WindowShortcuts editor host />
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
-                    <ProgramsPanelKey programs_panel windows layout />
+                    <ProgramsPanelKey programs_panel windows host />
                 </Show>
                 <ProgramsPanelOverlay programs_panel display=0 layout area />
                 <DesktopToasts notifications area={toasts} corner />
@@ -272,10 +279,10 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     }
 }
 
-fn cover_under_fullscreen(main: DockingLayout<TabId>, layout: DockingLayout<TabId>, display: u32) {
+fn cover_under_fullscreen(main: DockHostLayout, layout: DockHostLayout, display: u32) {
     let covered = create_memo(move || {
         main.fullscreen()
-            .and_then(|tab| main.area_of_window(&tab))
+            .and_then(|tab| main.area_of_window(tab))
             .is_some_and(|area| area == display as usize)
     });
     create_effect(move || {
@@ -289,7 +296,7 @@ fn region_area() -> Memo<Rect> {
     create_memo(move || Rect::from_min_size(Pos2::ZERO, area.map_or(Vec2::ZERO, |area| area.get())))
 }
 
-fn windows_area(layout: DockingLayout<TabId>, region: Memo<Rect>) -> Memo<Rect> {
+fn windows_area(layout: DockHostLayout, region: Memo<Rect>) -> Memo<Rect> {
     create_memo(move || {
         let inside = layout.area();
         match inside.is_positive() {

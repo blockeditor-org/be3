@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface, use_dock_bar};
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::use_dock_bar;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::narrow_chrome;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
+use crate::dock::{DockGroup, DockPane, DockTab, DockingLayout};
 
 fn shown(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -16,23 +16,25 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout focus=10u64>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                    <DockGroup id="pinned" pinned=true>
-                        <DockPane id="inside">
-                            <DockTab id=10u64 title="Tab 10">
-                                <Frame @test_id="content.10" />
-                            </DockTab>
-                            <DockTab id=11u64 title="Tab 11">
-                                <Frame @test_id="content.11" />
-                            </DockTab>
-                        </DockPane>
-                    </DockGroup>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout focus=10u64>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockGroup id="pinned" pinned=true>
+                            <DockPane id="inside">
+                                <DockTab id=10u64 title="Tab 10">
+                                    <Frame @test_id="content.10" />
+                                </DockTab>
+                                <DockTab id=11u64 title="Tab 11">
+                                    <Frame @test_id="content.11" />
+                                </DockTab>
+                            </DockPane>
+                        </DockGroup>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     dock.get();

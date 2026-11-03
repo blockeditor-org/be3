@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockApi;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn dragging_the_bar_between_two_panes_moves_the_boundary() {

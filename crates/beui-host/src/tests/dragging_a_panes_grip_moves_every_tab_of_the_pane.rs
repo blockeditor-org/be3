@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
@@ -8,23 +9,25 @@ fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockSplit id="split">
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=3u64 title="Tab 3">
-                            <Frame @test_id="content.3" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockSplit id="split">
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=3u64 title="Tab 3">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

@@ -8,7 +8,7 @@ styled layer) is done. These items remain.
 ## A denser stacked dock in a narrow panel
 
 The inspector's stacked dock spends a lot of height on its regular-sized bar
-and padding, and its switcher sheet (`beui-dock/src/styled/stack.rs`) opens
+and padding, and its switcher sheet (`beui-dock-host/src/styled/stack.rs`) opens
 half-height with an "Open tabs" heading and "Nothing else is open." over the
 rows of its unclosable tools, so in a short window the rows sit below the fold
 until the sheet is scrolled or dragged up. A denser stacked bar and switcher

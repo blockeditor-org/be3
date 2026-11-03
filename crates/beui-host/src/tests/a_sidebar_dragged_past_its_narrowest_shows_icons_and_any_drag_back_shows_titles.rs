@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use crate::dock::{MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use crate::dock_host::unstyled::DockApi;
 use std::time::Duration;
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {

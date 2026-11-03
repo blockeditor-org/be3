@@ -1,6 +1,6 @@
 # Code outside beui depends only on the styled layer
 
-Crates outside beui's own crates import nothing from `unstyled::` or `primitives::`, and do not write `Extent::px` (be-tool-fix-rust-source enforces both). Styled re-exports the behaviour-only pieces that carry no look (`BackSlide`, `Draggable`, `DropTarget`, `Floating`, `Pressable`, `MenuItem`, `TreeItem`, `TextAreaState`, `PanZoom`, ...), and `dock::styled` re-exports the dock's model types. Left on purpose: logic-grid's hotbar slot face and deterministic-game's board (app canvases with their own drawing), and beui-demo's two custom button faces on `unstyled::Button`, kept as samples of building a face on the unstyled layer.
+Crates outside beui's own crates import nothing from `unstyled::` or `primitives::`, and do not write `Extent::px` (be-tool-fix-rust-source enforces both). Styled re-exports the behaviour-only pieces that carry no look (`BackSlide`, `Draggable`, `DropTarget`, `Floating`, `Pressable`, `MenuItem`, `TreeItem`, `TextAreaState`, `PanZoom`, ...), `beui::dock` has no unstyled layer and re-exports the dock's model types (`beui-dock-state`), and `dock_host::styled` re-exports `DockHostLayout`, `DockApi`, `DockSnap` and `DockWindowActions`. Left on purpose: logic-grid's hotbar slot face and deterministic-game's board (app canvases with their own drawing), and beui-demo's two custom button faces on `unstyled::Button`, kept as samples of building a face on the unstyled layer.
 
 ## Why
 

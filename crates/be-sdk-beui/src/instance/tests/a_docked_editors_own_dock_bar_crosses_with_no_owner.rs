@@ -4,7 +4,7 @@ use be_sdk_api::{
     DockItemKind, DockLayout, DockMessage, DockPane, DockPlacedBar, DockTabPath, DockTree,
     DockUpdate,
 };
-use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 
 fn hosted(bar: u64) -> DockUpdate {
     let stage = DockTabPath::own(1);
@@ -107,7 +107,7 @@ fn a_docked_editors_own_dock_bar_crosses_with_no_owner() {
     let state = layout.state().get_untracked();
     assert_eq!(
         state.bars_of(None),
-        [beui::dock::unstyled::TabId::new(id)],
+        [beui::dock::TabId::new(id)],
         "the joined dock holds the root's placement as its own dock's bar"
     );
 }

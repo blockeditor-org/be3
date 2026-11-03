@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockApi;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {

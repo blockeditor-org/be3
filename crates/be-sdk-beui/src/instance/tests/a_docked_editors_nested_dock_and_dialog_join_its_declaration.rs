@@ -7,7 +7,7 @@ struct NestingRoot;
 impl crate::BeuiRoot for NestingRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
-        use beui::dock::styled::{DockDialog, DockPane, DockTab, Docking, DockingLayout};
+        use beui::dock::{DockDialog, DockPane, DockTab, Docking, DockingLayout};
         use beui::reactive::*;
         let _ = editor;
         let outer = DockingLayout::<u64>::new();

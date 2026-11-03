@@ -7,27 +7,29 @@ fn a_locked_pane_with_one_closable_tab_shows_one_close_named_by_the_tabs_key() {
     let _root = crate::reactive::RootScope::new();
     let second = create_signal(false);
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::<&'static str>::new();
+        let layout = dock::DockingLayout::<&'static str>::new();
         view! {
-            <dock::styled::Docking layout>
-                <dock::unstyled::DockSplit id="split">
-                    <dock::unstyled::DockPane id="side" locked=true>
-                        <dock::unstyled::DockTab id="notes" title="Notes" on_close={|| {}}>
-                            <Frame @test_id={"content.notes"} />
-                        </dock::unstyled::DockTab>
-                        <Show condition={second}>
-                            <dock::unstyled::DockTab id="outline" title="Outline" on_close={|| {}}>
-                                <Frame @test_id={"content.outline"} />
-                            </dock::unstyled::DockTab>
-                        </Show>
-                    </dock::unstyled::DockPane>
-                    <dock::unstyled::DockPane id="stage" locked=true bare=true>
-                        <dock::unstyled::DockTab id="stage" title="Stage">
-                            <Frame @test_id={"content.stage"} />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                </dock::unstyled::DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <dock::DockSplit id="split">
+                        <dock::DockPane id="side" locked=true>
+                            <dock::DockTab id="notes" title="Notes" on_close={|| {}}>
+                                <Frame @test_id={"content.notes"} />
+                            </dock::DockTab>
+                            <Show condition={second}>
+                                <dock::DockTab id="outline" title="Outline" on_close={|| {}}>
+                                    <Frame @test_id={"content.outline"} />
+                                </dock::DockTab>
+                            </Show>
+                        </dock::DockPane>
+                        <dock::DockPane id="stage" locked=true bare=true>
+                            <dock::DockTab id="stage" title="Stage">
+                                <Frame @test_id={"content.stage"} />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                    </dock::DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

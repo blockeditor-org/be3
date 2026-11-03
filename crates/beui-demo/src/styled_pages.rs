@@ -4566,16 +4566,17 @@ const DESK_WINDOW_SIZE: beui::Vec2 = beui::Vec2::new(300.0, 200.0);
 #[component]
 pub(crate) fn WindowManagerPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
+    let host = DockHostLayout::new();
     create_effect(move || {
-        let area = layout.area();
+        let area = host.area();
         let middle = (area.min.x + area.width() / 2.0).round();
         let halves = vec![
             Rect::from_min_max(area.min, beui::pos2(middle, area.max.y)),
             Rect::from_min_max(beui::pos2(middle, area.min.y), area.max),
         ];
-        untrack(|| layout.set_areas(halves));
+        untrack(|| host.set_areas(halves));
     });
-    let actions = layout.window_actions(create_memo(|| false));
+    let actions = host.window_actions(create_memo(|| false));
     let nodes: Vec<MenuNode> = [
         actions.close,
         actions.hide,
@@ -4615,7 +4616,7 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                         }}
                     />
                     <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
-                        "Below is a Docking of its own that joins no dock around it, split into \
+                        "Below is a Docking with a DockHost of its own, so it joins no dock around it, split into \
                          two areas side by side the way a desktop's dock spans two displays. The \
                          Window menu holds the dock's window actions, which act on the focused \
                          window: close it, hide it, snap it to half of its area, fill its area, \
@@ -4625,35 +4626,37 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                     </Text>
                 </List>
             </Frame>
-            <Docking @sizing=ItemSize::Percent(100.0) layout joins=false>
-                <DockPane id="desk" bare=true></DockPane>
-                <ForEach keys={open}>|id: u64| {
-                    let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
-                    view! {
-                        <DockWindow
-                            id={format!("wm.window.{id}")}
-                            rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
-                        >
-                            <DockPane id={format!("wm.pane.{id}")}>
-                                <DockTab
-                                    id
-                                    title
-                                    icon=ICON_APP_WINDOW
-                                    group={Some(group.to_owned())}
-                                    on_close={move || closed.update(|closed| closed.push(id))}
-                                >
-                                    <Frame
-                                        @test_id={format!("wm.window.{id}")}
-                                        padding=PAGE_PADDING
+            <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
+                <Docking layout>
+                    <DockPane id="desk" bare=true></DockPane>
+                    <ForEach keys={open}>|id: u64| {
+                        let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
+                        view! {
+                            <DockWindow
+                                id={format!("wm.window.{id}")}
+                                rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
+                            >
+                                <DockPane id={format!("wm.pane.{id}")}>
+                                    <DockTab
+                                        id
+                                        title
+                                        icon=ICON_APP_WINDOW
+                                        group={Some(group.to_owned())}
+                                        on_close={move || closed.update(|closed| closed.push(id))}
                                     >
-                                        <Text>{format!("{title}, of the {group} group")}</Text>
-                                    </Frame>
-                                </DockTab>
-                            </DockPane>
-                        </DockWindow>
-                    }
-                }</ForEach>
-            </Docking>
+                                        <Frame
+                                            @test_id={format!("wm.window.{id}")}
+                                            padding=PAGE_PADDING
+                                        >
+                                            <Text>{format!("{title}, of the {group} group")}</Text>
+                                        </Frame>
+                                    </DockTab>
+                                </DockPane>
+                            </DockWindow>
+                        }
+                    }</ForEach>
+                </Docking>
+            </DockHost>
         </List>
     }
 }

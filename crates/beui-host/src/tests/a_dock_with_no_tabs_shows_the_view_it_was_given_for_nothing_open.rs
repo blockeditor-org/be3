@@ -4,27 +4,25 @@ use crate::reactive::*;
 #[test]
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::new();
+        let layout = dock::DockingLayout::new();
         let open = create_signal(true);
         view! {
-            <dock::styled::Docking layout>
-                <dock::unstyled::DockPane
-                    id="tabs"
-                    empty={move || view! {
-                        <Frame @test_id={"nothing_open"} />
-                    }}
-                >
-                    <Show condition={open}>
-                        <dock::unstyled::DockTab
-                            id=1u64
-                            title="Tab 1"
-                            on_close={move || open.set(false)}
-                        >
-                            <Frame @test_id={"content.1"} />
-                        </dock::unstyled::DockTab>
-                    </Show>
-                </dock::unstyled::DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <dock::DockPane
+                        id="tabs"
+                        empty={move || view! {
+                            <Frame @test_id={"nothing_open"} />
+                        }}
+                    >
+                        <Show condition={open}>
+                            <dock::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                                <Frame @test_id={"content.1"} />
+                            </dock::DockTab>
+                        </Show>
+                    </dock::DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

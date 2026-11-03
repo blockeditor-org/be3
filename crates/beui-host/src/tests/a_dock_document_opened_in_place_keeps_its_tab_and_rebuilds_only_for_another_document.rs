@@ -14,39 +14,36 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
     let document = {
         let held = held.clone();
         build_node(move || {
-            let layout = dock::unstyled::DockingLayout::new();
-            let documents = dock::unstyled::DockDocuments::new(
-                layout,
-                |slot| 100 + slot.value(),
-                |doc: &Doc| doc.0,
-            );
+            let layout = dock::DockingLayout::new();
+            let documents =
+                dock::DockDocuments::new(layout, |slot| 100 + slot.value(), |doc: &Doc| doc.0);
             held.set(Some(documents));
             view! {
-                <dock::styled::Docking layout>
-                    <dock::unstyled::DockPane id="tabs">
-                        <dock::unstyled::DockTab id=1u64 title="Fixed">
-                            <Frame />
-                        </dock::unstyled::DockTab>
-                        <dock::unstyled::DockDocumentTabs
-                            documents
-                        >|document: dock::unstyled::DockDocument<u64, Doc, u64>|
-                            <dock::unstyled::DockTab
-                                id={document.key()}
-                                title="Document"
-                                on_close={move || document.close()}
-                            >
-                                <dock::unstyled::DockDocumentBody
-                                    document
-                                >|content: ReadSignal<Doc>| {
-                                    built.update(|built| built.push(content.get_untracked().0));
-                                    view! {
-                                        <Frame />
-                                    }
-                                }</dock::unstyled::DockDocumentBody>
-                            </dock::unstyled::DockTab>
-                        </dock::unstyled::DockDocumentTabs>
-                    </dock::unstyled::DockPane>
-                </dock::styled::Docking>
+                <dock_host::styled::DockHost>
+                    <dock::Docking layout>
+                        <dock::DockPane id="tabs">
+                            <dock::DockTab id=1u64 title="Fixed">
+                                <Frame />
+                            </dock::DockTab>
+                            <dock::DockDocumentTabs
+                                documents
+                            >|document: dock::DockDocument<u64, Doc, u64>|
+                                <dock::DockTab
+                                    id={document.key()}
+                                    title="Document"
+                                    on_close={move || document.close()}
+                                >
+                                    <dock::DockDocumentBody document>|content: ReadSignal<Doc>| {
+                                        built.update(|built| built.push(content.get_untracked().0));
+                                        view! {
+                                            <Frame />
+                                        }
+                                    }</dock::DockDocumentBody>
+                                </dock::DockTab>
+                            </dock::DockDocumentTabs>
+                        </dock::DockPane>
+                    </dock::Docking>
+                </dock_host::styled::DockHost>
             }
         })
     };
@@ -67,7 +64,7 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
     harness.frame(Vec::new());
     assert_eq!(
         opened,
-        dock::unstyled::DockOpened::Replaced(first, (1, 0)),
+        dock::DockOpened::Replaced(first, (1, 0)),
         "another document takes the place of the one shown"
     );
     harness.find("dock.tab.101.close");
@@ -94,7 +91,7 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
     let beside = documents.open((3, 0), true);
     harness.frame(Vec::new());
     assert!(
-        matches!(beside, dock::unstyled::DockOpened::Added(_)),
+        matches!(beside, dock::DockOpened::Added(_)),
         "a document opened beside gets a tab of its own"
     );
     harness.find("dock.tab.101.close");
@@ -102,7 +99,7 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
 
     assert_eq!(
         documents.open((2, 0), false),
-        dock::unstyled::DockOpened::Shown(first),
+        dock::DockOpened::Shown(first),
         "a document that is open is shown where it is"
     );
     harness.frame(Vec::new());

@@ -5,7 +5,7 @@ use be_sdk_api::{
     DockEdge, DockItem, DockItemKind, DockMessage, DockPane, DockRequest, DockTab, DockTabPath,
     DockTree, DockUpdate, Pos2, Rect, Size,
 };
-use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 
 fn barred() -> DockDeclaration {
     DockDeclaration {
@@ -101,7 +101,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         .expect("the app made its layout");
     assert_eq!(
         layout.mode().get_untracked(),
-        beui::dock::unstyled::DockMode::Tiled,
+        beui::dock::DockMode::Tiled,
         "a wide frame tiles its dock, so bars can be dragged"
     );
     let child = session.placed_children(ViewId::MAIN)[0].child;
@@ -117,10 +117,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
 
     assert_eq!(
         placement(),
-        Some(Placement::Over(
-            Edge::Top,
-            beui::dock::unstyled::DockAlign::Center
-        ))
+        Some(Placement::Over(Edge::Top, beui::dock::DockAlign::Center))
     );
     let bar = body(&session, child, 9);
     assert_eq!((bar.width(), bar.height()), (100.0, 20.0));

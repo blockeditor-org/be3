@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
+use crate::dock::{DockPane, DockTab, DockingLayout, dock_menu};
 use crate::reactive::*;
 
 const PHONE: Vec2 = Vec2::new(390.0, 600.0);
@@ -19,28 +19,30 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockPane id="tabs">
-                    <DockTab
-                        id=1u64
-                        title="Notes"
-                        content={move || {
-                            let share = Action::new("share", "Share", move || {
-                                shared.update(|shared| *shared += 1)
-                            })
-                            .pin(Pin::Label)
-                            .detached();
-                            let rename = Action::new("rename", "Rename", || {}).detached();
-                            dock_menu(create_memo(move || {
-                                vec![MenuNode::action(&rename), MenuNode::action(&share)]
-                            }));
-                            view! {
-                                <Frame @test_id="content.1" />
-                            }
-                        }}
-                    />
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockPane id="tabs">
+                        <DockTab
+                            id=1u64
+                            title="Notes"
+                            content={move || {
+                                let share = Action::new("share", "Share", move || {
+                                    shared.update(|shared| *shared += 1)
+                                })
+                                .pin(Pin::Label)
+                                .detached();
+                                let rename = Action::new("rename", "Rename", || {}).detached();
+                                dock_menu(create_memo(move || {
+                                    vec![MenuNode::action(&rename), MenuNode::action(&share)]
+                                }));
+                                view! {
+                                    <Frame @test_id="content.1" />
+                                }
+                            }}
+                        />
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

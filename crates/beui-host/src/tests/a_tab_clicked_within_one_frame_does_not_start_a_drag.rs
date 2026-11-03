@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {

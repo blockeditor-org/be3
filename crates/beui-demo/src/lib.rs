@@ -5,12 +5,14 @@ use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-use beui::dock::styled::{DockBarGrip, DockBarSurface, Docking};
-use beui::dock::unstyled::{
+use beui::dock::Docking;
+use beui::dock::styled::{DockBarGrip, DockBarSurface};
+use beui::dock::{
     DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
     DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
     DockTabControl, DockWindow, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
 };
+use beui::dock_host::styled::{DockHost, DockHostLayout};
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_APP_WINDOW, ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG,
@@ -381,7 +383,9 @@ fn LoneRoot(today: Date, page: Page) -> Root {
 #[component]
 fn LonePage(page: Page) -> NodeId {
     view! {
-        <PageView page />
+        <DockHost>
+            <PageView page />
+        </DockHost>
     }
 }
 
@@ -471,6 +475,7 @@ impl DemoDialogs {
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
+    host: DockHostLayout,
     documents: DockDocuments<TabId, Page, Page>,
     dialogs: DemoDialogs,
 }
@@ -491,6 +496,7 @@ impl Pages {
         documents.open(Page::Docking, true);
         let pages = Self {
             layout,
+            host: DockHostLayout::new(),
             documents,
             dialogs,
         };
@@ -530,7 +536,7 @@ impl Pages {
 }
 
 #[sample]
-fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
+fn switch_tabs_with_alt_q(layout: DockHostLayout) {
     let modifiers = held_modifiers();
     let next = Chord::key(Key::Q).alt();
     for (id, label, backwards, chord) in [
@@ -575,7 +581,8 @@ fn DemoShell() -> NodeId {
     let pages = Pages::new(dialogs);
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
-    switch_tabs_with_alt_q(layout);
+    let host = pages.host;
+    switch_tabs_with_alt_q(host);
     let drag_modifier = create_signal(None);
     provide_context(DragModifier {
         held: drag_modifier,
@@ -588,54 +595,56 @@ fn DemoShell() -> NodeId {
                 <DemoToolbar pages />
             </Frame>
             <Separator />
-            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
-                <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
-                    <DockPane id="catalog" locked=true>
-                        <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
-                            <CatalogPanel pages active={active} />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane
-                        id="pages"
-                        empty={move || view! {
-                            <EmptyPanel />
-                        }}
-                    >
-                        <DockDocumentTabs
-                            documents={pages.documents}
-                        >|document: DockDocument<TabId, Page, Page>| {
-                            let page = document.content();
-                            view! {
-                                <DockTab
-                                    id={document.key()}
-                                    title={create_memo(move || page.get().title().to_owned())}
-                                    icon={create_memo(move || page.get().icon().to_owned())}
-                                    on_close={move || pages.close(document)}
-                                >
-                                    <DockDocumentBody document>|page: ReadSignal<Page>|
-                                        <Container>|_|
-                                            <PageView page={page.get_untracked()} />
-                                        </Container>
-                                    </DockDocumentBody>
-                                </DockTab>
-                            }
-                        }</DockDocumentTabs>
-                    </DockPane>
-                </DockSplit>
-                <ForEach keys={attached}>|dialog: DemoDialog|
-                    <DockDialog
-                        id={dialog.id}
-                        parent={dialog.parent}
-                        modal={dialog.modal}
-                        title={dialog.title()}
-                        icon=ICON_EXTERNAL_LINK
-                        size={dialog.size()}
-                        on_close={move || dialogs.close(dialog.id)}
-                    >
-                        <AttachedDialog modal={dialog.modal} />
-                    </DockDialog>
-                </ForEach>
-            </Docking>
+            <DockHost @sizing=ItemSize::Percent(100.0) layout=host drag_modifier>
+                <Docking layout>
+                    <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
+                        <DockPane id="catalog" locked=true>
+                            <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
+                                <CatalogPanel pages active={active} />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane
+                            id="pages"
+                            empty={move || view! {
+                                <EmptyPanel />
+                            }}
+                        >
+                            <DockDocumentTabs
+                                documents={pages.documents}
+                            >|document: DockDocument<TabId, Page, Page>| {
+                                let page = document.content();
+                                view! {
+                                    <DockTab
+                                        id={document.key()}
+                                        title={create_memo(move || page.get().title().to_owned())}
+                                        icon={create_memo(move || page.get().icon().to_owned())}
+                                        on_close={move || pages.close(document)}
+                                    >
+                                        <DockDocumentBody document>|page: ReadSignal<Page>|
+                                            <Container>|_|
+                                                <PageView page={page.get_untracked()} />
+                                            </Container>
+                                        </DockDocumentBody>
+                                    </DockTab>
+                                }
+                            }</DockDocumentTabs>
+                        </DockPane>
+                    </DockSplit>
+                    <ForEach keys={attached}>|dialog: DemoDialog|
+                        <DockDialog
+                            id={dialog.id}
+                            parent={dialog.parent}
+                            modal={dialog.modal}
+                            title={dialog.title()}
+                            icon=ICON_EXTERNAL_LINK
+                            size={dialog.size()}
+                            on_close={move || dialogs.close(dialog.id)}
+                        >
+                            <AttachedDialog modal={dialog.modal} />
+                        </DockDialog>
+                    </ForEach>
+                </Docking>
+            </DockHost>
         </List>
     }
 }

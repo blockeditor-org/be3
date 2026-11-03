@@ -6,8 +6,8 @@ use be_sdk::{EditorHost, Pushed, ViewId, ViewRef};
 use be_sdk_api as api;
 use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
-use beui::dock::unstyled::SplitSize;
-use beui::dock::unstyled::{
+use beui::dock::SplitSize;
+use beui::dock::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
     DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge,
     DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
@@ -15,7 +15,7 @@ use beui::dock::unstyled::{
     DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
     DockingSnapshot, TabId,
 };
-use beui::dock::unstyled::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
+use beui::dock::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
 use beui::icons::Glyph;
 use beui::reactive::*;
 use beui::styled::WindowHandle;
@@ -35,6 +35,8 @@ pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
     revision: OwnedSignal<u64>,
     slot: RefCell<Option<DockHostSlot>>,
+    bars: RefCell<Option<Rc<dyn DockHostLink>>>,
+    kept: Rc<Cell<bool>>,
     built: Cell<Option<bool>>,
     asking: OwnedSignal<Option<TabId>>,
     windows: RefCell<HashMap<u64, beui::WindowId>>,
@@ -46,6 +48,8 @@ impl Default for DockedTabs {
             link: RefCell::default(),
             revision: OwnedSignal::new(0),
             slot: RefCell::default(),
+            bars: RefCell::default(),
+            kept: Rc::default(),
             built: Cell::new(None),
             asking: OwnedSignal::new(None),
             windows: RefCell::default(),
@@ -61,18 +65,37 @@ impl DockedTabs {
         host: &EditorHost,
         editor: Editor,
     ) {
-        provide_context(saved::keeper(host.clone(), editor));
-        let slot = match docked {
-            true => DockHostSlot::new(Some(link)),
-            false => DockHostSlot::bars(link),
-        };
-        *self.slot.borrow_mut() = Some(slot.clone());
+        provide_context(saved::keeper(host.clone(), editor, Rc::clone(&self.kept)));
         self.built.set(Some(docked));
-        provide_context(slot);
+        match docked {
+            true => {
+                let slot = DockHostSlot::new(link);
+                *self.slot.borrow_mut() = Some(slot.clone());
+                *self.bars.borrow_mut() = None;
+                provide_context(slot);
+            }
+            false => {
+                *self.slot.borrow_mut() = None;
+                *self.bars.borrow_mut() = Some(link);
+            }
+        }
+    }
+
+    pub(crate) fn hosting(&self, content: impl FnOnce() -> beui::NodeId + 'static) -> beui::NodeId {
+        let Some(bars) = self.bars.borrow().clone() else {
+            return content();
+        };
+        let content = Cell::new(Some(content));
+        beui::reactive::view! {
+            <beui::dock_host::styled::DockHost
+                bars={Some(bars)}
+                content={move || (content.take().expect("a dock host builds its content once"))()}
+            />
+        }
     }
 
     pub(crate) fn key(&self, docked: bool) -> bool {
-        let asked = self.slot.borrow().as_ref().is_some_and(DockHostSlot::asked);
+        let asked = self.kept.get() || self.slot.borrow().as_ref().is_some_and(DockHostSlot::asked);
         match (asked, self.built.get()) {
             (false, Some(built)) => built,
             _ => docked,
@@ -1252,6 +1275,7 @@ fn declaration_from_api(
             picture: None,
             closable: tab.closable,
             back_closes: tab.back_closes,
+            group: None,
         })
         .collect();
     let dialogs = declaration
@@ -1259,6 +1283,7 @@ fn declaration_from_api(
         .iter()
         .map(|dialog| DockDeclaredDialog {
             tab: paths.tab(&dialog.tab),
+            key: String::new(),
             parent: paths.tab(&dialog.parent),
             title: dialog.title.clone(),
             icon: Glyph::from_codepoint(&dialog.glyph),
@@ -1284,6 +1309,8 @@ fn declaration_from_api(
         tabs,
         dialogs,
         bars,
+        groups: Vec::new(),
+        hosts: Vec::new(),
     })
 }
 
