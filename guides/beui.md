@@ -3078,14 +3078,16 @@ focusable (`Document::focus_into`, which waits a layout for a panel still being
 built). Picking a tab with the pointer does the same for the tab it shows, while
 the arrow keys leave the focus in the tab bar. When a pane stops showing a tab
 whose panel has the focus, the dock remembers where it was and gives the
-keyboard to the tab shown in its place. Bringing a tab forward gives it the
-keyboard too: whenever the focused tab changes (a tab opened, shown, switched to
-or left in front by a close) or a tab is shown, except while the dock is built
-or restored. Each time the dock gives a tab the keyboard,
-`DockTabControl::keyboard` changes, so content whose keyboard lives in another
-document, such as a program's window or a block placed in the tab (which asks
-the host with `focus_child`), can take it there. A hosted tab reports the
-keyboard while the hosting dock focuses it.
+keyboard to the tab shown in its place. Each time the dock gives a tab the
+keyboard, `DockTabControl::keyboard` changes, so content whose keyboard lives
+in another document, such as a program's window, can take it there.
+`DockTabControl::brought_forward` changes each time a tab in a floating window
+comes to the front (opened, shown, switched to, or left in front by a close;
+not while the dock is built or restored), without moving the focus, and a
+hosted tab reports it while the hosting dock focuses it. A block placed in a tab
+(`ChildBlock`, `Subregion`) follows both and asks the host to give it the
+keyboard (`focus_child`, guides/adding_an_app.md), which is how a block window
+the desktop opens or brings forward takes the keys.
 
 `drag_modifier` (none unless asked for) makes the dock a window manager while
 those modifiers are held. A primary drag anywhere in a floating window - its

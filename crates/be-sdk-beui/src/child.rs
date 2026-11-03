@@ -273,7 +273,11 @@ fn follow_tab_keyboard(
     placed: Memo<Option<SubregionContent>>,
     mode: Memo<ChildMode>,
 ) {
-    let given = create_memo(move || tab.keyboard());
+    let given = create_memo(move || {
+        let given = tab.keyboard().map(|count| (false, count));
+        let forward = tab.brought_forward().map(|count| (true, count));
+        given.into_iter().chain(forward).collect::<Vec<_>>()
+    });
     let child = create_memo(move || state.with(|state| state.child));
     let interactive = create_memo(move || {
         matches!(mode.get(), ChildMode::Active | ChildMode::Live)
@@ -284,15 +288,14 @@ fn follow_tab_keyboard(
                 )
             })
     });
-    let asked = StoredCell::new(None::<u64>);
+    let asked = StoredCell::new(Vec::<(bool, u64)>::new());
     create_effect(move || {
-        let (Some(given), Some(child), true) = (given.get(), child.get(), interactive.get()) else {
-            if given.get().is_none() {
-                asked.set(None);
-            }
+        let given = given.get();
+        let (Some(child), true) = (child.get(), interactive.get()) else {
             return;
         };
-        if asked.replace(Some(given)) != Some(given) {
+        let held = asked.replace(given.clone());
+        if given.iter().any(|given| !held.contains(given)) {
             untrack(|| editor.host().focus_child(child));
         }
     });

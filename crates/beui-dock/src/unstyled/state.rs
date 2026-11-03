@@ -1190,6 +1190,11 @@ impl DockState {
         self.reveal_gathered(tab);
     }
 
+    pub fn in_window(&self, tab: TabId) -> bool {
+        self.find(tab)
+            .is_some_and(|found| self.window_rect(found.surface).is_some())
+    }
+
     pub fn shows(&self) -> u64 {
         self.shows
     }

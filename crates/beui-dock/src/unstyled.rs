@@ -612,6 +612,7 @@ struct State {
     dialog_focus: Signal<Option<TabId>>,
     attention: Signal<(u64, Option<TabId>)>,
     given: Signal<(u64, Option<TabId>)>,
+    forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     bar_panels: Stored<BarPanels>,
     bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
@@ -1840,6 +1841,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dialog_focus = create_signal(None);
     let attention = create_signal((0, None));
     let given = create_signal((0, None));
+    let forward = create_signal((0, None));
     let menus = create_signal(DockMenus::default());
     let notices = create_signal(DockNotices::default());
     let offers = create_signal(HashMap::default());
@@ -1884,6 +1886,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_focus,
         attention,
         given,
+        forward,
         remembered: store(RefCell::default()),
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
@@ -1987,7 +1990,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
     };
     dock.start_lifting();
-    dock.give_keyboard_when_shown();
+    dock.bring_forward_when_shown();
     api.fill(DockApi(dock));
     on_shortcut(move |press: KeyPress| {
         if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {

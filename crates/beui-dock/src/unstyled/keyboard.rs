@@ -20,7 +20,7 @@ impl State {
         }
     }
 
-    pub(super) fn give_keyboard_when_shown(&self) {
+    pub(super) fn bring_forward_when_shown(&self) {
         let dock = *self;
         let shown = create_memo(move || {
             dock.state
@@ -32,8 +32,14 @@ impl State {
             if seen.replace(shown) == shown {
                 return;
             }
-            if let (_, Some(tab)) = shown {
-                untrack(|| dock.give_keyboard(tab));
+            let (_, Some(tab)) = shown else {
+                return;
+            };
+            if untrack(|| dock.state.with(|state| state.in_window(tab))) {
+                dock.forward.update(|(count, target)| {
+                    *count += 1;
+                    *target = Some(tab);
+                });
             }
         });
     }
@@ -98,10 +104,16 @@ impl State {
 }
 
 impl DockTabControl {
-    pub fn keyboard(&self) -> Option<u64> {
+    pub fn brought_forward(&self) -> Option<u64> {
         if let Some(focused) = self.read_hosted(|hosted| hosted.focused == Some(self.tab)) {
             return focused.then_some(0);
         }
+        let dock = self.dock()?;
+        dock.forward
+            .with(|(count, target)| (*target == Some(self.tab)).then_some(*count))
+    }
+
+    pub fn keyboard(&self) -> Option<u64> {
         let dock = self.dock()?;
         dock.given
             .with(|(count, target)| (*target == Some(self.tab)).then_some(*count))
