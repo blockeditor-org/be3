@@ -112,7 +112,11 @@ pub(crate) fn display_layout(
                 .ok()?
                 .into_iter()
                 .find(|(held, _)| held == monitor)
-                .map(|(_, saved)| saved.map_tabs(|tab| Bars::of(0).as_bar_of(tab, display)).snapshot())
+                .map(|(_, saved)| {
+                    saved
+                        .map_tabs(|tab| Bars::of(0).as_bar_of(tab, display))
+                        .snapshot()
+                })
         });
         layout.restore(saved.unwrap_or_else(|| untrack(|| like_the_first(first, display))));
         showing.set(monitor);

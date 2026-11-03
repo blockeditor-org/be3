@@ -80,6 +80,7 @@ pub(super) fn ScreenSection(
     });
     let resolution_id = format!("display.{connector}.resolution");
     let refresh_id = format!("display.{connector}.refresh");
+    let scale_id = format!("display.{connector}.scale");
     let mode = DisplaySettings::mode_setting(&id);
     let rotation = DisplaySettings::rotation_setting(&id);
     let mode_row = settings.row(&mode);
@@ -218,7 +219,7 @@ pub(super) fn ScreenSection(
                     })}
                     label="Display scale"
                     disabled={read_only}
-                    @test_id={format!("display.{connector}.scale")}
+                    @test_id={scale_id}
                 />
             </LayeredSettingsRow>
             <LayeredSettingsRow

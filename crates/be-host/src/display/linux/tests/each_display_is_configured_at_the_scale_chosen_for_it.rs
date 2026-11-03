@@ -17,7 +17,10 @@ fn each_display_is_configured_at_the_scale_chosen_for_it() {
     let settings = here.root();
     here.apply(&settings.set_screen_scale(LAPTOP, Some(225)));
     let settings = here.root();
-    here.apply(&settings.set_rotation(PROJECTOR, Some(be_block::display_settings::Rotation::Clockwise90)));
+    here.apply(&settings.set_rotation(
+        PROJECTOR,
+        Some(be_block::display_settings::Rotation::Clockwise90),
+    ));
 
     let config = config(&here.root().over(&everywhere.root()));
     let mut scales = config.scales.clone();
