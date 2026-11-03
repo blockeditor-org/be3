@@ -12,6 +12,7 @@ fn an_event_in_an_entry_is_planned_at_its_place_on_the_frame() {
             at: pos2(100.0, 150.0),
             action: PointerAction::Press(PointerButton::Primary),
         },
+        &|_| None,
     );
     let point = PixelPoint::new(700, 500);
     assert_eq!(planned.cursor, Some(point));
@@ -19,7 +20,7 @@ fn an_event_in_an_entry_is_planned_at_its_place_on_the_frame() {
         planned.synths,
         pointer(DESKTOP, point, PointerAction::Press(PointerButton::Primary))
     );
-    let typed = plan(DESKTOP, frame, size, &Event::Text("hi".to_owned()));
+    let typed = plan(DESKTOP, frame, size, &Event::Text("hi".to_owned()), &|_| None);
     assert_eq!(typed.cursor, None);
     assert_eq!(typed.synths, text("hi"));
 }

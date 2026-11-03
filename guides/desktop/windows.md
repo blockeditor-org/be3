@@ -44,7 +44,12 @@ machine; Wine has no Windows.Graphics.Capture.
 - `crates/be-host-win32-input`: `inject` puts pointer, key and text events into an entry at a point
   of its panel (`SendInput` in absolute virtual-desktop coordinates), after
   `be_host_win32::bring_forward`. It refuses an elevated window and the secure desktop from
-  be-host-win32's snapshot (`target`), the one place either is decided.
+  be-host-win32's snapshot (`target`), the one place either is decided. A key with a physical
+  place (`Keystroke::evdev`) goes by its scan code. A key with no place (the on-screen keyboard,
+  `drive`'s `type`) goes as its text (`KEYEVENTF_UNICODE`); without text (a shortcut) a character
+  key is the virtual key that types that character on the foreground window's keyboard layout
+  (`VkKeyScanExW`, `synth::keystroke`), and only a named key (Enter, an arrow) falls back to its
+  US scan code, which every layout shares.
 
 ## In be-host
 

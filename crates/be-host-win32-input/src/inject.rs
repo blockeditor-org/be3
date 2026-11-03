@@ -4,17 +4,18 @@ use be_host_win32::{Entry, Handle, Snapshot};
 use beui_types::Vec2;
 use windows::Win32::Foundation::{GetLastError, HWND};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT, MOUSE_EVENT_FLAGS,
-    MOUSEINPUT, SendInput, VIRTUAL_KEY,
+    GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT,
+    MAPVK_VK_TO_VSC, MOUSE_EVENT_FLAGS, MOUSEINPUT, MapVirtualKeyExW, SendInput, VIRTUAL_KEY,
+    VkKeyScanExW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, IsWindow, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+    GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsWindow, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
     SM_YVIRTUALSCREEN, SetCursorPos,
 };
 
 use crate::mapping::PixelRect;
 use crate::reach::{InjectError, Target, target};
-use crate::synth::{Event, INJECTED, Synth, plan};
+use crate::synth::{Event, INJECTED, LayoutKey, Synth, plan};
 
 // unsafe(ffi)
 pub fn inject(
@@ -32,7 +33,7 @@ pub fn inject(
             return Err(InjectError::NotForeground);
         }
     }
-    let planned = plan(virtual_desktop(), target.frame(), size, event);
+    let planned = plan(virtual_desktop(), target.frame(), size, event, &layout_key);
     if let Some(cursor) = planned.cursor {
         unsafe { SetCursorPos(cursor.x, cursor.y) }.map_err(refused)?;
     }
@@ -48,6 +49,25 @@ pub fn virtual_desktop() -> PixelRect {
             GetSystemMetrics(SM_CXVIRTUALSCREEN),
             GetSystemMetrics(SM_CYVIRTUALSCREEN),
         )
+    }
+}
+
+// unsafe(ffi)
+fn layout_key(wanted: char) -> Option<LayoutKey> {
+    let mut units = [0; 2];
+    let [unit] = wanted.encode_utf16(&mut units) else {
+        return None;
+    };
+    unsafe {
+        let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+        let layout = GetKeyboardLayout(thread);
+        let scanned = VkKeyScanExW(*unit, layout);
+        if scanned == -1 || scanned as u16 >> 8 != 0 {
+            return None;
+        }
+        let vk = scanned as u16 & 0xFF;
+        let scan = MapVirtualKeyExW(u32::from(vk), MAPVK_VK_TO_VSC, Some(layout)) as u16;
+        Some(LayoutKey { vk, scan })
     }
 }
 
