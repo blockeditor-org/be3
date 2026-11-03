@@ -1,3 +1,3 @@
 use super::*;
 
-mod windows_offers_the_desktop_interfaces_it_backs_and_no_others;
+mod the_desktop_interfaces_are_offered_where_the_host_backs_them;

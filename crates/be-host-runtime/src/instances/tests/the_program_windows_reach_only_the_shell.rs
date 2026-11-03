@@ -6,6 +6,7 @@ use be_sdk_api::{
 
 #[test]
 fn the_program_windows_reach_only_the_shell() {
+    crate::run_as_desktop();
     let mut instances = placed();
     let windows = vec![HostWindow {
         id: HostWindowId(3),

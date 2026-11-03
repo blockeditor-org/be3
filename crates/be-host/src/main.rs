@@ -314,9 +314,12 @@ struct Shell {
 impl Shell {
     fn new(core: HostCore) -> Self {
         let mut view = None;
+        let desktop = core.desktop;
         let mut document = beui_host::native::build(|| {
             compositor::install();
-            Host::create();
+            if desktop {
+                Host::create();
+            }
             surfaces::create_handles();
             display::create_handle();
             let store = HostUiStore::new(HostUi::default());
@@ -353,7 +356,9 @@ impl beui::native::Program for Shell {
         host::install_waker(move || waker.wake());
         host::install_clock(beui::reactive::now);
         be_host_runtime::install(setup);
-        Host::start(setup);
+        if self.core.desktop {
+            Host::start(setup);
+        }
         input::start(setup);
         #[cfg(target_os = "linux")]
         if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
@@ -424,7 +429,11 @@ impl beui::native::Program for Shell {
             self.document.open_inspector();
         }
         let view = self.core.view();
-        Host::set_owned(view.screen == ui::Screen::Organization && self.core.shell.is_some());
+        Host::set_owned(
+            self.core.desktop
+                && view.screen == ui::Screen::Organization
+                && self.core.shell.is_some(),
+        );
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
@@ -534,6 +543,7 @@ struct HostCore {
     pending_account_request: Option<PendingAccountRequest>,
     #[cfg(not(target_arch = "wasm32"))]
     login_session_mode: bool,
+    desktop: bool,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -819,6 +829,7 @@ impl HostCore {
             pending_account_request: None,
             #[cfg(not(target_arch = "wasm32"))]
             login_session_mode: false,
+            desktop: false,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -911,6 +922,8 @@ impl HostCore {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
+        self.desktop = true;
+        be_host_runtime::run_as_desktop();
         self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         be_host_base::watches::publish::<be_sdk_api::DesktopBarWatch>(&true);
         #[cfg(windows)]
