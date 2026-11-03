@@ -10,7 +10,9 @@ fn a_confined_pointer_stays_in_its_region_until_another_window_is_pressed() {
     let origin = harness.window(id).min;
     harness.click_at(origin + vec2(10.0, 10.0));
     let region = harness.client.region((0, 0, 50, 50));
-    let _confined = harness.client.confine_pointer(&window.surface, &pointer, &region);
+    let _confined = harness
+        .client
+        .confine_pointer(&window.surface, &pointer, &region);
     window.surface.commit();
     harness.settle();
     assert_eq!(

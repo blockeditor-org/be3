@@ -10,8 +10,7 @@ use std::time::{Duration, Instant};
 
 use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
-    TouchpadGesture,
-    native::Setup, native::Waker, vec2,
+    TouchpadGesture, native::Setup, native::Waker, vec2,
 };
 use beui_core::clipboard::PasteAnswer;
 use beui_core::program::SafeArea;

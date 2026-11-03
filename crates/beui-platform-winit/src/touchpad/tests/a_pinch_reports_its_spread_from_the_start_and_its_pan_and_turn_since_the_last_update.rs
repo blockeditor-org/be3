@@ -19,7 +19,13 @@ fn a_pinch_reports_its_spread_from_the_start_and_its_pan_and_turn_since_the_last
         "the three events winit sends for a pinch beginning begin it once"
     );
     assert_eq!(
-        frame(&mut touchpad, TouchPhase::Moved, vec2(3.0, -2.0), 0.25, -10.0),
+        frame(
+            &mut touchpad,
+            TouchPhase::Moved,
+            vec2(3.0, -2.0),
+            0.25,
+            -10.0
+        ),
         [
             TouchpadGesture::Pinched {
                 delta: vec2(3.0, -2.0),
@@ -44,7 +50,13 @@ fn a_pinch_reports_its_spread_from_the_start_and_its_pan_and_turn_since_the_last
         "the spread adds up from the start, and no turn sends nothing more"
     );
     assert_eq!(
-        frame(&mut touchpad, TouchPhase::Cancelled, vec2(0.0, 0.0), 0.0, 0.0),
+        frame(
+            &mut touchpad,
+            TouchPhase::Cancelled,
+            vec2(0.0, 0.0),
+            0.0,
+            0.0
+        ),
         [TouchpadGesture::PinchEnded(true)],
         "the pinch ends once, cancelled"
     );

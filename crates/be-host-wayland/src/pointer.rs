@@ -1,8 +1,8 @@
 use beui::{TouchpadGesture, Vec2};
 use smithay::input::pointer::{
     GestureHoldBeginEvent, GestureHoldEndEvent, GesturePinchBeginEvent, GesturePinchEndEvent,
-    GesturePinchUpdateEvent, GestureSwipeBeginEvent, GestureSwipeEndEvent,
-    GestureSwipeUpdateEvent, MotionEvent, PointerHandle, RelativeMotionEvent,
+    GesturePinchUpdateEvent, GestureSwipeBeginEvent, GestureSwipeEndEvent, GestureSwipeUpdateEvent,
+    MotionEvent, PointerHandle, RelativeMotionEvent,
 };
 use smithay::reexports::wayland_server::DisplayHandle;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
@@ -108,9 +108,8 @@ impl State {
         }
         let wanted = self.wanted(&pointer);
         let held = self.constraints.held.as_ref();
-        let same = |held: &Held, wanted: &Held| {
-            held.surface == wanted.surface && held.kind == wanted.kind
-        };
+        let same =
+            |held: &Held, wanted: &Held| held.surface == wanted.surface && held.kind == wanted.kind;
         if let (Some(held), Some(wanted)) = (held, &wanted)
             && same(held, wanted)
         {
@@ -178,7 +177,12 @@ impl State {
     }
 
     pub fn release_pointer(&mut self, id: WindowId) {
-        let Some(held) = self.constraints.held.clone().filter(|held| held.window == id) else {
+        let Some(held) = self
+            .constraints
+            .held
+            .clone()
+            .filter(|held| held.window == id)
+        else {
             return;
         };
         self.let_go();
@@ -222,7 +226,11 @@ impl State {
             || !self.inside(&surface, &self.pointer(), location - origin)
     }
 
-    pub(crate) fn moved_by(&mut self, delta: Point<f64, Logical>, unaccelerated: Point<f64, Logical>) {
+    pub(crate) fn moved_by(
+        &mut self,
+        delta: Point<f64, Logical>,
+        unaccelerated: Point<f64, Logical>,
+    ) {
         let pointer = self.pointer();
         let Some(focus) = pointer
             .current_focus()

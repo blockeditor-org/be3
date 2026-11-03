@@ -49,6 +49,9 @@ impl Touchpad {
             self.panned = Vec2::ZERO;
             return Some(TouchpadGesture::PinchBegan(2));
         }
+        if phase == TouchPhase::Started {
+            return None;
+        }
         let rotation = match gesture {
             Gesture::Pan(delta) => {
                 self.panned += delta;
