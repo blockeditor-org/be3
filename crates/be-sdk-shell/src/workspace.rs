@@ -68,6 +68,7 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
+    placed: RefCell<HashMap<HostWindowId, Rect>>,
 }
 
 #[derive(Clone, Copy)]
@@ -136,6 +137,7 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
+                placed: RefCell::new(HashMap::new()),
             }),
             editor,
             with_files,
@@ -164,6 +166,9 @@ impl Workspace {
         };
         create_effect(move || {
             workspace.show_when_laid_out();
+        });
+        create_effect(move || {
+            workspace.forget_closed_places();
         });
         create_effect(move || {
             workspace.open_landing();
@@ -234,6 +239,25 @@ impl Workspace {
     pub fn desk(&self) -> Memo<Vec<HostWindowId>> {
         let desk = self.desk;
         create_memo(move || desk.with(|desk| desk.keys.clone()))
+    }
+
+    fn placed(&self, window: HostWindowId) -> Option<Rect> {
+        self.state.value().placed.borrow().get(&window).copied()
+    }
+
+    fn keep_placed(&self, window: HostWindowId, rect: Rect) {
+        self.state.value().placed.borrow_mut().insert(window, rect);
+    }
+
+    fn forget_closed_places(&self) {
+        let listed: HashSet<HostWindowId> = self
+            .entries
+            .with(|entries| entries.iter().map(|entry| entry.id).collect());
+        self.state
+            .value()
+            .placed
+            .borrow_mut()
+            .retain(|window, _| listed.contains(window));
     }
 
     pub fn bound(&self, key: HostWindowId) -> Memo<Option<HostWindowId>> {
@@ -1393,17 +1417,29 @@ pub fn FloatingWindow(
 ) -> DockNode<TabId> {
     let window = workspace.bound(key).get_untracked();
     let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
-    let area = untrack(|| workspace.layout().area()).size();
+    let layout = workspace.layout();
+    let area = untrack(|| layout.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
-    let rect = workspace
-        .windows
-        .get_untracked()
-        .iter()
-        .find(|listed| Some(listed.id) == window)
-        .map_or_else(
-            || kept_window(key, area),
-            |listed| floating_window(listed, area),
-        );
+    let rect = window.and_then(|window| workspace.placed(window)).unwrap_or_else(|| {
+        workspace
+            .windows
+            .get_untracked()
+            .iter()
+            .find(|listed| Some(listed.id) == window)
+            .map_or_else(
+                || kept_window(key, area),
+                |listed| floating_window(listed, area),
+            )
+    });
+    if let Some(window) = window {
+        let tab = window_tab(key);
+        create_effect(move || {
+            if let Some(rect) = layout.window_rect(&tab) {
+                let origin = layout.area().min.to_vec2();
+                workspace.keep_placed(window, rect.translate(-origin));
+            }
+        });
+    }
     let pane = format!("window.{}", key.0);
     view! {
         <DockWindow id={pane.clone()} rect>

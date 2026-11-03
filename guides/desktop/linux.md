@@ -658,14 +658,18 @@ the dock's, so maximizing would change nothing (a request to maximize is still a
 with the maximized state, for programs that ask anyway). A program that draws its own title bar
 asks to move or resize its window from it (`xdg_toplevel.move` and `resize`, an X11 window's
 `_NET_WM_MOVERESIZE`); be-host-wayland honours an ask only while the press it names is still held
-(`ServerEvent::Grabbed`), and the window's `WindowView` hands it to the `Carrier` it was given:
+(`ServerEvent::Grabbed`): the pointer's grab, or a finger still down on the window whose touch down
+carried that serial (any finger on the window for an X11 ask, which names none), and the window's `WindowView` hands it to the `Carrier` it was given:
 be-host's `AppView` gives one to the views of a floating window (`be_host_desktop::carrier`), which
 begins the same gesture the window's own bar would (`compositor/desktop.rs`'s `begin`) and steers
-the window's pointer input through it until the button is let go. A window docked in a pane has no
+the window's pointer input through it until the button or finger that pressed is let go; the other
+pointers' input passes by. A window docked in a pane has no
 carrier, so it does not move. `show_window_menu` reaches the shell as `HostWindow::menu` (a count of
 asks and the point, from the window's top left), where be-sdk-shell's `WindowPanel` opens a menu
 there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
-iconify) hides the window as its chip's Hide does. GTK ignores those capabilities
+iconify) hides the window as its chip's Hide does. A hidden window shown again comes back where
+it was: be-sdk-shell's `FloatingWindow` keeps the rect its dock window last had for as long as the
+host lists the window. GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
 (`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
