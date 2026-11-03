@@ -15,7 +15,15 @@ fn super_escape_lets_go_of_a_locked_pointer_until_its_window_is_clicked() {
     harness.settle();
 
     let escape = |pressed: bool| vec![stroke(Some(Key::Escape), KEY_ESC, pressed)];
-    harness.frame([super_key(true), escape(true), escape(false), super_key(false)].concat());
+    harness.frame(
+        [
+            super_key(true),
+            escape(true),
+            escape(false),
+            super_key(false),
+        ]
+        .concat(),
+    );
     harness.settle();
     harness.frame(vec![Input::PointerMotion(vec2(5.0, 0.0))]);
     harness.settle();
