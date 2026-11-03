@@ -214,4 +214,5 @@ out as the canvas does (`TextAreaState::lay_out_prose`) and turn it with
   inside a canvas) are in `crates/be-host-tests`.
 - `//crates/be-app-infinite-canvas:example-canvas-bench` (`examples/canvas-bench.rs`)
   times open, pan, zoom, drag and ink on 100 and 10,000 shapes, and the
-  suite's `app-canvas-and-text` times a pen line in be-host (guides/performance.md).
+  suite's `app-canvas-and-text` times a pen line in be-host (guides/performance.md,
+  which also covers what keeps a gesture's cost independent of the canvas's size).
