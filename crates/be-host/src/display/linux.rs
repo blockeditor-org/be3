@@ -100,7 +100,11 @@ fn config(settings: &DisplaySettings) -> DisplayConfig {
             .iter()
             .filter_map(|(id, screen)| Some((id.clone(), screen.rotation?)))
             .collect(),
-        scales: Vec::new(),
+        scales: settings
+            .screens
+            .iter()
+            .filter_map(|(id, _)| Some((id.clone(), settings.screen_scale(id)?)))
+            .collect(),
     }
 }
 
@@ -142,6 +146,10 @@ fn host_display(monitor: &Monitor, shown: Option<&Display>) -> HostDisplay {
         current: monitor.current,
         rotation: monitor.rotation,
         rect: shown.map_or(beui::Rect::ZERO, Display::rect),
-        scale: shown.map_or(1.0, |display| display.scale),
+        scale: shown.map_or(monitor.default_scale, |display| display.scale),
+        default_scale: monitor.default_scale,
     }
 }
+
+#[cfg(test)]
+mod tests;

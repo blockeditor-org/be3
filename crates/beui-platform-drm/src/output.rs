@@ -15,6 +15,7 @@ use smithay::reexports::drm::{Device as _, DriverCapability};
 use super::screen::{Damage, Frame, Screen};
 use be_host_dmabuf::{Usage, Vulkan};
 
+use crate::density::natural_scale;
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
 use crate::modes::{
@@ -49,6 +50,8 @@ pub struct Output {
     id: String,
     name: String,
     connector_name: String,
+    millimetres: Option<(u32, u32)>,
+    forced_scale: Option<f32>,
     fencing: bool,
     state: State,
     damage: Damage,
@@ -163,7 +166,7 @@ impl Output {
         info: &connector::Info,
         taken: &[crtc::Handle],
         config: &DisplayConfig,
-        default_scale: f32,
+        forced_scale: Option<f32>,
         generation: u64,
     ) -> Result<Self, String> {
         let connector_name = info.to_string();
@@ -211,7 +214,10 @@ impl Output {
         };
         let fencing = syncobj && !buffers.imported && !swapchain.is_legacy();
         let mut screen = Screen::new(gpu, size_of(&mode), config.rotation(&id));
-        screen.scale = config.scale(&id).unwrap_or(default_scale);
+        let millimetres = info.size().filter(|(width, height)| *width > 0 && *height > 0);
+        screen.scale = config.scale(&id).unwrap_or_else(|| {
+            forced_scale.unwrap_or_else(|| natural_scale(size_of(&mode), millimetres))
+        });
         Ok(Self {
             connector,
             crtc,
@@ -225,6 +231,8 @@ impl Output {
             id,
             name: monitor_name(identity.as_ref(), &connector_name),
             connector_name,
+            millimetres,
+            forced_scale,
             fencing,
             state: State::Idle,
             damage: None,
@@ -259,7 +267,13 @@ impl Output {
             preferred: self.candidates[preferred].mode,
             current: self.candidates[self.chosen].mode,
             rotation: self.screen.rotation(),
+            default_scale: self.default_scale(self.chosen),
         }
+    }
+
+    fn default_scale(&self, chosen: usize) -> f32 {
+        self.forced_scale
+            .unwrap_or_else(|| natural_scale(size_of(&self.modes[chosen]), self.millimetres))
     }
 
     pub fn drawing(&self) -> bool {
@@ -271,11 +285,12 @@ impl Output {
         gpu: &Gpu,
         wanted: Option<DisplayMode>,
         rotation: Rotation,
-        scale: f32,
+        scale: Option<f32>,
     ) -> bool {
         let Some(chosen) = choose(&self.candidates, wanted) else {
             return false;
         };
+        let scale = scale.unwrap_or_else(|| self.default_scale(chosen));
         if self.drawing() {
             return false;
         }

@@ -17,6 +17,7 @@ pub struct Monitor {
     pub preferred: DisplayMode,
     pub current: DisplayMode,
     pub rotation: Rotation,
+    pub default_scale: f32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

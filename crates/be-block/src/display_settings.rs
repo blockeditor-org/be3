@@ -51,6 +51,8 @@ impl LockAfter {
 pub struct ScreenSettings {
     pub mode: Option<DisplayMode>,
     pub rotation: Option<Rotation>,
+    #[serde(default)]
+    pub scale_percent: Option<u32>,
 }
 
 impl ScreenSettings {
@@ -58,6 +60,7 @@ impl ScreenSettings {
         Self {
             mode: self.mode.or(lower.mode),
             rotation: self.rotation.or(lower.rotation),
+            scale_percent: self.scale_percent.or(lower.scale_percent),
         }
     }
 }
@@ -80,6 +83,7 @@ pub struct DisplaySettings {
 impl DisplaySettings {
     pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
     pub const DEFAULT_SCALE: u32 = 100;
+    pub const SCREEN_SCALES: [u32; 9] = [100, 125, 150, 175, 200, 225, 250, 275, 300];
     pub const KEYBOARD_HEIGHTS: [u32; 7] = [20, 25, 30, 35, 40, 45, 50];
     pub const DEFAULT_KEYBOARD_HEIGHT: u32 = 35;
 
@@ -135,6 +139,13 @@ impl DisplaySettings {
         self.screen(id).rotation.unwrap_or_default()
     }
 
+    pub fn screen_scale(&self, id: &str) -> Option<f32> {
+        self.screen(id)
+            .scale_percent
+            .filter(|percent| *percent > 0)
+            .map(|percent| percent as f32 / 100.0)
+    }
+
     pub fn rotate_in_bar(&self) -> bool {
         self.rotate_in_bar.unwrap_or(false)
     }
@@ -182,6 +193,16 @@ impl DisplaySettings {
             id,
             ScreenSettings {
                 rotation,
+                ..self.screen(id)
+            },
+        )
+    }
+
+    pub fn set_screen_scale(&self, id: &str, scale_percent: Option<u32>) -> Edit {
+        self.store_screen(
+            id,
+            ScreenSettings {
+                scale_percent,
                 ..self.screen(id)
             },
         )
@@ -314,6 +335,17 @@ impl DisplaySettings {
             move |own: &Self, rotation| own.set_rotation(&write, rotation),
         )
         .with_default(Some(Rotation::Normal))
+        .only_on_this_device(Self::keyed_by_connector(id))
+    }
+
+    pub fn screen_scale_setting(id: &str) -> Setting<Self, u32> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("screen.{id}.scale"),
+            "Display scale",
+            move |settings: &Self| settings.screen(&read).scale_percent,
+            move |own: &Self, percent| own.set_screen_scale(&write, percent),
+        )
         .only_on_this_device(Self::keyed_by_connector(id))
     }
 }

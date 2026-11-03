@@ -4268,8 +4268,10 @@ first display's size at its scale, which is also the context's.
 Pointer input goes to the window of the display under the pointer, in that
 window's points (`Units::Points`), and a press focuses the window it lands in
 (`WindowReport::Focused`); a press held in one window goes on as the pointer
-crosses into another, by the rules above. Each display's scale is `BEUI_SCALE`
-(1 when unset) unless `DisplayConfig::scales` names one for its monitor id.
+crosses into another, by the rules above. Each display's scale is what
+`DisplayConfig::scales` names for its monitor id, or else `BEUI_SCALE`, or else
+one that suits the display's physical size and its mode (`density.rs`), which
+`Monitor::default_scale` reports.
 `Displays::new` makes a handle with displays of a test's own, and
 `Displays::set` changes them.
 

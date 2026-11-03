@@ -1,5 +1,6 @@
 mod arrow;
 mod cursors;
+mod density;
 mod display;
 mod displays;
 mod epaper;

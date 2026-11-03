@@ -107,7 +107,7 @@ pub struct Session {
     outputs: Rc<RefCell<Outputs>>,
     displays: Displays,
     windows: Windows,
-    default_scale: f32,
+    forced_scale: Option<f32>,
     zoom: f32,
     pacer: Pacer,
     clock: Clock<Monotonic>,
@@ -203,11 +203,11 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let (device, queue) = open_gpu(node, &lost)?;
     let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
     let buffers = buffers(fd, node, &gpu)?;
-    let default_scale = scale();
+    let forced_scale = scale();
     let outputs = Rc::new(RefCell::new(Outputs::new(
         gpu,
         SoftwareCursor::default(),
-        default_scale,
+        forced_scale.unwrap_or(1.0),
     )));
     let mut runner = Runner::new(launch);
     let hosted = runner.context().opens_windows();
@@ -240,7 +240,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         setup,
     )?;
     runner.reports().fullscreen(true);
-    runner.reports().scaled(default_scale);
+    runner.reports().scaled(forced_scale.unwrap_or(1.0));
     if epaper.is_some() {
         runner.reports().system_preferences(PreferenceLayer {
             theme: Some(ThemeKind::EPaper),
@@ -285,7 +285,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
             hosted,
             ..Windows::default()
         },
-        default_scale,
+        forced_scale,
         zoom: 1.0,
         pacer: Pacer::default(),
         clock: Clock::new(),
@@ -408,12 +408,11 @@ fn buffers(display: DrmDeviceFd, node: u64, gpu: &Gpu) -> Result<Buffers, Box<dy
     })
 }
 
-fn scale() -> f32 {
+fn scale() -> Option<f32> {
     std::env::var("BEUI_SCALE")
         .ok()
         .and_then(|scale| scale.parse::<f32>().ok())
-        .filter(|scale| *scale > 0.0)
-        .unwrap_or(1.0)
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
 }
 
 fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Queue), String> {
@@ -572,10 +571,7 @@ impl Session {
                 }
                 let wanted = self.display_config.mode(output.id());
                 let rotation = self.display_config.rotation(output.id());
-                let scale = self
-                    .display_config
-                    .scale(output.id())
-                    .unwrap_or(self.default_scale);
+                let scale = self.display_config.scale(output.id()).or(self.forced_scale);
                 changed |= output.configure(&outputs.gpu, wanted, rotation, scale);
             }
         }
@@ -807,7 +803,7 @@ impl Session {
                 &info,
                 &taken,
                 &self.display_config,
-                self.default_scale,
+                self.forced_scale,
                 self.built,
             ) {
                 Ok(mut output) => {
