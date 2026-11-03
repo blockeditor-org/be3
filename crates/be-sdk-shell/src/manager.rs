@@ -124,7 +124,9 @@ impl WindowManager {
         self.workspace
             .shown_window_tabs()
             .into_iter()
-            .filter(|tab| tab_window(*tab).is_none() || self.workspace.program_window(*tab).is_some())
+            .filter(|tab| {
+                tab_window(*tab).is_none() || self.workspace.program_window(*tab).is_some()
+            })
             .collect()
     }
 
@@ -327,8 +329,7 @@ impl WindowManager {
         };
         let several = create_memo(move || has_focus.get() && manager.areas().len() > 1);
         let can_clear = create_memo(move || {
-            !locked.get()
-                && (!manager.clearable().is_empty() || manager.shows_desktop())
+            !locked.get() && (!manager.clearable().is_empty() || manager.shows_desktop())
         });
         let shows_desktop = create_memo(move || manager.shows_desktop());
         let more_of_app = create_memo(move || {
@@ -356,24 +357,28 @@ impl WindowManager {
             snap_left: Action::new(
                 "desktop.window.snap_left",
                 "Snap window to the left half",
-                on_focused(|manager, tab| match manager.workspace.layout().window_snap(&tab) {
-                    Some(DockSnap::Right) => {
-                        manager.restore(tab);
-                    }
-                    _ => manager.snap(tab, DockSnap::Left),
-                }),
+                on_focused(
+                    |manager, tab| match manager.workspace.layout().window_snap(&tab) {
+                        Some(DockSnap::Right) => {
+                            manager.restore(tab);
+                        }
+                        _ => manager.snap(tab, DockSnap::Left),
+                    },
+                ),
             )
             .glyph(ICON_PANEL_LEFT)
             .enabled(snapped_as(DockSnap::Left)),
             snap_right: Action::new(
                 "desktop.window.snap_right",
                 "Snap window to the right half",
-                on_focused(|manager, tab| match manager.workspace.layout().window_snap(&tab) {
-                    Some(DockSnap::Left) => {
-                        manager.restore(tab);
-                    }
-                    _ => manager.snap(tab, DockSnap::Right),
-                }),
+                on_focused(
+                    |manager, tab| match manager.workspace.layout().window_snap(&tab) {
+                        Some(DockSnap::Left) => {
+                            manager.restore(tab);
+                        }
+                        _ => manager.snap(tab, DockSnap::Right),
+                    },
+                ),
             )
             .glyph(ICON_PANEL_RIGHT)
             .enabled(snapped_as(DockSnap::Right)),

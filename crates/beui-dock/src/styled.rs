@@ -12,8 +12,7 @@ pub use crate::unstyled::{
     DockAlign, DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument,
     DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode,
     DockPane, DockSlot, DockSnap, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
-    SplitSize,
-    TabId, dock_menu, use_dock_bar, use_dock_tab,
+    SplitSize, TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,

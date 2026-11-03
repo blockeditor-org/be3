@@ -503,9 +503,10 @@ impl Workspace {
                     .find(|listed| listed.id == window)
                     .map(|listed| format!("program:{}", listed.program_id))
             }),
-            None => self
-                .tabs
-                .with(|tabs| tabs.get(&tab).map(|item| format!("block:{}", item.block_type))),
+            None => self.tabs.with(|tabs| {
+                tabs.get(&tab)
+                    .map(|item| format!("block:{}", item.block_type))
+            }),
         }
     }
 

@@ -117,9 +117,7 @@ impl DeskWindows {
                         let inside = inside.filter(|inside| inside.is_positive());
                         match (at, inside) {
                             (0, Some(inside)) => inside,
-                            (_, inside) => inside
-                                .unwrap_or(whole)
-                                .translate(display.min - first),
+                            (_, inside) => inside.unwrap_or(whole).translate(display.min - first),
                         }
                     })
                     .collect()
@@ -197,7 +195,8 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        self.manager.move_to_display(self.tab(chip), display as usize);
+        self.manager
+            .move_to_display(self.tab(chip), display as usize);
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {

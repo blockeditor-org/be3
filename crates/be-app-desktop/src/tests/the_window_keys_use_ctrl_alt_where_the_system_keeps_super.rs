@@ -19,11 +19,16 @@ fn the_window_keys_use_ctrl_alt_where_the_system_keeps_super() {
             "{modifiers:?}+{key:?} is left to the system"
         );
     }
-    let ctrl_alt = Modifiers { alt: true, ..Modifiers::CTRL };
+    let ctrl_alt = Modifiers {
+        alt: true,
+        ..Modifiers::CTRL
+    };
     assert!(fixture.test.host_key(ctrl_alt, Key::ArrowLeft));
     fixture.settle();
     assert!(
-        fixture.window_rect(2).is_some_and(|rect| rect.width() > 320.0),
+        fixture
+            .window_rect(2)
+            .is_some_and(|rect| rect.width() > 320.0),
         "Ctrl+Alt+Left snaps the window"
     );
     assert!(fixture.test.host_key(Modifiers::CTRL, Key::F4));
