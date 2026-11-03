@@ -642,8 +642,31 @@ impl Workspace {
     }
 
     pub fn open_placeholders(&self) {
-        for tab in self.placeholders().get_untracked() {
+        let waiting: Vec<TabId> = self.programs.with_untracked(|programs| {
+            programs
+                .iter()
+                .filter(|(_, program)| program.window.is_none())
+                .map(|(tab, _)| *tab)
+                .collect()
+        });
+        for tab in waiting {
             self.open_placeholder(tab);
+        }
+    }
+
+    fn forget_child(&self, tab: TabId) {
+        if !self.heard.is_alive() {
+            return;
+        }
+        let held = self
+            .heard
+            .with_untracked(|heard| heard.get(&tab).is_some_and(|heard| heard.child.is_some()));
+        if held {
+            self.heard.update(|heard| {
+                if let Some(heard) = heard.get_mut(&tab) {
+                    heard.child = None;
+                }
+            });
         }
     }
 
@@ -841,6 +864,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             });
         });
     }
+    on_cleanup(move || workspace.forget_child(tab));
     let raised = create_memo(move || heard.with(|heard| heard.raised));
     let seen_raise = StoredCell::new(raised.get_untracked());
     create_effect(move || {
