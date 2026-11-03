@@ -14,6 +14,7 @@ fn moved_to(synth: Synth) -> (i32, i32, u32) {
 
 mod a_key_is_injected_by_its_scan_code;
 mod a_keystroke_prefers_its_physical_key_and_falls_back_to_its_text;
+mod a_placeless_key_types_its_text_or_the_layouts_key_for_a_shortcut;
 mod a_move_goes_to_the_point_in_virtual_desktop_coordinates;
 mod a_press_and_release_happen_where_the_pointer_is;
 mod a_scroll_turns_the_wheel_a_notch_a_line_the_way_winit_reads_it;

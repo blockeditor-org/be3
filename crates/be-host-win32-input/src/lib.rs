@@ -8,7 +8,7 @@ pub mod inject;
 
 pub use mapping::{PixelPoint, PixelRect, absolute};
 pub use reach::{InjectError, Target, target};
-pub use synth::{Event, INJECTED, Planned, PointerAction, Synth, plan};
+pub use synth::{Event, INJECTED, LayoutKey, Planned, PointerAction, Synth, plan};
 
 #[cfg(windows)]
 pub use inject::{inject, virtual_desktop};
