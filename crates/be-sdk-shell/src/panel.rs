@@ -41,8 +41,6 @@ impl Default for Refs {
 }
 
 impl Refs {
-    // Block ids are UUIDv7s whose order within one millisecond is random, so the list is
-    // ordered by what it shows: the blocks still there first, each part by name.
     fn sort(&mut self, types: &BlockCatalog) {
         self.list.sort_by_cached_key(|info| {
             (info.deleted, info.label(types).name.to_lowercase(), info.id)
