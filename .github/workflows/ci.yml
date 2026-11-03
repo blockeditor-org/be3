@@ -452,15 +452,24 @@ jobs:
               *.ttf) type='font/ttf' ;;
               *) type='application/octet-stream' ;;
             esac
+            uploaded=$((uploaded + 1))
+            size=$(stat --format=%s "$previews/$1")
+            start=$SECONDS
             curl --fail --silent --show-error --retry 3 --output /dev/null \
               --request PUT \
               --header "AccessKey: $BUNNY_STORAGE_KEY" \
               --header "Content-Type: $type" \
               --upload-file "$previews/$1" \
               "$store/$1"
+            echo "[$uploaded/$total] $1 ($size bytes, $((SECONDS - start))s, $((SECONDS - began))s so far)"
           }
 
-          for file in "$previews"/*.webp "$previews"/*.png "$previews"/*.json; do
+          began=$SECONDS
+          uploaded=0
+          files=("$previews"/*.webp "$previews"/*.png "$previews"/*.json)
+          total=${#files[@]}
+          echo "Uploading $total images and data files, $(du --summarize --bytes --total "${files[@]}" /dev/null | tail -n 1 | cut -f 1) bytes"
+          for file in "${files[@]}"; do
             upload "$(basename "$file")"
           done
 
@@ -468,13 +477,19 @@ jobs:
             site="site/$(basename "$site")"
             if curl --fail --silent --output /dev/null \
               --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/$site/index.html"; then
+              echo "$site is already uploaded"
               continue
             fi
-            (cd "$previews" && find "$site" -type f ! -name index.html) | while read -r file; do
+            mapfile -t site_files < <(cd "$previews" && find "$site" -type f ! -name index.html)
+            uploaded=0
+            total=$((${#site_files[@]} + 1))
+            echo "Uploading $site, $total files"
+            for file in "${site_files[@]}"; do
               upload "$file"
             done
             upload "$site/index.html"
           done
+          echo "Uploaded everything in $((SECONDS - began))s"
 
       - name: Comment
         env:
