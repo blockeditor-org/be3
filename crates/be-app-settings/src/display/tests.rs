@@ -17,6 +17,7 @@ use crate::display::DisplaySettingsRoot;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_profile_shows_the_theme_it_inherits;
 mod a_screen_known_by_its_connector_is_this_devices_alone;
+mod choosing_a_display_scale_stores_it_and_the_default_suits_the_display;
 mod choosing_a_keyboard_height_keeps_it_on_this_device;
 mod choosing_a_refresh_rate_stores_the_mode;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
@@ -48,6 +49,7 @@ const RESOLUTION: &str = "display.DP-1.resolution";
 const REFRESH: &str = "display.DP-1.refresh";
 const SCREEN: &str = "display.DP-1";
 const ROTATION: &str = "display.DP-1.rotation";
+const DISPLAY_SCALE: &str = "display.DP-1.scale";
 const ROTATE_IN_BAR: &str = "display.rotate-in-bar";
 const KEYBOARD_IN_BAR: &str = "display.keyboard-in-bar";
 const SCREEN_OFF: &str = "display.screen-off";
@@ -295,5 +297,6 @@ fn gaming_monitor() -> HostDisplay {
         rotation: Rotation::Normal,
         rect: be_sdk_beui::Rect::ZERO,
         scale: 1.0,
+        default_scale: 1.0,
     }
 }

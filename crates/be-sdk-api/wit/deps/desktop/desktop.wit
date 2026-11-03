@@ -191,7 +191,8 @@ interface displays {
     use be3:ui/types@0.1.0.{rect};
     use be3:preferences/types@0.1.0.{display-mode, rotation};
 
-    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point.
+    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point;
+    /// `default-scale` is the scale it has until one is chosen, which suits its size and resolution.
     record host-display {
         id: string,
         name: string,
@@ -202,6 +203,7 @@ interface displays {
         rotation: rotation,
         rect: rect,
         scale: f32,
+        default-scale: f32,
     }
 
     resource displays-watch {

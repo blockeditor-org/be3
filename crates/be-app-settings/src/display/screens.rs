@@ -92,6 +92,38 @@ pub(super) fn ScreenSection(
     let pick = Callback::new(move |picked: Rotation| turn.call(Some(picked)));
     let choose = settings.setter(&mode);
     let set = Callback::new(move |chosen: Option<DisplayMode>| choose.call(chosen));
+    let scale = DisplaySettings::screen_scale_setting(&id);
+    let scale_row = settings.row(&scale);
+    let chosen_scale = settings.value(&scale);
+    let below_scale = settings.fallback(&scale);
+    let natural_scale = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map_or(DisplaySettings::DEFAULT_SCALE, |display| {
+                    (display.default_scale * 100.0).round() as u32
+                })
+        })
+    });
+    let inherited_scale_label = create_memo(move || {
+        format!(
+            "Default ({}%)",
+            below_scale.get().unwrap_or_else(|| natural_scale.get())
+        )
+    });
+    let selected_scale = create_memo(move || {
+        Some(
+            chosen_scale
+                .get()
+                .and_then(|percent| {
+                    DisplaySettings::SCREEN_SCALES
+                        .iter()
+                        .position(|known| *known == percent)
+                })
+                .map_or(0, |index| index + 1),
+        )
+    });
+    let set_scale = settings.setter(&scale);
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
     let at_fastest = create_memo(move || !slower.get() || read_only.get());
@@ -161,6 +193,34 @@ pub(super) fn ScreenSection(
                     @test_id={refresh_id}
                 />
             </SettingsRow>
+            <LayeredSettingsRow
+                setting={scale_row}
+                label="Display scale"
+                description="How large everything is on this display. Until one is chosen, one that suits its size and resolution."
+                separated=true
+                locked={read_only}
+                id={format!("display.{connector}.scale")}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ChoiceOption label={inherited_scale_label} />
+                        <ForEach keys={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
+                            <ChoiceOption label={format!("{percent}%")} />
+                        </ForEach>
+                    }}
+                    selected={Binding::new(selected_scale, move |index: Option<usize>| {
+                        let percent = index
+                            .and_then(|index| index.checked_sub(1))
+                            .and_then(|index| DisplaySettings::SCREEN_SCALES.get(index).copied());
+                        set_scale.call(percent);
+                    })}
+                    label="Display scale"
+                    disabled={read_only}
+                    @test_id={format!("display.{connector}.scale")}
+                />
+            </LayeredSettingsRow>
             <LayeredSettingsRow
                 setting={rotation_row}
                 label="Rotation"

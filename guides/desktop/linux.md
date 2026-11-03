@@ -14,7 +14,7 @@ whose shell is the desktop app. Two ways to run it are Linux's alone:
   Log out (see below) logs out, Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
-  every display's scale.
+  every display's default scale.
 - `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]`: see Installing it as a login session, below.
 
 Under `--desktop` on Linux programs open as windows inside the shell, as they do in any windowed
@@ -61,8 +61,12 @@ first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell
 display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
 host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
 `drive click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
-nodes. Every display has its own scale: `BEUI_SCALE`, or what
-`DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
+nodes. Every display has its own scale: the one chosen for it in Settings > Display (a
+`ScreenSettings::scale_percent`, keyed by `HostDisplay::id` like its mode and rotation, which
+`display/linux.rs` hands the platform as `DisplayConfig::scales`), or else its default,
+`HostDisplay::default_scale`: `BEUI_SCALE` when set, or else one that suits its size and resolution
+(beui-platform-drm's `density.rs`: its pixels per inch over 110, to the nearest quarter, from 1 to 3;
+1 when its EDID gives no believable size). Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
 
 be-host-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
