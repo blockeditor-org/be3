@@ -1473,17 +1473,19 @@ pub fn FloatingWindow(
     let layout = workspace.layout();
     let area = untrack(|| layout.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
-    let rect = window.and_then(|window| workspace.placed(window)).unwrap_or_else(|| {
-        workspace
-            .windows
-            .get_untracked()
-            .iter()
-            .find(|listed| Some(listed.id) == window)
-            .map_or_else(
-                || kept_window(key, area),
-                |listed| floating_window(listed, area),
-            )
-    });
+    let rect = window
+        .and_then(|window| workspace.placed(window))
+        .unwrap_or_else(|| {
+            workspace
+                .windows
+                .get_untracked()
+                .iter()
+                .find(|listed| Some(listed.id) == window)
+                .map_or_else(
+                    || kept_window(key, area),
+                    |listed| floating_window(listed, area),
+                )
+        });
     if let Some(window) = window {
         let tab = window_tab(key);
         create_effect(move || {
