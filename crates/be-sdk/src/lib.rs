@@ -57,7 +57,7 @@ pub use be_sdk_api::{
     MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuCheck, MenuCommand, MenuEntry, MenuPin,
     MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
     NotificationRequest, NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder,
-    PenPhase, PickedBlock, PlayerCommand, PointerButton, PowerAction, PowerAvailability,
+    PenPhase, PickedBlock, PlayerCommand, PointerButton, Pointing, PowerAction, PowerAvailability,
     PowerWatch, Press, PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, RemapState,
     RemapsWatch, ResizeMode, Revision, Rotation, ScreenLockedWatch, ScreenPlacement, ScrollDelta,
     SessionEnd, ShellCommand, ShellDialog, Size, Stopped, SuperKeptWatch, SurfaceRect,

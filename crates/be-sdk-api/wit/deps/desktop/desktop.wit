@@ -125,6 +125,14 @@ interface input {
         device: input-device,
         /// What the device does before the user changes it.
         defaults: pointer-settings,
+        /// Set for a touchscreen or a pen, whose touches land on a display.
+        pointing: option<pointing>,
+    }
+
+    record pointing {
+        /// The id of the display the device lands on until the user chooses one;
+        /// none while it spans every display, as a tablet with no screen does.
+        automatic: option<string>,
     }
 
     /// Whether the session remaps input, and whether the remapping stopped.

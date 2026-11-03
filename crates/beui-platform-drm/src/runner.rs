@@ -60,17 +60,18 @@ use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{
-    InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, RawInput,
+    InputConfig, InputControl, InputDevice, PointerDevice, Pointing, PointerSettings, PointerSpeed, RawInput,
     SharedFilter,
 };
 use crate::keyboard::Keyboard;
-use crate::layout::{absolute, arrange, bounds, clamp, moved};
+use crate::layout::{arrange, clamp, moved};
+use crate::pointing::{self, Kind, Pointer, Target};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
-use crate::rotation::{Rotation, Turn};
+use crate::rotation::Turn;
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
@@ -95,6 +96,7 @@ pub struct Session {
     node: u64,
     libinput: Libinput,
     devices: Vec<Libdevice>,
+    pointing: Vec<Pointed>,
     input: InputConfig,
     control: InputControl,
     display_control: DisplayControl,
@@ -120,6 +122,13 @@ pub struct Session {
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
     problems: Problems,
+}
+
+struct Pointed {
+    device: Libdevice,
+    id: InputDevice,
+    pointer: Pointer,
+    target: Target,
 }
 
 #[derive(Default)]
@@ -269,6 +278,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         node,
         libinput,
         devices: Vec::new(),
+        pointing: Vec::new(),
         keyboard: Keyboard::new(&input).ok_or("the keymap could not be compiled")?,
         input,
         control,
@@ -443,6 +453,7 @@ impl Session {
             platform,
             outputs,
             devices,
+            pointing,
             libinput,
             buffers,
             epaper,
@@ -452,6 +463,7 @@ impl Session {
         let finished = runner.finish();
         drop(platform);
         drop(outputs);
+        drop(pointing);
         drop(devices);
         libinput.suspend();
         drop(libinput);
@@ -864,6 +876,8 @@ impl Session {
         self.report_sizes();
         self.pacer.ask();
         self.report_monitors();
+        self.retarget();
+        self.report_devices();
     }
 
     fn follow_zoom(&mut self) {
@@ -1119,15 +1133,25 @@ impl Session {
     }
 
     fn absolute_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let (area, rotation) = self.absolute_area();
-        clamp(absolute(normalized(event), area, rotation), &self.rects())
+        let target = self.target(&event.device());
+        let areas = self.outputs.borrow().areas();
+        clamp(
+            pointing::place(normalized(event), target, &areas),
+            &self.rects(),
+        )
     }
 
-    fn absolute_area(&self) -> (beui::Rect, Rotation) {
-        let outputs = self.outputs.borrow();
-        match outputs.outputs.as_slice() {
-            [only] => (only.screen.rect, only.screen.rotation()),
-            _ => (bounds(&outputs.rects()), Rotation::Normal),
+    fn target(&self, device: &Libdevice) -> Target {
+        match self.pointing.iter().find(|known| known.device == *device) {
+            Some(known) => known.target,
+            None => pointing::automatic(&Pointer::pen(), &self.outputs.borrow().pointed()),
+        }
+    }
+
+    fn retarget(&mut self) {
+        let screens = self.outputs.borrow().pointed();
+        for known in &mut self.pointing {
+            known.target = pointing::target(&known.pointer, &screens, self.input.display(&known.id));
         }
     }
 
@@ -1161,20 +1185,36 @@ impl Session {
         for device in &mut self.devices {
             configure_device(device, &self.input);
         }
+        self.retarget();
     }
 
     fn report_devices(&self) {
+        let screens = self.outputs.borrow().pointed();
         let mut pointers: Vec<PointerDevice> = Vec::new();
         for device in &self.devices {
             let defaults = pointer_defaults(device);
-            if defaults == PointerSettings::default() {
+            let pointing = self
+                .pointing
+                .iter()
+                .find(|known| known.device == *device)
+                .map(|known| Pointing {
+                    automatic: pointing::shown(
+                        pointing::automatic(&known.pointer, &screens),
+                        &screens,
+                    ),
+                });
+            if defaults == PointerSettings::default() && pointing.is_none() {
                 continue;
             }
             let id = device_id(device);
             if pointers.iter().any(|pointer| pointer.id == id) {
                 continue;
             }
-            pointers.push(PointerDevice { id, defaults });
+            pointers.push(PointerDevice {
+                id,
+                defaults,
+                pointing,
+            });
         }
         pointers.sort_by(|left, right| left.id.cmp(&right.id));
         self.control.set_devices(pointers);
@@ -1214,10 +1254,20 @@ impl Session {
         match event {
             InputEvent::DeviceAdded { mut device } => {
                 configure_device(&mut device, &self.input);
+                if let Some(pointer) = pointer_of(&device) {
+                    self.pointing.push(Pointed {
+                        device: device.clone(),
+                        id: device_id(&device),
+                        pointer,
+                        target: Target::All,
+                    });
+                    self.retarget();
+                }
                 self.devices.push(device);
                 self.report_devices();
             }
             InputEvent::DeviceRemoved { device } => {
+                self.pointing.retain(|known| known.device != device);
                 self.devices.retain(|known| *known != device);
                 self.report_devices();
             }
@@ -1372,7 +1422,8 @@ impl Session {
         let position = self.absolute_position(event);
         self.place_pointer(position);
         let tool = event.tool();
-        let (_, rotation) = self.absolute_area();
+        let target = self.target(&event.device());
+        let (_, rotation) = pointing::area(target, &self.outputs.borrow().areas());
         let tilt =
             rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
         if matches!(phase, PenPhase::Down(_)) {
@@ -1387,14 +1438,8 @@ impl Session {
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let outputs = self.outputs.borrow();
-        let (rect, rotation) = outputs
-            .outputs
-            .first()
-            .map_or((beui::Rect::ZERO, Rotation::Normal), |output| {
-                (output.screen.rect, output.screen.rotation())
-            });
-        absolute(normalized(event), rect, rotation)
+        let target = self.target(&event.device());
+        pointing::place(normalized(event), target, &self.outputs.borrow().areas())
     }
 
     fn touch(
@@ -1687,6 +1732,31 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
 
 fn normalized<E: AbsolutePositionEvent<LibinputInputBackend>>(event: &E) -> Pos2 {
     beui::pos2(event.x_transformed(1) as f32, event.y_transformed(1) as f32)
+}
+
+fn pointer_of(device: &Libdevice) -> Option<Pointer> {
+    let kind = if device.has_capability(DeviceCapability::Touch) {
+        Kind::Touch
+    } else if device.has_capability(DeviceCapability::TabletTool) {
+        Kind::Pen
+    } else {
+        return None;
+    };
+    let output = smithay::reexports::udev::Device::from_subsystem_sysname(
+        "input".to_owned(),
+        device.sysname().to_owned(),
+    )
+    .ok()
+    .and_then(|udev| {
+        udev.property_value("WL_OUTPUT")
+            .map(|value| value.to_string_lossy().into_owned())
+    })
+    .filter(|output| !output.is_empty());
+    Some(Pointer {
+        kind,
+        size: device.size(),
+        output,
+    })
 }
 
 fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {

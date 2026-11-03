@@ -145,6 +145,9 @@ fn host_device(device: &PointerDevice) -> HostInputDevice {
     HostInputDevice {
         device: device.id.clone(),
         defaults: device.defaults,
+        pointing: device.pointing.as_ref().map(|pointing| be_sdk_api::Pointing {
+            automatic: pointing.automatic.clone(),
+        }),
     }
 }
 
@@ -161,6 +164,11 @@ fn seat(settings: &InputSettings, active_layout: u32) -> InputConfig {
             .pointers
             .iter()
             .map(|(device, settings)| (device.clone(), *settings))
+            .collect(),
+        displays: settings
+            .displays
+            .iter()
+            .map(|(device, display)| (device.clone(), display.clone()))
             .collect(),
     }
 }
