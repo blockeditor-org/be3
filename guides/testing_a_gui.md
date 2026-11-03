@@ -214,7 +214,7 @@ way for the test to fail.
   centred over the grid, and fetches the full images of its neighbours too; holding Space shows
   every painting as it was before, and holding Shift the changes in magenta, where a painting
   with no image on that side says it was added or removed. Clicking one opens it with a line to
-  drag between before and after; pinch, scroll or middle-drag to inspect it, and use Fit or 100%
+  drag between before and after (an added or removed painting leaves the side it lacks blank); pinch, scroll or middle-drag to inspect it, and use Fit or 100%
   to reset the view. At 100%, each image pixel occupies one UI point (one CSS pixel on the
   web), regardless of the screen's device pixel ratio. The comment lists the paintings in the
   same order and shows up to 30 frames inline, as thumbnails linking to the full images, inside

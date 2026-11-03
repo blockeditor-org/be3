@@ -11,7 +11,7 @@ use crate::status::{color, glyph, label};
 use be_tool_paint_review_manifest::{Picture, Status};
 
 const PADDING: Space = Space::Xl;
-const TILE_SPACING: Space = Space::Md;
+const TILE_SPACING: Space = Space::None;
 const TILE_PADDING: Space = Space::Sm;
 const THUMBNAIL_WIDTH: f32 = 144.0;
 const THUMBNAIL_HEIGHT: f32 = 108.0;
@@ -154,10 +154,10 @@ fn Tile(review: Review, index: usize) -> NodeId {
             });
             let border = create_memo(move || match hovered.get() || keyboard.get() {
                 true => Some(Border::new(ColorRole::Accent).width(Stroke::Focus)),
-                false => Some(Border::DEFAULT),
+                false => None,
             });
             view! {
-                <Frame padding=TILE_PADDING radius=Radius::Md fill={fill} border={border}>
+                <Frame padding=TILE_PADDING fill={fill} border={border}>
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(THUMBNAIL_WIDTH)}
