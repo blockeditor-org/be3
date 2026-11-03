@@ -7,7 +7,7 @@ metadata points to its settings block, one block per kind in
 whose `kinds` are defaults and `policies` policies). Kinds declare `FOLLOWS`,
 `RULE` and `VISIBILITY` (`be-block/src/settings.rs`,
 `be-block/src/workspace_settings.rs`) and resolve through
-`be_block::Resolution`. What is left is the server wipe that closes the
+`be_block::Resolution` (guides/settings.md). What is left is the server wipe that closes the
 breaking changes, and later kinds.
 
 ## 1. Breaking changes, landed together before one server wipe
