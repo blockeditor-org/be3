@@ -11,9 +11,10 @@ The command builds the web bundle with every app and starts be-server and Caddy 
 of it on http://127.0.0.1:8090. It then opens the page in a headless Chromium and returns
 once the host is up. The page is signed in to `dev@localhost` (password `dev-password`) on
 that be-server, with the personal organization open on My files, so there is no account or
-organization to make first. The server's data and the browser's profile live in `~/.cache/be3/web-dev` and
-survive restarts, so running the command again reopens the same organization, which is how to
-pick up a rebuild.
+organization to make first. The server's data and the browser's profile live in
+`~/.cache/be3/web-dev` and survive restarts, so running the command again reopens the same
+organization, which is how to pick up a rebuild.
+
 - `-- --fresh` deletes the data first.
 - `-- --webgl` starts the browser without WebGPU, so the host and its apps draw with WebGL.
 - `-- --stop` stops the browser and the servers.
@@ -45,12 +46,13 @@ the page under one drive layer, except those of the headless window: the browser
 platform here. Its own commands take their place (`drive` with no command lists them):
 - `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
 - `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
-
-Both aim where the host's own input does: they ask the host to `reveal` TARGET and use the part
-that shows, with web-test.mjs's lookup (`shownPlaces` in buck/program/drive-words.mjs).
 - `drive size W H` resizes the page. `drive reload` reloads it and returns once the host answers
   again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
+
+`shot` and `upload` aim where the host's own input does: they ask the host to `reveal` TARGET and
+use the part that shows, with web-test.mjs's lookup (`shownPlaces` in
+buck/program/drive-words.mjs).
 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
@@ -72,7 +74,9 @@ prerendered natively and hydrated in the browser: `./scripts/buck run //crates/b
 serves it on http://127.0.0.1:8060 (or the address after `--`). Its `:ssr` program writes the
 page at build time with `beui::html::render_to_string`; the module calls `beui::html::hydrate`.
 `./scripts/test //crates/beui-html-spike:web-test` drives it in Chromium and checks that
-hydration kept every prerendered element and, in both colour schemes, changed no colour. A bundle on this core stages the bundled fonts
+hydration kept every prerendered element and, in both colour schemes, changed no colour.
+
+A bundle on this core stages the bundled fonts
 (`//crates/beui-fonts:Inter-Regular.ttf`, `Hack-Regular.ttf`, `NotoEmoji-Regular.ttf` and
 `lucide.ttf`) beside its index.html, where the core's `@font-face` rules look for them.
 
@@ -88,8 +92,7 @@ Each app runs in a Web Worker of its own with its own GPU device
 (crates/be-host-runtime/src/web; be-wasm-guest-host's worker runtime,
 src/guest.js, which runs type modules too; crates/be-host/web/app.js,
 which it loads for an app; and crates/be-wasm-gpu-shim, which answers the
-app's gpu abi there). Nothing an
-app draws leaves its worker; the page hands the worker canvases instead:
+app's gpu abi there). Nothing an app draws leaves its worker; the page hands the worker canvases instead:
 - Screens: each shown screen is a `<canvas>` in `#apps`, behind the host's
   canvas `#block`, transferred to the worker as an `OffscreenCanvas` and placed
   by a CSS transform, `clip-path` and `z-index` (`web/canvases.rs`). The host's
@@ -134,8 +137,8 @@ files.js answers from memory and nothing survives a reload.
   every later open would be busy. `be_block_sqlite_schema::open`, which opens both
   databases, uses the `unix-none` VFS on WASI instead: the Web Lock below
   keeps one owner, and each database has one connection. A refs database
-  that does not open is an error the worker shows and retries, never a
-  silent in-memory one.
+  that does not open is an error the worker shows and retries, rather than
+  a silent in-memory one.
 - Every context counts the WASI monotonic clock (and `be_block_client::Clock::real`)
   from `performance.timeOrigin`, so an `Instant` the page makes means the
   same time in the be worker.
@@ -146,7 +149,6 @@ files.js answers from memory and nothing survives a reload.
   anything is unsaved, and the worker seals while the browser asks;
   `be_host_stack::flush` returns what was unsaved when it cannot wait (web) and what is
   left after waiting (native).
-
 - The block stack (`be_host_stack::start`) runs in a worker of its own, `web/be-worker.js`, as it
   runs on a thread natively: a second instance of the module on the page's
   shared memory, started through the wasm-bindgen glue (with its bare imports
@@ -155,10 +157,10 @@ files.js answers from memory and nothing survives a reload.
   Its channels, `Shared` and `Condvar` are the native ones. `be_host_stack::stop`
   cannot wait for it, so a stack started after another (switching
   organization and back) waits in its own worker until the earlier one's
-  `serve` has returned (`be-host-stack/src/web.rs`). The page's thread
-  may never wait on a lock (a browser traps `memory.atomic.wait` there), so a
-  lock the page shares with that worker is `be_wasm_threads::Mutex`, which spins
-  on wasm, and the beui waker takes no lock. A server connection's `Peer` locks a
+  `serve` has returned (`be-host-stack/src/web.rs`). A browser traps
+  `memory.atomic.wait` on the page's thread, so a lock the page shares with that
+  worker is `be_wasm_threads::Mutex`, which spins on wasm, and the beui waker
+  takes no lock. A server connection's `Peer` locks a
   `std::sync::Mutex`, so no connection crosses between them: `be_host_stack::link`
   keeps the connections it hands out per thread on wasm, and the page's account calls
   and the stack each open their own.
@@ -168,27 +170,30 @@ files.js answers from memory and nothing survives a reload.
 - `web/sw.js`, a service worker, keeps everything the page fetched from its
   origin (network first, apart from `/api` and `/auth`; a deployed build's
   immutable `/data/` files cache first, and a network silent for 3 s gets the
-  kept answer), so a page opened once opens again without a network. The deployment uploads it as `/sw.js`
-  (guides/hosting.md).
-- `web-dev --fresh` deletes the browser profile, and the files with it.
-- No browser test runs in verify, so check offline typing by hand: open a
-  text block, `kill -STOP` the instance's be-server (a silent server; killing
-  it is a refused one) or call Playwright's `context.setOffline(true)`, click
-  the editor (`drive click` or `page.mouse.click`) and type with
-  `page.keyboard.type`, then `page.reload()` with a `dialog`
-  handler that accepts the `beforeunload` prompt a second later, and read
-  the editor's value from `drive tree`. Compare `performance.timeOrigin`
-  before and after to be sure the page did reload. `kill -CONT` the server
-  before stopping web-dev, whose stop waits for it.
+  kept answer), so a page opened once opens again without a network. The
+  deployment uploads it as `/sw.js` (guides/hosting.md).
 - The host closes its tab when it exits, except when the page is already
   leaving (a reload), since closing it would stop the reload.
+- `web-dev --fresh` deletes the browser profile, and the files with it.
+
+Typing offline and then reloading is checked by hand: open a text block, `kill -STOP` the
+instance's be-server (a silent server; killing it is a refused one) or call Playwright's
+`context.setOffline(true)`, click the editor (`drive click` or `page.mouse.click`) and type
+with `page.keyboard.type`, then `page.reload()` with a `dialog` handler that accepts the
+`beforeunload` prompt a second later, and read the editor's value from `drive tree`. Compare
+`performance.timeOrigin` before and after to be sure the page did reload. `kill -CONT` the
+server before stopping web-dev, whose stop waits for it.
 
 ## Hosted web build
 
 The deployed bundle lives at `https://be3.pfg.pw/data/BUILD/web/index.html`; the
 `/web` entry point selects the build that matches the deployed server, loading
-versioned assets while keeping the address at `/web` so reloads update. Add account offers the default server from the deployed `build-info.json`; ordinary local and CI builds omit that default. Remote sign-in opens the selected server’s `/auth` page. The web-dev launcher's explicit development-server
-selection stays local. Bunny's headers, caching and gateway setup are described
-in guides/hosting.md. Relative asset URLs resolve against the document base,
-which points at the build directory; page navigation and fragment cleanup must
-use the current page URL instead.
+versioned assets while keeping the address at `/web` so reloads update. Relative
+asset URLs resolve against the document base, which points at the build directory,
+so page navigation and fragment cleanup resolve against the current page URL
+instead.
+
+Add account offers the default server from the deployed `build-info.json`; ordinary
+local and CI builds omit that default. Remote sign-in opens the selected server's
+`/auth` page. The web-dev launcher selects its development server explicitly, so it
+stays local. Bunny's headers, caching and gateway setup are in guides/hosting.md.

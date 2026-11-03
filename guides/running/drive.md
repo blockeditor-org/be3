@@ -27,17 +27,9 @@ only mean one thing, and needs no word to say so:
   window, focus, files dragged in);
 - input (pointer, touch, pen, keys) and `state`, which reach the program.
 
-`drive -` (commands from standard input) and `drive exec` are the `drive` client's own.
-
-With other layers in the stack (guides/beui.md, "Layers"), drive has a tap under each:
-`BEUI_LAYERS=drive,space,drive` puts one under space and one under the program. Input still reaches
-the program by default; `--into=LAYER` before the command sends it into that layer from below
-instead, where the platform's input would come from, so the layer handles it as it would a
-person's: `drive --into=space click '"Save"'` clicks through space's projection, wherever the
-panel is. A named target is found in the program and carried down to where it shows there; `X,Y`
-under `--into` is that place's own pixels, such as the platform window's. `state` under
-`--into` is what that place sees. `--into` names only a layer with a tap under it; anything
-else, or `--into` on a command that is not input, is an error that says what it takes.
+`drive -` (commands from standard input) and `drive exec` are the `drive` client's own. With other
+layers in the stack, drive has a tap under each and `--into=LAYER` sends input into one of them
+(Space and headsets, below).
 
 ## Starting any beui program
 
@@ -53,8 +45,8 @@ own to be driven:
   names separated by commas, the one nearest the platform first: `space`, `xr` and `drive`; an
   unknown name is an error. Every `drive` named is a tap of one session, named by the layer
   just above it; `drive` twice in a row, or two taps under the same layer, is an error.
-- `BEUI_PLATFORM=headless` runs it on `beui_host::native::Headless` (crates/beui-platform-headless), which draws
-  offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
+- `BEUI_PLATFORM=headless` runs it on `beui_host::native::Headless`
+  (crates/beui-platform-headless), which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
   (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
   fullscreen window grows to; either is an error under another platform.
 - `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
@@ -65,45 +57,18 @@ own to be driven:
 - `BEUI_DRIVE_SOCKET=PATH` is the Unix socket the drive layer answers on; `BEUI_LAYERS` naming
   `drive` needs it, and it is an error without `drive` there. It works in a window too:
   `BEUI_LAYERS=drive BEUI_DRIVE_SOCKET=/tmp/program.sock`.
-- `BEUI_LAYERS=drive,space,drive` shows the program as a panel in the VR simulator (guides/beui.md,
-  "Space: the VR simulator layer"), on whichever platform `BEUI_PLATFORM` picks: `drive shot`
-  takes the 3D view, `drive click '"Save"'` clicks the program's button wherever its panel is, and
-  `drive --into=space click X,Y` puts space's cursor at that point of the platform window, as
-  the mouse does, so the click goes to whatever panel or chrome is in front of it. Targets are
-  in the program's main window unless a command names another with `in WINDOW` (the other panels);
-  the panels' own placement is tested through `Space` and a `Runner` (`InSpace` in
-  crates/beui-host/src/tests.rs). Space's steering takes keys and motion from below it: `drive --into=space keydown ctrl shift w` walks.
-  Holding a walking key keeps frames coming, so the command waits out its settle timeout and
-  the head walks far; turn with `drive --into=space motion` while Ctrl and Shift are held
-  instead. To walk or roll (Q/E) by a set amount, stop the clock and time the hold, with Ctrl
-  and Shift held: `drive clock stop; drive --no-settle --into=space keydown q; drive pause 500;
-  drive --no-settle --into=space keyup q; drive clock run`. Holding Escape lets the pointer go:
-  `drive --into=space keydown escape; drive pause 700; drive --into=space keyup escape` (the
-  program sees the press and the release). After that, or a lost focus, the next click into space
-  only grabs the pointer again and reaches nothing.
-  `BEUI_LAYERS=drive,xr,drive` shows space on an OpenXR headset instead (guides/beui.md,
-  "Headsets"), waiting for one, with a notice over the simulator, while there is none; the
-  window is the headset's mirror. `drive paint in platform` paints what reaches the platform,
-  the 3D scene below space, as `drive shot` shows it.
-  `drive xr HAND ...` (HAND is `left` or `right`) works the controllers' lasers, which act
-  as fingers (guides/beui.md, "Lasers"): they enter below space, as a headset's do. `xr right
-  point TARGET` aims that hand's laser from where the hand is at TARGET, found in the program's tree,
-  `xr right trigger 1` and `xr right trigger 0` press and let go there (`xr right click TARGET`
-  does all three), `xr right squeeze 1` carries the panel the laser is on until `xr right squeeze
-  0`, `xr left pose X Y Z [YAW PITCH]` puts a hand at a point in metres (eye height is 1.6)
-  turned YAW degrees left and PITCH up from -Z, which is how to move a carried panel or spread
-  both grips, and `xr right lost` stops tracking it. Two hands pressed on one panel and pointed
-  apart pinch it. A laser turned by less than 0.15 rad is smoothed and settles over frames, which
-  with the clock stopped needs `drive pause`.
 
-`be-drive launch` (crates/be-tool-drive) sets the headless platform, its sizes and the socket, and
+## The launcher
+
+`be-drive launch` (crates/be-tool-drive), which every `:dev` runs, sets the headless platform, its sizes and the socket, and
 adds drive to the `BEUI_LAYERS` it finds: `drive` alone when it names none, a tap under each
 layer it names and one on top when it names no drive (so `BEUI_LAYERS=space ./scripts/buck run
 //crates/be-host:dev` runs `drive,space,drive`, the VR simulator), and the list as it is
 when it names drive itself. It waits
 for the program to settle and writes the `env` file. It listens on the drive socket itself
 and hands the program the listener (`BEUI_DRIVE_LISTENER`, its file descriptor), so it can
-ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in buck/program/drive.bzl makes a crate's `:dev` target from it.
+ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in
+buck/program/drive.bzl makes a crate's `:dev` target from it.
 Arguments after `--` go to the launcher, which passes on those it does not know:
 
 - `--fresh` deletes the program's data first (programs started with `--data`, which be-host is,
@@ -124,8 +89,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
 - Anything else, such as be-host's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
-for two copies of one program at once, so agents sharing a machine each give theirs a
-directory of its own. Keep it short, such as `/tmp/be3-123`: the drive socket (`drive.sock`) is in it,
+for two copies of one program at once, such as two agents' on one machine. Keep it short, such as `/tmp/be3-123`: the drive socket (`drive.sock`) is in it,
 and a Unix socket's path fits in 107 bytes. `drive --socket=PATH` or `BE_DRIVE_SOCKET` picks
 the program a command goes to.
 
@@ -139,12 +103,14 @@ tells drive the variables a program needs to open its windows inside it (`Progra
 terminal (end the line with `&` to go on driving), and `eval "$(drive env)"` sets them in the
 shell.
 
+## In tests
+
 `be-drive run` takes the same options and is for tests: it starts the program with fresh data,
-its clock pinned as `--pin-clock` pins it, and its output on its own, runs the commands on its standard input as `drive -` does, then
-waits for the program to exit, and fails unless every command succeeded and the program exited
+its clock pinned as `--pin-clock` pins it, and its output on its own, runs the commands on its
+standard input as `drive -` does, then waits for the program to exit, and fails unless every command succeeded and the program exited
 cleanly. From Rust, `be_tool_drive::Driven` does the same: it starts a program with fresh data and
-its clock pinned in a directory of its own, sends it commands and closes it, which is how crates/be-host-tests drives
-be-host (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
+its clock pinned in a directory of its own, sends it commands and closes it, which is how
+crates/be-host-tests drives be-host (guides/testing_a_gui.md, 6). Unless it is asked to render, it starts the program with
 `BEUI_RENDERER=none`: frames are painted but no GPU draws them, so `paint` works and `screenshot`
 does not, and neither do the 3D view of `space` or the previews of blocks, which are textures.
 
@@ -162,8 +128,8 @@ does not, and neither do the 3D view of `space` or the previews of blocks, which
         Slider "Load" value=0.8 at 291,476 size 771x20
 
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
-out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In be-host each app region is a
-`Pane` named after its app, holding the nodes its editor describes (guides/adding_an_app.md),
+out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In
+be-host each app region is a `Pane` named after its app, holding the nodes its editor describes (guides/adding_an_app.md),
 so dialogs, the file tree and every editor read like the host's own controls. An app's menu,
 tooltip or popover that reaches past its frame (an anchored view, crates/be-sdk-api/PROTOCOL.md,
 Anchored views) is described on its own, as an untitled container beside the app's `Pane`s at the
@@ -171,8 +137,7 @@ place it is drawn, so `find` and `click` reach its rows like any other.
 
 - `drive ids` lists every test id in the tree with where it is, the apps' included (with
   the bodies of a docked app's tabs, each a `Pane` of its own wherever the workspace dock
-  shows it). Test ids
-  (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
+  shows it). Test ids (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
   too, as `#id` after a node's state, and a node with nothing else to show reads as a
   `GenericContainer`.
 - `drive find TARGET` says where a target is. `drive reveal TARGET` first scrolls it into view as
@@ -198,10 +163,10 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   whether an animation waits for a stopped clock.
 - `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
   longest one's wall time: the window's own, from taking its input to painting, and on a line
-  each what the program ran elsewhere and reports through `Program::other_frames`, which in be-host is
-  each app's steps by its id (a step takes the app's input, makes its edits and draws its
-  frame). A be-host frame waits for its apps only until its deadline, the next present less its own composite time, so a slower app step shows
-  only on the app's line. It is wall time, not the program's clock, so it is for benchmarks
+  each what the program ran elsewhere and reports through `Program::other_frames`, which in
+  be-host is each app's steps by its id (a step takes the app's input, makes its edits and draws
+  its frame). A be-host frame waits for its apps only until its deadline, the next present less
+  its own composite time, so a slower app step shows only on the app's line. It is wall time, not the program's clock, so it is for benchmarks
   (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each app's under its `Pane`;
@@ -210,25 +175,17 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   view), or of one target: it reveals the target as input does (below) and crops to the part of
   it that shows in the frame it captures.
 - `drive windows` lists the program's windows, each one's number and size in pixels.
-- An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
-  with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
-  nodes only, and its input goes to that window, in its points. That is how to reach a window
-  other than the main one, such as one display's window in a login session, where every display
-  shows its own lock screen and bar with the same test ids:
-  `drive click '#lock.password' in 3`.
 - `drive paint FILE.paint [TARGET] [in WINDOW]` writes what the program's main window (or the
   window numbered WINDOW) paints as a paint snapshot
   (guides/testing_a_gui.md, 4), every app's painting included where the host composites it,
-  so it compares exactly where a PNG would not; `drive paint FILE.png` draws it into a PNG
-  instead, which is how to see the program's own window flat when a layer such as space is
-  between it and the platform. `./scripts/buck run //crates/be-tool-local:bin -- rasterize
-  SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and
-  `./scripts/buck run //crates/beui-paint-snapshot:example-dump -- SNAPSHOT.paint` lists its shapes. It reveals TARGET as `shot` does, waits until the program settles and crops to
-  the part of TARGET that shows in the frame it paints, then asks every running
-  app for what it last painted, through the app's `paintings` export (beui-paint-format's
-  `ScreenPaintings`). What an app draws through a
-  `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
-  snapshot.
+  so it compares exactly where a PNG would not. It reveals TARGET as `shot` does, waits until the
+  program settles and crops to the part of TARGET that shows in the frame it paints, then asks
+  every running app for what it last painted, through the app's `paintings` export
+  (beui-paint-format's `ScreenPaintings`). What an app draws through a `Drawing` of its own, a web
+  view or a Wayland window is a placeholder rectangle, as in any snapshot. `drive paint FILE.png`
+  draws it into a PNG instead, which is how to see the program's own window flat when a layer such
+  as space is between it and the platform. `./scripts/buck run
+  //crates/beui-paint-snapshot:example-dump -- SNAPSHOT.paint` lists a saved snapshot's shapes.
 - `drive overflows` lists, one per line, what the window shows out of bounds
   (beui-core's `Document::overflows`, guides/testing_a_gui.md, 4), the host's documents and every
   app shown included. The host's documents check themselves only while the command waits
@@ -246,6 +203,13 @@ A command that acts on something takes a TARGET:
 - text found in one line of the tree, such as `'"Send invitation"'` or `'Button "Create"'`.
   A match inside another match counts as that one, so a button and its own label are one
   target; when several unrelated lines match, the error lists them.
+
+Targets are found in the program's main window. An input command (`click`, `move`, `down`, `up`,
+`drag`, `wheel`, `scroll`, `tap`, ...) may end with `in WINDOW`, a number `drive windows` lists:
+its targets are then found among that window's nodes only, and its input goes to that window, in
+its points. That is how to reach a window other than the main one, such as one display's window
+in a login session, where every display shows its own lock screen and bar with the same test
+ids: `drive click '#lock.password' in 3`.
 
 A command that presses, points or types at a target first scrolls it into view when a scroll
 hides it or cuts part of it, as a person would (the accessibility action `ScrollIntoView`,
@@ -272,7 +236,7 @@ whatever is beneath would take the press. Its reply's changes include the scroll
     drive pinch TARGET 2                      two fingers spreading apart
     drive touch down 0=TARGET 1=TARGET; drive touch move 0=... 1=...; drive touch up
     drive xr right click TARGET               a controller's laser, in space: point, trigger,
-                                              squeeze, pose and lost too (see above)
+                                              squeeze, pose and lost too (Space and headsets, below)
     drive pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
                                               rising and falling, PER_FRAME (1) in each frame
     drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
@@ -306,57 +270,11 @@ A pointer gesture that starts somewhere the pointer is not (`click`, `down`, `dr
 it there in a frame of its own, as a person's pointer arrives and hovers before it presses: what
 shows only on hover, such as a scrollbar, is there to be pressed.
 
-Every command that gives input waits until the program has settled and prints what changed in
-the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
-change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
-`--changes=0` nothing, without comparing the trees, which a benchmark wants. The program
-has settled once a frame asks for no other and `Program::busy` gives no reason; be-host is busy while an
-app is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
-a view is shown at a size its app has yet to draw (cropped, guides/pan_and_zoom.md), while
-an editor on screen waits for its block's content, while an app's change arrived after the
-frame's layout and is shown only by the next, while an account or organization request is
-pending, and while the block store has commands to carry out, edits it owes a seal (which it asks
-for at once when driven, unless `hurry` is off, below) or sealed edits it is still sending, or is
-still listing a file's revisions or loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
-instead, to see the program part way through something, such as an app still loading. Work the
-program cannot see is not waited for: a server push, or a hosted Wayland or X11 program (`drive exec`,
-guides/desktop/linux.md) redrawing after input, which it does once it has handled the input on its
-own time (foot only once its shell has answered through the terminal), so a `shot` or `paint`
-right after typing into one can show the step before; the tree does not show what such a program
-draws, so let it catch up with `drive pause 200` before the screenshot. A server push is waited for with `drive wait TEXT` or `drive gone
-TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
-`drive wait TEXT over TARGET` also asks that the line's node cover that point (`X,Y`, or
-`#TEST_ID+X,Y` beside another node), for something that
-moves or grows, such as a stroke reaching the pen;
-`drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the program's
-own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`, and names
-what kept the program busy then, as `drive state` does: input waiting, a frame that asks for
-another or an animation running (while the clock runs), and each reason `Program::busy` gives, such
-as an app drawing or the compositor owing a frame for an app's change after layout. An
-app's frame counts as a change only when it damaged what the host draws, so an app that
-animates without changing anything lets the program settle with the clock running.
-
-`drive clock stop` stops the program's clock: time then passes only with `drive pause`, a frame at
-a time, so an animation can be stopped at any point and a screenshot of it taken the same way
-every run, and a program that animates forever still settles. An app that asks to be drawn again
-is drawn again only once the clock has moved, so an animating app settles too. `drive clock run` starts it again.
-While the clock is stopped the headless platform runs a frame that drive asks for (a `pause`,
-the steps of a gesture, input waiting) at once rather than at the next 60 Hz tick, so `pause`
-costs only the frames it runs, not the time it names. So is a frame the program asks for while a
-command waits on it and it says it is busy (`busy`, such as an app's change it still has to
-show), so a click settles in the frames it takes; any other frame the program asks for on its own is
-still paced, so a program that animates forever does not spin.
-A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until its
-animation ends, so `gone` after closing it needs a `pause` first; a command that times out says
-when an animation was waiting for the stopped clock, as `drive state` does.
-Anything else waiting on time, such as an app's frame timeout or a type module's clock (which
-groups quick edits into one undo step), waits for `pause` too, and a frame waits for the apps it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
-
-A driven program may take shortcuts a person never sees so that it settles sooner: be-host seals
-edits at once rather than after the pause a person's edits wait for. A program asks
-`Context::hurried` before taking one. `drive hurry off` turns them off until `drive hurry on`,
-so the program waits as it does in a window; time how long something takes to show with it off,
-such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
+`type` presses the key that makes each character, with Shift where a US layout needs it,
+and no physical place, as the on-screen keyboard does, so a Wayland program's window gets
+the key that makes it in the active layout (guides/desktop/linux.md, The on-screen keyboard).
+A character no US key makes, such as `é`, is sent as text, which beui and a program's enabled
+text field take.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
 before its answer and stops at the first that fails. A line whose first character other than
@@ -371,11 +289,74 @@ same way for the browser:
     shot checklist.png 'Pane "Checklist"'
     EOF
 
-`type` presses the key that makes each character, with Shift where a US layout needs it,
-and no physical place, as the on-screen keyboard does, so a Wayland program's window gets
-the key that makes it in the active layout (guides/desktop/linux.md, The on-screen keyboard).
-A character no US key makes, such as `é`, is sent as text, which beui and a program's enabled
-text field take.
+## Waiting
+
+Every command that gives input waits until the program has settled and prints what changed in
+the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
+change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
+`--changes=0` nothing, without comparing the trees, which a benchmark wants. `drive --no-settle
+COMMAND` answers after the frame that took the input instead, to see the program part way
+through something, such as an app still loading.
+
+The program has settled once a frame asks for no other and `Program::busy` gives no reason.
+be-host is busy while:
+- an app is starting, owes a frame, holds unanswered input or has yet to answer a `paint`;
+- a view is shown at a size its app has yet to draw (cropped, guides/pan_and_zoom.md);
+- an editor on screen waits for its block's content;
+- an app's change arrived after the frame's layout and is shown only by the next;
+- an account or organization request is pending;
+- the block store has commands to carry out, edits it owes a seal (which it asks for at once when
+  driven, unless `hurry` is off, below) or sealed edits it is still sending, or is still listing a
+  file's revisions or loading the organization's graph.
+
+It is never busy while it shows its error screen. An app's frame counts as a change only when it
+damaged what the host draws, so an app that animates without changing anything lets the program
+settle with the clock running.
+
+Work the program cannot see is not waited for:
+- A server push: wait for it with `drive wait TEXT` or `drive gone TEXT` (or `#TEST_ID`), which
+  return once a line of the tree contains TEXT or none does. `drive wait TEXT over TARGET` also
+  asks that the line's node cover that point (`X,Y`, or `#TEST_ID+X,Y` beside another node), for
+  something that moves or grows, such as a stroke reaching the pen.
+- A hosted Wayland or X11 program (`drive exec`, guides/desktop/linux.md) redrawing after input,
+  which it does once it has handled the input on its own time (foot only once its shell has
+  answered through the terminal), so a `shot` or `paint` right after typing into one can show the
+  step before. The tree does not show what such a program draws, so let it catch up with `drive
+  pause 200` before the screenshot.
+
+`drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the program's
+own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`, and names
+what kept the program busy then, as `drive state` does: input waiting, a frame that asks for
+another or an animation running (while the clock runs), and each reason `Program::busy` gives, such
+as an app drawing or the compositor owing a frame for an app's change after layout.
+
+`drive clock stop` stops the program's clock: time then passes only with `drive pause`, a frame at
+a time, so an animation can be stopped at any point and a screenshot of it taken the same way
+every run, and a program that animates forever still settles. An app that asks to be drawn again
+is drawn again only once the clock has moved, so an animating app settles too. `drive clock run`
+starts it again.
+
+While the clock is stopped the headless platform runs a frame that drive asks for (a `pause`,
+the steps of a gesture, input waiting) at once rather than at the next 60 Hz tick, so `pause`
+costs only the frames it runs, not the time it names. So is a frame the program asks for while a
+command waits on it and it says it is busy (`busy`, such as an app's change it still has to
+show), so a click settles in the frames it takes; any other frame the program asks for on its own
+is still paced, so a program that animates forever does not spin.
+
+With the clock stopped:
+- A menu or sheet opens and takes presses at once, but one that closes may stay in the tree until
+  its animation ends, so `gone` after closing it needs a `pause` first; a command that times out
+  says when an animation was waiting for the stopped clock, as `drive state` does.
+- Anything else waiting on time, such as an app's frame timeout or a type module's clock (which
+  groups quick edits into one undo step), waits for `pause` too.
+- A frame waits for the apps it asked to draw however long they take, so `--no-settle` answers
+  with the same frame on a loaded machine as on an idle one.
+
+A driven program may take shortcuts a person never sees so that it settles sooner: be-host seals
+edits at once rather than after the pause a person's edits wait for. A program asks
+`Context::hurried` before taking one. `drive hurry off` turns them off until `drive hurry on`,
+so the program waits as it does in a window; time how long something takes to show with it off,
+such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 ## The headless window
 
@@ -403,23 +384,75 @@ real one:
 - `drive close` asks the window to close, as its close button does, in a window too. The program
   then exits, or stays open, to ask about unsaved changes, and answers with what changed.
 
+## Space and headsets
+
+With other layers in the stack (guides/beui.md, "Layers"), drive has a tap under each:
+`BEUI_LAYERS=drive,space,drive` puts one under space and one under the program. Input still reaches
+the program by default; `--into=LAYER` before the command sends it into that layer from below
+instead, where the platform's input would come from, so the layer handles it as it would a
+person's: `drive --into=space click '"Save"'` clicks through space's projection, wherever the
+panel is. A named target is found in the program and carried down to where it shows there; `X,Y`
+under `--into` is that place's own pixels, such as the platform window's. `state` under
+`--into` is what that place sees. `--into` names only a layer with a tap under it; anything
+else, or `--into` on a command that is not input, is an error that says what it takes.
+
+`BEUI_LAYERS=drive,space,drive` shows the program as a panel in the VR simulator (guides/beui.md,
+"Space: the VR simulator layer"), on whichever platform `BEUI_PLATFORM` picks:
+- `drive shot` takes the 3D view, `drive click '"Save"'` clicks the program's button wherever its
+  panel is, and `drive --into=space click X,Y` puts space's cursor at that point of the platform
+  window, as the mouse does, so the click goes to whatever panel or chrome is in front of it.
+- Targets are in the program's main window unless a command names another with `in WINDOW` (the
+  other panels); the panels' own placement is tested through `Space` and a `Runner` (`InSpace` in
+  crates/beui-host/src/tests.rs).
+- Space's steering takes keys and motion from below it: `drive --into=space keydown ctrl shift w`
+  walks. Holding a walking key keeps frames coming, so the command waits out its settle timeout
+  and the head walks far; turning with `drive --into=space motion` while Ctrl and Shift are held
+  avoids that. To walk or roll (Q/E) by a set amount, stop the clock and time the hold, with Ctrl
+  and Shift held: `drive clock stop; drive --no-settle --into=space keydown q; drive pause 500;
+  drive --no-settle --into=space keyup q; drive clock run`.
+- Holding Escape lets the pointer go: `drive --into=space keydown escape; drive pause 700; drive
+  --into=space keyup escape` (the program sees the press and the release). After that, or a lost
+  focus, the next click into space only grabs the pointer again and reaches nothing.
+
+`BEUI_LAYERS=drive,xr,drive` shows space on an OpenXR headset instead (guides/beui.md,
+"Headsets"), waiting for one, with a notice over the simulator, while there is none; the
+window is the headset's mirror. `drive paint in platform` paints what reaches the platform,
+the 3D scene below space, as `drive shot` shows it.
+
+`drive xr HAND ...` (HAND is `left` or `right`) works the controllers' lasers, which act
+as fingers (guides/beui.md, "Lasers"): they enter below space, as a headset's do.
+- `xr right point TARGET` aims that hand's laser from where the hand is at TARGET, found in the
+  program's tree; `xr right trigger 1` and `xr right trigger 0` press and let go there (`xr right
+  click TARGET` does all three).
+- `xr right squeeze 1` carries the panel the laser is on until `xr right squeeze 0`.
+- `xr left pose X Y Z [YAW PITCH]` puts a hand at a point in metres (eye height is 1.6) turned YAW
+  degrees left and PITCH up from -Z, which is how to move a carried panel or spread both grips.
+- `xr right lost` stops tracking it.
+- Two hands pressed on one panel and pointed apart pinch it.
+- A laser turned by less than 0.15 rad is smoothed and settles over frames, which with the clock
+  stopped needs `drive pause`.
+
 ## How it works
 
 `beui_layer_drive::Drive` is a `Layer` (guides/beui.md, "Layers") in the stack every platform's
-runner carries, so its input lands among the platform's own events, and everything above it -
-the document, be-host's app host, the Wayland compositor - runs as it does with a window.
+runner carries, so its input lands among the platform's own events, and everything above it
+(the document, be-host's app host, the Wayland compositor) runs as it does with a window.
 `Drive::new(inbox)` is one layer with the program above it; `Drive::taps(inbox, under)` is a tap
 under each layer `under` names, all sharing one session (`Rc<RefCell<Session>>`). The session
 takes each command in the lowest tap's `input`, starts it in the `input` of the tap it goes to,
 steps its clock (in `Layer::now`) and answers it from the lowest tap's hooks. A tap under a
 layer carries a named target down through the layers above it (`Above::from_program`) and sends
 physical pixels, as a platform does. The lowest tap stands in for the file and save dialogs
-(`pick_file`, `save_file`) and reads the clipboard and resizes through the services below it; the native run functions serve
-its `Inbox` on `BEUI_DRIVE_SOCKET` (`beui_layer_drive::socket`), and be-host's web build hands
-it one its `automate` export fills. A driven program keeps the accessibility tree a screen reader would get, as the program
+(`pick_file`, `save_file`) and reads the clipboard and resizes through the services below it;
+the native run functions serve its `Inbox` on `BEUI_DRIVE_SOCKET` (`beui_layer_drive::socket`),
+and be-host's web build hands it one its `automate` export fills.
+
+A driven program keeps the accessibility tree a screen reader would get, as the program
 does in a window, but writes it out as text only when a command reads it (`tree`, a target, a
 `wait`, the changes it answers with), and then describes again only the nodes that changed
-or moved (`AccessibilityDump`), so what a frame costs is what it costs in a window. What a headless run never exercises is the platform underneath: winit's
+or moved (`AccessibilityDump`), so what a frame costs is what it costs in a window.
+
+What a headless run never exercises is the platform underneath: winit's
 translation of the system's keys, its clipboard and file dialogs, the window's swapchain and
 real input methods. For those, run the program in a window (guides/running/native.md).
 The web build answers the same commands through Playwright (guides/running/web.md).
