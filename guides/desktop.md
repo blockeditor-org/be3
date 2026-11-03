@@ -90,9 +90,14 @@ Display 0's bars are dock bars of the main view's dock, which holds every window
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
 display's three bars as its dock bars, on its own `DockingLayout` (`bar::display_layout`). The main
 dock's state is saved in the session's layout as ever; each further display's is saved beside it,
-under the session view's `display-bars` state as a `SavedDockLayout`, by the display's
-place in the list. A display that has
-none saved starts from display 0's placements and hidden bars. Toasts stay on display 0, in the
+under the session view's `display-bars-by-monitor` state as a `SavedDockLayout`, keyed by the
+`HostDisplay::id` at that display's place (its EDID make, model and serial, or else its connector),
+so a display keeps its own bars when displays are unplugged or change places: when the id at a
+place changes, that place's dock restores the new display's bars. A display that has
+none saved starts from display 0's placements and hidden bars. State that does not decode is
+treated as the main layout is (below): every further display starts from display 0's bars, nothing
+is saved over the bytes, and display 0 shows a notice (`desktop.display-bars`, while more than one
+display is connected) with Copy report, Keep them and Reset bars. Toasts stay on display 0, in the
 corner nearest its Status bar.
 
 Each display's work area is that display less its own bars' bands: the dock's area

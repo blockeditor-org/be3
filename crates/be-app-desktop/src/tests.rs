@@ -37,8 +37,10 @@ mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset;
 mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
+mod a_display_keeps_its_own_bars_when_the_displays_change_places;
 mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
 mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
+mod bars_of_other_displays_that_cannot_be_read_are_kept_until_reset;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
 mod a_fullscreen_window_covers_the_bars;
@@ -442,6 +444,18 @@ impl Fixture {
             monitor("right", right.0, right.1),
         ]);
         self.test.show_on_displays(&[left, right]);
+        self.settle();
+    }
+
+    fn on_monitors(&mut self, monitors: &[(&str, Rect)]) {
+        self.report_screens(
+            monitors
+                .iter()
+                .map(|(id, rect)| monitor(id, *rect, 1.0))
+                .collect(),
+        );
+        let displays: Vec<_> = monitors.iter().map(|(_, rect)| (*rect, 1.0)).collect();
+        self.test.show_on_displays(&displays);
         self.settle();
     }
 
