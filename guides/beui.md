@@ -3312,6 +3312,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+
+A floating window can be snapped: `DockingLayout::snap_window(key, DockSnap, area)` gives it the
+left or right half of `area` (in the dock's window points, as `window_rect`), or all of it
+(`DockSnap::Fill`, maximized), remembering the rect it had before its first snap;
+`unsnap_window` puts that rect back, and `window_snap` says how it is snapped, reactively,
+for as long as it stays at the rect it was snapped to (moved or resized away, it is not snapped
+and has nothing to go back to). Snaps are not part of the saved layout.
 Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
 its content) raises the fullscreen overlay above the floating windows, its own pane's window
 included, so a window brought in front of it and then left goes behind it again. Where a host

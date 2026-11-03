@@ -60,7 +60,7 @@ pub use be_sdk_api::{
     PointerButton, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage, ProgramAction,
     ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation,
     ScreenLockedWatch, ScreenPlacement, ScrollDelta, SessionEnd, ShellCommand, ShellDialog, Size,
-    Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
+    Stopped, SuperKeptWatch, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase,
     TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
     VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,

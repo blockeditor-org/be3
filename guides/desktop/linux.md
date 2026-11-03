@@ -566,7 +566,7 @@ window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
 `WindowTab` does not, since nothing there would take it back out). Under `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
-or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
+or moves the split beside a docked one. The desktop shell's other window keys (Alt+F4, Super+arrows, Super+D, ...) are in guides/desktop.md, Window keys. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `drive keydown alt; drive key tab tab; drive keyup alt`.

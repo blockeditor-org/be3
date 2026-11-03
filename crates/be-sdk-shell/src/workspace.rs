@@ -435,6 +435,13 @@ impl Workspace {
     }
 
     pub fn hide(&self, tab: TabId) {
+        if let Some(key) = tab_window(tab) {
+            if let Some(window) = self.desk.with_untracked(|desk| desk.window(key)) {
+                self.host()
+                    .act(move || desktop::windows::request(WindowAction::Hide(window)).detach());
+            }
+            return;
+        }
         if self.tabs.with_untracked(|tabs| !tabs.contains_key(&tab)) {
             return;
         }
@@ -446,6 +453,24 @@ impl Workspace {
     }
 
     pub fn show(&self, tab: TabId) {
+        if let Some(key) = tab_window(tab) {
+            let window = self
+                .desk
+                .with_untracked(|desk| desk.window(key))
+                .unwrap_or(key);
+            let hidden = self.entries.with_untracked(|entries| {
+                entries
+                    .iter()
+                    .any(|entry| entry.id == window && !entry.shown)
+            });
+            self.host().act(move || {
+                if hidden {
+                    desktop::windows::request(WindowAction::Show(window)).detach();
+                }
+                desktop::windows::request(WindowAction::Focus(window)).detach();
+            });
+            return;
+        }
         let layout = self.layout();
         match untrack(|| self.is_hidden(tab)) {
             true => {
@@ -454,6 +479,33 @@ impl Workspace {
                 self.showing.set(Some(tab));
             }
             false => layout.show(&tab),
+        }
+    }
+
+    pub fn shown_window_tabs(&self) -> Vec<TabId> {
+        let mut tabs: Vec<TabId> = self
+            .desk
+            .with(|desk| desk.keys.iter().map(|key| window_tab(*key)).collect());
+        tabs.extend(self.shown_block_tabs().get());
+        tabs
+    }
+
+    pub fn program_window(&self, tab: TabId) -> Option<HostWindowId> {
+        let key = tab_window(tab)?;
+        self.desk.with(|desk| desk.window(key))
+    }
+
+    pub(crate) fn kind_of(&self, tab: TabId) -> Option<String> {
+        match self.program_window(tab) {
+            Some(window) => self.windows.with(|windows| {
+                windows
+                    .iter()
+                    .find(|listed| listed.id == window)
+                    .map(|listed| format!("program:{}", listed.program_id))
+            }),
+            None => self
+                .tabs
+                .with(|tabs| tabs.get(&tab).map(|item| format!("block:{}", item.block_type))),
         }
     }
 
