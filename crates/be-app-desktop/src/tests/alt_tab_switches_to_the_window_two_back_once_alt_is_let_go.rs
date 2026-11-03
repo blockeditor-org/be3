@@ -19,7 +19,7 @@ fn alt_tab_switches_to_the_window_two_back_once_alt_is_let_go() {
     assert!(
         fixture
             .test
-            .shown(&format!("dock.switch.{}", window_tab(1))),
+            .shown(&format!("dock.switch.{}", fixture.tab_of(1))),
         "the switcher lists the windows while Alt is held"
     );
     fixture
@@ -40,6 +40,6 @@ fn alt_tab_switches_to_the_window_two_back_once_alt_is_let_go() {
     assert!(
         !fixture
             .test
-            .shown(&format!("dock.switch.{}", window_tab(1)))
+            .shown(&format!("dock.switch.{}", fixture.tab_of(1)))
     );
 }

@@ -50,7 +50,6 @@ fn only_a_click_on_the_content_starts_focus_mode() {
     mode.step(&snapshot, be_host_win32::Foreground::Entry(EntryId(2)), &[]);
     mode.release(be_host_win32::EndReason::Hotkey);
     mode.observe(be_host_win32::Foreground::Own);
-    assert_eq!(shell_focus(window_id(EntryId(2))), None);
     mode.step(&snapshot, be_host_win32::Foreground::Own, &[]);
     assert_eq!(mode.focused(), None);
 }

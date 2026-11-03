@@ -44,7 +44,7 @@ fn a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars() {
         "both Status bars float over the windows"
     );
 
-    fixture.show_windows(&[HostWindow {
+    fixture.show_windows(&[TestWindow {
         fullscreen: Some(right),
         ..host_window(1, true)
     }]);
@@ -59,7 +59,7 @@ fn a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars() {
         "while the first display's bar stays over its windows"
     );
 
-    fixture.show_windows(&[HostWindow {
+    fixture.show_windows(&[TestWindow {
         fullscreen: Some(left),
         ..host_window(1, true)
     }]);

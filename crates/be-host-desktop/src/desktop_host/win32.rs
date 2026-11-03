@@ -367,9 +367,9 @@ impl DesktopHost for Win32 {
             SHAPING.with_borrow(|shaping| {
                 NOTES.with_borrow(|notes| {
                     NAMES.with_borrow(|names| {
-                        let record = win32_map::host_window(snapshot, entry, shaping, notes, names);
+                        let record = win32_map::known_window(snapshot, entry, shaping, notes, names);
                         let parent = parent.map(|parent| {
-                            win32_map::host_window(snapshot, parent, shaping, notes, names)
+                            win32_map::known_window(snapshot, parent, shaping, notes, names)
                         });
                         let drawn = win32_map::drawn_size(snapshot, entry);
                         Some(WindowStatus::of(&record, parent.as_ref(), drawn))
@@ -405,24 +405,6 @@ impl DesktopHost for Win32 {
             be_host_win32::set_maximized(handle, fullscreen);
         }
         changed();
-    }
-
-    fn show(window: HostWindowId) {
-        if let Some(watcher) = watcher() {
-            watcher.show(entry_id(window));
-        }
-    }
-
-    fn hide(window: HostWindowId) {
-        if let Some(watcher) = watcher() {
-            watcher.hide(entry_id(window));
-        }
-    }
-
-    fn focus(window: HostWindowId) {
-        if let Some(id) = win32_map::shell_focus(window) {
-            focus_entry(id, None);
-        }
     }
 
     fn launch(command: String) -> bool {

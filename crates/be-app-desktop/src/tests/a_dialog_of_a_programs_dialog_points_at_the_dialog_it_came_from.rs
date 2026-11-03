@@ -4,12 +4,12 @@ use super::*;
 fn a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    let save = HostWindow {
+    let save = TestWindow {
         title: "Save as".to_owned(),
         parent: Some(HostWindowId(1)),
         ..host_window(2, false)
     };
-    let confirm = HostWindow {
+    let confirm = TestWindow {
         title: "Replace the file?".to_owned(),
         parent: Some(HostWindowId(2)),
         modal: true,
@@ -21,7 +21,7 @@ fn a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from() {
     let header = {
         let document = fixture.test.document();
         let node = document
-            .find_test_id(&format!("dock.dialog.{}.header", window_tab(2)))
+            .find_test_id(&format!("dock.dialog.{}.header", fixture.tab_of(2)))
             .expect("the first dialog has a header");
         document
             .node_rect(node)
@@ -29,7 +29,7 @@ fn a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from() {
     };
     let inner = fixture
         .test
-        .rect_of(&format!("dock.dialog.{}.header", window_tab(3)));
+        .rect_of(&format!("dock.dialog.{}.header", fixture.tab_of(3)));
     assert!(
         inner.top() > header.bottom() && (inner.center().x - header.center().x).abs() < 1.0,
         "the second dialog hangs from the first one's header: {inner:?} below {header:?}"

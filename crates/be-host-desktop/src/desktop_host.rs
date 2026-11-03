@@ -1,7 +1,5 @@
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "linux")]
-mod shown;
 #[cfg(windows)]
 mod win32;
 #[cfg(any(windows, test))]
@@ -94,12 +92,6 @@ pub trait DesktopHost {
     fn close(_window: HostWindowId) {}
 
     fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
-
-    fn focus(_window: HostWindowId) {}
-
-    fn show(_window: HostWindowId) {}
-
-    fn hide(_window: HostWindowId) {}
 
     fn launch(_command: String) -> bool {
         false

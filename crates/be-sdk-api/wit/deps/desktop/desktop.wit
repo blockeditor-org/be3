@@ -22,9 +22,14 @@ interface types {
 }
 
 /// The windows of other programs the host shows.
+///
+/// A shell places each window as a `window` child (`child-content.window`) and
+/// hears the rest from that child's `child-status`: its title, icon, group,
+/// raises, bell, full screen ask, notice and menu ask. It closes one with
+/// `close-child` and gives it the keyboard with `focus-child`; a window placed
+/// nowhere is suspended.
 interface windows {
-    use types.{host-image, host-window-id};
-    use be3:ui/types@0.1.0.{rect, vec2};
+    use types.{host-window-id};
 
     /// Where a window came from: the program the desktop launched, the command
     /// it ran and the launch it answers.
@@ -34,72 +39,21 @@ interface windows {
         launch: option<u64>,
     }
 
-    /// What an entry is: a program's window, or one whole display (its `size`
-    /// the display's, its title the display's name).
+    /// What an entry is: a program's window, or one whole display.
     enum window-kind {
         window,
         display,
     }
 
-    /// The program asked for its window menu, `at` this point of the window.
-    /// `asked` counts up with each ask.
-    record window-menu {
-        asked: u64,
-        at: vec2,
-    }
-
+    /// What a shell needs to place a window and match it to a tab it keeps
+    /// for a program that is not running.
     record host-window {
         id: host-window-id,
         kind: window-kind,
-        /// Whether the shell shows it. The host keeps this, so a shell started
-        /// again shows what was shown.
-        shown: bool,
-        title: string,
-        program-id: string,
-        /// The program's name from its desktop entry, empty when the host
-        /// knows none.
-        name: string,
         parent: option<host-window-id>,
         modal: bool,
-        size: vec2,
-        /// The smallest and largest size the program asks for its window,
-        /// each axis 0 where it asks for no limit. The shell opens the window
-        /// within them where the room allows; the person may resize it past
-        /// them afterwards.
-        min-size: vec2,
-        max-size: vec2,
-        /// The output a fullscreen window covers.
-        fullscreen: option<rect>,
-        responding: bool,
-        focused: bool,
-        icon: option<host-image>,
-        /// Counts up each time the host raises the window.
-        raised: u64,
-        /// Counts up each time the window's program rings the bell
-        /// (`xdg_system_bell_v1`); the shell flashes the window's entry.
-        rung: u64,
+        program-id: string,
         origin: window-origin,
-        /// What the host wants said about the window right now, such as how
-        /// to come back from it; the shell shows it with the window's title
-        /// while it is set.
-        note: option<string>,
-        /// The program's last ask for its window menu.
-        menu: option<window-menu>,
-    }
-
-    record window-fullscreen {
-        window: host-window-id,
-        fullscreen: bool,
-    }
-
-    variant window-action {
-        focus(host-window-id),
-        fullscreen(window-fullscreen),
-        close(host-window-id),
-        /// Show the entry; it stays where the host keeps it until hidden.
-        show(host-window-id),
-        /// Stop showing the entry; the program keeps running.
-        hide(host-window-id),
     }
 
     resource windows-watch {
@@ -113,8 +67,6 @@ interface windows {
         constructor();
         next: async func() -> bool;
     }
-
-    request: async func(action: window-action);
 }
 
 /// The pointing devices and the input remaps of the session.

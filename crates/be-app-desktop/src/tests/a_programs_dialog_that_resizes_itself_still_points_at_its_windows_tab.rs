@@ -4,7 +4,7 @@ use super::*;
 fn a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    let dialog = |size: Vec2| HostWindow {
+    let dialog = |size: Vec2| TestWindow {
         title: "Preferences".to_owned(),
         parent: Some(HostWindowId(1)),
         size,
@@ -19,7 +19,7 @@ fn a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab() {
         (420.0, 260.0),
         "the dialog follows the size its program chose"
     );
-    let tab = fixture.test.rect_of(&format!("dock.tab.{}", window_tab(1)));
+    let tab = fixture.test.rect_of(&format!("dock.tab.{}", fixture.tab_of(1)));
     assert!(
         placed.top() > tab.bottom()
             && placed.left() <= tab.center().x

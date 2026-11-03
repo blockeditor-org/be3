@@ -50,7 +50,7 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
         "Restore starts every program: from its .desktop entry, else its command line"
     );
 
-    resumed.test.click("desktop.placeholder.6.dismiss");
+    resumed.test.click("workspace.placeholder.6.dismiss");
     resumed.settle();
     assert!(resumed.placeholder_rect(6).is_none());
     assert_eq!(

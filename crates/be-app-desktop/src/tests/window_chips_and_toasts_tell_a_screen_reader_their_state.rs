@@ -25,17 +25,21 @@ fn window_chips_and_toasts_tell_a_screen_reader_their_state() {
     let mut before = Fixture::new();
     before.settle();
     before.show_windows(&[foot(1)]);
+    let kept = before.tab_of(1);
     let mut fixture = Fixture::resumed(before.saved());
     fixture.show_windows(&[
-        HostWindow {
+        host_window(3, false),
+        TestWindow {
             focused: true,
             ..notes(2)
         },
-        HostWindow {
-            shown: false,
-            ..host_window(3, false)
-        },
     ]);
+    fixture
+        .test
+        .click_with("desktop.windows.3", be_sdk_beui::beui::PointerButton::Secondary);
+    fixture.settle();
+    fixture.test.click("desktop.windows.3.visibility");
+    fixture.settle();
     assert_eq!(
         state(&fixture, "desktop.windows.2"),
         (Some(Toggled::True), None),
@@ -47,7 +51,7 @@ fn window_chips_and_toasts_tell_a_screen_reader_their_state() {
         "a hidden window's chip says it is hidden"
     );
     assert_eq!(
-        state(&fixture, "desktop.windows.placeholder.1"),
+        state(&fixture, &format!("desktop.windows.placeholder.{kept}")),
         (Some(Toggled::False), Some("Not running".to_owned())),
         "a chip kept from last time says its program is not running"
     );

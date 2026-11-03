@@ -1,8 +1,8 @@
 use super::*;
 
 use be_sdk_api::{
-    HostWindowId, MediaRequest, MediaWatch, NotificationReport, NotificationSignal,
-    NotificationsWatch, PlayerCommand, PowerAction, PowerWatch, WindowAction, WindowsWatch,
+    MediaRequest, MediaWatch, NotificationReport, NotificationSignal,
+    NotificationsWatch, PlayerCommand, PowerAction, PowerWatch, ProgramAction, ProgramsWatch,
     requested,
 };
 
@@ -43,8 +43,8 @@ fn host_calls_are_taken_by_kind_in_the_order_they_came() {
         "report",
         &notification
     ));
-    let close = WindowAction::Close(HostWindowId(4));
-    assert!(host_call::<WindowsWatch, _>(
+    let close = ProgramAction::List { icon_size: 4 };
+    assert!(host_call::<ProgramsWatch, _>(
         &mut instances,
         "request",
         &close
@@ -64,15 +64,15 @@ fn host_calls_are_taken_by_kind_in_the_order_they_came() {
         take(&mut instances, requested::notification_report),
         vec![notification]
     );
-    assert_eq!(take(&mut instances, requested::window), vec![close]);
+    assert_eq!(take(&mut instances, requested::program), vec![close]);
 
     while host_call::<MediaWatch, _>(&mut instances, "request", &MediaRequest::ToggleMute) {}
-    let focus = WindowAction::Focus(HostWindowId(4));
+    let focus = ProgramAction::List { icon_size: 8 };
     assert!(
-        host_call::<WindowsWatch, _>(&mut instances, "request", &focus),
+        host_call::<ProgramsWatch, _>(&mut instances, "request", &focus),
         "a full queue of one kind of call leaves room for the others"
     );
-    assert_eq!(take(&mut instances, requested::window), vec![focus]);
+    assert_eq!(take(&mut instances, requested::program), vec![focus]);
     assert_eq!(
         take(&mut instances, requested::media).len(),
         crate::published::MAX_CALLS,

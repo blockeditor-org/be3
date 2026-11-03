@@ -16,7 +16,7 @@ fn a_moved_bar_leaves_no_focus_ring_behind_while_switching() {
     assert!(
         fixture
             .test
-            .shown(&format!("dock.switch.{}", window_tab(1)))
+            .shown(&format!("dock.switch.{}", fixture.tab_of(1)))
     );
     fixture
         .test

@@ -10,11 +10,11 @@ fn new_windows_cascade_inside_the_work_area_and_a_tall_one_shrinks_to_it() {
         1.0,
     )]);
     fixture.settle();
-    let mut windows = vec![HostWindow {
+    let mut windows = vec![TestWindow {
         size: Vec2::new(800.0, 647.0),
         ..host_window(1, false)
     }];
-    windows.extend((2..=7).map(|id| HostWindow {
+    windows.extend((2..=7).map(|id| TestWindow {
         size: Vec2::new(560.0, 360.0),
         ..host_window(id, id == 7)
     }));

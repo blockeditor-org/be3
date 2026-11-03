@@ -5,13 +5,11 @@ use super::*;
 const SCREEN: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
 
 fn windows(fixture: &mut Fixture, focused: u64) {
-    let calculator = HostWindow {
+    let calculator = TestWindow {
         fullscreen: Some(SCREEN),
         ..host_window(1, focused == 1)
     };
-    fixture
-        .test
-        .set_watched::<WindowsWatch>(&vec![calculator, host_window(2, focused == 2)]);
+    fixture.show_windows(&vec![calculator, host_window(2, focused == 2)]);
     fixture.settle();
 }
 

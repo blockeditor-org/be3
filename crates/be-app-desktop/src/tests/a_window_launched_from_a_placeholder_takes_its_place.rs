@@ -11,7 +11,7 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
         .expect("the newer terminal is a placeholder");
     resumed.test.clear_calls();
 
-    resumed.test.click("desktop.placeholder.2.open");
+    resumed.test.click("workspace.placeholder.2.open");
     resumed.settle();
     assert_eq!(
         resumed
@@ -24,7 +24,7 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
         "Open starts the program, naming the placeholder it was started from"
     );
 
-    let launched = HostWindow {
+    let launched = TestWindow {
         origin: WindowOrigin {
             launch: Some(2),
             ..foot(50).origin

@@ -480,12 +480,6 @@ impl Workspace {
             self.host().close_child(child);
             return;
         }
-        if next.raised > held.raised {
-            self.layout().show(&self.root_tab(tab));
-            if let Some(child) = child {
-                self.host().focus_child(child);
-            }
-        }
         if next.fullscreen != held.fullscreen && !self.is_dialog(tab) {
             let layout = self.layout();
             let shown = layout.fullscreen() == Some(tab);
@@ -689,7 +683,17 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
     let area = untrack(|| layout.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
     let rect = cascaded(tab.value(), PLACEHOLDER_SIZE + WINDOW_CHROME, area);
-    let pane = format!("program.{}", tab.value());
+    if workspace.is_display(tab) && workspace.needs_size(tab) {
+        create_effect(move || {
+            if layout.window_rect(&tab).is_some() {
+                untrack(|| {
+                    workspace.sized(tab);
+                    layout.hide_window(&tab);
+                });
+            }
+        });
+    }
+    let pane = format!("window.{}", tab.value());
     view! {
         <DockWindow id={pane.clone()} rect>
             <DockPane id={pane}>
@@ -774,6 +778,23 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             });
         });
     }
+    let raised = create_memo(move || heard.with(|heard| heard.raised));
+    let seen_raise = StoredCell::new(raised.get_untracked());
+    create_effect(move || {
+        let now = raised.get();
+        if now <= seen_raise.replace(now) {
+            return;
+        }
+        untrack(|| {
+            match control {
+                Some(control) => control.show(),
+                None => layout.show(&tab),
+            }
+            if let Some(child) = heard.with(|heard| heard.child) {
+                workspace.host().focus_child(child);
+            }
+        });
+    });
     let panel = NodeRef::new();
     let menu_at = create_signal(None::<Pos2>);
     let asked = create_memo(move || heard.with(|heard| heard.menu));

@@ -1,6 +1,7 @@
 pub mod carrier;
 pub mod desktop_host;
 pub mod host_item;
+pub mod known_window;
 pub mod naming;
 pub mod occlusion;
 pub mod programs;

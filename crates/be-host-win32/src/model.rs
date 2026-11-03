@@ -41,7 +41,6 @@ pub struct Entry {
     pub focused: bool,
     pub icon: Option<Arc<Image>>,
     pub raised: u64,
-    pub shown: bool,
     pub control: Control,
     pub origin: Origin,
     pub popups: Vec<Popup>,
@@ -80,7 +79,6 @@ pub struct Model {
     icons: HashMap<Handle, Option<Arc<Image>>>,
     program_ids: HashMap<Handle, Option<String>>,
     processes: HashMap<u32, Process>,
-    shown: HashSet<EntryId>,
     raised: HashMap<EntryId, u64>,
     foreground: Option<EntryId>,
     launches: Launches,
@@ -98,14 +96,6 @@ impl Model {
 
     pub fn snapshot(&self) -> Arc<Snapshot> {
         self.snapshot.clone()
-    }
-
-    pub fn show(&mut self, id: EntryId) {
-        self.shown.insert(id);
-    }
-
-    pub fn hide(&mut self, id: EntryId) {
-        self.shown.remove(&id);
     }
 
     pub fn launched(&mut self, launch: Launch) {
@@ -274,7 +264,6 @@ impl Model {
                 title: monitor.name.clone(),
                 frame: monitor.rect,
                 responding: true,
-                shown: self.shown.contains(&id),
                 ..Entry::default()
             });
         }
@@ -335,7 +324,6 @@ impl Model {
                 focused: focused == Some(id),
                 icon,
                 raised: self.raised.get(&id).copied().unwrap_or_default(),
-                shown: self.shown.contains(&id),
                 control: control(own_integrity, process.integrity),
                 origin,
                 popups: popups.remove(&id).unwrap_or_default(),
@@ -350,7 +338,6 @@ impl Model {
             .map(|entry| entry.id)
             .chain(self.known.values().map(|known| known.id))
             .collect();
-        self.shown.retain(|id| present.contains(id));
         self.raised.retain(|id, _| present.contains(id));
 
         let current = &self.snapshot;

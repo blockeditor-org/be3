@@ -37,8 +37,6 @@ const WM_CURSOR: u32 = WM_APP + 2;
 const TICK_MS: u32 = 1000;
 
 enum Request {
-    Show(EntryId),
-    Hide(EntryId),
     Launched(Launch),
     Focus(EntryId, Option<Point>, u64),
     Release,
@@ -108,14 +106,6 @@ impl Watcher {
 
     pub fn snapshot(&self) -> Arc<Snapshot> {
         self.shared.snapshot.lock().expect("snapshot lock").clone()
-    }
-
-    pub fn show(&self, id: EntryId) {
-        self.request(Request::Show(id));
-    }
-
-    pub fn hide(&self, id: EntryId) {
-        self.request(Request::Hide(id));
     }
 
     pub fn launched(&self, launch: Launch) {
@@ -279,8 +269,6 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
 impl State<'_> {
     fn handle(&mut self, request: Request) {
         match request {
-            Request::Show(id) => self.model.show(id),
-            Request::Hide(id) => self.model.hide(id),
             Request::Launched(launch) => self.model.launched(launch),
             Request::Focus(id, at, since) => {
                 let snapshot = self.model.snapshot();

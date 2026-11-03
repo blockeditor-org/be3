@@ -11,7 +11,7 @@ fn a_windows_status_names_it_and_gives_the_size_it_is_drawn_at() {
     let snapshot = snapshot(vec![entry.clone()]);
     let mut shaping = Shaping::default();
     shaping.observe(&snapshot);
-    let record = host_window(
+    let record = known_window(
         &snapshot,
         &entry,
         &shaping,

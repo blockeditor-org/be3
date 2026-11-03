@@ -1,4 +1,4 @@
-use be_sdk_api::HostWindow;
+use crate::known_window::KnownWindow;
 
 pub fn readable_id(program_id: &str) -> String {
     let id = program_id.trim();
@@ -50,11 +50,11 @@ pub fn label(name: &str, title: &str, program_id: &str) -> String {
     }
 }
 
-pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
+pub fn program_name(window: &KnownWindow, parent: Option<&KnownWindow>) -> String {
     let named =
-        |window: &HostWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
+        |window: &KnownWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
     let read =
-        |window: &HostWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
+        |window: &KnownWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
     named(window)
         .or_else(|| parent.and_then(named))
         .or_else(|| read(window))
@@ -62,7 +62,7 @@ pub fn program_name(window: &HostWindow, parent: Option<&HostWindow>) -> String 
         .unwrap_or_default()
 }
 
-pub fn window_name(window: &HostWindow, parent: Option<&HostWindow>) -> String {
+pub fn window_name(window: &KnownWindow, parent: Option<&KnownWindow>) -> String {
     label(
         &program_name(window, parent),
         &window.title,

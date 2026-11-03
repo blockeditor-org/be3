@@ -1,4 +1,6 @@
-use be_sdk_api::{HostWindow, MenuAsk, Picture};
+use be_sdk_api::{MenuAsk, Picture};
+
+use crate::known_window::KnownWindow;
 use beui::reactive::*;
 use beui::styled::theme::SCROLL_FADE;
 use beui::styled::*;
@@ -29,7 +31,7 @@ pub struct WindowStatus {
 }
 
 impl WindowStatus {
-    pub fn of(window: &HostWindow, parent: Option<&HostWindow>, drawn: Vec2) -> Self {
+    pub fn of(window: &KnownWindow, parent: Option<&KnownWindow>, drawn: Vec2) -> Self {
         let group = match window.program_id.trim() {
             "" => parent.map(|parent| parent.program_id.clone()),
             _ => None,
@@ -38,21 +40,14 @@ impl WindowStatus {
         Self {
             name: program_name(window, parent),
             title: window_name(window, parent),
-            icon: window.icon.as_ref().map(|icon| Picture {
-                width: icon.width,
-                height: icon.height,
-                rgba: icon.rgba.clone(),
-            }),
+            icon: window.icon.clone(),
             group,
             raised: window.raised,
             rung: window.rung,
             fullscreen: window.fullscreen.is_some(),
             responding: window.responding,
             notice: window.note.clone(),
-            menu: window.menu.map(|menu| MenuAsk {
-                asked: menu.asked,
-                at: beui::Pos2::ZERO + menu.at,
-            }),
+            menu: window.menu,
             size: window.size,
             drawn,
             min_size: window.min_size,

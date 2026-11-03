@@ -11,13 +11,15 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
         monitor("left", left, 1.0),
         monitor("right", right, 1.0),
     ]);
-    let fullscreen = HostWindow {
+    fixture.test.click_with("desktop.windows.1", be_sdk_beui::beui::PointerButton::Secondary);
+    fixture.settle();
+    fixture.test.click("desktop.windows.1.display.1");
+    fixture.settle();
+    let fullscreen = TestWindow {
         fullscreen: Some(right),
         ..host_window(1, true)
     };
-    fixture.test.set_watched::<WindowsWatch>(&vec![fullscreen]);
-    fixture.settle();
-    fixture.test.clear_calls();
+    fixture.show_windows(&vec![fullscreen]);
     assert!(
         right.contains_rect(fixture.test.rect_of("dock.fullscreen")),
         "the window fills the screen it is fullscreen on"
@@ -32,13 +34,9 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
 
     fixture.test.click("dock.away.leave");
     fixture.settle();
-    assert_eq!(
-        fixture.test.host_calls(be_sdk_test::requested::window),
-        [WindowAction::Fullscreen {
-            window: HostWindowId(1),
-            fullscreen: false
-        }],
-        "the button asks the host to take the window out of fullscreen"
+    assert!(
+        fixture.fullscreen_windows().is_empty(),
+        "the button takes the window out of full screen, which the host tells its program"
     );
     assert!(!fixture.test.shown("dock.fullscreen"));
     assert!(!fixture.test.shown("dock.away"));

@@ -8,7 +8,7 @@ fn super_backtick_switches_between_one_programs_windows() {
     fixture.show_windows(&[kate(1, false), foot(2), kate(3, false)]);
     fixture.show_windows(&[
         kate(1, false),
-        HostWindow {
+        TestWindow {
             focused: true,
             ..foot(2)
         },

@@ -21,7 +21,7 @@ struct SavedLayout {
     programs: Vec<SavedProgram>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SavedProgram {
     pub tab: u64,
     pub record: ProgramRecord,

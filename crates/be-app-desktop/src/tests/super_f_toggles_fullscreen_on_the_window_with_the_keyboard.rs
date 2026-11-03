@@ -1,15 +1,4 @@
-use be_sdk_beui::beui::{Pos2, Vec2};
-
 use super::*;
-
-fn fullscreen_asked(fixture: &Fixture) -> Vec<WindowAction> {
-    fixture
-        .test
-        .host_calls(be_sdk_test::requested::window)
-        .into_iter()
-        .filter(|action| matches!(action, WindowAction::Fullscreen { .. }))
-        .collect()
-}
 
 #[test]
 fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
@@ -20,34 +9,23 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
     );
     fixture.settle();
     assert_eq!(
-        fullscreen_asked(&fixture),
-        vec![WindowAction::Fullscreen {
-            window: HostWindowId(2),
-            fullscreen: true
-        }]
+        fixture.fullscreen_windows(),
+        vec![HostWindowId(2)],
+        "Super+F shows the window with the keyboard full screen"
     );
 
-    fixture.test.clear_calls();
-    let fullscreen = HostWindow {
+    let fullscreen = TestWindow {
         fullscreen: Some(Rect::from_min_size(
             Pos2::new(0.0, 0.0),
             Vec2::new(800.0, 600.0),
         )),
         ..host_window(2, true)
     };
-    fixture
-        .test
-        .set_watched::<WindowsWatch>(&vec![host_window(1, false), fullscreen]);
-    fixture.settle();
-    fixture.test.clear_calls();
+    fixture.show_windows(&[host_window(1, false), fullscreen]);
     assert!(fixture.test.host_key(Modifiers::LOGO, Key::F));
     fixture.settle();
-    assert_eq!(
-        fullscreen_asked(&fixture),
-        vec![WindowAction::Fullscreen {
-            window: HostWindowId(2),
-            fullscreen: false
-        }],
+    assert!(
+        fixture.fullscreen_windows().is_empty(),
         "a second Super+F takes it out again"
     );
 }
